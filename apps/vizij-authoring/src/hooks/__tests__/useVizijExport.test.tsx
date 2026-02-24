@@ -311,6 +311,59 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("skips null exportable bodies and exports with the first valid body", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const validBody = { traverse: vi.fn() };
+    const options = createOptions({
+      getExportableBodies: () => [null as unknown as object, validBody],
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedExportScene.mock.calls[0]?.[0]).toBe(validBody);
+    hook.unmount();
+  });
+
+  it("uses fallback export body when store export bodies are unavailable", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const fallbackBody = { traverse: vi.fn() };
+    const options = createOptions({
+      getExportableBodies: () => [],
+      fallbackExportBody: fallbackBody,
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedExportScene.mock.calls[0]?.[0]).toBe(fallbackBody);
+    hook.unmount();
+  });
+
   it("uses the current blend mode when exporting pose graphs", async () => {
     mockedPoseGraphService.buildSpec.mockReturnValue({
       spec: { nodes: [] } as GraphSpec,
@@ -603,6 +656,95 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("normalizes face id across bundle metadata, graph metadata, pose config, and pose IR", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "vizij", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }], faceId: "vizij" } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedPoseGraphService.buildSpec.mockReturnValue({
+      spec: { nodes: [{ id: "pose1", type: "output" }] } as GraphSpec,
+      summary: { inputs: [], outputs: [] },
+    });
+    mockedPoseGraphService.validate.mockReturnValue([]);
+
+    const options = createOptions({
+      faceId: null,
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "legacy_face",
+          neutralInputs: {},
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        poseIrDraft: {
+          version: 1,
+          faceId: "legacy_face",
+          groups: [],
+          poses: [],
+          neutral: {
+            mode: "explicit",
+            values: {},
+          },
+        },
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedPoseGraphService.buildSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        faceId: "vizij",
+      }),
+      Array.from(options.standardInputsById.values()),
+      expect.objectContaining({
+        defaultGroupBlendMode: "average",
+        crossGroupBlendMode: "additive",
+      }),
+    );
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedExportScene.mock.calls[0]?.[1]).toMatchObject({
+      bundle: {
+        metadata: {
+          faceId: "vizij",
+        },
+        graphs: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "rig",
+            id: "vizij",
+            metadata: expect.objectContaining({
+              faceId: "vizij",
+            }),
+          }),
+        ]),
+        poses: {
+          config: {
+            faceId: "vizij",
+          },
+          metadata: {
+            poseIr: {
+              faceId: "vizij",
+            },
+          },
+        },
+      },
+    });
+    hook.unmount();
+  });
+
   it("blocks export when pose graph is invalid", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
@@ -830,7 +972,7 @@ describe("useVizijExport", () => {
 
     expect(exportPoseIrData).toHaveBeenCalledTimes(1);
     expect(mockedDownloadJsonFile).toHaveBeenCalledWith(
-      { version: 1, nodes: [{ id: "pose_ir_1" }] },
+      { version: 1, nodes: [{ id: "pose_ir_1" }], faceId: "face" },
       "pose_ir_export.json",
     );
     hook.unmount();
@@ -851,7 +993,7 @@ describe("useVizijExport", () => {
     });
 
     expect(mockedDownloadJsonFile).toHaveBeenCalledWith(
-      { version: 1, nodes: [{ id: "draft_pose_ir" }] },
+      { version: 1, nodes: [{ id: "draft_pose_ir" }], faceId: "face" },
       "pose_ir_draft.json",
     );
     hook.unmount();

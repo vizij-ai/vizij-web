@@ -9,6 +9,7 @@ interface AppWizardsProps {
   showExportDialog: boolean;
   onCloseExportDialog: () => void;
   rootId: string | null;
+  exportSceneRoot: unknown;
   sourceName: string | null;
   loadedBundle: any;
   canExport: boolean;
@@ -22,6 +23,7 @@ export function AppWizards({
   showExportDialog,
   onCloseExportDialog,
   rootId,
+  exportSceneRoot,
   sourceName,
   loadedBundle,
   canExport,
@@ -60,6 +62,7 @@ export function AppWizards({
         open={showExportDialog}
         onClose={onCloseExportDialog}
         rootId={rootId ?? ""}
+        exportSceneRoot={exportSceneRoot}
         sourceName={sourceName ?? ""}
         loadedBundle={loadedBundle}
         canExport={canExport}

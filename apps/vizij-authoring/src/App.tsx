@@ -119,6 +119,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId,
     sourceName,
     isLoading,
+    exportSceneRoot,
     faceLoadSessionToken,
     faceLoadMilestones,
     faceLoadInFlightOperationCount,
@@ -327,7 +328,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       variablesPanelTabVisible,
     ],
   );
-  const variablesPanelVisible = visibleVariablesSurfaces.length > 0;
+  const inputControlSurfaces = useMemo(
+    () => visibleVariablesSurfaces.filter((surface) => surface === "inputs"),
+    [visibleVariablesSurfaces],
+  );
+  const controlAuthoringSurfaces = useMemo(
+    () => visibleVariablesSurfaces.filter((surface) => surface !== "inputs"),
+    [visibleVariablesSurfaces],
+  );
+  const inputControlsPanelVisible = inputControlSurfaces.length > 0;
+  const controlAuthoringPanelVisible = controlAuthoringSurfaces.length > 0;
   const {
     selectedId,
     selectedRigId,
@@ -338,6 +348,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     handleClearSelection,
   } = useUnifiedSelection();
   const selectedSceneId = selectedId;
+  const handleSelectPoseWithInspectorSync = useCallback(
+    (id: string) => {
+      if (id) {
+        setSelectedPoseGroup(null);
+      }
+      handleSelectPose(id);
+    },
+    [handleSelectPose],
+  );
+  const handleSelectPoseGroupWithInspectorSync = useCallback(
+    (selection: PoseGroupInspectorSelection | null) => {
+      if (selection) {
+        poseRig.selectPose("");
+      }
+      setSelectedPoseGroup(selection);
+    },
+    [poseRig],
+  );
 
   const sharedVariableSync = useSharedVariableSync({
     mainInputsById: mainFaceInputsById,
@@ -707,23 +735,38 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               referenceFaceFile={referenceFaceContextValue.file}
             />
           }
-          leftBottomVisible={variablesPanelVisible}
           leftBottomPanel={
             <VariablesPanel
               selectedRigId={selectedRigId}
               selectedPoseId={selectedPoseId}
               selectedSceneId={selectedSceneId}
               onSelectRig={handleSelectRig}
-              onSelectPose={handleSelectPose}
+              onSelectPose={handleSelectPoseWithInspectorSync}
               onSelectScene={handleSelectObject}
-              availableSurfaces={visibleVariablesSurfaces}
+              availableSurfaces={controlAuthoringSurfaces}
               selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
+              onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
+              panelTitle="Control Authoring"
+              panelDescription="Author and organize variables, poses, and pose groups."
             />
           }
           leftBottomVisible2={false}
           leftBottomVisible3={false}
-          leftMiddleVisible={false}
+          leftMiddleVisible={inputControlsPanelVisible}
+          leftMiddlePanel={
+            <VariablesPanel
+              selectedRigId={selectedRigId}
+              selectedPoseId={selectedPoseId}
+              selectedSceneId={selectedSceneId}
+              onSelectRig={handleSelectRig}
+              onSelectPose={handleSelectPoseWithInspectorSync}
+              onSelectScene={handleSelectObject}
+              availableSurfaces={inputControlSurfaces}
+              panelTitle="Input Controls"
+              panelDescription="Preview and adjust live rig and pose-weight inputs."
+            />
+          }
+          leftBottomVisible={controlAuthoringPanelVisible}
           // Center
           topPanel={
             <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
@@ -736,7 +779,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           rightTopPanel={
             <InspectorPanel
               selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={setSelectedPoseGroup}
+              onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
               hasReferenceFaceFile={Boolean(referenceFaceContextValue.file)}
             />
           }
@@ -756,6 +799,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         showExportDialog={showExportDialog}
         onCloseExportDialog={() => setShowExportDialog(false)}
         rootId={rootId}
+        exportSceneRoot={exportSceneRoot}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
         canExport={canExport}

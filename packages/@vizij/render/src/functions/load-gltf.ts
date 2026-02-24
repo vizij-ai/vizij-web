@@ -115,6 +115,7 @@ export type LoadedVizijAsset = {
   animatables: Record<string, AnimatableValue>;
   bundle: VizijBundleExtension | null;
   animations: VizijAnimationClipData[];
+  scene: Group;
 };
 
 function parseScene(
@@ -148,7 +149,7 @@ function parseScene(
   // } else {
   //   console.info("[vizij-render] No bundle extracted during GLTF load.");
   // }
-  return { world, animatables, bundle, animations };
+  return { world, animatables, bundle, animations, scene };
 }
 
 export async function loadGLTFWithBundle(

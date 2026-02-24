@@ -34,6 +34,7 @@ interface ExportDialogProps {
   open: boolean;
   onClose: () => void;
   rootId: string | null;
+  exportSceneRoot: unknown;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
   canExport: boolean;
@@ -44,6 +45,7 @@ export function ExportDialog({
   open,
   onClose,
   rootId,
+  exportSceneRoot,
   sourceName,
   loadedBundle,
   canExport,
@@ -137,6 +139,7 @@ export function ExportDialog({
     collectAnimatableExportState,
     setStoreState,
     getExportableBodies,
+    fallbackExportBody: exportSceneRoot,
     alertDialog: showAlert,
     poseRig: {
       poseGraphSpec: poseRig.poseGraphSpec,

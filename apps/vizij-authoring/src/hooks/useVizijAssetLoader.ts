@@ -318,6 +318,7 @@ export function useVizijAssetLoader() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<VizijBundleExtension | null>(null);
+  const [exportSceneRoot, setExportSceneRoot] = useState<unknown>(null);
   const [faceLoadProgress, setFaceLoadProgress] = useState(0);
   const [faceLoadSteps, setFaceLoadSteps] = useState<FaceLoadStep[]>(
     createDefaultFaceLoadSteps,
@@ -366,19 +367,17 @@ export function useVizijAssetLoader() {
   >(new Map());
 
   const logFaceLoadEvent = useCallback(
-    (event: string, payload?: Record<string, unknown>) => {
+    (_event: string, _payload?: Record<string, unknown>) => {
       if (!__DEV__) {
         return;
       }
-      const startedAt = faceLoadSessionStartedAtRef.current;
-      const elapsedMs =
-        typeof startedAt === "number" ? Math.max(0, nowMs() - startedAt) : null;
-      console.log("[face-load]", {
-        event,
-        sessionToken: faceLoadSessionTokenRef.current,
-        elapsedMs,
-        ...(payload ?? {}),
-      });
+      // Keep lightweight instrumentation hook for local diagnostics.
+      // console.log("[face-load]", {
+      //   event,
+      //   sessionToken: faceLoadSessionTokenRef.current,
+      //   elapsedMs,
+      //   ...(payload ?? {}),
+      // });
     },
     [],
   );
@@ -797,6 +796,7 @@ export function useVizijAssetLoader() {
           world: worldData,
           animatables,
           bundle: loadedBundle,
+          scene,
         } = await loader();
         await waitForNextFrame();
 
@@ -912,6 +912,7 @@ export function useVizijAssetLoader() {
         setRootId(nextRootId);
         setSourceName(label);
         setBundle(loadedBundle ?? null);
+        setExportSceneRoot(scene ?? null);
         await waitForNextFrame();
 
         setFaceLoadSteps((previous) =>
@@ -936,6 +937,7 @@ export function useVizijAssetLoader() {
         setError(message);
         console.error("demo-vizij-render: failed to load Vizij", err);
         setBundle(null);
+        setExportSceneRoot(null);
         markImportFlowError(activeStepId);
       } finally {
         setIsLoading(false);
@@ -978,6 +980,7 @@ export function useVizijAssetLoader() {
     setAssetUrl("");
     setError(null);
     setBundle(null);
+    setExportSceneRoot(null);
     setFaceLoadProgress(0);
     setFaceLoadSteps(createDefaultFaceLoadSteps());
     setIsImportFlowActive(false);
@@ -1047,6 +1050,7 @@ export function useVizijAssetLoader() {
     loadFromFile,
     loadFromUrl,
     bundle,
+    exportSceneRoot,
     updateBundle,
   };
 }

@@ -11,7 +11,32 @@ export type ExportSceneOptions = {
   bundle?: VizijBundleExtension | null;
   animations?: AnimationClip[];
   binary?: boolean;
+  onError?: (error: Error) => void;
+  onComplete?: () => void;
 };
+
+function normalizeExportError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === "string") {
+    return new Error(error);
+  }
+  return new Error("Failed to export scene.");
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  // Delay revocation so browsers finish resolving the download URL.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 export function exportScene(
   data: Group,
@@ -62,31 +87,33 @@ export function exportScene(
       (gltf) => {
         detachBundle();
         if (!(gltf instanceof ArrayBuffer)) {
-          throw new Error("Failed to export scene!");
+          const error = new Error("Failed to export scene.");
+          options.onError?.(error);
+          return;
         }
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(
-          new Blob([gltf], {
-            type: "application/octet-stream",
-          }),
-        );
         const trimmed = fileName.trim();
         const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";
         const downloadName = safeFileName.toLowerCase().endsWith(".glb")
           ? safeFileName
           : `${safeFileName}.glb`;
-        link.download = downloadName;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        triggerBlobDownload(
+          new Blob([gltf], {
+            type: "application/octet-stream",
+          }),
+          downloadName,
+        );
+        options.onComplete?.();
       },
-      () => {
+      (error) => {
         detachBundle();
-        // alert("Failed to export scene!");
+        options.onError?.(normalizeExportError(error));
       },
       exporterOptions,
     );
   } catch (error) {
     detachBundle();
-    throw error;
+    const normalizedError = normalizeExportError(error);
+    options.onError?.(normalizedError);
+    throw normalizedError;
   }
 }

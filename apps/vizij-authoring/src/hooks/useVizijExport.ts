@@ -59,6 +59,12 @@ type TraversableBody = {
   traverse: (callback: (object: Record<string, any>) => void) => void;
 };
 
+function isTraversableBody(value: unknown): value is TraversableBody {
+  return (
+    Boolean(value) && typeof (value as TraversableBody).traverse === "function"
+  );
+}
+
 interface UseVizijExportOptions {
   faceId: string | null;
   graphFileName: string;
@@ -83,6 +89,7 @@ interface UseVizijExportOptions {
   collectAnimatableExportState: () => CollectAnimatableExportStateResult;
   setStoreState: (updater: (state: VizijData) => VizijData) => void;
   getExportableBodies: (rootIds?: string[]) => unknown[];
+  fallbackExportBody?: unknown;
   alertDialog: (message: string) => Promise<void> | void;
   poseRig: PoseRigExportState;
 }
@@ -102,6 +109,24 @@ interface VizijExportHandlers {
 
 const POSE_IR_SUPPORT_HINT =
   "Pose IR hooks unavailable. Expected core poseRig hooks: exportPoseIrData() and importPoseIr(file).";
+
+function resolveExportFaceId(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : faceSlug(value);
+}
+
+function withPoseConfigFaceId(
+  config: PoseRigConfigFile,
+  faceId: string,
+): PoseRigConfigFile {
+  if (config.faceId === faceId) {
+    return config;
+  }
+  return {
+    ...config,
+    faceId,
+  };
+}
 
 function isPoseRigIrFile(value: unknown): value is PoseRigIrFile {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -181,15 +206,17 @@ export function useVizijExport(
     collectAnimatableExportState,
     setStoreState,
     getExportableBodies,
+    fallbackExportBody,
     alertDialog,
     poseRig,
   } = options;
 
   const exportGraph = useCallback(() => {
-    const slug = faceSlug(faceId);
+    const exportFaceId = resolveExportFaceId(faceId);
+    const slug = faceSlug(exportFaceId);
     const animatablesForExport = Object.fromEntries(
       Object.entries(animatables).map(([id, anim]) => {
-        const lookup = getLookup(faceId ?? slug, id);
+        const lookup = getLookup(exportFaceId, id);
         const override = values.get(lookup);
         if (override === undefined) {
           return [id, anim];
@@ -209,10 +236,9 @@ export function useVizijExport(
       "json",
     );
     const base = normalizedName.replace(/\.json$/i, "");
-    const resolvedFaceId = faceId ?? slug;
 
     const graphResult = buildRigGraphSpec({
-      faceId: resolvedFaceId,
+      faceId: exportFaceId,
       animatables: animatablesForExport,
       components: animatableComponents,
       bindings,
@@ -229,18 +255,20 @@ export function useVizijExport(
       downloadJsonFile(irPayload, `${base}.ir.json`);
     }
   }, [
+    animatables,
     animatableComponents,
     bindings,
-    collectAnimatableExportState,
     faceId,
     graphFileName,
     inputBindings,
     standardInputsById,
     standardInputMetadataById,
+    values,
   ]);
 
   const exportGlb = useCallback(async () => {
-    const slug = faceSlug(faceId);
+    const exportFaceId = resolveExportFaceId(faceId);
+    const slug = faceSlug(exportFaceId);
     const downloadName = ensureExtension(
       exportFileName,
       `${slug}_vizij`,
@@ -252,7 +280,7 @@ export function useVizijExport(
     const { effectiveAnimatables } = collectAnimatableExportState();
     const animatablesForExport = Object.fromEntries(
       Object.entries(effectiveAnimatables).map(([id, anim]) => {
-        const lookup = getLookup(faceId ?? slug, id);
+        const lookup = getLookup(exportFaceId, id);
         const override = values.get(lookup);
         if (override === undefined) {
           return [id, anim];
@@ -283,23 +311,54 @@ export function useVizijExport(
     try {
       await waitForNextFrame();
 
-      const bodies = getExportableBodies(rootId ? [rootId] : undefined);
-      if (!bodies.length) {
+      const resolveExportableBodies = (filterIds?: string[]) =>
+        getExportableBodies(filterIds).filter(
+          (body): body is Parameters<typeof exportScene>[0] & TraversableBody =>
+            isTraversableBody(body),
+        );
+
+      let exportableBodies = resolveExportableBodies(
+        rootId ? [rootId] : undefined,
+      );
+      if (!exportableBodies.length && rootId) {
+        exportableBodies = resolveExportableBodies();
+      }
+      for (
+        let attempt = 0;
+        attempt < 12 && !exportableBodies.length;
+        attempt += 1
+      ) {
+        await waitForNextFrame();
+        exportableBodies = resolveExportableBodies(
+          rootId ? [rootId] : undefined,
+        );
+        if (!exportableBodies.length && rootId) {
+          exportableBodies = resolveExportableBodies();
+        }
+      }
+      if (!exportableBodies.length && isTraversableBody(fallbackExportBody)) {
+        exportableBodies = [
+          fallbackExportBody as Parameters<typeof exportScene>[0] &
+            TraversableBody,
+        ];
+      }
+      if (!exportableBodies.length) {
         await alertDialog("Load a Vizij asset before exporting.");
         return;
       }
 
-      const primaryBody = bodies[0] as Parameters<typeof exportScene>[0];
-      const traversableBodies = bodies as TraversableBody[];
       applyDefaultsToRobotData(
-        traversableBodies,
+        exportableBodies,
         animatablesForExport,
         featureLabelOverrides,
       );
 
       const standardInputs = Array.from(standardInputsById.values());
       let poseGraphSpecForExport = poseRig.poseGraphSpec;
-      const poseConfigForExport = resolvePoseConfigFromIr(poseRig);
+      const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+      const poseConfigForExport = poseConfigFromIr
+        ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
+        : null;
       if (poseConfigForExport) {
         try {
           const { spec } = PoseGraphService.buildSpec(
@@ -324,7 +383,7 @@ export function useVizijExport(
       const bundle = buildVizijBundle({
         includeVizijBundle,
         includeImportedAnimations,
-        faceId,
+        faceId: exportFaceId,
         sourceName,
         loadedBundle,
         poseRig,
@@ -385,13 +444,21 @@ export function useVizijExport(
       }
 
       exportScene(
-        primaryBody,
+        exportableBodies[0],
         bundle
           ? {
               fileName: downloadName,
               bundle,
+              onError: (error: Error) => {
+                void alertDialog(`GLB export failed: ${error.message}`);
+              },
             }
-          : { fileName: downloadName },
+          : {
+              fileName: downloadName,
+              onError: (error: Error) => {
+                void alertDialog(`GLB export failed: ${error.message}`);
+              },
+            },
       );
     } finally {
       restoreOverrides();
@@ -405,6 +472,7 @@ export function useVizijExport(
     exportFileName,
     faceId,
     featureLabelOverrides,
+    fallbackExportBody,
     getExportableBodies,
     includeImportedAnimations,
     includeVizijBundle,
@@ -420,7 +488,11 @@ export function useVizijExport(
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {
-    const poseConfigForExport = resolvePoseConfigFromIr(poseRig);
+    const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+    const exportFaceId = resolveExportFaceId(faceId);
+    const poseConfigForExport = poseConfigFromIr
+      ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
+      : null;
     if (!poseConfigForExport) {
       await alertDialog(
         "Capture a neutral pose or add pose data before exporting.",
@@ -438,7 +510,7 @@ export function useVizijExport(
         await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
         return;
       }
-      const slug = faceSlug(faceId);
+      const slug = faceSlug(exportFaceId);
       const fileName = ensureExtension(
         poseRig.poseGraphFileName,
         `${slug}_pose_graph`,
@@ -462,14 +534,18 @@ export function useVizijExport(
   ]);
 
   const exportPoseConfigFile = useCallback(async () => {
-    const config = resolvePoseConfigFromIr(poseRig);
+    const configFromIr = resolvePoseConfigFromIr(poseRig);
+    const exportFaceId = resolveExportFaceId(faceId);
+    const config = configFromIr
+      ? withPoseConfigFaceId(configFromIr, exportFaceId)
+      : null;
     if (!config) {
       await alertDialog(
         "Capture a neutral pose or add pose data before exporting.",
       );
       return;
     }
-    const slug = faceSlug(faceId);
+    const slug = faceSlug(exportFaceId);
     const fileName = ensureExtension(
       poseRig.poseConfigFileName,
       `${slug}_pose_config`,
@@ -528,13 +604,23 @@ export function useVizijExport(
       return;
     }
 
-    const slug = faceSlug(faceId);
+    const exportFaceId = resolveExportFaceId(faceId);
+    const slug = faceSlug(exportFaceId);
     const fileName = ensureExtension(
       poseRig.poseIrFileName ?? "",
       `${slug}_pose_ir`,
       "json",
     );
-    downloadJsonFile(cloneSerializable(poseIrPayload), fileName);
+    const payloadWithFaceId =
+      poseIrPayload && typeof poseIrPayload === "object"
+        ? {
+            ...(cloneSerializable(
+              poseIrPayload as Record<string, unknown>,
+            ) as Record<string, unknown>),
+            faceId: exportFaceId,
+          }
+        : poseIrPayload;
+    downloadJsonFile(cloneSerializable(payloadWithFaceId), fileName);
   }, [
     alertDialog,
     faceId,
@@ -581,7 +667,7 @@ export function useVizijExport(
 interface BuildVizijBundleOptions {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
-  faceId: string | null;
+  faceId: string;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
   poseRig: PoseRigExportState;
@@ -598,14 +684,19 @@ interface BuildVizijBundleOptions {
   poseGraphSpecForExport?: GraphSpec | null;
 }
 
-function clonePoseIrForBundle(value: unknown): Record<string, unknown> | null {
+function clonePoseIrForBundle(
+  value: unknown,
+  faceId: string,
+): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
-  return cloneSerializable(value as Record<string, unknown>) as Record<
+  const cloned = cloneSerializable(value as Record<string, unknown>) as Record<
     string,
     unknown
   >;
+  cloned.faceId = faceId;
+  return cloned;
 }
 
 function buildVizijBundle(
@@ -628,10 +719,12 @@ function buildVizijBundle(
     featureLabelOverrides,
     inputMetadata,
   } = options;
+  const exportFaceId = resolveExportFaceId(faceId);
+  const exportFaceSlug = faceSlug(exportFaceId);
 
   const exportTimestamp = new Date().toISOString();
   const rigGraphResult = buildRigGraphSpec({
-    faceId: faceId ?? faceSlug(faceId),
+    faceId: exportFaceId,
     animatables: animatablesForExport,
     components: animatableComponents,
     bindings,
@@ -647,19 +740,18 @@ function buildVizijBundle(
       >)
     : undefined;
   const rigSpec = cloneSerializable(rigGraphResult.spec);
-  const slug = faceSlug(faceId);
   const poseGraphSpec = options.poseGraphSpecForExport ?? poseRig.poseGraphSpec;
 
   const graphs: BundleGraphWithIr[] = [
     {
-      id: rigGraphResult.summary.faceId ?? slug,
+      id: exportFaceId,
       kind: "rig",
-      label: `${slug} rig`,
+      label: `${exportFaceSlug} rig`,
       spec: rigSpec,
       ir: rigIrGraph ?? null,
       metadata: {
         exportedAt: exportTimestamp,
-        faceId: faceId ?? undefined,
+        faceId: exportFaceId,
         featureLabelOverrides:
           featureLabelOverrides && Object.keys(featureLabelOverrides).length > 0
             ? featureLabelOverrides
@@ -674,22 +766,28 @@ function buildVizijBundle(
 
   if (poseGraphSpec) {
     graphs.push({
-      id: poseRig.poseGraphFileName || `${slug}_pose_graph`,
+      id: poseRig.poseGraphFileName || `${exportFaceSlug}_pose_graph`,
       kind: "pose-driver",
       label: poseRig.poseGraphFileName || "pose graph",
       spec: cloneSerializable(poseGraphSpec) as unknown as Record<
         string,
         unknown
       >,
-      metadata: { exportedAt: exportTimestamp },
+      metadata: { exportedAt: exportTimestamp, faceId: exportFaceId },
     });
   }
 
-  const poseConfigForBundle = resolvePoseConfigFromIr(poseRig);
+  const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+  const poseConfigForBundle = poseConfigFromIr
+    ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
+    : null;
   const poseConfig: VizijPoseRigConfig | null = poseConfigForBundle
     ? (cloneSerializable(poseConfigForBundle) as unknown as VizijPoseRigConfig)
     : null;
-  const poseIrForBundle = clonePoseIrForBundle(poseRig.poseIrDraft);
+  const poseIrForBundle = clonePoseIrForBundle(
+    poseRig.poseIrDraft,
+    exportFaceId,
+  );
   const poseDiagnostics = cloneSerializable(
     poseRig.poseDiagnostics ?? [],
   ) as PoseDiagnostic[];
@@ -709,7 +807,7 @@ function buildVizijBundle(
       : [];
 
   const bundleMetadata: Record<string, unknown> = {
-    faceId: faceId ?? null,
+    faceId: exportFaceId,
     source: sourceName ?? null,
     exporter: "vizij-authoring",
   };

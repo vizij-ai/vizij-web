@@ -729,6 +729,8 @@ interface VariablesPanelProps {
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
   activeSurfaceOverride?: SurfaceTab;
   availableSurfaces?: SurfaceTab[];
+  panelTitle?: string;
+  panelDescription?: string;
 }
 
 export function VariablesPanel({
@@ -743,6 +745,8 @@ export function VariablesPanel({
   onSelectPoseGroup,
   activeSurfaceOverride,
   availableSurfaces,
+  panelTitle = "Control Elements",
+  panelDescription = "Author and organize variables, poses, pose groups, and inputs.",
 }: VariablesPanelProps) {
   const {
     poses,
@@ -2235,10 +2239,8 @@ export function VariablesPanel({
 
   return (
     <Panel
-      title="Control Elements"
-      description={
-        "Author and organize variables, poses, pose groups, and inputs."
-      }
+      title={panelTitle}
+      description={panelDescription}
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
       badge={`${totalCount}`}

@@ -113,30 +113,21 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   },
   getExportableBodies: (filterIds?: string[]) => {
     const worldData = get().world as World;
-    if (!filterIds) {
-      const bodies = Object.values(worldData)
-        .filter((entry) => entry.type === "group" && entry.rootBounds)
-        .map((entry) => {
-          const firstNs = Object.keys(entry.refs)[0];
-          const refGroup = entry.refs[firstNs].current!;
-          return refGroup as unknown as Group;
-        });
-      return bodies;
-    } else {
-      const bodies = Object.values(worldData)
-        .filter(
-          (entry) =>
-            entry.type === "group" &&
-            entry.rootBounds &&
-            filterIds.includes(entry.id),
-        )
-        .map((entry) => {
-          const firstNs = Object.keys(entry.refs)[0];
-          const refGroup = entry.refs[firstNs].current!;
-          return refGroup as unknown as Group;
-        });
-      return bodies;
-    }
+    return Object.values(worldData)
+      .filter(
+        (entry) =>
+          entry.type === "group" &&
+          entry.rootBounds &&
+          (!filterIds || filterIds.includes(entry.id)),
+      )
+      .flatMap((entry) => {
+        const groupEntry = entry as World[string] & {
+          refs?: Record<string, { current?: Group | null }>;
+        };
+        const refs = Object.values(groupEntry.refs ?? {});
+        const resolved = refs.find((ref) => ref?.current)?.current ?? null;
+        return resolved ? [resolved] : [];
+      });
   },
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => {
     set(

@@ -254,7 +254,7 @@ export function InspectorPanel({
         <div className="flex-1 min-h-0">
           <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
         </div>
-        {selectedPoseGroup && (
+        {selectedPoseGroup && !selectedPoseId && (
           <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[42%] overflow-y-auto custom-scrollbar">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -367,6 +367,7 @@ export function InspectorPanel({
                             size="sm"
                             className="h-6 px-2 text-[10px]"
                             onClick={() => {
+                              onSelectPoseGroup?.(null);
                               selectPose(pose.id);
                               handlePoseGroupSolo(pose.id);
                             }}

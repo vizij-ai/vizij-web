@@ -1227,10 +1227,16 @@ export function useRigController(
     return map;
   }, [faceSegment, standardInputs]);
 
-  const validOutputTargets = useMemo(
-    () => new Set<string>(rigOutputLookup.keys()),
-    [rigOutputLookup],
-  );
+  const validOutputTargets = useMemo(() => {
+    const targets = new Set<string>(rigOutputLookup.keys());
+    Object.keys(animatables).forEach((animatableId) => {
+      const normalized = normalizeGraphPath(animatableId);
+      if (normalized) {
+        targets.add(normalized);
+      }
+    });
+    return targets;
+  }, [animatables, rigOutputLookup]);
 
   const sceneGraph = useMemo(
     () =>
