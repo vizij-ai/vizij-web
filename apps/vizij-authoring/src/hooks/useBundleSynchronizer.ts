@@ -51,6 +51,8 @@ export function useBundleSynchronizer({
   const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightPoseFingerprintsRef = useRef<Set<string>>(new Set());
+  const objectIdentityMapRef = useRef<WeakMap<object, number>>(new WeakMap());
+  const nextObjectIdentityRef = useRef(1);
   const importedFaceIdByFingerprintRef = useRef<Map<string, string | null>>(
     new Map(),
   );
@@ -85,23 +87,54 @@ export function useBundleSynchronizer({
 
       await waitForNextFrame();
 
-      const fingerprintPayload = {
-        version: loadedBundle.version,
-        graphs: loadedBundle.graphs ?? [],
-        poses: loadedBundle.poses?.config ?? null,
-      };
-      const fingerprint = JSON.stringify(fingerprintPayload);
-      onPhaseChange?.({
-        stepId: "bundle-sync",
-        status: "active",
-      });
-
       const bundleGraphs = loadedBundle.graphs as
         | BundleGraphWithIr[]
         | undefined;
       const rigEntry =
         bundleGraphs?.find((entry) => entry.kind?.toLowerCase?.() === "rig") ??
         bundleGraphs?.[0];
+      const getObjectIdentity = (value: unknown): string => {
+        if (value === null || value === undefined) {
+          return "null";
+        }
+        const valueType = typeof value;
+        if (valueType !== "object" && valueType !== "function") {
+          return `${valueType}:${String(value)}`;
+        }
+        const objectValue = value as object;
+        const cached = objectIdentityMapRef.current.get(objectValue);
+        if (typeof cached === "number") {
+          return `ref:${cached}`;
+        }
+        const nextId = nextObjectIdentityRef.current;
+        nextObjectIdentityRef.current += 1;
+        objectIdentityMapRef.current.set(objectValue, nextId);
+        return `ref:${nextId}`;
+      };
+      const graphsSignature = Array.isArray(bundleGraphs)
+        ? bundleGraphs
+            .map((entry, index) =>
+              [
+                String(index),
+                entry.kind ?? "",
+                getObjectIdentity(entry.spec),
+                getObjectIdentity(entry.ir),
+              ].join(":"),
+            )
+            .join("|")
+        : "none";
+      const poseConfigSignature = getObjectIdentity(loadedBundle.poses?.config);
+      const fingerprint = [
+        rootId,
+        loadedBundle.version ?? "",
+        graphsSignature,
+        poseConfigSignature,
+      ].join("::");
+
+      onPhaseChange?.({
+        stepId: "bundle-sync",
+        status: "active",
+      });
 
       let importedFaceIdFromRig =
         importedFaceIdByFingerprintRef.current.get(fingerprint) ?? null;
