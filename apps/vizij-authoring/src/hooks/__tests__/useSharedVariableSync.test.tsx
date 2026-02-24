@@ -189,4 +189,32 @@ describe("useSharedVariableSync", () => {
       expect(metrics.pairEvaluations).toBe(1);
     });
   });
+
+  it("keeps hook result identity stable when dependencies are unchanged", () => {
+    const mainInput = makeInput("main_jaw", "/standard/jaw/open");
+    const referenceInput = makeInput("ref_jaw", "/standard/jaw/open");
+    const mainInputsById = new Map([[mainInput.id, mainInput]]);
+    const referenceInputs = [referenceInput];
+    const mainInputValues = { [mainInput.id]: 0.25 };
+    const referenceInputValues = { [referenceInput.id]: 0.25 };
+    const onMainInputValueChange = vi.fn();
+    const onReferenceInputValueChange = vi.fn();
+
+    const { result, rerender } = renderHook(() =>
+      useSharedVariableSync({
+        initialPolicy: "bidirectional",
+        mainInputsById,
+        mainInputValues,
+        referenceInputs,
+        referenceInputValues,
+        onMainInputValueChange,
+        onReferenceInputValueChange,
+      }),
+    );
+
+    const initial = result.current;
+    rerender();
+
+    expect(result.current).toBe(initial);
+  });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   Panel as ResizablePanel,
   Group as PanelGroup,
@@ -206,11 +206,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
-  useGraphRuntime((state) => state.graphSpec);
-  useGraphRuntime((state) => state.poseGraphSpec);
-  useGraphRuntime((state) => state.poseConfig);
-  useGraphRuntime((state) => state.discrepancyReview);
-  useGraphRuntime((state) => state.resolveDiscrepancyReview);
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
 
@@ -387,12 +382,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     />
   );
 
-  const runtimeBundle = buildRuntimeBaseBundle({
-    namespace: DEFAULT_NAMESPACE,
-    world: runtimeWorld ?? null,
-    animatables: runtimeAnimatables ?? null,
-    loadedBundle: loadedBundle ?? null,
-  });
+  const runtimeBundle = useMemo(
+    () =>
+      buildRuntimeBaseBundle({
+        namespace: DEFAULT_NAMESPACE,
+        world: runtimeWorld ?? null,
+        animatables: runtimeAnimatables ?? null,
+        loadedBundle: loadedBundle ?? null,
+      }),
+    [loadedBundle, runtimeAnimatables, runtimeWorld],
+  );
 
   const runtimeInputReady =
     typeof stageRuntimeInput === "function" && graphStatus === "ready";

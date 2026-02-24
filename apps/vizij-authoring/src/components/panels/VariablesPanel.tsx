@@ -1141,10 +1141,9 @@ export function VariablesPanel({
     }
     const referenceByPath = new Map<string, StandardRigInput>();
     referenceRigEntries.forEach((entry) => {
-      const normalized = entry.normalizedPath
-        ? normalizeStandardRigInputPath(entry.normalizedPath)
-        : normalizeStandardRigInputPath(entry.input.path);
-      referenceByPath.set(normalized, entry.input);
+      const normalizedPath =
+        entry.normalizedPath ?? normalizeStandardRigInputPath(entry.input.path);
+      referenceByPath.set(normalizedPath, entry.input);
     });
     const entries: RigNodeData[] = [];
     mainFaceRigEntries.forEach((entry) => {
@@ -1394,9 +1393,9 @@ export function VariablesPanel({
       }
       return referenceEntry.linkedMainInputId;
     }
-    const normalizedPath = referenceEntry.normalizedPath
-      ? normalizeStandardRigInputPath(referenceEntry.normalizedPath)
-      : normalizeStandardRigInputPath(referenceEntry.input.path);
+    const normalizedPath =
+      referenceEntry.normalizedPath ??
+      normalizeStandardRigInputPath(referenceEntry.input.path);
     const existing = standardInputsByPath.get(normalizedPath);
     if (existing) {
       if (select) {
@@ -1451,10 +1450,10 @@ export function VariablesPanel({
         showChildren: true,
       };
       sharedRigEntries.forEach((entry) => {
-        const normalized = entry.normalizedPath
-          ? normalizeStandardRigInputPath(entry.normalizedPath)
-          : normalizeStandardRigInputPath(entry.input.path);
-        const pathParts = normalized.split("/").filter(Boolean);
+        const normalizedPath =
+          entry.normalizedPath ??
+          normalizeStandardRigInputPath(entry.input.path);
+        const pathParts = normalizedPath.split("/").filter(Boolean);
         let current = sharedRoot;
         for (const part of pathParts) {
           current = getOrCreateChild(current, part, part);
@@ -1531,9 +1530,9 @@ export function VariablesPanel({
             return;
           }
           const input = entry.input;
-          const pathParts = input.path
-            ? input.path.split("/").filter(Boolean)
-            : [];
+          const normalizedPath =
+            entry.normalizedPath ?? normalizeStandardRigInputPath(input.path);
+          const pathParts = normalizedPath.split("/").filter(Boolean);
           let current = refFaceRoot;
           for (const part of pathParts) {
             current = getOrCreateChild(current, part, part);

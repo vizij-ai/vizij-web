@@ -433,17 +433,32 @@ export function useSharedVariableSync({
     );
   }, [conflictsByPathState]);
 
-  return {
-    policy,
-    setPolicy,
-    links,
-    linksByPath,
-    linksByMainInputId,
-    linksByReferenceInputId,
-    outOfSyncCount,
-    conflicts,
-    conflictsByPath,
-    resolveConflict,
-    dismissConflict,
-  };
+  return useMemo(
+    () => ({
+      policy,
+      setPolicy,
+      links,
+      linksByPath,
+      linksByMainInputId,
+      linksByReferenceInputId,
+      outOfSyncCount,
+      conflicts,
+      conflictsByPath,
+      resolveConflict,
+      dismissConflict,
+    }),
+    [
+      conflicts,
+      conflictsByPath,
+      dismissConflict,
+      links,
+      linksByMainInputId,
+      linksByPath,
+      linksByReferenceInputId,
+      outOfSyncCount,
+      policy,
+      resolveConflict,
+      setPolicy,
+    ],
+  );
 }

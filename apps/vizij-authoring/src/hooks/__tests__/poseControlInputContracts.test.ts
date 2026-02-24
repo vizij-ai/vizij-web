@@ -39,4 +39,9 @@ describe("pose control input guard contracts", () => {
       "buildFallbackGraphPath(faceId, input)",
     );
   });
+
+  it("deduplicates runtime staging writes for unchanged graph-path values", () => {
+    expect(useRigControllerTs).toContain("stagedRuntimeInputValuesRef");
+    expect(useRigControllerTs).toContain("Object.is(previous, value)");
+  });
 });

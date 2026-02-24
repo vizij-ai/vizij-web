@@ -116,6 +116,27 @@ describe("PoseRigStore", () => {
     expect(store.getState().currentValues).toEqual({ a: 1, b: 2 });
   });
 
+  it("does not notify subscribers for no-op pose updates", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPose("Smile");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+    if (!poseId) {
+      return;
+    }
+
+    let notifications = 0;
+    const unsubscribe = store.subscribe(() => {
+      notifications += 1;
+    });
+
+    store.getState().updatePose(poseId, (pose) => pose);
+    unsubscribe();
+
+    expect(notifications).toBe(0);
+  });
+
   it("captures pose", () => {
     const store = createPoseRigStore();
     store.getState().createPose("P1");

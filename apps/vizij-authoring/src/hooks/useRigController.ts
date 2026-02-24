@@ -485,6 +485,7 @@ export function useRigController(
     Map<string, RuntimeInputRoute>
   >(new Map());
   const runtimeInputGraphPathLookupRef = useRef<Map<string, string>>(new Map());
+  const stagedRuntimeInputValuesRef = useRef<Map<string, number>>(new Map());
   const runtimeInputIdResolutionCacheRef = useRef<{
     sourceMap: Map<string, StandardRigInput> | null;
     cache: Map<string, string>;
@@ -1468,13 +1469,21 @@ export function useRigController(
       return;
     }
     const stageRuntimeInput = getStageRuntimeInput();
+    if (!stageRuntimeInput) {
+      return;
+    }
     routesByCanonicalId.forEach((route, canonicalInputId) => {
       const stored = inputValuesRef.current[canonicalInputId];
       const value =
         typeof stored === "number" && Number.isFinite(stored)
           ? stored
           : route.defaultValue;
-      stageRuntimeInput?.(route.graphPath, value);
+      const previous = stagedRuntimeInputValuesRef.current.get(route.graphPath);
+      if (previous !== undefined && Object.is(previous, value)) {
+        return;
+      }
+      stageRuntimeInput(route.graphPath, value);
+      stagedRuntimeInputValuesRef.current.set(route.graphPath, value);
     });
   }, [getStageRuntimeInput, graphError, graphStatus]);
 
@@ -1684,8 +1693,16 @@ export function useRigController(
         }
         return;
       }
+      const previous = stagedRuntimeInputValuesRef.current.get(graphPath);
+      if (previous !== undefined && Object.is(previous, value)) {
+        return;
+      }
       const stageRuntimeInput = getStageRuntimeInput();
-      stageRuntimeInput?.(graphPath, value);
+      if (!stageRuntimeInput) {
+        return;
+      }
+      stageRuntimeInput(graphPath, value);
+      stagedRuntimeInputValuesRef.current.set(graphPath, value);
     },
     [getStageRuntimeInput, graphError, graphStatus, resolveRuntimeInputId],
   );
@@ -2156,6 +2173,7 @@ export function useRigController(
     if (graphStatus !== "ready" || !summary) {
       runtimeInputRoutesByCanonicalIdRef.current = new Map();
       runtimeInputGraphPathLookupRef.current = new Map();
+      stagedRuntimeInputValuesRef.current = new Map();
       setGraphInputDefaults({});
       setRuntimeInputMapRevision((previous) => previous + 1);
       resetDrivenAnimatables();
@@ -2287,6 +2305,10 @@ export function useRigController(
     standardInputsByPath,
     rigOutputLookup,
   ]);
+
+  useEffect(() => {
+    stagedRuntimeInputValuesRef.current = new Map();
+  }, [runtimeInputBridgeEpoch]);
 
   useEffect(() => {
     stageInputsFromState();

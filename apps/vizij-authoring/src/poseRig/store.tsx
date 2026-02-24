@@ -705,26 +705,6 @@ export function createPoseRigStore(
     );
   };
 
-  const compilePoseIrPatch = (
-    snapshot: PoseRigState,
-    config: PoseRigConfigFile,
-  ): Pick<PoseRigState, "poseIrDraft" | "warnings" | "poseDiagnostics"> => {
-    const { ir, warnings, diagnostics } = PoseIrService.fromConfig(
-      config,
-      snapshot.standardInputs,
-      snapshot.faceId,
-      {
-        defaultGroupBlendMode: config.poseGroups?.[0]?.blendMode,
-        crossGroupBlendMode: config.crossGroupBlendMode,
-      },
-    );
-    return {
-      poseIrDraft: ir,
-      warnings,
-      poseDiagnostics: diagnostics,
-    };
-  };
-
   const buildProjectedPoseIrPatch = (
     snapshot: PoseRigState,
     overrides?: PoseStateProjectionOptions,
@@ -732,7 +712,7 @@ export function createPoseRigStore(
     const config = projectPoseConfig(snapshot, overrides);
     const projectedPoses = overrides?.poses ?? snapshot.poses;
     return {
-      ...compilePoseIrPatch(snapshot, config),
+      poseConfigDraft: config,
       poses: projectedPoses,
       ...(overrides?.neutralInputs
         ? { neutralInputs: overrides.neutralInputs }
@@ -813,7 +793,8 @@ export function createPoseRigStore(
           nextState.faceId,
         );
       } else {
-        const projectedConfig = projectPoseConfig(nextState);
+        const projectedConfig =
+          patch.poseConfigDraft ?? projectPoseConfig(nextState);
         irResult = PoseIrService.fromConfig(
           projectedConfig,
           nextState.standardInputs,
@@ -1614,9 +1595,20 @@ export function createPoseRigStore(
     },
     updatePose: (poseId, updater) => {
       setState((prev) => {
-        const nextPoses = prev.poses.map((p) =>
-          p.id === poseId ? updater(p) : p,
-        );
+        let changed = false;
+        const nextPoses = prev.poses.map((pose) => {
+          if (pose.id !== poseId) {
+            return pose;
+          }
+          const nextPose = updater(pose);
+          if (nextPose !== pose) {
+            changed = true;
+          }
+          return nextPose;
+        });
+        if (!changed) {
+          return;
+        }
         return buildProjectedPoseIrPatch(prev, { poses: nextPoses });
       });
     },

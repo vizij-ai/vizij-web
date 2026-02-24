@@ -322,10 +322,15 @@ export function usePoseRigAuthoring(
       if (!store.standardInputs.some((input) => input.id === inputId)) {
         return;
       }
-      store.updatePose(poseId, (p) => ({
-        ...p,
-        values: { ...p.values, [inputId]: value },
-      }));
+      store.updatePose(poseId, (p) => {
+        if (Object.is(p.values[inputId], value)) {
+          return p;
+        }
+        return {
+          ...p,
+          values: { ...p.values, [inputId]: value },
+        };
+      });
     },
     [store],
   );

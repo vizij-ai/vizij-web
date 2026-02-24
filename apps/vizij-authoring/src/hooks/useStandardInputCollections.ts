@@ -37,12 +37,14 @@ export function useStandardInputCollections(
     standardInputsByIdRef,
   } = options;
 
-  const standardInputs = useMemo(
-    () =>
-      managedStandardInputs
-        .filter((entry) => !entry.disabled)
-        .map((entry) => entry.input),
+  const activeManagedInputs = useMemo(
+    () => managedStandardInputs.filter((entry) => !entry.disabled),
     [managedStandardInputs],
+  );
+
+  const standardInputs = useMemo(
+    () => activeManagedInputs.map((entry) => entry.input),
+    [activeManagedInputs],
   );
 
   const standardInputsById = useMemo(
@@ -68,74 +70,66 @@ export function useStandardInputCollections(
       string,
       { source?: "auto" | "custom" | "preset"; root?: string }
     >();
-    managedStandardInputs
-      .filter((entry) => !entry.disabled)
-      .forEach((entry) => {
-        const isPreset = entry.metadata?.elementType === "standard";
-        const source: "auto" | "custom" | "preset" | undefined = isPreset
-          ? "preset"
-          : entry.source;
-        entries.set(entry.input.id, {
-          source,
-          root: entry.metadata?.root ?? entry.input.group ?? groupFallback,
-        });
+    activeManagedInputs.forEach((entry) => {
+      const isPreset = entry.metadata?.elementType === "standard";
+      const source: "auto" | "custom" | "preset" | undefined = isPreset
+        ? "preset"
+        : entry.source;
+      entries.set(entry.input.id, {
+        source,
+        root: entry.metadata?.root ?? entry.input.group ?? groupFallback,
       });
+    });
     return entries;
-  }, [groupFallback, managedStandardInputs]);
+  }, [activeManagedInputs, groupFallback]);
 
   const elementRootLookup = useMemo(() => {
     const grouped = new Map<string, Set<string>>();
-    managedStandardInputs
-      .filter((entry) => !entry.disabled)
-      .forEach((entry) => {
-        const elementId = entry.metadata?.elementId;
-        if (!elementId) {
-          return;
-        }
-        const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
-        if (!root) {
-          return;
-        }
-        const bucket = grouped.get(elementId);
-        if (bucket) {
-          bucket.add(root);
-        } else {
-          grouped.set(elementId, new Set([root]));
-        }
-      });
+    activeManagedInputs.forEach((entry) => {
+      const elementId = entry.metadata?.elementId;
+      if (!elementId) {
+        return;
+      }
+      const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
+      if (!root) {
+        return;
+      }
+      const bucket = grouped.get(elementId);
+      if (bucket) {
+        bucket.add(root);
+      } else {
+        grouped.set(elementId, new Set([root]));
+      }
+    });
     const lookup = new Map<string, readonly string[]>();
     grouped.forEach((roots, elementId) => {
       lookup.set(elementId, Array.from(roots));
     });
     return lookup;
-  }, [groupFallback, managedStandardInputs]);
+  }, [activeManagedInputs, groupFallback]);
 
   const allStandardInputSubgroups = useMemo(() => {
     const set = new Set<string>();
-    managedStandardInputs
-      .filter((entry) => !entry.disabled)
-      .forEach((entry) => {
-        const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
-        extractStandardInputSubgroups(entry.input.path, root).forEach(
-          (subgroup) => {
-            if (subgroup) {
-              set.add(subgroup);
-            }
-          },
-        );
-      });
+    activeManagedInputs.forEach((entry) => {
+      const root = entry.metadata?.root ?? entry.input.group ?? groupFallback;
+      extractStandardInputSubgroups(entry.input.path, root).forEach(
+        (subgroup) => {
+          if (subgroup) {
+            set.add(subgroup);
+          }
+        },
+      );
+    });
     return set;
-  }, [groupFallback, managedStandardInputs]);
+  }, [activeManagedInputs, groupFallback]);
 
   useEffect(() => {
     const map = new Map<string, StandardRigInput>();
-    managedStandardInputs
-      .filter((entry) => !entry.disabled)
-      .forEach((entry) => {
-        map.set(entry.input.id, entry.input);
-      });
+    activeManagedInputs.forEach((entry) => {
+      map.set(entry.input.id, entry.input);
+    });
     allStandardInputsRef.current = map;
-  }, [allStandardInputsRef, managedStandardInputs]);
+  }, [activeManagedInputs, allStandardInputsRef]);
 
   useEffect(() => {
     standardInputsByIdRef.current = standardInputsById;
