@@ -21,16 +21,6 @@ export const DEFAULT_RUNTIME_GRAPH_SPEC_RESULT: ResolveRuntimeGraphSpecResult =
     warning: null,
   };
 
-function cloneRuntimeGraphSpecResult(
-  value: ResolveRuntimeGraphSpecResult,
-): ResolveRuntimeGraphSpecResult {
-  return {
-    runtimeSpec: value.runtimeSpec,
-    blocked: value.blocked,
-    warning: value.warning,
-  };
-}
-
 export function resolveRuntimeGraphSpec(
   rigGraphBuild: BuildGraphResult | null,
   lastKnownGood: RuntimeGraphSpec | null,
