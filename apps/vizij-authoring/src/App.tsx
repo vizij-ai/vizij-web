@@ -43,23 +43,38 @@ import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
+type FaceLoadPhaseChange = Parameters<
+  VizijAssetLoaderState["updateExternalPhase"]
+>[0];
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
+  const updateFaceLoadPhase = useCallback(
+    (update: FaceLoadPhaseChange) => {
+      assetLoader.updateExternalPhase({
+        ...update,
+        sessionToken: assetLoader.faceLoadSessionToken,
+      });
+    },
+    [assetLoader.faceLoadSessionToken, assetLoader.updateExternalPhase],
+  );
 
   return (
     <RigControllerProvider
       namespace={DEFAULT_NAMESPACE}
       rootId={assetLoader.rootId}
       sourceName={assetLoader.sourceName}
-      onLoadPhaseChange={assetLoader.updateExternalPhase}
+      onLoadPhaseChange={updateFaceLoadPhase}
     >
       <PoseRigProvider
         rootId={assetLoader.rootId}
-        onLoadPhaseChange={assetLoader.updateExternalPhase}
+        onLoadPhaseChange={updateFaceLoadPhase}
       >
         <AuthoringUiProvider>
-          <AppContent loader={assetLoader} />
+          <AppContent
+            loader={assetLoader}
+            onFaceLoadPhaseChange={updateFaceLoadPhase}
+          />
         </AuthoringUiProvider>
       </PoseRigProvider>
     </RigControllerProvider>
@@ -68,9 +83,10 @@ export default function App() {
 
 interface AppContentProps {
   loader: VizijAssetLoaderState;
+  onFaceLoadPhaseChange: (update: FaceLoadPhaseChange) => void;
 }
 
-function AppContent({ loader }: AppContentProps) {
+function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const {
     rootId,
     sourceName,
@@ -81,7 +97,6 @@ function AppContent({ loader }: AppContentProps) {
     markImportFileSelected,
     cancelImportFlow,
     markImportFlowError,
-    updateExternalPhase,
     completeImportFlow,
   } = loader;
 
@@ -232,7 +247,7 @@ function AppContent({ loader }: AppContentProps) {
     skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
-    onPhaseChange: loader.updateExternalPhase,
+    onPhaseChange: onFaceLoadPhaseChange,
   });
 
   const { panels } = useWorkspaceStore();
@@ -361,12 +376,12 @@ function AppContent({ loader }: AppContentProps) {
     if (!loadingSessionActive) {
       return;
     }
-    updateExternalPhase({
+    onFaceLoadPhaseChange({
       stepId: "runtime-stabilization",
       substepId: "wait-runtime-input-bridge",
       status: runtimeInputReady ? "complete" : "active",
     });
-    updateExternalPhase({
+    onFaceLoadPhaseChange({
       stepId: "runtime-stabilization",
       substepId: "settle-recompiles",
       status: runtimeInputReady && runtimeVisibleReady ? "complete" : "active",
@@ -383,7 +398,7 @@ function AppContent({ loader }: AppContentProps) {
     loadingSessionActive,
     runtimeInputReady,
     runtimeVisibleReady,
-    updateExternalPhase,
+    onFaceLoadPhaseChange,
   ]);
 
   useEffect(() => {
@@ -393,7 +408,7 @@ function AppContent({ loader }: AppContentProps) {
     if (graphStatus !== "error") {
       return;
     }
-    updateExternalPhase({
+    onFaceLoadPhaseChange({
       stepId: "runtime-stabilization",
       status: "error",
       substepId: "wait-runtime-input-bridge",
@@ -403,7 +418,7 @@ function AppContent({ loader }: AppContentProps) {
     graphStatus,
     loadingSessionActive,
     markImportFlowError,
-    updateExternalPhase,
+    onFaceLoadPhaseChange,
   ]);
 
   const viewerContent = (

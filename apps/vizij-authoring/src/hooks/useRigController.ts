@@ -1382,11 +1382,11 @@ export function useRigController(
     animatableComponents,
     animatables,
     bindings,
-    inputBindings,
     faceId,
+    inputBindings,
     poseConfigSnapshot,
-    standardInputsById,
     standardInputMetadataById,
+    standardInputsById,
   ]);
 
   const runtimeGraphSpec = useMemo(() => {
@@ -1399,6 +1399,7 @@ export function useRigController(
     }
     return resolved;
   }, [rigGraphBuild]);
+
   skipRuntimeUnloadRef.current =
     runtimeGraphSpec.blocked && Boolean(lastKnownGoodRuntimeSpecRef.current);
 

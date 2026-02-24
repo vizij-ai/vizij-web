@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { LoadedVizijAsset, VizijBundleExtension } from "@vizij/render";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { findRootId } from "../utils/world";
@@ -12,6 +12,8 @@ export interface FaceLoadPhaseUpdate {
   substepId?: string;
   label?: string;
   substepLabel?: string;
+  sessionToken?: string | null;
+  sequence?: number;
 }
 
 export interface FaceLoadSubstep {
@@ -226,6 +228,16 @@ function createDefaultFaceLoadSteps(): FaceLoadStep[] {
   ];
 }
 
+function createFaceLoadSessionToken(): string {
+  return `${nowMs().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createFaceLoadStepOrderMap(
+  steps: FaceLoadStep[],
+): Map<string, number> {
+  return new Map(steps.map((step, index) => [step.id, index]));
+}
+
 function updateFaceLoadStatus(
   steps: FaceLoadStep[],
   options: {
@@ -280,34 +292,61 @@ export function useVizijAssetLoader() {
   const [faceLoadSourceLabel, setFaceLoadSourceLabel] = useState<string | null>(
     null,
   );
+  const [faceLoadSessionToken, setFaceLoadSessionToken] = useState<
+    string | null
+  >(null);
   const [faceLoadSessionStartedAtMs, setFaceLoadSessionStartedAtMs] = useState<
     number | null
   >(null);
   const [faceLoadSessionCompletedAtMs, setFaceLoadSessionCompletedAtMs] =
     useState<number | null>(null);
 
-  const beginImportFlow = useCallback((sourceLabel: string) => {
-    setIsImportFlowActive(true);
-    setFaceLoadSourceLabel(sourceLabel);
-    setFaceLoadSessionStartedAtMs(nowMs());
-    setFaceLoadSessionCompletedAtMs(null);
-    setFaceLoadProgress(0.02);
-    setFaceLoadSteps(() =>
-      updateFaceLoadStatus(
-        updateFaceLoadStatus(createDefaultFaceLoadSteps(), {
-          stepId: "select-import-source",
-          stepStatus: "active",
-          substepId: "trigger-import",
-          substepStatus: "active",
-        }),
-        {
-          stepId: "select-import-source",
-          substepId: "trigger-import",
-          substepStatus: "complete",
-        },
-      ),
+  const faceLoadSessionTokenRef = useRef<string | null>(null);
+  const faceLoadExternalPhaseSequenceRef = useRef(0);
+  const faceLoadExternalPhaseLastSequenceRef = useRef(-1);
+  const faceLoadExternalPhaseFurthestStepOrderRef = useRef(-1);
+  const faceLoadExternalPhaseStepOrderRef = useRef<Map<string, number>>(
+    createFaceLoadStepOrderMap(createDefaultFaceLoadSteps()),
+  );
+
+  const resetExternalPhaseTrackers = useCallback(() => {
+    faceLoadExternalPhaseSequenceRef.current = 0;
+    faceLoadExternalPhaseLastSequenceRef.current = -1;
+    faceLoadExternalPhaseFurthestStepOrderRef.current = -1;
+    faceLoadExternalPhaseStepOrderRef.current = createFaceLoadStepOrderMap(
+      createDefaultFaceLoadSteps(),
     );
   }, []);
+
+  const beginImportFlow = useCallback(
+    (sourceLabel: string) => {
+      const sessionToken = createFaceLoadSessionToken();
+      faceLoadSessionTokenRef.current = sessionToken;
+      setFaceLoadSessionToken(sessionToken);
+      resetExternalPhaseTrackers();
+      setIsImportFlowActive(true);
+      setFaceLoadSourceLabel(sourceLabel);
+      setFaceLoadSessionStartedAtMs(nowMs());
+      setFaceLoadSessionCompletedAtMs(null);
+      setFaceLoadProgress(0.02);
+      setFaceLoadSteps(() =>
+        updateFaceLoadStatus(
+          updateFaceLoadStatus(createDefaultFaceLoadSteps(), {
+            stepId: "select-import-source",
+            stepStatus: "active",
+            substepId: "trigger-import",
+            substepStatus: "active",
+          }),
+          {
+            stepId: "select-import-source",
+            substepId: "trigger-import",
+            substepStatus: "complete",
+          },
+        ),
+      );
+    },
+    [resetExternalPhaseTrackers],
+  );
 
   const markImportFileSelected = useCallback(() => {
     setFaceLoadProgress((current) => (current < 0.08 ? 0.08 : current));
@@ -338,13 +377,16 @@ export function useVizijAssetLoader() {
   }, []);
 
   const cancelImportFlow = useCallback(() => {
+    faceLoadSessionTokenRef.current = null;
+    setFaceLoadSessionToken(null);
+    resetExternalPhaseTrackers();
     setIsImportFlowActive(false);
     setFaceLoadProgress(0);
     setFaceLoadSteps(createDefaultFaceLoadSteps());
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
-  }, []);
+  }, [resetExternalPhaseTrackers]);
 
   const completeImportFlow = useCallback(() => {
     setIsImportFlowActive(false);
@@ -353,6 +395,53 @@ export function useVizijAssetLoader() {
   }, []);
 
   const updateExternalPhase = useCallback((update: FaceLoadPhaseUpdate) => {
+    const currentSessionToken = faceLoadSessionTokenRef.current;
+    if (
+      update.sessionToken !== undefined &&
+      update.sessionToken !== currentSessionToken
+    ) {
+      return;
+    }
+
+    const nextSequence =
+      typeof update.sequence === "number"
+        ? update.sequence
+        : faceLoadExternalPhaseSequenceRef.current + 1;
+    if (nextSequence <= faceLoadExternalPhaseLastSequenceRef.current) {
+      return;
+    }
+
+    faceLoadExternalPhaseSequenceRef.current = Math.max(
+      faceLoadExternalPhaseSequenceRef.current,
+      nextSequence,
+    );
+    faceLoadExternalPhaseLastSequenceRef.current = nextSequence;
+
+    const knownStepOrder = faceLoadExternalPhaseStepOrderRef.current.get(
+      update.stepId,
+    );
+    const stepOrder =
+      typeof knownStepOrder === "number"
+        ? knownStepOrder
+        : faceLoadExternalPhaseStepOrderRef.current.size;
+    if (typeof knownStepOrder !== "number") {
+      faceLoadExternalPhaseStepOrderRef.current.set(update.stepId, stepOrder);
+    }
+
+    if (
+      update.status === "active" &&
+      stepOrder < faceLoadExternalPhaseFurthestStepOrderRef.current
+    ) {
+      return;
+    }
+
+    if (update.status !== "pending") {
+      faceLoadExternalPhaseFurthestStepOrderRef.current = Math.max(
+        faceLoadExternalPhaseFurthestStepOrderRef.current,
+        stepOrder,
+      );
+    }
+
     setFaceLoadSteps((previous) => {
       const hasStep = previous.some((step) => step.id === update.stepId);
       const next = hasStep
@@ -585,6 +674,9 @@ export function useVizijAssetLoader() {
   const clearError = useCallback(() => setError(null), []);
 
   const reset = useCallback(() => {
+    faceLoadSessionTokenRef.current = null;
+    setFaceLoadSessionToken(null);
+    resetExternalPhaseTrackers();
     setRootId(null);
     setSourceName(null);
     setAssetUrl("");
@@ -596,7 +688,7 @@ export function useVizijAssetLoader() {
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
-  }, []);
+  }, [resetExternalPhaseTrackers]);
 
   const updateBundle = useCallback(
     (
@@ -630,6 +722,7 @@ export function useVizijAssetLoader() {
     isLoading,
     isImportFlowActive,
     faceLoadSourceLabel,
+    faceLoadSessionToken,
     faceLoadSessionStartedAtMs,
     faceLoadSessionCompletedAtMs,
     faceLoadProgress,
