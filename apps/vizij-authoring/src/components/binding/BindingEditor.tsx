@@ -402,6 +402,7 @@ interface BindingEditorProps {
   onHideDriver?: (inputId: string) => void;
   onShowDriver?: (inputId: string) => void;
   allowSelfBinding?: boolean;
+  readOnly?: boolean;
 }
 
 export function BindingEditor({
@@ -434,6 +435,7 @@ export function BindingEditor({
   onHideDriver,
   onShowDriver: _onShowDriver,
   allowSelfBinding = true,
+  readOnly = false,
 }: BindingEditorProps) {
   const vectorAuthoringEnabled = featureFlags.vectorAuthoringBeta !== false;
   const conditionalAuthoringEnabled =
@@ -499,17 +501,32 @@ export function BindingEditor({
   }, [expressionFocused, expressionValue]);
 
   const commitExpressionDraft = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     if (!expressionDirty) {
       return;
     }
     onBindingExpressionChange(targetId, expressionDraft);
     setExpressionDirty(false);
-  }, [expressionDirty, expressionDraft, onBindingExpressionChange, targetId]);
+  }, [
+    expressionDirty,
+    expressionDraft,
+    onBindingExpressionChange,
+    readOnly,
+    targetId,
+  ]);
 
-  const handleExpressionDraftChange = useCallback((nextValue: string) => {
-    setExpressionDraft(nextValue);
-    setExpressionDirty(true);
-  }, []);
+  const handleExpressionDraftChange = useCallback(
+    (nextValue: string) => {
+      if (readOnly) {
+        return;
+      }
+      setExpressionDraft(nextValue);
+      setExpressionDirty(true);
+    },
+    [readOnly],
+  );
 
   const aliasHints = useMemo(() => {
     return slots
@@ -917,6 +934,11 @@ export function BindingEditor({
             {issueList.length} issue{issueList.length === 1 ? "" : "s"}
           </span>
         )}
+        {readOnly && (
+          <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-200">
+            Legacy read-only
+          </span>
+        )}
         {headerActions}
         <Button
           type="button"
@@ -924,6 +946,7 @@ export function BindingEditor({
           size="sm"
           className="h-7 text-[10px] px-2.5 font-semibold"
           onClick={handleAddSlot}
+          disabled={readOnly}
         >
           Add control
         </Button>
@@ -934,6 +957,7 @@ export function BindingEditor({
             size="sm"
             className="h-7 text-[10px] px-2.5 font-semibold"
             onClick={() => onResetBinding(targetId)}
+            disabled={readOnly}
           >
             Reset binding
           </Button>
@@ -977,7 +1001,16 @@ export function BindingEditor({
   return (
     <div className="w-full bg-bg-panel/40 border border-border-default/50 rounded-xl p-4">
       {header}
-      <div className="flex flex-col gap-6">
+      {readOnly && (
+        <div className="mb-4 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-100">
+          Binding editor is locked because this legacy expression is not
+          auto-convertible.
+        </div>
+      )}
+      <fieldset
+        disabled={readOnly}
+        className="border-0 p-0 m-0 flex flex-col gap-6 min-w-0"
+      >
         {issueList.length > 0 && (
           <div
             className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2"
@@ -1429,6 +1462,8 @@ export function BindingEditor({
               "w-full h-28",
               issueList.length > 0 && "border-red-500/50 bg-red-500/5",
             )}
+            disabled={readOnly}
+            readOnly={readOnly}
             onChange={(event) =>
               handleExpressionDraftChange(event.target.value)
             }
@@ -1826,7 +1861,7 @@ export function BindingEditor({
           )}
         </div>
         {children}
-      </div>
+      </fieldset>
     </div>
   );
 }

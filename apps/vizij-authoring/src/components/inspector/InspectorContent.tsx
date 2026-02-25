@@ -19,6 +19,10 @@ import {
   RotateCcw,
   Save,
 } from "lucide-react";
+import {
+  bindingTargetFromInput,
+  createDefaultParentBinding,
+} from "@vizij/node-graph-authoring";
 import { normalizeStandardRigInputPath, SELF_BINDING_ID } from "@vizij/utils";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
@@ -51,6 +55,7 @@ import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
 import { FeatureList } from "./FeatureList";
+import { VariablePipelineStages } from "./VariablePipelineStages";
 import {
   RiggingMaterialSection,
   RiggingScalarRow,
@@ -75,6 +80,14 @@ import {
   type InspectorChainNode,
 } from "./inspectorChainPath";
 import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
+import {
+  assessLegacyBindingMigration,
+  buildCompiledPipelineEquation,
+  computePipelineDiagnostics,
+  computePoseContribution,
+  mergePipelineMetadata,
+  resolvePipelineStageSettings,
+} from "./pipelineStages";
 
 type PoseVariableItem = {
   varId: string;
@@ -545,6 +558,9 @@ export function InspectorContent({
   const bindings = useBindingAuthoring((state) => state.bindings);
   const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const applyInputBindingPatch = useBindingAuthoring(
+    (state) => state.applyInputBindingPatch,
+  );
   const handleCreateCustomStandardInput = useBindingAuthoring(
     (state) => state.handleCreateCustomStandardInput,
   );
@@ -761,9 +777,6 @@ export function InspectorContent({
   );
 
   const poseWeightInputIdByPoseId = useMemo(() => {
-    if (inspectorMode !== "pose") {
-      return EMPTY_INPUT_ID_MAP;
-    }
     const map = new Map<string, string>();
     managedStandardInputs.forEach((entry) => {
       const poseId = parsePoseWeightInputSourceId(entry.input.sourceId);
@@ -773,10 +786,12 @@ export function InspectorContent({
       map.set(poseId, entry.input.id);
     });
     return map;
-  }, [inspectorMode, managedStandardInputs]);
+  }, [managedStandardInputs]);
 
   const selectedPoseWeightInputId =
-    selectedPoseId && poseWeightInputIdByPoseId.has(selectedPoseId)
+    inspectorMode === "pose" &&
+    selectedPoseId &&
+    poseWeightInputIdByPoseId.has(selectedPoseId)
       ? (poseWeightInputIdByPoseId.get(selectedPoseId) ?? null)
       : null;
 
@@ -2748,6 +2763,187 @@ export function InspectorContent({
         hiddenAutorigDriverCount + hiddenAutorigDrivenCount;
       const hasAutorigInternals =
         totalAutorigDriverCount + totalAutorigDrivenCount > 0;
+      const parentInputIds = collectBindingInputIds(parentBinding).filter(
+        (candidateId) => candidateId !== input.id,
+      );
+      const parentValues = parentInputIds.map((parentId) => {
+        const stagedParentValue = inputValues[parentId];
+        if (
+          typeof stagedParentValue === "number" &&
+          Number.isFinite(stagedParentValue)
+        ) {
+          return stagedParentValue;
+        }
+        const fallback = standardInputsById.get(parentId)?.defaultValue;
+        return Number.isFinite(fallback)
+          ? (fallback as number)
+          : input.defaultValue;
+      });
+      const linkedPoseStageItems = poses
+        .reduce<
+          Array<{
+            id: string;
+            label: string;
+            targetValue: number;
+            neutralValue: number;
+            weight: number;
+            onInspect: () => void;
+            onWeightChange?: (nextValue: number) => void;
+          }>
+        >((items, poseEntry) => {
+          const poseTargetValue = poseEntry.values[input.id];
+          if (
+            typeof poseTargetValue !== "number" ||
+            !Number.isFinite(poseTargetValue)
+          ) {
+            return items;
+          }
+          const poseWeightInputId = poseWeightInputIdByPoseId.get(poseEntry.id);
+          const poseWeightValue =
+            poseWeightInputId &&
+            typeof inputValues[poseWeightInputId] === "number" &&
+            Number.isFinite(inputValues[poseWeightInputId])
+              ? clamp01(inputValues[poseWeightInputId] as number)
+              : 0;
+          const onWeightChange =
+            poseWeightInputId !== undefined
+              ? (nextValue: number) =>
+                  handleInputValueChange(poseWeightInputId, clamp01(nextValue))
+              : undefined;
+          items.push({
+            id: poseEntry.id,
+            label: poseEntry.name || poseEntry.id,
+            targetValue: poseTargetValue,
+            neutralValue: neutralInputs[input.id] ?? input.defaultValue,
+            weight: poseWeightValue,
+            onInspect: () => openPoseInspector(poseEntry.id),
+            ...(onWeightChange ? { onWeightChange } : {}),
+          });
+          return items;
+        }, [])
+        .sort((left, right) => left.label.localeCompare(right.label));
+      const pipelineStageSettings = resolvePipelineStageSettings(
+        parentBinding ?? null,
+        {
+          defaultValue: input.defaultValue,
+          fallbackDirectEnabled: true,
+        },
+      );
+      const poseContribution = computePoseContribution(
+        linkedPoseStageItems.map((item) => ({
+          targetValue: item.targetValue,
+          neutralValue: item.neutralValue,
+          weight: item.weight,
+        })),
+        input.defaultValue,
+      );
+      const pipelineDiagnostics = computePipelineDiagnostics({
+        baseline: input.defaultValue,
+        min: input.range.min,
+        max: input.range.max,
+        parentValues,
+        poseContribution,
+        directValue: value,
+        directEnabled: pipelineStageSettings.directInputEnabled,
+        overrideEnabled: pipelineStageSettings.overrideEnabled,
+        overrideValue: pipelineStageSettings.overrideValue,
+        clampEnabled: pipelineStageSettings.clampEnabled,
+      });
+      const compiledPipelineEquation = buildCompiledPipelineEquation({
+        hasParents: parentInputIds.length > 0,
+        hasPoses: linkedPoseStageItems.length > 0,
+        directEnabled: pipelineStageSettings.directInputEnabled,
+        clampEnabled: pipelineStageSettings.clampEnabled,
+      });
+      const legacyMigrationAssessment = assessLegacyBindingMigration(
+        parentBinding ?? null,
+      );
+      const isLegacyReadOnlyBinding =
+        legacyMigrationAssessment.kind === "non-convertible";
+
+      const applyPipelineMetadataPatch = (patch: {
+        directInputEnabled?: boolean;
+        overrideEnabled?: boolean;
+        overrideValue?: number;
+        clampEnabled?: boolean;
+        migrationStatus?: "migrated";
+        migrationSource?: string;
+        migrationExpression?: string;
+        legacyReadOnly?: boolean;
+        legacyReadOnlyReason?: string;
+      }) => {
+        applyInputBindingPatch((previous) => {
+          const sourceInput = standardInputsById.get(input.id);
+          if (!sourceInput) {
+            return previous;
+          }
+          const existingBinding =
+            previous[input.id] ??
+            createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+          const nextMetadata = mergePipelineMetadata(
+            (existingBinding.metadata ?? undefined) as
+              | Record<string, unknown>
+              | undefined,
+            patch,
+          );
+          const previousMetadataSignature = JSON.stringify(
+            existingBinding.metadata ?? null,
+          );
+          const nextMetadataSignature = JSON.stringify(nextMetadata);
+          if (
+            previous[input.id] &&
+            previousMetadataSignature === nextMetadataSignature
+          ) {
+            return previous;
+          }
+          return {
+            ...previous,
+            [input.id]: {
+              ...existingBinding,
+              metadata: nextMetadata,
+            },
+          };
+        });
+      };
+
+      const handlePipelineDirectEnabledChange = (enabled: boolean) => {
+        applyPipelineMetadataPatch({
+          directInputEnabled: enabled,
+        });
+      };
+      const handlePipelineOverrideEnabledChange = (enabled: boolean) => {
+        applyPipelineMetadataPatch({
+          overrideEnabled: enabled,
+        });
+      };
+      const handlePipelineOverrideValueChange = (nextValue: number) => {
+        applyPipelineMetadataPatch({
+          overrideValue: nextValue,
+        });
+      };
+      const handlePipelineClampEnabledChange = (enabled: boolean) => {
+        applyPipelineMetadataPatch({
+          clampEnabled: enabled,
+        });
+      };
+      const handleMigrateLegacyBinding = () => {
+        if (legacyMigrationAssessment.kind !== "convertible") {
+          return;
+        }
+        applyPipelineMetadataPatch({
+          directInputEnabled: false,
+          overrideEnabled: false,
+          overrideValue: input.defaultValue,
+          clampEnabled: true,
+          migrationStatus: "migrated",
+          migrationSource: "canonical-self-parent",
+          migrationExpression: legacyMigrationAssessment.expression,
+        });
+        setRigLifecycleMessage({
+          tone: "info",
+          text: "Legacy canonical self+parent binding migrated to staged pipeline metadata.",
+        });
+      };
 
       return (
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
@@ -2784,6 +2980,61 @@ export function InspectorContent({
           />
           {renderChainPath()}
           {renderAuthoringStatus()}
+          <VariablePipelineStages
+            parentExpression={parentBinding?.expression ?? ""}
+            compiledEquation={compiledPipelineEquation}
+            parents={parentRigChainItems.map((entry) => ({
+              id: entry.key,
+              label: entry.label,
+              kind: entry.kind,
+              onInspect: entry.onClick,
+            }))}
+            children={drivenChainItems.map((entry) => ({
+              id: entry.key,
+              label: entry.label,
+              kind: entry.kind,
+              onInspect: entry.onClick,
+              onUnlink: entry.drivenInputId
+                ? () => {
+                    const drivenInputId = entry.drivenInputId;
+                    if (drivenInputId) {
+                      removeDrivenVariableLink(drivenInputId);
+                    }
+                  }
+                : undefined,
+            }))}
+            poses={linkedPoseStageItems}
+            diagnostics={pipelineDiagnostics}
+            directInputEnabled={pipelineStageSettings.directInputEnabled}
+            directValue={value}
+            directDefaultValue={input.defaultValue}
+            directMin={input.range.min}
+            directMax={input.range.max}
+            directControlDisabled={!isDirectRigControlAvailable}
+            directControlReason={directRigControlReason}
+            onDirectInputEnabledChange={handlePipelineDirectEnabledChange}
+            onDirectValueChange={(nextValue) =>
+              handleInputValueChange(
+                input.id,
+                clampToRange(nextValue, input.range.min, input.range.max),
+              )
+            }
+            onDirectReset={() =>
+              handleInputValueChange(input.id, input.defaultValue)
+            }
+            overrideEnabled={pipelineStageSettings.overrideEnabled}
+            overrideValue={pipelineStageSettings.overrideValue}
+            overrideMin={input.range.min}
+            overrideMax={input.range.max}
+            onOverrideEnabledChange={handlePipelineOverrideEnabledChange}
+            onOverrideValueChange={handlePipelineOverrideValueChange}
+            clampEnabled={pipelineStageSettings.clampEnabled}
+            onClampEnabledChange={handlePipelineClampEnabledChange}
+            migration={legacyMigrationAssessment}
+            onMigrateLegacyBinding={handleMigrateLegacyBinding}
+            onEditParents={() => setShowRigDriversModal(true)}
+            onAddChild={() => setShowSelector(true)}
+          />
           {sharedLink && (
             <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
@@ -3209,7 +3460,9 @@ export function InspectorContent({
                             className="h-4 w-4 p-0 text-slate-500 hover:text-red-400"
                             onClick={(event) => {
                               event.stopPropagation();
-                              removeDrivenVariableLink(entry.drivenInputId!);
+                              if (entry.drivenInputId) {
+                                removeDrivenVariableLink(entry.drivenInputId);
+                              }
                             }}
                             title={
                               entry.kind === "autorig"
@@ -3272,6 +3525,7 @@ export function InspectorContent({
                   defaultExpanded={true}
                   currentValues={inputValues}
                   onInputValueChange={handleInputValueChange}
+                  readOnly={isLegacyReadOnlyBinding}
                   featureFlags={{
                     vectorAuthoringBeta: true,
                     conditionalAuthoringBeta: true,

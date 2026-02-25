@@ -45,7 +45,11 @@ function createCallbacks() {
   };
 }
 
-function renderBindingEditor(binding: AnimatableBinding, issues?: string[]) {
+function renderBindingEditor(
+  binding: AnimatableBinding,
+  issues?: string[],
+  options?: { readOnly?: boolean },
+) {
   const callbacks = createCallbacks();
   render(
     <BindingEditor
@@ -71,6 +75,7 @@ function renderBindingEditor(binding: AnimatableBinding, issues?: string[]) {
       onInputValueChange={callbacks.onInputValueChange}
       expandable={false}
       defaultExpanded={true}
+      readOnly={options?.readOnly}
     />,
   );
   return callbacks;
@@ -168,5 +173,30 @@ describe("BindingEditor", () => {
       name: "Normalize",
     });
     expect(slotTwoNormalize.getAttribute("disabled")).not.toBeNull();
+  });
+
+  it("locks editing controls when rendered in read-only mode", () => {
+    const callbacks = renderBindingEditor(
+      {
+        expression: "max(self, s2)",
+        slots: [
+          { id: "s1", alias: "self", inputId: SELF_BINDING_ID },
+          { id: "s2", alias: "s2", inputId: "rig_driver_smile" },
+        ],
+      } as AnimatableBinding,
+      undefined,
+      { readOnly: true },
+    );
+
+    const addButton = screen.getByRole("button", { name: "Add control" });
+    expect(addButton.getAttribute("disabled")).not.toBeNull();
+    fireEvent.click(addButton);
+    expect(callbacks.onAddBindingSlot).not.toHaveBeenCalled();
+
+    const expressionField = screen.getByLabelText("Expression: Jaw Open =");
+    expect((expressionField as HTMLTextAreaElement).disabled).toBe(true);
+    fireEvent.change(expressionField, { target: { value: "s1 + s2" } });
+    expect(callbacks.onBindingExpressionChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/Legacy read-only/i)).toBeTruthy();
   });
 });
