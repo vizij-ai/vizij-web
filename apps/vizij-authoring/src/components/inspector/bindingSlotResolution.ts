@@ -110,14 +110,14 @@ export function resolveControllableInputId(
       return {
         inputId: null,
         blockedReason:
-          "Derived variable has no self slot and no parent drivers. Open My Drivers to repair.",
+          "Derived variable has no self slot and no parent drivers. Use the Parents section to repair.",
       };
     }
     if (parents.length > 1) {
       return {
         inputId: null,
         blockedReason:
-          "Derived variable has multiple parent drivers and no local self control. Edit My Drivers to select a controllable source.",
+          "Derived variable has multiple parent drivers and no local self control. Use the Parents section to select a controllable source.",
       };
     }
 

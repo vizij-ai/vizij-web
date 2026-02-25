@@ -52,7 +52,6 @@ import { cn } from "../../utils/cn";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
-import { BindingEditor } from "../binding";
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { RiggingPropertyRow } from "./RiggingPropertyRow";
@@ -76,7 +75,6 @@ import {
 } from "./rigConnections";
 import { resolveSelectionTargetIds } from "./bindingSelection";
 import {
-  classifyPoseParentBindingEmptyState,
   hasParentBindingInput,
   resolveRigDrivenSelection,
 } from "./inspectorActions";
@@ -491,30 +489,21 @@ export function InspectorContent({
   hasReferenceFaceFile = false,
 }: InspectorContentProps) {
   const [showSelector, setShowSelector] = useState(false);
-  const [showRigDriversModal, setShowRigDriversModal] = useState(false);
   const [blendAmount, setBlendAmount] = useState(0);
   const [sceneInspectorView, setSceneInspectorView] = useState<
     "quick" | "bindings"
   >("quick");
 
-  const [rigInspectorView, setRigInspectorView] = useState<
-    "quick" | "bindings"
-  >("quick");
   const showAutorigInternals = false;
   const pendingSceneInspectorViewRef = useRef<"quick" | "bindings" | null>(
     null,
   );
-
-  const pendingRigInspectorViewRef = useRef<"quick" | "bindings" | null>(null);
   const pendingChainNavigationRef = useRef<InspectorChainNode | null>(null);
   const [inspectorChainPath, setInspectorChainPath] = useState<
     InspectorChainNode[]
   >([]);
   const [focusedSceneBindingTargetId, setFocusedSceneBindingTargetId] =
     useState<string | null>(null);
-  const [poseBindingEditorInputId, setPoseBindingEditorInputId] = useState<
-    string | null
-  >(null);
   const [expandedPoseVariableIds, setExpandedPoseVariableIds] = useState<
     Set<string>
   >(() => new Set());
@@ -536,9 +525,7 @@ export function InspectorContent({
     inspectorMode,
   } = useUnifiedSelection();
   const shouldSubscribeInputValues =
-    inspectorMode === "rig" ||
-    inspectorMode === "material" ||
-    (inspectorMode === "pose" && poseBindingEditorInputId !== null);
+    inspectorMode === "rig" || inspectorMode === "material";
 
   const {
     getNode,
@@ -588,9 +575,6 @@ export function InspectorContent({
   const applyInputBindingPatch = useBindingAuthoring(
     (state) => state.applyInputBindingPatch,
   );
-  const handleCreateCustomStandardInput = useBindingAuthoring(
-    (state) => state.handleCreateCustomStandardInput,
-  );
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
   );
@@ -609,23 +593,8 @@ export function InspectorContent({
   const handleParentBindingInputChange = useBindingAuthoring(
     (state) => state.handleParentBindingInputChange,
   );
-  const handleParentAddBindingSlot = useBindingAuthoring(
-    (state) => state.handleParentAddBindingSlot,
-  );
-  const handleParentRemoveBindingSlot = useBindingAuthoring(
-    (state) => state.handleParentRemoveBindingSlot,
-  );
   const handleParentBindingExpressionChange = useBindingAuthoring(
     (state) => state.handleParentBindingExpressionChange,
-  );
-  const handleParentBindingSlotAliasChange = useBindingAuthoring(
-    (state) => state.handleParentBindingSlotAliasChange,
-  );
-  const handleParentBindingSlotValueTypeChange = useBindingAuthoring(
-    (state) => state.handleParentBindingSlotValueTypeChange,
-  );
-  const handleParentResetBinding = useBindingAuthoring(
-    (state) => state.handleParentResetBinding,
   );
   const handleEnableParentLocalControl = useBindingAuthoring(
     (state) => state.handleEnableParentLocalControl,
@@ -917,28 +886,6 @@ export function InspectorContent({
   }, [inspectorMode, selectedId, selectedMaterialId]);
 
   useEffect(() => {
-    if (inspectorMode !== "rig" || !resolvedSelectedRigId) {
-      setShowRigDriversModal(false);
-      return;
-    }
-    const nextView = pendingRigInspectorViewRef.current;
-    if (nextView) {
-      setRigInspectorView(nextView);
-      setShowRigDriversModal(nextView === "bindings");
-      pendingRigInspectorViewRef.current = null;
-      return;
-    }
-    setRigInspectorView("quick");
-    setShowRigDriversModal(false);
-  }, [inspectorMode, resolvedSelectedRigId]);
-
-  useEffect(() => {
-    if (inspectorMode !== "pose" || !selectedPoseId) {
-      setPoseBindingEditorInputId(null);
-    }
-  }, [inspectorMode, selectedPoseId]);
-
-  useEffect(() => {
     if (inspectorMode !== "pose" || !selectedPoseId) {
       setExpandedPoseVariableIds((current) =>
         current.size === 0 ? current : new Set(),
@@ -1133,10 +1080,6 @@ export function InspectorContent({
     }
     return poseById.get(selectedPoseId) ?? null;
   }, [poseById, selectedPoseId]);
-  const standardInputList = useMemo(
-    () => managedStandardInputs.map((entry) => entry.input),
-    [managedStandardInputs],
-  );
   const poseBindingTargetByInputId = useMemo(() => {
     const mapping = new Map<
       string,
@@ -1180,9 +1123,6 @@ export function InspectorContent({
       return counts;
     }
     const inputIds = new Set<string>(Object.keys(selectedPose.values));
-    if (poseBindingEditorInputId) {
-      inputIds.add(poseBindingEditorInputId);
-    }
     inputIds.forEach((inputId) => {
       counts.set(inputId, {
         drivenPropertyCount: collectRigDependents({
@@ -1205,7 +1145,6 @@ export function InspectorContent({
     inputBindings,
     inspectorMode,
     objects,
-    poseBindingEditorInputId,
     selectedPose,
     standardInputsById,
   ]);
@@ -1408,7 +1347,7 @@ export function InspectorContent({
     standardInputsById,
   ]);
 
-  const currentInspectorChainNode = useMemo(() => {
+  const currentInspectorChainNode = useMemo<InspectorChainNode | null>(() => {
     if (inspectorMode === "scene" && selectedId) {
       const sceneNode = sceneNodeById.get(selectedId);
       return {
@@ -1424,7 +1363,7 @@ export function InspectorContent({
         mode: "rig" as const,
         id: resolvedSelectedRigId,
         label: rig?.label || resolvedSelectedRigId,
-        view: rigInspectorView,
+        view: "quick",
       };
     }
     if (inspectorMode === "pose" && selectedPoseId) {
@@ -1440,7 +1379,6 @@ export function InspectorContent({
     inspectorMode,
     poseById,
     rigInputById,
-    rigInspectorView,
     sceneInspectorView,
     sceneNodeById,
     selectedId,
@@ -1558,8 +1496,6 @@ export function InspectorContent({
                     return;
                   }
                   if (entry.mode === "rig") {
-                    pendingRigInspectorViewRef.current =
-                      entry.view === "bindings" ? "bindings" : "quick";
                     handleSelectRig(entry.id);
                     return;
                   }
@@ -1663,18 +1599,14 @@ export function InspectorContent({
     );
   };
 
-  const openRigInspector = (
-    rigId: string,
-    view: "quick" | "bindings" = "quick",
-  ) => {
+  const openRigInspector = (rigId: string) => {
     const rig = rigInputById.get(rigId);
-    pendingRigInspectorViewRef.current = view;
     navigateWithChain(
       {
         mode: "rig",
         id: rigId,
         label: rig?.label || rigId,
-        view,
+        view: "quick",
       },
       () => handleSelectRig(rigId),
     );
@@ -1682,30 +1614,9 @@ export function InspectorContent({
 
   const openRigFromChainSource = (
     rigId: string,
-    sourceKind?: PoseRigSourceKind,
+    _sourceKind?: PoseRigSourceKind,
   ) => {
-    const view: "quick" | "bindings" =
-      sourceKind === "pose-group-output" ||
-      sourceKind === "pose-aggregate-output"
-        ? "bindings"
-        : "quick";
-    openRigInspector(rigId, view);
-  };
-
-  const handleRequestCreateStandardInput = (suggestedPath?: string) => {
-    const response = promptDialog(
-      "Enter the rig path for the new standard input (e.g., /eyes/blink)",
-      suggestedPath ?? "/",
-    );
-    if (response === null) {
-      return null;
-    }
-    const trimmed = response.trim();
-    if (!trimmed) {
-      alertDialog("Path cannot be empty.");
-      return null;
-    }
-    return handleCreateCustomStandardInput(trimmed);
+    openRigInspector(rigId);
   };
 
   // 1. Scene Object Mode
@@ -1740,7 +1651,7 @@ export function InspectorContent({
               className="h-6 text-[10px]"
               onClick={() => setSceneInspectorView("bindings")}
             >
-              My Drivers
+              Bindings
             </Button>
           </div>
           {sceneInspectorView === "quick" ? (
@@ -1908,9 +1819,6 @@ export function InspectorContent({
         allPoseVariablesExpanded ? new Set() : new Set(poseVariableIds),
       );
     };
-    const poseBindingEditorInput = poseBindingEditorInputId
-      ? (rigInputById.get(poseBindingEditorInputId) ?? null)
-      : null;
 
     return (
       <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
@@ -2223,7 +2131,7 @@ export function InspectorContent({
                               onClick={(event) => {
                                 event.stopPropagation();
                                 if (canInspectVariable) {
-                                  openRigInspector(varId, "bindings");
+                                  openRigInspector(varId);
                                 }
                               }}
                             >
@@ -2264,106 +2172,6 @@ export function InspectorContent({
             onCancel={() => setShowSelector(false)}
             defaultTab="variables"
           />
-        </Modal>
-        <Modal
-          open={poseBindingEditorInputId !== null}
-          onClose={() => setPoseBindingEditorInputId(null)}
-          title={
-            poseBindingEditorInputId
-              ? `Edit My Drivers · ${
-                  poseBindingEditorInput?.label ?? poseBindingEditorInputId
-                }`
-              : "Edit My Drivers"
-          }
-          maxWidth="lg"
-        >
-          {poseBindingEditorInput ? (
-            (() => {
-              const inputToEdit = poseBindingEditorInput;
-              const bindingToEdit = inputBindings[inputToEdit.id] ?? null;
-              if (!bindingToEdit) {
-                const connectionCounts = poseConnectionCountsByInputId.get(
-                  inputToEdit.id,
-                );
-                const drivenVariableCount =
-                  connectionCounts?.drivenVariableCount ?? 0;
-                const drivenPropertyCount =
-                  connectionCounts?.drivenPropertyCount ?? 0;
-                const emptyStateKind = classifyPoseParentBindingEmptyState(
-                  drivenVariableCount,
-                  drivenPropertyCount,
-                );
-                return (
-                  <EmptyState
-                    icon={Sliders}
-                    iconSize={20}
-                    title={
-                      emptyStateKind === "root"
-                        ? "Root Variable (No Parent Drivers)"
-                        : "No Parent Drivers (Currently Unlinked)"
-                    }
-                    description={
-                      emptyStateKind === "root"
-                        ? "This pose-driven variable is currently a root input. Create a parent binding only if you want it remapped from upstream rig variables."
-                        : "This pose-driven variable has no parent drivers and no downstream outputs yet. Add downstream targets or create a parent binding to connect it."
-                    }
-                    className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-                    action={
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-[10px] text-text-muted font-mono">
-                          Downstream: {drivenVariableCount} vars ·{" "}
-                          {drivenPropertyCount} props
-                        </span>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() =>
-                            handleEnsureParentBinding(inputToEdit.id)
-                          }
-                        >
-                          Create Parent Binding
-                        </Button>
-                      </div>
-                    }
-                  />
-                );
-              }
-              return (
-                <BindingEditor
-                  binding={bindingToEdit}
-                  targetId={inputToEdit.id}
-                  issues={bindingIssues.get(inputToEdit.id)}
-                  label={inputToEdit.label || inputToEdit.id}
-                  standardInputs={standardInputList}
-                  standardInputLookup={standardInputsById}
-                  onBindingInputChange={handleParentBindingInputChange}
-                  onAddBindingSlot={handleParentAddBindingSlot}
-                  onRemoveBindingSlot={handleParentRemoveBindingSlot}
-                  onBindingExpressionChange={
-                    handleParentBindingExpressionChange
-                  }
-                  onBindingSlotAliasChange={handleParentBindingSlotAliasChange}
-                  onBindingSlotValueTypeChange={
-                    handleParentBindingSlotValueTypeChange
-                  }
-                  onRequestCreateStandardInput={
-                    handleRequestCreateStandardInput
-                  }
-                  onResetBinding={handleParentResetBinding}
-                  expandable={false}
-                  defaultExpanded={true}
-                  currentValues={inputValues}
-                  onInputValueChange={handleInputValueChange}
-                  featureFlags={{
-                    vectorAuthoringBeta: true,
-                    conditionalAuthoringBeta: true,
-                  }}
-                />
-              );
-            })()
-          ) : (
-            <p className="text-xs text-text-muted">No variable selected.</p>
-          )}
         </Modal>
       </div>
     );
@@ -2407,7 +2215,7 @@ export function InspectorContent({
         ? controllableResolution.blockedReason
         : controllableResolution.inputId &&
             controllableResolution.inputId !== input.id
-          ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Edit My Drivers to add local control or adjust "${controllableResolution.inputId}".`
+          ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Use the Parents expression/links below to add local control or adjust "${controllableResolution.inputId}".`
           : null;
       const {
         downstreamInputs,
@@ -2615,14 +2423,14 @@ export function InspectorContent({
             alertDialog(
               "This variable is already driven by the selected rig variable.",
             );
-            openRigInspector(resolvedSelection.childInputId, "bindings");
+            openRigInspector(resolvedSelection.childInputId);
             return;
           }
           handleCreateParentDriverBinding(
             resolvedSelection.childInputId,
             resolvedSelectedRigId,
           );
-          openRigInspector(resolvedSelection.childInputId, "bindings");
+          openRigInspector(resolvedSelection.childInputId);
           return;
         }
 
@@ -3504,6 +3312,11 @@ export function InspectorContent({
           </div>
           <VariablePipelineStages
             parentExpression={parentBinding?.expression ?? ""}
+            parentExpressionReadOnly={isLegacyReadOnlyBinding}
+            onParentExpressionChange={(expression) =>
+              handleParentBindingExpressionChange(input.id, expression)
+            }
+            onCreateParentBinding={() => handleEnsureParentBinding(input.id)}
             compiledEquation={compiledPipelineEquation}
             parents={parentRigChainItems.map((entry) => ({
               id: entry.key,
@@ -3618,7 +3431,6 @@ export function InspectorContent({
             migrationSummary={migrationSummary}
             onMigrateLegacyBinding={handleMigrateLegacyBinding}
             onMigrateAllLegacyBindings={handleMigrateAllLegacyBindings}
-            onEditParents={() => setShowRigDriversModal(true)}
             onAddChild={() => setShowSelector(true)}
             showClampStage={false}
           />
@@ -3712,65 +3524,6 @@ export function InspectorContent({
               )}
             </div>
           )}
-          <Modal
-            open={showRigDriversModal}
-            onClose={() => setShowRigDriversModal(false)}
-            title="Edit My Drivers"
-            maxWidth="lg"
-          >
-            {parentBinding ? (
-              <div className="rounded-lg border border-border-default/60 bg-bg-panel/30 p-2 overflow-y-auto custom-scrollbar">
-                <BindingEditor
-                  binding={parentBinding}
-                  targetId={input.id}
-                  issues={bindingIssues.get(input.id)}
-                  label={input.label || input.id}
-                  standardInputs={standardInputList}
-                  standardInputLookup={standardInputsById}
-                  onBindingInputChange={handleParentBindingInputChange}
-                  onAddBindingSlot={handleParentAddBindingSlot}
-                  onRemoveBindingSlot={handleParentRemoveBindingSlot}
-                  onBindingExpressionChange={
-                    handleParentBindingExpressionChange
-                  }
-                  onBindingSlotAliasChange={handleParentBindingSlotAliasChange}
-                  onBindingSlotValueTypeChange={
-                    handleParentBindingSlotValueTypeChange
-                  }
-                  onRequestCreateStandardInput={
-                    handleRequestCreateStandardInput
-                  }
-                  onResetBinding={handleParentResetBinding}
-                  expandable={false}
-                  defaultExpanded={true}
-                  currentValues={inputValues}
-                  onInputValueChange={handleInputValueChange}
-                  readOnly={isLegacyReadOnlyBinding}
-                  featureFlags={{
-                    vectorAuthoringBeta: true,
-                    conditionalAuthoringBeta: true,
-                  }}
-                />
-              </div>
-            ) : (
-              <EmptyState
-                icon={Sliders}
-                iconSize={20}
-                title="No Parent Binding"
-                description="This variable has no input binding yet. Create one to map it from upstream rig inputs."
-                className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
-                action={
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleEnsureParentBinding(input.id)}
-                  >
-                    Create Binding
-                  </Button>
-                }
-              />
-            )}
-          </Modal>
           <Modal
             open={showSelector}
             onClose={() => setShowSelector(false)}

@@ -103,9 +103,10 @@ function createBaseProps(): VariablePipelineStagesProps {
       convertible: 1,
       nonConvertible: 1,
     },
+    onParentExpressionChange: vi.fn(),
+    onCreateParentBinding: vi.fn(),
     onMigrateLegacyBinding: vi.fn(),
     onMigrateAllLegacyBindings: vi.fn(),
-    onEditParents: vi.fn(),
     onAddChild: vi.fn(),
   };
 }
@@ -148,6 +149,18 @@ describe("VariablePipelineStages", () => {
     fireEvent.click(parentSwitches[0]!);
     expect(props.parents[0]?.linkControl?.onEnabledChange).toHaveBeenCalledWith(
       false,
+    );
+    fireEvent.change(
+      within(parentStage).getByTestId("pipeline-parent-expression-editor"),
+      {
+        target: { value: "self - jawParent*2" },
+      },
+    );
+    fireEvent.click(
+      within(parentStage).getByRole("button", { name: "Apply Expression" }),
+    );
+    expect(props.onParentExpressionChange).toHaveBeenCalledWith(
+      "self - jawParent*2",
     );
 
     const childSwitches = within(childStage).getAllByRole("switch");
@@ -232,5 +245,19 @@ describe("VariablePipelineStages", () => {
 
     const overrideStage = view.getByTestId("pipeline-stage-override");
     expect(within(overrideStage).getByText("Disabled")).toBeTruthy();
+  });
+
+  it("shows parent binding creation action when no parent links exist", () => {
+    const props = createBaseProps();
+    props.parents = [];
+    const view = render(<VariablePipelineStages {...props} />);
+
+    const parentStage = view.getByTestId("pipeline-stage-parents");
+    fireEvent.click(
+      within(parentStage).getByRole("button", {
+        name: "Create Parent Binding",
+      }),
+    );
+    expect(props.onCreateParentBinding).toHaveBeenCalledTimes(1);
   });
 });

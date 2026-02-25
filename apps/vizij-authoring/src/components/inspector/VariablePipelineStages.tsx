@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Chip } from "../ui";
+import { Button, Chip, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
@@ -42,6 +42,9 @@ export interface PipelineStagePoseItem {
 
 interface VariablePipelineStagesProps {
   parentExpression: string;
+  parentExpressionReadOnly?: boolean;
+  onParentExpressionChange?: (expression: string) => void;
+  onCreateParentBinding?: () => void;
   compiledEquation: string;
   parents: PipelineStageLinkItem[];
   children: PipelineStageLinkItem[];
@@ -76,7 +79,6 @@ interface VariablePipelineStagesProps {
   };
   onMigrateLegacyBinding?: () => void;
   onMigrateAllLegacyBindings?: () => void;
-  onEditParents?: () => void;
   onAddChild?: () => void;
   showClampStage?: boolean;
 }
@@ -198,6 +200,9 @@ function ParentDirectControlEditor({
 
 export function VariablePipelineStages({
   parentExpression,
+  parentExpressionReadOnly = false,
+  onParentExpressionChange,
+  onCreateParentBinding,
   compiledEquation,
   parents,
   children,
@@ -227,10 +232,18 @@ export function VariablePipelineStages({
   migrationSummary,
   onMigrateLegacyBinding,
   onMigrateAllLegacyBindings,
-  onEditParents,
   onAddChild,
   showClampStage = true,
 }: VariablePipelineStagesProps) {
+  const [parentExpressionDraft, setParentExpressionDraft] =
+    React.useState(parentExpression);
+  React.useEffect(() => {
+    setParentExpressionDraft(parentExpression);
+  }, [parentExpression]);
+  const parentExpressionDirty =
+    parentExpressionDraft.trim() !== parentExpression.trim();
+  const canEditParentExpression =
+    Boolean(onParentExpressionChange) && !parentExpressionReadOnly;
   const sourceSectionClass = overrideEnabled
     ? "opacity-45 saturate-75 transition-opacity"
     : "";
@@ -323,9 +336,51 @@ export function VariablePipelineStages({
           <div className="text-[9px] uppercase tracking-wide text-text-muted mb-1">
             Authored Parent Expression
           </div>
-          <code className="text-[10px] text-text-primary break-all">
-            {parentExpression.trim().length > 0 ? parentExpression : "n/a"}
-          </code>
+          {onParentExpressionChange ? (
+            <div className="flex flex-col gap-1.5">
+              <TextArea
+                value={parentExpressionDraft}
+                onChange={(event) =>
+                  setParentExpressionDraft(event.target.value)
+                }
+                rows={2}
+                className="min-h-[52px] text-[10px] leading-snug break-all bg-bg-panel/60 border-border-default/60"
+                disabled={parentExpressionReadOnly}
+                data-testid="pipeline-parent-expression-editor"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 text-[10px]"
+                  onClick={() =>
+                    onParentExpressionChange(parentExpressionDraft)
+                  }
+                  disabled={!canEditParentExpression || !parentExpressionDirty}
+                >
+                  Apply Expression
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px]"
+                  onClick={() => setParentExpressionDraft(parentExpression)}
+                  disabled={!parentExpressionDirty}
+                >
+                  Reset
+                </Button>
+                {parentExpressionReadOnly ? (
+                  <span className="text-[10px] text-amber-300/90">
+                    Legacy read-only expression.
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <code className="text-[10px] text-text-primary break-all">
+              {parentExpression.trim().length > 0 ? parentExpression : "n/a"}
+            </code>
+          )}
         </div>
         <span className="text-[10px] text-text-secondary">
           Parents are upstream inputs driving this variable. Each link applies a
@@ -367,14 +422,14 @@ export function VariablePipelineStages({
             No parent links configured.
           </span>
         )}
-        {onEditParents ? (
+        {onCreateParentBinding && parents.length === 0 ? (
           <Button
             variant="secondary"
             size="sm"
             className="h-6 text-[10px] w-fit"
-            onClick={onEditParents}
+            onClick={onCreateParentBinding}
           >
-            Edit Parents
+            Create Parent Binding
           </Button>
         ) : null}
       </StageSection>
