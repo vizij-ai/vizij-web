@@ -36,6 +36,7 @@ import { NumberField } from "../ui/NumberField";
 import { Switch } from "../ui/Switch";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
+import { CollapsibleGroup } from "../ui";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
   useBindingAuthoring,
@@ -1400,8 +1401,12 @@ export function InspectorContent({
     pendingChainNavigationRef.current = node;
     navigate();
   };
+  const showInspectorContextBars = useMemo(() => false, []);
 
   const renderChainPath = () => {
+    if (!showInspectorContextBars) {
+      return null;
+    }
     if (inspectorChainPath.length <= 1) {
       return null;
     }
@@ -1452,6 +1457,9 @@ export function InspectorContent({
   };
 
   const renderAuthoringStatus = () => {
+    if (!showInspectorContextBars) {
+      return null;
+    }
     const statusTone =
       graphStatus === "ready"
         ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
@@ -2922,90 +2930,6 @@ export function InspectorContent({
           text: "Legacy canonical self+parent binding migrated to staged pipeline metadata.",
         });
       };
-      const migrationEntries = Object.entries(inputBindings)
-        .map(([candidateInputId, candidateBinding]) => ({
-          inputId: candidateInputId,
-          assessment: assessLegacyBindingMigration(candidateBinding ?? null),
-        }))
-        .filter((entry) => entry.assessment.kind !== "none");
-      const convertibleMigrationEntries = migrationEntries.filter(
-        (entry) => entry.assessment.kind === "convertible",
-      );
-      const migrationSummary = {
-        totalLegacy: migrationEntries.length,
-        migrated: migrationEntries.filter(
-          (entry) => entry.assessment.kind === "migrated",
-        ).length,
-        convertible: convertibleMigrationEntries.length,
-        nonConvertible: migrationEntries.filter(
-          (entry) => entry.assessment.kind === "non-convertible",
-        ).length,
-      };
-      const handleMigrateAllLegacyBindings = () => {
-        if (convertibleMigrationEntries.length === 0) {
-          return;
-        }
-        applyInputBindingPatch((previous) => {
-          let changed = false;
-          const next: typeof previous = { ...previous };
-          convertibleMigrationEntries.forEach(
-            ({ inputId: targetInputId, assessment }) => {
-              const sourceInput = standardInputsById.get(targetInputId);
-              if (!sourceInput) {
-                return;
-              }
-              const existingBinding =
-                next[targetInputId] ??
-                createDefaultParentBinding(bindingTargetFromInput(sourceInput));
-              const linkUpserts = buildLegacyMigrationLinkUpserts({
-                binding: existingBinding,
-                childInputId: targetInputId,
-                factorsByInputId: assessment.parentFactorsByInputId ?? {},
-                defaultOffset: sourceInput.defaultValue,
-                resolveInputId: (rawInputId) =>
-                  resolveRigMetadataInputId(rawInputId, standardInputsById),
-              });
-              const nextMetadata = mergePipelineMetadata(
-                (existingBinding.metadata ?? undefined) as
-                  | Record<string, unknown>
-                  | undefined,
-                {
-                  directInputEnabled: true,
-                  overrideEnabled: false,
-                  overrideValue: sourceInput.defaultValue,
-                  clampEnabled: true,
-                  ...(Object.keys(linkUpserts).length > 0
-                    ? { linkUpserts }
-                    : {}),
-                  migrationStatus: "migrated",
-                  migrationSource: "canonical-self-parent",
-                  migrationExpression: assessment.expression,
-                },
-              );
-              const previousMetadataSignature = JSON.stringify(
-                existingBinding.metadata ?? null,
-              );
-              const nextMetadataSignature = JSON.stringify(nextMetadata);
-              if (previousMetadataSignature === nextMetadataSignature) {
-                return;
-              }
-              changed = true;
-              next[targetInputId] = {
-                ...existingBinding,
-                metadata: nextMetadata,
-              };
-            },
-          );
-          return changed ? next : previous;
-        });
-        setRigLifecycleMessage({
-          tone: "info",
-          text: `Migrated ${convertibleMigrationEntries.length} legacy variable binding${
-            convertibleMigrationEntries.length === 1 ? "" : "s"
-          } to staged metadata.`,
-        });
-      };
-
       return (
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
           <InspectorHeader
@@ -3041,33 +2965,35 @@ export function InspectorContent({
           />
           {renderChainPath()}
           {renderAuthoringStatus()}
-          <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+          <CollapsibleGroup
+            title="Variable Metadata"
+            subtitle={`Default ${input.defaultValue.toFixed(3)} · Range ${input.range.min.toFixed(3)}..${input.range.max.toFixed(3)} · ${
+              pipelineStageSettings.clampEnabled ? "Clamp on" : "Clamp off"
+            }`}
+            defaultCollapsed={true}
+            className="mb-0"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                Variable Metadata
+              <Switch
+                checked={pipelineStageSettings.clampEnabled}
+                onChange={handlePipelineClampEnabledChange}
+                label={
+                  pipelineStageSettings.clampEnabled
+                    ? "Clamp Enabled"
+                    : "Clamp Disabled"
+                }
+                size="sm"
+              />
+              <span
+                className={cn(
+                  "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                  isRemovableCustomInput
+                    ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
+                    : "border-sky-500/40 text-sky-200 bg-sky-500/10",
+                )}
+              >
+                {isRemovableCustomInput ? "custom" : "system"}
               </span>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={pipelineStageSettings.clampEnabled}
-                  onChange={handlePipelineClampEnabledChange}
-                  label={
-                    pipelineStageSettings.clampEnabled
-                      ? "Clamp Enabled"
-                      : "Clamp Disabled"
-                  }
-                  size="sm"
-                />
-                <span
-                  className={cn(
-                    "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                    isRemovableCustomInput
-                      ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
-                      : "border-sky-500/40 text-sky-200 bg-sky-500/10",
-                  )}
-                >
-                  {isRemovableCustomInput ? "custom" : "system"}
-                </span>
-              </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="flex flex-col gap-1">
@@ -3186,11 +3112,14 @@ export function InspectorContent({
                 {rigLifecycleMessage.text}
               </p>
             )}
-          </div>
+          </CollapsibleGroup>
           <VariablePipelineStages
             parentExpression={displayedParentExpression}
             parentExpressionTitle={parentExpressionTitle}
             parentExpressionReadOnly={isLegacyReadOnlyBinding}
+            parentExpressionReadOnlyReason={
+              isLegacyReadOnlyBinding ? legacyMigrationAssessment.reason : null
+            }
             onParentExpressionChange={
               isMigratedBinding
                 ? undefined
@@ -3308,10 +3237,11 @@ export function InspectorContent({
             onOverrideValueChange={handlePipelineOverrideValueChange}
             clampEnabled={pipelineStageSettings.clampEnabled}
             onClampEnabledChange={handlePipelineClampEnabledChange}
-            migration={legacyMigrationAssessment}
-            migrationSummary={migrationSummary}
-            onMigrateLegacyBinding={handleMigrateLegacyBinding}
-            onMigrateAllLegacyBindings={handleMigrateAllLegacyBindings}
+            onMigrateLegacyBinding={
+              legacyMigrationAssessment.kind === "convertible"
+                ? handleMigrateLegacyBinding
+                : undefined
+            }
             onAddChild={() => setShowSelector(true)}
             showClampStage={false}
           />

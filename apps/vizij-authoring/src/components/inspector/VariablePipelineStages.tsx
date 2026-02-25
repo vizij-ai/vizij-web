@@ -1,11 +1,16 @@
 import React from "react";
-import { Button, Chip, TextArea } from "../ui";
+import {
+  Button,
+  Chip,
+  CollapsibleGroup,
+  CollapsibleRow,
+  TextArea,
+} from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
 import {
   formatPipelineValue,
-  type LegacyBindingMigrationAssessment,
   type PipelineDiagnosticsRow,
 } from "./pipelineStages";
 
@@ -44,6 +49,7 @@ interface VariablePipelineStagesProps {
   parentExpression: string;
   parentExpressionTitle?: string;
   parentExpressionReadOnly?: boolean;
+  parentExpressionReadOnlyReason?: string | null;
   onParentExpressionChange?: (expression: string) => void;
   onCreateParentBinding?: () => void;
   compiledEquation: string;
@@ -71,50 +77,50 @@ interface VariablePipelineStagesProps {
   onOverrideValueChange: (value: number) => void;
   clampEnabled: boolean;
   onClampEnabledChange: (enabled: boolean) => void;
-  migration: LegacyBindingMigrationAssessment;
-  migrationSummary?: {
-    totalLegacy: number;
-    migrated: number;
-    convertible: number;
-    nonConvertible: number;
-  };
   onMigrateLegacyBinding?: () => void;
-  onMigrateAllLegacyBindings?: () => void;
   onAddChild?: () => void;
   showClampStage?: boolean;
 }
 
 function StageSection({
   title,
+  subtitle,
   count,
   children,
   testId,
   className,
 }: {
   title: string;
+  subtitle: string;
   count?: number;
   children: React.ReactNode;
   testId: string;
   className?: string;
 }) {
   return (
-    <section
-      className={`rounded border border-border-default/50 bg-bg-panel/30 p-2.5 flex flex-col gap-2 ${className ?? ""}`}
-      data-testid={testId}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-          {title}
-        </span>
-        {typeof count === "number" ? <Chip tone="default">{count}</Chip> : null}
-      </div>
-      {children}
-    </section>
+    <div className={className} data-testid={testId}>
+      <CollapsibleGroup
+        title={title}
+        subtitle={subtitle}
+        itemCount={count}
+        defaultCollapsed={true}
+        className="mb-0"
+      >
+        <div className="flex flex-col gap-2">{children}</div>
+      </CollapsibleGroup>
+    </div>
   );
 }
 
 function kindTone(kind: PipelineStageLinkItem["kind"]): "default" | "info" {
   return kind === "autorig" ? "info" : "default";
+}
+
+function formatCompactNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  return Number(value.toFixed(3)).toString();
 }
 
 function LinkControlEditor({
@@ -203,6 +209,7 @@ export function VariablePipelineStages({
   parentExpression,
   parentExpressionTitle = "Authored Parent Expression",
   parentExpressionReadOnly = false,
+  parentExpressionReadOnlyReason = null,
   onParentExpressionChange,
   onCreateParentBinding,
   compiledEquation,
@@ -230,10 +237,7 @@ export function VariablePipelineStages({
   onOverrideValueChange,
   clampEnabled,
   onClampEnabledChange,
-  migration,
-  migrationSummary,
   onMigrateLegacyBinding,
-  onMigrateAllLegacyBindings,
   onAddChild,
   showClampStage = true,
 }: VariablePipelineStagesProps) {
@@ -264,79 +268,31 @@ export function VariablePipelineStages({
             Stage-oriented inspector controls
           </span>
         </div>
-        {migration.kind === "migrated" ? (
-          <Chip tone="success">Migrated</Chip>
-        ) : null}
       </div>
-      {migrationSummary && migrationSummary.totalLegacy > 0 ? (
-        <div
-          className="rounded border border-border-default/40 bg-bg-input/30 px-2 py-1.5 flex items-center gap-2 flex-wrap"
-          data-testid="pipeline-migration-summary"
-        >
-          <Chip tone="default">Legacy {migrationSummary.totalLegacy}</Chip>
-          <Chip tone="success">Migrated {migrationSummary.migrated}</Chip>
-          <Chip tone="info">Convertible {migrationSummary.convertible}</Chip>
-          <Chip tone="warning">
-            Non-convertible {migrationSummary.nonConvertible}
-          </Chip>
-          {onMigrateAllLegacyBindings && migrationSummary.convertible > 0 ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-6 text-[10px] ml-auto"
-              onClick={onMigrateAllLegacyBindings}
-              data-testid="pipeline-migrate-all-action"
-            >
-              Migrate All Convertible
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {migration.kind === "convertible" && onMigrateLegacyBinding ? (
-        <div className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 flex items-center gap-2">
-          <span className="text-[10px] text-emerald-100 flex-1">
-            Legacy canonical self+parent expression detected.
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-6 text-[10px]"
-            onClick={onMigrateLegacyBinding}
-            data-testid="pipeline-migrate-action"
-          >
-            Migrate
-          </Button>
-        </div>
-      ) : null}
-      {migration.kind === "non-convertible" ? (
-        <div
-          className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 flex flex-col gap-1"
-          data-testid="pipeline-legacy-read-only-flag"
-        >
-          <div className="flex items-center gap-2">
-            <Chip tone="warning">Legacy read-only</Chip>
-            <span className="text-[10px] text-amber-100">
-              Non-convertible expression remains in legacy mode.
-            </span>
-          </div>
-          {migration.reason ? (
-            <span className="text-[10px] text-amber-200/90">
-              {migration.reason}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
 
       <StageSection
         title="Parents"
+        subtitle="Upstream variables that contribute parent math."
         count={parents.length}
         testId="pipeline-stage-parents"
         className={sourceSectionClass}
       >
         <div className="rounded border border-border-default/40 bg-bg-input/40 p-2">
-          <div className="text-[9px] uppercase tracking-wide text-text-muted mb-1">
-            {parentExpressionTitle}
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="text-[9px] uppercase tracking-wide text-text-muted">
+              {parentExpressionTitle}
+            </div>
+            {onMigrateLegacyBinding ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 text-[10px]"
+                onClick={onMigrateLegacyBinding}
+                data-testid="pipeline-migrate-action"
+              >
+                Migrate Legacy Formula
+              </Button>
+            ) : null}
           </div>
           {onParentExpressionChange ? (
             <div className="flex flex-col gap-1.5">
@@ -373,7 +329,10 @@ export function VariablePipelineStages({
                 </Button>
                 {parentExpressionReadOnly ? (
                   <span className="text-[10px] text-amber-300/90">
-                    Legacy read-only expression.
+                    Legacy read-only expression
+                    {parentExpressionReadOnlyReason
+                      ? `: ${parentExpressionReadOnlyReason}`
+                      : "."}
                   </span>
                 ) : null}
               </div>
@@ -391,32 +350,52 @@ export function VariablePipelineStages({
         {parents.length > 0 ? (
           <div className="flex flex-col gap-2">
             {parents.map((parent) => (
-              <div
+              <CollapsibleRow
                 key={parent.id}
-                className="rounded border border-border-default/50 bg-bg-input/60 px-2 py-1.5 flex flex-col gap-1.5"
-              >
-                <div className="inline-flex items-center gap-1">
-                  <Chip tone={kindTone(parent.kind)}>{parent.kind}</Chip>
-                  <button
-                    type="button"
-                    className="text-[10px] text-text-primary hover:text-accent transition-colors"
-                    onClick={parent.onInspect}
-                  >
-                    {parent.label}
-                  </button>
-                </div>
-                {parent.linkControl ? (
-                  <LinkControlEditor
-                    linkControl={parent.linkControl}
-                    context="parent"
-                  />
-                ) : null}
-                {parent.directControl ? (
-                  <ParentDirectControlEditor
-                    directControl={parent.directControl}
-                  />
-                ) : null}
-              </div>
+                id={`pipeline-parent-${parent.id}`}
+                title={parent.label}
+                subtitle={
+                  parent.linkControl
+                    ? `${
+                        parent.linkControl.enabled ? "Enabled" : "Disabled"
+                      } · scale ${formatCompactNumber(
+                        parent.linkControl.scale,
+                      )} · offset ${formatCompactNumber(parent.linkControl.offset)}`
+                    : "No link controls configured"
+                }
+                defaultExpanded={false}
+                showSlider={false}
+                actions={
+                  <>
+                    <Chip tone={kindTone(parent.kind)}>{parent.kind}</Chip>
+                    {parent.onInspect ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px]"
+                        onClick={parent.onInspect}
+                      >
+                        Inspect
+                      </Button>
+                    ) : null}
+                  </>
+                }
+                expandedContent={
+                  <div className="flex flex-col gap-1.5">
+                    {parent.linkControl ? (
+                      <LinkControlEditor
+                        linkControl={parent.linkControl}
+                        context="parent"
+                      />
+                    ) : null}
+                    {parent.directControl ? (
+                      <ParentDirectControlEditor
+                        directControl={parent.directControl}
+                      />
+                    ) : null}
+                  </div>
+                }
+              />
             ))}
           </div>
         ) : (
@@ -438,47 +417,57 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Poses"
+        subtitle="Pose targets and blend weights for this variable."
         count={poses.length}
         testId="pipeline-stage-poses"
         className={sourceSectionClass}
       >
         {poses.length > 0 ? (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             {poses.map((pose) => (
-              <div
+              <CollapsibleRow
                 key={pose.id}
-                className="rounded border border-border-default/50 bg-bg-input/60 px-2 py-1.5 flex items-center gap-2"
-              >
-                <button
-                  type="button"
-                  className="text-[10px] text-text-primary hover:text-accent transition-colors flex-1 text-left"
-                  onClick={pose.onInspect}
-                >
-                  {pose.label}
-                </button>
-                <span className="text-[10px] text-text-secondary font-mono">
-                  target {pose.targetValue.toFixed(3)}
-                </span>
-                <div className="w-32">
-                  <Slider
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={pose.weight}
-                    onChange={(value) => pose.onWeightChange?.(value as number)}
-                  />
-                </div>
-                <div className="w-20">
-                  <NumberField
-                    size="sm"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={pose.weight}
-                    onChange={pose.onWeightChange}
-                  />
-                </div>
-              </div>
+                id={`pipeline-pose-${pose.id}`}
+                title={pose.label}
+                subtitle={`Target ${pose.targetValue.toFixed(
+                  3,
+                )} · Weight ${pose.weight.toFixed(3)}`}
+                defaultExpanded={false}
+                showSlider={false}
+                actions={
+                  pose.onInspect ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px]"
+                      onClick={pose.onInspect}
+                    >
+                      Inspect Pose
+                    </Button>
+                  ) : undefined
+                }
+                expandedContent={
+                  <div className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-2">
+                    <Slider
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={pose.weight}
+                      onChange={(value) =>
+                        pose.onWeightChange?.(value as number)
+                      }
+                    />
+                    <NumberField
+                      size="sm"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={pose.weight}
+                      onChange={pose.onWeightChange}
+                    />
+                  </div>
+                }
+              />
             ))}
           </div>
         ) : (
@@ -490,6 +479,7 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Direct Input"
+        subtitle="Optional direct control path for this variable."
         testId="pipeline-stage-direct-input"
         className={sourceSectionClass}
       >
@@ -557,7 +547,11 @@ export function VariablePipelineStages({
         ) : null}
       </StageSection>
 
-      <StageSection title="Override" testId="pipeline-stage-override">
+      <StageSection
+        title="Override"
+        subtitle="Optional runtime override for effective output."
+        testId="pipeline-stage-override"
+      >
         <div className="flex items-center gap-3">
           <Switch
             checked={overrideEnabled}
@@ -595,7 +589,11 @@ export function VariablePipelineStages({
       </StageSection>
 
       {showClampStage ? (
-        <StageSection title="Clamp" testId="pipeline-stage-clamp">
+        <StageSection
+          title="Clamp"
+          subtitle="Final output bounding for this variable."
+          testId="pipeline-stage-clamp"
+        >
           <div className="flex items-center gap-3">
             <Switch
               checked={clampEnabled}
@@ -610,7 +608,11 @@ export function VariablePipelineStages({
         </StageSection>
       ) : null}
 
-      <StageSection title="Compiled Pipeline" testId="pipeline-stage-compiled">
+      <StageSection
+        title="Compiled Pipeline"
+        subtitle="Read-only equation and live diagnostics."
+        testId="pipeline-stage-compiled"
+      >
         <div className="rounded border border-border-default/40 bg-bg-input/40 p-2">
           <div className="text-[9px] uppercase tracking-wide text-text-muted mb-1">
             Read-only equation
@@ -646,75 +648,106 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Children"
+        subtitle="Downstream variables driven by this variable."
         count={children.length}
         testId="pipeline-stage-children"
       >
         {children.length > 0 ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {children.map((child) => (
-              <div
+              <CollapsibleRow
                 key={child.id}
-                className="rounded border border-border-default/50 bg-bg-input/60 px-2 py-1.5 flex items-center gap-2 text-[10px]"
-              >
-                <Chip tone={kindTone(child.kind)}>{child.kind}</Chip>
-                <button
-                  type="button"
-                  className="text-[10px] text-text-primary hover:text-accent transition-colors"
-                  onClick={child.onInspect}
-                >
-                  {child.label}
-                </button>
-                {child.linkControl ? (
+                id={`pipeline-child-${child.id}`}
+                title={child.label}
+                subtitle={
+                  child.linkControl
+                    ? `child += me * ${formatCompactNumber(
+                        child.linkControl.scale,
+                      )} + ${formatCompactNumber(child.linkControl.offset)}`
+                    : "No shared link controls configured"
+                }
+                defaultExpanded={false}
+                showSlider={false}
+                actions={
                   <>
-                    <span className="text-text-muted font-mono">+= me *</span>
-                    <div className="w-20">
-                      <NumberField
+                    <Chip tone={kindTone(child.kind)}>{child.kind}</Chip>
+                    {child.onInspect ? (
+                      <Button
+                        variant="ghost"
                         size="sm"
-                        value={child.linkControl.scale}
-                        min={-3}
-                        max={3}
-                        step={0.01}
-                        onChange={(value) =>
-                          child.linkControl?.onScaleChange?.(value)
-                        }
-                        disabled={!child.linkControl.enabled}
-                      />
-                    </div>
-                    <span className="text-text-muted font-mono">+</span>
-                    <div className="w-20">
-                      <NumberField
+                        className="h-6 text-[10px]"
+                        onClick={child.onInspect}
+                      >
+                        Inspect
+                      </Button>
+                    ) : null}
+                    {child.onUnlink ? (
+                      <Button
+                        variant="ghost"
                         size="sm"
-                        value={child.linkControl.offset}
-                        min={-2}
-                        max={2}
-                        step={0.01}
-                        onChange={(value) =>
-                          child.linkControl?.onOffsetChange?.(value)
-                        }
-                        disabled={!child.linkControl.enabled}
-                      />
-                    </div>
-                    <Switch
-                      checked={child.linkControl.enabled}
-                      onChange={(enabled) =>
-                        child.linkControl?.onEnabledChange?.(enabled)
-                      }
-                      label={child.linkControl.enabled ? "On" : "Off"}
-                      size="sm"
-                    />
+                        className="h-6 text-[10px]"
+                        onClick={child.onUnlink}
+                      >
+                        Unlink
+                      </Button>
+                    ) : null}
                   </>
-                ) : null}
-                {child.onUnlink ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] ml-auto"
-                    onClick={child.onUnlink}
-                  >
-                    Unlink
-                  </Button>
-                ) : null}
-              </div>
+                }
+                expandedContent={
+                  child.linkControl ? (
+                    <div className="rounded border border-border-default/30 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1.5">
+                      <Switch
+                        checked={child.linkControl.enabled}
+                        onChange={(enabled) =>
+                          child.linkControl?.onEnabledChange?.(enabled)
+                        }
+                        label={
+                          child.linkControl.enabled
+                            ? "Link Enabled"
+                            : "Link Disabled"
+                        }
+                        size="sm"
+                      />
+                      <div className="grid grid-cols-[58px_72px] items-center gap-2">
+                        <span className="text-[10px] text-text-secondary">
+                          Scale
+                        </span>
+                        <NumberField
+                          size="sm"
+                          value={child.linkControl.scale}
+                          min={-3}
+                          max={3}
+                          step={0.01}
+                          onChange={(value) =>
+                            child.linkControl?.onScaleChange?.(value)
+                          }
+                          disabled={!child.linkControl.enabled}
+                        />
+                      </div>
+                      <div className="grid grid-cols-[58px_72px] items-center gap-2">
+                        <span className="text-[10px] text-text-secondary">
+                          Offset
+                        </span>
+                        <NumberField
+                          size="sm"
+                          value={child.linkControl.offset}
+                          min={-2}
+                          max={2}
+                          step={0.01}
+                          onChange={(value) =>
+                            child.linkControl?.onOffsetChange?.(value)
+                          }
+                          disabled={!child.linkControl.enabled}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-text-muted">
+                      No child link controls available.
+                    </span>
+                  )
+                }
+              />
             ))}
           </div>
         ) : (
