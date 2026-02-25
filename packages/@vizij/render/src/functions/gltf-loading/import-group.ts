@@ -86,10 +86,7 @@ export function importGroup(
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
-    } else if (
-      (child as Group).isGroup ||
-      (child.isObject3D && child.children.length !== 0)
-    ) {
+    } else if (shouldImportAsGroupChild(child)) {
       const [newWorldItems, newAnimatables, childId, newMeshColors] =
         importGroup(child as Group, namespaces, {
           ...colorLookup,
@@ -120,4 +117,23 @@ export function importGroup(
   world = { ...world, [newGroup.id]: newGroup };
 
   return [world, animatables, newGroup.id, newColorLookup];
+}
+
+function shouldImportAsGroupChild(child: Object3D): boolean {
+  if (!child.isObject3D) {
+    return false;
+  }
+  if ((child as Mesh).isMesh) {
+    return false;
+  }
+  if ((child as { isCamera?: boolean }).isCamera) {
+    return false;
+  }
+  if ((child as { isLight?: boolean }).isLight) {
+    return false;
+  }
+  if ((child as { isBone?: boolean }).isBone) {
+    return false;
+  }
+  return true;
 }

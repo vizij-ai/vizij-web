@@ -1,5 +1,6 @@
 import type {
   Mesh,
+  Group,
   MeshStandardMaterial,
   MeshPhongMaterial,
   MeshBasicMaterial,
@@ -19,6 +20,7 @@ import type { World, Shape } from "../../types";
 import { ShapeMaterial } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importGeometry } from "./import-geometry";
+import { importGroup } from "./import-group";
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -169,6 +171,16 @@ export function importMesh(
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
+    } else if (shouldImportAsGroupChild(child)) {
+      const [newWorldItems, newAnimatables, childId, newMeshColors] =
+        importGroup(child as Group, namespaces, {
+          ...colorLookup,
+          ...newColorLookup,
+        });
+      newColorLookup = { ...newColorLookup, ...newMeshColors };
+      world = { ...world, ...newWorldItems };
+      animatables = { ...animatables, ...newAnimatables };
+      children.push(childId);
     }
   });
 
@@ -214,4 +226,23 @@ function getShapeMaterial(mesh: Mesh, useEmissive: boolean): ShapeMaterial {
   } else {
     return ShapeMaterial.Standard;
   }
+}
+
+function shouldImportAsGroupChild(child: Object3D): boolean {
+  if (!child.isObject3D) {
+    return false;
+  }
+  if ((child as Mesh).isMesh) {
+    return false;
+  }
+  if ((child as { isCamera?: boolean }).isCamera) {
+    return false;
+  }
+  if ((child as { isLight?: boolean }).isLight) {
+    return false;
+  }
+  if ((child as { isBone?: boolean }).isBone) {
+    return false;
+  }
+  return true;
 }
