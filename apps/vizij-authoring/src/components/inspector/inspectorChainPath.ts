@@ -4,7 +4,7 @@ export type InspectorChainNode = {
   mode: InspectorChainMode;
   id: string;
   label: string;
-  view?: "quick" | "features" | "bindings";
+  view?: "quick" | "features";
   targetId?: string;
 };
 

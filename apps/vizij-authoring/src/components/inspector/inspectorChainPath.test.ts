@@ -37,7 +37,7 @@ describe("appendOrRevisitInspectorChainPath", () => {
         mode: "scene",
         id: "shape_1",
         label: "Face Mesh",
-        view: "bindings",
+        view: "quick",
         targetId: "anim://mouth/open",
       },
     ];
@@ -45,7 +45,7 @@ describe("appendOrRevisitInspectorChainPath", () => {
       mode: "rig",
       id: "rig_parent",
       label: "Jaw Open",
-      view: "bindings",
+      view: "quick",
     };
 
     expect(appendOrRevisitInspectorChainPath(current, revisitedNode)).toEqual([
@@ -54,7 +54,7 @@ describe("appendOrRevisitInspectorChainPath", () => {
         mode: "rig",
         id: "rig_parent",
         label: "Jaw Open",
-        view: "bindings",
+        view: "quick",
       },
     ]);
   });
