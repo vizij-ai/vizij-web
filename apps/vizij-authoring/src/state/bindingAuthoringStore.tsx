@@ -55,6 +55,7 @@ export interface BindingAuthoringState {
   inputBindings: InputBindingMap;
   animatableComponents: AnimComponent[];
   handleInputValueChange: (inputId: string, value: number) => void;
+  stageRuntimeGraphPathValue: (graphPath: string, value: number) => void;
   applyStandardInputBatch: (
     updates: Record<string, number>,
     options?: { replace?: boolean },
@@ -199,6 +200,7 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   inputBindings: {},
   animatableComponents: [],
   handleInputValueChange: noop,
+  stageRuntimeGraphPathValue: noop,
   applyStandardInputBatch: noop,
   handleResetAllInputValues: noop,
   handleClearCachedState: noop,

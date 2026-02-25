@@ -108,15 +108,18 @@ function buildStagedInputGraph({
   input,
   additionalInputs = [],
   stagedConfig,
+  pipelineLinks,
   inputComposeModesById,
 }: {
   input: StandardRigInput;
   additionalInputs?: StandardRigInput[];
   stagedConfig: Omit<StagedInputConfig, "inputId">;
+  pipelineLinks?: RigPipelineV1Metadata["links"];
   inputComposeModesById?: Partial<Record<string, "add" | "average">>;
 }) {
   const pipelineV1: RigPipelineV1Metadata = {
     version: 1,
+    ...(pipelineLinks ? { links: pipelineLinks } : {}),
     byInputId: {
       [input.id]: {
         inputId: input.id,
@@ -619,6 +622,42 @@ describe("buildRigGraphSpec", () => {
       .map((edge) => edge.to?.input)
       .sort();
     expect(sourceBlendInputs).toEqual(["operand_1", "operand_2", "operand_3"]);
+  });
+
+  it("uses canonical pipeline links as the source of parent scale/offset", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            linkId: "link/override-scale",
+            scale: 1,
+            offset: 0,
+          },
+        ],
+      },
+      pipelineLinks: {
+        "link/override-scale": {
+          linkId: "link/override-scale",
+          parentInputId: INPUT_A.id,
+          childInputId: INPUT_OFFSET.id,
+          scale: -2,
+          offset: 0.25,
+          enabled: true,
+        },
+      },
+    });
+
+    const parentScaleNode = spec.nodes.find(
+      (node) => node.id === "input_parent_scale_input_offset_1",
+    );
+    expect(parentScaleNode?.input_defaults).toMatchObject({ operand_2: -2 });
+    const parentOffsetNode = spec.nodes.find(
+      (node) => node.id === "input_parent_offset_input_offset_1",
+    );
+    expect(parentOffsetNode?.input_defaults).toMatchObject({ operand_2: 0.25 });
   });
 
   it("supports staged override enabled defaults and override value defaults", () => {

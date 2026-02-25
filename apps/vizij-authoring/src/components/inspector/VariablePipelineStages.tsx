@@ -15,6 +15,14 @@ export interface PipelineStageLinkItem {
   kind: "variable" | "property" | "autorig";
   onInspect?: () => void;
   onUnlink?: () => void;
+  linkControl?: {
+    enabled: boolean;
+    scale: number;
+    offset: number;
+    onEnabledChange?: (enabled: boolean) => void;
+    onScaleChange?: (value: number) => void;
+    onOffsetChange?: (value: number) => void;
+  };
 }
 
 export interface PipelineStagePoseItem {
@@ -52,7 +60,14 @@ interface VariablePipelineStagesProps {
   clampEnabled: boolean;
   onClampEnabledChange: (enabled: boolean) => void;
   migration: LegacyBindingMigrationAssessment;
+  migrationSummary?: {
+    totalLegacy: number;
+    migrated: number;
+    convertible: number;
+    nonConvertible: number;
+  };
   onMigrateLegacyBinding?: () => void;
+  onMigrateAllLegacyBindings?: () => void;
   onEditParents?: () => void;
   onAddChild?: () => void;
 }
@@ -114,7 +129,9 @@ export function VariablePipelineStages({
   clampEnabled,
   onClampEnabledChange,
   migration,
+  migrationSummary,
   onMigrateLegacyBinding,
+  onMigrateAllLegacyBindings,
   onEditParents,
   onAddChild,
 }: VariablePipelineStagesProps) {
@@ -136,6 +153,30 @@ export function VariablePipelineStages({
           <Chip tone="success">Migrated</Chip>
         ) : null}
       </div>
+      {migrationSummary && migrationSummary.totalLegacy > 0 ? (
+        <div
+          className="rounded border border-border-default/40 bg-bg-input/30 px-2 py-1.5 flex items-center gap-2 flex-wrap"
+          data-testid="pipeline-migration-summary"
+        >
+          <Chip tone="default">Legacy {migrationSummary.totalLegacy}</Chip>
+          <Chip tone="success">Migrated {migrationSummary.migrated}</Chip>
+          <Chip tone="info">Convertible {migrationSummary.convertible}</Chip>
+          <Chip tone="warning">
+            Non-convertible {migrationSummary.nonConvertible}
+          </Chip>
+          {onMigrateAllLegacyBindings && migrationSummary.convertible > 0 ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-6 text-[10px] ml-auto"
+              onClick={onMigrateAllLegacyBindings}
+              data-testid="pipeline-migrate-all-action"
+            >
+              Migrate All Convertible
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       {migration.kind === "convertible" && onMigrateLegacyBinding ? (
         <div className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 flex items-center gap-2">
@@ -186,20 +227,66 @@ export function VariablePipelineStages({
           </code>
         </div>
         {parents.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-col gap-2">
             {parents.map((parent) => (
               <div
                 key={parent.id}
-                className="inline-flex items-center gap-1 rounded border border-border-default/50 bg-bg-input/60 px-1.5 py-1"
+                className="rounded border border-border-default/50 bg-bg-input/60 px-2 py-1.5 flex flex-col gap-1.5"
               >
-                <Chip tone={kindTone(parent.kind)}>{parent.kind}</Chip>
-                <button
-                  type="button"
-                  className="text-[10px] text-text-primary hover:text-accent transition-colors"
-                  onClick={parent.onInspect}
-                >
-                  {parent.label}
-                </button>
+                <div className="inline-flex items-center gap-1">
+                  <Chip tone={kindTone(parent.kind)}>{parent.kind}</Chip>
+                  <button
+                    type="button"
+                    className="text-[10px] text-text-primary hover:text-accent transition-colors"
+                    onClick={parent.onInspect}
+                  >
+                    {parent.label}
+                  </button>
+                </div>
+                {parent.linkControl ? (
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_72px_72px] items-center gap-2">
+                    <Switch
+                      checked={parent.linkControl.enabled}
+                      onChange={(checked) =>
+                        parent.linkControl?.onEnabledChange?.(checked)
+                      }
+                      label="On"
+                      size="sm"
+                    />
+                    <Slider
+                      min={-3}
+                      max={3}
+                      step={0.01}
+                      value={parent.linkControl.scale}
+                      onChange={(value) =>
+                        parent.linkControl?.onScaleChange?.(value as number)
+                      }
+                      disabled={!parent.linkControl.enabled}
+                    />
+                    <NumberField
+                      size="sm"
+                      value={parent.linkControl.scale}
+                      min={-3}
+                      max={3}
+                      step={0.01}
+                      onChange={(value) =>
+                        parent.linkControl?.onScaleChange?.(value)
+                      }
+                      disabled={!parent.linkControl.enabled}
+                    />
+                    <NumberField
+                      size="sm"
+                      value={parent.linkControl.offset}
+                      min={-2}
+                      max={2}
+                      step={0.01}
+                      onChange={(value) =>
+                        parent.linkControl?.onOffsetChange?.(value)
+                      }
+                      disabled={!parent.linkControl.enabled}
+                    />
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -230,25 +317,71 @@ export function VariablePipelineStages({
             {children.map((child) => (
               <div
                 key={child.id}
-                className="flex items-center gap-2 rounded border border-border-default/50 bg-bg-input/60 px-2 py-1"
+                className="rounded border border-border-default/50 bg-bg-input/60 px-2 py-1.5 flex flex-col gap-1.5"
               >
-                <Chip tone={kindTone(child.kind)}>{child.kind}</Chip>
-                <button
-                  type="button"
-                  className="text-[10px] text-text-primary hover:text-accent transition-colors flex-1 text-left"
-                  onClick={child.onInspect}
-                >
-                  {child.label}
-                </button>
-                {child.onUnlink ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px]"
-                    onClick={child.onUnlink}
+                <div className="flex items-center gap-2">
+                  <Chip tone={kindTone(child.kind)}>{child.kind}</Chip>
+                  <button
+                    type="button"
+                    className="text-[10px] text-text-primary hover:text-accent transition-colors flex-1 text-left"
+                    onClick={child.onInspect}
                   >
-                    Unlink
-                  </Button>
+                    {child.label}
+                  </button>
+                  {child.onUnlink ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px]"
+                      onClick={child.onUnlink}
+                    >
+                      Unlink
+                    </Button>
+                  ) : null}
+                </div>
+                {child.linkControl ? (
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_72px_72px] items-center gap-2">
+                    <Switch
+                      checked={child.linkControl.enabled}
+                      onChange={(checked) =>
+                        child.linkControl?.onEnabledChange?.(checked)
+                      }
+                      label="On"
+                      size="sm"
+                    />
+                    <Slider
+                      min={-3}
+                      max={3}
+                      step={0.01}
+                      value={child.linkControl.scale}
+                      onChange={(value) =>
+                        child.linkControl?.onScaleChange?.(value as number)
+                      }
+                      disabled={!child.linkControl.enabled}
+                    />
+                    <NumberField
+                      size="sm"
+                      value={child.linkControl.scale}
+                      min={-3}
+                      max={3}
+                      step={0.01}
+                      onChange={(value) =>
+                        child.linkControl?.onScaleChange?.(value)
+                      }
+                      disabled={!child.linkControl.enabled}
+                    />
+                    <NumberField
+                      size="sm"
+                      value={child.linkControl.offset}
+                      min={-2}
+                      max={2}
+                      step={0.01}
+                      onChange={(value) =>
+                        child.linkControl?.onOffsetChange?.(value)
+                      }
+                      disabled={!child.linkControl.enabled}
+                    />
+                  </div>
                 ) : null}
               </div>
             ))}
@@ -292,6 +425,15 @@ export function VariablePipelineStages({
                 <span className="text-[10px] text-text-secondary font-mono">
                   target {pose.targetValue.toFixed(3)}
                 </span>
+                <div className="w-32">
+                  <Slider
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={pose.weight}
+                    onChange={(value) => pose.onWeightChange?.(value as number)}
+                  />
+                </div>
                 <div className="w-20">
                   <NumberField
                     size="sm"
@@ -374,7 +516,15 @@ export function VariablePipelineStages({
             Uses inspector override path when enabled.
           </span>
         </div>
-        <div className="max-w-[160px]">
+        <div className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-2">
+          <Slider
+            min={overrideMin}
+            max={overrideMax}
+            step={0.01}
+            value={overrideValue}
+            onChange={(value) => onOverrideValueChange(value as number)}
+            disabled={!overrideEnabled}
+          />
           <NumberField
             size="sm"
             value={overrideValue}

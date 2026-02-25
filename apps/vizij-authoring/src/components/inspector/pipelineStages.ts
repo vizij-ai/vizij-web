@@ -7,6 +7,7 @@ import { SELF_BINDING_ID } from "@vizij/utils";
 type JsonObject = Record<string, unknown>;
 
 interface PipelineV1Metadata {
+  links?: Record<string, Record<string, unknown>>;
   directInput?: {
     enabled?: unknown;
   };
@@ -55,6 +56,7 @@ export interface LegacyBindingMigrationAssessment {
   expression: string;
   canonicalExpression: string;
   reason: string | null;
+  parentFactorsByInputId?: Record<string, number>;
 }
 
 function asObject(value: unknown): JsonObject | null {
@@ -111,38 +113,109 @@ function normalizeAliasToken(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function isSimpleAliasAdditiveExpression(
-  expression: string,
-  requiredAliases: string[],
-): boolean {
-  const trimmed = expression.trim();
+function isAliasToken(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+}
+
+function parsePositiveNumberToken(value: string): number | null {
+  if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value)) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseAliasFactorTerm(
+  token: string,
+): { alias: string; coefficient: number } | null {
+  const trimmed = token.trim();
   if (!trimmed) {
-    return false;
+    return null;
   }
-  if (!/^[A-Za-z0-9_+\s]+$/.test(trimmed)) {
-    return false;
-  }
-  const normalizedRequired = new Set(
-    requiredAliases.map((alias) => normalizeAliasToken(alias)),
-  );
-  if (normalizedRequired.size === 0) {
-    return false;
-  }
-  const tokens = trimmed
-    .split("+")
-    .map((token) => normalizeAliasToken(token))
-    .filter((token) => token.length > 0);
-  if (tokens.length === 0) {
-    return false;
-  }
-  const seen = new Set<string>();
-  for (const token of tokens) {
-    if (!normalizedRequired.has(token)) {
-      return false;
+  const stars = trimmed.split("*");
+  if (stars.length === 1) {
+    if (!isAliasToken(trimmed)) {
+      return null;
     }
-    seen.add(token);
+    return {
+      alias: trimmed,
+      coefficient: 1,
+    };
   }
-  return Array.from(normalizedRequired).every((alias) => seen.has(alias));
+  if (stars.length !== 2) {
+    return null;
+  }
+  const left = stars[0]?.trim() ?? "";
+  const right = stars[1]?.trim() ?? "";
+  if (!left || !right) {
+    return null;
+  }
+  if (isAliasToken(left)) {
+    const factor = parsePositiveNumberToken(right);
+    if (factor === null) {
+      return null;
+    }
+    return {
+      alias: left,
+      coefficient: factor,
+    };
+  }
+  if (isAliasToken(right)) {
+    const factor = parsePositiveNumberToken(left);
+    if (factor === null) {
+      return null;
+    }
+    return {
+      alias: right,
+      coefficient: factor,
+    };
+  }
+  return null;
+}
+
+function parseAliasAdditiveFactors(
+  expression: string,
+  allowedAliases: Set<string>,
+): Map<string, number> | null {
+  const compact = expression.replace(/\s+/g, "");
+  if (!compact) {
+    return null;
+  }
+  const factors = new Map<string, number>();
+  let cursor = 0;
+  while (cursor < compact.length) {
+    let sign = 1;
+    const marker = compact[cursor];
+    if (marker === "+" || marker === "-") {
+      sign = marker === "-" ? -1 : 1;
+      cursor += 1;
+    } else if (cursor !== 0) {
+      return null;
+    }
+    let nextCursor = cursor;
+    while (
+      nextCursor < compact.length &&
+      compact[nextCursor] !== "+" &&
+      compact[nextCursor] !== "-"
+    ) {
+      nextCursor += 1;
+    }
+    const termToken = compact.slice(cursor, nextCursor);
+    const parsedTerm = parseAliasFactorTerm(termToken);
+    if (!parsedTerm) {
+      return null;
+    }
+    const aliasToken = normalizeAliasToken(parsedTerm.alias);
+    if (!allowedAliases.has(aliasToken)) {
+      return null;
+    }
+    factors.set(
+      aliasToken,
+      (factors.get(aliasToken) ?? 0) + sign * parsedTerm.coefficient,
+    );
+    cursor = nextCursor;
+  }
+  return factors.size > 0 ? factors : null;
 }
 
 function normalizedAdditive(values: number[], baseline: number): number {
@@ -188,6 +261,16 @@ export function mergePipelineMetadata(
     overrideEnabled?: boolean;
     overrideValue?: number;
     clampEnabled?: boolean;
+    linkUpserts?: Record<
+      string,
+      {
+        parentInputId?: string;
+        childInputId?: string;
+        scale?: number;
+        offset?: number;
+        enabled?: boolean;
+      }
+    >;
     migrationStatus?: "migrated";
     migrationSource?: string;
     migrationExpression?: string;
@@ -223,6 +306,43 @@ export function mergePipelineMetadata(
         : {}),
     },
   };
+
+  if (patch.linkUpserts && Object.keys(patch.linkUpserts).length > 0) {
+    const existingLinksRaw = asObject(pipeline.links) ?? {};
+    const existingLinks: Record<string, Record<string, unknown>> = {};
+    Object.entries(existingLinksRaw).forEach(([key, value]) => {
+      const normalized = asObject(value);
+      if (normalized) {
+        existingLinks[key] = normalized;
+      }
+    });
+    const nextLinks: Record<string, Record<string, unknown>> = {
+      ...existingLinks,
+    };
+    Object.entries(patch.linkUpserts).forEach(([key, linkPatch]) => {
+      const linkId = key.trim();
+      if (!linkId) {
+        return;
+      }
+      const existingLink = existingLinks[linkId] ?? {};
+      nextLinks[linkId] = {
+        ...existingLink,
+        linkId,
+        ...(linkPatch.parentInputId
+          ? { parentInputId: linkPatch.parentInputId }
+          : {}),
+        ...(linkPatch.childInputId
+          ? { childInputId: linkPatch.childInputId }
+          : {}),
+        ...(linkPatch.scale !== undefined ? { scale: linkPatch.scale } : {}),
+        ...(linkPatch.offset !== undefined ? { offset: linkPatch.offset } : {}),
+        ...(linkPatch.enabled !== undefined
+          ? { enabled: linkPatch.enabled }
+          : {}),
+      };
+    });
+    nextPipeline.links = nextLinks;
+  }
 
   if (patch.migrationStatus === "migrated") {
     nextPipeline.migration = {
@@ -308,6 +428,7 @@ export function assessLegacyBindingMigration(
 
   const selfAliases: string[] = [];
   const parentAliases: string[] = [];
+  const parentInputIdByAlias = new Map<string, string>();
   (binding.slots ?? []).forEach((slot, index) => {
     const alias = getSlotAlias(binding, slot, index);
     if (slot.inputId === SELF_BINDING_ID) {
@@ -316,6 +437,7 @@ export function assessLegacyBindingMigration(
     }
     if (slot.inputId && slot.inputId.trim().length > 0) {
       parentAliases.push(alias);
+      parentInputIdByAlias.set(normalizeAliasToken(alias), slot.inputId);
     }
   });
 
@@ -352,26 +474,83 @@ export function assessLegacyBindingMigration(
   const expressionNormalized = normalizeExpression(expression);
   const canonicalNormalized = normalizeExpression(canonicalExpression);
   const requiredAliases = [...selfAliases, ...parentAliases];
+  const requiredAliasTokens = new Set(
+    requiredAliases.map((alias) => normalizeAliasToken(alias)),
+  );
+  const defaultParentFactorsByInputId = Object.fromEntries(
+    Array.from(parentInputIdByAlias.values()).map((parentInputId) => [
+      parentInputId,
+      1,
+    ]),
+  );
 
-  if (
-    expressionNormalized === canonicalNormalized ||
-    isSimpleAliasAdditiveExpression(expression, requiredAliases)
-  ) {
+  if (expressionNormalized === canonicalNormalized) {
     return {
       kind: "convertible",
       expression,
       canonicalExpression,
       reason: null,
+      parentFactorsByInputId: defaultParentFactorsByInputId,
     };
   }
 
+  const parsedFactors = parseAliasAdditiveFactors(
+    expression,
+    requiredAliasTokens,
+  );
+  if (!parsedFactors) {
+    return {
+      kind: "non-convertible",
+      expression,
+      canonicalExpression,
+      reason:
+        "Expression is not a canonical additive self+parent form. Keep this binding legacy/read-only.",
+    };
+  }
+  if (
+    Array.from(requiredAliasTokens).some(
+      (aliasToken) => !parsedFactors.has(aliasToken),
+    )
+  ) {
+    return {
+      kind: "non-convertible",
+      expression,
+      canonicalExpression,
+      reason:
+        "Expression is not a canonical additive self+parent form. Keep this binding legacy/read-only.",
+    };
+  }
+  const hasUnsupportedSelfFactor = selfAliases.some((alias) => {
+    const factor = parsedFactors.get(normalizeAliasToken(alias));
+    return factor === undefined || !Object.is(factor, 1);
+  });
+  if (hasUnsupportedSelfFactor) {
+    return {
+      kind: "non-convertible",
+      expression,
+      canonicalExpression,
+      reason:
+        "Legacy migration only supports self with factor 1 in additive forms.",
+    };
+  }
+  const parentFactorsByInputId: Record<string, number> = {};
+  parentInputIdByAlias.forEach((parentInputId, aliasToken) => {
+    const factor = parsedFactors.get(aliasToken);
+    if (factor === undefined) {
+      return;
+    }
+    parentFactorsByInputId[parentInputId] =
+      (parentFactorsByInputId[parentInputId] ?? 0) + factor;
+  });
   return {
-    kind: "non-convertible",
+    kind: "convertible",
     expression,
     canonicalExpression,
-    reason:
-      "Expression is not a canonical additive self+parent form. Keep this binding legacy/read-only.",
+    reason: null,
+    parentFactorsByInputId,
   };
+
+  // unreachable
 }
 
 export function computePoseContribution(

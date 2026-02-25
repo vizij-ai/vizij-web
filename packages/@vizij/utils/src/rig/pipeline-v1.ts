@@ -241,29 +241,82 @@ export function resolveRigPipelineV1InputConfig({
   pipelineV1,
 }: ResolveRigPipelineV1InputConfigArgs): RigPipelineV1ResolvedInputConfig {
   const stagedConfig = getRigPipelineV1InputConfig(pipelineV1, input.id);
+  const linkMap = pipelineV1?.links ?? {};
   const parentEntries = Array.isArray(stagedConfig?.parents)
     ? stagedConfig.parents
     : [];
   const parents: RigPipelineV1ResolvedParentEntry[] = [];
+  const parentLinkIds = new Set<string>();
   parentEntries.forEach((entry, index) => {
-    const parentInputId = normalizeStringValue(entry?.inputId);
+    const linkId =
+      normalizeStringValue(entry.linkId) ??
+      buildRigPipelineV1LinkId(
+        normalizeStringValue(entry?.inputId) ?? `parent_${index + 1}`,
+        input.id,
+      );
+    const linkConfigRaw = linkMap[linkId];
+    const linkConfig =
+      linkConfigRaw && typeof linkConfigRaw === "object"
+        ? (linkConfigRaw as RigPipelineV1LinkConfig)
+        : null;
+    const linkParentInputId = normalizeStringValue(linkConfig?.parentInputId);
+    const linkChildInputId = normalizeStringValue(linkConfig?.childInputId);
+    if (linkChildInputId && linkChildInputId !== input.id) {
+      return;
+    }
+    const parentInputId =
+      normalizeStringValue(entry?.inputId) ?? linkParentInputId;
     if (!parentInputId) {
       return;
     }
-    const linkId =
-      normalizeStringValue(entry.linkId) ??
-      buildRigPipelineV1LinkId(parentInputId, input.id);
     const alias =
       normalizeStringValue(entry.alias) ??
       normalizeStringValue(`p${index + 1}`) ??
       "p1";
+    const linkScale =
+      typeof linkConfig?.scale === "number" && Number.isFinite(linkConfig.scale)
+        ? linkConfig.scale
+        : undefined;
+    const linkOffset =
+      typeof linkConfig?.offset === "number" &&
+      Number.isFinite(linkConfig.offset)
+        ? linkConfig.offset
+        : undefined;
+    const linkEnabled =
+      typeof linkConfig?.enabled === "boolean" ? linkConfig.enabled : undefined;
+    parentLinkIds.add(linkId);
     parents.push({
       linkId,
       inputId: parentInputId,
       alias,
-      scale: normalizeFinite(entry.scale, 1),
-      offset: normalizeFinite(entry.offset, 0),
-      enabled: normalizeBoolean(entry.enabled, true),
+      scale: linkScale ?? normalizeFinite(entry.scale, 1),
+      offset: linkOffset ?? normalizeFinite(entry.offset, 0),
+      enabled: linkEnabled ?? normalizeBoolean(entry.enabled, true),
+    });
+  });
+  Object.entries(linkMap).forEach(([rawLinkId, rawLink]) => {
+    const link = rawLink as RigPipelineV1LinkConfig;
+    if (!link || typeof link !== "object") {
+      return;
+    }
+    const linkId =
+      normalizeStringValue(rawLinkId) ?? normalizeStringValue(link.linkId);
+    const parentInputId = normalizeStringValue(link.parentInputId);
+    const childInputId = normalizeStringValue(link.childInputId);
+    if (!linkId || !parentInputId || childInputId !== input.id) {
+      return;
+    }
+    if (parentLinkIds.has(linkId)) {
+      return;
+    }
+    parentLinkIds.add(linkId);
+    parents.push({
+      linkId,
+      inputId: parentInputId,
+      alias: `p${parents.length + 1}`,
+      scale: normalizeFinite(link.scale, 1),
+      offset: normalizeFinite(link.offset, 0),
+      enabled: normalizeBoolean(link.enabled, true),
     });
   });
 
@@ -285,6 +338,28 @@ export function resolveRigPipelineV1InputConfig({
     .filter(
       (entry): entry is RigPipelineV1ResolvedChildEntry => entry !== null,
     );
+  const childLinkKeys = new Set(children.map((entry) => entry.linkId));
+  Object.entries(linkMap).forEach(([rawLinkId, rawLink]) => {
+    const link = rawLink as RigPipelineV1LinkConfig;
+    if (!link || typeof link !== "object") {
+      return;
+    }
+    const linkId =
+      normalizeStringValue(rawLinkId) ?? normalizeStringValue(link.linkId);
+    const parentInputId = normalizeStringValue(link.parentInputId);
+    const childInputId = normalizeStringValue(link.childInputId);
+    if (!linkId || !childInputId || parentInputId !== input.id) {
+      return;
+    }
+    if (childLinkKeys.has(linkId)) {
+      return;
+    }
+    childLinkKeys.add(linkId);
+    children.push({
+      linkId,
+      childInputId,
+    });
+  });
 
   const poseTargetIds = Array.isArray(stagedConfig?.poseSource?.targetIds)
     ? stagedConfig.poseSource.targetIds

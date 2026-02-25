@@ -23,7 +23,13 @@ import {
   bindingTargetFromInput,
   createDefaultParentBinding,
 } from "@vizij/node-graph-authoring";
-import { normalizeStandardRigInputPath, SELF_BINDING_ID } from "@vizij/utils";
+import {
+  buildRigPipelineV1LinkId,
+  buildRigPipelineV1OverrideEnabledPath,
+  buildRigPipelineV1OverrideValuePath,
+  normalizeStandardRigInputPath,
+  SELF_BINDING_ID,
+} from "@vizij/utils";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
@@ -221,6 +227,21 @@ function collectBindingInputIds(
     }
   });
   return Array.from(ids);
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function toFinite(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function toBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function formatDraftNumber(value: number): string {
@@ -552,8 +573,14 @@ export function InspectorContent({
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
+  const stageRuntimeGraphPathValue = useBindingAuthoring(
+    (state) => state.stageRuntimeGraphPathValue,
+  );
   const inputValues = useBindingAuthoring((state) =>
     shouldSubscribeInputValues ? state.inputValues : EMPTY_INPUT_VALUES,
+  );
+  const pipelineMetadataV1 = useBindingAuthoring(
+    (state) => state.pipelineMetadataV1,
   );
   const bindings = useBindingAuthoring((state) => state.bindings);
   const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
@@ -767,6 +794,7 @@ export function InspectorContent({
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
   const graphError = useGraphRuntime((state) => state.graphError);
   const graphWarning = useGraphRuntime((state) => state.graphWarning);
+  const runtimeFaceId = useGraphRuntime((state) => state.faceId);
   const bindingIssueCount = useMemo(
     () =>
       Array.from(bindingIssues.values()).reduce(
@@ -787,6 +815,53 @@ export function InspectorContent({
     });
     return map;
   }, [managedStandardInputs]);
+
+  const pipelineLinksById = useMemo(() => {
+    const linksContainer = asObject(pipelineMetadataV1?.links);
+    if (!linksContainer) {
+      return new Map<
+        string,
+        {
+          parentInputId: string;
+          childInputId: string;
+          scale: number;
+          offset: number;
+          enabled: boolean;
+        }
+      >();
+    }
+    const next = new Map<
+      string,
+      {
+        parentInputId: string;
+        childInputId: string;
+        scale: number;
+        offset: number;
+        enabled: boolean;
+      }
+    >();
+    Object.entries(linksContainer).forEach(([linkId, rawEntry]) => {
+      const entry = asObject(rawEntry);
+      if (!entry) {
+        return;
+      }
+      const parentInputId =
+        typeof entry.parentInputId === "string" ? entry.parentInputId : null;
+      const childInputId =
+        typeof entry.childInputId === "string" ? entry.childInputId : null;
+      if (!parentInputId || !childInputId) {
+        return;
+      }
+      next.set(linkId, {
+        parentInputId,
+        childInputId,
+        scale: toFinite(entry.scale, 1),
+        offset: toFinite(entry.offset, 0),
+        enabled: toBoolean(entry.enabled, true),
+      });
+    });
+    return next;
+  }, [pipelineMetadataV1]);
 
   const selectedPoseWeightInputId =
     inspectorMode === "pose" &&
@@ -2300,6 +2375,18 @@ export function InspectorContent({
     if (rigInput) {
       const input = rigInput.input;
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
+      const activeFaceId =
+        runtimeFaceId && runtimeFaceId.trim().length > 0
+          ? runtimeFaceId
+          : "robot";
+      const overrideEnabledPath = buildRigPipelineV1OverrideEnabledPath(
+        activeFaceId,
+        input.id,
+      );
+      const overrideValuePath = buildRigPipelineV1OverrideValuePath(
+        activeFaceId,
+        input.id,
+      );
       const parentBinding = inputBindings[input.id];
       const isRemovableCustomInput = rigInput.source === "custom";
       const deleteGuardrailMessage = isRemovableCustomInput
@@ -2329,10 +2416,16 @@ export function InspectorContent({
         .filter((candidateId) => candidateId !== input.id)
         .map((candidateId) => {
           const parentEntry = standardInputsById.get(candidateId);
+          const linkId = buildRigPipelineV1LinkId(candidateId, input.id);
+          const linkConfig = pipelineLinksById.get(linkId);
           return {
             id: candidateId,
+            linkId,
             label: parentEntry?.label || parentEntry?.path || candidateId,
             isAutorig: isCanonicalAutorigInputPath(parentEntry?.path),
+            linkScale: linkConfig?.scale ?? 1,
+            linkOffset: linkConfig?.offset ?? 0,
+            linkEnabled: linkConfig?.enabled ?? true,
           };
         });
       const sharedLink = linksByMainInputId.get(input.id) ?? null;
@@ -2629,6 +2722,11 @@ export function InspectorContent({
       };
       const parentRigChainItems: Array<{
         key: string;
+        inputId: string;
+        linkId: string;
+        linkScale: number;
+        linkOffset: number;
+        linkEnabled: boolean;
         label: string;
         kind: "variable" | "property" | "autorig";
         onClick: () => void;
@@ -2637,6 +2735,11 @@ export function InspectorContent({
         if (!entry.isAutorig) {
           parentRigChainItems.push({
             key: `variable:${entry.id}`,
+            inputId: entry.id,
+            linkId: entry.linkId,
+            linkScale: entry.linkScale,
+            linkOffset: entry.linkOffset,
+            linkEnabled: entry.linkEnabled,
             label: entry.label,
             kind: "variable",
             onClick: () => openRigInspector(entry.id),
@@ -2647,6 +2750,11 @@ export function InspectorContent({
         if (mappedTargetId && !showAutorigInternals) {
           parentRigChainItems.push({
             key: `property:${mappedTargetId}`,
+            inputId: entry.id,
+            linkId: entry.linkId,
+            linkScale: entry.linkScale,
+            linkOffset: entry.linkOffset,
+            linkEnabled: entry.linkEnabled,
             label: targetLabelById.get(mappedTargetId) ?? entry.label,
             kind: "property",
             onClick: () => openSceneBindingInspector(mappedTargetId),
@@ -2659,6 +2767,11 @@ export function InspectorContent({
         }
         parentRigChainItems.push({
           key: `autorig:${entry.id}`,
+          inputId: entry.id,
+          linkId: entry.linkId,
+          linkScale: entry.linkScale,
+          linkOffset: entry.linkOffset,
+          linkEnabled: entry.linkEnabled,
           label: entry.label,
           kind: "autorig",
           onClick: () => openRigInspector(entry.id),
@@ -2670,6 +2783,10 @@ export function InspectorContent({
         label: string;
         kind: "variable" | "property" | "autorig";
         drivenInputId?: string;
+        linkId?: string;
+        linkScale?: number;
+        linkOffset?: number;
+        linkEnabled?: boolean;
         onClick: () => void;
       }> = [];
       const seenDrivenKeys = new Set<string>();
@@ -2698,6 +2815,8 @@ export function InspectorContent({
         });
       };
       downstreamInputs.forEach((entry) => {
+        const linkId = buildRigPipelineV1LinkId(input.id, entry.id);
+        const linkConfig = pipelineLinksById.get(linkId);
         const key = `variable:${entry.id}`;
         if (seenDrivenKeys.has(key)) {
           return;
@@ -2708,10 +2827,16 @@ export function InspectorContent({
           label: entry.label,
           kind: "variable",
           drivenInputId: entry.id,
+          linkId,
+          linkScale: linkConfig?.scale ?? 1,
+          linkOffset: linkConfig?.offset ?? 0,
+          linkEnabled: linkConfig?.enabled ?? true,
           onClick: () => openRigInspector(entry.id),
         });
       });
       downstreamAutorigInputs.forEach((entry) => {
+        const linkId = buildRigPipelineV1LinkId(input.id, entry.id);
+        const linkConfig = pipelineLinksById.get(linkId);
         const mappedTargetId = componentIdByInputId.get(entry.id) ?? null;
         if (mappedTargetId) {
           const key = `property:${mappedTargetId}`;
@@ -2724,6 +2849,10 @@ export function InspectorContent({
             label: targetLabelById.get(mappedTargetId) ?? entry.label,
             kind: "property",
             drivenInputId: entry.id,
+            linkId,
+            linkScale: linkConfig?.scale ?? 1,
+            linkOffset: linkConfig?.offset ?? 0,
+            linkEnabled: linkConfig?.enabled ?? true,
             onClick: () => openSceneBindingInspector(mappedTargetId),
           });
           return;
@@ -2742,6 +2871,10 @@ export function InspectorContent({
           label: entry.label,
           kind: "autorig",
           drivenInputId: entry.id,
+          linkId,
+          linkScale: linkConfig?.scale ?? 1,
+          linkOffset: linkConfig?.offset ?? 0,
+          linkEnabled: linkConfig?.enabled ?? true,
           onClick: () => openRigInspector(entry.id),
         });
       });
@@ -2763,22 +2896,24 @@ export function InspectorContent({
         hiddenAutorigDriverCount + hiddenAutorigDrivenCount;
       const hasAutorigInternals =
         totalAutorigDriverCount + totalAutorigDrivenCount > 0;
-      const parentInputIds = collectBindingInputIds(parentBinding).filter(
-        (candidateId) => candidateId !== input.id,
-      );
-      const parentValues = parentInputIds.map((parentId) => {
-        const stagedParentValue = inputValues[parentId];
-        if (
-          typeof stagedParentValue === "number" &&
-          Number.isFinite(stagedParentValue)
-        ) {
-          return stagedParentValue;
-        }
-        const fallback = standardInputsById.get(parentId)?.defaultValue;
-        return Number.isFinite(fallback)
-          ? (fallback as number)
-          : input.defaultValue;
-      });
+      const parentInputIds = parentRigInputRefs
+        .map((entry) => entry.id)
+        .filter((candidateId) => candidateId !== input.id);
+      const parentValues = parentRigInputRefs
+        .filter((entry) => entry.linkEnabled)
+        .map((entry) => {
+          const parentId = entry.id;
+          const stagedParentValue = inputValues[parentId];
+          const rawValue =
+            typeof stagedParentValue === "number" &&
+            Number.isFinite(stagedParentValue)
+              ? stagedParentValue
+              : standardInputsById.get(parentId)?.defaultValue;
+          const fallbackValue = Number.isFinite(rawValue)
+            ? (rawValue as number)
+            : input.defaultValue;
+          return fallbackValue * entry.linkScale + entry.linkOffset;
+        });
       const linkedPoseStageItems = poses
         .reduce<
           Array<{
@@ -2866,6 +3001,16 @@ export function InspectorContent({
         overrideEnabled?: boolean;
         overrideValue?: number;
         clampEnabled?: boolean;
+        linkUpserts?: Record<
+          string,
+          {
+            parentInputId?: string;
+            childInputId?: string;
+            scale?: number;
+            offset?: number;
+            enabled?: boolean;
+          }
+        >;
         migrationStatus?: "migrated";
         migrationSource?: string;
         migrationExpression?: string;
@@ -2915,33 +3060,191 @@ export function InspectorContent({
         applyPipelineMetadataPatch({
           overrideEnabled: enabled,
         });
+        stageRuntimeGraphPathValue(overrideEnabledPath, enabled ? 1 : 0);
       };
       const handlePipelineOverrideValueChange = (nextValue: number) => {
+        const clampedValue = clampToRange(
+          nextValue,
+          input.range.min,
+          input.range.max,
+        );
         applyPipelineMetadataPatch({
-          overrideValue: nextValue,
+          overrideValue: clampedValue,
         });
+        stageRuntimeGraphPathValue(overrideValuePath, clampedValue);
       };
       const handlePipelineClampEnabledChange = (enabled: boolean) => {
         applyPipelineMetadataPatch({
           clampEnabled: enabled,
         });
       };
+      const updatePipelineLink = (
+        linkId: string,
+        parentInputId: string,
+        childInputId: string,
+        patch: {
+          scale?: number;
+          offset?: number;
+          enabled?: boolean;
+        },
+      ) => {
+        applyPipelineMetadataPatch({
+          linkUpserts: {
+            [linkId]: {
+              parentInputId,
+              childInputId,
+              ...patch,
+            },
+          },
+        });
+      };
+      const buildMigrationLinkUpserts = (
+        binding:
+          | {
+              slots?: Array<{
+                inputId?: string | null;
+              }>;
+            }
+          | null
+          | undefined,
+        childInputId: string,
+        factorsByInputId: Record<string, number>,
+      ) => {
+        const upserts: Record<
+          string,
+          {
+            parentInputId: string;
+            childInputId: string;
+            scale: number;
+            offset: number;
+            enabled: boolean;
+          }
+        > = {};
+        (binding?.slots ?? []).forEach((slot) => {
+          if (
+            !slot.inputId ||
+            slot.inputId === SELF_BINDING_ID ||
+            slot.inputId.trim().length === 0
+          ) {
+            return;
+          }
+          const parentInputId = slot.inputId;
+          const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
+          const scale = factorsByInputId[parentInputId] ?? 1;
+          upserts[linkId] = {
+            parentInputId,
+            childInputId,
+            scale,
+            offset: 0,
+            enabled: true,
+          };
+        });
+        return upserts;
+      };
       const handleMigrateLegacyBinding = () => {
         if (legacyMigrationAssessment.kind !== "convertible") {
           return;
         }
+        const linkUpserts = buildMigrationLinkUpserts(
+          parentBinding,
+          input.id,
+          legacyMigrationAssessment.parentFactorsByInputId ?? {},
+        );
         applyPipelineMetadataPatch({
           directInputEnabled: false,
           overrideEnabled: false,
           overrideValue: input.defaultValue,
           clampEnabled: true,
+          ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
           migrationStatus: "migrated",
           migrationSource: "canonical-self-parent",
           migrationExpression: legacyMigrationAssessment.expression,
         });
+        stageRuntimeGraphPathValue(overrideEnabledPath, 0);
+        stageRuntimeGraphPathValue(overrideValuePath, input.defaultValue);
         setRigLifecycleMessage({
           tone: "info",
           text: "Legacy canonical self+parent binding migrated to staged pipeline metadata.",
+        });
+      };
+      const migrationEntries = Object.entries(inputBindings)
+        .map(([candidateInputId, candidateBinding]) => ({
+          inputId: candidateInputId,
+          assessment: assessLegacyBindingMigration(candidateBinding ?? null),
+        }))
+        .filter((entry) => entry.assessment.kind !== "none");
+      const convertibleMigrationEntries = migrationEntries.filter(
+        (entry) => entry.assessment.kind === "convertible",
+      );
+      const migrationSummary = {
+        totalLegacy: migrationEntries.length,
+        migrated: migrationEntries.filter(
+          (entry) => entry.assessment.kind === "migrated",
+        ).length,
+        convertible: convertibleMigrationEntries.length,
+        nonConvertible: migrationEntries.filter(
+          (entry) => entry.assessment.kind === "non-convertible",
+        ).length,
+      };
+      const handleMigrateAllLegacyBindings = () => {
+        if (convertibleMigrationEntries.length === 0) {
+          return;
+        }
+        applyInputBindingPatch((previous) => {
+          let changed = false;
+          const next: typeof previous = { ...previous };
+          convertibleMigrationEntries.forEach(
+            ({ inputId: targetInputId, assessment }) => {
+              const sourceInput = standardInputsById.get(targetInputId);
+              if (!sourceInput) {
+                return;
+              }
+              const existingBinding =
+                next[targetInputId] ??
+                createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+              const linkUpserts = buildMigrationLinkUpserts(
+                existingBinding,
+                targetInputId,
+                assessment.parentFactorsByInputId ?? {},
+              );
+              const nextMetadata = mergePipelineMetadata(
+                (existingBinding.metadata ?? undefined) as
+                  | Record<string, unknown>
+                  | undefined,
+                {
+                  directInputEnabled: false,
+                  overrideEnabled: false,
+                  overrideValue: sourceInput.defaultValue,
+                  clampEnabled: true,
+                  ...(Object.keys(linkUpserts).length > 0
+                    ? { linkUpserts }
+                    : {}),
+                  migrationStatus: "migrated",
+                  migrationSource: "canonical-self-parent",
+                  migrationExpression: assessment.expression,
+                },
+              );
+              const previousMetadataSignature = JSON.stringify(
+                existingBinding.metadata ?? null,
+              );
+              const nextMetadataSignature = JSON.stringify(nextMetadata);
+              if (previousMetadataSignature === nextMetadataSignature) {
+                return;
+              }
+              changed = true;
+              next[targetInputId] = {
+                ...existingBinding,
+                metadata: nextMetadata,
+              };
+            },
+          );
+          return changed ? next : previous;
+        });
+        setRigLifecycleMessage({
+          tone: "info",
+          text: `Migrated ${convertibleMigrationEntries.length} legacy variable binding${
+            convertibleMigrationEntries.length === 1 ? "" : "s"
+          } to staged metadata.`,
         });
       };
 
@@ -2988,6 +3291,23 @@ export function InspectorContent({
               label: entry.label,
               kind: entry.kind,
               onInspect: entry.onClick,
+              linkControl: {
+                enabled: entry.linkEnabled,
+                scale: entry.linkScale,
+                offset: entry.linkOffset,
+                onEnabledChange: (enabled) =>
+                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                    enabled,
+                  }),
+                onScaleChange: (scale) =>
+                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                    scale: clampToRange(scale, -3, 3),
+                  }),
+                onOffsetChange: (offset) =>
+                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                    offset: clampToRange(offset, -2, 2),
+                  }),
+              },
             }))}
             children={drivenChainItems.map((entry) => ({
               id: entry.key,
@@ -3002,6 +3322,31 @@ export function InspectorContent({
                     }
                   }
                 : undefined,
+              ...(entry.drivenInputId && entry.linkId
+                ? (() => {
+                    const childInputId = entry.drivenInputId;
+                    const linkId = entry.linkId;
+                    return {
+                      linkControl: {
+                        enabled: entry.linkEnabled ?? true,
+                        scale: entry.linkScale ?? 1,
+                        offset: entry.linkOffset ?? 0,
+                        onEnabledChange: (enabled: boolean) =>
+                          updatePipelineLink(linkId, input.id, childInputId, {
+                            enabled,
+                          }),
+                        onScaleChange: (scale: number) =>
+                          updatePipelineLink(linkId, input.id, childInputId, {
+                            scale: clampToRange(scale, -3, 3),
+                          }),
+                        onOffsetChange: (offset: number) =>
+                          updatePipelineLink(linkId, input.id, childInputId, {
+                            offset: clampToRange(offset, -2, 2),
+                          }),
+                      },
+                    };
+                  })()
+                : {}),
             }))}
             poses={linkedPoseStageItems}
             diagnostics={pipelineDiagnostics}
@@ -3031,7 +3376,9 @@ export function InspectorContent({
             clampEnabled={pipelineStageSettings.clampEnabled}
             onClampEnabledChange={handlePipelineClampEnabledChange}
             migration={legacyMigrationAssessment}
+            migrationSummary={migrationSummary}
             onMigrateLegacyBinding={handleMigrateLegacyBinding}
+            onMigrateAllLegacyBindings={handleMigrateAllLegacyBindings}
             onEditParents={() => setShowRigDriversModal(true)}
             onAddChild={() => setShowSelector(true)}
           />

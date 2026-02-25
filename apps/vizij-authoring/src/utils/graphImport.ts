@@ -99,9 +99,11 @@ export function extractGraphFaceId(payload: unknown): string | null {
 }
 
 export type VizijPipelineConfigMap = Record<string, Record<string, unknown>>;
+export type VizijPipelineLinkMap = Record<string, Record<string, unknown>>;
 
 export type VizijPipelineMetadataV1 = Record<string, unknown> & {
   byInputId?: VizijPipelineConfigMap;
+  links?: VizijPipelineLinkMap;
 };
 
 export function normalizeVizijPipelineConfigMap(
@@ -120,6 +122,22 @@ export function normalizeVizijPipelineConfigMap(
   return next;
 }
 
+export function normalizeVizijPipelineLinkMap(
+  value: unknown,
+): VizijPipelineLinkMap {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const next: VizijPipelineLinkMap = {};
+  Object.entries(value).forEach(([linkId, config]) => {
+    if (!isRecord(config)) {
+      return;
+    }
+    next[linkId] = cloneSerializable(config);
+  });
+  return next;
+}
+
 export function extractVizijPipelineConfigMapFromMetadata(
   pipelineMetadataV1: unknown,
 ): VizijPipelineConfigMap {
@@ -127,6 +145,15 @@ export function extractVizijPipelineConfigMapFromMetadata(
     return {};
   }
   return normalizeVizijPipelineConfigMap(pipelineMetadataV1.byInputId);
+}
+
+export function extractVizijPipelineLinksMapFromMetadata(
+  pipelineMetadataV1: unknown,
+): VizijPipelineLinkMap {
+  if (!isRecord(pipelineMetadataV1)) {
+    return {};
+  }
+  return normalizeVizijPipelineLinkMap(pipelineMetadataV1.links);
 }
 
 export function extractVizijPipelineMetadataV1(

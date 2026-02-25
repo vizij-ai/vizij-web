@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LegacyBindingMigrationAssessment } from "./pipelineStages";
 import { VariablePipelineStages } from "./VariablePipelineStages";
 
+type VariablePipelineStagesProps = React.ComponentProps<
+  typeof VariablePipelineStages
+>;
+
 afterEach(() => {
   cleanup();
 });
@@ -20,7 +24,7 @@ function createMigration(
   };
 }
 
-function createBaseProps() {
+function createBaseProps(): VariablePipelineStagesProps {
   return {
     parentExpression: "self + jawParent",
     compiledEquation:
@@ -31,6 +35,14 @@ function createBaseProps() {
         label: "Jaw Parent",
         kind: "variable" as const,
         onInspect: vi.fn(),
+        linkControl: {
+          enabled: true,
+          scale: 1,
+          offset: 0,
+          onEnabledChange: vi.fn(),
+          onScaleChange: vi.fn(),
+          onOffsetChange: vi.fn(),
+        },
       },
     ],
     children: [
@@ -40,9 +52,17 @@ function createBaseProps() {
         kind: "variable" as const,
         onInspect: vi.fn(),
         onUnlink: vi.fn(),
+        linkControl: {
+          enabled: true,
+          scale: 1,
+          offset: 0,
+          onEnabledChange: vi.fn(),
+          onScaleChange: vi.fn(),
+          onOffsetChange: vi.fn(),
+        },
       },
     ],
-    poses: [],
+    poses: [] as VariablePipelineStagesProps["poses"],
     diagnostics: {
       parentContribution: 0.4,
       poseContribution: null,
@@ -70,7 +90,14 @@ function createBaseProps() {
     clampEnabled: true,
     onClampEnabledChange: vi.fn(),
     migration: createMigration({ kind: "convertible" }),
+    migrationSummary: {
+      totalLegacy: 3,
+      migrated: 1,
+      convertible: 1,
+      nonConvertible: 1,
+    },
     onMigrateLegacyBinding: vi.fn(),
+    onMigrateAllLegacyBindings: vi.fn(),
     onEditParents: vi.fn(),
     onAddChild: vi.fn(),
   };
@@ -93,6 +120,7 @@ describe("VariablePipelineStages", () => {
     ).toContain("effective =");
     expect(view.getByText(/Parents 0.400/i)).toBeTruthy();
     expect(view.getByText(/Direct 0.200/i)).toBeTruthy();
+    expect(view.getByTestId("pipeline-migration-summary")).toBeTruthy();
   });
 
   it("routes parent/child interactions and stage toggles", () => {
@@ -109,20 +137,41 @@ describe("VariablePipelineStages", () => {
     fireEvent.click(within(childStage).getByRole("button", { name: "Unlink" }));
     expect(props.children[0]?.onUnlink).toHaveBeenCalledTimes(1);
 
+    const parentSwitches = within(parentStage).getAllByRole("switch");
+    fireEvent.click(parentSwitches[0]!);
+    expect(props.parents[0]?.linkControl?.onEnabledChange).toHaveBeenCalledWith(
+      false,
+    );
+
+    const childSwitches = within(childStage).getAllByRole("switch");
+    fireEvent.click(childSwitches[0]!);
+    expect(
+      props.children[0]?.linkControl?.onEnabledChange,
+    ).toHaveBeenCalledWith(false);
+
     const directStage = view.getByTestId("pipeline-stage-direct-input");
     fireEvent.click(within(directStage).getByRole("switch"));
-    expect(props.onDirectInputEnabledChange).toHaveBeenCalled();
-    expect(props.onDirectInputEnabledChange.mock.calls[0]?.[0]).toBe(false);
+    expect(props.onDirectInputEnabledChange).toHaveBeenCalledWith(
+      false,
+      expect.anything(),
+    );
 
     const overrideStage = view.getByTestId("pipeline-stage-override");
     fireEvent.click(within(overrideStage).getByRole("switch"));
-    expect(props.onOverrideEnabledChange).toHaveBeenCalled();
-    expect(props.onOverrideEnabledChange.mock.calls[0]?.[0]).toBe(true);
+    expect(props.onOverrideEnabledChange).toHaveBeenCalledWith(
+      true,
+      expect.anything(),
+    );
 
     const clampStage = view.getByTestId("pipeline-stage-clamp");
     fireEvent.click(within(clampStage).getByRole("switch"));
-    expect(props.onClampEnabledChange).toHaveBeenCalled();
-    expect(props.onClampEnabledChange.mock.calls[0]?.[0]).toBe(false);
+    expect(props.onClampEnabledChange).toHaveBeenCalledWith(
+      false,
+      expect.anything(),
+    );
+
+    fireEvent.click(view.getByTestId("pipeline-migrate-all-action"));
+    expect(props.onMigrateAllLegacyBindings).toHaveBeenCalledTimes(1);
   });
 
   it("shows one-click migrate action for convertible legacy bindings", () => {
@@ -145,5 +194,22 @@ describe("VariablePipelineStages", () => {
     expect(view.getByTestId("pipeline-legacy-read-only-flag")).toBeTruthy();
     expect(view.queryByTestId("pipeline-migrate-action")).toBeNull();
     expect(view.getByText(/Expression includes custom math/i)).toBeTruthy();
+  });
+
+  it("renders slider controls for parent, direct, and override stages", () => {
+    const props = createBaseProps();
+    props.poses = [
+      {
+        id: "pose:smile",
+        label: "Smile",
+        targetValue: 0.5,
+        weight: 0.25,
+        onWeightChange: vi.fn(),
+      },
+    ];
+    const view = render(<VariablePipelineStages {...props} />);
+
+    const sliders = view.getAllByRole("slider");
+    expect(sliders.length).toBeGreaterThanOrEqual(5);
   });
 });

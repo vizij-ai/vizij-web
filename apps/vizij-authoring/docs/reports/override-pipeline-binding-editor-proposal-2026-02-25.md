@@ -610,15 +610,26 @@ Implemented in this branch:
 
 1. Compiler dual-read semantics and staged pipeline evaluation were added in `@vizij/node-graph-authoring` with pipeline-v1 contracts in `@vizij/utils`.
 2. Import/export/persistence paths now round-trip `metadata.vizij.pipelineV1` and pass staged configs into compile/build flows.
-3. Inspector now includes stage-oriented controls (Parents, Children, Poses, Direct Input, Override, Clamp), compiled equation diagnostics, and legacy migration affordances.
+3. Canonical shared parent/child link ownership is now wired through `metadata.vizij.pipelineV1.links`, including compile-time resolution of per-link scale/offset/enabled and deterministic `linkId` editing from both parent and child rows.
+4. Inspector now includes stage-oriented controls (Parents, Children, Poses, Direct Input, Override, Clamp), compiled equation diagnostics, and legacy migration affordances.
+5. Runtime override staging now writes to dedicated override paths:
+   1. `rig/<face>/override/<inputId>/enabled`,
+   2. `rig/<face>/override/<inputId>/value`.
+6. Migration UX now includes one-click per-variable migration and batch migration summary/action, with additive parser support for canonical forms such as `self - blink*2`.
+7. UI pass completed for pipeline editing ergonomics:
+   1. parent/child link scales expose sliders,
+   2. pose weights expose sliders,
+   3. override value exposes slider,
+   4. number fields remain for precision edits.
 
 Adjustments made during implementation:
 
 1. Incremental migration bridge: inspector stage settings are currently authored in binding metadata and projected into `pipelineV1.byInputId` at compile/export time.
 2. Partial pipeline payloads are normalized by injecting `inputId` where missing so existing authored data can compile safely.
+3. Legacy auto-migration remains intentionally conservative:
+   1. parser accepts additive alias terms with optional numeric factors,
+   2. non-convertible expressions stay read-only and are flagged instead of being rewritten unsafely.
 
-Known follow-up gaps (tracked in implementation plan execution log):
+Remaining follow-up:
 
-1. Canonical `pipelineV1.links` shared link ownership is not yet fully wired as the sole edit source.
-2. Override enabled/value controls are represented and compiled, but full runtime staging behavior in live preview remains a follow-up.
-3. Batch migration workflow + migration summary panel are still pending.
+1. Manual Phase 3 smoke pass still needs to be recorded on representative assets (variables, drivers, pose targets, and live preview controls).

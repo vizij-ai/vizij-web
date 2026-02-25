@@ -36,6 +36,7 @@ import {
 } from "@vizij/render";
 import {
   SELF_BINDING_ID,
+  buildRigPipelineV1LinkId,
   buildAnimatableValue,
   createStandardRigInput,
   extractAnimatableComponents,
@@ -46,6 +47,7 @@ import {
   resolveStandardRigInputId,
   type AnimatableComponent as AnimComponent,
   type AnimatableValue,
+  type RigPipelineV1LinkConfig,
   type RigPipelineV1InputConfig,
   type RigBindingDefinition,
   type RigBindingSlot,
@@ -66,6 +68,9 @@ import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { normalizeGraphPath } from "../utils/graphPaths";
 import {
   extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineLinksMapFromMetadata,
+  normalizeVizijPipelineConfigMap,
+  normalizeVizijPipelineLinkMap,
   type VizijPipelineMetadataV1,
 } from "../utils/graphImport";
 import type { AutoInputState } from "../types/autoInputs";
@@ -169,10 +174,34 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function normalizeStringValue(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeFiniteValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function normalizeBooleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+interface DerivedPipelineEdits {
+  byInputId: Record<string, RigPipelineV1InputConfig>;
+  links: Record<string, RigPipelineV1LinkConfig>;
+}
+
 function derivePipelineConfigFromInputBindings(
   inputBindings: InputBindingMap,
-): Record<string, RigPipelineV1InputConfig> {
-  const next: Record<string, RigPipelineV1InputConfig> = {};
+): DerivedPipelineEdits {
+  const byInputId: Record<string, RigPipelineV1InputConfig> = {};
+  const links: Record<string, RigPipelineV1LinkConfig> = {};
   Object.entries(inputBindings).forEach(([inputId, binding]) => {
     if (!binding) {
       return;
@@ -182,6 +211,40 @@ function derivePipelineConfigFromInputBindings(
     const pipeline = asRecord(vizij?.pipelineV1);
     if (!pipeline) {
       return;
+    }
+    const pipelineLinks = asRecord(pipeline.links);
+    if (pipelineLinks) {
+      Object.entries(pipelineLinks).forEach(([key, entry]) => {
+        const linkConfig = asRecord(entry);
+        if (!linkConfig) {
+          return;
+        }
+        const linkId =
+          normalizeStringValue(key) ?? normalizeStringValue(linkConfig.linkId);
+        const parentInputId = normalizeStringValue(linkConfig.parentInputId);
+        const childInputId = normalizeStringValue(linkConfig.childInputId);
+        if (!linkId || !parentInputId || !childInputId) {
+          return;
+        }
+        const nextLink: RigPipelineV1LinkConfig = {
+          linkId,
+          parentInputId,
+          childInputId,
+        };
+        const scale = normalizeFiniteValue(linkConfig.scale);
+        const offset = normalizeFiniteValue(linkConfig.offset);
+        const enabled = normalizeBooleanValue(linkConfig.enabled);
+        if (scale !== undefined) {
+          nextLink.scale = scale;
+        }
+        if (offset !== undefined) {
+          nextLink.offset = offset;
+        }
+        if (enabled !== undefined) {
+          nextLink.enabled = enabled;
+        }
+        links[linkId] = nextLink;
+      });
     }
     const legacy = asRecord(pipeline.legacy);
     if (legacy?.readOnly === true) {
@@ -200,13 +263,16 @@ function derivePipelineConfigFromInputBindings(
           return null;
         }
         const alias = slot.alias?.trim() || slot.id?.trim() || `s${index + 1}`;
+        const linkId = buildRigPipelineV1LinkId(slot.inputId, inputId);
         return {
+          linkId,
           inputId: slot.inputId,
           alias,
         };
       })
       .filter(
-        (entry): entry is { inputId: string; alias: string } => entry !== null,
+        (entry): entry is { linkId: string; inputId: string; alias: string } =>
+          entry !== null,
       );
 
     const directEnabled =
@@ -253,9 +319,12 @@ function derivePipelineConfigFromInputBindings(
         enabled: clampEnabled,
       };
     }
-    next[inputId] = config;
+    byInputId[inputId] = config;
   });
-  return next;
+  return {
+    byInputId,
+    links,
+  };
 }
 
 type AnimatableComponent = AnimComponent;
@@ -653,10 +722,20 @@ export function useRigController(
     debugLog,
   });
 
-  const pipelineConfigByInputId = useMemo(() => {
+  const derivedPipelineEdits = useMemo(
+    () => derivePipelineConfigFromInputBindings(inputBindings),
+    [inputBindings],
+  );
+
+  const pipelineConfigByInputId: Record<
+    string,
+    Record<string, unknown>
+  > = useMemo(() => {
     const imported =
       extractVizijPipelineConfigMapFromMetadata(pipelineMetadataV1);
-    const localEdits = derivePipelineConfigFromInputBindings(inputBindings);
+    const localEdits = normalizeVizijPipelineConfigMap(
+      derivedPipelineEdits.byInputId,
+    );
     if (Object.keys(localEdits).length === 0) {
       return imported;
     }
@@ -664,7 +743,47 @@ export function useRigController(
       ...imported,
       ...localEdits,
     };
-  }, [inputBindings, pipelineMetadataV1]);
+  }, [derivedPipelineEdits.byInputId, pipelineMetadataV1]);
+
+  const pipelineLinksById: Record<
+    string,
+    Record<string, unknown>
+  > = useMemo(() => {
+    const imported =
+      extractVizijPipelineLinksMapFromMetadata(pipelineMetadataV1);
+    const localEdits = normalizeVizijPipelineLinkMap(
+      derivedPipelineEdits.links,
+    );
+    if (Object.keys(localEdits).length === 0) {
+      return imported;
+    }
+    return {
+      ...imported,
+      ...localEdits,
+    };
+  }, [derivedPipelineEdits.links, pipelineMetadataV1]);
+
+  const mergedPipelineMetadataV1 = useMemo(() => {
+    const hasBase =
+      Boolean(pipelineMetadataV1) &&
+      typeof pipelineMetadataV1 === "object" &&
+      !Array.isArray(pipelineMetadataV1);
+    const hasLinks = Object.keys(pipelineLinksById).length > 0;
+    if (!hasBase && !hasLinks) {
+      return null;
+    }
+    const next: VizijPipelineMetadataV1 = hasBase
+      ? ({
+          ...(pipelineMetadataV1 as Record<string, unknown>),
+        } as VizijPipelineMetadataV1)
+      : {};
+    if (hasLinks) {
+      next.links = pipelineLinksById;
+    } else {
+      delete next.links;
+    }
+    return next;
+  }, [pipelineLinksById, pipelineMetadataV1]);
 
   useEffect(() => {
     const validTargets = new Set(
@@ -1192,7 +1311,7 @@ export function useRigController(
     featureFlags,
     standardInputSchema,
     graphInsights,
-    pipelineMetadataV1,
+    pipelineMetadataV1: mergedPipelineMetadataV1,
     setAutoInputs,
     setCustomInputs,
     setBindings,
@@ -1450,7 +1569,7 @@ export function useRigController(
         inputMetadata: standardInputMetadataById,
         poseConfig: poseConfigSnapshot ?? null,
         pipelineConfigByInputId,
-        pipelineMetadataV1,
+        pipelineMetadataV1: mergedPipelineMetadataV1,
       }),
     [
       animatableComponents,
@@ -1459,7 +1578,7 @@ export function useRigController(
       faceId,
       inputBindings,
       pipelineConfigByInputId,
-      pipelineMetadataV1,
+      mergedPipelineMetadataV1,
       poseConfigSnapshot,
       standardInputMetadataById,
       standardInputsById,
@@ -1775,6 +1894,31 @@ export function useRigController(
       }
     },
     [queueGraphInputValue, resolveRuntimeInputId, updateInputValues],
+  );
+
+  const stageRuntimeGraphPathValue = useCallback(
+    (graphPath: string, value: number) => {
+      if (graphStatus !== "ready" || graphError) {
+        return;
+      }
+      if (!Number.isFinite(value)) {
+        return;
+      }
+      const normalizedPath = normalizeGraphPath(graphPath) ?? graphPath.trim();
+      if (!normalizedPath) {
+        return;
+      }
+      if (
+        queueRuntimeInputWrite(
+          queuedRuntimeInputValuesRef.current,
+          normalizedPath,
+          value,
+        )
+      ) {
+        setRuntimeInputStageQueueRevision((previous) => previous + 1);
+      }
+    },
+    [graphError, graphStatus],
   );
 
   const applyStandardInputBatch = useCallback(
@@ -2350,13 +2494,14 @@ export function useRigController(
       standardInputsByPath,
       rigOutputLookup,
       validOutputTargets,
-      pipelineMetadataV1,
+      pipelineMetadataV1: mergedPipelineMetadataV1,
       pipelineConfigByInputId,
       inputValues,
       bindings,
       inputBindings,
       animatableComponents,
       handleInputValueChange,
+      stageRuntimeGraphPathValue,
       applyStandardInputBatch,
       handleResetAllInputValues,
       handleClearCachedState,
@@ -2423,6 +2568,7 @@ export function useRigController(
     handleFeatureFlagChange,
     handleHideDriver,
     handleInputValueChange,
+    stageRuntimeGraphPathValue,
     handleLinkChildInput,
     handleCloneStandardInputs,
     handleParentAddBindingSlot,
@@ -2453,7 +2599,7 @@ export function useRigController(
     handleCreateParentDriverBinding,
     handleEnableParentLocalControl,
     pipelineConfigByInputId,
-    pipelineMetadataV1,
+    mergedPipelineMetadataV1,
     rigOutputLookup,
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,

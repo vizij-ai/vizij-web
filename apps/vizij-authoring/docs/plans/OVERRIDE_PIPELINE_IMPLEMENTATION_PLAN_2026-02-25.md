@@ -370,13 +370,54 @@ Notes:
 1. `VariablesPanel.perf.test.tsx` remained skipped (existing test gate).
 2. Full `pnpm --filter vizij-authoring typecheck` still reports pre-existing workspace resolution issues unrelated to this change set.
 
+### Phase 2 + 3 + 4 Completion Pass (2026-02-25, follow-up)
+
+Status: Completed (remaining implementation gaps closed)
+
+Changes:
+
+1. Canonical shared link ownership is now fully wired through `metadata.vizij.pipelineV1.links`:
+   1. import/persistence extraction for `links`,
+   2. compiler/runtime resolution preferring link records for scale/offset/enabled,
+   3. inspector parent/child rows editing the same deterministic `linkId` records.
+2. Override enabled/value controls now stage live runtime writes on dedicated override paths:
+   1. `rig/<face>/override/<inputId>/enabled`,
+   2. `rig/<face>/override/<inputId>/value`.
+3. Legacy migration parser now supports signed additive factors, including canonical forms like `self - blink*2` and `self + 2*blink`.
+4. Migration UX now includes:
+   1. one-click per-variable migration (existing),
+   2. batch migration action,
+   3. migration summary panel with convertible/non-convertible counts.
+5. Inspector UI pass completed:
+   1. parent/child link scale controls include sliders,
+   2. pose weights include sliders,
+   3. override value includes slider,
+   4. number fields retained for precise entry.
+
+Validation:
+
+1. `pnpm --filter "@vizij/utils" test -- src/rig/pipeline-v1.test.ts`
+2. `pnpm --filter "@vizij/node-graph-authoring" test -- src/__tests__/graphBuilder.test.ts`
+3. `pnpm --filter vizij-authoring test -- src/components/inspector/pipelineStages.test.ts src/components/inspector/VariablePipelineStages.test.tsx src/hooks/__tests__/runtimeInputRoutes.test.ts src/utils/graphImport.test.ts`
+4. `pnpm --filter vizij-authoring typecheck`
+5. `pnpm --filter "@vizij/utils" typecheck`
+6. `pnpm --filter "@vizij/node-graph-authoring" typecheck`
+7. `pnpm run prep`
+
+Learnings / adjustments:
+
+1. Normalizing local pipeline edits through import utility map normalizers avoided fragile cross-casting between strict config types and generic metadata records.
+2. For migration safety, additive-expression conversion remains intentionally strict:
+   1. only alias terms with optional numeric factors,
+   2. `self` coefficient must remain `+1`,
+   3. unsupported math still routes to read-only legacy fallback.
+
 ### Remaining Follow-ups
 
-1. Shared link ownership UI/storage (`pipelineV1.links` as canonical edit source) is scaffolded but not fully end-to-end.
-2. Override enabled/value runtime staging in live preview currently remains metadata/default-driven rather than full runtime-control staging.
-3. Batch migration + migration summary panel remain to be implemented for full Phase 4 parity.
-4. `OP-1 Compiler`
-5. `OP-2 Schema/Serialization`
-6. `OP-3 Inspector/Editor`
-7. `OP-4 Migration`
-8. `OP-5 Perf/Rollout`
+1. Run and record Phase 3 manual smoke checks (authoring variables, drivers, pose targets, live control) against representative assets.
+2. Optional pre-merge: capture explicit before/after perf measurements for inspector-open + variable-edit hot paths.
+3. `OP-1 Compiler`
+4. `OP-2 Schema/Serialization`
+5. `OP-3 Inspector/Editor`
+6. `OP-4 Migration`
+7. `OP-5 Perf/Rollout`

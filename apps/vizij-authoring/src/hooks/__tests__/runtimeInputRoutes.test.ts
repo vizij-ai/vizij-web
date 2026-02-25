@@ -120,4 +120,43 @@ describe("buildRuntimeInputRouteSnapshot", () => {
       defaultValue: 0.3,
     });
   });
+
+  it("registers override runtime paths as directly stageable routes", () => {
+    const jaw = createInput("jaw_open", "/autorig/jaw/open", 0.4);
+    const byPath = new Map<string, StandardRigInput>([
+      [normalizeStandardRigInputPath(jaw.path), jaw],
+    ]);
+    const byId = new Map<string, StandardRigInput>([[jaw.id, jaw]]);
+
+    const snapshot = buildRuntimeInputRouteSnapshot({
+      faceId: "face",
+      graphSummary: {
+        inputs: [
+          "rig/face/override/jaw_open/enabled",
+          "rig/face/override/jaw_open/value",
+        ],
+      } as any,
+      rigOutputLookup: new Map(),
+      standardInputsByPath: byPath,
+      standardInputsById: byId,
+      managedStandardInputs: [],
+      resolveRuntimeInputId: (inputId) => inputId,
+    });
+
+    expect(
+      snapshot.routesByCanonicalId.get("rig/face/override/jaw_open/enabled"),
+    ).toEqual({
+      graphPath: "rig/face/override/jaw_open/enabled",
+      defaultValue: 0,
+    });
+    expect(
+      snapshot.routesByCanonicalId.get("rig/face/override/jaw_open/value"),
+    ).toEqual({
+      graphPath: "rig/face/override/jaw_open/value",
+      defaultValue: 0.4,
+    });
+    expect(
+      snapshot.graphPathLookupByInputId.get("rig/face/override/jaw_open/value"),
+    ).toBe("rig/face/override/jaw_open/value");
+  });
 });

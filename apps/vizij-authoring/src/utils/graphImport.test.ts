@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractGraphFaceId,
   extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineLinksMapFromMetadata,
   extractVizijPipelineMetadataV1,
   remapGraphSpecFace,
   withVizijPipelineMetadataV1,
@@ -64,6 +65,7 @@ describe("graph import helpers", () => {
     const pipelineMetadata = extractVizijPipelineMetadataV1(payload);
     const byInputId =
       extractVizijPipelineConfigMapFromMetadata(pipelineMetadata);
+    const links = extractVizijPipelineLinksMapFromMetadata(pipelineMetadata);
     expect(pipelineMetadata).toMatchObject({
       links: {
         link_jaw: { scale: 1, offset: 0 },
@@ -79,6 +81,9 @@ describe("graph import helpers", () => {
       jaw_open: {
         clamp: { enabled: true },
       },
+    });
+    expect(links).toEqual({
+      link_jaw: { scale: 1, offset: 0 },
     });
   });
 

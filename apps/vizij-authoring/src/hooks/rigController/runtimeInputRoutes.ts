@@ -31,6 +31,21 @@ interface BuildRuntimeInputRouteSnapshotArgs {
   resolveRuntimeInputId: (inputId: string) => string;
 }
 
+function parseOverrideRuntimePath(
+  graphPath: string,
+): { inputId: string; field: "enabled" | "value" } | null {
+  const match = graphPath.match(
+    /^rig\/[^/]+\/override\/([^/]+)\/(enabled|value)$/,
+  );
+  if (!match) {
+    return null;
+  }
+  return {
+    inputId: match[1] ?? "",
+    field: (match[2] as "enabled" | "value") ?? "value",
+  };
+}
+
 export function createEmptyRuntimeInputRouteSnapshot(): RuntimeInputRouteSnapshot {
   return {
     routesByCanonicalId: new Map(),
@@ -86,6 +101,19 @@ export function buildRuntimeInputRouteSnapshot({
   };
 
   summaryInputPaths.forEach((graphPath) => {
+    const overridePath = parseOverrideRuntimePath(graphPath);
+    if (overridePath) {
+      const resolvedInputId = resolveRuntimeInputId(overridePath.inputId);
+      const fallbackDefault = overridePath.field === "enabled" ? 0 : 0;
+      const defaultValue =
+        overridePath.field === "value"
+          ? (standardInputsById.get(resolvedInputId)?.defaultValue ??
+            fallbackDefault)
+          : fallbackDefault;
+      registerInputRoute(graphPath, graphPath, defaultValue);
+      return;
+    }
+
     if (isPoseControlInputPath(graphPath)) {
       return;
     }

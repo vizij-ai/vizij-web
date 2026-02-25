@@ -27,6 +27,21 @@ describe("pipelineStages", () => {
     const assessment = assessLegacyBindingMigration(createBinding());
     expect(assessment.kind).toBe("convertible");
     expect(assessment.reason).toBeNull();
+    expect(assessment.parentFactorsByInputId).toEqual({
+      "rig/jaw/open": 1,
+    });
+  });
+
+  it("supports additive parent factors like self - parent*2", () => {
+    const assessment = assessLegacyBindingMigration(
+      createBinding({
+        expression: "self - jaw*2",
+      }),
+    );
+    expect(assessment.kind).toBe("convertible");
+    expect(assessment.parentFactorsByInputId).toEqual({
+      "rig/jaw/open": -2,
+    });
   });
 
   it("flags non-convertible legacy expressions as read-only fallback", () => {

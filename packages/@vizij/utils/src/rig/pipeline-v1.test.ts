@@ -50,6 +50,24 @@ describe("resolveRigPipelineV1InputConfig", () => {
   it("normalizes staged settings and parent defaults", () => {
     const pipelineV1: RigPipelineV1Metadata = {
       version: 1,
+      links: {
+        "link/brow_raise->jaw_open": {
+          linkId: "link/brow_raise->jaw_open",
+          parentInputId: "brow_raise",
+          childInputId: TEST_INPUT.id,
+          scale: -2,
+          offset: 0.25,
+          enabled: true,
+        },
+        "custom-link": {
+          linkId: "custom-link",
+          parentInputId: "blink",
+          childInputId: TEST_INPUT.id,
+          scale: 0.75,
+          offset: -0.2,
+          enabled: true,
+        },
+      },
       byInputId: {
         [TEST_INPUT.id]: {
           inputId: TEST_INPUT.id,
@@ -99,17 +117,17 @@ describe("resolveRigPipelineV1InputConfig", () => {
     expect(resolved.parents[0]).toMatchObject({
       inputId: "brow_raise",
       alias: "p1",
-      scale: 1,
-      offset: 0,
+      scale: -2,
+      offset: 0.25,
       enabled: true,
     });
     expect(resolved.parents[1]).toMatchObject({
       inputId: "blink",
       linkId: "custom-link",
       alias: "blinkParent",
-      scale: 0.5,
-      offset: 0.1,
-      enabled: false,
+      scale: 0.75,
+      offset: -0.2,
+      enabled: true,
     });
     expect(resolved.poseSource.targetIds).toEqual(["pose_a", "pose_b"]);
     expect(resolved.directInput.enabled).toBe(true);
