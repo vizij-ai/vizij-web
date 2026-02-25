@@ -58,9 +58,14 @@ const bindingState = {
   managedStandardInputs: [] as Array<{
     input: StandardRigInput;
     source: "auto" | "preset" | "custom";
-    metadata?: { elementType?: string };
+    metadata?: {
+      elementType?: string;
+      elementId?: string;
+      componentId?: string;
+    };
     disabled?: boolean;
   }>,
+  lockedInspectorTargetIds: new Set<string>(),
   standardInputsByPath: new Map<string, StandardRigInput>(),
   standardInputsById: new Map<string, StandardRigInput>(),
   inputValues: {} as Record<string, number>,
@@ -150,6 +155,7 @@ describe("VariablesPanel", () => {
     referenceFaceState.inputValues = {};
 
     bindingState.managedStandardInputs = [];
+    bindingState.lockedInspectorTargetIds = new Set();
     bindingState.standardInputsByPath = new Map();
     bindingState.standardInputsById = new Map();
     bindingState.inputValues = {};
@@ -348,6 +354,87 @@ describe("VariablesPanel", () => {
 
     fireEvent.change(search, { target: { value: "Eye Open" } });
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
+  });
+
+  it("excludes autorig inputs for fully locked face elements on the Inputs surface", () => {
+    const lockedX = makeInput("autorig_eye_x", "/autorig/eye/open_x", {
+      label: "Eye Open X",
+    });
+    const lockedY = makeInput("autorig_eye_y", "/autorig/eye/open_y", {
+      label: "Eye Open Y",
+    });
+    const unlockedOther = makeInput("autorig_jaw", "/autorig/jaw/open", {
+      label: "Jaw Open",
+    });
+
+    bindingState.managedStandardInputs = [
+      {
+        input: lockedX,
+        source: "auto",
+        metadata: { elementId: "eye_l", componentId: "eye_l:x" },
+      },
+      {
+        input: lockedY,
+        source: "auto",
+        metadata: { elementId: "eye_l", componentId: "eye_l:y" },
+      },
+      {
+        input: unlockedOther,
+        source: "auto",
+        metadata: { elementId: "jaw", componentId: "jaw:value" },
+      },
+    ];
+    bindingState.lockedInspectorTargetIds = new Set(["eye_l:x", "eye_l:y"]);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Eye Open X" } });
+    expect(scoped.queryByTitle("Eye Open X")).toBeNull();
+
+    fireEvent.change(search, { target: { value: "Jaw Open" } });
+    expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
+  });
+
+  it("keeps autorig inputs visible when only part of a face element is locked", () => {
+    const partialX = makeInput("autorig_eye_x", "/autorig/eye/open_x", {
+      label: "Eye Open X",
+    });
+    const partialY = makeInput("autorig_eye_y", "/autorig/eye/open_y", {
+      label: "Eye Open Y",
+    });
+
+    bindingState.managedStandardInputs = [
+      {
+        input: partialX,
+        source: "auto",
+        metadata: { elementId: "eye_l", componentId: "eye_l:x" },
+      },
+      {
+        input: partialY,
+        source: "auto",
+        metadata: { elementId: "eye_l", componentId: "eye_l:y" },
+      },
+    ];
+    bindingState.lockedInspectorTargetIds = new Set(["eye_l:x"]);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Eye Open Y" } });
+    expect(scoped.getByTitle("Eye Open Y")).toBeTruthy();
   });
 
   it("hides internal pose-control channels on the Inputs surface", () => {

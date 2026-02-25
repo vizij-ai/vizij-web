@@ -1,10 +1,19 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { Popover as BasePopover } from "@base-ui/react";
-import { Box, Folder, Search } from "lucide-react";
+import { Box, Folder, Lock, Search, Unlock } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { useSelectionStore } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useSelectionStore,
+} from "../../state/RigControllerProvider";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { EmptyState } from "../ui/EmptyState";
@@ -16,8 +25,47 @@ interface HierarchyPanelProps {
   allowEditActions?: boolean;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
-  onSelectObject?: (id: string) => void;
+  onSelectObject?: (id: string, options?: { additive?: boolean }) => void;
   referenceFaceFile: File | null;
+}
+
+function collectTopLevelSelectionIds(
+  selectedIds: string[],
+  nodesById: Map<string, SceneObjectNode>,
+): string[] {
+  if (selectedIds.length <= 1) {
+    return selectedIds;
+  }
+  const selectedSet = new Set(selectedIds);
+  return selectedIds.filter((nodeId) => {
+    let current = nodesById.get(nodeId);
+    while (current?.parentId) {
+      if (selectedSet.has(current.parentId)) {
+        return false;
+      }
+      current = nodesById.get(current.parentId);
+    }
+    return true;
+  });
+}
+
+function collectLockableTargetIdsForNode(
+  node: SceneObjectNode | null,
+): string[] {
+  if (!node) {
+    return [];
+  }
+  const ids = new Set<string>();
+  node.features.forEach((feature) => {
+    feature.components.forEach((component) => {
+      const targetId = component.targetId?.trim();
+      if (!targetId) {
+        return;
+      }
+      ids.add(targetId);
+    });
+  });
+  return Array.from(ids);
 }
 
 export function HierarchyPanel({
@@ -30,7 +78,6 @@ export function HierarchyPanel({
   const {
     objects,
     rootIds,
-    getNode,
     getChildren,
     selectObject,
     getBreadcrumb,
@@ -38,12 +85,6 @@ export function HierarchyPanel({
     deleteNode,
     reparentNode,
   } = useSceneComposer();
-  const selectionStack = useSelectionStore((state) => state.selectionStack);
-  const selectedId = selectionStack[0]?.id ?? null;
-  const selectedNode = useMemo(
-    () => (selectedId ? getNode(selectedId) : null),
-    [getNode, selectedId],
-  );
 
   // Filtering
   const [search, setSearch] = useState("");
@@ -51,6 +92,120 @@ export function HierarchyPanel({
     () => new Map(objects.map((node) => [node.id, node])),
     [objects],
   );
+  const selectionStack = useSelectionStore((state) => state.selectionStack);
+  const selectedIds = useMemo(() => {
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    selectionStack.forEach((selection) => {
+      if (selection.namespace !== DEFAULT_NAMESPACE) {
+        return;
+      }
+      if (!nodesById.has(selection.id) || seen.has(selection.id)) {
+        return;
+      }
+      ids.push(selection.id);
+      seen.add(selection.id);
+    });
+    return ids;
+  }, [nodesById, selectionStack]);
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedId = selectedIds[0] ?? null;
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
+  );
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
+  );
+  const selectedNodes = useMemo(
+    () =>
+      selectedIds
+        .map((id) => nodesById.get(id))
+        .filter((node): node is SceneObjectNode => Boolean(node)),
+    [nodesById, selectedIds],
+  );
+  const selectedNode = selectedNodes[0] ?? null;
+  const selectedTopLevelIds = useMemo(
+    () => collectTopLevelSelectionIds(selectedIds, nodesById),
+    [nodesById, selectedIds],
+  );
+  const selectedLockTargetBatches = useMemo(
+    () =>
+      selectedIds
+        .map((nodeId) => {
+          const node = nodesById.get(nodeId) ?? null;
+          return {
+            nodeId,
+            targetIds: collectLockableTargetIdsForNode(node),
+          };
+        })
+        .filter((batch) => batch.targetIds.length > 0),
+    [nodesById, selectedIds],
+  );
+  const selectedLockTargetIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    selectedLockTargetBatches.forEach((batch) => {
+      batch.targetIds.forEach((targetId) => {
+        if (seen.has(targetId)) {
+          return;
+        }
+        seen.add(targetId);
+        ids.push(targetId);
+      });
+    });
+    return ids;
+  }, [selectedLockTargetBatches]);
+  const lockSummaryByNodeId = useMemo(() => {
+    const summary = new Map<
+      string,
+      { lockableCount: number; lockedCount: number }
+    >();
+    objects.forEach((node) => {
+      const lockableTargetIds = collectLockableTargetIdsForNode(node);
+      const lockableCount = lockableTargetIds.length;
+      const lockedCount = lockableTargetIds.reduce(
+        (count, targetId) =>
+          lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
+        0,
+      );
+      summary.set(node.id, { lockableCount, lockedCount });
+    });
+    return summary;
+  }, [lockedInspectorTargetIds, objects]);
+  const selectedLockedTargetCount = useMemo(
+    () =>
+      selectedLockTargetIds.reduce(
+        (count, targetId) =>
+          lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
+        0,
+      ),
+    [lockedInspectorTargetIds, selectedLockTargetIds],
+  );
+  const hasLockableSelection = selectedLockTargetIds.length > 0;
+  const areSelectedTargetsFullyLocked =
+    hasLockableSelection &&
+    selectedLockedTargetCount === selectedLockTargetIds.length;
+  const handleToggleLockSelection = useCallback(() => {
+    if (selectedLockTargetIds.length === 0) {
+      return;
+    }
+    const nextLocked = !areSelectedTargetsFullyLocked;
+    const applied = new Set<string>();
+    selectedLockTargetBatches.forEach((batch) => {
+      batch.targetIds.forEach((targetId) => {
+        if (applied.has(targetId)) {
+          return;
+        }
+        applied.add(targetId);
+        handleSetInspectorTargetLocked(targetId, nextLocked);
+      });
+    });
+  }, [
+    areSelectedTargetsFullyLocked,
+    handleSetInspectorTargetLocked,
+    selectedLockTargetBatches,
+    selectedLockTargetIds,
+  ]);
 
   // Use the optimized filters from hierarchyFilters.ts
   const { visibleIds, matchingIds } = useMemo(
@@ -91,12 +246,14 @@ export function HierarchyPanel({
   }, [getBreadcrumb, matchingIds, search, setExpanded]);
 
   const handleSelect = useCallback(
-    (id: string) => {
+    (id: string, event?: ReactMouseEvent<HTMLElement>) => {
+      const additive = Boolean(event?.metaKey || event?.ctrlKey);
+      const options = additive ? { additive: true } : undefined;
       if (onSelectObject) {
-        onSelectObject(id);
+        onSelectObject(id, options);
         return;
       }
-      selectObject(id);
+      selectObject(id, options);
     },
     [onSelectObject, selectObject],
   );
@@ -113,31 +270,48 @@ export function HierarchyPanel({
   }, [duplicateNode, handleSelect, selectedId, selectedNode?.parentId]);
 
   const handleDeleteSelection = useCallback(() => {
-    if (!selectedId) return;
-    deleteNode(selectedId, { includeChildren: true });
-  }, [deleteNode, selectedId]);
+    if (selectedTopLevelIds.length === 0) return;
+    selectedTopLevelIds.forEach((id) => {
+      deleteNode(id, { includeChildren: true });
+    });
+  }, [deleteNode, selectedTopLevelIds]);
 
   // Reparenting state
+  const initialReparentTarget = useMemo(() => {
+    if (selectedNodes.length === 0) {
+      return "";
+    }
+    const parentId = selectedNodes[0]?.parentId ?? null;
+    const hasSameParent = selectedNodes.every(
+      (node) => node.parentId === parentId,
+    );
+    return hasSameParent ? (parentId ?? "") : "";
+  }, [selectedNodes]);
   const [reparentTarget, setReparentTarget] = useState<string>(
-    selectedNode?.parentId ?? "",
+    initialReparentTarget,
   );
   // Add state for popover
   const [isMoveOpen, setIsMoveOpen] = useState(false);
   useEffect(() => {
-    setReparentTarget(selectedNode?.parentId ?? "");
-  }, [selectedNode?.parentId]);
+    setReparentTarget(initialReparentTarget);
+  }, [initialReparentTarget]);
 
   const handleReparentSelection = useCallback(() => {
-    if (!selectedId) return;
+    if (selectedTopLevelIds.length === 0) return;
     const target = reparentTarget === "" ? null : reparentTarget;
-    if (target === selectedNode?.parentId) return;
-    reparentNode(selectedId, target);
-  }, [reparentNode, reparentTarget, selectedId, selectedNode?.parentId]);
+    selectedTopLevelIds.forEach((id) => {
+      const node = nodesById.get(id);
+      if (!node || node.parentId === target) {
+        return;
+      }
+      reparentNode(id, target);
+    });
+  }, [nodesById, reparentNode, reparentTarget, selectedTopLevelIds]);
 
   const blockedForParent = useMemo(() => {
-    if (!selectedNode) return new Set<string>();
-    const blocked = new Set<string>([selectedNode.id]);
-    const pending = [...selectedNode.childIds];
+    if (selectedNodes.length === 0) return new Set<string>();
+    const blocked = new Set<string>();
+    const pending = selectedNodes.map((node) => node.id);
     while (pending.length > 0) {
       const current = pending.pop();
       if (!current || blocked.has(current)) continue;
@@ -146,7 +320,7 @@ export function HierarchyPanel({
       if (child) pending.push(...child.childIds);
     }
     return blocked;
-  }, [nodesById, selectedNode]);
+  }, [nodesById, selectedNodes]);
 
   const parentOptions = useMemo(
     () => objects.filter((node) => !blockedForParent.has(node.id)),
@@ -164,11 +338,20 @@ export function HierarchyPanel({
       );
       const hasChildren = childNodes.length > 0;
       const expanded = isExpanded(node.id);
-      const isSelected = selectedId === node.id;
+      const isSelected = selectedIdSet.has(node.id);
 
       const isShape = node.type.toLowerCase() === "shape";
       const Icon = isShape ? Box : Folder;
       const typeLabel = isShape ? "Shape" : "Group";
+      const lockSummary = lockSummaryByNodeId.get(node.id) ?? {
+        lockableCount: 0,
+        lockedCount: 0,
+      };
+      const hasLockableTargets = lockSummary.lockableCount > 0;
+      const isFullyLocked =
+        hasLockableTargets &&
+        lockSummary.lockedCount === lockSummary.lockableCount;
+      const lockTitle = `Locked properties: ${lockSummary.lockedCount}/${lockSummary.lockableCount}`;
 
       return (
         <TreeRow
@@ -179,7 +362,7 @@ export function HierarchyPanel({
           isExpanded={expanded}
           isSelected={isSelected}
           onToggle={() => toggleNode(node.id)}
-          onSelect={() => handleSelect(node.id)}
+          onSelect={(event) => handleSelect(node.id, event)}
           highlightQuery={search}
           icon={null}
           actions={
@@ -190,6 +373,22 @@ export function HierarchyPanel({
               >
                 <Icon size={10} strokeWidth={2.5} />
               </span>
+              {hasLockableTargets && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5 text-[9px] font-mono rounded-sm px-1 py-0.5 border",
+                    isFullyLocked
+                      ? "text-amber-200 border-amber-300/40 bg-amber-500/15"
+                      : "text-text-muted border-border-default/80 bg-bg-panel",
+                  )}
+                  title={lockTitle}
+                >
+                  <Lock size={9} />
+                  <span>
+                    {lockSummary.lockedCount}/{lockSummary.lockableCount}
+                  </span>
+                </span>
+              )}
               {node.features.length > 0 && (
                 <span className="text-[9px] text-text-muted font-mono">
                   {node.features.length}
@@ -211,7 +410,8 @@ export function HierarchyPanel({
       isNodeVisible,
       search,
       handleSelect,
-      selectedId,
+      lockSummaryByNodeId,
+      selectedIdSet,
       toggleNode,
       isExpanded,
     ],
@@ -304,6 +504,13 @@ export function HierarchyPanel({
     setExpanded("virtual_ref_face", true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const selectedCount = selectedIds.length;
+  const canDuplicateSelection = selectedTopLevelIds.length === 1;
+  const moveTargetLabel =
+    selectedCount === 1
+      ? (selectedNode?.name ?? selectedNode?.id ?? "selection")
+      : `${selectedCount} elements`;
+
   return (
     <Panel
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
@@ -311,7 +518,7 @@ export function HierarchyPanel({
       description="Select objects via the tree or viewport to drive the inspector."
     >
       <div className="flex flex-col h-full gap-1 p-1">
-        {allowEditActions && selectedId && (
+        {allowEditActions && selectedCount > 0 && (
           <div className="flex items-center gap-1 p-1 rounded bg-accent/10 border border-accent/20 mb-1 mx-1">
             <button
               type="button"
@@ -345,6 +552,7 @@ export function HierarchyPanel({
               className="h-6 w-6 p-0 text-text-muted hover:text-accent hover:bg-accent/20"
               onClick={handleDuplicateSelection}
               title="Duplicate Selection"
+              disabled={!canDuplicateSelection}
             >
               <svg
                 width="14"
@@ -396,7 +604,7 @@ export function HierarchyPanel({
                       <span className="text-[10px] font-medium text-text-muted">
                         Move{" "}
                         <span className="text-accent truncate inline-block max-w-[120px] align-bottom">
-                          {selectedNode?.name || selectedNode?.id}
+                          {moveTargetLabel}
                         </span>{" "}
                         to under:
                       </span>
@@ -431,7 +639,7 @@ export function HierarchyPanel({
                           handleReparentSelection();
                           setIsMoveOpen(false);
                         }}
-                        disabled={!selectedId}
+                        disabled={selectedTopLevelIds.length === 0}
                       >
                         Move
                       </Button>
@@ -440,6 +648,29 @@ export function HierarchyPanel({
                 </BasePopover.Positioner>
               </BasePopover.Portal>
             </BasePopover.Root>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-6 w-6 p-0 hover:bg-accent/20",
+                areSelectedTargetsFullyLocked
+                  ? "text-amber-300 hover:text-amber-200"
+                  : "text-text-muted hover:text-accent",
+              )}
+              onClick={handleToggleLockSelection}
+              title={
+                areSelectedTargetsFullyLocked
+                  ? "Unlock Selection"
+                  : "Lock Selection"
+              }
+              disabled={!hasLockableSelection}
+            >
+              {areSelectedTargetsFullyLocked ? (
+                <Unlock size={14} />
+              ) : (
+                <Lock size={14} />
+              )}
+            </Button>
 
             <div className="ml-auto" />
 
@@ -449,6 +680,7 @@ export function HierarchyPanel({
               className="h-6 w-6 p-0 text-red-500/70 hover:text-red-400 hover:bg-red-500/20"
               onClick={handleDeleteSelection}
               title="Delete Selection"
+              disabled={selectedTopLevelIds.length === 0}
             >
               <svg
                 width="14"

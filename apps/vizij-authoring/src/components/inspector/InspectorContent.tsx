@@ -18,6 +18,8 @@ import {
   Play,
   RotateCcw,
   Save,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 import {
   bindingTargetFromInput,
@@ -221,6 +223,29 @@ function collectBindingInputIds(
     ) {
       ids.add(slot.inputId);
     }
+  });
+  return Array.from(ids);
+}
+
+function collectLockableTargetIdsForNode(
+  node: {
+    features?: Array<{
+      components?: Array<{ targetId?: string | null }>;
+    }>;
+  } | null,
+): string[] {
+  if (!node) {
+    return [];
+  }
+  const ids = new Set<string>();
+  (node.features ?? []).forEach((feature) => {
+    (feature.components ?? []).forEach((component) => {
+      const targetId = component.targetId?.trim();
+      if (!targetId) {
+        return;
+      }
+      ids.add(targetId);
+    });
   });
   return Array.from(ids);
 }
@@ -572,6 +597,9 @@ export function InspectorContent({
   );
   const lockedAutorigInputIds = useBindingAuthoring(
     (state) => state.lockedAutorigInputIds,
+  );
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
   );
   const handleDeleteCustomStandardInput = useBindingAuthoring(
     (state) => state.handleDeleteCustomStandardInput,
@@ -1609,6 +1637,23 @@ export function InspectorContent({
   if (inspectorMode === "scene" && selectedId) {
     const node = getNode(selectedId);
     if (node) {
+      const lockableTargetIds = collectLockableTargetIdsForNode(node);
+      const lockedTargetCount = lockableTargetIds.reduce(
+        (count, targetId) =>
+          lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
+        0,
+      );
+      const hasLockableTargets = lockableTargetIds.length > 0;
+      const isElementFullyLocked =
+        hasLockableTargets && lockedTargetCount === lockableTargetIds.length;
+      const lockSummary = hasLockableTargets
+        ? isElementFullyLocked
+          ? "All properties locked."
+          : lockedTargetCount > 0
+            ? `${lockedTargetCount}/${lockableTargetIds.length} properties locked.`
+            : "No properties locked."
+        : "No lockable properties on this element.";
+
       return (
         <div className="flex flex-col gap-1 p-1">
           <InspectorHeader
@@ -1619,6 +1664,35 @@ export function InspectorContent({
           />
           {renderChainPath()}
           {renderAuthoringStatus()}
+          {hasLockableTargets ? (
+            <div className="mx-1 flex items-center justify-between rounded-md border border-border-default/70 bg-bg-secondary/50 px-2 py-1">
+              <p className="text-[11px] text-text-secondary">{lockSummary}</p>
+              <Button
+                variant={isElementFullyLocked ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  const nextLocked = !isElementFullyLocked;
+                  lockableTargetIds.forEach((targetId) => {
+                    handleSetInspectorTargetLocked(targetId, nextLocked);
+                  });
+                }}
+                title={
+                  isElementFullyLocked
+                    ? "Unlock all face-element properties."
+                    : "Lock all face-element properties."
+                }
+              >
+                {isElementFullyLocked ? (
+                  <LockOpen size={12} className="mr-1 shrink-0" />
+                ) : (
+                  <Lock size={12} className="mr-1 shrink-0" />
+                )}
+                {isElementFullyLocked
+                  ? "Unlock All Properties"
+                  : "Lock All Properties"}
+              </Button>
+            </div>
+          ) : null}
           <RiggingTransformSection node={node} />
 
           <RiggingMorphTargetsSection node={node} />

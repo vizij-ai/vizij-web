@@ -11,6 +11,8 @@ export interface ModalProps {
   children: ReactNode;
   className?: string;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
+  backdropClassName?: string;
+  containerClassName?: string;
 }
 
 const maxWidthClasses = {
@@ -31,6 +33,8 @@ export function Modal({
   children,
   className,
   maxWidth = "2xl",
+  backdropClassName,
+  containerClassName,
 }: ModalProps) {
   return (
     <BaseDialog.Root
@@ -38,9 +42,17 @@ export function Modal({
       onOpenChange={(isOpen) => !isOpen && onClose()}
     >
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-md transition-all duration-300 data-[state=open]:opacity-100 data-[state=closed]:opacity-0" />
+        <BaseDialog.Backdrop
+          className={cn(
+            "fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-md transition-all duration-300 data-[state=open]:opacity-100 data-[state=closed]:opacity-0",
+            backdropClassName,
+          )}
+        />
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 overflow-y-auto"
+          className={cn(
+            "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 overflow-y-auto",
+            containerClassName,
+          )}
           onClick={(e) => e.target === e.currentTarget && onClose()}
         >
           <BaseDialog.Popup

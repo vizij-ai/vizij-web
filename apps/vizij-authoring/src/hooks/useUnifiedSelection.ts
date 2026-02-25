@@ -16,7 +16,8 @@ export function useUnifiedSelection() {
   const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
   const handleSelectRig = useBindingAuthoring((state) => state.handleSelectRig);
 
-  const selectedId = useSelectionStore((state) => state.selectionStack[0]?.id);
+  const selectionStack = useSelectionStore((state) => state.selectionStack);
+  const selectedId = selectionStack[0]?.id;
   const handleClearSelection = useSelectionStore(
     (state) => state.handleClearSelection,
   );
@@ -32,7 +33,7 @@ export function useUnifiedSelection() {
   const selectPose = usePoseRigStore((state) => state.selectPose);
 
   const selectObject = useCallback(
-    (id: string) => {
+    (id: string, options?: { additive?: boolean }) => {
       setStoreState((state) => {
         const renderable = state.world[id];
         if (!renderable) {
@@ -46,25 +47,46 @@ export function useUnifiedSelection() {
               : renderable.type === "rectangle"
                 ? "rectangle"
                 : "shape";
+        const nextSelection = {
+          id,
+          type: selectionType,
+          namespace: DEFAULT_NAMESPACE,
+        } as const;
+        const isSameSelection = (
+          entry: (typeof state.elementSelection)[number],
+        ) =>
+          entry.id === nextSelection.id &&
+          entry.type === nextSelection.type &&
+          entry.namespace === nextSelection.namespace;
+
+        if (options?.additive) {
+          const existing = state.elementSelection ?? [];
+          if (existing.some(isSameSelection)) {
+            return {
+              ...state,
+              elementSelection: existing.filter(
+                (entry) => !isSameSelection(entry),
+              ),
+            };
+          }
+          return {
+            ...state,
+            elementSelection: [nextSelection, ...existing],
+          };
+        }
+
         const existing = state.elementSelection?.[0];
         if (
           existing &&
-          existing.id === id &&
-          existing.type === selectionType &&
-          existing.namespace === DEFAULT_NAMESPACE &&
+          isSameSelection(existing) &&
           (state.elementSelection?.length ?? 0) === 1
         ) {
           return state;
         }
+
         return {
           ...state,
-          elementSelection: [
-            {
-              id,
-              type: selectionType,
-              namespace: DEFAULT_NAMESPACE,
-            },
-          ],
+          elementSelection: [nextSelection],
         };
       });
     },
@@ -81,9 +103,11 @@ export function useUnifiedSelection() {
   }, [selectedId, selectedPoseId, selectedRigId, selectedMaterialId]);
 
   const handleSelectObject = useCallback(
-    (id: string) => {
+    (id: string, options?: { additive?: boolean }) => {
       if (
+        !options?.additive &&
         selectedId === id &&
+        selectionStack.length === 1 &&
         !selectedPoseId &&
         !selectedRigId &&
         !selectedMaterialId
@@ -94,10 +118,11 @@ export function useUnifiedSelection() {
       if (selectedPoseId) selectPose("");
       if (selectedRigId) handleSelectRig(null);
       if (selectedMaterialId) handleSelectMaterial(null);
-      selectObject(id);
+      selectObject(id, options);
     },
     [
       selectedId,
+      selectionStack.length,
       selectedPoseId,
       selectedRigId,
       selectedMaterialId,

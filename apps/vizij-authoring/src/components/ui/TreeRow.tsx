@@ -10,7 +10,7 @@ interface TreeRowProps {
   actions?: ReactNode;
   isSelected?: boolean;
   onToggle: () => void;
-  onSelect?: () => void;
+  onSelect?: (event: React.MouseEvent<HTMLDivElement>) => void;
   highlightQuery?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -61,7 +61,7 @@ export function TreeRow({
           }
           // If we have select handler, call it. Otherwise toggle if children exist.
           if (onSelect) {
-            onSelect();
+            onSelect(e);
           } else if (hasChildren) {
             onToggle();
           }

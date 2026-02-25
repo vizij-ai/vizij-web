@@ -17,6 +17,7 @@ import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
+import { OrientationConfirmationDialog } from "./components/app/OrientationConfirmationDialog";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
@@ -42,9 +43,15 @@ import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
+import {
+  radiansToRoundedDegrees,
+  resolveRootSceneRotationInputs,
+  type RotationAxis,
+} from "./components/app/importOrientation";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+const QUARTER_TURN_RADIANS = Math.PI / 2;
 const UNKNOWN_FACE_LOAD_STEP_WEIGHT = 6;
 const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
   "select-import-source": 0,
@@ -203,6 +210,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoseGroup, setSelectedPoseGroup] =
     useState<PoseGroupInspectorSelection | null>(null);
+  const [showOrientationDialog, setShowOrientationDialog] = useState(false);
+  const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
+    useState<string | null>(null);
 
   // Reference Face State
 
@@ -298,11 +308,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const canExport = Boolean(rootId) && !isLoading;
 
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
   );
   const rigOutputLookup = useBindingAuthoring((state) => state.rigOutputLookup);
+  const handleUpdateStandardInput = useBindingAuthoring(
+    (state) => state.handleUpdateStandardInput,
+  );
   const handleMigrateAllLegacyBindings = useBindingAuthoring(
     (state) => state.handleMigrateAllLegacyBindings,
   );
@@ -370,6 +386,84 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
     onPhaseChange: onFaceLoadPhaseChange,
   });
+
+  const sceneRotationInputs = useMemo(
+    () => resolveRootSceneRotationInputs(managedStandardInputs, rootId),
+    [managedStandardInputs, rootId],
+  );
+
+  const orientationAxisAvailability = useMemo(
+    () => ({
+      x: Boolean(sceneRotationInputs.x),
+      y: Boolean(sceneRotationInputs.y),
+      z: Boolean(sceneRotationInputs.z),
+    }),
+    [sceneRotationInputs],
+  );
+
+  const orientationAxisDegrees = useMemo(
+    () => ({
+      x: sceneRotationInputs.x
+        ? radiansToRoundedDegrees(sceneRotationInputs.x.defaultValue)
+        : 0,
+      y: sceneRotationInputs.y
+        ? radiansToRoundedDegrees(sceneRotationInputs.y.defaultValue)
+        : 0,
+      z: sceneRotationInputs.z
+        ? radiansToRoundedDegrees(sceneRotationInputs.z.defaultValue)
+        : 0,
+    }),
+    [sceneRotationInputs],
+  );
+
+  const handleOrientationDialogClose = useCallback(() => {
+    setShowOrientationDialog(false);
+  }, []);
+
+  const handleRotateSceneOrientation = useCallback(
+    (axis: RotationAxis, direction: -1 | 1) => {
+      const target = sceneRotationInputs[axis];
+      if (!target) {
+        return;
+      }
+      const nextDefaultValue =
+        target.defaultValue + direction * QUARTER_TURN_RADIANS;
+      handleUpdateStandardInput(target.inputId, {
+        defaultValue: nextDefaultValue,
+      });
+      mainFaceHandleInputValueChange(target.inputId, nextDefaultValue);
+    },
+    [
+      handleUpdateStandardInput,
+      mainFaceHandleInputValueChange,
+      sceneRotationInputs,
+    ],
+  );
+
+  useEffect(() => {
+    if (!rootId || !faceLoadSessionToken) {
+      setShowOrientationDialog(false);
+      return;
+    }
+    if (faceLoadMilestones["asset-loaded"] === null) {
+      return;
+    }
+    if (loadedBundle !== null) {
+      setShowOrientationDialog(false);
+      return;
+    }
+    if (orientationPromptSessionToken === faceLoadSessionToken) {
+      return;
+    }
+    setOrientationPromptSessionToken(faceLoadSessionToken);
+    setShowOrientationDialog(true);
+  }, [
+    faceLoadMilestones,
+    faceLoadSessionToken,
+    loadedBundle,
+    orientationPromptSessionToken,
+    rootId,
+  ]);
 
   const hierarchyPanelVisible = useWorkspaceStore(
     (state) => state.panels.hierarchy.isVisible,
@@ -996,6 +1090,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         poseGraphRemap={poseGraphRemap}
         handlePoseGraphRemapApply={handlePoseGraphRemapApply}
         handlePoseGraphRemapCancel={handlePoseGraphRemapCancel}
+      />
+
+      <OrientationConfirmationDialog
+        open={showOrientationDialog}
+        onClose={handleOrientationDialogClose}
+        axisDegrees={orientationAxisDegrees}
+        axisAvailability={orientationAxisAvailability}
+        onRotateAxis={handleRotateSceneOrientation}
       />
 
       {/* Hidden File Input for Import */}

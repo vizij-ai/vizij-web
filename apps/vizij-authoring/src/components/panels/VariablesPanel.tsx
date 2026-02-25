@@ -261,6 +261,47 @@ function resolveManagedSource(entry: ManagedStandardInput): RigNodeSource {
   return entry.source;
 }
 
+function collectFullyLockedFaceElementIds(
+  managedInputs: readonly ManagedStandardInput[],
+  lockedTargetIds: ReadonlySet<string>,
+): Set<string> {
+  if (lockedTargetIds.size === 0) {
+    return new Set<string>();
+  }
+
+  const componentIdsByElementId = new Map<string, Set<string>>();
+  managedInputs.forEach((entry) => {
+    if (!isAutorigStandardInputPath(entry.input.path)) {
+      return;
+    }
+    const elementId = entry.metadata?.elementId?.trim();
+    const componentId = entry.metadata?.componentId?.trim();
+    if (!elementId || !componentId) {
+      return;
+    }
+    const bucket = componentIdsByElementId.get(elementId);
+    if (bucket) {
+      bucket.add(componentId);
+      return;
+    }
+    componentIdsByElementId.set(elementId, new Set([componentId]));
+  });
+
+  const lockedElementIds = new Set<string>();
+  componentIdsByElementId.forEach((componentIds, elementId) => {
+    if (componentIds.size === 0) {
+      return;
+    }
+    const fullyLocked = Array.from(componentIds).every((componentId) =>
+      lockedTargetIds.has(componentId),
+    );
+    if (fullyLocked) {
+      lockedElementIds.add(elementId);
+    }
+  });
+  return lockedElementIds;
+}
+
 const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
   auto: "bg-sky-900/40 text-sky-200",
   preset: "bg-emerald-900/40 text-emerald-200",
@@ -1009,6 +1050,9 @@ export function VariablesPanel({
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
+  );
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
   );
@@ -1221,10 +1265,29 @@ export function VariablesPanel({
     return groupLabelById;
   }, [poseConfigDraft?.poseGroups]);
 
+  const fullyLockedFaceElementIds = useMemo(
+    () =>
+      collectFullyLockedFaceElementIds(
+        managedStandardInputs,
+        lockedInspectorTargetIds,
+      ),
+    [lockedInspectorTargetIds, managedStandardInputs],
+  );
+
   const managedInputRows = useMemo(
     () =>
       managedStandardInputs
         .filter((entry) => !isPoseControlInputPath(entry.input.path))
+        .filter((entry) => {
+          if (!isAutorigStandardInputPath(entry.input.path)) {
+            return true;
+          }
+          const elementId = entry.metadata?.elementId?.trim();
+          if (!elementId) {
+            return true;
+          }
+          return !fullyLockedFaceElementIds.has(elementId);
+        })
         .map((entry) => {
           const normalizedPath = normalizeStandardRigInputPath(
             entry.input.path,
@@ -1257,7 +1320,12 @@ export function VariablesPanel({
             selectable: true,
           } as const;
         }),
-    [inputValues, managedStandardInputs, poseNameById],
+    [
+      fullyLockedFaceElementIds,
+      inputValues,
+      managedStandardInputs,
+      poseNameById,
+    ],
   );
 
   const derivedPoseOutputRows = useMemo(() => {

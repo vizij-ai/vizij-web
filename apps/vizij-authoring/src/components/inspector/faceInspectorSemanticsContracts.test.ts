@@ -23,6 +23,10 @@ const materialSectionTsx = readFileSync(
   ),
   "utf8",
 );
+const inspectorContentTsx = readFileSync(
+  path.resolve(process.cwd(), "src/components/inspector/InspectorContent.tsx"),
+  "utf8",
+);
 
 describe("B1.4 face inspector truthfulness + lock contracts", () => {
   it("renders explicit current-value source labels", () => {
@@ -38,5 +42,11 @@ describe("B1.4 face inspector truthfulness + lock contracts", () => {
     expect(transformSectionTsx).not.toContain("setFeatureAnimated(");
     expect(morphSectionTsx).not.toContain("setFeatureAnimated(");
     expect(materialSectionTsx).not.toContain("setFeatureAnimated(");
+  });
+
+  it("offers a face-element lock-all toggle in the inspector shell", () => {
+    expect(inspectorContentTsx).toContain("Lock All Properties");
+    expect(inspectorContentTsx).toContain("Unlock All Properties");
+    expect(inspectorContentTsx).toContain("handleSetInspectorTargetLocked");
   });
 });

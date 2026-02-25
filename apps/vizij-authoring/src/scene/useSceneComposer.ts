@@ -31,7 +31,7 @@ interface SceneComposer {
   getNode: (id: string) => SceneObjectNode | undefined;
   getChildren: (parentId: string | null) => SceneObjectNode[];
   getBreadcrumb: (nodeId: string) => SceneObjectNode[];
-  selectObject: (id: string) => void;
+  selectObject: (id: string, options?: { additive?: boolean }) => void;
   updateMaterialLabel: (materialId: string, newLabel: string) => void;
   createMaterial: (label: string) => string;
   setFeatureAnimated: (
@@ -167,7 +167,7 @@ export function useSceneComposer(): SceneComposer {
   }, [nodesById, sceneObjectRoots]);
 
   const selectObject = useCallback(
-    (id: string) => {
+    (id: string, options?: { additive?: boolean }) => {
       setStoreState((state) => {
         const renderable = state.world[id];
         if (!renderable) {
@@ -181,15 +181,45 @@ export function useSceneComposer(): SceneComposer {
               : renderable.type === "rectangle"
                 ? "rectangle"
                 : "shape";
+        const nextSelection = {
+          id,
+          type: selectionType,
+          namespace: DEFAULT_NAMESPACE,
+        } as const;
+        const isSameSelection = (
+          entry: (typeof state.elementSelection)[number],
+        ) =>
+          entry.id === nextSelection.id &&
+          entry.type === nextSelection.type &&
+          entry.namespace === nextSelection.namespace;
+
+        if (options?.additive) {
+          const existing = state.elementSelection ?? [];
+          if (existing.some(isSameSelection)) {
+            return {
+              ...state,
+              elementSelection: existing.filter(
+                (entry) => !isSameSelection(entry),
+              ),
+            };
+          }
+          return {
+            ...state,
+            elementSelection: [nextSelection, ...existing],
+          };
+        }
+
+        const existing = state.elementSelection?.[0];
+        if (
+          existing &&
+          isSameSelection(existing) &&
+          (state.elementSelection?.length ?? 0) === 1
+        ) {
+          return state;
+        }
         return {
           ...state,
-          elementSelection: [
-            {
-              id,
-              type: selectionType,
-              namespace: DEFAULT_NAMESPACE,
-            },
-          ],
+          elementSelection: [nextSelection],
         };
       });
     },
