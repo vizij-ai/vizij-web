@@ -27,31 +27,15 @@ describe("RuntimeFaceControlsOverlay", () => {
     expect(view.queryByText(/FPS:/i)).toBeNull();
   });
 
-  it("renders migrate-all badges and action when legacy summary is provided", () => {
+  it("renders reset action and fps readout while ready", () => {
     const onResetInputs = vi.fn();
-    const onMigrateAllLegacyBindings = vi.fn();
     const view = render(
-      <RuntimeFaceControlsOverlay
-        onResetInputs={onResetInputs}
-        migrationSummary={{
-          totalLegacy: 3,
-          migrated: 1,
-          convertible: 1,
-          nonConvertible: 1,
-        }}
-        onMigrateAllLegacyBindings={onMigrateAllLegacyBindings}
-      />,
+      <RuntimeFaceControlsOverlay onResetInputs={onResetInputs} />,
     );
 
-    expect(view.getByText("Legacy 3")).toBeTruthy();
-    expect(view.getByText("Migrated 1")).toBeTruthy();
-    expect(view.getByText("Convertible 1")).toBeTruthy();
-    expect(view.getByText("Non-convertible 1")).toBeTruthy();
+    expect(view.getByText(/FPS: 60 fps/i)).toBeTruthy();
 
     fireEvent.click(view.getByRole("button", { name: "Reset Inputs" }));
     expect(onResetInputs).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(view.getByTestId("runtime-migrate-all-legacy-action"));
-    expect(onMigrateAllLegacyBindings).toHaveBeenCalledTimes(1);
   });
 });

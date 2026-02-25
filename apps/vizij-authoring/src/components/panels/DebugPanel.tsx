@@ -1,7 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import {
+  bindingTargetFromInput,
+  compileIrGraph,
+  createDefaultParentBinding,
+  type IrGraph,
+} from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   Activity,
@@ -28,6 +33,14 @@ import { useBundleAudit } from "../../hooks/useBundleAudit";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { cloneSerializable } from "../../utils/serialization";
+import { usePoseRigStore } from "../../poseRig/store";
+import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
+import {
+  assessLegacyBindingMigration,
+  buildLegacyMigrationLinkUpserts,
+  mergePipelineMetadata,
+} from "../inspector/pipelineStages";
+import { collectGlobalUnmatchedPoseOutputs } from "../inspector/rigConnections";
 
 type HealthTabId =
   | "playback"
@@ -43,6 +56,8 @@ const HEALTH_TABS: ReadonlyArray<{ id: HealthTabId; label: string }> = [
   { id: "diagnostics", label: "Graph Diagnostics" },
   { id: "maintenance", label: "Rig Maintenance" },
 ];
+
+const UNMATCHED_OUTPUT_PREVIEW_LIMIT = 24;
 
 interface DebugPanelProps {
   rootId: string | null;
@@ -99,6 +114,124 @@ export function DebugPanel({
   );
   const handleResetAllInputs = useBindingAuthoring(
     (state) => state.handleResetAllInputValues,
+  );
+  const bindings = useBindingAuthoring((state) => state.bindings);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
+  const applyInputBindingPatch = useBindingAuthoring(
+    (state) => state.applyInputBindingPatch,
+  );
+
+  const poses = usePoseRigStore((state) => state.poses);
+  const neutralInputs = usePoseRigStore((state) => state.neutralInputs);
+
+  const migrationEntries = useMemo(
+    () =>
+      Object.entries(inputBindings)
+        .map(([inputId, binding]) => ({
+          inputId,
+          assessment: assessLegacyBindingMigration(binding ?? null),
+        }))
+        .filter((entry) => entry.assessment.kind !== "none"),
+    [inputBindings],
+  );
+  const convertibleMigrationEntries = useMemo(
+    () =>
+      migrationEntries.filter(
+        (entry) => entry.assessment.kind === "convertible",
+      ),
+    [migrationEntries],
+  );
+  const migrationSummary = useMemo(
+    () => ({
+      totalLegacy: migrationEntries.length,
+      migrated: migrationEntries.filter(
+        (entry) => entry.assessment.kind === "migrated",
+      ).length,
+      convertible: convertibleMigrationEntries.length,
+      nonConvertible: migrationEntries.filter(
+        (entry) => entry.assessment.kind === "non-convertible",
+      ).length,
+    }),
+    [convertibleMigrationEntries.length, migrationEntries],
+  );
+
+  const handleMigrateAllLegacyBindings = useCallback(() => {
+    if (convertibleMigrationEntries.length === 0) {
+      return;
+    }
+    applyInputBindingPatch((previous) => {
+      let changed = false;
+      const next: typeof previous = { ...previous };
+      convertibleMigrationEntries.forEach(
+        ({ inputId: targetInputId, assessment }) => {
+          const sourceInput = standardInputsById.get(targetInputId);
+          if (!sourceInput) {
+            return;
+          }
+          const existingBinding =
+            next[targetInputId] ??
+            createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+          const linkUpserts = buildLegacyMigrationLinkUpserts({
+            binding: existingBinding,
+            childInputId: targetInputId,
+            factorsByInputId: assessment.parentFactorsByInputId ?? {},
+            defaultOffset: sourceInput.defaultValue,
+            resolveInputId: (rawInputId) =>
+              resolveRigMetadataInputId(rawInputId, standardInputsById),
+          });
+          const nextMetadata = mergePipelineMetadata(
+            (existingBinding.metadata ?? undefined) as
+              | Record<string, unknown>
+              | undefined,
+            {
+              directInputEnabled: true,
+              overrideEnabled: false,
+              overrideValue: sourceInput.defaultValue,
+              clampEnabled: true,
+              ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
+              migrationStatus: "migrated",
+              migrationSource: "canonical-self-parent",
+              migrationExpression: assessment.expression,
+            },
+          );
+          const previousMetadataSignature = JSON.stringify(
+            existingBinding.metadata ?? null,
+          );
+          const nextMetadataSignature = JSON.stringify(nextMetadata);
+          if (previousMetadataSignature === nextMetadataSignature) {
+            return;
+          }
+          changed = true;
+          next[targetInputId] = {
+            ...existingBinding,
+            metadata: nextMetadata,
+          };
+        },
+      );
+      return changed ? next : previous;
+    });
+  }, [applyInputBindingPatch, convertibleMigrationEntries, standardInputsById]);
+
+  const unmatchedPoseOutputs = useMemo(
+    () =>
+      collectGlobalUnmatchedPoseOutputs({
+        poses,
+        neutralInputs,
+        bindings,
+        inputBindings,
+      }),
+    [bindings, inputBindings, neutralInputs, poses],
+  );
+  const unmatchedPoseOutputPreview = useMemo(
+    () => unmatchedPoseOutputs.slice(0, UNMATCHED_OUTPUT_PREVIEW_LIMIT),
+    [unmatchedPoseOutputs],
+  );
+  const hiddenUnmatchedPoseOutputCount = Math.max(
+    0,
+    unmatchedPoseOutputs.length - unmatchedPoseOutputPreview.length,
   );
 
   const {
@@ -371,6 +504,37 @@ export function DebugPanel({
                       >
                         Reset All Inputs
                       </Button>
+
+                      <div className="space-y-2 pt-3 border-t border-border-default">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase text-text-muted font-bold">
+                            Global Legacy Migration
+                          </span>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-7 px-2.5 text-[11px]"
+                            onClick={handleMigrateAllLegacyBindings}
+                            disabled={migrationSummary.convertible === 0}
+                          >
+                            Migrate All Legacy
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Chip tone="default">
+                            Legacy {migrationSummary.totalLegacy}
+                          </Chip>
+                          <Chip tone="success">
+                            Migrated {migrationSummary.migrated}
+                          </Chip>
+                          <Chip tone="info">
+                            Convertible {migrationSummary.convertible}
+                          </Chip>
+                          <Chip tone="warning">
+                            Non-convertible {migrationSummary.nonConvertible}
+                          </Chip>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Playback Controls */}
@@ -536,6 +700,51 @@ export function DebugPanel({
                         </li>
                       </ol>
                     </InstructionCallout>
+                    <div className="p-4 rounded-xl bg-bg-panel border border-border-default space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase text-text-muted font-bold">
+                          Unmatched Pose Outputs
+                        </span>
+                        <Chip
+                          tone={
+                            unmatchedPoseOutputs.length > 0
+                              ? "warning"
+                              : "success"
+                          }
+                        >
+                          {unmatchedPoseOutputs.length}
+                        </Chip>
+                      </div>
+                      {unmatchedPoseOutputs.length === 0 ? (
+                        <p className="text-xs text-text-secondary leading-relaxed">
+                          No active pose outputs are orphaned from the current
+                          rig binding graph.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-[11px] text-text-secondary leading-relaxed">
+                            Active pose outputs listed here are not mapped into
+                            any reachable rig chain.
+                          </p>
+                          <ul className="max-h-52 overflow-auto rounded-md border border-border-default bg-bg-secondary/20 p-2 space-y-1 text-[11px] text-text-primary custom-scrollbar">
+                            {unmatchedPoseOutputPreview.map((output) => (
+                              <li
+                                key={`${output.poseId}:${output.inputId}`}
+                                className="font-mono"
+                              >
+                                {formatUnmatchedPoseOutput(output)}
+                              </li>
+                            ))}
+                          </ul>
+                          {hiddenUnmatchedPoseOutputCount > 0 ? (
+                            <p className="text-[11px] text-text-muted">
+                              +{hiddenUnmatchedPoseOutputCount} more unmatched
+                              outputs not shown.
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
                     <GraphDiagnosticsPanel />
                   </div>
                 );
@@ -598,4 +807,15 @@ function formatGraphClock(value: number): string {
   return `${minutes.toString().padStart(2, "0")}:${remaining
     .toFixed(2)
     .padStart(5, "0")}`;
+}
+
+function formatUnmatchedPoseOutput(output: {
+  poseName: string;
+  inputId: string;
+  value: number;
+}): string {
+  const formattedValue = Number.isFinite(output.value)
+    ? output.value.toFixed(3)
+    : String(output.value);
+  return `${output.poseName} -> ${output.inputId}=${formattedValue}`;
 }

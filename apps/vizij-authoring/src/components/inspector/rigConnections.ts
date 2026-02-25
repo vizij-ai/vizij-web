@@ -815,6 +815,25 @@ function collectReachableRigInputIdsFromBindings(
   return reachable;
 }
 
+export function collectGlobalUnmatchedPoseOutputs(params: {
+  poses: PoseDefinition[];
+  neutralInputs: Record<string, number>;
+  bindings: BindingMap;
+  inputBindings: InputBindingMap;
+}): PoseTraceOutput[] {
+  const activePoseOutputs = collectActivePoseOutputs(
+    params.poses,
+    params.neutralInputs,
+  );
+  const globallyReachableRigInputIds = collectReachableRigInputIdsFromBindings(
+    params.bindings,
+    params.inputBindings,
+  );
+  return activePoseOutputs.filter(
+    (output) => !globallyReachableRigInputIds.has(output.inputId),
+  );
+}
+
 function buildNodeLookup(
   objects: SceneObjectNode[],
 ): Map<string, SceneObjectNode> {
