@@ -8,6 +8,7 @@ import {
   ArrowUp,
   Activity,
   Play,
+  RotateCcw,
   Trash2,
   Search,
   Sliders,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   normalizeStandardRigInputPath,
+  SELF_BINDING_ID,
   type StandardRigInput,
 } from "@vizij/utils";
 import { EmptyState } from "../ui/EmptyState";
@@ -253,6 +255,13 @@ interface TreeNode {
   data?: TreeNodeData;
 }
 
+interface BindingInputLike {
+  inputId?: string | null;
+  slots?: Array<{
+    inputId?: string | null;
+  }>;
+}
+
 function resolveManagedSource(entry: ManagedStandardInput): RigNodeSource {
   const isPreset = entry.metadata?.elementType === "standard";
   if (isPreset) {
@@ -348,6 +357,58 @@ function getOrCreateChild(
     });
   }
   return parent.children.get(key)!;
+}
+
+function getPathParts(path: string | null | undefined): string[] {
+  if (!path) {
+    return [];
+  }
+  return normalizeStandardRigInputPath(path).split("/").filter(Boolean);
+}
+
+function insertRigNodeAtPath(params: {
+  root: TreeNode;
+  key: string;
+  input: StandardRigInput;
+  data: RigNodeData;
+}): void {
+  const { root, key, input, data } = params;
+  const pathParts = getPathParts(input.path);
+  const folderParts = pathParts.slice(0, Math.max(pathParts.length - 1, 0));
+  let current = root;
+  folderParts.forEach((part) => {
+    current = getOrCreateChild(current, part, part);
+  });
+  const leafLabel =
+    pathParts.length > 0
+      ? pathParts.join("/")
+      : input.label || input.id || "variable";
+  current.children.set(key, {
+    id: `${current.id}/${key}`,
+    label: leafLabel,
+    type: "rig",
+    children: new Map(),
+    showChildren: false,
+    data,
+  });
+}
+
+function collectBindingInputIds(
+  binding: BindingInputLike | null | undefined,
+): Set<string> {
+  const inputIds = new Set<string>();
+  const push = (candidate: string | null | undefined) => {
+    const trimmed = candidate?.trim();
+    if (!trimmed || trimmed === SELF_BINDING_ID) {
+      return;
+    }
+    inputIds.add(trimmed);
+  };
+  push(binding?.inputId);
+  (binding?.slots ?? []).forEach((slot) => {
+    push(slot.inputId);
+  });
+  return inputIds;
 }
 
 function simplifyNode(node: TreeNode): TreeNode {
@@ -667,6 +728,18 @@ function TreeRowWrapper({
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-sky-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "reset-pose");
+                }}
+                title="Reset this pose weight"
+              >
+                <RotateCcw size={10} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-5 w-5 p-0 hover:text-accent text-purple-300"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -692,6 +765,48 @@ function TreeRowWrapper({
           )}
 
           {node.type === "rig" &&
+            (node.data as RigNodeData | undefined)?.source !== "reference" &&
+            !(node.data as RigNodeData | undefined)?.disabled && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1 text-[9px] uppercase text-text-secondary hover:text-text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction?.(node, "set-min");
+                  }}
+                  title="Set current value to min"
+                >
+                  Min
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1 text-[9px] uppercase text-text-secondary hover:text-text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction?.(node, "set-default");
+                  }}
+                  title="Set current value to default"
+                >
+                  Def
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1 text-[9px] uppercase text-text-secondary hover:text-text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction?.(node, "set-max");
+                  }}
+                  title="Set current value to max"
+                >
+                  Max
+                </Button>
+              </>
+            )}
+          {node.type === "rig" &&
             (node.data as RigNodeData | undefined)?.source === "reference" && (
               <Button
                 variant="ghost"
@@ -702,6 +817,21 @@ function TreeRowWrapper({
                   onAction?.(node, "copy-to-main");
                 }}
                 title="Copy variable to main face"
+              >
+                <Copy size={10} />
+              </Button>
+            )}
+          {node.type === "rig" &&
+            (node.data as RigNodeData | undefined)?.source !== "reference" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-purple-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "duplicate-variable");
+                }}
+                title="Duplicate variable"
               >
                 <Copy size={10} />
               </Button>
@@ -1082,6 +1212,7 @@ export function VariablesPanel({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
   const inputValues = useBindingAuthoring((state) => state.inputValues);
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
@@ -1097,6 +1228,12 @@ export function VariablesPanel({
   );
   const handleDeleteCustomStandardInput = useBindingAuthoring(
     (state) => state.handleDeleteCustomStandardInput,
+  );
+  const handleCloneStandardInputs = useBindingAuthoring(
+    (state) => state.handleCloneStandardInputs,
+  );
+  const handleLinkChildInput = useBindingAuthoring(
+    (state) => state.handleLinkChildInput,
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
   const poseWeightInputIdByPoseId = useMemo(() => {
@@ -1571,21 +1708,11 @@ export function VariablesPanel({
         showChildren: true,
       };
       sharedRigEntries.forEach((entry) => {
-        const normalizedPath =
-          entry.normalizedPath ??
-          normalizeStandardRigInputPath(entry.input.path);
-        const pathParts = normalizedPath.split("/").filter(Boolean);
-        let current = sharedRoot;
-        for (const part of pathParts) {
-          current = getOrCreateChild(current, part, part);
-        }
         const key = `shared_${entry.input.id}`;
-        current.children.set(key, {
-          id: `${current.id}/${key}`,
-          label: entry.input.label || entry.input.id,
-          type: "rig",
-          children: new Map(),
-          showChildren: false,
+        insertRigNodeAtPath({
+          root: sharedRoot,
+          key,
+          input: entry.input,
           data: entry,
         });
       });
@@ -1614,21 +1741,10 @@ export function VariablesPanel({
       if (!enabledSources.has(entry.source)) {
         return;
       }
-      const input = entry.input;
-      const pathParts = input.path ? input.path.split("/").filter(Boolean) : [];
-
-      let current = targetRoot;
-      for (const part of pathParts) {
-        current = getOrCreateChild(current, part, part);
-      }
-
-      const rigKey = `rig_${input.id}`;
-      current.children.set(rigKey, {
-        id: `${current.id}/${rigKey}`,
-        label: input.label || input.id,
-        type: "rig",
-        children: new Map(),
-        showChildren: false,
+      insertRigNodeAtPath({
+        root: targetRoot,
+        key: `rig_${entry.input.id}`,
+        input: entry.input,
         data: entry,
       });
     });
@@ -1650,22 +1766,10 @@ export function VariablesPanel({
           if (!enabledSources.has("reference")) {
             return;
           }
-          const input = entry.input;
-          const normalizedPath =
-            entry.normalizedPath ?? normalizeStandardRigInputPath(input.path);
-          const pathParts = normalizedPath.split("/").filter(Boolean);
-          let current = refFaceRoot;
-          for (const part of pathParts) {
-            current = getOrCreateChild(current, part, part);
-          }
-
-          const key = `ref_${input.id}`;
-          current.children.set(key, {
-            id: `${current.id}/${key}`,
-            label: input.label || input.id,
-            type: "rig",
-            children: new Map(),
-            showChildren: false,
+          insertRigNodeAtPath({
+            root: refFaceRoot,
+            key: `ref_${entry.input.id}`,
+            input: entry.input,
             data: entry,
           });
         });
@@ -1876,12 +1980,96 @@ export function VariablesPanel({
     addPoseToGroup(selectedPoseId, group.path);
   };
 
+  const createUniqueCustomVariablePath = useCallback(() => {
+    const basePath = "/custom/new_variable";
+    let attempt = 1;
+    let candidatePath = normalizeStandardRigInputPath(basePath);
+    while (standardInputsByPath.has(candidatePath)) {
+      attempt += 1;
+      candidatePath = normalizeStandardRigInputPath(
+        `${basePath}_${attempt.toString(10)}`,
+      );
+    }
+    return candidatePath;
+  }, [standardInputsByPath]);
+
+  const duplicateVariableById = useCallback(
+    (sourceInputId: string): string | null => {
+      const sourceInput = standardInputsById.get(sourceInputId);
+      if (!sourceInput) {
+        return null;
+      }
+      const clones = handleCloneStandardInputs([sourceInputId], {
+        labelSuffix: " Copy",
+        pathSuffix: "_copy",
+      });
+      const clonedInputId = clones.get(sourceInputId);
+      if (!clonedInputId) {
+        return null;
+      }
+
+      const inputBindingById = inputBindings as Record<
+        string,
+        BindingInputLike | undefined
+      >;
+      const sourceBinding = inputBindingById[sourceInputId];
+      const parentIds = Array.from(collectBindingInputIds(sourceBinding));
+      parentIds.forEach((parentInputId) => {
+        if (parentInputId === clonedInputId) {
+          return;
+        }
+        handleLinkChildInput(parentInputId, clonedInputId);
+      });
+
+      Object.entries(inputBindingById).forEach(
+        ([candidateChildId, binding]) => {
+          if (
+            candidateChildId === sourceInputId ||
+            candidateChildId === clonedInputId
+          ) {
+            return;
+          }
+          const parentIdsForChild = collectBindingInputIds(binding);
+          if (!parentIdsForChild.has(sourceInputId)) {
+            return;
+          }
+          handleLinkChildInput(clonedInputId, candidateChildId);
+        },
+      );
+
+      onSelectRig?.(clonedInputId);
+      onSelectPoseGroup?.(null);
+      return clonedInputId;
+    },
+    [
+      handleCloneStandardInputs,
+      handleLinkChildInput,
+      inputBindings,
+      onSelectPoseGroup,
+      onSelectRig,
+      standardInputsById,
+    ],
+  );
+
   const handleAction = (node: TreeNode, action: string) => {
     if (node.type === "pose" && action === "play") {
       const poseData = node.data as PoseDefinition;
       if (!setPoseWeightSolo(poseData.id)) {
         applyPose(poseData.id);
       }
+      return;
+    }
+    if (node.type === "pose" && action === "reset-pose") {
+      const poseData = node.data as PoseDefinition;
+      const poseWeightInputId = poseWeightInputIdByPoseId.get(poseData.id);
+      if (!poseWeightInputId) {
+        return;
+      }
+      const poseWeightInput = standardInputsById.get(poseWeightInputId);
+      activeInputValueChange(
+        poseWeightInputId,
+        poseWeightInput?.defaultValue ?? 0,
+      );
       return;
     }
     if (node.type === "pose" && action === "duplicate-pose") {
@@ -1906,11 +2094,35 @@ export function VariablesPanel({
       deletePose(poseData.id);
       return;
     }
+    if (
+      node.type === "rig" &&
+      (action === "set-min" || action === "set-default" || action === "set-max")
+    ) {
+      const rigData = node.data as RigNodeData;
+      if (rigData.source === "reference" || rigData.disabled) {
+        return;
+      }
+      const min = rigData.input.range?.min ?? 0;
+      const max = rigData.input.range?.max ?? 1;
+      const defaultValue = rigData.input.defaultValue ?? 0;
+      const nextValue =
+        action === "set-min" ? min : action === "set-max" ? max : defaultValue;
+      activeInputValueChange(rigData.input.id, nextValue);
+      return;
+    }
     if (node.type === "rig" && action === "copy-to-main") {
       const rigData = node.data as RigNodeData;
       if (rigData.source === "reference") {
         copyReferenceVariableToMain(rigData, { select: true });
       }
+      return;
+    }
+    if (node.type === "rig" && action === "duplicate-variable") {
+      const rigData = node.data as RigNodeData;
+      if (rigData.source === "reference") {
+        return;
+      }
+      duplicateVariableById(rigData.input.id);
       return;
     }
     if (node.type === "rig" && action === "delete-variable") {
@@ -1921,7 +2133,7 @@ export function VariablesPanel({
       const label =
         rigData.input.label || rigData.input.path || rigData.input.id;
       const ok = window.confirm(
-        `Delete custom variable "${label}"?\n\nThis removes the variable plus linked pose targets and binding routes.`,
+        `Delete custom variable "${label}"?\n\nThis removes the variable and cleans linked parent/child bindings.`,
       );
       if (!ok) {
         return;
@@ -1971,14 +2183,31 @@ export function VariablesPanel({
     }
   };
 
-  const handleCreate = () => {
-    const newInput = handleCreateCustomStandardInput(searchQuery);
+  const handleCreateVariable = () => {
+    const path = createUniqueCustomVariablePath();
+    const newInput = handleCreateCustomStandardInput(path);
     if (newInput) {
       onSelectRig?.(newInput.id);
-      setSearchQuery(""); // clear search on create? or keep it? VariableSelector kept it but here maybe clear is better or select it.
-      // If we keep search, we see it.
+      onSelectPoseGroup?.(null);
     }
   };
+
+  const selectedMainVariableId = useMemo(() => {
+    if (!effectiveSelectedRigId) {
+      return null;
+    }
+    const selected = mainFaceRigEntries.find(
+      (entry) => entry.input.id === effectiveSelectedRigId,
+    );
+    return selected?.input.id ?? null;
+  }, [effectiveSelectedRigId, mainFaceRigEntries]);
+
+  const handleDuplicateSelectedVariable = useCallback(() => {
+    if (!selectedMainVariableId) {
+      return;
+    }
+    duplicateVariableById(selectedMainVariableId);
+  }, [duplicateVariableById, selectedMainVariableId]);
 
   const handleCreatePose = () => {
     pendingPoseSelectionRef.current = true;
@@ -2177,13 +2406,6 @@ export function VariablesPanel({
     setStageEditMessage(null);
   };
 
-  const showCreateOption =
-    activeSurface === "variables" &&
-    searchQuery.trim().length > 0 &&
-    !managedStandardInputs.some(
-      (m) => m.input.id.toLowerCase() === searchQuery.trim().toLowerCase(),
-    );
-
   const variableItemCount =
     mainFaceRigEntries.length +
     referenceRigEntries.length +
@@ -2379,7 +2601,7 @@ export function VariablesPanel({
                     searchQuery
                       ? "Filter..."
                       : isVariables
-                        ? "Search or create variable..."
+                        ? "Search variables..."
                         : isPoses
                           ? "Search poses..."
                           : isPoseGroups
@@ -2391,14 +2613,31 @@ export function VariablesPanel({
               <div className="flex items-center gap-1 px-1 mb-1">
                 {isVariables && (
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
-                    className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-                    onClick={() => searchInputRef.current?.focus()}
-                    title="Create a new variable"
+                    className="h-6 px-2 text-[10px] gap-1"
+                    onClick={handleCreateVariable}
+                    title="Create a new variable and inspect it"
                   >
                     <Plus size={11} />
                     New Variable
+                  </Button>
+                )}
+                {isVariables && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px] gap-1"
+                    onClick={handleDuplicateSelectedVariable}
+                    disabled={!selectedMainVariableId}
+                    title={
+                      selectedMainVariableId
+                        ? "Duplicate selected variable and inspect the copy"
+                        : "Select a variable to duplicate"
+                    }
+                  >
+                    <Copy size={11} />
+                    Duplicate Variable
                   </Button>
                 )}
                 {isPoses && (
@@ -2991,26 +3230,6 @@ export function VariablesPanel({
                 </>
               )}
               <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                {showCreateOption && !isPoseGroups && (
-                  <div
-                    className="flex items-center gap-2 px-2 py-1.5 mb-2 mx-1 rounded cursor-pointer hover:bg-accent-subtle text-text-secondary hover:text-text-primary group border border-dashed border-border-default hover:border-accent/30 transition-all"
-                    onClick={handleCreate}
-                  >
-                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-accent-subtle text-accent group-hover:scale-110 transition-transform">
-                      <Plus size={12} strokeWidth={2.5} />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-medium truncate">
-                        Create "
-                        <span className="text-accent">{searchQuery}</span>"
-                      </span>
-                      <span className="text-[10px] text-text-muted">
-                        Create and select new variable
-                      </span>
-                    </div>
-                  </div>
-                )}
-
                 {isPoseGroups ? (
                   poseGroupsForSurface.length === 0 ? (
                     <EmptyState
@@ -3101,7 +3320,7 @@ export function VariablesPanel({
                       })}
                     </div>
                   )
-                ) : visibleRoot.children.size === 0 && !showCreateOption ? (
+                ) : visibleRoot.children.size === 0 ? (
                   <EmptyState
                     icon={Search}
                     iconSize={18}

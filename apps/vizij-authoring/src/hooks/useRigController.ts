@@ -402,6 +402,133 @@ function derivePipelineConfigFromInputBindings(
   };
 }
 
+function sanitizePipelineConfigAndLinksForAvailableInputs(params: {
+  byInputId: Record<string, Record<string, unknown>>;
+  linksById: Record<string, Record<string, unknown>>;
+  availableInputIds: ReadonlySet<string>;
+}): {
+  byInputId: Record<string, Record<string, unknown>>;
+  linksById: Record<string, Record<string, unknown>>;
+} {
+  if (params.availableInputIds.size === 0) {
+    return {
+      byInputId: {},
+      linksById: {},
+    };
+  }
+
+  const normalizedByInputId: Record<string, Record<string, unknown>> = {};
+  const referencedLinkIds = new Set<string>();
+  const referencedParentChildPairs = new Set<string>();
+
+  Object.entries(params.byInputId).forEach(([rawInputId, rawConfig]) => {
+    const configRecord = asRecord(rawConfig);
+    if (!configRecord) {
+      return;
+    }
+    const resolvedInputId =
+      normalizeStringValue(rawInputId) ??
+      normalizeStringValue(configRecord.inputId);
+    if (!resolvedInputId || !params.availableInputIds.has(resolvedInputId)) {
+      return;
+    }
+
+    const nextConfig: Record<string, unknown> = {
+      ...configRecord,
+      inputId: resolvedInputId,
+    };
+
+    const parentRecords = Array.isArray(configRecord.parents)
+      ? configRecord.parents
+      : null;
+    if (parentRecords) {
+      const nextParents: Record<string, unknown>[] = [];
+      parentRecords.forEach((rawParent) => {
+        const parentRecord = asRecord(rawParent);
+        if (!parentRecord) {
+          return;
+        }
+        const resolvedParentInputId = normalizeStringValue(
+          parentRecord.inputId,
+        );
+        if (
+          !resolvedParentInputId ||
+          !params.availableInputIds.has(resolvedParentInputId)
+        ) {
+          return;
+        }
+        const resolvedLinkId =
+          normalizeStringValue(parentRecord.linkId) ??
+          buildRigPipelineV1LinkId(resolvedParentInputId, resolvedInputId);
+        nextParents.push({
+          ...parentRecord,
+          inputId: resolvedParentInputId,
+          linkId: resolvedLinkId,
+        });
+        referencedLinkIds.add(resolvedLinkId);
+        referencedParentChildPairs.add(
+          `${resolvedParentInputId}::${resolvedInputId}`,
+        );
+      });
+      if (nextParents.length > 0) {
+        nextConfig.parents = nextParents;
+      } else {
+        delete nextConfig.parents;
+      }
+    }
+
+    normalizedByInputId[resolvedInputId] = nextConfig;
+  });
+
+  const shouldConstrainLinks = Object.values(normalizedByInputId).some(
+    (config) => Array.isArray(asRecord(config)?.parents),
+  );
+  const normalizedLinksById: Record<string, Record<string, unknown>> = {};
+  Object.entries(params.linksById).forEach(([rawLinkId, rawConfig]) => {
+    const linkRecord = asRecord(rawConfig);
+    if (!linkRecord) {
+      return;
+    }
+    const parentInputId = normalizeStringValue(linkRecord.parentInputId);
+    const childInputId = normalizeStringValue(linkRecord.childInputId);
+    if (!parentInputId || !childInputId) {
+      return;
+    }
+    if (
+      !params.availableInputIds.has(parentInputId) ||
+      !params.availableInputIds.has(childInputId)
+    ) {
+      return;
+    }
+
+    const resolvedLinkId =
+      normalizeStringValue(linkRecord.linkId) ??
+      normalizeStringValue(rawLinkId) ??
+      buildRigPipelineV1LinkId(parentInputId, childInputId);
+    if (shouldConstrainLinks) {
+      const pairKey = `${parentInputId}::${childInputId}`;
+      if (
+        !referencedLinkIds.has(resolvedLinkId) &&
+        !referencedParentChildPairs.has(pairKey)
+      ) {
+        return;
+      }
+    }
+
+    normalizedLinksById[resolvedLinkId] = {
+      ...linkRecord,
+      linkId: resolvedLinkId,
+      parentInputId,
+      childInputId,
+    };
+  });
+
+  return {
+    byInputId: normalizedByInputId,
+    linksById: normalizedLinksById,
+  };
+}
+
 type AnimatableComponent = AnimComponent;
 
 type StandardInputId = StandardRigInput["id"];
@@ -839,12 +966,29 @@ export function useRigController(
     debugLog,
   });
 
+  const availablePipelineInputIds = useMemo(() => {
+    const next = new Set<string>();
+    autoInputs.forEach((entry) => {
+      const normalizedId = normalizeStringValue(entry.input.id);
+      if (normalizedId) {
+        next.add(normalizedId);
+      }
+    });
+    customInputs.forEach((input) => {
+      const normalizedId = normalizeStringValue(input.id);
+      if (normalizedId) {
+        next.add(normalizedId);
+      }
+    });
+    return next;
+  }, [autoInputs, customInputs]);
+
   const derivedPipelineEdits = useMemo(
     () => derivePipelineConfigFromInputBindings(inputBindings),
     [inputBindings],
   );
 
-  const basePipelineConfigByInputId: Record<
+  const mergedPipelineConfigByInputId: Record<
     string,
     Record<string, unknown>
   > = useMemo(() => {
@@ -862,7 +1006,7 @@ export function useRigController(
     };
   }, [derivedPipelineEdits.byInputId, pipelineMetadataV1]);
 
-  const pipelineLinksById: Record<
+  const mergedPipelineLinksById: Record<
     string,
     Record<string, unknown>
   > = useMemo(() => {
@@ -880,13 +1024,31 @@ export function useRigController(
     };
   }, [derivedPipelineEdits.links, pipelineMetadataV1]);
 
+  const {
+    byInputId: basePipelineConfigByInputId,
+    linksById: pipelineLinksById,
+  } = useMemo(
+    () =>
+      sanitizePipelineConfigAndLinksForAvailableInputs({
+        byInputId: mergedPipelineConfigByInputId,
+        linksById: mergedPipelineLinksById,
+        availableInputIds: availablePipelineInputIds,
+      }),
+    [
+      availablePipelineInputIds,
+      mergedPipelineConfigByInputId,
+      mergedPipelineLinksById,
+    ],
+  );
+
   const mergedPipelineMetadataV1 = useMemo(() => {
     const hasBase =
       Boolean(pipelineMetadataV1) &&
       typeof pipelineMetadataV1 === "object" &&
       !Array.isArray(pipelineMetadataV1);
+    const hasByInput = Object.keys(basePipelineConfigByInputId).length > 0;
     const hasLinks = Object.keys(pipelineLinksById).length > 0;
-    if (!hasBase && !hasLinks) {
+    if (!hasBase && !hasByInput && !hasLinks) {
       return null;
     }
     const next: VizijPipelineMetadataV1 = hasBase
@@ -894,13 +1056,18 @@ export function useRigController(
           ...(pipelineMetadataV1 as Record<string, unknown>),
         } as VizijPipelineMetadataV1)
       : {};
+    if (hasByInput) {
+      next.byInputId = basePipelineConfigByInputId;
+    } else {
+      delete next.byInputId;
+    }
     if (hasLinks) {
       next.links = pipelineLinksById;
     } else {
       delete next.links;
     }
     return next;
-  }, [pipelineLinksById, pipelineMetadataV1]);
+  }, [basePipelineConfigByInputId, pipelineLinksById, pipelineMetadataV1]);
 
   useEffect(() => {
     const validTargets = new Set(

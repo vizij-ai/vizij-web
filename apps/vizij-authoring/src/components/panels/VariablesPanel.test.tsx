@@ -37,7 +37,7 @@ const poseRigState = {
 };
 
 const referenceFaceState = {
-  file: { name: "ref.glb" } as File,
+  file: { name: "ref.glb" } as File | null,
   setFile: vi.fn(),
   isLoaded: true,
   isLoading: false,
@@ -76,6 +76,8 @@ const bindingState = {
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
   handleDeleteCustomStandardInput: vi.fn(),
+  handleCloneStandardInputs: vi.fn(() => new Map<string, string>()),
+  handleLinkChildInput: vi.fn(),
 };
 
 const graphRuntimeState = {
@@ -166,6 +168,11 @@ describe("VariablesPanel", () => {
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();
+    bindingState.handleCloneStandardInputs.mockReset();
+    bindingState.handleLinkChildInput.mockReset();
+    bindingState.handleCloneStandardInputs.mockImplementation(
+      () => new Map<string, string>(),
+    );
   });
 
   it("surfaces shared variables when main and reference paths overlap", () => {
@@ -264,6 +271,114 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });
 
+  it("creates a new variable from toolbar action with a generated path", () => {
+    const existing = makeInput("custom_new_variable", "/custom/new_variable");
+    const created = makeInput(
+      "custom_new_variable_2",
+      "/custom/new_variable_2",
+    );
+    bindingState.standardInputsByPath = new Map([[existing.path, existing]]);
+    bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
+
+    const onSelectRig = vi.fn();
+    const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
+
+    fireEvent.click(
+      within(view.container).getAllByRole("button", {
+        name: "New Variable",
+      })[0]!,
+    );
+
+    expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
+      "/custom/new_variable_2",
+    );
+    expect(onSelectRig).toHaveBeenCalledWith(created.id);
+  });
+
+  it("duplicates selected variable and preserves parent/child links", () => {
+    const parent = makeInput("parent", "/custom/parent");
+    const source = makeInput("source", "/custom/source");
+    const child = makeInput("child", "/custom/child");
+    bindingState.managedStandardInputs = [
+      { input: parent, source: "custom" },
+      { input: source, source: "custom" },
+      { input: child, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [parent.id, parent],
+      [source.id, source],
+      [child.id, child],
+    ]);
+    bindingState.inputBindings = {
+      [source.id]: {
+        inputId: parent.id,
+        slots: [{ inputId: parent.id }],
+      },
+      [child.id]: {
+        inputId: source.id,
+        slots: [{ inputId: source.id }],
+      },
+    };
+    bindingState.handleCloneStandardInputs.mockReturnValue(
+      new Map([[source.id, "source_copy"]]),
+    );
+
+    const onSelectRig = vi.fn();
+    const view = render(
+      <VariablesPanel onSelectRig={onSelectRig} selectedRigId={source.id} />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByRole("button", {
+        name: "Duplicate Variable",
+      }),
+    );
+
+    expect(bindingState.handleCloneStandardInputs).toHaveBeenCalledWith(
+      [source.id],
+      {
+        labelSuffix: " Copy",
+        pathSuffix: "_copy",
+      },
+    );
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      parent.id,
+      "source_copy",
+    );
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      "source_copy",
+      child.id,
+    );
+    expect(onSelectRig).toHaveBeenCalledWith("source_copy");
+  });
+
+  it("renders variable rows as full path leaves without terminal folders", () => {
+    referenceFaceState.file = null;
+    const rootLevel = makeInput("blink", "/blink", { label: "Blink" });
+    const nested = makeInput("mouth_tx", "/mouth/translation/x", {
+      label: "Mouth X",
+    });
+    bindingState.managedStandardInputs = [
+      { input: rootLevel, source: "custom" },
+      { input: nested, source: "custom" },
+    ];
+
+    const view = render(<VariablesPanel />);
+    const search = within(view.container).getByPlaceholderText(
+      "Search variables...",
+    );
+
+    fireEvent.change(search, { target: { value: "blink" } });
+    expect(screen.getAllByTitle("blink").length).toBeGreaterThan(0);
+
+    fireEvent.change(search, { target: { value: "mouth/translation/x" } });
+    expect(screen.getAllByTitle("mouth/translation/x").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryAllByTitle("x").length).toBe(0);
+    expect(screen.queryAllByTitle("Blink").length).toBe(0);
+  });
+
   it("routes reference variable selection to linked main variable", () => {
     const linkedMain = makeInput("main_brow", "/standard/brow/up", {
       label: "Main Brow Up",
@@ -286,14 +401,14 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText(
-        "Search or create variable...",
-      ),
+      within(view.container).getByPlaceholderText("Search variables..."),
       {
-        target: { value: "Ref Brow Up" },
+        target: { value: "standard/brow/up" },
       },
     );
-    fireEvent.click(within(view.container).getByTitle("Ref Brow Up"));
+    fireEvent.click(
+      within(view.container).getAllByTitle("standard/brow/up")[0]!,
+    );
 
     expect(onSelectRig).toHaveBeenCalledWith(linkedMain.id);
   });
@@ -311,14 +426,14 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText(
-        "Search or create variable...",
-      ),
+      within(view.container).getByPlaceholderText("Search variables..."),
       {
-        target: { value: "Ref Brow Up" },
+        target: { value: "standard/brow/up" },
       },
     );
-    fireEvent.click(within(view.container).getByTitle("Ref Brow Up"));
+    fireEvent.click(
+      within(view.container).getAllByTitle("standard/brow/up")[0]!,
+    );
 
     expect(onSelectRig).toHaveBeenCalledWith(null);
   });
@@ -562,6 +677,7 @@ describe("VariablesPanel", () => {
   });
 
   it("requires confirmation before deleting a custom variable", () => {
+    referenceFaceState.file = null;
     const customInput = makeInput("custom_smile", "/custom/smile", {
       label: "Smile",
     });
@@ -576,11 +692,9 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText(
-        "Search or create variable...",
-      ),
+      within(view.container).getByPlaceholderText("Search variables..."),
       {
-        target: { value: customInput.label },
+        target: { value: "custom/smile" },
       },
     );
 
@@ -589,13 +703,14 @@ describe("VariablesPanel", () => {
     );
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      `Delete custom variable "${customInput.label}"?\n\nThis removes the variable plus linked pose targets and binding routes.`,
+      `Delete custom variable "${customInput.label}"?\n\nThis removes the variable and cleans linked parent/child bindings.`,
     );
     expect(bindingState.handleDeleteCustomStandardInput).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 
   it("deletes confirmed custom variables and clears selection", () => {
+    referenceFaceState.file = null;
     const customInput = makeInput("custom_brow", "/custom/brow", {
       label: "Brow Raise",
     });
@@ -610,11 +725,9 @@ describe("VariablesPanel", () => {
     const onSelectRig = vi.fn();
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText(
-        "Search or create variable...",
-      ),
+      within(view.container).getByPlaceholderText("Search variables..."),
       {
-        target: { value: customInput.label },
+        target: { value: "custom/brow" },
       },
     );
 
