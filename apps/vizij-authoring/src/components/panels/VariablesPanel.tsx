@@ -432,6 +432,32 @@ function simplifyNode(node: TreeNode): TreeNode {
   return newNode;
 }
 
+function collectFolderRigDeletionSummary(node: TreeNode): {
+  totalRigCount: number;
+  deletableRigInputIds: string[];
+  undeletableRigCount: number;
+} {
+  const deletableRigInputIds = new Set<string>();
+  let totalRigCount = 0;
+  const visit = (candidate: TreeNode) => {
+    if (candidate.type === "rig") {
+      totalRigCount += 1;
+      const rigData = candidate.data as RigNodeData | undefined;
+      if (rigData?.source === "custom" && !rigData.disabled) {
+        deletableRigInputIds.add(rigData.input.id);
+      }
+      return;
+    }
+    candidate.children.forEach((child) => visit(child));
+  };
+  visit(node);
+  return {
+    totalRigCount,
+    deletableRigInputIds: Array.from(deletableRigInputIds),
+    undeletableRigCount: totalRigCount - deletableRigInputIds.size,
+  };
+}
+
 function collectPoseIds(node: TreeNode): string[] {
   const ids: string[] = [];
   const visit = (candidate: TreeNode) => {
@@ -612,6 +638,17 @@ function TreeRowWrapper({
       (isPoseGroupFolder &&
         selection.type === "pose-group" &&
         node.id === selection.id));
+  const folderDeletionSummary =
+    node.type === "folder" && !isPoseGroupFolder
+      ? collectFolderRigDeletionSummary(node)
+      : null;
+  const folderDeleteCount = folderDeletionSummary?.deletableRigInputIds.length;
+  const canDeleteFolderDrivers =
+    node.type === "folder" &&
+    node.id !== "root" &&
+    Boolean(folderDeletionSummary) &&
+    (folderDeleteCount ?? 0) > 0 &&
+    (folderDeletionSummary?.undeletableRigCount ?? 0) === 0;
 
   // Determine Icon
   let Icon = Folder;
@@ -869,6 +906,20 @@ function TreeRowWrapper({
                 <Sliders size={10} />
               </Button>
             )}
+          {canDeleteFolderDrivers ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 hover:text-accent text-amber-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction?.(node, "delete-folder-drivers");
+              }}
+              title={`Delete folder drivers (${folderDeleteCount ?? 0})`}
+            >
+              <Trash2 size={10} />
+            </Button>
+          ) : null}
 
           {node.type === "rig" && node.data && (
             <span
@@ -2144,6 +2195,34 @@ export function VariablesPanel({
     }
     if (node.type === "folder" && action === "inspect-pose-group") {
       openPoseGroupInspector(node);
+      return;
+    }
+    if (node.type === "folder" && action === "delete-folder-drivers") {
+      const summary = collectFolderRigDeletionSummary(node);
+      if (summary.deletableRigInputIds.length === 0) {
+        return;
+      }
+      if (summary.undeletableRigCount > 0) {
+        return;
+      }
+      const driverCount = summary.deletableRigInputIds.length;
+      const ok = window.confirm(
+        `Delete folder "${node.label}"?\n\nThis deletes ${driverCount} custom driver${driverCount === 1 ? "" : "s"} in this folder and subfolders, and cleans linked parent/child bindings.`,
+      );
+      if (!ok) {
+        return;
+      }
+      const deletedInputIds = new Set(summary.deletableRigInputIds);
+      summary.deletableRigInputIds.forEach((inputId) => {
+        handleDeleteCustomStandardInput(inputId);
+      });
+      if (
+        effectiveSelectedRigId &&
+        deletedInputIds.has(effectiveSelectedRigId)
+      ) {
+        onSelectRig?.(null);
+      }
+      onSelectPoseGroup?.(null);
     }
   };
 

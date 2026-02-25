@@ -735,6 +735,70 @@ describe("VariablesPanel", () => {
     confirmSpy.mockRestore();
   });
 
+  it("deletes all custom drivers in a folder from the folder action", () => {
+    referenceFaceState.file = null;
+    const customUp = makeInput("custom_brow_up", "/custom/brow/up", {
+      label: "Brow Up",
+    });
+    const customDown = makeInput("custom_brow_down", "/custom/brow/down", {
+      label: "Brow Down",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input: customUp,
+        source: "custom",
+      },
+      {
+        input: customDown,
+        source: "custom",
+      },
+    ];
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onSelectRig = vi.fn();
+    const view = render(
+      <VariablesPanel onSelectRig={onSelectRig} selectedRigId={customUp.id} />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle("Delete folder drivers (2)"),
+    );
+
+    const confirmationMessage = confirmSpy.mock.calls[0]?.[0] ?? "";
+    expect(confirmationMessage).toContain('Delete folder "custom / brow"?');
+    expect(confirmationMessage).toContain("This deletes 2 custom drivers");
+    expect(bindingState.handleDeleteCustomStandardInput).toHaveBeenCalledTimes(
+      2,
+    );
+    expect(bindingState.handleDeleteCustomStandardInput).toHaveBeenCalledWith(
+      customUp.id,
+    );
+    expect(bindingState.handleDeleteCustomStandardInput).toHaveBeenCalledWith(
+      customDown.id,
+    );
+    expect(onSelectRig).toHaveBeenCalledWith(null);
+    confirmSpy.mockRestore();
+  });
+
+  it("hides folder delete when a folder includes non-custom drivers", () => {
+    referenceFaceState.file = null;
+    const customInput = makeInput("custom_brow_up", "/custom/brow/up", {
+      label: "Brow Up",
+    });
+    const presetInput = makeInput("preset_brow_down", "/custom/brow/down", {
+      label: "Brow Down Preset",
+    });
+    bindingState.managedStandardInputs = [
+      { input: customInput, source: "custom" },
+      { input: presetInput, source: "preset" },
+    ];
+
+    const view = render(<VariablesPanel />);
+    expect(
+      within(view.container).queryByTitle(/Delete folder drivers/),
+    ).toBeNull();
+  });
+
   it("keeps pose CRUD actions wired on the poses surface", () => {
     poseRigState.poses = [
       {
