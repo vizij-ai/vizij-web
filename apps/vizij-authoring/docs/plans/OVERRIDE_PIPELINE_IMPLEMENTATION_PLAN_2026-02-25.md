@@ -14,6 +14,12 @@ effective = clamp(
 )
 ```
 
+with per-variable clamp toggle:
+
+```text
+effective = if(clampEnabled, clamp(selected), selected)
+```
+
 with these constraints:
 
 1. Parent, pose, and direct input are optional source branches.
@@ -21,13 +27,39 @@ with these constraints:
 3. Override is compiler-injected and outside authored binding expressions.
 4. Parent/child scale+offset are one shared link-owned parameter set.
 
-## Dependencies and Decisions (Must Lock First)
+## Locked Contract (Approved 2026-02-25)
 
-1. Default `parentBlend` mode.
-2. Default multi-source `sourceBlend` mode.
-3. Fallback policy when no sources exist.
-4. Migration policy for legacy `self` expressions.
-5. Runtime path contract for direct-input enable and override paths.
+1. Legacy `self` migration:
+   1. canonical `self + parent(s)` graphs auto-migrate to staged metadata,
+   2. migrated direct/self control is represented as explicit direct-input behavior,
+   3. direct-input defaults to disabled on staged variables,
+   4. non-convertible legacy expressions stay legacy + read-only + flagged.
+2. Source and override control behavior:
+   1. `directInput.enabled` is compile-time metadata,
+   2. override enabled/value are runtime-stageable controls,
+   3. direct/override controls are inspector settings and do not appear in Inputs pane.
+3. Runtime path contract:
+   1. direct value path remains existing variable input path (`rig/<face>/<input.path>`),
+   2. no runtime direct-enabled path is required,
+   3. override paths are:
+      1. `rig/<face>/override/<inputId>/enabled`,
+      2. `rig/<face>/override/<inputId>/value`.
+4. Blend and baseline:
+   1. default `parentBlend` is `normalized-additive`,
+   2. default `sourceBlend` is `normalized-additive`,
+   3. baseline is always `input.defaultValue`.
+5. Clamp policy:
+   1. clamp is on by default for every variable,
+   2. clamp is per-variable configurable; when disabled, output is unbounded.
+6. Parent expression scope:
+   1. staged parent expression remains arbitrary math,
+   2. `blendParents(...)` is the default authored template.
+7. Pose integration:
+   1. existing pose compose behavior remains as-is to produce `poseContribution`,
+   2. staged source-blend combines `parentContribution?`, `poseContribution?`, and `directContribution?`.
+8. Metadata contract:
+   1. staged config is stored in top-level `metadata.vizij.pipelineV1`,
+   2. shared parent-child link params are stored once via deterministic `linkId` records.
 
 ## Workstreams
 
@@ -43,10 +75,11 @@ Deliverables:
 
 1. Frozen v1 schema for staged binding config.
 2. Frozen path naming for:
-   1. direct-input enabled,
-   2. override enabled/value,
-   3. pose/control (existing).
+   1. override enabled/value,
+   2. pose/control (existing),
+   3. direct value path contract (existing variable input path).
 3. Frozen blend math definitions and fallback rules.
+4. Frozen clamp toggle contract.
 
 Tasks:
 
@@ -72,17 +105,19 @@ Tasks:
 2. Implement source branch assembly:
    1. parent branch from parent links + per-link scale/offset,
    2. pose branch from pose/control path,
-   3. direct branch gated by `directInput.enabled`.
+   3. direct branch gated by compile-time `directInput.enabled`.
 3. Implement compiler-injected override wrapper.
-4. Keep final clamp as terminal stage.
+4. Keep final clamp as terminal stage when `clamp.enabled=true`.
 5. Ensure no expression mutation required for override logic.
+6. Preserve existing pose compose semantics and feed resulting `poseContribution` into staged source blend.
 
 Tests:
 
 1. Unit tests for each source combination.
-2. Unit tests for each blend mode.
+2. Unit tests for normalized-additive defaults.
 3. Unit tests for override on/off in every source combination.
-4. Regression tests for legacy `self` graphs.
+4. Unit tests for clamp enabled/disabled behavior.
+5. Regression tests for legacy `self` graphs.
 
 Exit criteria:
 
@@ -93,7 +128,7 @@ Exit criteria:
 
 Deliverables:
 
-1. Staged config serialized in `metadata.vizij.bindings`.
+1. Staged config serialized in `metadata.vizij.pipelineV1`.
 2. Import/export round-trip preserved.
 3. Parent/child link-owned parameters implemented once and referenced from both sides.
 
@@ -104,7 +139,8 @@ Tasks:
    2. children reverse links,
    3. direct-input settings,
    4. sourceBlend settings,
-   5. override settings.
+   5. override settings,
+   6. per-variable clamp settings.
 2. Add link-id abstraction for parent-child parameter ownership.
 3. Ensure children panel resolves and edits same link record as parent rows.
 4. Implement migration adapter for legacy input bindings.
@@ -140,7 +176,9 @@ Tasks:
 3. Add pose target weights section.
 4. Add direct-input enable + slider section.
 5. Add override enable + value section.
-6. Add read-only pipeline diagnostics row:
+6. Add per-variable clamp toggle section.
+7. Ensure direct/override controls are inspector-only (not Inputs pane rows).
+8. Add read-only pipeline diagnostics row:
    1. parent contribution,
    2. pose contribution,
    3. direct contribution,
@@ -154,6 +192,7 @@ Tests:
 2. Interaction tests for shared link param edits.
 3. Interaction tests for direct-input opt-in behavior.
 4. Interaction tests for override behavior.
+5. Interaction tests for clamp toggle behavior.
 
 Exit criteria:
 
@@ -169,7 +208,7 @@ Deliverables:
 Tasks:
 
 1. Detect canonical `self + parent` patterns and auto-map to staged config.
-2. Flag complex legacy expressions for manual migration.
+2. Flag complex legacy expressions and keep them read-only in legacy section.
 3. Add one-click migration action per variable and batch migration mode.
 4. Add migration report summary panel.
 
@@ -187,14 +226,14 @@ Exit criteria:
 Deliverables:
 
 1. Performance report (before/after) for inspector-open and variable-edit paths.
-2. Feature flag rollout plan.
+2. Merge-readiness checklist for parity + performance.
 
 Tasks:
 
 1. Profile node count and runtime staging overhead.
 2. Optimize hot paths (memoization/selectors) in inspector sections.
 3. Validate FPS and interaction smoothness with sidebars open.
-4. Roll out behind flag, then flip default after stability window.
+4. Validate behavior parity against representative existing authoring assets before merge.
 
 Acceptance checks:
 
@@ -203,7 +242,8 @@ Acceptance checks:
    2. driver linking,
    3. pose target creation/editing,
    4. live preview motion.
-2. Export remains valid and internally consistent.
+2. Existing faces and pose playback continue to behave as before unless direct-input/override/clamp settings are intentionally changed.
+3. Export remains valid and internally consistent.
 
 ## Suggested Execution Order
 

@@ -14,6 +14,12 @@ effectiveValue = clamp(
 )
 ```
 
+with per-variable clamp toggle:
+
+```text
+effectiveValue = if(clampEnabled, clamp(selected), selected)
+```
+
 You also want:
 
 1. Override controls on dedicated runtime paths.
@@ -33,6 +39,40 @@ You also want:
 - User requirements in this thread
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1496`
 - `apps/vizij-authoring/src/poseRig/graphBuilder.ts:1090`
+
+## ADR v1 (Locked Contract, 2026-02-25)
+
+1. Migration and legacy policy:
+   1. canonical legacy `self + parent(s)` bindings auto-migrate to staged config,
+   2. legacy `self` is no longer a slot concept in staged mode; equivalent variable-local control is represented in the new override-aware staged semantics and exposed in inspector under direct-input settings (not "self slider"),
+   3. non-convertible legacy expressions are flagged and kept read-only in a legacy section.
+2. Direct vs override controls:
+   1. `directInput.enabled` is compile-time metadata only,
+   2. override enabled/value are runtime-stageable controls,
+   3. neither direct-input nor override controls appear in Inputs pane; both are inspector settings.
+3. Runtime path contract:
+   1. direct value path remains existing variable input path (`rig/<face>/<input.path>`),
+   2. no runtime direct-enabled path is introduced,
+   3. override runtime paths are:
+      1. `rig/<face>/override/<inputId>/enabled`,
+      2. `rig/<face>/override/<inputId>/value`.
+4. Blend and baseline:
+   1. default `parentBlend` is `normalized-additive`,
+   2. default `sourceBlend` is `normalized-additive`,
+   3. baseline is always variable `defaultValue`.
+5. Clamp policy:
+   1. clamp is enabled by default for every variable,
+   2. clamp is a per-variable setting,
+   3. when clamp is disabled, output is intentionally unbounded.
+6. Pose integration:
+   1. existing pose compose behavior remains unchanged and produces `poseContribution`,
+   2. staged source blend composes `parentContribution?`, `poseContribution?`, and `directContribution?`.
+7. Parent expression scope:
+   1. parent expression remains arbitrary authored math,
+   2. `blendParents(...)` is the default authored template.
+8. Metadata storage:
+   1. staged pipeline config lives in `metadata.vizij.pipelineV1`,
+   2. shared parent-child link params are stored once via deterministic `linkId` records.
 
 ## 2) What Exists Today (As-Is)
 
@@ -75,7 +115,7 @@ flowchart LR
 
 ### 2.3 Export/IR metadata path exists and is extensible
 
-Bindings and metadata are serialized in `metadata.vizij.bindings` and round-trip through IR compile/import. This gives a stable place to encode staged-pipeline metadata.
+Bindings and metadata are serialized in `metadata.vizij.*` and round-trip through IR compile/import. Existing binding summaries remain in `metadata.vizij.bindings`; staged pipeline config will live in `metadata.vizij.pipelineV1`.
 
 **References**
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1906`
@@ -142,8 +182,9 @@ For each variable/input:
    1. `blendedSources = blend(parentContribution?, poseContribution?, directUserContribution?)`.
 5. Override Stage (compiler-injected):
    1. `selected = if(overrideEnabled, overrideValue, blendedSources)`.
-6. Final Clamp Stage:
-   1. `effectiveValue = clamp(selected, min, max)`.
+6. Final Output Stage:
+   1. when `clamp.enabled=true`: `effectiveValue = clamp(selected, min, max)`,
+   2. when `clamp.enabled=false`: `effectiveValue = selected`.
 
 This exactly matches your requested equation while keeping parent transforms explicit.
 
@@ -178,31 +219,20 @@ flowchart LR
 
 ## 3.2 Explicit blend semantics for the new staged pipeline
 
-The proposal should define `blend(...)` modes explicitly and use them consistently for:
+Locked defaults in v1:
 
-1. parent blend (`blendParents(...)`),
-2. final source blend (`blend(parent?, pose?, direct?)`).
+1. `parentBlend` default is `normalized-additive`.
+2. `sourceBlend` default is `normalized-additive`.
+3. baseline for normalization is always `input.defaultValue`.
+4. missing source branches are excluded from the sum (not treated as zero-valued contributors).
 
-Blend modes:
-
-1. `average`:
-   1. arithmetic mean of active contributors.
-2. `weighted-average`:
-   1. weighted mean using authored weights.
-   2. if all effective weights are zero, fall back to baseline/default.
-3. `normalized-additive`:
-   1. sum contributors and normalize around baseline/default so neutral contribution does not drift the channel.
-   2. same intent as current add-normalization pattern used in rig compile (`sum - baseline`).
-
-Suggested formulas:
+Formula:
 
 ```text
-average(values) = sum(values) / N
-weightedAverage(values, weights) = sum(values_i * weights_i) / sum(weights_i)
 normalizedAdditive(values, baseline) = sum(values) - (N - 1) * baseline
 ```
 
-For two-source blending this simplifies to:
+For two active sources this simplifies to:
 
 ```text
 normalizedAdditive(parentResult, poseControl, baseline)
@@ -226,7 +256,7 @@ Keep source branches and override branches explicitly separated:
    1. `rig/<face>/pose/control/<inputId>` (existing dedicated pose contribution path).
 3. Direct user branch:
    1. value path: `rig/<face>/<input.path>` (existing variable input path),
-   2. enabled gate path: `rig/<face>/direct/<inputId>/enabled` (new explicit opt-in gate).
+   2. `directInput.enabled` is compile-time metadata (no runtime enabled gate path).
 4. Override branch (compiler-injected):
    1. `rig/<face>/override/<inputId>/enabled`,
    2. `rig/<face>/override/<inputId>/value`.
@@ -245,7 +275,7 @@ All three source branches are optional and should be absent until user-defined:
 
 1. Parent source branch appears when user links parent variables in binding expression / parent binding UI.
 2. Pose source branch appears when user adds pose targets for this variable channel.
-3. Direct user source branch appears only when user enables direct input for this variable.
+3. Direct user source branch appears only when compile-time metadata `directInput.enabled=true` for this variable.
 
 Override is separate:
 
@@ -316,8 +346,8 @@ effective = clamp(
 
 Two modes:
 
-1. Guided mode (default): stage controls, with parent expression area plus read-only compiled equation.
-2. Expert mode (optional): allow editing `blendParents(...)` term only, with validation; pose/direct/override/clamp remain compiler-managed.
+1. Guided mode (default): stage controls, with parent expression area seeded from a `blendParents(...)` template and a read-only compiled equation.
+2. Expert mode (optional): still allows arbitrary parent-expression math editing; pose/direct/override/clamp stages remain compiler-managed.
 
 This keeps behavior clear and avoids conflating authored sources with compiler-injected override mechanics.
 
@@ -351,7 +381,7 @@ interface StagedBindingConfig {
     childInputId: string;
   }>;
   parentBlend: {
-    mode: "average" | "weighted-average" | "normalized-additive";
+    mode: "normalized-additive";
     weights?: Record<string, number>;
   };
   poseSource: {
@@ -362,27 +392,27 @@ interface StagedBindingConfig {
   directInput: {
     enabled: boolean; // user-controlled, default false
     valuePath: string;
-    enabledPath: string;
   };
   sourceBlend: {
-    mode: "average" | "weighted-average" | "normalized-additive";
-    weightParent?: number;
-    weightPose?: number;
-    weightDirect?: number;
+    mode: "normalized-additive";
   };
   sourceFallback: {
     whenNoSources: "use-baseline";
   };
+  clamp: {
+    enabled: boolean; // default true
+  };
   override: {
-    enabledDefault: boolean;
-    valueDefault: number;
-    enabledPath?: string;
-    valuePath?: string;
+    enabledDefault: boolean; // default false
+    valueDefault: number; // default input.defaultValue
+    enabledPath: string;
+    valuePath: string;
   };
 }
 ```
 
-Store this under binding metadata and generate compile graph deterministically from it.
+Store this under `metadata.vizij.pipelineV1.byInputId` and generate compile graph deterministically from it.
+Store shared link-owned params under `metadata.vizij.pipelineV1.links`.
 The key ownership rule is link-centric: `scale` and `offset` belong to the parent->child link and are edited through one canonical record (`linkId`), regardless of whether user edits from parent view or child view.
 
 **References**
@@ -392,6 +422,15 @@ The key ownership rule is link-centric: `scale` and `offset` belong to the paren
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1936`
 - `apps/vizij-authoring/src/poseRig/types.ts:12`
 - `apps/vizij-authoring/src/hooks/useManagedStandardInputs.ts:37`
+
+## 4.3 Link ID Contract (v1)
+
+`linkId` is the canonical identity for one parent->child dependency edge.
+
+1. It is deterministic and stable across export/import.
+2. It is the sole owner of link params (`scale`, `offset`, `enabled`).
+3. Parent and child inspector sections edit the same link record by `linkId`.
+4. `children[]` entries are lightweight reverse references; they do not duplicate link params.
 
 ## 5) Binding Editor / Inspector Redesign
 
@@ -411,11 +450,15 @@ Variable inspector should show five primary groups:
    2. weight sliders per pose target.
 4. Direct Input:
    1. explicit enable toggle (off by default),
-   2. direct-input slider/number when enabled.
+   2. direct-input slider/number when enabled,
+   3. uses existing variable input path (renamed from legacy "self slider" concept).
 5. Override:
    1. override enable toggle,
    2. override value slider/number,
    3. runtime-path badges.
+6. Inputs pane policy:
+   1. direct-input and override controls are not listed as Inputs pane rows,
+   2. both are configured only in variable inspector.
 
 Output preview (blend result, selected result, clamped effective value) should be shown as read-only diagnostics, not a fifth editable source group.
 
@@ -464,9 +507,11 @@ Keep legacy rendering for migrated assets in a "legacy binding" section until fu
    1. replace slot-first editor with stage editor; keep legacy adapter.
    2. add children pane that edits the same link params as parent rows (no duplicate controls).
 4. Runtime route mapping:
-   1. register direct-input enabled path and override runtime paths for staging and inspector control.
+   1. keep direct value path as existing variable input path,
+   2. do not add a runtime direct-enabled path,
+   3. register override runtime paths for staging and inspector control.
 5. Import/export:
-   1. round-trip staged metadata in `vizij` envelope; dual-read legacy bindings.
+   1. round-trip staged metadata in `metadata.vizij.pipelineV1`; dual-read legacy bindings.
 
 ```mermaid
 flowchart LR
@@ -488,20 +533,21 @@ flowchart LR
 ## 7.1 Legacy mapping rules
 
 1. Canonical legacy case (`self + parents` style):
-   1. map `self` behavior to override stage default-disabled,
-   2. map non-self slots into parent rows with scale=1/offset=0.
+   1. auto-migrate to staged config,
+   2. map legacy `self` semantics into staged variable-local control using the existing variable input path,
+   3. map non-self slots into parent rows with scale=1/offset=0.
 2. Complex legacy expressions using `self` in custom math:
    1. keep in legacy mode,
    2. flag with migration warning,
-   3. provide manual conversion tool.
-3. Legacy always-on direct input behavior:
-   1. migrate to explicit `directInput.enabled = true` to preserve behavior,
-   2. allow opt-out per variable after migration.
+   3. expose in read-only legacy section.
+3. Direct-input defaults:
+   1. new staged variables default to `directInput.enabled = false`,
+   2. migration preserves behavior for legacy assets.
 
 ## 7.2 Phased rollout
 
 1. Phase 1: dual-read compiler + metadata schema.
-2. Phase 2: new stage editor behind feature flag.
+2. Phase 2: new stage editor with isolated-worktree validation gates.
 3. Phase 3: migration assistant and warnings.
 4. Phase 4: default new assets to staged model; legacy read still supported.
 
@@ -510,16 +556,16 @@ flowchart LR
 - `packages/@vizij/node-graph-authoring/src/__tests__/irParity.test.ts:297`
 - `packages/@vizij/node-graph-authoring/src/__tests__/irSnapshots.test.ts:286`
 
-## 8) Risks and Decisions Needed
+## 8) Residual Risks
 
-1. Override semantics relative to pose:
-   1. this proposal follows your requested formula: override bypasses pose-blended branch.
-2. Blend function policy:
-   1. define exact default modes for `parentBlend` and `sourceBlend` (`average`, `weighted-average`, `normalized-additive`) and baseline fallback behavior.
-3. Editor complexity:
-   1. stage UI is clearer but larger; needs careful progressive disclosure.
-4. Runtime cost:
-   1. added nodes per variable; may need lazy materialization optimization.
+1. Editor complexity:
+   1. stage UI is clearer but larger and needs progressive disclosure to stay usable.
+2. Runtime cost:
+   1. added nodes per variable may increase compile/runtime staging overhead.
+3. Migration accuracy:
+   1. legacy-expression classification must avoid unsafe auto-conversions.
+4. Clamp disabled behavior:
+   1. unbounded outputs are intentional, but inspector must clearly communicate risk.
 
 **References**
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1534`
@@ -528,21 +574,13 @@ flowchart LR
 
 ## 9) Recommended Next Steps
 
-1. Approve exact semantics for:
-   1. `blendParents` default mode (`average`, `weighted-average`, `normalized-additive`),
-   2. multi-source blend default mode for `parent + pose + direct` (`average`, `weighted-average`, `normalized-additive`),
-   3. no-source fallback baseline behavior,
-   4. direct-input default policy (`enabled=false`),
-   5. override-enabled default and whether per-variable default is persisted.
-2. Approve staged binding schema and metadata contract.
-3. Confirm expression scope policy:
-   1. binding expression authors parent branch only,
-   2. compiler injects pose/direct/override/clamp wrappers.
-4. Confirm link-ownership policy:
-   1. parent/child scale+offset are one shared parameter set per link,
-   2. parent pane and children pane both edit the same link record.
-5. Implement compiler dual-read first, then UI stage editor.
-6. Add migration and regression tests before flipping defaults.
+1. Implement compiler dual-read + staged pipeline generation using the locked defaults (`normalized-additive`, baseline=`defaultValue`, clamp toggle).
+2. Implement schema + import/export at `metadata.vizij.pipelineV1` with deterministic `linkId` ownership.
+3. Implement inspector stage sections (Parents, Children, Poses, Direct Input, Override, Clamp) and keep direct/override out of Inputs pane.
+4. Implement migration assistant:
+   1. auto-migrate canonical `self + parent(s)` graphs,
+   2. route non-convertible expressions to read-only legacy section.
+5. Run behavior parity verification on representative existing assets and pose playback before merge.
 
 **References**
 - `apps/vizij-authoring/src/hooks/__tests__/rigGraphCompiler.test.ts:35`
