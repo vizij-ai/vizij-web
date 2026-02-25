@@ -22,12 +22,12 @@ function makeInput(
 describe("useBindingManager", () => {
   it("resolves upstream and target ids before creating parent driver bindings", () => {
     const target = makeInput(
-      "autorig_target_openness",
-      "/autorig/target/openness",
+      "propsrig_target_openness",
+      "/propsrig/target/openness",
     );
     const source = makeInput(
-      "autorig_source_openness",
-      "/autorig/source/openness",
+      "propsrig_source_openness",
+      "/propsrig/source/openness",
     );
     const standardInputsByIdRef = {
       current: new Map<string, StandardRigInput>([
@@ -69,8 +69,8 @@ describe("useBindingManager", () => {
   });
 
   it("writes parent bindings to canonical target id when target id is alias-like", () => {
-    const target = makeInput("autorig_cheek_raise", "/autorig/cheek/raise");
-    const source = makeInput("autorig_eye_squint", "/autorig/eye/squint");
+    const target = makeInput("propsrig_cheek_raise", "/propsrig/cheek/raise");
+    const source = makeInput("propsrig_eye_squint", "/propsrig/eye/squint");
     const standardInputsByIdRef = {
       current: new Map<string, StandardRigInput>([
         [target.id, target],
@@ -96,7 +96,7 @@ describe("useBindingManager", () => {
 
     act(() => {
       hook.result.current.handleCreateParentDriverBinding(
-        "autorig_cheek_raise",
+        "propsrig_cheek_raise",
         "/rig/element/eye/squint",
       );
     });
@@ -107,18 +107,18 @@ describe("useBindingManager", () => {
       true,
     );
     expect(
-      hook.result.current.inputBindings["autorig/cheek/raise"],
+      hook.result.current.inputBindings["propsrig/cheek/raise"],
     ).toBeUndefined();
   });
 
   it("propagates parent bindings across equivalent /standard and canonical target paths", () => {
     const canonicalTarget = makeInput(
-      "autorig_scene_rotation_z",
-      "/autorig/scene/rotation/z",
+      "propsrig_scene_rotation_z",
+      "/propsrig/scene/rotation/z",
     );
     const standardPrefixedTarget = makeInput(
-      "standard_autorig_scene_rotation_z",
-      "/standard/autorig/scene/rotation/z",
+      "standard_propsrig_scene_rotation_z",
+      "/standard/propsrig/scene/rotation/z",
     );
     const source = makeInput("testing_example", "/testing/example");
     const standardInputsByIdRef = {
@@ -169,8 +169,8 @@ describe("useBindingManager", () => {
 
   it("updates expression when adding a new parent that is not referenced yet", () => {
     const target = makeInput(
-      "autorig_scene_rotation_z",
-      "/autorig/scene/rotation/z",
+      "propsrig_scene_rotation_z",
+      "/propsrig/scene/rotation/z",
     );
     const sourceA = makeInput("testing_source_a", "/testing/source/a");
     const sourceB = makeInput("testing_source_b", "/testing/source/b");

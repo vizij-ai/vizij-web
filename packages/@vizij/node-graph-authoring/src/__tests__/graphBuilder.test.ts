@@ -83,19 +83,19 @@ const INPUT_OFFSET: StandardRigInput = {
 };
 
 const INPUT_D_LEGACY_PATH: StandardRigInput = {
-  id: "autorig_eye_open",
-  path: "/autorig/eye/open",
-  label: "Autorig Eye Open",
-  group: "autorig",
+  id: "propsrig_eye_open",
+  path: "/propsrig/eye/open",
+  label: "Props Rig Eye Open",
+  group: "propsrig",
   defaultValue: 0,
   range: { min: -1, max: 1 },
 };
 
 const INPUT_E_LEGACY_PATH: StandardRigInput = {
-  id: "autorig_mouth_open",
-  path: "/autorig/mouth/open",
-  label: "Autorig Mouth Open",
-  group: "autorig",
+  id: "propsrig_mouth_open",
+  path: "/propsrig/mouth/open",
+  label: "Props Rig Mouth Open",
+  group: "propsrig",
   defaultValue: 0,
   range: { min: -1, max: 1 },
 };
@@ -237,8 +237,8 @@ describe("buildRigGraphSpec", () => {
 
     expect(issues.fatal).toEqual([]);
     expect(spec.nodes.some((node) => node.type === "input")).toBe(true);
-    expect(summary.inputs).toContain("rig/robot/autorig/eye/open");
-    expect(summary.inputs).toContain("rig/robot/autorig/mouth/open");
+    expect(summary.inputs).toContain("rig/robot/propsrig/eye/open");
+    expect(summary.inputs).toContain("rig/robot/propsrig/mouth/open");
     expect(
       issues.fatal.some((issue) => issue.includes('"/rig/element/eye/open"')),
     ).toBe(false);
@@ -533,15 +533,15 @@ describe("buildRigGraphSpec", () => {
     });
 
     const parentScaleNode = spec.nodes.find(
-      (node) => node.id === "input_parent_scale_autorig_mouth_open_1",
+      (node) => node.id === "input_parent_scale_propsrig_mouth_open_1",
     );
     expect(parentScaleNode?.input_defaults).toMatchObject({ operand_2: -2 });
 
     expect(
       (spec.edges ?? []).some(
         (edge) =>
-          edge.from?.node_id === "input_autorig_eye_open" &&
-          edge.to?.node_id === "input_parent_scale_autorig_mouth_open_1" &&
+          edge.from?.node_id === "input_propsrig_eye_open" &&
+          edge.to?.node_id === "input_parent_scale_propsrig_mouth_open_1" &&
           edge.to?.input === "operand_1",
       ),
     ).toBe(true);
@@ -772,12 +772,12 @@ describe("buildRigGraphSpec", () => {
     expect(vizijMetadata?.vizij?.pipelineV1).toBeUndefined();
   });
 
-  it("treats face-qualified autorig metadata paths as low-level in higher-order checks", () => {
+  it("treats face-qualified propsrig metadata paths as low-level in higher-order checks", () => {
     const metadataInput: StandardRigInput = {
-      id: "autorig_input",
-      path: "/autorig/jaw/open",
+      id: "propsrig_input",
+      path: "/propsrig/jaw/open",
       label: "Jaw Open",
-      group: "autorig",
+      group: "propsrig",
       defaultValue: 0,
       range: { min: -1, max: 1 },
     };
@@ -810,7 +810,7 @@ describe("buildRigGraphSpec", () => {
             {
               id: "slot_1",
               alias: "a",
-              inputId: "/rig/robot/autorig/jaw/open",
+              inputId: "/rig/robot/propsrig/jaw/open",
             },
           ],
           expression: "a",
@@ -2103,12 +2103,12 @@ describe("buildRigGraphSpec issues", () => {
     ).toBe(false);
   });
 
-  it("allows /autorig metadata alias inputs to drive animatable components", () => {
+  it("allows /propsrig metadata alias inputs to drive animatable components", () => {
     const metadataInput: StandardRigInput = {
-      id: "autorig_input",
-      path: "/autorig/jaw/open",
+      id: "propsrig_input",
+      path: "/propsrig/jaw/open",
       label: "Jaw Open",
-      group: "autorig",
+      group: "propsrig",
       defaultValue: 0,
       range: { min: -1, max: 1 },
     };

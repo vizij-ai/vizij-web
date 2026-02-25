@@ -5,7 +5,7 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { cn } from "../../utils/cn";
 import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
-import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
+import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 
 // ----------------------------------------------------------------------------
 // Types
@@ -351,12 +351,12 @@ function extractComponentIdFromSourceId(
   }
 }
 
-function stripAutorigRoot(path: string): string {
-  if (path === "/autorig") {
+function stripPropsRigRoot(path: string): string {
+  if (path === "/propsrig") {
     return "/";
   }
-  if (path.startsWith("/autorig/")) {
-    return `/${path.slice("/autorig/".length)}`;
+  if (path.startsWith("/propsrig/")) {
+    return `/${path.slice("/propsrig/".length)}`;
   }
   return path;
 }
@@ -476,7 +476,7 @@ export function VariableSelector({
   const [search, setSearch] = useState("");
 
   const tabs = [
-    { id: "variables", label: "Variables" },
+    { id: "variables", label: "Drivers" },
     { id: "scene", label: "Properties" },
   ] as const;
 
@@ -499,7 +499,7 @@ export function VariableSelector({
           onChange={setSearch}
           placeholder={
             activeTab === "variables"
-              ? "Search variables..."
+              ? "Search drivers..."
               : "Search properties..."
           }
           className="h-9"
@@ -549,8 +549,8 @@ function InputList({
   const bindings = useBindingAuthoring((state) => state.bindings);
   const lockedInspectorTargetIds =
     useBindingAuthoring((state) => state.lockedInspectorTargetIds) ?? EMPTY_SET;
-  const lockedAutorigInputIds =
-    useBindingAuthoring((state) => state.lockedAutorigInputIds) ?? EMPTY_SET;
+  const lockedPropsRigInputIds =
+    useBindingAuthoring((state) => state.lockedPropsRigInputIds) ?? EMPTY_SET;
   const { objects } = useSceneComposer();
 
   const queryTokens = useMemo(() => splitSearchTokens(search), [search]);
@@ -658,11 +658,11 @@ function InputList({
 
     managedStandardInputs.forEach((entry) => {
       const input = entry.input;
-      if (!isAutorigStandardInputPath(input.path)) {
+      if (!isPropsRigStandardInputPath(input.path)) {
         return;
       }
 
-      const displayPath = stripAutorigRoot(input.path);
+      const displayPath = stripPropsRigRoot(input.path);
       const typeKey = derivePropertyTypeKey({
         metadataFeatureKey: entry.metadata?.featureKey,
         metadataFeatureLabel: entry.metadata?.featureLabel,
@@ -771,14 +771,14 @@ function InputList({
 
     managedStandardInputs.forEach((entry) => {
       const input = entry.input;
-      const isAutorig = isAutorigStandardInputPath(input.path);
-      const isInScope = mode === "variables" ? !isAutorig : isAutorig;
+      const isPropsRig = isPropsRigStandardInputPath(input.path);
+      const isInScope = mode === "variables" ? !isPropsRig : isPropsRig;
       if (!isInScope) {
         return;
       }
 
       const displayPath =
-        mode === "properties" ? stripAutorigRoot(input.path) : input.path;
+        mode === "properties" ? stripPropsRigRoot(input.path) : input.path;
       const groupText = input.group?.trim() || "";
       const group = deriveGroup(displayPath, groupText);
       const label = input.label?.trim() || input.id;
@@ -868,11 +868,11 @@ function InputList({
         mode === "properties" &&
         componentId !== null &&
         lockedInspectorTargetIds.has(componentId);
-      const disabledByAutorigLock = lockedAutorigInputIds.has(input.id);
-      const rowDisabled = disabledByTargetLock || disabledByAutorigLock;
+      const disabledByPropsRigLock = lockedPropsRigInputIds.has(input.id);
+      const rowDisabled = disabledByTargetLock || disabledByPropsRigLock;
       const rowDisabledReason = disabledByTargetLock
         ? "Locked in Face Element inspector."
-        : disabledByAutorigLock
+        : disabledByPropsRigLock
           ? "Direct control disabled from Face Element inspector lock."
           : null;
 
@@ -918,11 +918,11 @@ function InputList({
         contextTitle,
         objectId:
           mode === "properties"
-            ? (metadata?.elementId ?? "autorig")
+            ? (metadata?.elementId ?? "propsrig")
             : (variableTargetMetadata[0]?.objectId ?? undefined),
         featureId:
           mode === "properties"
-            ? (metadata?.featureKey ?? "autorig")
+            ? (metadata?.featureKey ?? "propsrig")
             : (variableTargetMetadata[0]?.featureId ?? undefined),
         targetId:
           mode === "properties" ? (componentId ?? undefined) : undefined,
@@ -974,7 +974,7 @@ function InputList({
     queryTokens,
     selectedPropertyLeafFilters,
     selectedPropertyTypeFilters,
-    lockedAutorigInputIds,
+    lockedPropsRigInputIds,
     lockedInspectorTargetIds,
     targetMetadataByInputId,
   ]);
@@ -1118,8 +1118,8 @@ function InputList({
       if (singleRow?.targetId) {
         onSelect({
           type: "property",
-          objectId: singleRow.objectId ?? "autorig",
-          featureId: singleRow.featureId ?? "autorig",
+          objectId: singleRow.objectId ?? "propsrig",
+          featureId: singleRow.featureId ?? "propsrig",
           label: singleRow.selectionLabel ?? singleRow.label,
           inputId: singleRow.id,
           targetId: singleRow.targetId,
@@ -1130,8 +1130,8 @@ function InputList({
 
     onSelect({
       type: "property",
-      objectId: "autorig",
-      featureId: "autorig",
+      objectId: "propsrig",
+      featureId: "propsrig",
       label: `Selected Properties (${ordered.length})`,
       inputIds: selectedInputIds,
       targetIds: ordered,
@@ -1144,15 +1144,15 @@ function InputList({
     }
     onSelect({
       type: "property",
-      objectId: row.objectId ?? "autorig",
-      featureId: row.featureId ?? "autorig",
+      objectId: row.objectId ?? "propsrig",
+      featureId: row.featureId ?? "propsrig",
       label: row.selectionLabel ?? row.label,
       inputId: row.id,
       targetId: row.targetId,
     });
   };
 
-  const noun = mode === "variables" ? "variables" : "properties";
+  const noun = mode === "variables" ? "drivers" : "properties";
 
   return (
     <div className="flex flex-col p-2 gap-0.5 pb-4">

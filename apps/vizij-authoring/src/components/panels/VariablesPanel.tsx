@@ -28,7 +28,7 @@ import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
-import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
+import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
 import type {
@@ -280,7 +280,7 @@ function collectFullyLockedFaceElementIds(
 
   const componentIdsByElementId = new Map<string, Set<string>>();
   managedInputs.forEach((entry) => {
-    if (!isAutorigStandardInputPath(entry.input.path)) {
+    if (!isPropsRigStandardInputPath(entry.input.path)) {
       return;
     }
     const elementId = entry.metadata?.elementId?.trim();
@@ -311,7 +311,7 @@ function collectFullyLockedFaceElementIds(
   return lockedElementIds;
 }
 
-function collectLockedAutorigComponentIds(
+function collectLockedPropsRigComponentIds(
   managedInputs: readonly ManagedStandardInput[],
   lockedTargetIds: ReadonlySet<string>,
 ): Set<string> {
@@ -320,7 +320,7 @@ function collectLockedAutorigComponentIds(
   }
   const lockedComponentIds = new Set<string>();
   managedInputs.forEach((entry) => {
-    if (!isAutorigStandardInputPath(entry.input.path)) {
+    if (!isPropsRigStandardInputPath(entry.input.path)) {
       return;
     }
     const componentId = entry.metadata?.componentId?.trim();
@@ -382,7 +382,7 @@ function insertRigNodeAtPath(params: {
   const leafLabel =
     pathParts.length > 0
       ? pathParts.join("/")
-      : input.label || input.id || "variable";
+      : input.label || input.id || "driver";
   current.children.set(key, {
     id: `${current.id}/${key}`,
     label: leafLabel,
@@ -816,7 +816,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "copy-to-main");
                 }}
-                title="Copy variable to main face"
+                title="Copy driver to main face"
               >
                 <Copy size={10} />
               </Button>
@@ -831,7 +831,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "duplicate-variable");
                 }}
-                title="Duplicate variable"
+                title="Duplicate driver"
               >
                 <Copy size={10} />
               </Button>
@@ -847,7 +847,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "delete-variable");
                 }}
-                title="Delete variable"
+                title="Delete driver"
               >
                 <Trash2 size={10} />
               </Button>
@@ -940,7 +940,7 @@ export function VariablesPanel({
   activeSurfaceOverride,
   availableSurfaces,
   panelTitle = "Control Elements",
-  panelDescription = "Author and organize variables, poses, pose groups, and inputs.",
+  panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
 }: VariablesPanelProps) {
   const {
     poses,
@@ -1314,7 +1314,7 @@ export function VariablesPanel({
   const mainFaceRigEntries = useMemo(() => {
     return managedStandardInputs
       .filter((entry) => Boolean(entry.input.path?.trim()))
-      .filter((entry) => !isAutorigStandardInputPath(entry.input.path))
+      .filter((entry) => !isPropsRigStandardInputPath(entry.input.path))
       .map((entry) => ({
         input: entry.input,
         source: resolveManagedSource(entry),
@@ -1330,7 +1330,7 @@ export function VariablesPanel({
     });
     return referenceFace.standardInputs
       .filter((entry) => Boolean(entry.path?.trim()))
-      .filter((entry) => !isAutorigStandardInputPath(entry.path))
+      .filter((entry) => !isPropsRigStandardInputPath(entry.path))
       .map((entry) => {
         const normalizedPath = normalizeStandardRigInputPath(entry.path);
         const linkedMain = mainByPath.get(normalizedPath);
@@ -1433,9 +1433,9 @@ export function VariablesPanel({
       ),
     [lockedInspectorTargetIds, managedStandardInputs],
   );
-  const lockedAutorigComponentIds = useMemo(
+  const lockedPropsRigComponentIds = useMemo(
     () =>
-      collectLockedAutorigComponentIds(
+      collectLockedPropsRigComponentIds(
         managedStandardInputs,
         lockedInspectorTargetIds,
       ),
@@ -1447,11 +1447,11 @@ export function VariablesPanel({
       managedStandardInputs
         .filter((entry) => !isPoseControlInputPath(entry.input.path))
         .filter((entry) => {
-          if (!isAutorigStandardInputPath(entry.input.path)) {
+          if (!isPropsRigStandardInputPath(entry.input.path)) {
             return true;
           }
           const componentId = entry.metadata?.componentId?.trim();
-          if (componentId && lockedAutorigComponentIds.has(componentId)) {
+          if (componentId && lockedPropsRigComponentIds.has(componentId)) {
             return false;
           }
           const elementId = entry.metadata?.elementId?.trim();
@@ -1495,7 +1495,7 @@ export function VariablesPanel({
     [
       fullyLockedFaceElementIds,
       inputValues,
-      lockedAutorigComponentIds,
+      lockedPropsRigComponentIds,
       managedStandardInputs,
       poseNameById,
     ],
@@ -1682,11 +1682,11 @@ export function VariablesPanel({
     return created.id;
   };
 
-  // Build Variables tree
+  // Build Drivers tree
   const variablesRootNode = useMemo(() => {
     const root: TreeNode = {
       id: "root",
-      label: "Variables",
+      label: "Drivers",
       type: "folder",
       children: new Map(),
       showChildren: true,
@@ -1694,7 +1694,7 @@ export function VariablesPanel({
 
     const hasReferenceFace = !!referenceFace.file;
 
-    // Shared variables root (when both faces expose the same path-backed input)
+    // Shared drivers root (when both faces expose the same path-backed input)
     if (
       hasReferenceFace &&
       enabledSources.has("shared") &&
@@ -1981,7 +1981,7 @@ export function VariablesPanel({
   };
 
   const createUniqueCustomVariablePath = useCallback(() => {
-    const basePath = "/custom/new_variable";
+    const basePath = "/custom/new_driver";
     let attempt = 1;
     let candidatePath = normalizeStandardRigInputPath(basePath);
     while (standardInputsByPath.has(candidatePath)) {
@@ -2133,7 +2133,7 @@ export function VariablesPanel({
       const label =
         rigData.input.label || rigData.input.path || rigData.input.id;
       const ok = window.confirm(
-        `Delete custom variable "${label}"?\n\nThis removes the variable and cleans linked parent/child bindings.`,
+        `Delete custom driver "${label}"?\n\nThis removes the driver and cleans linked parent/child bindings.`,
       );
       if (!ok) {
         return;
@@ -2523,7 +2523,7 @@ export function VariablesPanel({
     if (id === "variables") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Variables", variableItemCount),
+        label: formatSurfaceLabelWithCount("Drivers", variableItemCount),
       };
     }
     if (id === "poses") {
@@ -2601,7 +2601,7 @@ export function VariablesPanel({
                     searchQuery
                       ? "Filter..."
                       : isVariables
-                        ? "Search variables..."
+                        ? "Search drivers..."
                         : isPoses
                           ? "Search poses..."
                           : isPoseGroups
@@ -2617,10 +2617,10 @@ export function VariablesPanel({
                     size="sm"
                     className="h-6 px-2 text-[10px] gap-1"
                     onClick={handleCreateVariable}
-                    title="Create a new variable and inspect it"
+                    title="Create a new driver and inspect it"
                   >
                     <Plus size={11} />
-                    New Variable
+                    New Driver
                   </Button>
                 )}
                 {isVariables && (
@@ -2632,12 +2632,12 @@ export function VariablesPanel({
                     disabled={!selectedMainVariableId}
                     title={
                       selectedMainVariableId
-                        ? "Duplicate selected variable and inspect the copy"
-                        : "Select a variable to duplicate"
+                        ? "Duplicate selected driver and inspect the copy"
+                        : "Select a driver to duplicate"
                     }
                   >
                     <Copy size={11} />
-                    Duplicate Variable
+                    Duplicate Driver
                   </Button>
                 )}
                 {isPoses && (
@@ -2680,7 +2680,7 @@ export function VariablesPanel({
                     className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
                     onClick={handleCopyReferenceToMain}
                     disabled={uncopiedReferenceCount === 0}
-                    title="Copy reference-only variables to main face"
+                    title="Copy reference-only drivers to main face"
                   >
                     <Copy size={11} />
                     Copy Ref ({uncopiedReferenceCount})
@@ -3328,7 +3328,7 @@ export function VariablesPanel({
                       filteredSearch.length > 0
                         ? "No results"
                         : isVariables
-                          ? "No variables defined"
+                          ? "No drivers defined"
                           : isPoses
                             ? "No poses defined"
                             : isInputs
@@ -3339,7 +3339,7 @@ export function VariablesPanel({
                       filteredSearch.length > 0
                         ? `No items found matching "${searchQuery}"`
                         : isVariables
-                          ? "Create new variables or import a model with poses."
+                          ? "Create new drivers or import a model with poses."
                           : isPoses
                             ? "Create a pose to get started."
                             : isInputs

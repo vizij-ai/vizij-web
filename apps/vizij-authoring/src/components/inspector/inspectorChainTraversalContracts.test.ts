@@ -16,14 +16,14 @@ const backlogDoc = readFileSync(
 );
 
 describe("B2.4 inspector chain traversal contracts", () => {
-  it("keeps autorig traversal wiring while removing redundant chain panels", () => {
-    expect(inspectorContentTsx).toContain("includeAutorig: true");
-    expect(inspectorContentTsx).toContain("Autorig");
-    expect(inspectorContentTsx).toContain("showAutorigInternals");
+  it("keeps propsrig traversal wiring while removing redundant chain panels", () => {
+    expect(inspectorContentTsx).toContain("includePropsRig: true");
+    expect(inspectorContentTsx).toContain("PropsRig");
+    expect(inspectorContentTsx).toContain("showPropsRigInternals");
     expect(inspectorContentTsx).not.toContain("Driven By");
     expect(inspectorContentTsx).not.toContain("What This Drives");
-    expect(inspectorContentTsx).not.toContain("Show Autorig Internals");
-    expect(inspectorContentTsx).not.toContain("Hide Autorig Internals");
+    expect(inspectorContentTsx).not.toContain("Show Props Rig Internals");
+    expect(inspectorContentTsx).not.toContain("Hide Props Rig Internals");
   });
 
   it("uses chain-path helper to preserve context on revisits", () => {
@@ -32,9 +32,9 @@ describe("B2.4 inspector chain traversal contracts", () => {
   });
 
   it("matches documented traversal contract directionality", () => {
-    expect(uiDesignDoc).toContain("Pose -> Rig -> Autorig -> Animatable");
+    expect(uiDesignDoc).toContain("Pose -> Rig -> Props Rig -> Animatable");
     expect(uiDesignDoc).toContain(
-      "Animatable -> Autorig -> Rig -> Pose sources",
+      "Animatable -> Props Rig -> Rig -> Pose sources",
     );
     expect(backlogDoc).toContain("B2.4 Inspector Chain Traversal Completion");
   });

@@ -151,7 +151,9 @@ function extractComponentIdFromInputSourceId(
   }
 }
 
-function isCanonicalAutorigInputPath(path: string | null | undefined): boolean {
+function isCanonicalPropsRigInputPath(
+  path: string | null | undefined,
+): boolean {
   if (!path) {
     return false;
   }
@@ -159,7 +161,7 @@ function isCanonicalAutorigInputPath(path: string | null | undefined): boolean {
     /^\/rig\/[^/]+\//,
     "/",
   );
-  return normalized.startsWith("/autorig/");
+  return normalized.startsWith("/propsrig/");
 }
 
 function collectBindingInputIds(
@@ -1741,7 +1743,7 @@ export function useRigController(
     standardInputsByIdRef,
   });
 
-  const autorigInputIdByComponentId = useMemo(() => {
+  const propsrigInputIdByComponentId = useMemo(() => {
     type Candidate = {
       inputId: string;
       resolvedInputId: string;
@@ -1764,7 +1766,7 @@ export function useRigController(
         standardInputsById.get(entry.input.id) ??
         entry.input;
       const rank =
-        (isCanonicalAutorigInputPath(resolvedInput.path) ? 10 : 0) +
+        (isCanonicalPropsRigInputPath(resolvedInput.path) ? 10 : 0) +
         (entry.source === "auto" ? 1 : 0);
       const candidate: Candidate = {
         inputId: entry.input.id,
@@ -1794,15 +1796,15 @@ export function useRigController(
     return next;
   }, [managedStandardInputs, standardInputsById]);
 
-  const lockedAutorigInputIds = useMemo(() => {
+  const lockedPropsRigInputIds = useMemo(() => {
     if (lockedInspectorTargetIds.size === 0) {
       return new Set<string>();
     }
     const next = new Set<string>();
     lockedInspectorTargetIds.forEach((targetId) => {
-      const mappedAutorigId = autorigInputIdByComponentId.get(targetId);
-      if (mappedAutorigId) {
-        next.add(mappedAutorigId);
+      const mappedPropsRigId = propsrigInputIdByComponentId.get(targetId);
+      if (mappedPropsRigId) {
+        next.add(mappedPropsRigId);
         return;
       }
       const bindingInputIds = collectBindingInputIds(bindings[targetId]);
@@ -1813,7 +1815,7 @@ export function useRigController(
         .filter((inputId) => standardInputsById.has(inputId));
       const preferredId =
         resolvedIds.find((inputId) =>
-          isCanonicalAutorigInputPath(standardInputsById.get(inputId)?.path),
+          isCanonicalPropsRigInputPath(standardInputsById.get(inputId)?.path),
         ) ?? resolvedIds[0];
       if (preferredId) {
         next.add(preferredId);
@@ -1821,7 +1823,7 @@ export function useRigController(
     });
     return next;
   }, [
-    autorigInputIdByComponentId,
+    propsrigInputIdByComponentId,
     bindings,
     lockedInspectorTargetIds,
     standardInputsById,
@@ -1831,13 +1833,13 @@ export function useRigController(
     string,
     Record<string, unknown>
   > = useMemo(() => {
-    if (lockedAutorigInputIds.size === 0) {
+    if (lockedPropsRigInputIds.size === 0) {
       return basePipelineConfigByInputId;
     }
     const next: Record<string, Record<string, unknown>> = {
       ...basePipelineConfigByInputId,
     };
-    lockedAutorigInputIds.forEach((inputId) => {
+    lockedPropsRigInputIds.forEach((inputId) => {
       const existingConfig =
         asRecord(basePipelineConfigByInputId[inputId]) ?? {};
       const directInputConfig = asRecord(existingConfig.directInput) ?? {};
@@ -1850,7 +1852,7 @@ export function useRigController(
       };
     });
     return next;
-  }, [basePipelineConfigByInputId, lockedAutorigInputIds]);
+  }, [basePipelineConfigByInputId, lockedPropsRigInputIds]);
 
   const handleMigrateAllLegacyBindings = useCallback((): number => {
     let migratedCount = 0;
@@ -3012,7 +3014,7 @@ export function useRigController(
       handleSelectStandardInputRoots,
       handleSelectStandardInputSubgroups,
       lockedInspectorTargetIds,
-      lockedAutorigInputIds,
+      lockedPropsRigInputIds,
       handleSetInspectorTargetLocked,
       handleToggleInspectorTargetLock,
       handleMigrateAllLegacyBindings,
@@ -3081,7 +3083,7 @@ export function useRigController(
     handleCreateParentDriverBinding,
     handleEnableParentLocalControl,
     lockedInspectorTargetIds,
-    lockedAutorigInputIds,
+    lockedPropsRigInputIds,
     pipelineConfigByInputId,
     mergedPipelineMetadataV1,
     rigOutputLookup,

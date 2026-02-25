@@ -63,22 +63,22 @@ Dependencies / blockers:
 
 Intent:
 
-- Guarantee deterministic retarget order: provision valid autorig targets first, then rebind invalid animatable writes.
+- Guarantee deterministic retarget order: provision valid propsrig targets first, then rebind invalid animatable writes.
 
 Acceptance checks:
 
-1. Legacy invalid direct animatable writes are converted into valid autorig-mediated chains.
+1. Legacy invalid direct animatable writes are converted into valid propsrig-mediated chains.
 2. Retargeting is idempotent across repeated imports.
 3. Diagnostics explicitly identify `created`, `rebound`, and `fallback` cases.
 
 Completion notes (2026-02-19):
 
-1. Importer now supports pre-provisioning autorig inputs before normalization/retarget evaluation, so boundary-invalid direct animatable writes are resolved after target provisioning rather than before it.
-2. Import diagnostics now include explicit `createdAutorigInputs` entries in addition to existing retarget/fallback diagnostics.
-3. Rig graph import now passes generated autorig blueprint inputs into importer rehydration, enforcing \"provision target first, then rebind\" sequencing in the default import path.
+1. Importer now supports pre-provisioning propsrig inputs before normalization/retarget evaluation, so boundary-invalid direct animatable writes are resolved after target provisioning rather than before it.
+2. Import diagnostics now include explicit `createdPropsRigInputs` entries in addition to existing retarget/fallback diagnostics.
+3. Rig graph import now passes generated propsrig blueprint inputs into importer rehydration, enforcing \"provision target first, then rebind\" sequencing in the default import path.
 4. Added regression tests in `src/rig/importer.test.ts` for:
    - provisioning + retarget sequencing correctness,
-   - deterministic repeated imports with provisioned autorig targets.
+   - deterministic repeated imports with provisioned propsrig targets.
 5. Validation evidence:
    - `2026-02-19 03:53Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint warnings only; typecheck + tests green, 66 files / 343 tests).
 
@@ -523,12 +523,12 @@ Completion notes (2026-02-19):
 
 ## Block D — UX Simplification and Maintainability
 
-### [x] D3.1 Autorig Abstraction Cleanup (Primary UX)
+### [x] D3.1 PropsRig Abstraction Cleanup (Primary UX)
 
 Priority and why this should still be done:
 
 - Level: `P2`
-- Why: Primary users should reason in high-level variable/property terms, not low-level autorig internals.
+- Why: Primary users should reason in high-level variable/property terms, not low-level propsrig internals.
 
 Dependencies / blockers:
 
@@ -537,22 +537,22 @@ Dependencies / blockers:
 
 Intent:
 
-- Hide autorig variables in default flows and provide direct variable <-> property navigation that conceptually crosses autorig internals.
+- Hide propsrig variables in default flows and provide direct variable <-> property navigation that conceptually crosses propsrig internals.
 
 Acceptance checks:
 
-1. Default authoring workflows do not require direct autorig interaction.
+1. Default authoring workflows do not require direct propsrig interaction.
 2. Inspector chain links show high-level relationships clearly in both directions.
-3. Advanced/debug mode can still expose autorig internals.
+3. Advanced/debug mode can still expose propsrig internals.
 
 Completion notes (2026-02-19):
 
-1. Rig inspector chain panels now default to high-level relationship framing (variables/properties), collapsing unmapped autorig internals from default view.
+1. Rig inspector chain panels now default to high-level relationship framing (variables/properties), collapsing unmapped propsrig internals from default view.
 2. Added explicit inspector toggle for advanced/debug access:
-   - `Show Autorig Internals` reveals low-level autorig links,
-   - `Hide Autorig Internals` restores simplified view.
-3. Upstream (`Driven By`) and downstream (`What This Drives`) lists now surface mapped property links directly when available, reducing forced low-level autorig navigation.
-4. Added contract-test assertions to keep the autorig abstraction toggle and chain affordances present in inspector implementation.
+   - `Show PropsRig Internals` reveals low-level propsrig links,
+   - `Hide PropsRig Internals` restores simplified view.
+3. Upstream (`Driven By`) and downstream (`What This Drives`) lists now surface mapped property links directly when available, reducing forced low-level propsrig navigation.
+4. Added contract-test assertions to keep the propsrig abstraction toggle and chain affordances present in inspector implementation.
 5. Validation evidence:
    - `2026-02-19 05:47Z` — `pnpm --filter vizij-authoring run validate` -> pass (lint/typecheck/tests green, 67 files / 377 tests).
 

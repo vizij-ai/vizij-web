@@ -174,7 +174,7 @@ function createOptions(
     bindings: {},
     inputBindings: {},
     standardInputsById: new Map([[INPUT.id, INPUT]]),
-    validOutputTargets: new Set<string>(["/autorig/face/mouth/pos/y"]),
+    validOutputTargets: new Set<string>(["/propsrig/face/mouth/pos/y"]),
     featureLabelOverrides: {},
     collectAnimatableExportState: () => ({
       appliedOverrides: false,

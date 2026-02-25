@@ -209,7 +209,7 @@ describe("VariablesPanel", () => {
     );
 
     expect(within(view.container).getByText("Control Elements")).toBeTruthy();
-    expect(within(view.container).getByText("Variables (0)")).toBeTruthy();
+    expect(within(view.container).getByText("Drivers (0)")).toBeTruthy();
     expect(within(view.container).getByText("Poses (0)")).toBeTruthy();
     expect(within(view.container).getByText("Pose Groups (0)")).toBeTruthy();
     expect(within(view.container).getByText("Inputs (0)")).toBeTruthy();
@@ -272,11 +272,8 @@ describe("VariablesPanel", () => {
   });
 
   it("creates a new variable from toolbar action with a generated path", () => {
-    const existing = makeInput("custom_new_variable", "/custom/new_variable");
-    const created = makeInput(
-      "custom_new_variable_2",
-      "/custom/new_variable_2",
-    );
+    const existing = makeInput("custom_new_driver", "/custom/new_driver");
+    const created = makeInput("custom_new_driver_2", "/custom/new_driver_2");
     bindingState.standardInputsByPath = new Map([[existing.path, existing]]);
     bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
 
@@ -285,12 +282,12 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(
       within(view.container).getAllByRole("button", {
-        name: "New Variable",
+        name: "New Driver",
       })[0]!,
     );
 
     expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
-      "/custom/new_variable_2",
+      "/custom/new_driver_2",
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });
@@ -330,7 +327,7 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(
       within(view.container).getByRole("button", {
-        name: "Duplicate Variable",
+        name: "Duplicate Driver",
       }),
     );
 
@@ -365,7 +362,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     const search = within(view.container).getByPlaceholderText(
-      "Search variables...",
+      "Search drivers...",
     );
 
     fireEvent.change(search, { target: { value: "blink" } });
@@ -401,7 +398,7 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search variables..."),
+      within(view.container).getByPlaceholderText("Search drivers..."),
       {
         target: { value: "standard/brow/up" },
       },
@@ -426,7 +423,7 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search variables..."),
+      within(view.container).getByPlaceholderText("Search drivers..."),
       {
         target: { value: "standard/brow/up" },
       },
@@ -438,20 +435,20 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(null);
   });
 
-  it("shows all standard and autorig inputs on the Inputs surface", () => {
+  it("shows all standard and propsrig inputs on the Inputs surface", () => {
     const abstractInput = makeInput("abstract_jaw", "/mouth/open", {
       label: "Jaw Open",
     });
-    const autorigInput = makeInput("autorig_eye", "/autorig/eye/open", {
+    const propsrigInput = makeInput("propsrig_eye", "/propsrig/eye/open", {
       label: "Eye Open",
     });
     bindingState.managedStandardInputs = [
       { input: abstractInput, source: "preset" },
-      { input: autorigInput, source: "auto" },
+      { input: propsrigInput, source: "auto" },
     ];
     bindingState.standardInputsByPath = new Map([
       ["/mouth/open", abstractInput],
-      ["/autorig/eye/open", autorigInput],
+      ["/propsrig/eye/open", propsrigInput],
     ]);
 
     const view = render(
@@ -471,14 +468,14 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
 
-  it("excludes autorig inputs for fully locked face elements on the Inputs surface", () => {
-    const lockedX = makeInput("autorig_eye_x", "/autorig/eye/open_x", {
+  it("excludes propsrig inputs for fully locked face elements on the Inputs surface", () => {
+    const lockedX = makeInput("propsrig_eye_x", "/propsrig/eye/open_x", {
       label: "Eye Open X",
     });
-    const lockedY = makeInput("autorig_eye_y", "/autorig/eye/open_y", {
+    const lockedY = makeInput("propsrig_eye_y", "/propsrig/eye/open_y", {
       label: "Eye Open Y",
     });
-    const unlockedOther = makeInput("autorig_jaw", "/autorig/jaw/open", {
+    const unlockedOther = makeInput("propsrig_jaw", "/propsrig/jaw/open", {
       label: "Jaw Open",
     });
 
@@ -517,11 +514,11 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
   });
 
-  it("hides individually locked autorig components when only part of a face element is locked", () => {
-    const partialX = makeInput("autorig_eye_x", "/autorig/eye/open_x", {
+  it("hides individually locked propsrig components when only part of a face element is locked", () => {
+    const partialX = makeInput("propsrig_eye_x", "/propsrig/eye/open_x", {
       label: "Eye Open X",
     });
-    const partialY = makeInput("autorig_eye_y", "/autorig/eye/open_y", {
+    const partialY = makeInput("propsrig_eye_y", "/propsrig/eye/open_y", {
       label: "Eye Open Y",
     });
 
@@ -692,18 +689,16 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search variables..."),
+      within(view.container).getByPlaceholderText("Search drivers..."),
       {
         target: { value: "custom/smile" },
       },
     );
 
-    fireEvent.click(
-      within(view.container).getAllByTitle("Delete variable")[0]!,
-    );
+    fireEvent.click(within(view.container).getAllByTitle("Delete driver")[0]!);
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      `Delete custom variable "${customInput.label}"?\n\nThis removes the variable and cleans linked parent/child bindings.`,
+      `Delete custom driver "${customInput.label}"?\n\nThis removes the driver and cleans linked parent/child bindings.`,
     );
     expect(bindingState.handleDeleteCustomStandardInput).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
@@ -725,15 +720,13 @@ describe("VariablesPanel", () => {
     const onSelectRig = vi.fn();
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search variables..."),
+      within(view.container).getByPlaceholderText("Search drivers..."),
       {
         target: { value: "custom/brow" },
       },
     );
 
-    fireEvent.click(
-      within(view.container).getAllByTitle("Delete variable")[0]!,
-    );
+    fireEvent.click(within(view.container).getAllByTitle("Delete driver")[0]!);
 
     expect(bindingState.handleDeleteCustomStandardInput).toHaveBeenCalledWith(
       customInput.id,

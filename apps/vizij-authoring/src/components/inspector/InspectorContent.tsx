@@ -146,7 +146,7 @@ type PoseSemanticTooltips = {
 type RigTraversalSummary = {
   downstreamConnections: ReturnType<typeof collectDirectDownstreamRigInputs>;
   downstreamInputs: ReturnType<typeof collectDirectDownstreamRigInputs>;
-  downstreamAutorigInputs: ReturnType<typeof collectDirectDownstreamRigInputs>;
+  downstreamPropsRigInputs: ReturnType<typeof collectDirectDownstreamRigInputs>;
   directDependents: ReturnType<typeof collectDirectRigDependents>;
   dependents: ReturnType<typeof collectRigDependents>;
 };
@@ -159,7 +159,7 @@ type RigLifecycleMessage = {
 const EMPTY_RIG_TRAVERSAL_SUMMARY: RigTraversalSummary = {
   downstreamConnections: [],
   downstreamInputs: [],
-  downstreamAutorigInputs: [],
+  downstreamPropsRigInputs: [],
   directDependents: [],
   dependents: [],
 };
@@ -187,7 +187,9 @@ function extractComponentIdFromInputSourceId(
   }
 }
 
-function isCanonicalAutorigInputPath(path: string | null | undefined): boolean {
+function isCanonicalPropsRigInputPath(
+  path: string | null | undefined,
+): boolean {
   if (!path) {
     return false;
   }
@@ -195,7 +197,7 @@ function isCanonicalAutorigInputPath(path: string | null | undefined): boolean {
     /^\/rig\/[^/]+\//,
     "/",
   );
-  return normalized.startsWith("/autorig/");
+  return normalized.startsWith("/propsrig/");
 }
 
 function collectBindingInputIds(
@@ -379,7 +381,7 @@ function PoseVariableExpandedControls({
           className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
           title={poseSemanticTooltips.direct}
         >
-          Control Variable
+          Control Driver
         </span>
         <div className="relative min-w-0">
           <Slider
@@ -418,7 +420,7 @@ function PoseVariableExpandedControls({
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-[10px]"
-            title="Reset control variable to default"
+            title="Reset control driver to default"
             onClick={handleDirectReset}
           >
             <RotateCcw size={11} />
@@ -428,7 +430,7 @@ function PoseVariableExpandedControls({
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-[10px]"
-            title="Use control variable value as the new control target"
+            title="Use control driver value as the new control target"
             onClick={() => onUpdatePoseValue(poseId, item.varId, directVal)}
           >
             <Save size={11} />
@@ -516,7 +518,7 @@ export function InspectorContent({
   >("child");
   const [blendAmount, setBlendAmount] = useState(0);
 
-  const showAutorigInternals = false;
+  const showPropsRigInternals = false;
   const pendingChainNavigationRef = useRef<InspectorChainNode | null>(null);
   const [inspectorChainPath, setInspectorChainPath] = useState<
     InspectorChainNode[]
@@ -599,8 +601,8 @@ export function InspectorContent({
   const lockedInspectorTargetIds = useBindingAuthoring(
     (state) => state.lockedInspectorTargetIds,
   );
-  const lockedAutorigInputIds = useBindingAuthoring(
-    (state) => state.lockedAutorigInputIds,
+  const lockedPropsRigInputIds = useBindingAuthoring(
+    (state) => state.lockedPropsRigInputIds,
   );
   const handleSetInspectorTargetLocked = useBindingAuthoring(
     (state) => state.handleSetInspectorTargetLocked,
@@ -646,11 +648,11 @@ export function InspectorContent({
       ) ?? null
     );
   }, [managedStandardInputs, resolvedSelectedRigId]);
-  const autorigInputIdByComponentId = useMemo(() => {
+  const propsrigInputIdByComponentId = useMemo(() => {
     type Candidate = {
       inputId: string;
       resolvedInputId: string;
-      canonicalAutorig: boolean;
+      canonicalPropsRig: boolean;
       autoSource: boolean;
     };
 
@@ -676,7 +678,7 @@ export function InspectorContent({
       const candidate: Candidate = {
         inputId: entry.input.id,
         resolvedInputId,
-        canonicalAutorig: isCanonicalAutorigInputPath(resolvedInput.path),
+        canonicalPropsRig: isCanonicalPropsRigInputPath(resolvedInput.path),
         autoSource: entry.source === "auto",
       };
       const existing = candidatesByComponent.get(componentId);
@@ -689,7 +691,7 @@ export function InspectorContent({
 
     const rankCandidate = (candidate: Candidate): number => {
       let rank = 0;
-      if (candidate.canonicalAutorig) {
+      if (candidate.canonicalPropsRig) {
         rank += 10;
       }
       if (candidate.autoSource) {
@@ -714,7 +716,7 @@ export function InspectorContent({
       return {
         inputId,
         resolvedInputId,
-        canonicalAutorig: isCanonicalAutorigInputPath(resolvedInput.path),
+        canonicalPropsRig: isCanonicalPropsRigInputPath(resolvedInput.path),
         autoSource: source === "auto",
       };
     };
@@ -736,11 +738,14 @@ export function InspectorContent({
         ),
       );
 
-      const directActiveAutorigCandidate = activeBindingInputIds
+      const directActivePropsRigCandidate = activeBindingInputIds
         .map((id) => candidateFromInputId(id))
-        .find((candidate) => candidate?.canonicalAutorig);
-      if (directActiveAutorigCandidate) {
-        selected.set(componentId, directActiveAutorigCandidate.resolvedInputId);
+        .find((candidate) => candidate?.canonicalPropsRig);
+      if (directActivePropsRigCandidate) {
+        selected.set(
+          componentId,
+          directActivePropsRigCandidate.resolvedInputId,
+        );
         return;
       }
 
@@ -1320,15 +1325,15 @@ export function InspectorContent({
       selectedRigId: resolvedSelectedRigId,
       inputBindings,
       standardInputsById,
-      includeAutorig: true,
+      includePropsRig: true,
     });
     return {
       downstreamConnections,
       downstreamInputs: downstreamConnections.filter(
         (entry) => entry.layer === "rig",
       ),
-      downstreamAutorigInputs: downstreamConnections.filter(
-        (entry) => entry.layer === "autorig",
+      downstreamPropsRigInputs: downstreamConnections.filter(
+        (entry) => entry.layer === "propsrig",
       ),
       directDependents: collectDirectRigDependents({
         selectedRigId: resolvedSelectedRigId,
@@ -1576,7 +1581,7 @@ export function InspectorContent({
   const resolveRigInputIdForTarget = useCallback(
     (targetId: string): string | null => {
       const candidateIds = new Set<string>();
-      const mappedInputId = autorigInputIdByComponentId.get(targetId);
+      const mappedInputId = propsrigInputIdByComponentId.get(targetId);
       if (mappedInputId) {
         candidateIds.add(mappedInputId);
       }
@@ -1594,7 +1599,7 @@ export function InspectorContent({
       }
       return null;
     },
-    [autorigInputIdByComponentId, bindings, rigInputById, standardInputsById],
+    [propsrigInputIdByComponentId, bindings, rigInputById, standardInputsById],
   );
 
   const openBindingTargetInspector = useCallback(
@@ -1814,12 +1819,12 @@ export function InspectorContent({
         selection,
         standardInputsById,
         fallbackTargetIds: targetIds,
-        autorigInputIdByComponentId,
+        propsrigInputIdByComponentId,
       });
 
       if (resolvedInputIds.length === 0) {
         alertDialog(
-          "Selected properties are not currently mapped to existing rig variables.",
+          "Selected properties are not currently mapped to existing rig drivers.",
         );
         return;
       }
@@ -1831,7 +1836,7 @@ export function InspectorContent({
       target:
         "Control Target: authored pose value for this rig input when the pose contributes at 100%.",
       direct:
-        "Control Variable: canonical rig input value edited directly (matches Inputs pane for this variable).",
+        "Control Driver: canonical rig input value edited directly (matches Inputs pane for this driver).",
       poseDriven:
         "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
       contribution:
@@ -1992,7 +1997,7 @@ export function InspectorContent({
         <div className="flex items-center gap-2 px-1 mb-2">
           <div className="h-px bg-border-default flex-1" />
           <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap">
-            What I Drive · {Object.keys(pose.values).length} Variables
+            What I Drive · {Object.keys(pose.values).length} Drivers
           </span>
           <div className="h-px bg-border-default flex-1" />
           <Button
@@ -2010,8 +2015,8 @@ export function InspectorContent({
             <EmptyState
               icon={Sliders}
               iconSize={18}
-              title="No Connected Variables"
-              description="This pose has no variable targets yet. Connect one or more rig variables to define the pose output."
+              title="No Connected Drivers"
+              description="This pose has no driver targets yet. Connect one or more rig drivers to define the pose output."
               className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
             />
           )}
@@ -2149,7 +2154,7 @@ export function InspectorContent({
                           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-default/50 pt-2">
                             <span
                               className="text-[9px] text-text-muted font-mono"
-                              title={`Downstream links from this channel: drives ${drivenVariableCount} variable${drivenVariableCount === 1 ? "" : "s"} and ${drivenPropertyCount} propert${drivenPropertyCount === 1 ? "y" : "ies"}.`}
+                              title={`Downstream links from this channel: drives ${drivenVariableCount} driver${drivenVariableCount === 1 ? "" : "s"} and ${drivenPropertyCount} propert${drivenPropertyCount === 1 ? "y" : "ies"}.`}
                             >
                               {chainSummary ?? "0 vars · 0 props"}
                             </span>
@@ -2157,7 +2162,7 @@ export function InspectorContent({
                               variant="ghost"
                               size="sm"
                               className="h-6 px-2 text-[10px] font-mono text-text-muted hover:text-text-primary"
-                              title={`Inspect variable ${varId}`}
+                              title={`Inspect driver ${varId}`}
                               disabled={!canInspectVariable}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -2190,12 +2195,12 @@ export function InspectorContent({
             size={14}
             className="group-hover:text-accent transition-colors"
           />
-          <span className="font-normal text-xs">Connect Variable to Pose</span>
+          <span className="font-normal text-xs">Connect Driver to Pose</span>
         </Button>
         <Modal
           open={showSelector}
           onClose={() => setShowSelector(false)}
-          title="Connect Variable to Pose"
+          title="Connect Driver to Pose"
           maxWidth="md"
         >
           <VariableSelector
@@ -2233,12 +2238,12 @@ export function InspectorContent({
       const isRemovableCustomInput = rigInput.source === "custom";
       const deleteGuardrailMessage = isRemovableCustomInput
         ? null
-        : "This variable is system-managed and cannot be deleted from the inspector.";
+        : "This driver is system-managed and cannot be deleted from the inspector.";
       const controllableResolution = resolveControllableInputId(
         input.id,
         inputBindings,
       );
-      const isLockedFromFaceInspector = lockedAutorigInputIds.has(input.id);
+      const isLockedFromFaceInspector = lockedPropsRigInputIds.has(input.id);
       const isDirectRigControlAvailable =
         !isLockedFromFaceInspector &&
         !controllableResolution.blockedReason &&
@@ -2250,11 +2255,11 @@ export function InspectorContent({
           ? controllableResolution.blockedReason
           : controllableResolution.inputId &&
               controllableResolution.inputId !== input.id
-            ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Use the Parents expression/links below to add local control or adjust "${controllableResolution.inputId}".`
+            ? `This driver is derived from "${controllableResolution.inputId}" without a local self slot. Use the Parents expression/links below to add local control or adjust "${controllableResolution.inputId}".`
             : null;
       const {
         downstreamInputs,
-        downstreamAutorigInputs,
+        downstreamPropsRigInputs,
         directDependents,
         dependents,
       } = selectedRigTraversal;
@@ -2268,7 +2273,7 @@ export function InspectorContent({
             id: candidateId,
             linkId,
             label: parentEntry?.label || parentEntry?.path || candidateId,
-            isAutorig: isCanonicalAutorigInputPath(parentEntry?.path),
+            isPropsRig: isCanonicalPropsRigInputPath(parentEntry?.path),
             linkScale: linkConfig?.scale ?? 1,
             linkOffset: linkConfig?.offset ?? 0,
             linkEnabled: linkConfig?.enabled ?? true,
@@ -2365,7 +2370,7 @@ export function InspectorContent({
         setRigRangeMaxDraft(formatDraftNumber(reactivity.range.max));
         setRigLifecycleMessage({
           tone: "info",
-          text: "Variable metadata updated.",
+          text: "Driver metadata updated.",
         });
       };
 
@@ -2387,7 +2392,7 @@ export function InspectorContent({
         if (duplicatePath) {
           setRigLifecycleMessage({
             tone: "error",
-            text: `Another variable already uses "${normalizedPath}".`,
+            text: `Another driver already uses "${normalizedPath}".`,
           });
           return false;
         }
@@ -2421,11 +2426,11 @@ export function InspectorContent({
           impactNotes.push(`${linkedPoseCount} pose target(s)`);
         }
         if (downstreamInputs.length > 0) {
-          impactNotes.push(`${downstreamInputs.length} downstream variable(s)`);
+          impactNotes.push(`${downstreamInputs.length} downstream driver(s)`);
         }
-        if (downstreamAutorigInputs.length > 0) {
+        if (downstreamPropsRigInputs.length > 0) {
           impactNotes.push(
-            `${downstreamAutorigInputs.length} downstream autorig variable(s)`,
+            `${downstreamPropsRigInputs.length} downstream props rig driver(s)`,
           );
         }
         if (dependents.length > 0) {
@@ -2438,7 +2443,7 @@ export function InspectorContent({
             ? `\n\nThis also removes links from ${impactNotes.join(", ")}.`
             : "";
         const shouldDelete = window.confirm(
-          `Delete custom variable "${label}"?${impactSummary}`,
+          `Delete custom driver "${label}"?${impactSummary}`,
         );
         if (!shouldDelete) {
           return;
@@ -2456,7 +2461,7 @@ export function InspectorContent({
         );
 
         if (resolvedSelection.kind === "self-variable") {
-          alertDialog("A variable cannot directly drive itself.");
+          alertDialog("A driver cannot directly drive itself.");
           return;
         }
 
@@ -2466,8 +2471,8 @@ export function InspectorContent({
             standardInputsById,
           );
           if (
-            lockedAutorigInputIds.has(resolvedSelection.childInputId) ||
-            lockedAutorigInputIds.has(resolvedChildInputId)
+            lockedPropsRigInputIds.has(resolvedSelection.childInputId) ||
+            lockedPropsRigInputIds.has(resolvedChildInputId)
           ) {
             alertDialog(
               "Cannot add a child driver for a locked face property. Unlock it first in the Face Element inspector.",
@@ -2481,7 +2486,7 @@ export function InspectorContent({
           );
           if (alreadyLinked) {
             alertDialog(
-              "This variable is already driven by the selected rig variable.",
+              "This driver is already driven by the selected rig driver.",
             );
             openRigInspector(resolvedSelection.childInputId);
             return;
@@ -2514,20 +2519,20 @@ export function InspectorContent({
           }
           const missingTargetIds: string[] = [];
           const lockedTargetIds: string[] = [];
-          const lockedAutorigTargets: string[] = [];
-          const autorigInputIds = new Set<string>();
+          const lockedPropsRigTargets: string[] = [];
+          const propsrigInputIds = new Set<string>();
           componentTargetIds.forEach((targetId) => {
             if (lockedInspectorTargetIds.has(targetId)) {
               lockedTargetIds.push(targetId);
               return;
             }
-            const mappedAutorigInputId =
-              autorigInputIdByComponentId.get(targetId);
+            const mappedPropsRigInputId =
+              propsrigInputIdByComponentId.get(targetId);
             if (
-              mappedAutorigInputId &&
-              lockedAutorigInputIds.has(mappedAutorigInputId)
+              mappedPropsRigInputId &&
+              lockedPropsRigInputIds.has(mappedPropsRigInputId)
             ) {
-              lockedAutorigTargets.push(targetId);
+              lockedPropsRigTargets.push(targetId);
               return;
             }
 
@@ -2556,44 +2561,47 @@ export function InspectorContent({
               });
             }
 
-            const autorigInputId = autorigInputIdByComponentId.get(targetId);
-            if (!autorigInputId) {
+            const propsrigInputId = propsrigInputIdByComponentId.get(targetId);
+            if (!propsrigInputId) {
               missingTargetIds.push(targetId);
               return;
             }
-            autorigInputIds.add(autorigInputId);
+            propsrigInputIds.add(propsrigInputId);
           });
-          const resolvedAutorigInputIds = Array.from(autorigInputIds);
-          if (resolvedAutorigInputIds.length === 0) {
-            if (lockedTargetIds.length > 0 || lockedAutorigTargets.length > 0) {
+          const resolvedPropsRigInputIds = Array.from(propsrigInputIds);
+          if (resolvedPropsRigInputIds.length === 0) {
+            if (
+              lockedTargetIds.length > 0 ||
+              lockedPropsRigTargets.length > 0
+            ) {
               alertDialog(
                 "Selected properties are locked in the Face Element inspector. Unlock them before adding child drivers.",
               );
               return;
             }
             alertDialog(
-              "Some selected properties are not currently mapped to autorig inputs.",
+              "Some selected properties are not currently mapped to props rig inputs.",
             );
             return;
           }
           const selectionLabel =
             selection.type === "property" ? selection.label : "selection";
           const shouldApplyBulk =
-            resolvedAutorigInputIds.length === 1 ||
+            resolvedPropsRigInputIds.length === 1 ||
             (typeof window !== "undefined" &&
               window.confirm(
-                `Bind all ${resolvedAutorigInputIds.length} components for "${selectionLabel}" to this rig input?`,
+                `Bind all ${resolvedPropsRigInputIds.length} components for "${selectionLabel}" to this rig input?`,
               ));
           if (!shouldApplyBulk) {
             return;
           }
           let linkedCount = 0;
-          resolvedAutorigInputIds.forEach((autorigInputId) => {
-            const resolvedAutorigInputId = resolveRigMetadataInputId(
-              autorigInputId,
+          resolvedPropsRigInputIds.forEach((propsrigInputId) => {
+            const resolvedPropsRigInputId = resolveRigMetadataInputId(
+              propsrigInputId,
               standardInputsById,
             );
-            const existingInputBinding = inputBindings[resolvedAutorigInputId];
+            const existingInputBinding = inputBindings[resolvedPropsRigInputId];
             const alreadyLinked = hasParentBindingInput(
               existingInputBinding,
               resolvedSelectedRigId,
@@ -2602,10 +2610,10 @@ export function InspectorContent({
               return;
             }
             handleCreateParentDriverBinding(
-              resolvedAutorigInputId,
+              resolvedPropsRigInputId,
               resolvedSelectedRigId,
             );
-            applyPipelineMetadataPatchForInput(resolvedAutorigInputId, {
+            applyPipelineMetadataPatchForInput(resolvedPropsRigInputId, {
               migrationStatus: "migrated",
               migrationSource: "staged-link-authoring",
             });
@@ -2614,17 +2622,20 @@ export function InspectorContent({
           if (
             (missingTargetIds.length > 0 ||
               lockedTargetIds.length > 0 ||
-              lockedAutorigTargets.length > 0) &&
+              lockedPropsRigTargets.length > 0) &&
             linkedCount === 0
           ) {
-            if (lockedTargetIds.length > 0 || lockedAutorigTargets.length > 0) {
+            if (
+              lockedTargetIds.length > 0 ||
+              lockedPropsRigTargets.length > 0
+            ) {
               alertDialog(
                 "Selected properties are locked in the Face Element inspector. Unlock them before adding child drivers.",
               );
               return;
             }
             alertDialog(
-              "Some selected properties are not currently mapped to autorig inputs.",
+              "Some selected properties are not currently mapped to props rig inputs.",
             );
           }
           return;
@@ -2639,7 +2650,7 @@ export function InspectorContent({
         );
 
         if (resolvedSelection.kind === "self-variable") {
-          alertDialog("A variable cannot directly drive itself.");
+          alertDialog("A driver cannot directly drive itself.");
           return;
         }
 
@@ -2651,7 +2662,7 @@ export function InspectorContent({
           const existingBinding = inputBindings[resolvedSelectedRigId];
           if (hasParentBindingInput(existingBinding, parentInputId)) {
             alertDialog(
-              "This variable is already linked as a parent for the selected variable.",
+              "This driver is already linked as a parent for the selected driver.",
             );
             openRigInspector(parentInputId);
             return;
@@ -2681,7 +2692,7 @@ export function InspectorContent({
           const missingTargetIds: string[] = [];
           const parentInputIds = new Set<string>();
           componentTargetIds.forEach((targetId) => {
-            const parentInputId = autorigInputIdByComponentId.get(targetId);
+            const parentInputId = propsrigInputIdByComponentId.get(targetId);
             if (!parentInputId) {
               missingTargetIds.push(targetId);
               return;
@@ -2691,7 +2702,7 @@ export function InspectorContent({
           const resolvedParentInputIds = Array.from(parentInputIds);
           if (resolvedParentInputIds.length === 0) {
             alertDialog(
-              "Some selected properties are not currently mapped to autorig inputs.",
+              "Some selected properties are not currently mapped to props rig inputs.",
             );
             return;
           }
@@ -2701,7 +2712,7 @@ export function InspectorContent({
             resolvedParentInputIds.length === 1 ||
             (typeof window !== "undefined" &&
               window.confirm(
-                `Link all ${resolvedParentInputIds.length} components from "${selectionLabel}" as parents for this variable?`,
+                `Link all ${resolvedParentInputIds.length} components from "${selectionLabel}" as parents for this driver?`,
               ));
           if (!shouldApplyBulk) {
             return;
@@ -2726,13 +2737,13 @@ export function InspectorContent({
           }
           if (linkedCount === 0) {
             alertDialog(
-              "Selected properties are already linked as parents for this variable.",
+              "Selected properties are already linked as parents for this driver.",
             );
             return;
           }
           if (missingTargetIds.length > 0) {
             alertDialog(
-              "Some selected properties are not currently mapped to autorig inputs.",
+              "Some selected properties are not currently mapped to props rig inputs.",
             );
           }
           return;
@@ -2765,12 +2776,12 @@ export function InspectorContent({
         parentDirectMin: number;
         parentDirectMax: number;
         label: string;
-        kind: "variable" | "property" | "autorig";
+        kind: "variable" | "property" | "propsrig";
         onClick: () => void;
       }> = [];
       parentRigInputRefs.forEach((entry) => {
         const parentDirectControl = resolveParentDirectControl(entry.id);
-        if (!entry.isAutorig) {
+        if (!entry.isPropsRig) {
           parentRigChainItems.push({
             key: `variable:${entry.id}`,
             inputId: entry.id,
@@ -2805,11 +2816,11 @@ export function InspectorContent({
           });
           return;
         }
-        if (!showAutorigInternals) {
+        if (!showPropsRigInternals) {
           return;
         }
         parentRigChainItems.push({
-          key: `autorig:${entry.id}`,
+          key: `propsrig:${entry.id}`,
           inputId: entry.id,
           linkId: entry.linkId,
           linkScale: entry.linkScale,
@@ -2819,7 +2830,7 @@ export function InspectorContent({
           parentDirectMin: parentDirectControl.min,
           parentDirectMax: parentDirectControl.max,
           label: entry.label,
-          kind: "autorig",
+          kind: "propsrig",
           onClick: () => openRigInspector(entry.id),
         });
       });
@@ -2827,7 +2838,7 @@ export function InspectorContent({
       const drivenChainItems: Array<{
         key: string;
         label: string;
-        kind: "variable" | "property" | "autorig";
+        kind: "variable" | "property" | "propsrig";
         drivenInputId?: string;
         linkId?: string;
         linkScale?: number;
@@ -2880,7 +2891,7 @@ export function InspectorContent({
           onClick: () => openRigInspector(entry.id),
         });
       });
-      downstreamAutorigInputs.forEach((entry) => {
+      downstreamPropsRigInputs.forEach((entry) => {
         const linkId = buildRigPipelineV1LinkId(input.id, entry.id);
         const linkConfig = pipelineLinksById.get(linkId);
         const mappedTargetId = componentIdByInputId.get(entry.id) ?? null;
@@ -2903,10 +2914,10 @@ export function InspectorContent({
           });
           return;
         }
-        if (!showAutorigInternals) {
+        if (!showPropsRigInternals) {
           return;
         }
-        const key = `autorig:${entry.id}`;
+        const key = `propsrig:${entry.id}`;
         if (seenDrivenKeys.has(key)) {
           return;
         }
@@ -2914,7 +2925,7 @@ export function InspectorContent({
         drivenChainItems.push({
           key,
           label: entry.label,
-          kind: "autorig",
+          kind: "propsrig",
           drivenInputId: entry.id,
           linkId,
           linkScale: linkConfig?.scale ?? 1,
@@ -3223,7 +3234,7 @@ export function InspectorContent({
                 )}
                 title={
                   isRemovableCustomInput
-                    ? "Delete custom variable"
+                    ? "Delete custom driver"
                     : (deleteGuardrailMessage ?? undefined)
                 }
                 onClick={handleDeleteSelectedRigInput}
@@ -3235,7 +3246,7 @@ export function InspectorContent({
           {renderChainPath()}
           {renderAuthoringStatus()}
           <CollapsibleGroup
-            title="Variable Metadata"
+            title="Driver Metadata"
             subtitle={`Default ${input.defaultValue.toFixed(3)} · Range ${input.range.min.toFixed(3)}..${input.range.max.toFixed(3)} · ${
               pipelineStageSettings.clampEnabled ? "Clamp on" : "Clamp off"
             }`}
@@ -3411,7 +3422,7 @@ export function InspectorContent({
               </Button>
               {!isRemovableCustomInput && (
                 <span className="text-[10px] text-amber-200/90">
-                  Deletion is disabled for system-managed variables.
+                  Deletion is disabled for system-managed drivers.
                 </span>
               )}
             </div>
@@ -3570,7 +3581,7 @@ export function InspectorContent({
             <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                  Shared Variable Link
+                  Shared Driver Link
                 </span>
                 <span
                   className={cn(
@@ -3661,8 +3672,8 @@ export function InspectorContent({
             onClose={() => setShowSelector(false)}
             title={
               rigLinkSelectorMode === "parent"
-                ? "Select Variable or Property to Use as Parent"
-                : "Select Variable or Property to Drive"
+                ? "Select Driver or Property to Use as Parent"
+                : "Select Driver or Property to Drive"
             }
             maxWidth="md"
           >

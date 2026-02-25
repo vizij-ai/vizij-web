@@ -111,10 +111,10 @@ export interface StandardRigInput {
   derivedChildren?: string[];
 }
 
-export const AUTORIG_PATH_PREFIX = "/autorig";
-export const AUTORIG_INPUT_PATH_PREFIX = AUTORIG_PATH_PREFIX;
+export const PROPSRIG_PATH_PREFIX = "/propsrig";
+export const PROPSRIG_INPUT_PATH_PREFIX = PROPSRIG_PATH_PREFIX;
 export const RIG_ELEMENT_INPUT_PATH_PREFIX = "/rig/element";
-export const LEGACY_AUTORIG_INPUT_PATH_PREFIX = RIG_ELEMENT_INPUT_PATH_PREFIX;
+export const LEGACY_PROPSRIG_INPUT_PATH_PREFIX = RIG_ELEMENT_INPUT_PATH_PREFIX;
 
 function normalizeRigInputCandidate(value: string | null | undefined): string {
   if (!value) {
@@ -133,14 +133,14 @@ export function isRigElementStandardInputPath(
   const normalized = normalizeStandardRigInputPath(path);
   const faceStripped = normalized.replace(/^\/rig\/[^/]+\//, "/");
   return (
-    normalized.startsWith(AUTORIG_INPUT_PATH_PREFIX) ||
+    normalized.startsWith(PROPSRIG_INPUT_PATH_PREFIX) ||
     normalized.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX) ||
-    faceStripped.startsWith(AUTORIG_INPUT_PATH_PREFIX) ||
+    faceStripped.startsWith(PROPSRIG_INPUT_PATH_PREFIX) ||
     faceStripped.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX)
   );
 }
 
-export function isAutorigStandardInputPath(
+export function isPropsRigStandardInputPath(
   path: string | null | undefined,
 ): boolean {
   return isRigElementStandardInputPath(path);
@@ -212,8 +212,10 @@ export function resolveStandardRigInputId(
   };
 
   const enqueueAliasPath = (normalizedPath: string) => {
-    if (normalizedPath.startsWith(`${AUTORIG_INPUT_PATH_PREFIX}/`)) {
-      const suffix = normalizedPath.slice(AUTORIG_INPUT_PATH_PREFIX.length + 1);
+    if (normalizedPath.startsWith(`${PROPSRIG_INPUT_PATH_PREFIX}/`)) {
+      const suffix = normalizedPath.slice(
+        PROPSRIG_INPUT_PATH_PREFIX.length + 1,
+      );
       if (suffix.length > 0) {
         addPathCandidates(`${RIG_ELEMENT_INPUT_PATH_PREFIX}/${suffix}`);
       }
@@ -223,19 +225,19 @@ export function resolveStandardRigInputId(
         RIG_ELEMENT_INPUT_PATH_PREFIX.length + 1,
       );
       if (suffix.length > 0) {
-        addPathCandidates(`${AUTORIG_INPUT_PATH_PREFIX}/${suffix}`);
+        addPathCandidates(`${PROPSRIG_INPUT_PATH_PREFIX}/${suffix}`);
       }
     }
     if (normalizedPath.startsWith("/pose/control/")) {
       addPathCandidates(
-        `${AUTORIG_INPUT_PATH_PREFIX}/${normalizedPath.slice(
+        `${PROPSRIG_INPUT_PATH_PREFIX}/${normalizedPath.slice(
           "/pose/control/".length,
         )}`,
       );
     }
     if (normalizedPath.startsWith("/rig/control/")) {
       addPathCandidates(
-        `${AUTORIG_INPUT_PATH_PREFIX}/${normalizedPath.slice(
+        `${PROPSRIG_INPUT_PATH_PREFIX}/${normalizedPath.slice(
           "/rig/control/".length,
         )}`,
       );
@@ -263,7 +265,7 @@ export function resolveStandardRigInputId(
   addIdCandidate(selectedRigId);
   addIdCandidate(normalizedInput);
   addIdCandidate(selectedRigId.replace(/^\/+/, ""));
-  addIdCandidate(selectedRigId.replace(/^(?:autorig|rig[_-]element)_/, ""));
+  addIdCandidate(selectedRigId.replace(/^(?:propsrig|rig[_-]element)_/, ""));
   addIdCandidate(normalizedInput.replace(/^\/rig\//, ""));
   if (!selectedRigId.includes("/")) {
     addIdCandidate(selectedRigId.replace(/_/g, "/"));
@@ -312,20 +314,20 @@ export function resolveStandardRigInputId(
       }
       if (normalized.startsWith("/pose/control/")) {
         inputPathCandidates.add(
-          `${AUTORIG_INPUT_PATH_PREFIX}/${normalized.slice(
+          `${PROPSRIG_INPUT_PATH_PREFIX}/${normalized.slice(
             "/pose/control/".length,
           )}`,
         );
       }
       if (normalized.startsWith("/rig/control/")) {
         inputPathCandidates.add(
-          `${AUTORIG_INPUT_PATH_PREFIX}/${normalized.slice(
+          `${PROPSRIG_INPUT_PATH_PREFIX}/${normalized.slice(
             "/rig/control/".length,
           )}`,
         );
       }
-      if (normalized.startsWith(AUTORIG_INPUT_PATH_PREFIX)) {
-        const suffix = normalized.slice(AUTORIG_INPUT_PATH_PREFIX.length + 1);
+      if (normalized.startsWith(PROPSRIG_INPUT_PATH_PREFIX)) {
+        const suffix = normalized.slice(PROPSRIG_INPUT_PATH_PREFIX.length + 1);
         if (suffix.length > 0) {
           inputPathCandidates.add(`${RIG_ELEMENT_INPUT_PATH_PREFIX}/${suffix}`);
         }
@@ -335,7 +337,7 @@ export function resolveStandardRigInputId(
           RIG_ELEMENT_INPUT_PATH_PREFIX.length + 1,
         );
         if (suffix.length > 0) {
-          inputPathCandidates.add(`${AUTORIG_INPUT_PATH_PREFIX}/${suffix}`);
+          inputPathCandidates.add(`${PROPSRIG_INPUT_PATH_PREFIX}/${suffix}`);
         }
       }
     };

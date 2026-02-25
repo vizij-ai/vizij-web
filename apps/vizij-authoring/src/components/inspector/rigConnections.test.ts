@@ -208,10 +208,10 @@ describe("collectDirectDownstreamRigInputs", () => {
     ]);
   });
 
-  it("omits direct child autorig inputs from downstream variable list", () => {
+  it("omits direct child propsrig inputs from downstream variable list", () => {
     const inputBindings: InputBindingMap = {
-      "autorig/eye/open": {
-        targetId: "autorig/eye/open",
+      "propsrig/eye/open": {
+        targetId: "propsrig/eye/open",
         inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
@@ -219,12 +219,12 @@ describe("collectDirectDownstreamRigInputs", () => {
     };
     const standardInputsById = new Map<string, StandardRigInput>([
       [
-        "autorig/eye/open",
+        "propsrig/eye/open",
         {
-          id: "autorig/eye/open",
-          path: "/autorig/eye/open",
+          id: "propsrig/eye/open",
+          path: "/propsrig/eye/open",
           label: "Eye Open",
-          group: "autorig",
+          group: "propsrig",
           defaultValue: 0,
           range: { min: -1, max: 1 },
         },
@@ -251,10 +251,10 @@ describe("collectDirectDownstreamRigInputs", () => {
     expect(dependents).toEqual([]);
   });
 
-  it("includes direct child autorig inputs when explicitly requested", () => {
+  it("includes direct child propsrig inputs when explicitly requested", () => {
     const inputBindings: InputBindingMap = {
-      "autorig/eye/open": {
-        targetId: "autorig/eye/open",
+      "propsrig/eye/open": {
+        targetId: "propsrig/eye/open",
         inputId: null,
         expression: "s1",
         slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
@@ -268,12 +268,12 @@ describe("collectDirectDownstreamRigInputs", () => {
     };
     const standardInputsById = new Map<string, StandardRigInput>([
       [
-        "autorig/eye/open",
+        "propsrig/eye/open",
         {
-          id: "autorig/eye/open",
-          path: "/autorig/eye/open",
+          id: "propsrig/eye/open",
+          path: "/propsrig/eye/open",
           label: "Eye Open",
-          group: "autorig",
+          group: "propsrig",
           defaultValue: 0,
           range: { min: -1, max: 1 },
         },
@@ -306,11 +306,11 @@ describe("collectDirectDownstreamRigInputs", () => {
       selectedRigId: "rig/parent/jaw_open",
       inputBindings,
       standardInputsById,
-      includeAutorig: true,
+      includePropsRig: true,
     });
 
     expect(dependents).toEqual([
-      { id: "autorig/eye/open", label: "Eye Open", layer: "autorig" },
+      { id: "propsrig/eye/open", label: "Eye Open", layer: "propsrig" },
       { id: "rig/child/lip_raise", label: "Lip Raise", layer: "rig" },
     ]);
   });
@@ -590,7 +590,7 @@ describe("buildPoseRigFaceTrace", () => {
           {
             id: "s1",
             alias: "s1",
-            inputId: "autorig/l_eyewhite_translation_y",
+            inputId: "propsrig/l_eyewhite_translation_y",
           },
         ],
       },
@@ -602,11 +602,11 @@ describe("buildPoseRigFaceTrace", () => {
     const extendedInputs = new Map<string, StandardRigInput>(
       standardInputsById,
     );
-    extendedInputs.set("autorig/l_eyewhite_translation_y", {
-      id: "autorig/l_eyewhite_translation_y",
-      path: "/autorig/face/left/eyewhite/translation/y",
+    extendedInputs.set("propsrig/l_eyewhite_translation_y", {
+      id: "propsrig/l_eyewhite_translation_y",
+      path: "/propsrig/face/left/eyewhite/translation/y",
       label: "Left Eyewhite Translation Y",
-      group: "autorig",
+      group: "propsrig",
       defaultValue: 0,
       range: { min: -2, max: 2 },
     });
@@ -795,12 +795,12 @@ describe("pose rig traversal helpers", () => {
       },
     ],
     [
-      "autorig/mouth/open",
+      "propsrig/mouth/open",
       {
-        id: "autorig/mouth/open",
-        path: "/autorig/face/mouth/open",
-        label: "Mouth Open Autorig",
-        group: "autorig",
+        id: "propsrig/mouth/open",
+        path: "/propsrig/face/mouth/open",
+        label: "Mouth Open Props Rig",
+        group: "propsrig",
         defaultValue: 0,
         range: { min: -1, max: 1 },
       },
@@ -812,9 +812,9 @@ describe("pose rig traversal helpers", () => {
       {
         targetId: "anim://mouth/open",
         targetLabel: "Face Mesh · Mouth Open",
-        directRigInputIds: ["autorig/mouth/open"],
-        upstreamRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
-        orderedRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+        directRigInputIds: ["propsrig/mouth/open"],
+        upstreamRigInputIds: ["propsrig/mouth/open", "rig/parent/jaw_open"],
+        orderedRigInputIds: ["propsrig/mouth/open", "rig/parent/jaw_open"],
         matchedPoseOutputs: [
           {
             poseId: "pose_1",
@@ -830,12 +830,12 @@ describe("pose rig traversal helpers", () => {
     standardInputsById,
   });
 
-  it("builds traversal path using Pose -> Rig -> Autorig -> Animatable semantics", () => {
+  it("builds traversal path using Pose -> Rig -> Props Rig -> Animatable semantics", () => {
     expect(traversalPaths).toHaveLength(1);
     expect(traversalPaths[0]?.nodes.map((node) => node.kind)).toEqual([
       "pose",
       "rig",
-      "autorig",
+      "propsrig",
       "animatable",
     ]);
   });
@@ -849,7 +849,7 @@ describe("pose rig traversal helpers", () => {
       initial,
       "upstream",
     );
-    expect(upstreamOne?.nodeId).toContain("autorig:");
+    expect(upstreamOne?.nodeId).toContain("propsrig:");
 
     const upstreamTwo = movePoseRigTraversalSelection(
       traversalPaths,
@@ -877,7 +877,7 @@ describe("pose rig traversal helpers", () => {
       downstreamOne,
       "downstream",
     );
-    expect(downstreamTwo?.nodeId).toContain("autorig:");
+    expect(downstreamTwo?.nodeId).toContain("propsrig:");
 
     const downstreamThree = movePoseRigTraversalSelection(
       traversalPaths,
@@ -911,14 +911,14 @@ describe("pose rig traversal helpers", () => {
         {
           targetId: "anim://mouth/open",
           targetLabel: "Face Mesh · Mouth Open",
-          directRigInputIds: ["autorig/mouth/open"],
+          directRigInputIds: ["propsrig/mouth/open"],
           upstreamRigInputIds: [
-            "autorig/mouth/open",
+            "propsrig/mouth/open",
             "rig/parent/jaw_open",
             "rig/unused/extra",
           ],
           orderedRigInputIds: [
-            "autorig/mouth/open",
+            "propsrig/mouth/open",
             "rig/parent/jaw_open",
             "rig/unused/extra",
           ],
@@ -969,7 +969,7 @@ describe("pose rig traversal helpers", () => {
     );
 
     expect(initial?.nodeId).toContain("animatable:");
-    expect(next?.nodeId).toContain("autorig:");
-    expect(nextNode?.kind).toBe("autorig");
+    expect(next?.nodeId).toContain("propsrig:");
+    expect(nextNode?.kind).toBe("propsrig");
   });
 });

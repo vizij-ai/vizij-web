@@ -13,7 +13,7 @@ const uiDesignDoc = readFileSync(
 
 describe("B2.1 variable lifecycle contracts", () => {
   it("keeps variable metadata editing in the rig inspector flow", () => {
-    expect(inspectorContentTsx).toContain("Variable Metadata");
+    expect(inspectorContentTsx).toContain("Driver Metadata");
     expect(inspectorContentTsx).toContain("Apply Metadata");
     expect(inspectorContentTsx).toContain("handleApplyRigMetadataDraft");
   });
@@ -23,7 +23,7 @@ describe("B2.1 variable lifecycle contracts", () => {
       "Default value must stay within the configured min/max range.",
     );
     expect(inspectorContentTsx).toContain(
-      "Deletion is disabled for system-managed variables.",
+      "Deletion is disabled for system-managed drivers.",
     );
     expect(inspectorContentTsx).toContain("handleDeleteCustomStandardInput");
   });

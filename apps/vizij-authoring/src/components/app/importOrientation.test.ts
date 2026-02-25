@@ -51,7 +51,7 @@ describe("resolveRootSceneRotationInputs", () => {
     const inputs: ManagedStandardInput[] = [
       createManagedInput({
         id: "root_rotation_x",
-        path: "/autorig/scene/rotation/x",
+        path: "/propsrig/scene/rotation/x",
         defaultValue: 0,
         metadata: createMetadata({
           componentKey: "x",
@@ -61,7 +61,7 @@ describe("resolveRootSceneRotationInputs", () => {
       }),
       createManagedInput({
         id: "root_rotation_y",
-        path: "/autorig/scene/rotation/y",
+        path: "/propsrig/scene/rotation/y",
         defaultValue: Math.PI / 2,
         metadata: createMetadata({
           componentKey: "y",
@@ -71,7 +71,7 @@ describe("resolveRootSceneRotationInputs", () => {
       }),
       createManagedInput({
         id: "other_rotation_z",
-        path: "/autorig/other/rotation/z",
+        path: "/propsrig/other/rotation/z",
         defaultValue: Math.PI,
         metadata: createMetadata({
           elementId: "other-root",
@@ -93,12 +93,12 @@ describe("resolveRootSceneRotationInputs", () => {
     const inputs: ManagedStandardInput[] = [
       createManagedInput({
         id: "scene_rotation_z",
-        path: "/standard/autorig/scene/rotation/z",
+        path: "/standard/propsrig/scene/rotation/z",
         defaultValue: Math.PI / 2,
       }),
       createManagedInput({
         id: "eye_rotation_x",
-        path: "/standard/autorig/left_eye/rotation/x",
+        path: "/standard/propsrig/left_eye/rotation/x",
         defaultValue: Math.PI / 4,
       }),
     ];
@@ -113,7 +113,7 @@ describe("resolveRootSceneRotationInputs", () => {
     const inputs: ManagedStandardInput[] = [
       createManagedInput({
         id: "scene_rotation_x_disabled",
-        path: "/autorig/scene/rotation/x",
+        path: "/propsrig/scene/rotation/x",
         disabled: true,
         metadata: createMetadata({
           componentKey: "x",
@@ -123,7 +123,7 @@ describe("resolveRootSceneRotationInputs", () => {
       }),
       createManagedInput({
         id: "scene_rotation_y_custom",
-        path: "/autorig/scene/rotation/y",
+        path: "/propsrig/scene/rotation/y",
         source: "custom",
         metadata: createMetadata({
           componentKey: "y",

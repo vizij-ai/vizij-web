@@ -131,7 +131,7 @@ export function useRigGraphImport({
           faceId,
           animatables,
           components: animatableComponents,
-          provisionedAutorigInputs: blueprint.blueprints.map(
+          provisionedPropsRigInputs: blueprint.blueprints.map(
             (entry) => entry.input,
           ),
         });
@@ -286,26 +286,26 @@ export function useRigGraphImport({
           missingBlueprintPaths,
         });
 
-        if (rehydrated.legacyAutorigInputPaths.length > 0) {
-          const limited = rehydrated.legacyAutorigInputPaths.slice(0, 8);
+        if (rehydrated.legacyPropsRigInputPaths.length > 0) {
+          const limited = rehydrated.legacyPropsRigInputPaths.slice(0, 8);
           const remaining = Math.max(
             0,
-            rehydrated.legacyAutorigInputPaths.length - limited.length,
+            rehydrated.legacyPropsRigInputPaths.length - limited.length,
           );
           const samplePaths = limited
             .map((path) => {
               const suggestion = path.replace(
                 /^\/rig\/element\/?/,
-                "/autorig/",
+                "/propsrig/",
               );
               return `  ${path} -> ${suggestion}`;
             })
             .join("\n");
           const suffix = remaining > 0 ? `\n  ...and ${remaining} more` : "";
           alertDialog(
-            "Legacy autorig namespace detected.\n" +
-              `Imported graph contains ${rehydrated.legacyAutorigInputPaths.length} input path(s) under /rig/element.\n` +
-              "Expected low-level generated namespace is /autorig.\n" +
+            "Legacy props rig namespace detected.\n" +
+              `Imported graph contains ${rehydrated.legacyPropsRigInputPaths.length} input path(s) under /rig/element.\n` +
+              "Expected low-level generated namespace is /propsrig.\n" +
               "Example remaps:\n" +
               samplePaths +
               suffix,
@@ -313,7 +313,7 @@ export function useRigGraphImport({
         }
         const normalizationDiagnostics = rehydrated.normalizationDiagnostics;
         const normalizationCount =
-          normalizationDiagnostics.createdAutorigInputs.length +
+          normalizationDiagnostics.createdPropsRigInputs.length +
           normalizationDiagnostics.inputIdRemaps.length +
           normalizationDiagnostics.targetIdRemaps.length +
           normalizationDiagnostics.animatableRetargets.length;
@@ -325,8 +325,8 @@ export function useRigGraphImport({
           });
           // eslint-disable-next-line no-console -- explicit import migration diagnostics
           console.warn("[vizij-authoring] Import normalization applied.", {
-            createdAutorigInputs:
-              normalizationDiagnostics.createdAutorigInputs.length,
+            createdPropsRigInputs:
+              normalizationDiagnostics.createdPropsRigInputs.length,
             inputIdRemaps: normalizationDiagnostics.inputIdRemaps.length,
             targetIdRemaps: normalizationDiagnostics.targetIdRemaps.length,
             animatableRetargets:
@@ -349,8 +349,8 @@ export function useRigGraphImport({
           const fallbackLines = limitedFallbacks
             .map((fallback) => {
               const suffix =
-                fallback.reason === "missing-autorig-target"
-                  ? "missing autorig target"
+                fallback.reason === "missing-propsrig-target"
+                  ? "missing props rig target"
                   : "missing source input";
               return `  ${fallback.animatableTargetId} (${fallback.slotId}) <- ${fallback.inputId} (${suffix})`;
             })
@@ -460,9 +460,9 @@ export function useRigGraphImport({
                 `Target id normalization remaps applied: ${normalizationDiagnostics.targetIdRemaps.length}.`,
               );
             }
-            if (normalizationDiagnostics.createdAutorigInputs.length > 0) {
+            if (normalizationDiagnostics.createdPropsRigInputs.length > 0) {
               mismatchReasons.push(
-                `Autorig targets provisioned before rebinding: ${normalizationDiagnostics.createdAutorigInputs.length}.`,
+                `Props rig targets provisioned before rebinding: ${normalizationDiagnostics.createdPropsRigInputs.length}.`,
               );
             }
             if (normalizationDiagnostics.inputIdRemaps.length > 0) {
@@ -472,7 +472,7 @@ export function useRigGraphImport({
             }
             if (normalizationDiagnostics.animatableRetargets.length > 0) {
               mismatchReasons.push(
-                `Invalid direct animatable bindings retargeted to autorig inputs: ${normalizationDiagnostics.animatableRetargets.length}.`,
+                `Invalid direct animatable bindings retargeted to props rig inputs: ${normalizationDiagnostics.animatableRetargets.length}.`,
               );
             }
             if (normalizationDiagnostics.animatableFallbacks.length > 0) {

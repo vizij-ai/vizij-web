@@ -6,23 +6,23 @@ import {
 } from "./faceInspectorSemantics";
 
 describe("face inspector channel semantics", () => {
-  it("resolves current value from autorig channel authority", () => {
+  it("resolves current value from propsrig channel authority", () => {
     const resolved = resolveFaceInspectorCurrentValue({
-      inputId: "autorig-face-x",
+      inputId: "propsrig-face-x",
       standardInput: {
-        id: "autorig-face-x",
-        path: "/autorig/face/translation/x",
+        id: "propsrig-face-x",
+        path: "/propsrig/face/translation/x",
         defaultValue: 0.1,
       } as any,
       unresolvedInputId: null,
       blockedReason: null,
-      inputValues: { "autorig-face-x": 0.42 },
+      inputValues: { "propsrig-face-x": 0.42 },
       staticValue: -1,
     });
 
     expect(resolved.currentValue).toBe(0.42);
-    expect(resolved.sourceKind).toBe("autorig-channel");
-    expect(resolved.sourceLabel).toBe("/autorig/face/translation/x");
+    expect(resolved.sourceKind).toBe("propsrig-channel");
+    expect(resolved.sourceLabel).toBe("/propsrig/face/translation/x");
   });
 
   it("falls back to static value for unresolved channel authority", () => {

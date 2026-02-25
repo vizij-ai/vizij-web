@@ -4,7 +4,7 @@ import type {
   InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
-import { isAutorigStandardInputPath } from "../../utils/rigElementInputs";
+import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { getStandardInputResolutionIndex } from "../../utils/standardInputResolutionIndex";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
@@ -17,7 +17,7 @@ interface RigDependentTarget {
 export interface DirectRigInputDependent {
   id: string;
   label: string;
-  layer: "rig" | "autorig";
+  layer: "rig" | "propsrig";
 }
 
 export type PoseRigSourceKind =
@@ -63,7 +63,7 @@ export interface PoseRigFaceTrace {
 export type PoseRigTraversalNodeKind =
   | "pose"
   | "rig"
-  | "autorig"
+  | "propsrig"
   | "animatable";
 
 export interface PoseRigTraversalNode {
@@ -241,13 +241,13 @@ export function collectDirectDownstreamRigInputs(params: {
   selectedRigId: string;
   inputBindings: InputBindingMap;
   standardInputsById: Map<string, StandardRigInput>;
-  includeAutorig?: boolean;
+  includePropsRig?: boolean;
 }): DirectRigInputDependent[] {
   const {
     selectedRigId,
     inputBindings,
     standardInputsById,
-    includeAutorig = false,
+    includePropsRig = false,
   } = params;
   const { canonicalSelectedRigId, isMatch } = createCanonicalRigIdMatcher(
     selectedRigId,
@@ -263,8 +263,8 @@ export function collectDirectDownstreamRigInputs(params: {
       return;
     }
     const targetInput = standardInputsById.get(targetInputId);
-    const isAutorig = isAutorigStandardInputPath(targetInput?.path);
-    if (isAutorig && !includeAutorig) {
+    const isPropsRig = isPropsRigStandardInputPath(targetInput?.path);
+    if (isPropsRig && !includePropsRig) {
       return;
     }
     const inputIds = collectBindingInputIds(binding);
@@ -275,7 +275,7 @@ export function collectDirectDownstreamRigInputs(params: {
     results.set(targetInputId, {
       id: targetInputId,
       label: input?.label || input?.path || targetInputId,
-      layer: isAutorig ? "autorig" : "rig",
+      layer: isPropsRig ? "propsrig" : "rig",
     });
   });
 
@@ -510,7 +510,7 @@ function tokenizeInputId(value: string): string[] {
 }
 
 const GENERIC_INPUT_TOKENS = new Set<string>([
-  "autorig",
+  "propsrig",
   "rig",
   "parent",
   "child",
@@ -1076,8 +1076,8 @@ export function buildPoseRigTraversalPaths(params: {
 
     if (directRigInputId) {
       const directInput = standardInputsById.get(directRigInputId);
-      const directKind = isAutorigStandardInputPath(directInput?.path)
-        ? "autorig"
+      const directKind = isPropsRigStandardInputPath(directInput?.path)
+        ? "propsrig"
         : "rig";
       nodes.push({
         id: `${directKind}:${directRigInputId}`,

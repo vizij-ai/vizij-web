@@ -141,24 +141,24 @@ export function buildRuntimeInputRouteSnapshot({
         `/${remainder}`,
         stripStandardInputPathPrefix(`/${remainder}`),
       ]);
-      if (remainder.startsWith("autorig/")) {
+      if (remainder.startsWith("propsrig/")) {
         candidatePaths.add(
-          `/rig/element/${remainder.slice("autorig/".length)}`,
+          `/rig/element/${remainder.slice("propsrig/".length)}`,
         );
       }
       if (remainder.startsWith("rig/element/")) {
         candidatePaths.add(
-          `/autorig/${remainder.slice("rig/element/".length)}`,
+          `/propsrig/${remainder.slice("rig/element/".length)}`,
         );
       }
       if (remainder.startsWith("pose/control/")) {
         candidatePaths.add(
-          `/autorig/${remainder.slice("pose/control/".length)}`,
+          `/propsrig/${remainder.slice("pose/control/".length)}`,
         );
       }
       if (remainder.startsWith("rig/control/")) {
         candidatePaths.add(
-          `/autorig/${remainder.slice("rig/control/".length)}`,
+          `/propsrig/${remainder.slice("rig/control/".length)}`,
         );
       }
       for (const candidatePath of Array.from(candidatePaths)) {

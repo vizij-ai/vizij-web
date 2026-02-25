@@ -25,7 +25,7 @@ function createInput(
 
 describe("buildRuntimeInputRouteSnapshot", () => {
   it("maps canonical routes, filters pose-control inputs, and backfills managed fallbacks", () => {
-    const jawAlias = createInput("jaw_alias", "/autorig/jaw/open", 0.6);
+    const jawAlias = createInput("jaw_alias", "/propsrig/jaw/open", 0.6);
     const brow = createInput("brow_up", "/standard/brow/up", 0.2);
     const byPath = new Map<string, StandardRigInput>([
       [normalizeStandardRigInputPath(jawAlias.path), jawAlias],
@@ -38,7 +38,7 @@ describe("buildRuntimeInputRouteSnapshot", () => {
     const snapshot = buildRuntimeInputRouteSnapshot({
       faceId: "face",
       graphSummary: {
-        inputs: ["pose/control/internal", "rig/face/autorig/jaw/open"],
+        inputs: ["pose/control/internal", "rig/face/propsrig/jaw/open"],
       } as any,
       rigOutputLookup: new Map(),
       standardInputsByPath: byPath,
@@ -53,7 +53,7 @@ describe("buildRuntimeInputRouteSnapshot", () => {
 
     expect(snapshot.routesByCanonicalId.size).toBe(2);
     expect(snapshot.routesByCanonicalId.get("jaw_open")).toEqual({
-      graphPath: "rig/face/autorig/jaw/open",
+      graphPath: "rig/face/propsrig/jaw/open",
       defaultValue: 0.6,
     });
     expect(snapshot.routesByCanonicalId.get("brow_up")).toEqual({
@@ -61,10 +61,10 @@ describe("buildRuntimeInputRouteSnapshot", () => {
       defaultValue: 0.2,
     });
     expect(snapshot.graphPathLookupByInputId.get("jaw_open")).toBe(
-      "rig/face/autorig/jaw/open",
+      "rig/face/propsrig/jaw/open",
     );
     expect(snapshot.graphPathLookupByInputId.get("jaw_alias")).toBe(
-      "rig/face/autorig/jaw/open",
+      "rig/face/propsrig/jaw/open",
     );
     expect(snapshot.defaults).toEqual({
       jaw_open: 0.6,
@@ -85,9 +85,9 @@ describe("buildRuntimeInputRouteSnapshot", () => {
     expect(snapshot).toEqual(createEmptyRuntimeInputRouteSnapshot());
   });
 
-  it("resolves legacy rig aliases to autorig inputs", () => {
-    const jaw = createInput("jaw_open", "/autorig/jaw/open", 0.4);
-    const brow = createInput("brow_up", "/autorig/brow/up", 0.3);
+  it("resolves legacy rig aliases to propsrig inputs", () => {
+    const jaw = createInput("jaw_open", "/propsrig/jaw/open", 0.4);
+    const brow = createInput("brow_up", "/propsrig/brow/up", 0.3);
     const byPath = new Map<string, StandardRigInput>([
       [normalizeStandardRigInputPath(jaw.path), jaw],
       [normalizeStandardRigInputPath(brow.path), brow],
@@ -122,7 +122,7 @@ describe("buildRuntimeInputRouteSnapshot", () => {
   });
 
   it("registers override runtime paths as directly stageable routes", () => {
-    const jaw = createInput("jaw_open", "/autorig/jaw/open", 0.4);
+    const jaw = createInput("jaw_open", "/propsrig/jaw/open", 0.4);
     const byPath = new Map<string, StandardRigInput>([
       [normalizeStandardRigInputPath(jaw.path), jaw],
     ]);

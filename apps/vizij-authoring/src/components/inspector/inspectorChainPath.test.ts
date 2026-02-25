@@ -12,7 +12,7 @@ describe("appendOrRevisitInspectorChainPath", () => {
     ];
     const nextNode: InspectorChainNode = {
       mode: "rig",
-      id: "autorig_mouth_open",
+      id: "propsrig_mouth_open",
       label: "Mouth Open",
       view: "quick",
     };
@@ -22,7 +22,7 @@ describe("appendOrRevisitInspectorChainPath", () => {
       { mode: "rig", id: "rig_parent", label: "Jaw Open", view: "quick" },
       {
         mode: "rig",
-        id: "autorig_mouth_open",
+        id: "propsrig_mouth_open",
         label: "Mouth Open",
         view: "quick",
       },

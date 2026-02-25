@@ -8,7 +8,7 @@ function createInput(id: string, path: string): StandardRigInput {
     id,
     path,
     label: id,
-    group: "autorig",
+    group: "propsrig",
     defaultValue: 0,
     range: {
       min: -1,
@@ -19,8 +19,8 @@ function createInput(id: string, path: string): StandardRigInput {
 
 describe("resolvePosePropertySelectionInputIds", () => {
   const canonicalInput = createInput(
-    "autorig_head_jaw_x",
-    "/autorig/head/jaw/x",
+    "propsrig_head_jaw_x",
+    "/propsrig/head/jaw/x",
   );
   const standardInputsById = new Map<string, StandardRigInput>([
     [canonicalInput.id, canonicalInput],
@@ -40,13 +40,13 @@ describe("resolvePosePropertySelectionInputIds", () => {
       selection,
       standardInputsById,
       fallbackTargetIds: [],
-      autorigInputIdByComponentId: new Map(),
+      propsrigInputIdByComponentId: new Map(),
     });
 
     expect(resolved).toEqual([canonicalInput.id]);
   });
 
-  it("falls back to autorig target mapping when selection carries no input ids", () => {
+  it("falls back to propsrig target mapping when selection carries no input ids", () => {
     const selection: Extract<VariableSelection, { type: "property" }> = {
       type: "property",
       objectId: "head",
@@ -59,7 +59,7 @@ describe("resolvePosePropertySelectionInputIds", () => {
       selection,
       standardInputsById,
       fallbackTargetIds: ["component.head.jaw.x"],
-      autorigInputIdByComponentId: new Map([
+      propsrigInputIdByComponentId: new Map([
         ["component.head.jaw.x", "/rig/element/head/jaw/x"],
       ]),
     });
@@ -74,15 +74,15 @@ describe("resolvePosePropertySelectionInputIds", () => {
       featureId: "jaw",
       label: "Unknown",
       inputId: "/rig/element/unknown/path",
-      inputIds: ["/autorig/unknown/path"],
+      inputIds: ["/propsrig/unknown/path"],
     };
 
     const resolved = resolvePosePropertySelectionInputIds({
       selection,
       standardInputsById,
       fallbackTargetIds: ["component.missing"],
-      autorigInputIdByComponentId: new Map([
-        ["component.missing", "/autorig/unknown/path"],
+      propsrigInputIdByComponentId: new Map([
+        ["component.missing", "/propsrig/unknown/path"],
       ]),
     });
 

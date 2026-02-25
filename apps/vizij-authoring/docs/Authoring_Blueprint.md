@@ -10,7 +10,7 @@ Scope: `apps/vizij-authoring`
 This blueprint defines the canonical authored and compiled model for:
 
 1. animatable leaves,
-2. autorigs (low-level rig variables),
+2. propsrigs (low-level rig variables),
 3. abstract rig inputs,
 4. poses and pose groups,
 5. bindings (directed edges),
@@ -21,9 +21,9 @@ It also defines UI behaviors required to create, edit, and delete Inputs, Poses,
 ## 2) Current context and required contract adjustment
 
 - Existing docs and implementations historically used `/rig/element`.
-- New contract for this cycle: generated low-level rig variables are now **`/autorig/...`**.
+- New contract for this cycle: generated low-level rig variables are now **`/propsrig/...`**.
 - The old value `/pose/control` should not be used as the generated namespace.
-- Legacy imported assets should still load and continue to work, but emit migration diagnostics when their low-level mapping does not match the new `/autorig` contract.
+- Legacy imported assets should still load and continue to work, but emit migration diagnostics when their low-level mapping does not match the new `/propsrig` contract.
 
 ## 3) Authoring levels
 
@@ -34,12 +34,12 @@ It also defines UI behaviors required to create, edit, and delete Inputs, Poses,
 - They are discovered from the loaded face and exposed in Face Elements.
 - They are **not** intended as top-level authored controls.
 
-### 3.2 Autorig layer (low-level rig variables)
+### 3.2 PropsRig layer (low-level rig variables)
 
 - Scope: one auto-generated rig input per animatable leaf.
 - These inputs are write-capable to animatable targets.
 - They are considered implementation detail and are mostly metadata.
-- Canonical path namespace: `/autorig/<face>/<shape>/<feature>/<component>` (normalized).
+- Canonical path namespace: `/propsrig/<face>/<shape>/<feature>/<component>` (normalized).
 - Path is derived from auto-generated source metadata (source id, animatable component id, etc.).
 - The system should auto-create these on face import.
 - If an imported face already has equivalent mappings, reuse that relation rather than duplicating.
@@ -49,7 +49,7 @@ It also defines UI behaviors required to create, edit, and delete Inputs, Poses,
 - Scope: authored abstract rig inputs that may be manual values, expressions, or binding-driven inputs.
 - They may target:
   - other abstract rig nodes,
-  - one or more autorig nodes.
+  - one or more propsrig nodes.
 - They must **not** directly write animatable leaves.
 - They are the primary authored input-editing layer.
 
@@ -85,15 +85,15 @@ It also defines UI behaviors required to create, edit, and delete Inputs, Poses,
 2. `Abstract Rig` -> `Abstract Rig`  
    allowed, including:
    - abstract rig -> abstract rig,
-   - abstract rig -> autorig.
-3. `Autorig` -> `Animatable`  
+   - abstract rig -> propsrig.
+3. `PropsRig` -> `Animatable`  
    required for all direct scene writes.
 4. `Abstract Rig` -> `Animatable`  
    not allowed; must be flagged as boundary violation.
 
 ### 4.1 Boundary rule (authoritative)
 
-- Direct edges to animatable targets are valid **only** when the target node is an autorig.
+- Direct edges to animatable targets are valid **only** when the target node is an propsrig.
 - Any edge from abstract-rig node to animatable is a contract violation.
 - Warning/diagnostic should identify source and target ids and include fix guidance.
 
@@ -101,19 +101,19 @@ It also defines UI behaviors required to create, edit, and delete Inputs, Poses,
 
 ### 5.1 Canonical source-of-truth
 
-- Generated autorig paths MUST use `/autorig` prefix.
-- Inputs logic should include `/autorig` entries as first-class graph inputs and display them in the Inputs pane.
+- Generated propsrig paths MUST use `/propsrig` prefix.
+- Inputs logic should include `/propsrig` entries as first-class graph inputs and display them in the Inputs pane.
 - Rig inspector/traversal should still resolve and display the alias relationship to scene features.
 
 ### 5.2 Detection and warning behavior
 
 On load / import / compile:
 
-1. If detected auto-generated entries use non-`/autorig` prefix:
+1. If detected auto-generated entries use non-`/propsrig` prefix:
    - add warning: "legacy metadata namespace detected."
    - show list of offenders and the suggested migrated path.
    - preserve behavior at runtime for at least one release with migration support.
-2. If a non-`/autorig` animatable writer appears as a normal abstract-rig input:
+2. If a non-`/propsrig` animatable writer appears as a normal abstract-rig input:
    - classify as malformed migration path and require explicit user action.
 
 ## 6) Under-the-hood IR changes expected
@@ -124,7 +124,7 @@ On load / import / compile:
 4. Low-level auto-generated rig nodes are tagged as `metadata` but remain visible in the Inputs pane as leaf sliders for graph-level debugging and direct adjustment.
 5. Validation rules operate on graph edges:
    - edge kind (binding/category),
-   - target layer type (autorig vs abstract rig),
+   - target layer type (propsrig vs abstract rig),
    - namespace conformance.
 
 ## 7) UI blueprint and required functions
@@ -133,11 +133,11 @@ On load / import / compile:
 
 - Refresh on face load.
 - Display discovered animatable leaves.
-- Show auto-authoring status of each corresponding autorig:
+- Show auto-authoring status of each corresponding propsrig:
   - created,
   - missing,
   - stale.
-- Provide quick sync action if autorig mapping is missing.
+- Provide quick sync action if propsrig mapping is missing.
 
 ### 7.2 Inputs surface (replaces Drivers pane)
 
@@ -145,7 +145,7 @@ Required functions:
 
 1. Show one hierarchical collection of all potential graph inputs:
    - abstract rig inputs,
-   - autorig inputs,
+   - propsrig inputs,
    - pose-group weight inputs.
 2. Preserve folder/group structure for discoverability.
 3. Leaf selection always shows a slider control bound to that input’s current value.
@@ -154,7 +154,7 @@ Required functions:
 6. Delete input (where non-root, non-dependent inputs are removable).
 7. Reparent/relink bindings for abstract/pose-group inputs.
 8. Navigate to rig-node inspector.
-9. Show metadata label for aliasing (e.g., autorig row resolves to scene target).
+9. Show metadata label for aliasing (e.g., propsrig row resolves to scene target).
 
 ### 7.3 Poses surface
 
@@ -188,7 +188,7 @@ Required functions:
   1. Show selected node incoming/outgoing links.
   2. Create/delete link edges between allowed nodes.
   3. Retarget links when ids are migrated.
-  4. Open chain context (`pose-aggregate-output` / `pose-group-output` / autorig / animatable) from selected nodes.
+  4. Open chain context (`pose-aggregate-output` / `pose-group-output` / propsrig / animatable) from selected nodes.
 
 ## 8) Authoring workflows this blueprint enforces
 
@@ -196,23 +196,23 @@ Required functions:
 
 1. Load face.
 2. Discover animatables and animated components.
-3. Auto-create autorig nodes under `/autorig`.
+3. Auto-create propsrig nodes under `/propsrig`.
 4. Build alias map to original face targets.
-5. If legacy non-`/autorig` mappings exist, surface warnings and migration actions.
+5. If legacy non-`/propsrig` mappings exist, surface warnings and migration actions.
 
 ### 8.2 Authoring control flow
 
-1. Author all graph inputs from the Inputs pane (abstract rig + autorig + pose-group weight inputs).
+1. Author all graph inputs from the Inputs pane (abstract rig + propsrig + pose-group weight inputs).
 2. Create poses + pose groups independent of path naming.
 3. Compile to pose aggregates.
-4. Compile graph resolves to abstract rig and autorig nodes.
-5. Runtime writes resolve to animatable leaves only through autorigs.
+4. Compile graph resolves to abstract rig and propsrig nodes.
+5. Runtime writes resolve to animatable leaves only through propsrigs.
 
 ## 9) Acceptance criteria
 
-1. An abstract-rig input can drive an autorig or another abstract-rig input.
+1. An abstract-rig input can drive an propsrig or another abstract-rig input.
 2. An abstract-rig input cannot directly target animatable nodes and is prevented/flagged.
-3. `/autorig` is the generated namespace for low-level rig metadata.
-4. Legacy non-`/autorig` mappings load with warning and deterministic migration path.
+3. `/propsrig` is the generated namespace for low-level rig metadata.
+4. Legacy non-`/propsrig` mappings load with warning and deterministic migration path.
 5. Inputs/poses/pose groups support create/edit/delete in dedicated surfaces.
 6. Pose membership is independent of path naming and remains valid through import/export.

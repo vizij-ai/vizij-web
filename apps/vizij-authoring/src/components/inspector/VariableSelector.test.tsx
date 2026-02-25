@@ -49,7 +49,7 @@ describe("VariableSelector", () => {
 
     render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
 
-    fireEvent.change(screen.getByPlaceholderText("Search variables..."), {
+    fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
       target: { value: "Jaw Open" },
     });
 
@@ -79,24 +79,24 @@ describe("VariableSelector", () => {
 
     render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
 
-    fireEvent.change(screen.getByPlaceholderText("Search variables..."), {
+    fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
       target: { value: "mouth morph" },
     });
     expect(screen.getByText("Smile Left")).toBeTruthy();
 
-    fireEvent.change(screen.getByPlaceholderText("Search variables..."), {
+    fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
       target: { value: "ctrl_01" },
     });
     expect(screen.getByText("Smile Left")).toBeTruthy();
   });
 
-  it("renders properties from autorig inputs and supports single add via selected batch", () => {
+  it("renders properties from propsrig inputs and supports single add via selected batch", () => {
     mockedUseBindingAuthoring.mockReturnValue({
       managedStandardInputs: [
         {
           input: {
-            id: "autorig_jaw_x",
-            path: "/autorig/face/jaw/x",
+            id: "propsrig_jaw_x",
+            path: "/propsrig/face/jaw/x",
             label: "Jaw X",
             group: "face",
             sourceId: "component:face:jaw:rot:comp_jaw_x",
@@ -125,7 +125,7 @@ describe("VariableSelector", () => {
 
     fireEvent.click(screen.getByText("Group · face"));
     expect(screen.getByText("Jaw X")).toBeTruthy();
-    expect(screen.queryByText("/autorig/face/jaw/x")).toBeNull();
+    expect(screen.queryByText("/propsrig/face/jaw/x")).toBeNull();
     expect(screen.getByRole("button", { name: /^Jaw\s*\d+/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^X\s*\d+/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Rotation/i })).toBeNull();
@@ -139,7 +139,7 @@ describe("VariableSelector", () => {
       objectId: "face_mesh",
       featureId: "jaw",
       label: "Jaw X · /face/jaw/x",
-      inputId: "autorig_jaw_x",
+      inputId: "propsrig_jaw_x",
       targetId: "comp_jaw_x",
     });
   });
@@ -149,8 +149,8 @@ describe("VariableSelector", () => {
       managedStandardInputs: [
         {
           input: {
-            id: "autorig_jaw_x",
-            path: "/autorig/face/jaw/x",
+            id: "propsrig_jaw_x",
+            path: "/propsrig/face/jaw/x",
             label: "Jaw X",
             group: "face",
             sourceId: "component:face:jaw:rot:comp_jaw_x",
@@ -168,7 +168,7 @@ describe("VariableSelector", () => {
       ],
       bindings: {},
       lockedInspectorTargetIds: new Set(["comp_jaw_x"]),
-      lockedAutorigInputIds: new Set(["autorig_jaw_x"]),
+      lockedPropsRigInputIds: new Set(["propsrig_jaw_x"]),
     });
     mockedUseSceneComposer.mockReturnValue({
       objects: [],
@@ -196,7 +196,7 @@ describe("VariableSelector", () => {
         {
           input: {
             id: "eye_translate_x",
-            path: "/autorig/eye_left/translation/x",
+            path: "/propsrig/eye_left/translation/x",
             label: "Left Eye Translate X",
             group: "face",
             sourceId: "component:face:translation:x:comp_eye_tx",
@@ -212,7 +212,7 @@ describe("VariableSelector", () => {
         {
           input: {
             id: "eye_rotate_y",
-            path: "/autorig/eye_left/rotation/y",
+            path: "/propsrig/eye_left/rotation/y",
             label: "Left Eye Rotate Y",
             group: "face",
             sourceId: "component:face:rotation:y:comp_eye_ry",
@@ -228,7 +228,7 @@ describe("VariableSelector", () => {
         {
           input: {
             id: "eye_scale_z",
-            path: "/autorig/eye_left/scale/z",
+            path: "/propsrig/eye_left/scale/z",
             label: "Left Eye Scale Z",
             group: "face",
             sourceId: "component:face:scale:z:comp_eye_sz",
@@ -284,7 +284,7 @@ describe("VariableSelector", () => {
         {
           input: {
             id: "eye_translate_x",
-            path: "/autorig/eye_left/translation/x",
+            path: "/propsrig/eye_left/translation/x",
             label: "Left Eye Translate X",
             group: "face",
             sourceId: "component:face:translation:x:comp_eye_tx",
@@ -300,7 +300,7 @@ describe("VariableSelector", () => {
         {
           input: {
             id: "eye_rotate_x",
-            path: "/autorig/eye_left/rotation/x",
+            path: "/propsrig/eye_left/rotation/x",
             label: "Left Eye Rotate X",
             group: "face",
             sourceId: "component:face:rotation:x:comp_eye_rx",
@@ -332,8 +332,8 @@ describe("VariableSelector", () => {
 
     expect(onSelect).toHaveBeenLastCalledWith({
       type: "property",
-      objectId: "autorig",
-      featureId: "autorig",
+      objectId: "propsrig",
+      featureId: "propsrig",
       label: "Selected Properties (2)",
       inputIds: ["eye_rotate_x", "eye_translate_x"],
       targetIds: ["comp_eye_rx", "comp_eye_tx"],

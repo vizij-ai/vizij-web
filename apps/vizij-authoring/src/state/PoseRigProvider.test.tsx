@@ -116,7 +116,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
   });
 
   it("creates canonical pose-weight inputs and excludes them from pose authoring channels", async () => {
-    const regularInput = makeInput("jaw_open", "/autorig/robot/jaw/open");
+    const regularInput = makeInput("jaw_open", "/propsrig/robot/jaw/open");
     const existingPoseWeight = makeInput(
       "pose_smile_weight",
       "/poses/pose_smile.weight",
@@ -136,7 +136,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
 
     bindingState.standardInputs = [regularInput, existingPoseWeight];
     bindingState.standardInputsByPath = new Map([
-      ["/autorig/robot/jaw/open", regularInput],
+      ["/propsrig/robot/jaw/open", regularInput],
       ["/poses/pose_smile.weight", existingPoseWeight],
     ]);
     bindingState.managedStandardInputs = [
@@ -184,7 +184,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
   });
 
   it("removes stale and duplicate pose-weight custom inputs", async () => {
-    const regularInput = makeInput("jaw_open", "/autorig/robot/jaw/open");
+    const regularInput = makeInput("jaw_open", "/propsrig/robot/jaw/open");
     const canonicalPoseWeight = makeInput(
       "pose_smile_weight",
       "/poses/pose_smile.weight",
@@ -219,7 +219,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
 
     bindingState.standardInputs = [regularInput, canonicalPoseWeight];
     bindingState.standardInputsByPath = new Map([
-      ["/autorig/robot/jaw/open", regularInput],
+      ["/propsrig/robot/jaw/open", regularInput],
       ["/poses/pose_smile.weight", canonicalPoseWeight],
     ]);
     bindingState.managedStandardInputs = [
@@ -260,7 +260,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
   });
 
   it("publishes pose graph payload to the graph runtime store", async () => {
-    const regularInput = makeInput("jaw_open", "/autorig/robot/jaw/open");
+    const regularInput = makeInput("jaw_open", "/propsrig/robot/jaw/open");
     const poseGraphSpec = { nodes: [{ id: "pose_input", type: "input" }] };
     const poseConfigDraft = {
       version: 1,

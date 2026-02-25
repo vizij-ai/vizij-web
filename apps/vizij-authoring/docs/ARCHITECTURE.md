@@ -27,7 +27,7 @@ must remain semantically aligned.
 ## Layer Model
 
 1. Animatable layer: render-facing scene leaves.
-2. Autorig layer: low-level generated channels (`/autorig/...`) that write to animatables.
+2. PropsRig layer: low-level generated channels (`/propsrig/...`) that write to animatables.
 3. Abstract rig layer: authored controls and bindings.
 4. Pose layer: semantic pose targets and group/stage composition.
 5. Binding layer: directed edges between authoring controls.
@@ -35,7 +35,7 @@ must remain semantically aligned.
 Boundary invariant:
 
 - Abstract rig controls must not directly write animatable leaves.
-- Scene writes are mediated through autorig channels.
+- Scene writes are mediated through propsrig channels.
 
 ## Pose IR and Compile Pipeline
 
@@ -95,7 +95,7 @@ Execution note:
 
 ## Canonical Path and Identity Contracts
 
-1. Generated low-level rig paths use `/autorig/...`.
+1. Generated low-level rig paths use `/propsrig/...`.
 2. Pose-weight controls use canonical per-pose paths: `rig/{face}/poses/{poseId}.weight`.
 3. Pose-weight controls carry stable source IDs (`pose-weight:{poseId}`).
 4. Pose target references resolve to canonical existing input IDs.

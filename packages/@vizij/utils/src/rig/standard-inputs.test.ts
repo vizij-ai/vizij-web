@@ -36,7 +36,7 @@ describe("resolveStandardRigInputId", () => {
   it("resolves pose-control paths keyed by canonical input id", () => {
     const input = createStandardRigInput({
       id: "jaw_open",
-      path: "/autorig/jaw/open",
+      path: "/propsrig/jaw/open",
       label: "Jaw Open",
       group: "jaw",
       defaultValue: 0,
@@ -54,8 +54,8 @@ describe("resolveStandardRigInputId", () => {
 
   it("keeps legacy pose-control path alias resolution", () => {
     const input = createStandardRigInput({
-      id: "autorig_source_openness",
-      path: "/autorig/source/openness",
+      id: "propsrig_source_openness",
+      path: "/propsrig/source/openness",
       label: "Source Openness",
       group: "source",
       defaultValue: 0,
@@ -65,6 +65,6 @@ describe("resolveStandardRigInputId", () => {
 
     expect(
       resolveStandardRigInputId("/pose/control/source/openness", map),
-    ).toBe("autorig_source_openness");
+    ).toBe("propsrig_source_openness");
   });
 });

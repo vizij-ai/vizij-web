@@ -97,7 +97,7 @@ export function AppMenuBar({
           checked={variablesPanelVisible}
           onCheckedChange={() => togglePanel("variables")}
         >
-          Variables
+          Drivers
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={posesPanelVisible}

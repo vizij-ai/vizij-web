@@ -15,7 +15,7 @@ describe("buildAutoRigInputBlueprints", () => {
     expect(result.roots.length).toBe(0);
   });
 
-  it("uses the /autorig namespace for generated metadata inputs", () => {
+  it("uses the /propsrig namespace for generated metadata inputs", () => {
     const world = {
       rigRoot: {
         id: "rigRoot",
@@ -64,6 +64,6 @@ describe("buildAutoRigInputBlueprints", () => {
     );
 
     expect(generated).toBeDefined();
-    expect(generated?.path.startsWith("/autorig/")).toBe(true);
+    expect(generated?.path.startsWith("/propsrig/")).toBe(true);
   });
 });

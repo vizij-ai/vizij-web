@@ -92,7 +92,7 @@ describe("pose weight input helpers", () => {
     expect(isPoseWeightInputPath("rig/robot/poses/pose_smile.weight")).toBe(
       true,
     );
-    expect(isPoseWeightInputPath("/autorig/mouth/smile")).toBe(false);
+    expect(isPoseWeightInputPath("/propsrig/mouth/smile")).toBe(false);
   });
 
   it("round-trips pose ids through source ids", () => {
@@ -110,7 +110,7 @@ describe("pose control input helpers", () => {
     );
     expect(isPoseControlInputPath("/pose/control/jaw_open")).toBe(true);
     expect(isPoseControlInputPath("rig/face/pose/control/jaw_open")).toBe(true);
-    expect(isPoseControlInputPath("/autorig/jaw/open")).toBe(false);
+    expect(isPoseControlInputPath("/propsrig/jaw/open")).toBe(false);
   });
 
   it("parses input ids from pose control paths", () => {
@@ -120,7 +120,7 @@ describe("pose control input helpers", () => {
     expect(
       parsePoseControlInputIdFromPath("rig/face/pose/control/jaw_open"),
     ).toBe("jaw_open");
-    expect(parsePoseControlInputIdFromPath("/autorig/jaw/open")).toBeNull();
+    expect(parsePoseControlInputIdFromPath("/propsrig/jaw/open")).toBeNull();
   });
 });
 

@@ -40,8 +40,8 @@ Behavior requirements:
 
 Inspector must support chain traversal in both directions:
 
-1. Pose -> Rig -> Autorig -> Animatable
-2. Animatable -> Autorig -> Rig -> Pose sources
+1. Pose -> Rig -> Props Rig -> Animatable
+2. Animatable -> Props Rig -> Rig -> Pose sources
 
 Traversal must preserve context (no unexpected selection resets).
 
@@ -127,11 +127,11 @@ Direct+pose effective-channel contract:
    - contribution strength.
 3. Neutral strategy (`face-default` vs explicit) must be visible once neutral authoring is enabled.
 
-## Autorig Visibility Contract
+## Props Rig Visibility Contract
 
 1. Primary authoring UX should prioritize high-level variable/property semantics.
-2. Low-level autorig rows are hidden/minimized in default inspector chain flows unless no high-level mapping exists.
-3. Advanced/debug view exposes full autorig internals through explicit `Show/Hide Autorig Internals` controls.
+2. Low-level propsrig rows are hidden/minimized in default inspector chain flows unless no high-level mapping exists.
+3. Advanced/debug view exposes full propsrig internals through explicit `Show/Hide Props Rig Internals` controls.
 
 ## Import/Export UX Contract
 

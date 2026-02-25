@@ -23,15 +23,17 @@ function makeInput(
 
 describe("standardInputResolutionIndex", () => {
   it("resolves unique alias ids via normalized id/path keys", () => {
-    const canonical = makeInput("autorig_mouth_open", "/autorig/mouth/open");
+    const canonical = makeInput("propsrig_mouth_open", "/propsrig/mouth/open");
     const index = getStandardInputResolutionIndex(
       new Map([[canonical.id, canonical]]),
     );
 
-    expect(index.resolveUniqueAliasId("/autorig/mouth/open")).toBe(
+    expect(index.resolveUniqueAliasId("/propsrig/mouth/open")).toBe(
       canonical.id,
     );
-    expect(index.resolveUniqueAliasId("autorig_mouth_open")).toBe(canonical.id);
+    expect(index.resolveUniqueAliasId("propsrig_mouth_open")).toBe(
+      canonical.id,
+    );
     expect(index.resolveUniqueAliasId("missing_alias")).toBeNull();
   });
 
@@ -50,12 +52,12 @@ describe("standardInputResolutionIndex", () => {
 
   it("indexes equivalent canonical and /standard-prefixed target ids", () => {
     const canonical = makeInput(
-      "autorig_scene_rotation_z",
-      "/autorig/scene/rotation/z",
+      "propsrig_scene_rotation_z",
+      "/propsrig/scene/rotation/z",
     );
     const standardPrefixed = makeInput(
-      "standard_autorig_scene_rotation_z",
-      "/standard/autorig/scene/rotation/z",
+      "standard_propsrig_scene_rotation_z",
+      "/standard/propsrig/scene/rotation/z",
     );
     const index = getStandardInputResolutionIndex(
       new Map([
@@ -71,7 +73,7 @@ describe("standardInputResolutionIndex", () => {
   });
 
   it("caches canonical-id resolution misses for repeated hot-path lookups", () => {
-    const canonical = makeInput("autorig_target", "/autorig/target/openness");
+    const canonical = makeInput("propsrig_target", "/propsrig/target/openness");
     const sourceMap = new Map([[canonical.id, canonical]]);
     const index = getStandardInputResolutionIndex(sourceMap);
     const metrics: StandardInputResolutionMetrics = {
@@ -101,12 +103,12 @@ describe("standardInputResolutionIndex", () => {
 
   it("keeps equivalent-path lookup hot path on cached canonical resolution", () => {
     const canonical = makeInput(
-      "autorig_scene_rotation_z",
-      "/autorig/scene/rotation/z",
+      "propsrig_scene_rotation_z",
+      "/propsrig/scene/rotation/z",
     );
     const prefixed = makeInput(
-      "standard_autorig_scene_rotation_z",
-      "/standard/autorig/scene/rotation/z",
+      "standard_propsrig_scene_rotation_z",
+      "/standard/propsrig/scene/rotation/z",
     );
     const index = getStandardInputResolutionIndex(
       new Map([

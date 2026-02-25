@@ -105,9 +105,9 @@ describe("rehydrateRigDataFromGraph", () => {
               range: { min: -1, max: 1 },
             },
             {
-              id: "autorig_eye",
-              path: "/autorig/eye/open",
-              label: "autorig_eye",
+              id: "propsrig_eye",
+              path: "/propsrig/eye/open",
+              label: "propsrig_eye",
               group: "eyes",
               defaultValue: 0,
               range: { min: -1, max: 1 },
@@ -126,19 +126,19 @@ describe("rehydrateRigDataFromGraph", () => {
       components: [] as AnimatableComponent[],
     });
 
-    expect(result.legacyAutorigInputPaths).toEqual(["/rig/element/eye/open"]);
+    expect(result.legacyPropsRigInputPaths).toEqual(["/rig/element/eye/open"]);
   });
 
-  it("does not report /autorig inputs as legacy", () => {
+  it("does not report /propsrig inputs as legacy", () => {
     const spec = {
       metadata: {
         vizij: {
           faceId: "legacy_face",
           inputs: [
             {
-              id: "autorig_eye",
-              path: "/autorig/eye/open",
-              label: "autorig_eye",
+              id: "propsrig_eye",
+              path: "/propsrig/eye/open",
+              label: "propsrig_eye",
               group: "eyes",
               defaultValue: 0,
               range: { min: -1, max: 1 },
@@ -157,7 +157,7 @@ describe("rehydrateRigDataFromGraph", () => {
       components: [] as AnimatableComponent[],
     });
 
-    expect(result.legacyAutorigInputPaths).toEqual([]);
+    expect(result.legacyPropsRigInputPaths).toEqual([]);
   });
 
   it("normalizes safe binding id mismatches for inputs and targets", () => {
@@ -165,8 +165,8 @@ describe("rehydrateRigDataFromGraph", () => {
       faceId: "legacy_face",
       inputs: [
         makeInput({
-          id: "autorig_jaw_open",
-          path: "/autorig/mouth/open",
+          id: "propsrig_jaw_open",
+          path: "/propsrig/mouth/open",
           group: "mouth",
           sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
         }),
@@ -179,10 +179,10 @@ describe("rehydrateRigDataFromGraph", () => {
       bindings: [
         makeBindingSummary({
           targetId: JAW_COMPONENT_ID,
-          inputId: "/rig/legacy_face/autorig/mouth/open",
+          inputId: "/rig/legacy_face/propsrig/mouth/open",
         }),
         makeBindingSummary({
-          targetId: "/rig/legacy_face/autorig/mouth/open",
+          targetId: "/rig/legacy_face/propsrig/mouth/open",
           inputId: "custom_smile",
           slotId: "s2",
           slotAlias: "s2",
@@ -201,14 +201,14 @@ describe("rehydrateRigDataFromGraph", () => {
     expect(result.normalizationDiagnostics.inputIdRemaps).toHaveLength(1);
     expect(result.normalizationDiagnostics.targetIdRemaps).toEqual([
       {
-        fromTargetId: "/rig/legacy_face/autorig/mouth/open",
-        toTargetId: "autorig_jaw_open",
+        fromTargetId: "/rig/legacy_face/propsrig/mouth/open",
+        toTargetId: "propsrig_jaw_open",
       },
     ]);
-    expect(result.inputBindings.autorig_jaw_open).toBeDefined();
+    expect(result.inputBindings.propsrig_jaw_open).toBeDefined();
   });
 
-  it("treats transitive rig ancestry into autorig targets as boundary-valid", () => {
+  it("treats transitive rig ancestry into propsrig targets as boundary-valid", () => {
     const spec = makeSpec({
       faceId: "legacy_face",
       inputs: [
@@ -223,8 +223,8 @@ describe("rehydrateRigDataFromGraph", () => {
           group: "custom",
         }),
         makeInput({
-          id: "autorig_jaw_open",
-          path: "/autorig/mouth/open",
+          id: "propsrig_jaw_open",
+          path: "/propsrig/mouth/open",
           group: "mouth",
           sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
         }),
@@ -239,12 +239,12 @@ describe("rehydrateRigDataFromGraph", () => {
           expressionNodeId: "node_expr_parent",
         }),
         makeBindingSummary({
-          targetId: "autorig_jaw_open",
+          targetId: "propsrig_jaw_open",
           inputId: "jaw_control",
-          slotId: "s_autorig",
-          slotAlias: "autorig",
-          nodeId: "node_autorig",
-          expressionNodeId: "node_expr_autorig",
+          slotId: "s_propsrig",
+          slotAlias: "propsrig",
+          nodeId: "node_propsrig",
+          expressionNodeId: "node_expr_propsrig",
         }),
         makeBindingSummary({
           targetId: JAW_COMPONENT_ID,
@@ -266,11 +266,11 @@ describe("rehydrateRigDataFromGraph", () => {
     expect(result.normalizationDiagnostics.animatableRetargets).toEqual([]);
     expect(result.normalizationDiagnostics.animatableFallbacks).toEqual([]);
     expect(result.bindings[JAW_COMPONENT_ID]?.inputId).toBe("jaw_master");
-    expect(result.inputBindings.autorig_jaw_open?.inputId).toBe("jaw_control");
+    expect(result.inputBindings.propsrig_jaw_open?.inputId).toBe("jaw_control");
     expect(result.inputBindings.jaw_control?.inputId).toBe("jaw_master");
   });
 
-  it("retargets invalid direct animatable bindings to autorig targets", () => {
+  it("retargets invalid direct animatable bindings to propsrig targets", () => {
     const spec = makeSpec({
       faceId: "legacy_face",
       inputs: [
@@ -280,8 +280,8 @@ describe("rehydrateRigDataFromGraph", () => {
           group: "custom",
         }),
         makeInput({
-          id: "autorig_jaw_open",
-          path: "/autorig/mouth/open",
+          id: "propsrig_jaw_open",
+          path: "/propsrig/mouth/open",
           group: "mouth",
           sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
         }),
@@ -305,15 +305,15 @@ describe("rehydrateRigDataFromGraph", () => {
         animatableTargetId: JAW_COMPONENT_ID,
         slotId: "s1",
         fromInputId: "jaw_control",
-        toAutorigInputId: "autorig_jaw_open",
+        toPropsRigInputId: "propsrig_jaw_open",
       },
     ]);
     expect(result.normalizationDiagnostics.animatableFallbacks).toEqual([]);
     expect(result.bindings[JAW_COMPONENT_ID]?.inputId).toBeNull();
-    expect(result.inputBindings.autorig_jaw_open?.inputId).toBe("jaw_control");
+    expect(result.inputBindings.propsrig_jaw_open?.inputId).toBe("jaw_control");
   });
 
-  it("flags unresolved direct animatable bindings when no autorig target exists", () => {
+  it("flags unresolved direct animatable bindings when no propsrig target exists", () => {
     const spec = makeSpec({
       faceId: "legacy_face",
       inputs: [
@@ -343,16 +343,16 @@ describe("rehydrateRigDataFromGraph", () => {
         animatableTargetId: JAW_COMPONENT_ID,
         slotId: "s1",
         inputId: "jaw_control",
-        reason: "missing-autorig-target",
+        reason: "missing-propsrig-target",
       },
     ]);
     expect(result.bindings[JAW_COMPONENT_ID]?.inputId).toBe("jaw_control");
   });
 
-  it("provisions missing autorig targets before retargeting direct animatable bindings", () => {
-    const provisionedAutorig = makeInput({
-      id: "autorig_jaw_open",
-      path: "/autorig/mouth/open",
+  it("provisions missing propsrig targets before retargeting direct animatable bindings", () => {
+    const provisionedPropsRig = makeInput({
+      id: "propsrig_jaw_open",
+      path: "/propsrig/mouth/open",
       group: "mouth",
       sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
       defaultValue: 0,
@@ -379,13 +379,13 @@ describe("rehydrateRigDataFromGraph", () => {
       faceId: "robot",
       animatables: {},
       components: [makeComponent()],
-      provisionedAutorigInputs: [provisionedAutorig],
+      provisionedPropsRigInputs: [provisionedPropsRig],
     });
 
-    expect(result.normalizationDiagnostics.createdAutorigInputs).toEqual([
+    expect(result.normalizationDiagnostics.createdPropsRigInputs).toEqual([
       {
-        inputId: "autorig_jaw_open",
-        path: "/autorig/mouth/open",
+        inputId: "propsrig_jaw_open",
+        path: "/propsrig/mouth/open",
         sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
       },
     ]);
@@ -394,11 +394,11 @@ describe("rehydrateRigDataFromGraph", () => {
         animatableTargetId: JAW_COMPONENT_ID,
         slotId: "s1",
         fromInputId: "jaw_control",
-        toAutorigInputId: "autorig_jaw_open",
+        toPropsRigInputId: "propsrig_jaw_open",
       },
     ]);
     expect(result.normalizationDiagnostics.animatableFallbacks).toEqual([]);
-    expect(result.inputBindings.autorig_jaw_open?.inputId).toBe("jaw_control");
+    expect(result.inputBindings.propsrig_jaw_open?.inputId).toBe("jaw_control");
   });
 
   it("is deterministic and idempotent for repeated re-imports", () => {
@@ -411,8 +411,8 @@ describe("rehydrateRigDataFromGraph", () => {
           group: "custom",
         }),
         makeInput({
-          id: "autorig_jaw_open",
-          path: "/autorig/mouth/open",
+          id: "propsrig_jaw_open",
+          path: "/propsrig/mouth/open",
           group: "mouth",
           sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
         }),
@@ -424,7 +424,7 @@ describe("rehydrateRigDataFromGraph", () => {
         }),
         makeBindingSummary({
           targetId: "/rig/legacy_face/control/jaw/open",
-          inputId: "/rig/legacy_face/autorig/mouth/open",
+          inputId: "/rig/legacy_face/propsrig/mouth/open",
           slotId: "s2",
           slotAlias: "s2",
           nodeId: "node_2",
@@ -459,10 +459,10 @@ describe("rehydrateRigDataFromGraph", () => {
     );
   });
 
-  it("is deterministic for repeated imports with provisioned autorig targets", () => {
-    const provisionedAutorig = makeInput({
-      id: "autorig_jaw_open",
-      path: "/autorig/mouth/open",
+  it("is deterministic for repeated imports with provisioned propsrig targets", () => {
+    const provisionedPropsRig = makeInput({
+      id: "propsrig_jaw_open",
+      path: "/propsrig/mouth/open",
       group: "mouth",
       sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
       defaultValue: 0,
@@ -489,7 +489,7 @@ describe("rehydrateRigDataFromGraph", () => {
       faceId: "robot",
       animatables: {},
       components: [makeComponent()],
-      provisionedAutorigInputs: [provisionedAutorig],
+      provisionedPropsRigInputs: [provisionedPropsRig],
     };
 
     const once = rehydrateRigDataFromGraph(spec, options);

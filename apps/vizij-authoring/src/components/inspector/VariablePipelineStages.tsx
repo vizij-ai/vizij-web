@@ -12,7 +12,7 @@ import {
 export interface PipelineStageLinkItem {
   id: string;
   label: string;
-  kind: "variable" | "property" | "autorig";
+  kind: "variable" | "property" | "propsrig";
   onInspect?: () => void;
   onUnlink?: () => void;
   directControl?: {
@@ -312,7 +312,7 @@ export function VariablePipelineStages({
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Variable Pipeline
+            Driver Pipeline
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
             <span
@@ -356,7 +356,7 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Parents"
-        hoverText="Upstream variables that contribute parent math."
+        hoverText="Upstream drivers that contribute parent math."
         count={parents.length}
         countLabel={`${parents.length} ${parents.length === 1 ? "parent link" : "parent links"}`}
         headerBadges={[
@@ -509,7 +509,7 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Poses"
-        hoverText="Pose targets and blend weights for this variable."
+        hoverText="Pose targets and blend weights for this driver."
         count={poses.length}
         countLabel={`${poses.length} ${poses.length === 1 ? "pose target" : "pose targets"}`}
         testId="pipeline-stage-poses"
@@ -567,14 +567,14 @@ export function VariablePipelineStages({
           </div>
         ) : (
           <span className="text-[10px] text-text-muted">
-            No pose targets for this variable.
+            No pose targets for this driver.
           </span>
         )}
       </StageSection>
 
       <StageSection
         title="Direct Input"
-        hoverText="Optional direct control path for this variable."
+        hoverText="Optional direct control path for this driver."
         headerBadges={[
           {
             label: directInputEnabled ? "Direct enabled" : "Direct disabled",
@@ -705,7 +705,7 @@ export function VariablePipelineStages({
       {showClampStage ? (
         <StageSection
           title="Clamp"
-          hoverText="Final output bounding for this variable."
+          hoverText="Final output bounding for this driver."
           headerBadges={[
             {
               label: clampEnabled ? "Clamp enabled" : "Clamp disabled",
@@ -846,7 +846,7 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Children"
-        hoverText="Downstream variables driven by this variable."
+        hoverText="Downstream drivers driven by this driver."
         count={children.length}
         countLabel={`${children.length} ${children.length === 1 ? "child link" : "child links"}`}
         testId="pipeline-stage-children"
@@ -943,7 +943,7 @@ export function VariablePipelineStages({
           </div>
         ) : (
           <span className="text-[10px] text-text-muted">
-            No children currently driven by this variable.
+            No children currently driven by this driver.
           </span>
         )}
         {onAddChild ? (

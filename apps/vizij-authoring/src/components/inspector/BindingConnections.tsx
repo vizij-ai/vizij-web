@@ -42,7 +42,7 @@ const poseSourceKindLabels: Record<string, string> = {
 const traversalStageLabels: Record<PoseRigTraversalNode["kind"], string> = {
   pose: "Pose",
   rig: "Rig",
-  autorig: "Autorig",
+  propsrig: "Props Rig",
   animatable: "Animatable",
 };
 
@@ -123,7 +123,7 @@ export function BindingConnections({
       connections.rigs.filter((rig) => {
         const input = standardInputsById.get(rig.id);
         const path = input?.path?.toLowerCase().trim();
-        return !(path === "/autorig" || path?.startsWith("/autorig/"));
+        return !(path === "/propsrig" || path?.startsWith("/propsrig/"));
       }),
     [connections.rigs, standardInputsById],
   );
@@ -162,7 +162,7 @@ export function BindingConnections({
     return [
       {
         id: "top-level",
-        label: "Top Level Variables",
+        label: "Top Level Drivers",
         rigs: topLevelVariableRigs,
       },
       {
@@ -715,7 +715,7 @@ export function BindingConnections({
         }
         return;
       }
-      if ((node.kind === "rig" || node.kind === "autorig") && node.rigId) {
+      if ((node.kind === "rig" || node.kind === "propsrig") && node.rigId) {
         const sourceKind: PoseRigSourceKind =
           node.kind === "rig" ? "pose-group-output" : "pose-entry";
         if (onSelectRig) {

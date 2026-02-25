@@ -53,12 +53,12 @@ const standardInputsById = new Map<string, StandardRigInput>([
     },
   ],
   [
-    "autorig/mouth/open",
+    "propsrig/mouth/open",
     {
-      id: "autorig/mouth/open",
-      path: "/autorig/face/mouth/open",
-      label: "Mouth Open Autorig",
-      group: "autorig",
+      id: "propsrig/mouth/open",
+      path: "/propsrig/face/mouth/open",
+      label: "Mouth Open Props Rig",
+      group: "propsrig",
       defaultValue: 0,
       range: { min: -1, max: 1 },
     },
@@ -205,15 +205,15 @@ describe("BindingConnections routing", () => {
     expect(onSelectPose).toHaveBeenCalledWith("pose_1");
   });
 
-  it("traverses Pose -> Rig -> Autorig -> Animatable in both directions", () => {
+  it("traverses Pose -> Rig -> Props Rig -> Animatable in both directions", () => {
     mockTrace = {
       targets: [
         {
           targetId: "anim://mouth/open",
           targetLabel: "Face Mesh · Mouth Open",
-          directRigInputIds: ["autorig/mouth/open"],
-          upstreamRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
-          orderedRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+          directRigInputIds: ["propsrig/mouth/open"],
+          upstreamRigInputIds: ["propsrig/mouth/open", "rig/parent/jaw_open"],
+          orderedRigInputIds: ["propsrig/mouth/open", "rig/parent/jaw_open"],
           matchedPoseOutputs: [
             {
               poseId: "pose_1",
@@ -260,7 +260,7 @@ describe("BindingConnections routing", () => {
     fireEvent.click(view.getByTestId("binding-traversal-upstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Autorig");
+    ).toContain("Props Rig");
 
     fireEvent.click(view.getByTestId("binding-traversal-upstream"));
     expect(
@@ -280,7 +280,7 @@ describe("BindingConnections routing", () => {
     fireEvent.click(view.getByTestId("binding-traversal-downstream"));
     expect(
       view.getByTestId("binding-traversal-current-kind").textContent,
-    ).toContain("Autorig");
+    ).toContain("Props Rig");
 
     fireEvent.click(view.getByTestId("binding-traversal-downstream"));
     expect(
@@ -289,7 +289,7 @@ describe("BindingConnections routing", () => {
 
     expect(onSelectRig).toHaveBeenNthCalledWith(
       1,
-      "autorig/mouth/open",
+      "propsrig/mouth/open",
       "pose-entry",
     );
     expect(onSelectRig).toHaveBeenNthCalledWith(
@@ -305,7 +305,7 @@ describe("BindingConnections routing", () => {
     );
     expect(onSelectRig).toHaveBeenNthCalledWith(
       4,
-      "autorig/mouth/open",
+      "propsrig/mouth/open",
       "pose-entry",
     );
     expect(onSelectTarget).toHaveBeenCalledWith("anim://mouth/open");
@@ -317,9 +317,9 @@ describe("BindingConnections routing", () => {
         {
           targetId: "anim://mouth/open",
           targetLabel: "Face Mesh · Mouth Open",
-          directRigInputIds: ["autorig/mouth/open"],
-          upstreamRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
-          orderedRigInputIds: ["autorig/mouth/open", "rig/parent/jaw_open"],
+          directRigInputIds: ["propsrig/mouth/open"],
+          upstreamRigInputIds: ["propsrig/mouth/open", "rig/parent/jaw_open"],
+          orderedRigInputIds: ["propsrig/mouth/open", "rig/parent/jaw_open"],
           matchedPoseOutputs: [
             {
               poseId: "pose_1",
@@ -363,14 +363,14 @@ describe("BindingConnections routing", () => {
         {
           targetId: "anim://mouth/open",
           targetLabel: "Face Mesh · Mouth Open v2",
-          directRigInputIds: ["autorig/mouth/open"],
+          directRigInputIds: ["propsrig/mouth/open"],
           upstreamRigInputIds: [
-            "autorig/mouth/open",
+            "propsrig/mouth/open",
             "rig/parent/jaw_open",
             "rig/group/smile",
           ],
           orderedRigInputIds: [
-            "autorig/mouth/open",
+            "propsrig/mouth/open",
             "rig/parent/jaw_open",
             "rig/group/smile",
           ],
@@ -401,13 +401,13 @@ describe("BindingConnections routing", () => {
     ).toContain("Jaw Open");
   });
 
-  it("hides autorig entries from the RIGS section", () => {
+  it("hides propsrig entries from the RIGS section", () => {
     mockSummary = {
       poses: [],
       rigs: [
         {
-          id: "autorig/mouth/open",
-          label: "Mouth Open Autorig",
+          id: "propsrig/mouth/open",
+          label: "Mouth Open Props Rig",
           features: ["Face Mesh · Mouth Open"],
           sourceKinds: ["pose-entry"],
         },
@@ -443,7 +443,7 @@ describe("BindingConnections routing", () => {
     );
 
     expect(
-      view.queryByRole("button", { name: /Mouth Open Autorig/i }),
+      view.queryByRole("button", { name: /Mouth Open Props Rig/i }),
     ).toBeNull();
     expect(view.getByRole("button", { name: /Jaw Open/i })).toBeTruthy();
   });
@@ -504,7 +504,7 @@ describe("BindingConnections routing", () => {
           kind: "link-parent-binding",
           poseId: "pose_1",
           poseName: "Pose 1",
-          childInputId: "autorig/l_eyewhite_translation_y",
+          childInputId: "propsrig/l_eyewhite_translation_y",
           upstreamInputId: "mouth_translation_y",
           targetId: "anim://left-eye/translate",
           targetLabel: "Face Mesh · Left Eye",

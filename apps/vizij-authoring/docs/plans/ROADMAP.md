@@ -84,7 +84,7 @@ Backlog scope:
 
 Exit gate:
 
-1. Default UX abstracts low-level autorig internals.
+1. Default UX abstracts low-level propsrig internals.
 2. Inputs pane scales to stage/group control complexity.
 3. Lint warning baseline is reduced or explicitly tracked.
 4. Performance claims are backed by repeatable measurements.

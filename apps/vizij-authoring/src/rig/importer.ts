@@ -18,7 +18,7 @@ import {
   createStandardRigInput,
   createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
-  isAutorigStandardInputPath,
+  isPropsRigStandardInputPath,
   normalizeStandardRigInputPath,
   resolveStandardRigInputId,
   type AnimatableComponent,
@@ -68,13 +68,13 @@ export interface RehydratedRigData {
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   inputMetadata: Map<string, { source?: string; root?: string }>;
-  legacyAutorigInputPaths: string[];
+  legacyPropsRigInputPaths: string[];
   normalizationDiagnostics: ImportNormalizationDiagnostics;
 }
 
-const LEGACY_AUTORIG_PREFIX = "/rig/element";
+const LEGACY_PROPSRIG_PREFIX = "/rig/element";
 
-type BindingFallbackReason = "missing-source-input" | "missing-autorig-target";
+type BindingFallbackReason = "missing-source-input" | "missing-propsrig-target";
 
 interface BindingInputRemapDiagnostic {
   targetId: string;
@@ -92,7 +92,7 @@ interface AnimatableRetargetDiagnostic {
   animatableTargetId: string;
   slotId: string;
   fromInputId: string;
-  toAutorigInputId: string;
+  toPropsRigInputId: string;
 }
 
 interface AnimatableFallbackDiagnostic {
@@ -102,28 +102,28 @@ interface AnimatableFallbackDiagnostic {
   reason: BindingFallbackReason;
 }
 
-interface AutorigInputCreatedDiagnostic {
+interface PropsRigInputCreatedDiagnostic {
   inputId: string;
   path: string;
   sourceId?: string;
 }
 
 export interface ImportNormalizationDiagnostics {
-  createdAutorigInputs: AutorigInputCreatedDiagnostic[];
+  createdPropsRigInputs: PropsRigInputCreatedDiagnostic[];
   inputIdRemaps: BindingInputRemapDiagnostic[];
   targetIdRemaps: BindingTargetRemapDiagnostic[];
   animatableRetargets: AnimatableRetargetDiagnostic[];
   animatableFallbacks: AnimatableFallbackDiagnostic[];
 }
 
-function isLegacyAutorigPath(path: string | undefined | null): boolean {
+function isLegacyPropsRigPath(path: string | undefined | null): boolean {
   if (!path) {
     return false;
   }
   const trimmed = path.trim();
   return (
-    trimmed.startsWith(`${LEGACY_AUTORIG_PREFIX}/`) ||
-    trimmed.startsWith(`${LEGACY_AUTORIG_PREFIX}`)
+    trimmed.startsWith(`${LEGACY_PROPSRIG_PREFIX}/`) ||
+    trimmed.startsWith(`${LEGACY_PROPSRIG_PREFIX}`)
   );
 }
 
@@ -166,7 +166,7 @@ function coerceExpression(value: string | null | undefined, fallback: string) {
 
 function createNormalizationDiagnostics(): ImportNormalizationDiagnostics {
   return {
-    createdAutorigInputs: [],
+    createdPropsRigInputs: [],
     inputIdRemaps: [],
     targetIdRemaps: [],
     animatableRetargets: [],
@@ -257,7 +257,7 @@ function resolveComponentIdFromSourceId(
   }
 }
 
-function collectAutorigTargetByComponentId(
+function collectPropsRigTargetByComponentId(
   normalizedSummaries: GraphBindingSummary[],
   componentIds: Set<string>,
   standardInputs: Map<string, StandardRigInput>,
@@ -270,7 +270,7 @@ function collectAutorigTargetByComponentId(
   };
 
   standardInputs.forEach((input, inputId) => {
-    if (!isAutorigStandardInputPath(input.path)) {
+    if (!isPropsRigStandardInputPath(input.path)) {
       return;
     }
     const componentId = resolveComponentIdFromSourceId(input.sourceId);
@@ -285,7 +285,7 @@ function collectAutorigTargetByComponentId(
       return;
     }
     const source = standardInputs.get(summary.inputId);
-    if (!source || !isAutorigStandardInputPath(source.path)) {
+    if (!source || !isPropsRigStandardInputPath(source.path)) {
       return;
     }
     addCandidate(summary.targetId, source.id);
@@ -325,23 +325,23 @@ function buildInputDownstreamLookup(
   return downstreamByInputId;
 }
 
-function hasTransitiveAutorigBoundaryPath(params: {
+function hasTransitivePropsRigBoundaryPath(params: {
   componentId: string;
   sourceInputId: string;
-  autorigTargetsByComponentId: Map<string, string[]>;
+  propsrigTargetsByComponentId: Map<string, string[]>;
   downstreamByInputId: Map<string, Set<string>>;
 }): boolean {
   const {
     componentId,
     sourceInputId,
-    autorigTargetsByComponentId,
+    propsrigTargetsByComponentId,
     downstreamByInputId,
   } = params;
-  const autorigCandidates = autorigTargetsByComponentId.get(componentId);
-  if (!autorigCandidates || autorigCandidates.length === 0) {
+  const propsrigCandidates = propsrigTargetsByComponentId.get(componentId);
+  if (!propsrigCandidates || propsrigCandidates.length === 0) {
     return false;
   }
-  const candidateSet = new Set(autorigCandidates);
+  const candidateSet = new Set(propsrigCandidates);
   if (candidateSet.has(sourceInputId)) {
     return true;
   }
@@ -424,7 +424,7 @@ function normalizeImportedBindingSummaries(
     };
   });
 
-  const autorigTargetsByComponentId = collectAutorigTargetByComponentId(
+  const propsrigTargetsByComponentId = collectPropsRigTargetByComponentId(
     normalizedIds,
     componentIds,
     options.standardInputs,
@@ -442,30 +442,32 @@ function normalizeImportedBindingSummaries(
       return summary;
     }
     const sourceInput = options.standardInputs.get(summary.inputId);
-    if (sourceInput && isAutorigStandardInputPath(sourceInput.path)) {
+    if (sourceInput && isPropsRigStandardInputPath(sourceInput.path)) {
       return summary;
     }
 
     if (
-      hasTransitiveAutorigBoundaryPath({
+      hasTransitivePropsRigBoundaryPath({
         componentId: summary.targetId,
         sourceInputId: summary.inputId,
-        autorigTargetsByComponentId,
+        propsrigTargetsByComponentId,
         downstreamByInputId,
       })
     ) {
       return summary;
     }
 
-    const autorigTargetId = autorigTargetsByComponentId.get(
+    const propsrigTargetId = propsrigTargetsByComponentId.get(
       summary.targetId,
     )?.[0];
-    if (!autorigTargetId) {
+    if (!propsrigTargetId) {
       diagnostics.animatableFallbacks.push({
         animatableTargetId: summary.targetId,
         slotId: summary.slotId,
         inputId: summary.inputId,
-        reason: sourceInput ? "missing-autorig-target" : "missing-source-input",
+        reason: sourceInput
+          ? "missing-propsrig-target"
+          : "missing-source-input",
       });
       return summary;
     }
@@ -474,11 +476,11 @@ function normalizeImportedBindingSummaries(
       animatableTargetId: summary.targetId,
       slotId: summary.slotId,
       fromInputId: summary.inputId,
-      toAutorigInputId: autorigTargetId,
+      toPropsRigInputId: propsrigTargetId,
     });
     return {
       ...summary,
-      targetId: autorigTargetId,
+      targetId: propsrigTargetId,
     };
   });
 
@@ -620,7 +622,7 @@ export function rehydrateRigDataFromGraph(
     faceId: string;
     animatables: Record<string, AnimatableValue>;
     components: AnimatableComponent[];
-    provisionedAutorigInputs?: StandardRigInput[];
+    provisionedPropsRigInputs?: StandardRigInput[];
   },
 ): RehydratedRigData {
   const metadata = (spec as unknown as { metadata?: VizijMetadataContainer })
@@ -671,11 +673,11 @@ export function rehydrateRigDataFromGraph(
       input,
     ]),
   );
-  const createdAutorigInputs: AutorigInputCreatedDiagnostic[] = [];
+  const createdPropsRigInputs: PropsRigInputCreatedDiagnostic[] = [];
 
-  (options.provisionedAutorigInputs ?? []).forEach((provisioned) => {
+  (options.provisionedPropsRigInputs ?? []).forEach((provisioned) => {
     const normalizedPath = normalizeStandardRigInputPath(provisioned.path);
-    if (!isAutorigStandardInputPath(normalizedPath)) {
+    if (!isPropsRigStandardInputPath(normalizedPath)) {
       return;
     }
     if (standardInputsByPath.has(normalizedPath)) {
@@ -709,18 +711,18 @@ export function rehydrateRigDataFromGraph(
       source: "auto",
       root: resolvedGroup,
     });
-    createdAutorigInputs.push({
+    createdPropsRigInputs.push({
       inputId: created.id,
       path: created.path,
       sourceId: created.sourceId,
     });
   });
 
-  const legacyAutorigInputPaths = new Set<string>();
+  const legacyPropsRigInputPaths = new Set<string>();
 
   vizij.inputs.forEach((input) => {
-    if (isLegacyAutorigPath(input.path)) {
-      legacyAutorigInputPaths.add(input.path);
+    if (isLegacyPropsRigPath(input.path)) {
+      legacyPropsRigInputPaths.add(input.path);
     }
   });
 
@@ -729,7 +731,7 @@ export function rehydrateRigDataFromGraph(
       components: options.components,
       standardInputs: standardInputsById,
     });
-  diagnostics.createdAutorigInputs.push(...createdAutorigInputs);
+  diagnostics.createdPropsRigInputs.push(...createdPropsRigInputs);
 
   const { bindings, inputBindings } = buildBindings(
     normalizedSummaries,
@@ -745,7 +747,7 @@ export function rehydrateRigDataFromGraph(
     bindings,
     inputBindings,
     inputMetadata,
-    legacyAutorigInputPaths: Array.from(legacyAutorigInputPaths),
+    legacyPropsRigInputPaths: Array.from(legacyPropsRigInputPaths),
     normalizationDiagnostics: diagnostics,
   };
 }

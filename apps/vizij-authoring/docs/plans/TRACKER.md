@@ -20,7 +20,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | ID   | Status | Priority | Notes                                                                                                                                                                   |
 | ---- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A0.1 | done   | P0       | Canonical pose-weight paths, Inputs sync, and stale/duplicate cleanup landed with regression tests.                                                                     |
-| A0.2 | done   | P0       | Import now provisions autorig targets before retargeting and emits created/rebound/fallback diagnostics.                                                                |
+| A0.2 | done   | P0       | Import now provisions propsrig targets before retargeting and emits created/rebound/fallback diagnostics.                                                               |
 | A0.3 | done   | P0       | MVP pose lifecycle smoke tests landed, including ghost-target guard coverage.                                                                                           |
 | A0.4 | done   | P0       | Pose graph outputs now target `rig/<face>/pose/control/<inputId>`; runtime/input-pane guardrails and regression tests are landed.                                       |
 | A0.5 | done   | P0       | Rig graph now computes `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)` for composed channels with additive default and average support.                  |
@@ -33,7 +33,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | C2.1 | done   | P1       | IR/config/compiler now support deterministic ordered blend stages with fallback compatibility and diagnostics.                                                          |
 | C2.2 | done   | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.                                                                   |
 | C2.3 | done   | P1       | Golden topology fixture suite landed with deterministic snapshot/hash checks + neutral fallback diagnostics.                                                            |
-| D3.1 | done   | P2       | Inspector chain defaults now abstract autorig internals with explicit show/hide toggle for advanced access.                                                             |
+| D3.1 | done   | P2       | Inspector chain defaults now abstract propsrig internals with explicit show/hide toggle for advanced access.                                                            |
 | D3.2 | done   | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 06:12Z`). |
 | D3.3 | done   | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                                                                                    |
 | D3.4 | done   | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
@@ -87,7 +87,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 - `Q0.2` canonical pose-target mapping fix.
 - `A0.1` canonical pose-weight input synchronization + stale/duplicate cleanup + provider regression tests.
-- `A0.2` import retarget sequencing hardening with autorig pre-provisioning and created/rebound/fallback diagnostics.
+- `A0.2` import retarget sequencing hardening with propsrig pre-provisioning and created/rebound/fallback diagnostics.
 - `A0.3` MVP pose authoring smoke coverage for lifecycle + export guard paths.
 - `A0.4` pose-control path contract alignment (`rig/<face>/pose/control/<inputId>`) with runtime/input-pane internal-path guardrails.
 - `A0.5` rig effective channel composition (`compose + clamp`) for deterministic direct+pose merging.
@@ -100,7 +100,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `C2.1` multi-stage blend IR primitives with ordered stage-chain compile, malformed-stage diagnostics, and compatibility fallback for legacy no-stage payloads.
 - `C2.2` multi-stage authoring UI controls (stage CRUD/reorder/source editing) with topology blocking before apply/export.
 - `C2.3` golden topology fixture suite for overlap/fallback/stage-chain scenarios with deterministic hash drift protection.
-- `D3.1` autorig abstraction cleanup in default inspector chains with opt-in `Show/Hide Autorig Internals` advanced toggle.
+- `D3.1` propsrig abstraction cleanup in default inspector chains with opt-in `Show/Hide PropsRig Internals` advanced toggle.
 - `D3.2` Inputs pane IA update for explicit pose-weight vs derived group/stage outputs, including provenance labeling and read-only derived controls.
 - `D3.3` lint warning baseline cleanup (warning count reduced to zero).
 - `D3.4` empirical dense Inputs-pane performance baseline capture with latency + React Profiler commit/duration evidence (`docs/perf/inputs-pane-baseline-2026-02-19.md`).

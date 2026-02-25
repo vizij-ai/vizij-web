@@ -1,7 +1,7 @@
 import type { StandardRigInput } from "@vizij/utils";
 
 export type FaceInspectorCurrentValueSourceKind =
-  | "autorig-channel"
+  | "propsrig-channel"
   | "standard-input-channel"
   | "unresolved-channel"
   | "blocked-channel"
@@ -57,8 +57,8 @@ export function resolveFaceInspectorCurrentValue({
     return {
       currentValue: coerceFiniteNumber(staged, defaultValue),
       sourceLabel,
-      sourceKind: sourceLabel.startsWith("/autorig/")
-        ? "autorig-channel"
+      sourceKind: sourceLabel.startsWith("/propsrig/")
+        ? "propsrig-channel"
         : "standard-input-channel",
     };
   }

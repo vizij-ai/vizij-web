@@ -27,10 +27,10 @@ Required gate:
 ## Success Criteria (Release-Level)
 
 1. Variables, poses, and pose groups each support full per-item lifecycle editing.
-2. Face/pose inspector values reflect authoritative runtime/autorig state.
-3. Locking is channel-level at the autorig layer.
+2. Face/pose inspector values reflect authoritative runtime/propsrig state.
+3. Locking is channel-level at the propsrig layer.
 4. Runtime exposes rig inputs and pose-weight controls.
-5. Import normalizes face naming and retargets invalid abstract-rig -> animatable links safely to autorig links.
+5. Import normalizes face naming and retargets invalid abstract-rig -> animatable links safely to propsrig links.
 6. Pose definitions are reusable and can belong to multiple groups.
 
 ## Non-Goals (Current Stage)

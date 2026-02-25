@@ -6,14 +6,14 @@ interface ResolvePosePropertySelectionInputIdsParams {
   selection: Extract<VariableSelection, { type: "property" }>;
   standardInputsById: ReadonlyMap<string, StandardRigInput>;
   fallbackTargetIds: readonly string[];
-  autorigInputIdByComponentId: ReadonlyMap<string, string>;
+  propsrigInputIdByComponentId: ReadonlyMap<string, string>;
 }
 
 export function resolvePosePropertySelectionInputIds({
   selection,
   standardInputsById,
   fallbackTargetIds,
-  autorigInputIdByComponentId,
+  propsrigInputIdByComponentId,
 }: ResolvePosePropertySelectionInputIdsParams): string[] {
   const resolvedInputIds = new Set<string>();
 
@@ -38,7 +38,7 @@ export function resolvePosePropertySelectionInputIds({
 
   if (resolvedInputIds.size === 0) {
     fallbackTargetIds.forEach((targetId) => {
-      addResolvedInputId(autorigInputIdByComponentId.get(targetId));
+      addResolvedInputId(propsrigInputIdByComponentId.get(targetId));
     });
   }
 

@@ -155,7 +155,7 @@ export interface BindingAuthoringState {
   handleSelectStandardInputRoots: (roots: string[]) => void;
   handleSelectStandardInputSubgroups: (groups: string[]) => void;
   lockedInspectorTargetIds: Set<string>;
-  lockedAutorigInputIds: Set<string>;
+  lockedPropsRigInputIds: Set<string>;
   handleSetInspectorTargetLocked: (targetId: string, locked: boolean) => void;
   handleToggleInspectorTargetLock: (targetId: string) => void;
   handleMigrateAllLegacyBindings: () => number;
@@ -243,7 +243,7 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleSelectStandardInputRoots: () => undefined,
   handleSelectStandardInputSubgroups: () => undefined,
   lockedInspectorTargetIds: new Set(),
-  lockedAutorigInputIds: new Set(),
+  lockedPropsRigInputIds: new Set(),
   handleSetInspectorTargetLocked: () => undefined,
   handleToggleInspectorTargetLock: () => undefined,
   handleMigrateAllLegacyBindings: () => 0,

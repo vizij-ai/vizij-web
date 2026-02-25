@@ -179,7 +179,7 @@ Target architecture should support chained layer composition, not only one cross
 ## 6) IR to Graph Compilation Pipeline (Target)
 
 1. Parse and normalize pose IR entities.
-2. Resolve canonical channel ids from rig/autorig interface map.
+2. Resolve canonical channel ids from rig/propsrig interface map.
 3. Validate hard constraints (including `Q0.2` canonical input-id targeting in IR).
 4. Build per-group blend subgraphs per channel.
 5. Build cross-group compose nodes per channel from selected policy.

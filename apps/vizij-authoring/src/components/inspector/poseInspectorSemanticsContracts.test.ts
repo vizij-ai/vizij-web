@@ -10,7 +10,7 @@ const inspectorContentTsx = readFileSync(
 describe("B1.3 pose inspector value semantics contracts", () => {
   it("defines explicit legend labels for target, direct, pose-driven, and contribution", () => {
     expect(inspectorContentTsx).toContain("Control Target");
-    expect(inspectorContentTsx).toContain("Control Variable");
+    expect(inspectorContentTsx).toContain("Control Driver");
     expect(inspectorContentTsx).toContain("Current Pose");
     expect(inspectorContentTsx).toContain("Contribution Strength");
   });
@@ -36,7 +36,7 @@ describe("B1.3 pose inspector value semantics contracts", () => {
   it("removes ambiguous current/applied labeling", () => {
     expect(inspectorContentTsx).not.toContain("Current/Applied");
     expect(inspectorContentTsx).toContain("Control Target");
-    expect(inspectorContentTsx).toContain("Control Variable");
+    expect(inspectorContentTsx).toContain("Control Driver");
     expect(inspectorContentTsx).toContain(
       "title={poseSemanticTooltips.target}",
     );

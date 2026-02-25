@@ -25,7 +25,7 @@ You also want:
 1. Override controls on dedicated runtime paths.
 2. A clear layer model:
    1. animatable properties (lowest level),
-   2. autorig channels targeting animatable sub-properties,
+   2. propsrig channels targeting animatable sub-properties,
    3. variable-level controls and blending (parents, poses, direct input).
 3. Variable-level source inputs standardized and explicit:
    1. parent inputs (linked via binding expression),
