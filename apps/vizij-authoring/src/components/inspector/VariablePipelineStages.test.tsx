@@ -96,11 +96,29 @@ function openStage(
   titlePattern: RegExp,
 ) {
   const stage = view.getByTestId(testId);
-  fireEvent.click(within(stage).getByRole("button", { name: titlePattern }));
+  const trigger = within(stage).getByRole("button", { name: titlePattern });
+  if (trigger.getAttribute("aria-expanded") !== "true") {
+    fireEvent.click(trigger);
+  }
   return stage;
 }
 
 describe("VariablePipelineStages", () => {
+  it("keeps parents and children sections open by default", () => {
+    const props = createBaseProps();
+    const view = render(<VariablePipelineStages {...props} />);
+
+    const parentsTrigger = within(
+      view.getByTestId("pipeline-stage-parents"),
+    ).getByRole("button", { name: /parents/i });
+    expect(parentsTrigger.getAttribute("aria-expanded")).toBe("true");
+
+    const childrenTrigger = within(
+      view.getByTestId("pipeline-stage-children"),
+    ).getByRole("button", { name: /children/i });
+    expect(childrenTrigger.getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("renders stage-oriented sections and diagnostics", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);
@@ -121,8 +139,18 @@ describe("VariablePipelineStages", () => {
       within(compiledStage).getByTestId("pipeline-compiled-equation")
         .textContent,
     ).toContain("effective =");
-    expect(within(compiledStage).getByText(/Parents 0.400/i)).toBeTruthy();
-    expect(within(compiledStage).getByText(/Direct 0.200/i)).toBeTruthy();
+    expect(
+      within(compiledStage).getByTestId("pipeline-compiled-source-parents")
+        .textContent,
+    ).toContain("0.400");
+    expect(
+      within(compiledStage).getByTestId("pipeline-compiled-source-direct")
+        .textContent,
+    ).toContain("0.200");
+    expect(
+      within(compiledStage).getByTestId("pipeline-compiled-effective")
+        .textContent,
+    ).toContain("0.100");
     expect(view.queryByTestId("pipeline-migration-summary")).toBeNull();
   });
 
@@ -147,8 +175,6 @@ describe("VariablePipelineStages", () => {
       within(childStage).getByRole("button", { name: "Inspect" }),
     );
     expect(props.children[0]?.onInspect).toHaveBeenCalledTimes(1);
-    fireEvent.click(within(childStage).getByRole("button", { name: "Unlink" }));
-    expect(props.children[0]?.onUnlink).toHaveBeenCalledTimes(1);
 
     const parentSwitches = within(parentStage).getAllByRole("switch");
     fireEvent.click(parentSwitches[0]!);

@@ -4,7 +4,7 @@ import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "../../utils/cn";
 
 export interface CollapsibleGroupProps {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   defaultCollapsed?: boolean;
   itemCount?: number;
@@ -33,7 +33,7 @@ export function CollapsibleGroup({
       >
         <BaseCollapsible.Trigger
           className={cn(
-            "flex w-full items-center justify-between px-3 py-2 bg-zinc-800/20 cursor-pointer select-none transition-all duration-150 hover:bg-zinc-800/40 focus:outline focus:outline-2 focus:outline-blue-500/50 focus:-outline-offset-2",
+            "flex w-full items-center justify-between px-3 py-2 bg-zinc-800/20 cursor-pointer select-none transition-all duration-150 hover:bg-zinc-800/40 focus:outline-none focus-visible:outline-none",
             "group-data-[state=open]:border-b group-data-[state=open]:border-zinc-800/40",
           )}
         >

@@ -1,11 +1,6 @@
 import React from "react";
-import {
-  Button,
-  Chip,
-  CollapsibleGroup,
-  CollapsibleRow,
-  TextArea,
-} from "../ui";
+import { ArrowRight, Plus } from "lucide-react";
+import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
@@ -82,38 +77,93 @@ interface VariablePipelineStagesProps {
   showClampStage?: boolean;
 }
 
+type StageHeaderTone = "muted" | "info" | "success" | "warning";
+
+interface StageHeaderBadge {
+  label: string;
+  tone?: StageHeaderTone;
+}
+
+function stageHeaderBadgeClass(tone: StageHeaderTone = "muted"): string {
+  switch (tone) {
+    case "info":
+      return "border-sky-500/35 bg-sky-500/10 text-sky-100";
+    case "success":
+      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-100";
+    case "warning":
+      return "border-amber-500/35 bg-amber-500/10 text-amber-100";
+    case "muted":
+    default:
+      return "border-border-default/50 bg-bg-panel/45 text-text-secondary";
+  }
+}
+
 function StageSection({
   title,
-  subtitle,
+  hoverText,
   count,
+  countLabel,
+  headerBadges = [],
   children,
   testId,
   className,
+  defaultCollapsed = true,
 }: {
   title: string;
-  subtitle: string;
+  hoverText: string;
   count?: number;
+  countLabel?: string;
+  headerBadges?: StageHeaderBadge[];
   children: React.ReactNode;
   testId: string;
   className?: string;
+  defaultCollapsed?: boolean;
 }) {
+  const badges: StageHeaderBadge[] = [...headerBadges];
+  if (count !== undefined) {
+    badges.unshift({
+      label:
+        countLabel ??
+        `${count} ${count === 1 ? "item linked" : "items linked"}`,
+      tone: count > 0 ? "info" : "muted",
+    });
+  }
+
   return (
     <div className={className} data-testid={testId}>
       <CollapsibleGroup
-        title={title}
-        subtitle={subtitle}
-        itemCount={count}
-        defaultCollapsed={true}
-        className="mb-0"
+        title={
+          <span
+            className="cursor-help underline decoration-dotted underline-offset-4 decoration-border-default/60 hover:decoration-border-default"
+            title={hoverText}
+          >
+            {title}
+          </span>
+        }
+        subtitle={undefined}
+        defaultCollapsed={defaultCollapsed}
+        className="mb-0 bg-transparent border-border-default/35 data-[state=open]:shadow-none"
+        actions={
+          badges.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[18rem]">
+              {badges.map((badge, index) => (
+                <span
+                  key={`${badge.label}-${index}`}
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${stageHeaderBadgeClass(
+                    badge.tone,
+                  )}`}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
+          ) : undefined
+        }
       >
         <div className="flex flex-col gap-2">{children}</div>
       </CollapsibleGroup>
     </div>
   );
-}
-
-function kindTone(kind: PipelineStageLinkItem["kind"]): "default" | "info" {
-  return kind === "autorig" ? "info" : "default";
 }
 
 function formatCompactNumber(value: number): string {
@@ -136,7 +186,7 @@ function LinkControlEditor({
       : "Child input = this x scale + offset";
 
   return (
-    <div className="rounded border border-border-default/30 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1.5">
+    <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
         <Switch
           checked={linkControl.enabled}
@@ -181,7 +231,7 @@ function ParentDirectControlEditor({
   directControl: NonNullable<PipelineStageLinkItem["directControl"]>;
 }) {
   return (
-    <div className="rounded border border-border-default/30 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1">
+    <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1">
       <div className="text-[10px] text-text-secondary">Parent direct input</div>
       <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
         <span className="text-[10px] text-text-secondary">Value</span>
@@ -256,28 +306,72 @@ export function VariablePipelineStages({
 
   return (
     <div
-      className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2"
+      className="px-1 py-1 flex flex-col gap-2"
       data-testid="variable-pipeline-stages"
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
             Variable Pipeline
           </span>
-          <span className="text-[10px] text-text-secondary">
-            Stage-oriented inspector controls
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stageHeaderBadgeClass(
+                parents.length > 0 ? "info" : "muted",
+              )}`}
+            >
+              {parents.length} {parents.length === 1 ? "parent" : "parents"}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stageHeaderBadgeClass(
+                poses.length > 0 ? "info" : "muted",
+              )}`}
+            >
+              {poses.length} {poses.length === 1 ? "pose" : "poses"}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stageHeaderBadgeClass(
+                children.length > 0 ? "info" : "muted",
+              )}`}
+            >
+              {children.length} {children.length === 1 ? "child" : "children"}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stageHeaderBadgeClass(
+                directInputEnabled ? "success" : "muted",
+              )}`}
+            >
+              Direct {directInputEnabled ? "On" : "Off"}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stageHeaderBadgeClass(
+                overrideEnabled ? "warning" : "muted",
+              )}`}
+            >
+              Override {overrideEnabled ? "On" : "Off"}
+            </span>
+          </div>
         </div>
       </div>
 
       <StageSection
         title="Parents"
-        subtitle="Upstream variables that contribute parent math."
+        hoverText="Upstream variables that contribute parent math."
         count={parents.length}
+        countLabel={`${parents.length} ${parents.length === 1 ? "parent link" : "parent links"}`}
+        headerBadges={[
+          {
+            label: parentExpressionReadOnly
+              ? "Legacy formula"
+              : "Formula editable",
+            tone: parentExpressionReadOnly ? "warning" : "success",
+          },
+        ]}
         testId="pipeline-stage-parents"
         className={sourceSectionClass}
+        defaultCollapsed={false}
       >
-        <div className="rounded border border-border-default/40 bg-bg-input/40 p-2">
+        <div className="rounded-md bg-bg-input/20 p-2">
           <div className="mb-1 flex items-center justify-between gap-2">
             <div className="text-[9px] uppercase tracking-wide text-text-muted">
               {parentExpressionTitle}
@@ -343,10 +437,6 @@ export function VariablePipelineStages({
             </code>
           )}
         </div>
-        <span className="text-[10px] text-text-secondary">
-          Parents are upstream inputs driving this variable. Each link applies a
-          scale multiplier and offset.
-        </span>
         {parents.length > 0 ? (
           <div className="flex flex-col gap-2">
             {parents.map((parent) => (
@@ -365,17 +455,18 @@ export function VariablePipelineStages({
                 }
                 defaultExpanded={false}
                 showSlider={false}
+                className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
                 actions={
                   <>
-                    <Chip tone={kindTone(parent.kind)}>{parent.kind}</Chip>
                     {parent.onInspect ? (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px]"
+                        className="h-6 text-[10px] gap-1.5"
                         onClick={parent.onInspect}
                       >
                         Inspect
+                        <ArrowRight size={11} aria-hidden="true" />
                       </Button>
                     ) : null}
                   </>
@@ -417,8 +508,9 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Poses"
-        subtitle="Pose targets and blend weights for this variable."
+        hoverText="Pose targets and blend weights for this variable."
         count={poses.length}
+        countLabel={`${poses.length} ${poses.length === 1 ? "pose target" : "pose targets"}`}
         testId="pipeline-stage-poses"
         className={sourceSectionClass}
       >
@@ -434,15 +526,17 @@ export function VariablePipelineStages({
                 )} · Weight ${pose.weight.toFixed(3)}`}
                 defaultExpanded={false}
                 showSlider={false}
+                className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
                 actions={
                   pose.onInspect ? (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 text-[10px]"
+                      className="h-6 text-[10px] gap-1.5"
                       onClick={pose.onInspect}
                     >
                       Inspect Pose
+                      <ArrowRight size={11} aria-hidden="true" />
                     </Button>
                   ) : undefined
                 }
@@ -479,7 +573,19 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Direct Input"
-        subtitle="Optional direct control path for this variable."
+        hoverText="Optional direct control path for this variable."
+        headerBadges={[
+          {
+            label: directInputEnabled ? "Direct enabled" : "Direct disabled",
+            tone: directInputEnabled ? "success" : "muted",
+          },
+          {
+            label: directControlDisabled
+              ? "Locked externally"
+              : "Local control",
+            tone: directControlDisabled ? "warning" : "info",
+          },
+        ]}
         testId="pipeline-stage-direct-input"
         className={sourceSectionClass}
       >
@@ -550,7 +656,13 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Override"
-        subtitle="Optional runtime override for effective output."
+        hoverText="Optional runtime override for effective output."
+        headerBadges={[
+          {
+            label: overrideEnabled ? "Override enabled" : "Override disabled",
+            tone: overrideEnabled ? "warning" : "muted",
+          },
+        ]}
         testId="pipeline-stage-override"
       >
         <div className="flex items-center gap-3">
@@ -592,7 +704,13 @@ export function VariablePipelineStages({
       {showClampStage ? (
         <StageSection
           title="Clamp"
-          subtitle="Final output bounding for this variable."
+          hoverText="Final output bounding for this variable."
+          headerBadges={[
+            {
+              label: clampEnabled ? "Clamp enabled" : "Clamp disabled",
+              tone: clampEnabled ? "success" : "warning",
+            },
+          ]}
           testId="pipeline-stage-clamp"
         >
           <div className="flex items-center gap-3">
@@ -611,47 +729,127 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Compiled Pipeline"
-        subtitle="Read-only equation and live diagnostics."
+        hoverText="Live contribution flow and resulting output."
+        headerBadges={[
+          {
+            label: directInputEnabled ? "Direct active" : "Direct bypassed",
+            tone: directInputEnabled ? "success" : "muted",
+          },
+          {
+            label: overrideEnabled ? "Override active" : "Override bypassed",
+            tone: overrideEnabled ? "warning" : "muted",
+          },
+        ]}
         testId="pipeline-stage-compiled"
       >
-        <div className="rounded border border-border-default/40 bg-bg-input/40 p-2">
-          <div className="text-[9px] uppercase tracking-wide text-text-muted mb-1">
-            Read-only equation
+        <div className="rounded-lg border border-border-default/45 bg-bg-panel/25 p-2.5 flex flex-col gap-2.5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div
+              className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1.5"
+              data-testid="pipeline-compiled-source-parents"
+            >
+              <div className="text-[10px] font-semibold text-sky-100">
+                Parents
+              </div>
+              <div className="text-[11px] font-mono text-sky-50">
+                {formatPipelineValue(diagnostics.parentContribution)}
+              </div>
+            </div>
+            <div
+              className="rounded-md border border-fuchsia-500/35 bg-fuchsia-500/10 px-2 py-1.5"
+              data-testid="pipeline-compiled-source-poses"
+            >
+              <div className="text-[10px] font-semibold text-fuchsia-100">
+                Poses
+              </div>
+              <div className="text-[11px] font-mono text-fuchsia-50">
+                {formatPipelineValue(diagnostics.poseContribution)}
+              </div>
+            </div>
+            <div
+              className="rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2 py-1.5"
+              data-testid="pipeline-compiled-source-direct"
+            >
+              <div className="text-[10px] font-semibold text-emerald-100">
+                Direct
+              </div>
+              <div className="text-[11px] font-mono text-emerald-50">
+                {formatPipelineValue(diagnostics.directContribution)}
+              </div>
+            </div>
           </div>
-          <code
-            className="text-[10px] text-text-primary break-all"
-            data-testid="pipeline-compiled-equation"
+
+          <div className="text-[10px] text-text-muted text-center font-medium">
+            Parents + poses + direct blend into one pipeline value.
+          </div>
+
+          <div
+            className="rounded-md border border-indigo-500/35 bg-indigo-500/10 px-2 py-1.5"
+            data-testid="pipeline-compiled-blended"
           >
-            {compiledEquation}
-          </code>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Chip tone="default">
-            Parents {formatPipelineValue(diagnostics.parentContribution)}
-          </Chip>
-          <Chip tone="default">
-            Poses {formatPipelineValue(diagnostics.poseContribution)}
-          </Chip>
-          <Chip tone="default">
-            Direct {formatPipelineValue(diagnostics.directContribution)}
-          </Chip>
-          <Chip tone="info">
-            Blended {formatPipelineValue(diagnostics.blendedResult)}
-          </Chip>
-          <Chip tone="warning">
-            Selected {formatPipelineValue(diagnostics.overrideSelectedResult)}
-          </Chip>
-          <Chip tone="success">
-            Effective {formatPipelineValue(diagnostics.effectiveResult)}
-          </Chip>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-indigo-100">
+                Blended Result
+              </span>
+              <span className="text-[11px] font-mono text-indigo-50">
+                {formatPipelineValue(diagnostics.blendedResult)}
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-1.5"
+            data-testid="pipeline-compiled-override"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-amber-100">
+                Override Decision
+              </span>
+              <span className="text-[10px] font-semibold text-amber-50">
+                {overrideEnabled ? "Override On" : "Override Off"}
+              </span>
+            </div>
+            <div className="mt-1 text-[10px] text-amber-50/90 font-mono">
+              Selected:{" "}
+              {formatPipelineValue(diagnostics.overrideSelectedResult)}
+            </div>
+          </div>
+
+          <div
+            className="rounded-md border border-green-500/35 bg-green-500/10 px-2 py-1.5"
+            data-testid="pipeline-compiled-effective"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold text-green-100">
+                Effective Output
+              </span>
+              <span className="text-[11px] font-mono text-green-50">
+                {formatPipelineValue(diagnostics.effectiveResult)}
+              </span>
+            </div>
+          </div>
+
+          <details className="rounded border border-border-default/45 bg-bg-input/25 px-2 py-1.5">
+            <summary className="cursor-pointer text-[10px] font-semibold text-text-secondary">
+              Runtime equation
+            </summary>
+            <code
+              className="mt-1 block text-[10px] text-text-primary break-all"
+              data-testid="pipeline-compiled-equation"
+            >
+              {compiledEquation}
+            </code>
+          </details>
         </div>
       </StageSection>
 
       <StageSection
         title="Children"
-        subtitle="Downstream variables driven by this variable."
+        hoverText="Downstream variables driven by this variable."
         count={children.length}
+        countLabel={`${children.length} ${children.length === 1 ? "child link" : "child links"}`}
         testId="pipeline-stage-children"
+        defaultCollapsed={false}
       >
         {children.length > 0 ? (
           <div className="flex flex-col gap-2">
@@ -669,34 +867,25 @@ export function VariablePipelineStages({
                 }
                 defaultExpanded={false}
                 showSlider={false}
+                className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
                 actions={
                   <>
-                    <Chip tone={kindTone(child.kind)}>{child.kind}</Chip>
                     {child.onInspect ? (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px]"
+                        className="h-6 text-[10px] gap-1.5"
                         onClick={child.onInspect}
                       >
                         Inspect
-                      </Button>
-                    ) : null}
-                    {child.onUnlink ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[10px]"
-                        onClick={child.onUnlink}
-                      >
-                        Unlink
+                        <ArrowRight size={11} aria-hidden="true" />
                       </Button>
                     ) : null}
                   </>
                 }
                 expandedContent={
                   child.linkControl ? (
-                    <div className="rounded border border-border-default/30 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1.5">
+                    <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
                       <Switch
                         checked={child.linkControl.enabled}
                         onChange={(enabled) =>
@@ -758,11 +947,12 @@ export function VariablePipelineStages({
         )}
         {onAddChild ? (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            className="h-6 text-[10px] w-fit"
+            className="h-7 text-[10px] w-fit gap-1.5 font-semibold border-accent/50 text-accent hover:bg-accent/15"
             onClick={onAddChild}
           >
+            <Plus size={11} aria-hidden="true" />
             Add Child Link
           </Button>
         ) : null}

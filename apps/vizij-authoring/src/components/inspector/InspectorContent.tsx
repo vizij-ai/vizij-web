@@ -524,6 +524,7 @@ export function InspectorContent({
   const [rigDefaultDraft, setRigDefaultDraft] = useState("0");
   const [rigRangeMinDraft, setRigRangeMinDraft] = useState("-1");
   const [rigRangeMaxDraft, setRigRangeMaxDraft] = useState("1");
+  const [rigPathDraft, setRigPathDraft] = useState("");
   const [rigLifecycleMessage, setRigLifecycleMessage] =
     useState<RigLifecycleMessage | null>(null);
 
@@ -923,6 +924,7 @@ export function InspectorContent({
     setRigDefaultDraft(formatDraftNumber(input.defaultValue ?? 0));
     setRigRangeMinDraft(formatDraftNumber(input.range.min ?? -1));
     setRigRangeMaxDraft(formatDraftNumber(input.range.max ?? 1));
+    setRigPathDraft(input.path ?? "");
     setRigLifecycleMessage(null);
   }, [inspectorMode, selectedManagedRigEntry]);
 
@@ -2367,14 +2369,14 @@ export function InspectorContent({
         });
       };
 
-      const handleRigPathChange = (nextPath: string) => {
+      const handleRigPathChange = (nextPath: string): boolean => {
         const trimmedPath = nextPath.trim();
         if (!trimmedPath) {
           setRigLifecycleMessage({
             tone: "error",
             text: "Path cannot be empty.",
           });
-          return;
+          return false;
         }
         const normalizedPath = normalizeStandardRigInputPath(trimmedPath);
         const duplicatePath = managedStandardInputs.some(
@@ -2387,10 +2389,22 @@ export function InspectorContent({
             tone: "error",
             text: `Another variable already uses "${normalizedPath}".`,
           });
-          return;
+          return false;
         }
         handleUpdateStandardInput(input.id, { path: normalizedPath });
+        setRigPathDraft(normalizedPath);
         setRigLifecycleMessage(null);
+        return true;
+      };
+
+      const handleApplyRigPathDraft = () => {
+        const normalizedDraft = normalizeStandardRigInputPath(rigPathDraft);
+        const normalizedCurrent = normalizeStandardRigInputPath(input.path);
+        if (normalizedDraft === normalizedCurrent) {
+          setRigPathDraft(normalizedCurrent);
+          return;
+        }
+        handleRigPathChange(rigPathDraft);
       };
 
       const handleDeleteSelectedRigInput = () => {
@@ -3077,7 +3091,6 @@ export function InspectorContent({
               handleUpdateStandardInput(input.id, { label: name });
               setRigLifecycleMessage(null);
             }}
-            onPathChange={handleRigPathChange}
             actions={
               <Button
                 variant="ghost"
@@ -3130,6 +3143,51 @@ export function InspectorContent({
               >
                 {isRemovableCustomInput ? "custom" : "system"}
               </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                Input Path
+              </span>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 items-center">
+                <Input
+                  size="sm"
+                  value={rigPathDraft}
+                  onChange={(event) => setRigPathDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleApplyRigPathDraft();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRigPathDraft(input.path ?? "");
+                      setRigLifecycleMessage(null);
+                    }
+                  }}
+                  className="w-full bg-bg-input/80 border-border-default/80 font-mono text-[11px] text-text-primary"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 text-[10px] whitespace-nowrap"
+                  onClick={handleApplyRigPathDraft}
+                >
+                  Apply Path
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] whitespace-nowrap"
+                  onClick={() => {
+                    setRigPathDraft(input.path ?? "");
+                    setRigLifecycleMessage(null);
+                  }}
+                >
+                  Reset Path
+                </Button>
+              </div>
+              <code className="text-[10px] text-text-muted break-all">
+                Runtime path: {directInputRuntimePath}
+              </code>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="flex flex-col gap-1">
@@ -3225,6 +3283,7 @@ export function InspectorContent({
                   setRigDefaultDraft(formatDraftNumber(input.defaultValue));
                   setRigRangeMinDraft(formatDraftNumber(input.range.min));
                   setRigRangeMaxDraft(formatDraftNumber(input.range.max));
+                  setRigPathDraft(input.path ?? "");
                   setRigLifecycleMessage(null);
                 }}
               >
