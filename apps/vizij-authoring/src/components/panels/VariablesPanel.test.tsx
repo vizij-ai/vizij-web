@@ -468,6 +468,31 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Eye Open")).toBeTruthy();
   });
 
+  it("renders input rows as path leaves without a terminal folder node", () => {
+    const nestedInput = makeInput("jaw_open", "/face/jaw/open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [
+      { input: nestedInput, source: "preset" },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/face/jaw/open", nestedInput],
+    ]);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+    const scoped = within(view.container);
+    const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Jaw Open" } });
+    expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
+    expect(scoped.queryByTitle("open")).toBeNull();
+  });
+
   it("excludes propsrig inputs for fully locked face elements on the Inputs surface", () => {
     const lockedX = makeInput("propsrig_eye_x", "/propsrig/eye/open_x", {
       label: "Eye Open X",

@@ -393,6 +393,28 @@ function insertRigNodeAtPath(params: {
   });
 }
 
+function insertInputNodeAtPath(params: {
+  root: TreeNode;
+  key: string;
+  row: InputListRow;
+}): void {
+  const { root, key, row } = params;
+  const pathParts = getPathParts(row.path);
+  const folderParts = pathParts.slice(0, Math.max(pathParts.length - 1, 0));
+  let current = root;
+  folderParts.forEach((part) => {
+    current = getOrCreateChild(current, part, part);
+  });
+  current.children.set(key, {
+    id: `${current.id}/${key}`,
+    label: row.label,
+    type: "input",
+    children: new Map(),
+    showChildren: false,
+    data: row,
+  });
+}
+
 function collectBindingInputIds(
   binding: BindingInputLike | null | undefined,
 ): Set<string> {
@@ -1636,19 +1658,10 @@ export function VariablesPanel({
     };
 
     inputRows.forEach((row) => {
-      const pathParts = row.path.split("/").filter(Boolean);
-      let current = root;
-      for (const part of pathParts) {
-        current = getOrCreateChild(current, part, part);
-      }
-      const key = `input_${row.inputId}`;
-      current.children.set(key, {
-        id: `${current.id}/${key}`,
-        label: row.label,
-        type: "input",
-        children: new Map(),
-        showChildren: false,
-        data: row,
+      insertInputNodeAtPath({
+        root,
+        key: `input_${row.inputId}`,
+        row,
       });
     });
 
