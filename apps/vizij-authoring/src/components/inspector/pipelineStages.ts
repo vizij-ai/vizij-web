@@ -2,7 +2,7 @@ import {
   buildCanonicalBindingExpression,
   type AnimatableBinding,
 } from "@vizij/node-graph-authoring";
-import { SELF_BINDING_ID } from "@vizij/utils";
+import { buildRigPipelineV1LinkId, SELF_BINDING_ID } from "@vizij/utils";
 
 type JsonObject = Record<string, unknown>;
 
@@ -58,6 +58,21 @@ export interface LegacyBindingMigrationAssessment {
   reason: string | null;
   parentFactorsByInputId?: Record<string, number>;
 }
+
+type MigrationBindingLike = {
+  inputId?: string | null;
+  slots?: Array<{
+    inputId?: string | null;
+  }>;
+};
+
+type MigrationLinkUpsert = {
+  parentInputId: string;
+  childInputId: string;
+  scale: number;
+  offset: number;
+  enabled: boolean;
+};
 
 function asObject(value: unknown): JsonObject | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -123,6 +138,134 @@ function parsePositiveNumberToken(value: string): number | null {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatExpressionNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  const rounded = Math.round(value * 1000) / 1000;
+  if (Object.is(rounded, -0)) {
+    return "0";
+  }
+  return rounded.toString();
+}
+
+function normalizeMigrationInputId(
+  rawInputId: string | null | undefined,
+  resolveInputId: (inputId: string) => string,
+): string | null {
+  const trimmedInputId = rawInputId?.trim() ?? "";
+  if (!trimmedInputId || trimmedInputId === SELF_BINDING_ID) {
+    return null;
+  }
+  const resolvedInputId = resolveInputId(trimmedInputId);
+  if (!resolvedInputId || resolvedInputId === SELF_BINDING_ID) {
+    return null;
+  }
+  return resolvedInputId;
+}
+
+export function buildLegacyMigrationLinkUpserts(params: {
+  binding: MigrationBindingLike | null | undefined;
+  childInputId: string;
+  factorsByInputId: Record<string, number>;
+  defaultOffset: number;
+  resolveInputId: (inputId: string) => string;
+}): Record<string, MigrationLinkUpsert> {
+  const canonicalFactorsByInputId: Record<string, number> = {};
+  Object.entries(params.factorsByInputId).forEach(([rawInputId, factor]) => {
+    if (!Number.isFinite(factor)) {
+      return;
+    }
+    const resolvedInputId = normalizeMigrationInputId(
+      rawInputId,
+      params.resolveInputId,
+    );
+    if (!resolvedInputId) {
+      return;
+    }
+    canonicalFactorsByInputId[resolvedInputId] =
+      (canonicalFactorsByInputId[resolvedInputId] ?? 0) + factor;
+  });
+
+  const parentInputIds = new Set<string>();
+  const addParentInputCandidate = (rawInputId: string | null | undefined) => {
+    const resolvedInputId = normalizeMigrationInputId(
+      rawInputId,
+      params.resolveInputId,
+    );
+    if (!resolvedInputId) {
+      return;
+    }
+    parentInputIds.add(resolvedInputId);
+  };
+
+  if (
+    params.binding?.inputId &&
+    params.binding.inputId !== SELF_BINDING_ID &&
+    params.binding.inputId.trim().length > 0
+  ) {
+    addParentInputCandidate(params.binding.inputId);
+  }
+  (params.binding?.slots ?? []).forEach((slot) => {
+    if (
+      slot.inputId &&
+      slot.inputId !== SELF_BINDING_ID &&
+      slot.inputId.trim().length > 0
+    ) {
+      addParentInputCandidate(slot.inputId);
+    }
+  });
+
+  const offset = Number.isFinite(params.defaultOffset)
+    ? params.defaultOffset
+    : 0;
+  const upserts: Record<string, MigrationLinkUpsert> = {};
+  parentInputIds.forEach((parentInputId) => {
+    const linkId = buildRigPipelineV1LinkId(parentInputId, params.childInputId);
+    const scale = canonicalFactorsByInputId[parentInputId] ?? 1;
+    upserts[linkId] = {
+      parentInputId,
+      childInputId: params.childInputId,
+      scale,
+      offset,
+      enabled: true,
+    };
+  });
+  return upserts;
+}
+
+export function buildParentContributionDisplayExpression(params: {
+  baseline: number;
+  parents: readonly {
+    label: string;
+    scale: number;
+    offset: number;
+    enabled: boolean;
+  }[];
+}): string {
+  const baseline = Number.isFinite(params.baseline) ? params.baseline : 0;
+  const enabledParents = params.parents.filter((parent) => parent.enabled);
+  if (enabledParents.length === 0) {
+    return `parentContribution = baseline(${formatExpressionNumber(baseline)})`;
+  }
+
+  const terms = enabledParents.map((parent, index) => {
+    const label =
+      parent.label.trim().length > 0
+        ? parent.label.trim()
+        : `parent_${index + 1}`;
+    const scale = Number.isFinite(parent.scale) ? parent.scale : 1;
+    const offset = Number.isFinite(parent.offset) ? parent.offset : baseline;
+    const offsetText =
+      offset >= 0
+        ? `+ ${formatExpressionNumber(offset)}`
+        : `- ${formatExpressionNumber(Math.abs(offset))}`;
+    return `(parent("${label.replace(/"/g, '\\"')}") * ${formatExpressionNumber(scale)} ${offsetText})`;
+  });
+
+  return `parentContribution = normalizedAdditive([${terms.join(", ")}], baseline=${formatExpressionNumber(baseline)})`;
 }
 
 function parseAliasFactorTerm(

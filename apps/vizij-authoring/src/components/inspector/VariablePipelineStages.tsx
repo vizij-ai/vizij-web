@@ -42,6 +42,7 @@ export interface PipelineStagePoseItem {
 
 interface VariablePipelineStagesProps {
   parentExpression: string;
+  parentExpressionTitle?: string;
   parentExpressionReadOnly?: boolean;
   onParentExpressionChange?: (expression: string) => void;
   onCreateParentBinding?: () => void;
@@ -200,6 +201,7 @@ function ParentDirectControlEditor({
 
 export function VariablePipelineStages({
   parentExpression,
+  parentExpressionTitle = "Authored Parent Expression",
   parentExpressionReadOnly = false,
   onParentExpressionChange,
   onCreateParentBinding,
@@ -334,7 +336,7 @@ export function VariablePipelineStages({
       >
         <div className="rounded border border-border-default/40 bg-bg-input/40 p-2">
           <div className="text-[9px] uppercase tracking-wide text-text-muted mb-1">
-            Authored Parent Expression
+            {parentExpressionTitle}
           </div>
           {onParentExpressionChange ? (
             <div className="flex flex-col gap-1.5">

@@ -82,6 +82,8 @@ import {
 import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
 import {
   assessLegacyBindingMigration,
+  buildLegacyMigrationLinkUpserts,
+  buildParentContributionDisplayExpression,
   buildCompiledPipelineEquation,
   computePipelineDiagnostics,
   computePoseContribution,
@@ -2760,8 +2762,23 @@ export function InspectorContent({
       const legacyMigrationAssessment = assessLegacyBindingMigration(
         parentBinding ?? null,
       );
+      const isMigratedBinding = legacyMigrationAssessment.kind === "migrated";
       const isLegacyReadOnlyBinding =
         legacyMigrationAssessment.kind === "non-convertible";
+      const parentExpressionTitle = isMigratedBinding
+        ? "Parent Contribution Formula"
+        : "Authored Parent Expression";
+      const displayedParentExpression = isMigratedBinding
+        ? buildParentContributionDisplayExpression({
+            baseline: input.defaultValue,
+            parents: parentRigChainItems.map((entry) => ({
+              label: entry.label,
+              scale: entry.linkScale,
+              offset: entry.linkOffset,
+              enabled: entry.linkEnabled,
+            })),
+          })
+        : (parentBinding?.expression ?? "");
 
       type PipelineMetadataPatch = {
         directInputEnabled?: boolean;
@@ -2875,101 +2892,19 @@ export function InspectorContent({
           },
         });
       };
-      const buildMigrationLinkUpserts = (
-        binding:
-          | {
-              inputId?: string | null;
-              slots?: Array<{
-                inputId?: string | null;
-              }>;
-            }
-          | null
-          | undefined,
-        childInputId: string,
-        factorsByInputId: Record<string, number>,
-      ) => {
-        const canonicalFactorsByInputId: Record<string, number> = {};
-        Object.entries(factorsByInputId).forEach(([rawInputId, factor]) => {
-          if (!Number.isFinite(factor)) {
-            return;
-          }
-          const trimmedInputId = rawInputId.trim();
-          if (!trimmedInputId || trimmedInputId === SELF_BINDING_ID) {
-            return;
-          }
-          const resolvedInputId = resolveRigMetadataInputId(
-            trimmedInputId,
-            standardInputsById,
-          );
-          canonicalFactorsByInputId[resolvedInputId] =
-            (canonicalFactorsByInputId[resolvedInputId] ?? 0) + factor;
-        });
-
-        const parentInputIds = new Set<string>();
-        const addParentInputCandidate = (
-          rawInputId: string | null | undefined,
-        ) => {
-          const trimmedInputId = rawInputId?.trim() ?? "";
-          if (!trimmedInputId || trimmedInputId === SELF_BINDING_ID) {
-            return;
-          }
-          const resolvedInputId = resolveRigMetadataInputId(
-            trimmedInputId,
-            standardInputsById,
-          );
-          if (!resolvedInputId || resolvedInputId === SELF_BINDING_ID) {
-            return;
-          }
-          parentInputIds.add(resolvedInputId);
-        };
-        if (
-          binding?.inputId &&
-          binding.inputId !== SELF_BINDING_ID &&
-          binding.inputId.trim().length > 0
-        ) {
-          addParentInputCandidate(binding.inputId);
-        }
-        (binding?.slots ?? []).forEach((slot) => {
-          if (
-            slot.inputId &&
-            slot.inputId !== SELF_BINDING_ID &&
-            slot.inputId.trim().length > 0
-          ) {
-            addParentInputCandidate(slot.inputId);
-          }
-        });
-        const upserts: Record<
-          string,
-          {
-            parentInputId: string;
-            childInputId: string;
-            scale: number;
-            offset: number;
-            enabled: boolean;
-          }
-        > = {};
-        parentInputIds.forEach((parentInputId) => {
-          const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
-          const scale = canonicalFactorsByInputId[parentInputId] ?? 1;
-          upserts[linkId] = {
-            parentInputId,
-            childInputId,
-            scale,
-            offset: 0,
-            enabled: true,
-          };
-        });
-        return upserts;
-      };
       const handleMigrateLegacyBinding = () => {
         if (legacyMigrationAssessment.kind !== "convertible") {
           return;
         }
-        const linkUpserts = buildMigrationLinkUpserts(
-          parentBinding,
-          input.id,
-          legacyMigrationAssessment.parentFactorsByInputId ?? {},
-        );
+        const linkUpserts = buildLegacyMigrationLinkUpserts({
+          binding: parentBinding,
+          childInputId: input.id,
+          factorsByInputId:
+            legacyMigrationAssessment.parentFactorsByInputId ?? {},
+          defaultOffset: input.defaultValue,
+          resolveInputId: (rawInputId) =>
+            resolveRigMetadataInputId(rawInputId, standardInputsById),
+        });
         applyPipelineMetadataPatch({
           directInputEnabled: true,
           overrideEnabled: false,
@@ -3022,11 +2957,14 @@ export function InspectorContent({
               const existingBinding =
                 next[targetInputId] ??
                 createDefaultParentBinding(bindingTargetFromInput(sourceInput));
-              const linkUpserts = buildMigrationLinkUpserts(
-                existingBinding,
-                targetInputId,
-                assessment.parentFactorsByInputId ?? {},
-              );
+              const linkUpserts = buildLegacyMigrationLinkUpserts({
+                binding: existingBinding,
+                childInputId: targetInputId,
+                factorsByInputId: assessment.parentFactorsByInputId ?? {},
+                defaultOffset: sourceInput.defaultValue,
+                resolveInputId: (rawInputId) =>
+                  resolveRigMetadataInputId(rawInputId, standardInputsById),
+              });
               const nextMetadata = mergePipelineMetadata(
                 (existingBinding.metadata ?? undefined) as
                   | Record<string, unknown>
@@ -3250,10 +3188,14 @@ export function InspectorContent({
             )}
           </div>
           <VariablePipelineStages
-            parentExpression={parentBinding?.expression ?? ""}
+            parentExpression={displayedParentExpression}
+            parentExpressionTitle={parentExpressionTitle}
             parentExpressionReadOnly={isLegacyReadOnlyBinding}
-            onParentExpressionChange={(expression) =>
-              handleParentBindingExpressionChange(input.id, expression)
+            onParentExpressionChange={
+              isMigratedBinding
+                ? undefined
+                : (expression) =>
+                    handleParentBindingExpressionChange(input.id, expression)
             }
             onCreateParentBinding={() => handleEnsureParentBinding(input.id)}
             compiledEquation={compiledPipelineEquation}

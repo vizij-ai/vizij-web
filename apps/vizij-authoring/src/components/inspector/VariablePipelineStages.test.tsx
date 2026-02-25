@@ -260,4 +260,23 @@ describe("VariablePipelineStages", () => {
     );
     expect(props.onCreateParentBinding).toHaveBeenCalledTimes(1);
   });
+
+  it("shows staged parent contribution formula after migration", () => {
+    const props = createBaseProps();
+    props.migration = createMigration({ kind: "migrated" });
+    props.parentExpressionTitle = "Parent Contribution Formula";
+    props.parentExpression =
+      'parentContribution = normalizedAdditive([(parent("Jaw Parent") * 1 + 0.2)], baseline=0.2)';
+    props.onParentExpressionChange = undefined;
+    const view = render(<VariablePipelineStages {...props} />);
+
+    const parentStage = view.getByTestId("pipeline-stage-parents");
+    expect(
+      within(parentStage).getByText("Parent Contribution Formula"),
+    ).toBeTruthy();
+    expect(within(parentStage).getByText(/normalizedAdditive/i)).toBeTruthy();
+    expect(
+      within(parentStage).queryByTestId("pipeline-parent-expression-editor"),
+    ).toBeNull();
+  });
 });

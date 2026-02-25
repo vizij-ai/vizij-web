@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AnimatableBinding } from "@vizij/node-graph-authoring";
 import {
   assessLegacyBindingMigration,
+  buildLegacyMigrationLinkUpserts,
+  buildParentContributionDisplayExpression,
   computePipelineDiagnostics,
   resolvePipelineStageSettings,
 } from "./pipelineStages";
@@ -96,5 +98,48 @@ describe("pipelineStages", () => {
     expect(diagnostics.parentContribution).toBeCloseTo(0.75, 6);
     expect(diagnostics.blendedResult).toBeCloseTo(1.05, 6);
     expect(diagnostics.effectiveResult).toBeCloseTo(1, 6);
+  });
+
+  it("builds staged parent contribution expression after migration", () => {
+    const expression = buildParentContributionDisplayExpression({
+      baseline: 0.25,
+      parents: [
+        { label: "Jaw", scale: 1, offset: 0.25, enabled: true },
+        { label: "Blink", scale: -2, offset: 0.25, enabled: true },
+        { label: "Disabled", scale: 1, offset: 0, enabled: false },
+      ],
+    });
+    expect(expression).toContain('parent("Jaw") * 1 + 0.25');
+    expect(expression).toContain('parent("Blink") * -2 + 0.25');
+    expect(expression).toContain("baseline=0.25");
+    expect(expression).not.toContain('parent("Disabled")');
+  });
+
+  it("uses variable default as migrated parent-link offset", () => {
+    const upserts = buildLegacyMigrationLinkUpserts({
+      binding: createBinding({
+        expression: "self - jaw*2",
+        slots: [
+          { id: "s1", alias: "self", inputId: SELF_BINDING_ID },
+          { id: "s2", alias: "jaw", inputId: "rig/jaw/open" },
+        ],
+      }),
+      childInputId: "rig/mouth/open",
+      factorsByInputId: {
+        "rig/jaw/open": -2,
+      },
+      defaultOffset: 0.4,
+      resolveInputId: (inputId) => inputId,
+    });
+
+    const entries = Object.values(upserts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      parentInputId: "rig/jaw/open",
+      childInputId: "rig/mouth/open",
+      scale: -2,
+      offset: 0.4,
+      enabled: true,
+    });
   });
 });
