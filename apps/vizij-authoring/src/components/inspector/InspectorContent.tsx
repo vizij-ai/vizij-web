@@ -501,7 +501,6 @@ export function InspectorContent({
     "quick" | "bindings"
   >("quick");
   const showAutorigInternals = false;
-  const scrubValuesRef = useRef<Record<string, number>>({});
   const pendingSceneInspectorViewRef = useRef<"quick" | "bindings" | null>(
     null,
   );
@@ -2388,6 +2387,9 @@ export function InspectorContent({
         activeFaceId,
         input.id,
       );
+      const directInputRuntimePath = `rig/${activeFaceId}/${normalizeStandardRigInputPath(
+        input.path,
+      ).replace(/^\/+/, "")}`;
       const parentBinding = inputBindings[input.id];
       const isRemovableCustomInput = rigInput.source === "custom";
       const deleteGuardrailMessage = isRemovableCustomInput
@@ -3529,12 +3531,18 @@ export function InspectorContent({
             poses={linkedPoseStageItems}
             diagnostics={pipelineDiagnostics}
             directInputEnabled={pipelineStageSettings.directInputEnabled}
+            directInputPath={directInputRuntimePath}
             directValue={value}
             directDefaultValue={input.defaultValue}
             directMin={input.range.min}
             directMax={input.range.max}
             directControlDisabled={!isDirectRigControlAvailable}
             directControlReason={directRigControlReason}
+            onEnableLocalControl={
+              isDirectRigControlAvailable
+                ? undefined
+                : () => handleEnableParentLocalControl(input.id)
+            }
             onDirectInputEnabledChange={handlePipelineDirectEnabledChange}
             onDirectValueChange={(nextValue) =>
               handleInputValueChange(
@@ -3649,72 +3657,6 @@ export function InspectorContent({
                   Load a reference face to activate shared sync.
                 </span>
               )}
-            </div>
-          )}
-          <RiggingPropertyRow
-            label="Current Value"
-            onScrubStart={() => {
-              scrubValuesRef.current[input.id] = value;
-            }}
-            onScrub={(_, totalDelta) => {
-              if (!isDirectRigControlAvailable) {
-                return;
-              }
-              const step = (input.range.max - input.range.min) / 100;
-              const startVal = scrubValuesRef.current[input.id] ?? 0;
-              handleInputValueChange(input.id, startVal + totalDelta * step);
-            }}
-            renderMainInput={() => (
-              <div
-                className={cn(
-                  "flex flex-wrap items-center gap-2 flex-1 inspector-row-hit-target",
-                  !isDirectRigControlAvailable && "opacity-70",
-                )}
-                title={directRigControlReason ?? undefined}
-              >
-                <Slider
-                  min={input.range.min ?? -1}
-                  max={input.range.max ?? 1}
-                  step={0.01}
-                  value={value}
-                  fillMode="none"
-                  className="flex-1"
-                  onChange={(val) => {
-                    if (!isDirectRigControlAvailable) {
-                      return;
-                    }
-                    handleInputValueChange(input.id, val as number);
-                  }}
-                />
-                <div className="inspector-numeric-control flex-shrink-0">
-                  <NumberField
-                    size="sm"
-                    value={value}
-                    className="w-full bg-slate-950/50 border-slate-800/50 text-right font-mono text-xs text-slate-300"
-                    onChange={(val) => {
-                      if (!isDirectRigControlAvailable) {
-                        return;
-                      }
-                      handleInputValueChange(input.id, val);
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          />
-          {!isDirectRigControlAvailable && directRigControlReason && (
-            <div className="flex items-center justify-between gap-2 px-1 -mt-2">
-              <p className="text-[10px] text-amber-300/90">
-                {directRigControlReason}
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-6 text-[10px] whitespace-nowrap"
-                onClick={() => handleEnableParentLocalControl(input.id)}
-              >
-                Enable Local Control
-              </Button>
             </div>
           )}
           <Modal

@@ -78,6 +78,7 @@ function createBaseProps(): VariablePipelineStagesProps {
       effectiveResult: 0.1,
     },
     directInputEnabled: true,
+    directInputPath: "rig/robot/controls/jawOpen",
     directValue: 0.2,
     directDefaultValue: 0,
     directMin: -1,
@@ -204,6 +205,7 @@ describe("VariablePipelineStages", () => {
 
   it("renders slider controls for parent, direct, and override stages", () => {
     const props = createBaseProps();
+    props.overrideEnabled = true;
     props.poses = [
       {
         id: "pose:smile",
