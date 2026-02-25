@@ -16,13 +16,14 @@ const backlogDoc = readFileSync(
 );
 
 describe("B2.4 inspector chain traversal contracts", () => {
-  it("keeps explicit rig-to-autorig and autorig-to-rig inspector affordances", () => {
+  it("keeps autorig traversal wiring while removing redundant chain panels", () => {
     expect(inspectorContentTsx).toContain("includeAutorig: true");
     expect(inspectorContentTsx).toContain("Autorig");
-    expect(inspectorContentTsx).toContain("Driven By");
     expect(inspectorContentTsx).toContain("showAutorigInternals");
-    expect(inspectorContentTsx).toContain("Show Autorig Internals");
-    expect(inspectorContentTsx).toContain("Hide Autorig Internals");
+    expect(inspectorContentTsx).not.toContain("Driven By");
+    expect(inspectorContentTsx).not.toContain("What This Drives");
+    expect(inspectorContentTsx).not.toContain("Show Autorig Internals");
+    expect(inspectorContentTsx).not.toContain("Hide Autorig Internals");
   });
 
   it("uses chain-path helper to preserve context on revisits", () => {

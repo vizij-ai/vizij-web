@@ -15,6 +15,12 @@ export interface PipelineStageLinkItem {
   kind: "variable" | "property" | "autorig";
   onInspect?: () => void;
   onUnlink?: () => void;
+  directControl?: {
+    value: number;
+    min: number;
+    max: number;
+    onValueChange?: (value: number) => void;
+  };
   linkControl?: {
     enabled: boolean;
     scale: number;
@@ -70,6 +76,7 @@ interface VariablePipelineStagesProps {
   onMigrateAllLegacyBindings?: () => void;
   onEditParents?: () => void;
   onAddChild?: () => void;
+  showClampStage?: boolean;
 }
 
 function StageSection({
@@ -127,16 +134,8 @@ function LinkControlEditor({
         />
         <span className="text-[9px] text-text-muted">{formulaHint}</span>
       </div>
-      <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
+      <div className="grid grid-cols-[58px_72px] items-center gap-2">
         <span className="text-[10px] text-text-secondary">Scale</span>
-        <Slider
-          min={-3}
-          max={3}
-          step={0.01}
-          value={linkControl.scale}
-          onChange={(value) => linkControl.onScaleChange?.(value as number)}
-          disabled={!linkControl.enabled}
-        />
         <NumberField
           size="sm"
           value={linkControl.scale}
@@ -157,6 +156,36 @@ function LinkControlEditor({
           step={0.01}
           onChange={(value) => linkControl.onOffsetChange?.(value)}
           disabled={!linkControl.enabled}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ParentDirectControlEditor({
+  directControl,
+}: {
+  directControl: NonNullable<PipelineStageLinkItem["directControl"]>;
+}) {
+  return (
+    <div className="rounded border border-border-default/30 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1">
+      <div className="text-[10px] text-text-secondary">Parent direct input</div>
+      <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
+        <span className="text-[10px] text-text-secondary">Value</span>
+        <Slider
+          min={directControl.min}
+          max={directControl.max}
+          step={0.01}
+          value={directControl.value}
+          onChange={(value) => directControl.onValueChange?.(value as number)}
+        />
+        <NumberField
+          size="sm"
+          value={directControl.value}
+          min={directControl.min}
+          max={directControl.max}
+          step={0.01}
+          onChange={(value) => directControl.onValueChange?.(value)}
         />
       </div>
     </div>
@@ -194,6 +223,7 @@ export function VariablePipelineStages({
   onMigrateAllLegacyBindings,
   onEditParents,
   onAddChild,
+  showClampStage = true,
 }: VariablePipelineStagesProps) {
   return (
     <div
@@ -311,6 +341,11 @@ export function VariablePipelineStages({
                   <LinkControlEditor
                     linkControl={parent.linkControl}
                     context="parent"
+                  />
+                ) : null}
+                {parent.directControl ? (
+                  <ParentDirectControlEditor
+                    directControl={parent.directControl}
                   />
                 ) : null}
               </div>
@@ -529,19 +564,21 @@ export function VariablePipelineStages({
         </div>
       </StageSection>
 
-      <StageSection title="Clamp" testId="pipeline-stage-clamp">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={clampEnabled}
-            onChange={onClampEnabledChange}
-            label="Enabled"
-            size="sm"
-          />
-          <span className="text-[10px] text-text-secondary">
-            Disabling clamp allows unbounded output.
-          </span>
-        </div>
-      </StageSection>
+      {showClampStage ? (
+        <StageSection title="Clamp" testId="pipeline-stage-clamp">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={clampEnabled}
+              onChange={onClampEnabledChange}
+              label={clampEnabled ? "Enabled" : "Disabled"}
+              size="sm"
+            />
+            <span className="text-[10px] text-text-secondary">
+              Disabling clamp allows unbounded output.
+            </span>
+          </div>
+        </StageSection>
+      ) : null}
 
       <StageSection title="Compiled Pipeline" testId="pipeline-stage-compiled">
         <div className="rounded border border-border-default/40 bg-bg-input/40 p-2">

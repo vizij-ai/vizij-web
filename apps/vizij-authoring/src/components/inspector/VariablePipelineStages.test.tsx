@@ -35,6 +35,12 @@ function createBaseProps(): VariablePipelineStagesProps {
         label: "Jaw Parent",
         kind: "variable" as const,
         onInspect: vi.fn(),
+        directControl: {
+          value: 0.4,
+          min: -1,
+          max: 1,
+          onValueChange: vi.fn(),
+        },
         linkControl: {
           enabled: true,
           scale: 1,
@@ -210,7 +216,7 @@ describe("VariablePipelineStages", () => {
     const view = render(<VariablePipelineStages {...props} />);
 
     const sliders = view.getAllByRole("slider");
-    expect(sliders.length).toBeGreaterThanOrEqual(5);
+    expect(sliders.length).toBeGreaterThanOrEqual(4);
   });
 
   it("shows disabled state labels for direct and override toggles when off", () => {

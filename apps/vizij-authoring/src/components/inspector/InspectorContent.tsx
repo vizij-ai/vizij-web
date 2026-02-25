@@ -33,6 +33,7 @@ import {
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
+import { Switch } from "../ui/Switch";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { usePoseRig } from "../../state/PoseRigProvider";
@@ -499,7 +500,7 @@ export function InspectorContent({
   const [rigInspectorView, setRigInspectorView] = useState<
     "quick" | "bindings"
   >("quick");
-  const [showAutorigInternals, setShowAutorigInternals] = useState(false);
+  const showAutorigInternals = false;
   const scrubValuesRef = useRef<Record<string, number>>({});
   const pendingSceneInspectorViewRef = useRef<"quick" | "bindings" | null>(
     null,
@@ -2437,12 +2438,6 @@ export function InspectorContent({
           ? count + 1
           : count;
       }, 0);
-      let hiddenAutorigDriverCount = 0;
-      let hiddenAutorigDrivenCount = 0;
-      const totalAutorigDriverCount = parentRigInputRefs.filter(
-        (entry) => entry.isAutorig,
-      ).length;
-      const totalAutorigDrivenCount = downstreamAutorigInputs.length;
 
       const parseDraftNumber = (valueText: string, label: string) => {
         const trimmed = valueText.trim();
@@ -2720,6 +2715,22 @@ export function InspectorContent({
           return;
         }
       };
+      const resolveParentDirectControl = (parentInputId: string) => {
+        const parentInput = standardInputsById.get(parentInputId);
+        const min = parentInput?.range.min ?? -1;
+        const max = parentInput?.range.max ?? 1;
+        const fallback = parentInput?.defaultValue ?? 0;
+        const stagedValue = inputValues[parentInputId];
+        const resolvedValue =
+          typeof stagedValue === "number" && Number.isFinite(stagedValue)
+            ? stagedValue
+            : fallback;
+        return {
+          value: clampToRange(resolvedValue, min, max),
+          min,
+          max,
+        };
+      };
       const parentRigChainItems: Array<{
         key: string;
         inputId: string;
@@ -2727,11 +2738,15 @@ export function InspectorContent({
         linkScale: number;
         linkOffset: number;
         linkEnabled: boolean;
+        parentDirectValue: number;
+        parentDirectMin: number;
+        parentDirectMax: number;
         label: string;
         kind: "variable" | "property" | "autorig";
         onClick: () => void;
       }> = [];
       parentRigInputRefs.forEach((entry) => {
+        const parentDirectControl = resolveParentDirectControl(entry.id);
         if (!entry.isAutorig) {
           parentRigChainItems.push({
             key: `variable:${entry.id}`,
@@ -2740,6 +2755,9 @@ export function InspectorContent({
             linkScale: entry.linkScale,
             linkOffset: entry.linkOffset,
             linkEnabled: entry.linkEnabled,
+            parentDirectValue: parentDirectControl.value,
+            parentDirectMin: parentDirectControl.min,
+            parentDirectMax: parentDirectControl.max,
             label: entry.label,
             kind: "variable",
             onClick: () => openRigInspector(entry.id),
@@ -2747,7 +2765,7 @@ export function InspectorContent({
           return;
         }
         const mappedTargetId = componentIdByInputId.get(entry.id) ?? null;
-        if (mappedTargetId && !showAutorigInternals) {
+        if (mappedTargetId) {
           parentRigChainItems.push({
             key: `property:${mappedTargetId}`,
             inputId: entry.id,
@@ -2755,6 +2773,9 @@ export function InspectorContent({
             linkScale: entry.linkScale,
             linkOffset: entry.linkOffset,
             linkEnabled: entry.linkEnabled,
+            parentDirectValue: parentDirectControl.value,
+            parentDirectMin: parentDirectControl.min,
+            parentDirectMax: parentDirectControl.max,
             label: targetLabelById.get(mappedTargetId) ?? entry.label,
             kind: "property",
             onClick: () => openSceneBindingInspector(mappedTargetId),
@@ -2762,7 +2783,6 @@ export function InspectorContent({
           return;
         }
         if (!showAutorigInternals) {
-          hiddenAutorigDriverCount += 1;
           return;
         }
         parentRigChainItems.push({
@@ -2772,6 +2792,9 @@ export function InspectorContent({
           linkScale: entry.linkScale,
           linkOffset: entry.linkOffset,
           linkEnabled: entry.linkEnabled,
+          parentDirectValue: parentDirectControl.value,
+          parentDirectMin: parentDirectControl.min,
+          parentDirectMax: parentDirectControl.max,
           label: entry.label,
           kind: "autorig",
           onClick: () => openRigInspector(entry.id),
@@ -2858,7 +2881,6 @@ export function InspectorContent({
           return;
         }
         if (!showAutorigInternals) {
-          hiddenAutorigDrivenCount += 1;
           return;
         }
         const key = `autorig:${entry.id}`;
@@ -2892,10 +2914,6 @@ export function InspectorContent({
         });
       });
 
-      const hiddenAutorigCount =
-        hiddenAutorigDriverCount + hiddenAutorigDrivenCount;
-      const hasAutorigInternals =
-        totalAutorigDriverCount + totalAutorigDrivenCount > 0;
       const parentInputIds = parentRigInputRefs
         .map((entry) => entry.id)
         .filter((candidateId) => candidateId !== input.id);
@@ -3283,210 +3301,33 @@ export function InspectorContent({
           />
           {renderChainPath()}
           {renderAuthoringStatus()}
-          <VariablePipelineStages
-            parentExpression={parentBinding?.expression ?? ""}
-            compiledEquation={compiledPipelineEquation}
-            parents={parentRigChainItems.map((entry) => ({
-              id: entry.key,
-              label: entry.label,
-              kind: entry.kind,
-              onInspect: entry.onClick,
-              linkControl: {
-                enabled: entry.linkEnabled,
-                scale: entry.linkScale,
-                offset: entry.linkOffset,
-                onEnabledChange: (enabled) =>
-                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
-                    enabled,
-                  }),
-                onScaleChange: (scale) =>
-                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
-                    scale: clampToRange(scale, -3, 3),
-                  }),
-                onOffsetChange: (offset) =>
-                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
-                    offset: clampToRange(offset, -2, 2),
-                  }),
-              },
-            }))}
-            children={drivenChainItems.map((entry) => ({
-              id: entry.key,
-              label: entry.label,
-              kind: entry.kind,
-              onInspect: entry.onClick,
-              onUnlink: entry.drivenInputId
-                ? () => {
-                    const drivenInputId = entry.drivenInputId;
-                    if (drivenInputId) {
-                      removeDrivenVariableLink(drivenInputId);
-                    }
-                  }
-                : undefined,
-              ...(entry.drivenInputId && entry.linkId
-                ? (() => {
-                    const childInputId = entry.drivenInputId;
-                    const linkId = entry.linkId;
-                    return {
-                      linkControl: {
-                        enabled: entry.linkEnabled ?? true,
-                        scale: entry.linkScale ?? 1,
-                        offset: entry.linkOffset ?? 0,
-                        onEnabledChange: (enabled: boolean) =>
-                          updatePipelineLink(linkId, input.id, childInputId, {
-                            enabled,
-                          }),
-                        onScaleChange: (scale: number) =>
-                          updatePipelineLink(linkId, input.id, childInputId, {
-                            scale: clampToRange(scale, -3, 3),
-                          }),
-                        onOffsetChange: (offset: number) =>
-                          updatePipelineLink(linkId, input.id, childInputId, {
-                            offset: clampToRange(offset, -2, 2),
-                          }),
-                      },
-                    };
-                  })()
-                : {}),
-            }))}
-            poses={linkedPoseStageItems}
-            diagnostics={pipelineDiagnostics}
-            directInputEnabled={pipelineStageSettings.directInputEnabled}
-            directValue={value}
-            directDefaultValue={input.defaultValue}
-            directMin={input.range.min}
-            directMax={input.range.max}
-            directControlDisabled={!isDirectRigControlAvailable}
-            directControlReason={directRigControlReason}
-            onDirectInputEnabledChange={handlePipelineDirectEnabledChange}
-            onDirectValueChange={(nextValue) =>
-              handleInputValueChange(
-                input.id,
-                clampToRange(nextValue, input.range.min, input.range.max),
-              )
-            }
-            onDirectReset={() =>
-              handleInputValueChange(input.id, input.defaultValue)
-            }
-            overrideEnabled={pipelineStageSettings.overrideEnabled}
-            overrideValue={pipelineStageSettings.overrideValue}
-            overrideMin={input.range.min}
-            overrideMax={input.range.max}
-            onOverrideEnabledChange={handlePipelineOverrideEnabledChange}
-            onOverrideValueChange={handlePipelineOverrideValueChange}
-            clampEnabled={pipelineStageSettings.clampEnabled}
-            onClampEnabledChange={handlePipelineClampEnabledChange}
-            migration={legacyMigrationAssessment}
-            migrationSummary={migrationSummary}
-            onMigrateLegacyBinding={handleMigrateLegacyBinding}
-            onMigrateAllLegacyBindings={handleMigrateAllLegacyBindings}
-            onEditParents={() => setShowRigDriversModal(true)}
-            onAddChild={() => setShowSelector(true)}
-          />
-          {sharedLink && (
-            <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                  Shared Variable Link
-                </span>
-                <span
-                  className={cn(
-                    "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                    sharedLink.inSync
-                      ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
-                      : "border-amber-500/40 text-amber-200 bg-amber-500/10",
-                  )}
-                >
-                  {sharedLink.inSync
-                    ? "in sync"
-                    : `drift ${sharedLink.delta.toFixed(3)}`}
-                </span>
-              </div>
-              <div className="text-[10px] font-mono text-text-muted truncate">
-                {sharedLink.path}
-              </div>
-              <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-text-secondary">
-                  Main:{" "}
-                  <span className="font-mono text-text-primary">
-                    {sharedLink.mainValue.toFixed(3)}
-                  </span>
-                </span>
-                <span className="text-text-secondary">
-                  Ref:{" "}
-                  <span className="font-mono text-text-primary">
-                    {sharedLink.referenceValue.toFixed(3)}
-                  </span>
-                </span>
-                <span className="text-text-muted ml-auto">
-                  Policy:{" "}
-                  <span className="font-mono text-text-secondary">
-                    {sharedSyncPolicy}
-                  </span>
-                </span>
-              </div>
-              {sharedConflict && (
-                <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 flex items-center gap-1">
-                  <span className="text-[10px] text-amber-100 flex-1">
-                    Conflict: {sharedConflict.firstSource} →{" "}
-                    {sharedConflict.secondSource}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() =>
-                      resolveSharedSyncConflict(sharedConflict.path, "main")
-                    }
-                  >
-                    Keep Main
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() =>
-                      resolveSharedSyncConflict(
-                        sharedConflict.path,
-                        "reference",
-                      )
-                    }
-                  >
-                    Keep Ref
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={() =>
-                      dismissSharedSyncConflict(sharedConflict.path)
-                    }
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-              )}
-              {!hasReferenceFaceFile && (
-                <span className="text-[10px] text-text-muted">
-                  Load a reference face to activate shared sync.
-                </span>
-              )}
-            </div>
-          )}
           <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                 Variable Metadata
               </span>
-              <span
-                className={cn(
-                  "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                  isRemovableCustomInput
-                    ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
-                    : "border-sky-500/40 text-sky-200 bg-sky-500/10",
-                )}
-              >
-                {isRemovableCustomInput ? "custom" : "system"}
-              </span>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={pipelineStageSettings.clampEnabled}
+                  onChange={handlePipelineClampEnabledChange}
+                  label={
+                    pipelineStageSettings.clampEnabled
+                      ? "Clamp Enabled"
+                      : "Clamp Disabled"
+                  }
+                  size="sm"
+                />
+                <span
+                  className={cn(
+                    "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                    isRemovableCustomInput
+                      ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
+                      : "border-sky-500/40 text-sky-200 bg-sky-500/10",
+                  )}
+                >
+                  {isRemovableCustomInput ? "custom" : "system"}
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="flex flex-col gap-1">
@@ -3606,6 +3447,210 @@ export function InspectorContent({
               </p>
             )}
           </div>
+          <VariablePipelineStages
+            parentExpression={parentBinding?.expression ?? ""}
+            compiledEquation={compiledPipelineEquation}
+            parents={parentRigChainItems.map((entry) => ({
+              id: entry.key,
+              label: entry.label,
+              kind: entry.kind,
+              onInspect: entry.onClick,
+              directControl: {
+                value: entry.parentDirectValue,
+                min: entry.parentDirectMin,
+                max: entry.parentDirectMax,
+                onValueChange: (nextValue) =>
+                  handleInputValueChange(
+                    entry.inputId,
+                    clampToRange(
+                      nextValue,
+                      entry.parentDirectMin,
+                      entry.parentDirectMax,
+                    ),
+                  ),
+              },
+              linkControl: {
+                enabled: entry.linkEnabled,
+                scale: entry.linkScale,
+                offset: entry.linkOffset,
+                onEnabledChange: (enabled) =>
+                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                    enabled,
+                  }),
+                onScaleChange: (scale) =>
+                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                    scale: clampToRange(scale, -3, 3),
+                  }),
+                onOffsetChange: (offset) =>
+                  updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                    offset: clampToRange(offset, -2, 2),
+                  }),
+              },
+            }))}
+            children={drivenChainItems.map((entry) => ({
+              id: entry.key,
+              label: entry.label,
+              kind: entry.kind,
+              onInspect: entry.onClick,
+              onUnlink: entry.drivenInputId
+                ? () => {
+                    const drivenInputId = entry.drivenInputId;
+                    if (drivenInputId) {
+                      removeDrivenVariableLink(drivenInputId);
+                    }
+                  }
+                : undefined,
+              ...(entry.drivenInputId && entry.linkId
+                ? (() => {
+                    const childInputId = entry.drivenInputId;
+                    const linkId = entry.linkId;
+                    return {
+                      linkControl: {
+                        enabled: entry.linkEnabled ?? true,
+                        scale: entry.linkScale ?? 1,
+                        offset: entry.linkOffset ?? 0,
+                        onEnabledChange: (enabled: boolean) =>
+                          updatePipelineLink(linkId, input.id, childInputId, {
+                            enabled,
+                          }),
+                        onScaleChange: (scale: number) =>
+                          updatePipelineLink(linkId, input.id, childInputId, {
+                            scale: clampToRange(scale, -3, 3),
+                          }),
+                        onOffsetChange: (offset: number) =>
+                          updatePipelineLink(linkId, input.id, childInputId, {
+                            offset: clampToRange(offset, -2, 2),
+                          }),
+                      },
+                    };
+                  })()
+                : {}),
+            }))}
+            poses={linkedPoseStageItems}
+            diagnostics={pipelineDiagnostics}
+            directInputEnabled={pipelineStageSettings.directInputEnabled}
+            directValue={value}
+            directDefaultValue={input.defaultValue}
+            directMin={input.range.min}
+            directMax={input.range.max}
+            directControlDisabled={!isDirectRigControlAvailable}
+            directControlReason={directRigControlReason}
+            onDirectInputEnabledChange={handlePipelineDirectEnabledChange}
+            onDirectValueChange={(nextValue) =>
+              handleInputValueChange(
+                input.id,
+                clampToRange(nextValue, input.range.min, input.range.max),
+              )
+            }
+            onDirectReset={() =>
+              handleInputValueChange(input.id, input.defaultValue)
+            }
+            overrideEnabled={pipelineStageSettings.overrideEnabled}
+            overrideValue={pipelineStageSettings.overrideValue}
+            overrideMin={input.range.min}
+            overrideMax={input.range.max}
+            onOverrideEnabledChange={handlePipelineOverrideEnabledChange}
+            onOverrideValueChange={handlePipelineOverrideValueChange}
+            clampEnabled={pipelineStageSettings.clampEnabled}
+            onClampEnabledChange={handlePipelineClampEnabledChange}
+            migration={legacyMigrationAssessment}
+            migrationSummary={migrationSummary}
+            onMigrateLegacyBinding={handleMigrateLegacyBinding}
+            onMigrateAllLegacyBindings={handleMigrateAllLegacyBindings}
+            onEditParents={() => setShowRigDriversModal(true)}
+            onAddChild={() => setShowSelector(true)}
+            showClampStage={false}
+          />
+          {sharedLink && (
+            <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                  Shared Variable Link
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                    sharedLink.inSync
+                      ? "border-emerald-500/40 text-emerald-200 bg-emerald-500/10"
+                      : "border-amber-500/40 text-amber-200 bg-amber-500/10",
+                  )}
+                >
+                  {sharedLink.inSync
+                    ? "in sync"
+                    : `drift ${sharedLink.delta.toFixed(3)}`}
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-text-muted truncate">
+                {sharedLink.path}
+              </div>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-text-secondary">
+                  Main:{" "}
+                  <span className="font-mono text-text-primary">
+                    {sharedLink.mainValue.toFixed(3)}
+                  </span>
+                </span>
+                <span className="text-text-secondary">
+                  Ref:{" "}
+                  <span className="font-mono text-text-primary">
+                    {sharedLink.referenceValue.toFixed(3)}
+                  </span>
+                </span>
+                <span className="text-text-muted ml-auto">
+                  Policy:{" "}
+                  <span className="font-mono text-text-secondary">
+                    {sharedSyncPolicy}
+                  </span>
+                </span>
+              </div>
+              {sharedConflict && (
+                <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 flex items-center gap-1">
+                  <span className="text-[10px] text-amber-100 flex-1">
+                    Conflict: {sharedConflict.firstSource} →{" "}
+                    {sharedConflict.secondSource}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() =>
+                      resolveSharedSyncConflict(sharedConflict.path, "main")
+                    }
+                  >
+                    Keep Main
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() =>
+                      resolveSharedSyncConflict(
+                        sharedConflict.path,
+                        "reference",
+                      )
+                    }
+                  >
+                    Keep Ref
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() =>
+                      dismissSharedSyncConflict(sharedConflict.path)
+                    }
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              )}
+              {!hasReferenceFaceFile && (
+                <span className="text-[10px] text-text-muted">
+                  Load a reference face to activate shared sync.
+                </span>
+              )}
+            </div>
+          )}
           <RiggingPropertyRow
             label="Current Value"
             onScrubStart={() => {
@@ -3672,173 +3717,6 @@ export function InspectorContent({
               </Button>
             </div>
           )}
-          <div className="rounded border border-border-default/60 bg-bg-panel/40 p-2 flex flex-col gap-2">
-            <div className="flex items-center gap-2 px-1 py-0.5">
-              <Sliders size={12} className="text-slate-500" />
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Chain · {parentRigChainItems.length} drivers ·{" "}
-                {drivenChainItems.length} driven
-              </span>
-              {hasAutorigInternals ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 ml-auto text-[10px] px-2"
-                  onClick={() =>
-                    setShowAutorigInternals((previous) => !previous)
-                  }
-                >
-                  {showAutorigInternals
-                    ? "Hide Autorig Internals"
-                    : `Show Autorig Internals${hiddenAutorigCount > 0 ? ` (${hiddenAutorigCount})` : ""}`}
-                </Button>
-              ) : null}
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-2 items-start">
-              <div className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
-                  Driven By
-                </div>
-                {parentRigChainItems.length > 0 ? (
-                  <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto custom-scrollbar">
-                    {parentRigChainItems.map((entry) => (
-                      <button
-                        key={entry.key}
-                        type="button"
-                        className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
-                        onClick={entry.onClick}
-                        title={`Inspect ${entry.label}`}
-                      >
-                        <div
-                          className={cn(
-                            "w-1.5 h-1.5 rounded-full",
-                            entry.kind === "variable" && "bg-violet-500/60",
-                            entry.kind === "property" && "bg-blue-500/60",
-                            entry.kind === "autorig" && "bg-cyan-500/60",
-                          )}
-                        />
-                        <span className="flex-1 truncate">{entry.label}</span>
-                        <span className="text-[9px] uppercase text-text-muted border border-border-default/60 rounded px-1 py-0.5">
-                          {entry.kind === "variable"
-                            ? "variable"
-                            : entry.kind === "property"
-                              ? "property"
-                              : "autorig"}
-                        </span>
-                        <ChevronRight size={10} className="text-text-muted" />
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-text-muted">
-                    No drivers. This variable is currently root/local.
-                  </p>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full h-7 text-[10px] border border-dashed border-border-default/70"
-                  onClick={() => setShowRigDriversModal(true)}
-                >
-                  Edit My Drivers
-                </Button>
-              </div>
-
-              <div className="rounded border border-border-default/50 bg-bg-panel/50 p-2 flex flex-col gap-1">
-                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
-                  Current Variable
-                </div>
-                <button
-                  type="button"
-                  className="text-left rounded border border-border-default/60 bg-bg-input/60 px-2 py-1.5 hover:border-border-hover transition-colors"
-                  onClick={() => openRigInspector(input.id)}
-                >
-                  <div className="text-xs text-text-primary font-semibold truncate">
-                    {input.label || input.id}
-                  </div>
-                  <div className="text-[10px] text-text-muted font-mono truncate">
-                    {input.path}
-                  </div>
-                </button>
-                <div className="text-[10px] text-text-secondary font-mono">
-                  value {value.toFixed(3)}
-                </div>
-              </div>
-
-              <div className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">
-                  What This Drives
-                </div>
-                {drivenChainItems.length > 0 ? (
-                  <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto custom-scrollbar">
-                    {drivenChainItems.map((entry) => (
-                      <div
-                        key={entry.key}
-                        className="text-xs text-slate-300 p-1.5 hover:bg-slate-800/50 rounded flex items-center gap-2 text-left"
-                      >
-                        <button
-                          type="button"
-                          className="flex flex-1 items-center gap-2 min-w-0 text-left"
-                          onClick={entry.onClick}
-                          title={`Inspect ${entry.label}`}
-                        >
-                          <div
-                            className={cn(
-                              "w-1.5 h-1.5 rounded-full",
-                              entry.kind === "variable" && "bg-emerald-500/60",
-                              entry.kind === "property" && "bg-blue-500/60",
-                              entry.kind === "autorig" && "bg-cyan-500/60",
-                            )}
-                          />
-                          <span className="flex-1 truncate">{entry.label}</span>
-                          <span className="text-[9px] uppercase text-text-muted border border-border-default/60 rounded px-1 py-0.5">
-                            {entry.kind === "variable"
-                              ? "variable"
-                              : entry.kind === "property"
-                                ? "property"
-                                : "autorig"}
-                          </span>
-                          <ChevronRight size={10} className="text-text-muted" />
-                        </button>
-                        {entry.drivenInputId ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-4 w-4 p-0 text-slate-500 hover:text-red-400"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (entry.drivenInputId) {
-                                removeDrivenVariableLink(entry.drivenInputId);
-                              }
-                            }}
-                            title={
-                              entry.kind === "autorig"
-                                ? "Remove driven autorig variable link"
-                                : "Remove driven variable link"
-                            }
-                          >
-                            <Trash2 size={10} />
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-text-muted">
-                    No downstream variables or properties are linked.
-                  </p>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full h-7 text-[10px] border border-dashed border-border-default/70"
-                  onClick={() => setShowSelector(true)}
-                >
-                  Add Driven Variable
-                </Button>
-              </div>
-            </div>
-          </div>
           <Modal
             open={showRigDriversModal}
             onClose={() => setShowRigDriversModal(false)}
