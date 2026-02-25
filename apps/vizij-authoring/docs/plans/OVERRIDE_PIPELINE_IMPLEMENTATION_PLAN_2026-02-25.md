@@ -258,8 +258,125 @@ Acceptance checks:
 Create one tracker issue per phase and link PRs to phase IDs:
 
 1. `OP-0 Contract Lock`
-2. `OP-1 Compiler`
-3. `OP-2 Schema/Serialization`
-4. `OP-3 Inspector/Editor`
-5. `OP-4 Migration`
-6. `OP-5 Perf/Rollout`
+
+## Execution Log (2026-02-25)
+
+### Phase 0 + 1
+
+Status: Completed
+
+Commits:
+
+1. `475934f feat(node-graph): implement staged override pipeline v1 compiler`
+
+Changes:
+
+1. Added `pipeline-v1` schema/types + canonical path/default resolvers in `@vizij/utils`.
+2. Updated `buildRigGraphSpec` dual-read semantics in `@vizij/node-graph-authoring`:
+   1. legacy path when staged metadata is absent,
+   2. staged parent/pose/direct branch assembly,
+   3. compiler-injected override selection,
+   4. per-input clamp toggle.
+3. Added source-combination tests (no-source, parent-only, pose-only, direct-only, mixed) + override/clamp toggles.
+
+Validation:
+
+1. `pnpm --filter "@vizij/utils" test`
+2. `pnpm --filter "@vizij/utils" typecheck`
+3. `pnpm --filter "@vizij/node-graph-authoring" test`
+4. `pnpm --filter "@vizij/node-graph-authoring" typecheck`
+
+Learnings / adjustments:
+
+1. Kept staged path strict to explicit metadata presence to preserve legacy behavior by default.
+2. Reused existing pose control path (`rig/<face>/pose/control/<inputId>`) as staged pose contribution.
+
+### Phase 2
+
+Status: Completed (core serialization + round-trip)
+
+Commits:
+
+1. `da114e9 feat(vizij-authoring): round-trip pipeline v1 metadata across import export and compile`
+
+Changes:
+
+1. Added `pipelineV1` metadata extract/normalize/reattach helpers in graph import utilities.
+2. Wired pipeline metadata through:
+   1. rig compile path,
+   2. bundle export and graph export,
+   3. graph import rebuild path,
+   4. rig persistence + binding authoring store.
+3. Added regression tests for compiler wiring, import metadata helpers, and export payload preservation.
+
+Validation:
+
+1. `pnpm --filter vizij-authoring test -- src/hooks/__tests__/rigGraphCompiler.test.ts src/hooks/__tests__/useVizijExport.test.tsx src/utils/graphImport.test.ts`
+2. `pnpm --filter vizij-authoring exec eslint <touched files>`
+
+Learnings / adjustments:
+
+1. Unified compile/build wiring to `pipelineV1` option expected by `buildRigGraphSpec`.
+2. Added normalization that injects missing `inputId` in pipeline entries when authored data is partial.
+
+### Phase 3 + 4
+
+Status: Completed (first-pass UI and migration UX)
+
+Commits:
+
+1. `4a47fab feat(vizij-authoring): add stage-oriented pipeline inspector and migration UX`
+
+Changes:
+
+1. Added stage-oriented inspector surface:
+   1. Parents,
+   2. Children,
+   3. Poses,
+   4. Direct Input,
+   5. Override,
+   6. Clamp,
+   7. compiled-equation diagnostics row.
+2. Added pipeline helper module for:
+   1. diagnostics math,
+   2. compiled equation display,
+   3. legacy canonical-expression detection.
+3. Added migration UX:
+   1. one-click migrate for canonical `self + parent` forms,
+   2. read-only fallback banner for non-convertible legacy expressions.
+4. Added binding-editor read-only mode for legacy fallback paths.
+
+Validation:
+
+1. `pnpm --filter vizij-authoring test -- src/components/inspector/pipelineStages.test.ts src/components/inspector/VariablePipelineStages.test.tsx src/components/binding/BindingEditor.test.tsx`
+2. `pnpm --filter vizij-authoring exec eslint <touched files>`
+
+Learnings / adjustments:
+
+1. Stored migration stage controls in binding metadata as an incremental bridge while preserving legacy expressions.
+2. Kept direct/override controls inspector-only.
+
+### Phase 5
+
+Status: Completed (validation pass) with rollout gaps called out
+
+Validation run:
+
+1. `pnpm --filter vizij-authoring test -- src/components/inspector/panelPerformanceContracts.test.ts src/components/panels/VariablesPanel.perf.test.tsx src/__tests__/graphAuthoringSmoke.test.ts src/hooks/__tests__/runtimeInputRoutes.test.ts src/hooks/__tests__/runtimeInputStaging.test.ts src/hooks/__tests__/poseControlInputContracts.test.ts`
+2. `pnpm run prep`
+
+Notes:
+
+1. `VariablesPanel.perf.test.tsx` remained skipped (existing test gate).
+2. Full `pnpm --filter vizij-authoring typecheck` still reports pre-existing workspace resolution issues unrelated to this change set.
+
+### Remaining Follow-ups
+
+1. Shared link ownership UI/storage (`pipelineV1.links` as canonical edit source) is scaffolded but not fully end-to-end.
+2. Override enabled/value runtime staging in live preview currently remains metadata/default-driven rather than full runtime-control staging.
+3. Batch migration + migration summary panel remain to be implemented for full Phase 4 parity.
+4. `OP-1 Compiler`
+5. `OP-2 Schema/Serialization`
+6. `OP-3 Inspector/Editor`
+7. `OP-4 Migration`
+8. `OP-5 Perf/Rollout`

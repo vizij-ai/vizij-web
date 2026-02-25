@@ -36,6 +36,7 @@ You also want:
 6. Override logic should be compiler-injected, not authored directly in each binding expression.
 
 **References**
+
 - User requirements in this thread
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1496`
 - `apps/vizij-authoring/src/poseRig/graphBuilder.ts:1090`
@@ -87,6 +88,7 @@ flowchart LR
 ```
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/state.ts:225`
 - `packages/@vizij/node-graph-authoring/src/state.ts:710`
 - `apps/vizij-authoring/src/hooks/useBindingManager.ts:527`
@@ -107,6 +109,7 @@ flowchart LR
 ```
 
 **References**
+
 - `apps/vizij-authoring/src/poseRig/graphBuilder.ts:1090`
 - `apps/vizij-authoring/src/poseRig/utils.ts:309`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1483`
@@ -118,6 +121,7 @@ flowchart LR
 Bindings and metadata are serialized in `metadata.vizij.*` and round-trip through IR compile/import. Existing binding summaries remain in `metadata.vizij.bindings`; staged pipeline config will live in `metadata.vizij.pipelineV1`.
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1906`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1936`
 - `apps/vizij-authoring/src/utils/graphImport.ts:63`
@@ -154,6 +158,7 @@ Direct user input channel today:
 3. this is part of what the proposal changes, so direct input becomes explicit and opt-in.
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1483`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1534`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1548`
@@ -211,6 +216,7 @@ flowchart LR
 ```
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1496`
 - `packages/@vizij/node-graph-authoring/src/expressionFunctions.ts:270`
 - `apps/vizij-authoring/src/poseRig/graphBuilder.ts:1090`
@@ -240,6 +246,7 @@ normalizedAdditive(parentResult, poseControl, baseline)
 ```
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1505`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1518`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1548`
@@ -264,6 +271,7 @@ Keep source branches and override branches explicitly separated:
 This keeps the three blended sources distinct from override selection.
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1673`
 - `apps/vizij-authoring/src/poseRig/utils.ts:274`
 - `apps/vizij-authoring/src/poseRig/utils.ts:309`
@@ -284,6 +292,7 @@ Override is separate:
 3. children are downstream dependents and are not part of this variable's source blend inputs.
 
 **References**
+
 - `apps/vizij-authoring/src/hooks/useBindingManager.ts:561`
 - `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx:2078`
 - `apps/vizij-authoring/src/poseRig/usePoseRigAuthoring.ts:320`
@@ -352,6 +361,7 @@ Two modes:
 This keeps behavior clear and avoids conflating authored sources with compiler-injected override mechanics.
 
 **References**
+
 - `apps/vizij-authoring/src/components/binding/BindingEditor.tsx:818`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:349`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1534`
@@ -363,11 +373,11 @@ Introduce a staged config for each derived input binding, instead of relying on 
 
 ```ts
 interface ParentStageEntry {
-  linkId: string;  // canonical parent->child link id
+  linkId: string; // canonical parent->child link id
   inputId: string;
   alias: string;
-  scale: number;   // default 1
-  offset: number;  // default 0
+  scale: number; // default 1
+  offset: number; // default 0
   enabled: boolean;
 }
 
@@ -416,6 +426,7 @@ Store shared link-owned params under `metadata.vizij.pipelineV1.links`.
 The key ownership rule is link-centric: `scale` and `offset` belong to the parent->child link and are edited through one canonical record (`linkId`), regardless of whether user edits from parent view or child view.
 
 **References**
+
 - `packages/@vizij/utils/src/rig/standard-inputs.ts:37`
 - `packages/@vizij/utils/src/rig/standard-inputs.ts:111`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:444`
@@ -475,6 +486,7 @@ flowchart TB
 This makes causality visible and debuggable for each variable.
 
 **References**
+
 - `apps/vizij-authoring/src/components/binding/BindingEditor.tsx:977`
 - `apps/vizij-authoring/src/components/inspector/FeatureList.tsx:625`
 - `apps/vizij-authoring/src/components/inspector/InspectorContent.tsx:2179`
@@ -490,6 +502,7 @@ This makes causality visible and debuggable for each variable.
 Keep legacy rendering for migrated assets in a "legacy binding" section until fully converted.
 
 **References**
+
 - `apps/vizij-authoring/src/components/binding/BindingEditor.tsx:1043`
 - `packages/@vizij/node-graph-authoring/src/state.ts:225`
 - `packages/@vizij/node-graph-authoring/src/__tests__/irSnapshots.test.ts:248`
@@ -523,6 +536,7 @@ flowchart LR
 ```
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1437`
 - `apps/vizij-authoring/src/hooks/useRigController.ts:1323`
 - `apps/vizij-authoring/src/hooks/rigController/runtimeInputRoutes.ts:42`
@@ -552,6 +566,7 @@ flowchart LR
 4. Phase 4: default new assets to staged model; legacy read still supported.
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/__tests__/graphBuilder.test.ts:1321`
 - `packages/@vizij/node-graph-authoring/src/__tests__/irParity.test.ts:297`
 - `packages/@vizij/node-graph-authoring/src/__tests__/irSnapshots.test.ts:286`
@@ -568,6 +583,7 @@ flowchart LR
    1. unbounded outputs are intentional, but inspector must clearly communicate risk.
 
 **References**
+
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1534`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1562`
 - `../vizij-docs/current_documentation/concepts/deeper_exploration/GRAPH_CONVENTIONS.md`
@@ -583,6 +599,26 @@ flowchart LR
 5. Run behavior parity verification on representative existing assets and pose playback before merge.
 
 **References**
+
 - `apps/vizij-authoring/src/hooks/__tests__/rigGraphCompiler.test.ts:35`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1906`
 - `apps/vizij-authoring/src/components/binding/BindingEditor.tsx:361`
+
+## 10) Implementation Update (2026-02-25)
+
+Implemented in this branch:
+
+1. Compiler dual-read semantics and staged pipeline evaluation were added in `@vizij/node-graph-authoring` with pipeline-v1 contracts in `@vizij/utils`.
+2. Import/export/persistence paths now round-trip `metadata.vizij.pipelineV1` and pass staged configs into compile/build flows.
+3. Inspector now includes stage-oriented controls (Parents, Children, Poses, Direct Input, Override, Clamp), compiled equation diagnostics, and legacy migration affordances.
+
+Adjustments made during implementation:
+
+1. Incremental migration bridge: inspector stage settings are currently authored in binding metadata and projected into `pipelineV1.byInputId` at compile/export time.
+2. Partial pipeline payloads are normalized by injecting `inputId` where missing so existing authored data can compile safely.
+
+Known follow-up gaps (tracked in implementation plan execution log):
+
+1. Canonical `pipelineV1.links` shared link ownership is not yet fully wired as the sole edit source.
+2. Override enabled/value controls are represented and compiled, but full runtime staging behavior in live preview remains a follow-up.
+3. Batch migration workflow + migration summary panel are still pending.
