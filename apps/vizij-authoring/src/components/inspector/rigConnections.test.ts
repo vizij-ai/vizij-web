@@ -421,6 +421,84 @@ describe("buildPoseRigFaceTrace", () => {
     expect(trace.diagnostics.join(" ")).toMatch(/not mapped/i);
   });
 
+  it("does not mark outputs as unmatched when they are reachable elsewhere in the scene", () => {
+    const bindings: BindingMap = {
+      "anim://mouth/open": {
+        targetId: "anim://mouth/open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/child/mouth_open" }],
+      },
+      "anim://eye/squint": {
+        targetId: "anim://eye/squint",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/child/eye_squint" }],
+      },
+    };
+    const inputBindings: InputBindingMap = {
+      "rig/child/mouth_open": {
+        targetId: "rig/child/mouth_open",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/jaw_open" }],
+      },
+      "rig/child/eye_squint": {
+        targetId: "rig/child/eye_squint",
+        inputId: null,
+        expression: "s1",
+        slots: [{ id: "s1", alias: "s1", inputId: "rig/parent/eye_squint" }],
+      },
+    };
+    const selectedNode = createSceneNode(
+      "mouth_mesh",
+      ["anim://mouth/open"],
+      "Mouth Mesh",
+    );
+    const eyeNode = createSceneNode("eye_mesh", ["anim://eye/squint"], "Eye");
+    const extendedInputs = new Map<string, StandardRigInput>(
+      standardInputsById,
+    );
+    extendedInputs.set("rig/child/eye_squint", {
+      id: "rig/child/eye_squint",
+      path: "/standard/face/eye/squint",
+      label: "Eye Squint",
+      group: "standard",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    extendedInputs.set("rig/parent/eye_squint", {
+      id: "rig/parent/eye_squint",
+      path: "/standard/face/eye/squint/source",
+      label: "Eye Squint Source",
+      group: "standard",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+
+    const trace = buildPoseRigFaceTrace({
+      node: selectedNode,
+      objects: [selectedNode, eyeNode],
+      bindings,
+      inputBindings,
+      poses: [
+        {
+          id: "pose_1",
+          name: "Eye Pose",
+          values: { "rig/parent/eye_squint": 0.7 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      neutralInputs: { "rig/parent/eye_squint": 0 },
+      standardInputsById: extendedInputs,
+    });
+
+    expect(trace.targets).toHaveLength(1);
+    expect(trace.targets[0]?.matchedPoseOutputs).toEqual([]);
+    expect(trace.unmatchedPoseOutputs).toEqual([]);
+  });
+
   it("suggests parent-binding links for valid but disconnected pose outputs", () => {
     const bindings: BindingMap = {
       "anim://mouth/open": {

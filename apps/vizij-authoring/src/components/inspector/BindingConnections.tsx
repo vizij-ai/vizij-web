@@ -1372,9 +1372,8 @@ export function BindingConnections({
               Unmatched Pose Outputs ({trace.unmatchedPoseOutputs.length})
             </div>
             <div className="text-[9px] text-warning mt-1">
-              These outputs are active in poses but are not part of this
-              selected element's rig chain. This can be expected when they drive
-              other elements.
+              These outputs are active in poses but are not mapped to any
+              reachable rig chain.
             </div>
             <div className="text-[9px] text-warning mt-1">
               {unmatchedOutputPreview

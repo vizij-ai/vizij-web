@@ -799,6 +799,22 @@ function collectOrderedUpstreamRigInputIds(
   return ordered;
 }
 
+function collectReachableRigInputIdsFromBindings(
+  bindings: BindingMap,
+  inputBindings: InputBindingMap,
+): Set<string> {
+  const reachable = new Set<string>();
+  Object.values(bindings).forEach((binding) => {
+    const directRigInputIds = collectBindingInputIds(binding);
+    directRigInputIds.forEach((inputId) => {
+      collectUpstreamRigInputIds(inputId, inputBindings).forEach((upstreamId) =>
+        reachable.add(upstreamId),
+      );
+    });
+  });
+  return reachable;
+}
+
 function buildNodeLookup(
   objects: SceneObjectNode[],
 ): Map<string, SceneObjectNode> {
@@ -883,7 +899,6 @@ export function buildPoseRigFaceTrace(params: {
     bindings,
   );
   const traceTargets: PoseRigFaceTraceTarget[] = [];
-  const allReachableRigInputIds = new Set<string>();
 
   targetBindings.forEach((target) => {
     const directRigInputIds = collectBindingInputIds(target.binding).sort(
@@ -904,7 +919,6 @@ export function buildPoseRigFaceTrace(params: {
       collectUpstreamRigInputIds(inputId, inputBindings).forEach(
         (upstreamId) => {
           upstreamRigInputIds.add(upstreamId);
-          allReachableRigInputIds.add(upstreamId);
         },
       );
     });
@@ -944,8 +958,12 @@ export function buildPoseRigFaceTrace(params: {
     });
   });
 
+  const globallyReachableRigInputIds = collectReachableRigInputIdsFromBindings(
+    bindings,
+    inputBindings,
+  );
   const unmatchedPoseOutputs = activePoseOutputs.filter(
-    (output) => !allReachableRigInputIds.has(output.inputId),
+    (output) => !globallyReachableRigInputIds.has(output.inputId),
   );
   const diagnostics: string[] = [];
   if (traceTargets.length === 0) {
@@ -955,14 +973,14 @@ export function buildPoseRigFaceTrace(params: {
   }
   if (unmatchedPoseOutputs.length > 0) {
     diagnostics.push(
-      `${unmatchedPoseOutputs.length} active pose outputs are not mapped to this element's rig chain (they may belong to other elements).`,
+      `${unmatchedPoseOutputs.length} active pose outputs are not mapped to any reachable rig chain.`,
     );
   }
   const suggestedFixes = includeSuggestedFixes
     ? buildTraceSuggestions({
         traceTargets,
         unmatchedPoseOutputs,
-        allReachableRigInputIds,
+        allReachableRigInputIds: globallyReachableRigInputIds,
         standardInputsById,
       })
     : [];

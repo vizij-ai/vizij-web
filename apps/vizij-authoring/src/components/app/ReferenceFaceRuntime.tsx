@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
+  bindingTargetFromInput,
+  createDefaultParentBinding,
+} from "@vizij/node-graph-authoring";
+import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
   useVizijRuntime,
@@ -7,7 +11,14 @@ import {
 import type { VizijBundleExtension } from "@vizij/render";
 import { type StandardRigInput } from "@vizij/utils";
 import { isPoseControlInputPath } from "../../poseRig/utils";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { Button } from "../ui";
+import {
+  assessLegacyBindingMigration,
+  buildLegacyMigrationLinkUpserts,
+  mergePipelineMetadata,
+} from "../inspector/pipelineStages";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
@@ -85,6 +96,13 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
+  const applyInputBindingPatch = useBindingAuthoring(
+    (state) => state.applyInputBindingPatch,
+  );
   const bundleConfig = useMemo(() => {
     if (!file) return null;
     return createBundleConfig(file);
@@ -97,6 +115,96 @@ export function ReferenceFaceRuntime({
       }
     };
   }, [bundleConfig]);
+
+  const migrationEntries = useMemo(
+    () =>
+      Object.entries(inputBindings)
+        .map(([inputId, binding]) => ({
+          inputId,
+          assessment: assessLegacyBindingMigration(binding ?? null),
+        }))
+        .filter((entry) => entry.assessment.kind !== "none"),
+    [inputBindings],
+  );
+  const convertibleMigrationEntries = useMemo(
+    () =>
+      migrationEntries.filter(
+        (entry) => entry.assessment.kind === "convertible",
+      ),
+    [migrationEntries],
+  );
+  const migrationSummary = useMemo(() => {
+    if (migrationEntries.length === 0) {
+      return null;
+    }
+    return {
+      totalLegacy: migrationEntries.length,
+      migrated: migrationEntries.filter(
+        (entry) => entry.assessment.kind === "migrated",
+      ).length,
+      convertible: convertibleMigrationEntries.length,
+      nonConvertible: migrationEntries.filter(
+        (entry) => entry.assessment.kind === "non-convertible",
+      ).length,
+    };
+  }, [convertibleMigrationEntries.length, migrationEntries]);
+
+  const handleMigrateAllLegacyBindings = useCallback(() => {
+    if (convertibleMigrationEntries.length === 0) {
+      return;
+    }
+    applyInputBindingPatch((previous) => {
+      let changed = false;
+      const next: typeof previous = { ...previous };
+      convertibleMigrationEntries.forEach(
+        ({ inputId: targetInputId, assessment }) => {
+          const sourceInput = standardInputsById.get(targetInputId);
+          if (!sourceInput) {
+            return;
+          }
+          const existingBinding =
+            next[targetInputId] ??
+            createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+          const linkUpserts = buildLegacyMigrationLinkUpserts({
+            binding: existingBinding,
+            childInputId: targetInputId,
+            factorsByInputId: assessment.parentFactorsByInputId ?? {},
+            defaultOffset: sourceInput.defaultValue,
+            resolveInputId: (rawInputId) =>
+              resolveRigMetadataInputId(rawInputId, standardInputsById),
+          });
+          const nextMetadata = mergePipelineMetadata(
+            (existingBinding.metadata ?? undefined) as
+              | Record<string, unknown>
+              | undefined,
+            {
+              directInputEnabled: true,
+              overrideEnabled: false,
+              overrideValue: sourceInput.defaultValue,
+              clampEnabled: true,
+              ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
+              migrationStatus: "migrated",
+              migrationSource: "canonical-self-parent",
+              migrationExpression: assessment.expression,
+            },
+          );
+          const previousMetadataSignature = JSON.stringify(
+            existingBinding.metadata ?? null,
+          );
+          const nextMetadataSignature = JSON.stringify(nextMetadata);
+          if (previousMetadataSignature === nextMetadataSignature) {
+            return;
+          }
+          changed = true;
+          next[targetInputId] = {
+            ...existingBinding,
+            metadata: nextMetadata,
+          };
+        },
+      );
+      return changed ? next : previous;
+    });
+  }, [applyInputBindingPatch, convertibleMigrationEntries, standardInputsById]);
 
   if (!active) {
     return <>{fallback}</>;
@@ -129,6 +237,8 @@ export function ReferenceFaceRuntime({
         onBundleReady={onBundleReady}
         splitVertical={splitVertical}
         onToggleSplit={onToggleSplit}
+        migrationSummary={migrationSummary}
+        onMigrateAllLegacyBindings={handleMigrateAllLegacyBindings}
       />
     </VizijRuntimeProvider>
   );
@@ -151,6 +261,13 @@ type ReferenceFaceBridgeProps = {
   splitVertical?: boolean;
   /** Callback to toggle split orientation */
   onToggleSplit?: () => void;
+  migrationSummary?: {
+    totalLegacy: number;
+    migrated: number;
+    convertible: number;
+    nonConvertible: number;
+  } | null;
+  onMigrateAllLegacyBindings?: () => void;
 };
 
 /**
@@ -166,6 +283,8 @@ function ReferenceFaceBridge({
   onBundleReady,
   splitVertical,
   onToggleSplit,
+  migrationSummary,
+  onMigrateAllLegacyBindings,
 }: ReferenceFaceBridgeProps) {
   const { ready, loading, setInput, inputConstraints, faceId, assetBundle } =
     useVizijRuntime();
@@ -281,6 +400,8 @@ function ReferenceFaceBridge({
             onResetInputs={handleResetInputs}
             onToggleSplit={onToggleSplit}
             splitVertical={splitVertical}
+            migrationSummary={migrationSummary}
+            onMigrateAllLegacyBindings={onMigrateAllLegacyBindings}
           />
         }
       />
