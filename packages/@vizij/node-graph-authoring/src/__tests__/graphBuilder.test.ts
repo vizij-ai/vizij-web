@@ -518,6 +518,35 @@ describe("buildRigGraphSpec", () => {
     ).toBe(true);
   });
 
+  it("resolves legacy path-style parent ids in staged parent links", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_E_LEGACY_PATH,
+      additionalInputs: [INPUT_D_LEGACY_PATH],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: "/rig/element/eye/open",
+            scale: -2,
+          },
+        ],
+      },
+    });
+
+    const parentScaleNode = spec.nodes.find(
+      (node) => node.id === "input_parent_scale_autorig_mouth_open_1",
+    );
+    expect(parentScaleNode?.input_defaults).toMatchObject({ operand_2: -2 });
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_autorig_eye_open" &&
+          edge.to?.node_id === "input_parent_scale_autorig_mouth_open_1" &&
+          edge.to?.input === "operand_1",
+      ),
+    ).toBe(true);
+  });
+
   it("compiles staged pose-only sources", () => {
     const { spec } = buildStagedInputGraph({
       input: INPUT_A,

@@ -3141,13 +3141,46 @@ export function InspectorContent({
         childInputId: string,
         factorsByInputId: Record<string, number>,
       ) => {
+        const canonicalFactorsByInputId: Record<string, number> = {};
+        Object.entries(factorsByInputId).forEach(([rawInputId, factor]) => {
+          if (!Number.isFinite(factor)) {
+            return;
+          }
+          const trimmedInputId = rawInputId.trim();
+          if (!trimmedInputId || trimmedInputId === SELF_BINDING_ID) {
+            return;
+          }
+          const resolvedInputId = resolveRigMetadataInputId(
+            trimmedInputId,
+            standardInputsById,
+          );
+          canonicalFactorsByInputId[resolvedInputId] =
+            (canonicalFactorsByInputId[resolvedInputId] ?? 0) + factor;
+        });
+
         const parentInputIds = new Set<string>();
+        const addParentInputCandidate = (
+          rawInputId: string | null | undefined,
+        ) => {
+          const trimmedInputId = rawInputId?.trim() ?? "";
+          if (!trimmedInputId || trimmedInputId === SELF_BINDING_ID) {
+            return;
+          }
+          const resolvedInputId = resolveRigMetadataInputId(
+            trimmedInputId,
+            standardInputsById,
+          );
+          if (!resolvedInputId || resolvedInputId === SELF_BINDING_ID) {
+            return;
+          }
+          parentInputIds.add(resolvedInputId);
+        };
         if (
           binding?.inputId &&
           binding.inputId !== SELF_BINDING_ID &&
           binding.inputId.trim().length > 0
         ) {
-          parentInputIds.add(binding.inputId);
+          addParentInputCandidate(binding.inputId);
         }
         (binding?.slots ?? []).forEach((slot) => {
           if (
@@ -3155,7 +3188,7 @@ export function InspectorContent({
             slot.inputId !== SELF_BINDING_ID &&
             slot.inputId.trim().length > 0
           ) {
-            parentInputIds.add(slot.inputId);
+            addParentInputCandidate(slot.inputId);
           }
         });
         const upserts: Record<
@@ -3170,7 +3203,7 @@ export function InspectorContent({
         > = {};
         parentInputIds.forEach((parentInputId) => {
           const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
-          const scale = factorsByInputId[parentInputId] ?? 1;
+          const scale = canonicalFactorsByInputId[parentInputId] ?? 1;
           upserts[linkId] = {
             parentInputId,
             childInputId,
@@ -3191,7 +3224,7 @@ export function InspectorContent({
           legacyMigrationAssessment.parentFactorsByInputId ?? {},
         );
         applyPipelineMetadataPatch({
-          directInputEnabled: false,
+          directInputEnabled: true,
           overrideEnabled: false,
           overrideValue: input.defaultValue,
           clampEnabled: true,
@@ -3252,7 +3285,7 @@ export function InspectorContent({
                   | Record<string, unknown>
                   | undefined,
                 {
-                  directInputEnabled: false,
+                  directInputEnabled: true,
                   overrideEnabled: false,
                   overrideValue: sourceInput.defaultValue,
                   clampEnabled: true,

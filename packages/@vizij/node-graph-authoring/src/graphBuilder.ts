@@ -1651,11 +1651,15 @@ export function buildRigGraphSpec({
       if (!parent.enabled) {
         return;
       }
-      const parentInput = ensureInputNode(parent.inputId);
+      const resolvedParentInputId = resolveStandardRigInputId(
+        parent.inputId,
+        inputsById,
+      );
+      const parentInput = ensureInputNode(resolvedParentInputId);
       if (!parentInput) {
         const issueSet = bindingIssues.get(input.id) ?? new Set<string>();
         issueSet.add(
-          `Staged parent "${parent.inputId}" missing for "${input.id}".`,
+          `Staged parent "${resolvedParentInputId}" missing for "${input.id}".`,
         );
         bindingIssues.set(input.id, issueSet);
         return;
