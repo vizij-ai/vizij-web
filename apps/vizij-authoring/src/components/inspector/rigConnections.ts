@@ -509,30 +509,155 @@ function tokenizeInputId(value: string): string[] {
     .filter(Boolean);
 }
 
+const GENERIC_INPUT_TOKENS = new Set<string>([
+  "autorig",
+  "rig",
+  "parent",
+  "child",
+  "value",
+  "translation",
+  "rotation",
+  "scale",
+  "x",
+  "y",
+  "z",
+  "in",
+  "out",
+  "mid",
+  "inner",
+  "outer",
+  "left",
+  "right",
+  "l",
+  "r",
+]);
+
+const FACE_REGION_TOKENS = new Set<string>([
+  "eye",
+  "eyewhite",
+  "lid",
+  "blid",
+  "tlid",
+  "brow",
+  "mouth",
+  "jaw",
+  "lip",
+  "sneer",
+  "chin",
+  "nose",
+  "cheek",
+  "tongue",
+]);
+
+const FACE_REGION_GROUP_BY_TOKEN: Record<string, string> = {
+  mouth: "oral",
+  jaw: "oral",
+  lip: "oral",
+  sneer: "oral",
+  chin: "oral",
+  tongue: "oral",
+  eye: "ocular",
+  eyewhite: "ocular",
+  lid: "ocular",
+  blid: "ocular",
+  tlid: "ocular",
+  brow: "ocular",
+  nose: "nasal",
+  cheek: "nasal",
+};
+
+function collectMeaningfulTokens(tokens: string[]): Set<string> {
+  return new Set(tokens.filter((token) => !GENERIC_INPUT_TOKENS.has(token)));
+}
+
+function collectRegionTokens(tokens: string[]): Set<string> {
+  const regions = new Set<string>();
+  tokens.forEach((token) => {
+    FACE_REGION_TOKENS.forEach((region) => {
+      if (token.includes(region)) {
+        regions.add(region);
+      }
+    });
+  });
+  return regions;
+}
+
+function countOverlap(left: Set<string>, right: Set<string>): number {
+  let overlap = 0;
+  left.forEach((token) => {
+    if (right.has(token)) {
+      overlap += 1;
+    }
+  });
+  return overlap;
+}
+
+function collectRegionGroups(regions: Set<string>): Set<string> {
+  const groups = new Set<string>();
+  regions.forEach((region) => {
+    const group = FACE_REGION_GROUP_BY_TOKEN[region];
+    if (group) {
+      groups.add(group);
+    }
+  });
+  return groups;
+}
+
+function areInputIdsSemanticallyCompatible(
+  left: string,
+  right: string,
+): boolean {
+  const leftTokens = tokenizeInputId(left);
+  const rightTokens = tokenizeInputId(right);
+  if (leftTokens.length === 0 || rightTokens.length === 0) {
+    return false;
+  }
+  const leftMeaningful = collectMeaningfulTokens(leftTokens);
+  const rightMeaningful = collectMeaningfulTokens(rightTokens);
+  const meaningfulOverlap = countOverlap(leftMeaningful, rightMeaningful);
+
+  const leftRegions = collectRegionTokens(leftTokens);
+  const rightRegions = collectRegionTokens(rightTokens);
+  const hasRegionSignals = leftRegions.size > 0 && rightRegions.size > 0;
+  const regionOverlap = countOverlap(leftRegions, rightRegions);
+  if (hasRegionSignals && regionOverlap === 0) {
+    const leftRegionGroups = collectRegionGroups(leftRegions);
+    const rightRegionGroups = collectRegionGroups(rightRegions);
+    const regionGroupOverlap = countOverlap(
+      leftRegionGroups,
+      rightRegionGroups,
+    );
+    if (regionGroupOverlap > 0) {
+      return meaningfulOverlap > 0;
+    }
+    return false;
+  }
+
+  return meaningfulOverlap > 0 || regionOverlap > 0;
+}
+
 function similarityBetweenInputIds(left: string, right: string): number {
+  if (!areInputIdsSemanticallyCompatible(left, right)) {
+    return 0;
+  }
   const leftTokens = tokenizeInputId(left);
   const rightTokens = tokenizeInputId(right);
   if (leftTokens.length === 0 || rightTokens.length === 0) {
     return 0;
   }
-  const leftSet = new Set(leftTokens);
-  const rightSet = new Set(rightTokens);
+  const leftSet = collectMeaningfulTokens(leftTokens);
+  const rightSet = collectMeaningfulTokens(rightTokens);
   const union = new Set([...leftSet, ...rightSet]);
   if (union.size === 0) {
     return 0;
   }
-  let overlap = 0;
-  leftSet.forEach((token) => {
-    if (rightSet.has(token)) {
-      overlap += 1;
-    }
-  });
+  const overlap = countOverlap(leftSet, rightSet);
   const jaccard = overlap / union.size;
   const suffixBonus =
     left === right
-      ? 0.4
+      ? 0.25
       : left.endsWith(right) || right.endsWith(left)
-        ? 0.2
+        ? 0.1
         : 0;
   return Math.max(0, Math.min(jaccard + suffixBonus, 1));
 }
@@ -573,7 +698,7 @@ function buildTraceSuggestions(params: {
         });
       });
 
-      if (bestTarget && bestChildInputId && bestTargetScore >= 0.2) {
+      if (bestTarget && bestChildInputId && bestTargetScore >= 0.3) {
         const resolvedTarget = bestTarget as PoseRigFaceTraceTarget;
         suggestions.push({
           id: `link:${output.poseId}:${bestChildInputId}:${output.inputId}`,
@@ -601,7 +726,7 @@ function buildTraceSuggestions(params: {
         bestRetargetScore = score;
       }
     });
-    if (bestRetargetInputId && bestRetargetScore >= 0.25) {
+    if (bestRetargetInputId && bestRetargetScore >= 0.45) {
       suggestions.push({
         id: `retarget:${output.poseId}:${output.inputId}:${bestRetargetInputId}`,
         kind: "retarget-pose-output",
@@ -830,7 +955,7 @@ export function buildPoseRigFaceTrace(params: {
   }
   if (unmatchedPoseOutputs.length > 0) {
     diagnostics.push(
-      `${unmatchedPoseOutputs.length} active pose outputs are not mapped to this element's rig chain.`,
+      `${unmatchedPoseOutputs.length} active pose outputs are not mapped to this element's rig chain (they may belong to other elements).`,
     );
   }
   const suggestedFixes = includeSuggestedFixes

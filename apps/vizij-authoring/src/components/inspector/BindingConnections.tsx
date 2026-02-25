@@ -47,6 +47,8 @@ const traversalStageLabels: Record<PoseRigTraversalNode["kind"], string> = {
 };
 
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+const SUGGESTION_DISPLAY_MIN_CONFIDENCE = 0.6;
+const UNMATCHED_OUTPUT_PREVIEW_LIMIT = 24;
 
 interface BindingConnectionsProps {
   node: SceneObjectNode;
@@ -531,7 +533,9 @@ export function BindingConnections({
     () =>
       isTraceSectionOpen
         ? trace.suggestedFixes.filter(
-            (suggestion) => !ignoredSuggestionIds.has(suggestion.id),
+            (suggestion) =>
+              !ignoredSuggestionIds.has(suggestion.id) &&
+              suggestion.confidence >= SUGGESTION_DISPLAY_MIN_CONFIDENCE,
           )
         : [],
     [ignoredSuggestionIds, isTraceSectionOpen, trace.suggestedFixes],
@@ -558,7 +562,11 @@ export function BindingConnections({
   );
 
   const safeBulkSuggestions = useMemo(
-    () => selectSafePoseRigTraceSuggestions(visibleSuggestions, 0.6),
+    () =>
+      selectSafePoseRigTraceSuggestions(
+        visibleSuggestions,
+        SUGGESTION_DISPLAY_MIN_CONFIDENCE,
+      ),
     [visibleSuggestions],
   );
 
@@ -568,6 +576,15 @@ export function BindingConnections({
         (suggestion) => !appliedSuggestionIds.has(suggestion.id),
       ),
     [appliedSuggestionIds, safeBulkSuggestions],
+  );
+
+  const unmatchedOutputPreview = useMemo(
+    () => trace.unmatchedPoseOutputs.slice(0, UNMATCHED_OUTPUT_PREVIEW_LIMIT),
+    [trace.unmatchedPoseOutputs],
+  );
+  const hiddenUnmatchedOutputCount = Math.max(
+    0,
+    trace.unmatchedPoseOutputs.length - unmatchedOutputPreview.length,
   );
 
   const handleApplySuggestion = useCallback(
@@ -1352,20 +1369,28 @@ export function BindingConnections({
         {isTraceSectionOpen && trace.unmatchedPoseOutputs.length > 0 && (
           <div className="rounded border border-warning/40 bg-warning-subtle/20 px-2 py-1.5">
             <div className="text-[9px] font-semibold text-warning uppercase tracking-wide">
-              Unmatched Pose Outputs
+              Unmatched Pose Outputs ({trace.unmatchedPoseOutputs.length})
             </div>
             <div className="text-[9px] text-warning mt-1">
-              {trace.unmatchedPoseOutputs
+              These outputs are active in poses but are not part of this
+              selected element's rig chain. This can be expected when they drive
+              other elements.
+            </div>
+            <div className="text-[9px] text-warning mt-1">
+              {unmatchedOutputPreview
                 .map(
                   (output) =>
                     `${output.poseName} -> ${output.inputId}=${output.value.toFixed(3)}`,
                 )
                 .join("; ")}
+              {hiddenUnmatchedOutputCount > 0
+                ? `; +${hiddenUnmatchedOutputCount} more`
+                : ""}
             </div>
           </div>
         )}
 
-        {isTraceSectionOpen && trace.suggestedFixes.length > 0 && (
+        {isTraceSectionOpen && visibleSuggestions.length > 0 && (
           <div className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5">
             <div className="flex items-center justify-between gap-2">
               <div className="text-[9px] font-semibold text-emerald-300 uppercase tracking-wide">
@@ -1401,6 +1426,9 @@ export function BindingConnections({
               </Chip>
               <Chip tone="success">Safe {safeBulkSuggestions.length}</Chip>
               <Chip tone="default">Ignored {ignoredSuggestionIds.size}</Chip>
+            </div>
+            <div className="text-[9px] text-emerald-100/80 mt-1">
+              Showing only high-confidence suggestions (60%+).
             </div>
             {traceFeedback && (
               <div className="text-[9px] text-emerald-200 mt-1">

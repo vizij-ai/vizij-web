@@ -501,6 +501,67 @@ describe("buildPoseRigFaceTrace", () => {
       trace.suggestedFixes.some((fix) => fix.kind === "retarget-pose-output"),
     ).toBe(true);
   });
+
+  it("does not suggest cross-region fixes from generic token overlap", () => {
+    const bindings: BindingMap = {
+      "anim://left-eye/translate": {
+        targetId: "anim://left-eye/translate",
+        inputId: null,
+        expression: "s1",
+        slots: [
+          {
+            id: "s1",
+            alias: "s1",
+            inputId: "autorig/l_eyewhite_translation_y",
+          },
+        ],
+      },
+    };
+    const inputBindings: InputBindingMap = {};
+    const objects = [
+      createSceneNode("face_mesh", ["anim://left-eye/translate"], "Face Mesh"),
+    ];
+    const extendedInputs = new Map<string, StandardRigInput>(
+      standardInputsById,
+    );
+    extendedInputs.set("autorig/l_eyewhite_translation_y", {
+      id: "autorig/l_eyewhite_translation_y",
+      path: "/autorig/face/left/eyewhite/translation/y",
+      label: "Left Eyewhite Translation Y",
+      group: "autorig",
+      defaultValue: 0,
+      range: { min: -2, max: 2 },
+    });
+    extendedInputs.set("mouth_translation_y", {
+      id: "mouth_translation_y",
+      path: "/standard/face/mouth/translation/y",
+      label: "Mouth Translation Y",
+      group: "standard",
+      defaultValue: 0,
+      range: { min: -2, max: 2 },
+    });
+
+    const trace = buildPoseRigFaceTrace({
+      node: objects[0],
+      objects,
+      bindings,
+      inputBindings,
+      poses: [
+        {
+          id: "pose_1",
+          name: "Mouth Pose",
+          values: { mouth_translation_y: -1.1 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+      neutralInputs: { mouth_translation_y: 0 },
+      standardInputsById: extendedInputs,
+    });
+
+    expect(trace.unmatchedPoseOutputs).toHaveLength(1);
+    expect(trace.suggestedFixes).toEqual([]);
+  });
 });
 
 describe("summarizeTraceConnections", () => {

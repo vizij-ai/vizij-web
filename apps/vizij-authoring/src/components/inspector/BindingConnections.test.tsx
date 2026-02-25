@@ -493,4 +493,40 @@ describe("BindingConnections routing", () => {
 
     expect(view.getByRole("button", { name: /Aggregate Main/i })).toBeTruthy();
   });
+
+  it("hides low-confidence suggested fixes in the trace section", () => {
+    mockTrace = {
+      targets: [],
+      unmatchedPoseOutputs: [],
+      suggestedFixes: [
+        {
+          id: "suggest-low",
+          kind: "link-parent-binding",
+          poseId: "pose_1",
+          poseName: "Pose 1",
+          childInputId: "autorig/l_eyewhite_translation_y",
+          upstreamInputId: "mouth_translation_y",
+          targetId: "anim://left-eye/translate",
+          targetLabel: "Face Mesh · Left Eye",
+          confidence: 0.33,
+          reason: "Low confidence",
+        },
+      ],
+      diagnostics: [],
+    };
+
+    const node: SceneObjectNode = {
+      id: "shape_1",
+      name: "Shape 1",
+      type: "shape",
+      parentId: null,
+      childIds: [],
+      features: [],
+    };
+
+    const view = render(<BindingConnections node={node} />);
+    fireEvent.click(view.getByTestId("binding-trace-section-toggle"));
+
+    expect(view.queryByText(/Suggested Fixes/i)).toBeNull();
+  });
 });
