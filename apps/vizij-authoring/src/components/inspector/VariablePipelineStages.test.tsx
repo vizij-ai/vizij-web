@@ -212,4 +212,17 @@ describe("VariablePipelineStages", () => {
     const sliders = view.getAllByRole("slider");
     expect(sliders.length).toBeGreaterThanOrEqual(5);
   });
+
+  it("shows disabled state labels for direct and override toggles when off", () => {
+    const props = createBaseProps();
+    props.directInputEnabled = false;
+    props.overrideEnabled = false;
+    const view = render(<VariablePipelineStages {...props} />);
+
+    const directStage = view.getByTestId("pipeline-stage-direct-input");
+    expect(within(directStage).getByText("Disabled")).toBeTruthy();
+
+    const overrideStage = view.getByTestId("pipeline-stage-override");
+    expect(within(overrideStage).getByText("Disabled")).toBeTruthy();
+  });
 });

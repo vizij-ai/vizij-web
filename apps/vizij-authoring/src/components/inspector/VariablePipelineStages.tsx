@@ -103,6 +103,66 @@ function kindTone(kind: PipelineStageLinkItem["kind"]): "default" | "info" {
   return kind === "autorig" ? "info" : "default";
 }
 
+function LinkControlEditor({
+  linkControl,
+  context,
+}: {
+  linkControl: NonNullable<PipelineStageLinkItem["linkControl"]>;
+  context: "parent" | "child";
+}) {
+  const formulaHint =
+    context === "parent"
+      ? "Contribution = parent x scale + offset"
+      : "Child input = this x scale + offset";
+
+  return (
+    <div className="rounded border border-border-default/30 bg-bg-panel/30 px-2 py-1.5 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Switch
+          checked={linkControl.enabled}
+          onChange={(checked) => linkControl.onEnabledChange?.(checked)}
+          label={linkControl.enabled ? "Link Enabled" : "Link Disabled"}
+          hint="Toggle this connection on/off."
+          size="sm"
+        />
+        <span className="text-[9px] text-text-muted">{formulaHint}</span>
+      </div>
+      <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
+        <span className="text-[10px] text-text-secondary">Scale</span>
+        <Slider
+          min={-3}
+          max={3}
+          step={0.01}
+          value={linkControl.scale}
+          onChange={(value) => linkControl.onScaleChange?.(value as number)}
+          disabled={!linkControl.enabled}
+        />
+        <NumberField
+          size="sm"
+          value={linkControl.scale}
+          min={-3}
+          max={3}
+          step={0.01}
+          onChange={(value) => linkControl.onScaleChange?.(value)}
+          disabled={!linkControl.enabled}
+        />
+      </div>
+      <div className="grid grid-cols-[58px_72px] items-center gap-2">
+        <span className="text-[10px] text-text-secondary">Offset</span>
+        <NumberField
+          size="sm"
+          value={linkControl.offset}
+          min={-2}
+          max={2}
+          step={0.01}
+          onChange={(value) => linkControl.onOffsetChange?.(value)}
+          disabled={!linkControl.enabled}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function VariablePipelineStages({
   parentExpression,
   compiledEquation,
@@ -226,6 +286,10 @@ export function VariablePipelineStages({
             {parentExpression.trim().length > 0 ? parentExpression : "n/a"}
           </code>
         </div>
+        <span className="text-[10px] text-text-secondary">
+          Parents are upstream inputs driving this variable. Each link applies a
+          scale multiplier and offset.
+        </span>
         {parents.length > 0 ? (
           <div className="flex flex-col gap-2">
             {parents.map((parent) => (
@@ -244,48 +308,10 @@ export function VariablePipelineStages({
                   </button>
                 </div>
                 {parent.linkControl ? (
-                  <div className="grid grid-cols-[auto_minmax(0,1fr)_72px_72px] items-center gap-2">
-                    <Switch
-                      checked={parent.linkControl.enabled}
-                      onChange={(checked) =>
-                        parent.linkControl?.onEnabledChange?.(checked)
-                      }
-                      label="On"
-                      size="sm"
-                    />
-                    <Slider
-                      min={-3}
-                      max={3}
-                      step={0.01}
-                      value={parent.linkControl.scale}
-                      onChange={(value) =>
-                        parent.linkControl?.onScaleChange?.(value as number)
-                      }
-                      disabled={!parent.linkControl.enabled}
-                    />
-                    <NumberField
-                      size="sm"
-                      value={parent.linkControl.scale}
-                      min={-3}
-                      max={3}
-                      step={0.01}
-                      onChange={(value) =>
-                        parent.linkControl?.onScaleChange?.(value)
-                      }
-                      disabled={!parent.linkControl.enabled}
-                    />
-                    <NumberField
-                      size="sm"
-                      value={parent.linkControl.offset}
-                      min={-2}
-                      max={2}
-                      step={0.01}
-                      onChange={(value) =>
-                        parent.linkControl?.onOffsetChange?.(value)
-                      }
-                      disabled={!parent.linkControl.enabled}
-                    />
-                  </div>
+                  <LinkControlEditor
+                    linkControl={parent.linkControl}
+                    context="parent"
+                  />
                 ) : null}
               </div>
             ))}
@@ -312,6 +338,10 @@ export function VariablePipelineStages({
         count={children.length}
         testId="pipeline-stage-children"
       >
+        <span className="text-[10px] text-text-secondary">
+          Children are downstream inputs this variable drives. They use the same
+          shared link settings.
+        </span>
         {children.length > 0 ? (
           <div className="flex flex-col gap-1">
             {children.map((child) => (
@@ -340,48 +370,10 @@ export function VariablePipelineStages({
                   ) : null}
                 </div>
                 {child.linkControl ? (
-                  <div className="grid grid-cols-[auto_minmax(0,1fr)_72px_72px] items-center gap-2">
-                    <Switch
-                      checked={child.linkControl.enabled}
-                      onChange={(checked) =>
-                        child.linkControl?.onEnabledChange?.(checked)
-                      }
-                      label="On"
-                      size="sm"
-                    />
-                    <Slider
-                      min={-3}
-                      max={3}
-                      step={0.01}
-                      value={child.linkControl.scale}
-                      onChange={(value) =>
-                        child.linkControl?.onScaleChange?.(value as number)
-                      }
-                      disabled={!child.linkControl.enabled}
-                    />
-                    <NumberField
-                      size="sm"
-                      value={child.linkControl.scale}
-                      min={-3}
-                      max={3}
-                      step={0.01}
-                      onChange={(value) =>
-                        child.linkControl?.onScaleChange?.(value)
-                      }
-                      disabled={!child.linkControl.enabled}
-                    />
-                    <NumberField
-                      size="sm"
-                      value={child.linkControl.offset}
-                      min={-2}
-                      max={2}
-                      step={0.01}
-                      onChange={(value) =>
-                        child.linkControl?.onOffsetChange?.(value)
-                      }
-                      disabled={!child.linkControl.enabled}
-                    />
-                  </div>
+                  <LinkControlEditor
+                    linkControl={child.linkControl}
+                    context="child"
+                  />
                 ) : null}
               </div>
             ))}
@@ -459,7 +451,7 @@ export function VariablePipelineStages({
           <Switch
             checked={directInputEnabled}
             onChange={onDirectInputEnabledChange}
-            label="Enabled"
+            label={directInputEnabled ? "Enabled" : "Disabled"}
             size="sm"
           />
           <span className="text-[10px] text-text-secondary">
@@ -509,7 +501,7 @@ export function VariablePipelineStages({
           <Switch
             checked={overrideEnabled}
             onChange={onOverrideEnabledChange}
-            label="Enabled"
+            label={overrideEnabled ? "Enabled" : "Disabled"}
             size="sm"
           />
           <span className="text-[10px] text-text-secondary">
