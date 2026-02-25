@@ -27,8 +27,15 @@ import {
   diffGraphSpecs,
   rewriteGraphFaceNamespace,
 } from "../utils/graphDiff";
+import {
+  extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineMetadataV1,
+  withVizijPipelineMetadataV1,
+  type VizijPipelineMetadataV1,
+} from "../utils/graphImport";
 import { sanitizeFaceId } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
+import { withPipelineConfigBuildOptions } from "./rigController/rigGraphCompiler";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 
 interface UseRigGraphImportOptions {
@@ -46,6 +53,9 @@ interface UseRigGraphImportOptions {
   setInputBindings: Dispatch<SetStateAction<InputBindingMap>>;
   setSelectedStandardInputRoots: Dispatch<SetStateAction<string[]>>;
   setSelectedStandardInputSubgroups: Dispatch<SetStateAction<string[]>>;
+  setPipelineMetadataV1: Dispatch<
+    SetStateAction<VizijPipelineMetadataV1 | null>
+  >;
   setFaceId: Dispatch<SetStateAction<string>>;
   skipPersistRef: MutableRefObject<boolean>;
   persistedAutoInputsRef: MutableRefObject<
@@ -77,6 +87,7 @@ export function useRigGraphImport({
   setInputBindings,
   setSelectedStandardInputRoots,
   setSelectedStandardInputSubgroups,
+  setPipelineMetadataV1,
   setFaceId,
   skipPersistRef,
   persistedAutoInputsRef,
@@ -136,6 +147,9 @@ export function useRigGraphImport({
           importedFaceIdRaw && importedFaceIdRaw.trim().length > 0
             ? sanitizeFaceId(importedFaceIdRaw)
             : null;
+        const importedPipelineMetadataV1 = extractVizijPipelineMetadataV1(spec);
+        const importedPipelineConfigByInputId =
+          extractVizijPipelineConfigMapFromMetadata(importedPipelineMetadataV1);
         const faceChangedDuringImport =
           !!importedFaceId && importedFaceId !== faceId;
 
@@ -221,17 +235,26 @@ export function useRigGraphImport({
         if (!faceId && importedFaceId) {
           setFaceId(importedFaceId);
         }
-        const rebuiltSpec = buildRigGraphSpec({
-          faceId: resolvedFaceId,
-          animatables,
-          components: animatableComponents,
-          bindings: rehydrated.bindings,
-          inputsById: new Map(
-            rehydrated.standardInputs.map((input) => [input.id, input]),
-          ),
-          inputBindings: rehydrated.inputBindings,
-          inputMetadata: normalizedInputMetadata,
-        }).spec;
+        const rebuiltSpec = withVizijPipelineMetadataV1(
+          buildRigGraphSpec(
+            withPipelineConfigBuildOptions(
+              {
+                faceId: resolvedFaceId,
+                animatables,
+                components: animatableComponents,
+                bindings: rehydrated.bindings,
+                inputsById: new Map(
+                  rehydrated.standardInputs.map((input) => [input.id, input]),
+                ),
+                inputBindings: rehydrated.inputBindings,
+                inputMetadata: normalizedInputMetadata,
+              },
+              importedPipelineConfigByInputId,
+              importedPipelineMetadataV1,
+            ),
+          ).spec,
+          importedPipelineMetadataV1,
+        ) as GraphSpec;
         await waitForNextFrame();
 
         onImportPhaseChange?.({
@@ -528,6 +551,7 @@ export function useRigGraphImport({
         updateInputValues(() => nextInputValues);
         setBindings(rehydrated.bindings);
         setInputBindings(rehydrated.inputBindings);
+        setPipelineMetadataV1(importedPipelineMetadataV1);
         setSelectedStandardInputRoots([]);
         setSelectedStandardInputSubgroups([]);
         setTimeout(() => {
@@ -580,6 +604,7 @@ export function useRigGraphImport({
       updateInputValues,
       setBindings,
       setInputBindings,
+      setPipelineMetadataV1,
       setSelectedStandardInputRoots,
       setSelectedStandardInputSubgroups,
       setFaceId,

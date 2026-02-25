@@ -6,6 +6,7 @@ import {
   buildRigGraphCompile,
   createGraphInsightSnapshot,
   resolveRuntimeGraphSpecWithCache,
+  withPipelineConfigBuildOptions,
 } from "../rigController/rigGraphCompiler";
 import type { RuntimeGraphSpec } from "../runtimeGraphSpec";
 
@@ -64,6 +65,11 @@ describe("buildRigGraphCompile", () => {
       inputsById: new Map(),
       inputBindings: {} as any,
       inputMetadata: new Map(),
+      pipelineConfigByInputId: {
+        jaw: {
+          directInput: { enabled: true },
+        },
+      },
       poseConfig: {
         poses: [
           {
@@ -79,9 +85,39 @@ describe("buildRigGraphCompile", () => {
       expect.objectContaining({
         faceId: "face",
         inputComposeModesById: { jaw: "average" },
+        pipelineV1: expect.objectContaining({
+          byInputId: expect.objectContaining({
+            jaw: expect.objectContaining({
+              directInput: { enabled: true },
+            }),
+          }),
+        }),
       }),
     );
     buildRigGraphSpecSpy.mockRestore();
+  });
+});
+
+describe("withPipelineConfigBuildOptions", () => {
+  it("returns original options when no staged config map is provided", () => {
+    const options = { faceId: "face", inputComposeModesById: {} };
+    expect(withPipelineConfigBuildOptions(options, null)).toBe(options);
+    expect(withPipelineConfigBuildOptions(options, {})).toBe(options);
+  });
+
+  it("attaches pipelineV1 metadata for staged pipeline maps", () => {
+    const options = { faceId: "face", inputComposeModesById: {} };
+    const next = withPipelineConfigBuildOptions(options, {
+      jaw: { clamp: { enabled: true } },
+    });
+    expect(next).not.toBe(options);
+    expect(next).toMatchObject({
+      pipelineV1: expect.objectContaining({
+        byInputId: expect.objectContaining({
+          jaw: expect.objectContaining({ clamp: { enabled: true } }),
+        }),
+      }),
+    });
   });
 });
 

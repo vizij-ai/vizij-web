@@ -66,6 +66,12 @@ export function ExportDialog({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const pipelineMetadataV1 = useBindingAuthoring(
+    (state) => state.pipelineMetadataV1,
+  );
+  const pipelineConfigByInputId = useBindingAuthoring(
+    (state) => state.pipelineConfigByInputId,
+  );
   const validOutputTargets = useBindingAuthoring(
     (state) => state.validOutputTargets,
   );
@@ -134,6 +140,8 @@ export function ExportDialog({
     bindings,
     inputBindings,
     standardInputsById,
+    pipelineMetadataV1,
+    pipelineConfigByInputId,
     validOutputTargets,
     featureLabelOverrides,
     collectAnimatableExportState,

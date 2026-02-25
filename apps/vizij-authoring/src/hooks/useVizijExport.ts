@@ -21,6 +21,10 @@ import { downloadJsonFile, ensureExtension } from "@vizij/authoring-shared";
 import { getLookup, cloneRawValue } from "@vizij/utils";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
+import {
+  withVizijPipelineMetadataV1,
+  type VizijPipelineMetadataV1,
+} from "../utils/graphImport";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
@@ -32,6 +36,10 @@ import type {
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
+import {
+  withPipelineConfigBuildOptions,
+  type PipelineConfigByInputId,
+} from "./rigController/rigGraphCompiler";
 
 interface CollectAnimatableExportStateResult {
   appliedOverrides: boolean;
@@ -85,6 +93,8 @@ interface UseVizijExportOptions {
     string,
     { source?: "auto" | "custom" | "preset"; root?: string }
   >;
+  pipelineMetadataV1?: VizijPipelineMetadataV1 | null;
+  pipelineConfigByInputId?: PipelineConfigByInputId;
   featureLabelOverrides: Record<string, string>;
   collectAnimatableExportState: () => CollectAnimatableExportStateResult;
   setStoreState: (updater: (state: VizijData) => VizijData) => void;
@@ -125,6 +135,34 @@ function withPoseConfigFaceId(
   return {
     ...config,
     faceId,
+  };
+}
+
+function resolvePipelineMetadataForExport(
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined,
+  pipelineConfigByInputId: PipelineConfigByInputId | null | undefined,
+): VizijPipelineMetadataV1 | null {
+  const hasConfigMap =
+    Boolean(pipelineConfigByInputId) &&
+    Object.keys(pipelineConfigByInputId ?? {}).length > 0;
+  if (pipelineMetadataV1 && typeof pipelineMetadataV1 === "object") {
+    const next = cloneSerializable(
+      pipelineMetadataV1,
+    ) as VizijPipelineMetadataV1;
+    if (hasConfigMap) {
+      next.byInputId = cloneSerializable(
+        pipelineConfigByInputId as PipelineConfigByInputId,
+      ) as PipelineConfigByInputId;
+    }
+    return next;
+  }
+  if (!hasConfigMap) {
+    return null;
+  }
+  return {
+    byInputId: cloneSerializable(
+      pipelineConfigByInputId as PipelineConfigByInputId,
+    ) as PipelineConfigByInputId,
   };
 }
 
@@ -202,6 +240,8 @@ export function useVizijExport(
     standardInputsById,
     validOutputTargets,
     standardInputMetadataById,
+    pipelineMetadataV1,
+    pipelineConfigByInputId,
     featureLabelOverrides,
     collectAnimatableExportState,
     setStoreState,
@@ -236,18 +276,31 @@ export function useVizijExport(
       "json",
     );
     const base = normalizedName.replace(/\.json$/i, "");
+    const pipelineMetadataForExport = resolvePipelineMetadataForExport(
+      pipelineMetadataV1,
+      pipelineConfigByInputId,
+    );
 
-    const graphResult = buildRigGraphSpec({
-      faceId: exportFaceId,
-      animatables: animatablesForExport,
-      components: animatableComponents,
-      bindings,
-      inputsById: standardInputsById,
-      inputBindings,
-      inputMetadata: standardInputMetadataById,
-    });
+    const graphResult = buildRigGraphSpec(
+      withPipelineConfigBuildOptions(
+        {
+          faceId: exportFaceId,
+          animatables: animatablesForExport,
+          components: animatableComponents,
+          bindings,
+          inputsById: standardInputsById,
+          inputBindings,
+          inputMetadata: standardInputMetadataById,
+        },
+        pipelineConfigByInputId,
+        pipelineMetadataForExport,
+      ),
+    );
 
-    const specPayload = cloneSerializable(graphResult.spec);
+    const specPayload = withVizijPipelineMetadataV1(
+      cloneSerializable(graphResult.spec),
+      pipelineMetadataForExport,
+    );
     downloadJsonFile(specPayload, `${base}.json`);
 
     if (graphResult.ir?.graph) {
@@ -261,6 +314,8 @@ export function useVizijExport(
     faceId,
     graphFileName,
     inputBindings,
+    pipelineConfigByInputId,
+    pipelineMetadataV1,
     standardInputsById,
     standardInputMetadataById,
     values,
@@ -394,6 +449,8 @@ export function useVizijExport(
         standardInputsById,
         featureLabelOverrides,
         inputMetadata: standardInputMetadataById,
+        pipelineMetadataV1,
+        pipelineConfigByInputId,
         poseGraphSpecForExport,
       });
 
@@ -478,6 +535,8 @@ export function useVizijExport(
     includeVizijBundle,
     inputBindings,
     loadedBundle,
+    pipelineConfigByInputId,
+    pipelineMetadataV1,
     poseRig,
     rootId,
     setStoreState,
@@ -681,6 +740,8 @@ interface BuildVizijBundleOptions {
     string,
     { source?: "auto" | "custom" | "preset"; root?: string }
   >;
+  pipelineMetadataV1?: VizijPipelineMetadataV1 | null;
+  pipelineConfigByInputId?: PipelineConfigByInputId;
   poseGraphSpecForExport?: GraphSpec | null;
 }
 
@@ -718,20 +779,32 @@ function buildVizijBundle(
     standardInputsById,
     featureLabelOverrides,
     inputMetadata,
+    pipelineMetadataV1,
+    pipelineConfigByInputId,
   } = options;
   const exportFaceId = resolveExportFaceId(faceId);
   const exportFaceSlug = faceSlug(exportFaceId);
+  const pipelineMetadataForExport = resolvePipelineMetadataForExport(
+    pipelineMetadataV1,
+    pipelineConfigByInputId,
+  );
 
   const exportTimestamp = new Date().toISOString();
-  const rigGraphResult = buildRigGraphSpec({
-    faceId: exportFaceId,
-    animatables: animatablesForExport,
-    components: animatableComponents,
-    bindings,
-    inputsById: standardInputsById,
-    inputBindings,
-    inputMetadata,
-  });
+  const rigGraphResult = buildRigGraphSpec(
+    withPipelineConfigBuildOptions(
+      {
+        faceId: exportFaceId,
+        animatables: animatablesForExport,
+        components: animatableComponents,
+        bindings,
+        inputsById: standardInputsById,
+        inputBindings,
+        inputMetadata,
+      },
+      pipelineConfigByInputId,
+      pipelineMetadataForExport,
+    ),
+  );
 
   const rigIrGraph = rigGraphResult.ir?.graph
     ? (cloneSerializable(rigGraphResult.ir.graph) as unknown as Record<
@@ -739,7 +812,10 @@ function buildVizijBundle(
         unknown
       >)
     : undefined;
-  const rigSpec = cloneSerializable(rigGraphResult.spec);
+  const rigSpec = withVizijPipelineMetadataV1(
+    cloneSerializable(rigGraphResult.spec),
+    pipelineMetadataForExport,
+  ) as Record<string, unknown>;
   const poseGraphSpec = options.poseGraphSpecForExport ?? poseRig.poseGraphSpec;
 
   const graphs: BundleGraphWithIr[] = [

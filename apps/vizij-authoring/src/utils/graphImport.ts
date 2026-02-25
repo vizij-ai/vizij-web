@@ -36,6 +36,10 @@ function ensureVizijMetadataSection(
   return container.vizij as Record<string, unknown>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function extractIrGraphFromPayload(payload: unknown): IrGraph | null {
   const vizijMetadata = extractVizijMetadataSection(payload);
   if (
@@ -92,6 +96,75 @@ export function extractGraphFaceId(payload: unknown): string | null {
   }
   const faceId = (vizij.faceId as string | undefined)?.trim();
   return faceId && faceId.length > 0 ? faceId : null;
+}
+
+export type VizijPipelineConfigMap = Record<string, Record<string, unknown>>;
+
+export type VizijPipelineMetadataV1 = Record<string, unknown> & {
+  byInputId?: VizijPipelineConfigMap;
+};
+
+export function normalizeVizijPipelineConfigMap(
+  value: unknown,
+): VizijPipelineConfigMap {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const next: VizijPipelineConfigMap = {};
+  Object.entries(value).forEach(([inputId, config]) => {
+    if (!isRecord(config)) {
+      return;
+    }
+    next[inputId] = cloneSerializable(config);
+  });
+  return next;
+}
+
+export function extractVizijPipelineConfigMapFromMetadata(
+  pipelineMetadataV1: unknown,
+): VizijPipelineConfigMap {
+  if (!isRecord(pipelineMetadataV1)) {
+    return {};
+  }
+  return normalizeVizijPipelineConfigMap(pipelineMetadataV1.byInputId);
+}
+
+export function extractVizijPipelineMetadataV1(
+  payload: unknown,
+): VizijPipelineMetadataV1 | null {
+  const vizij = extractVizijMetadataSection(payload);
+  if (!vizij || !isRecord(vizij.pipelineV1)) {
+    return null;
+  }
+  return cloneSerializable(vizij.pipelineV1) as VizijPipelineMetadataV1;
+}
+
+export function extractVizijPipelineConfigMap(
+  payload: unknown,
+): VizijPipelineConfigMap {
+  return extractVizijPipelineConfigMapFromMetadata(
+    extractVizijPipelineMetadataV1(payload),
+  );
+}
+
+export function withVizijPipelineMetadataV1(
+  payload: unknown,
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined,
+): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  const cloned = cloneSerializable(payload);
+  const vizij = ensureVizijMetadataSection(cloned);
+  if (pipelineMetadataV1 === undefined) {
+    return cloned;
+  }
+  if (pipelineMetadataV1 === null) {
+    delete vizij.pipelineV1;
+    return cloned;
+  }
+  vizij.pipelineV1 = cloneSerializable(pipelineMetadataV1);
+  return cloned;
 }
 
 function escapeRegex(value: string): string {

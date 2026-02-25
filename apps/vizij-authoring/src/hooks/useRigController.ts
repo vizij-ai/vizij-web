@@ -46,6 +46,7 @@ import {
   resolveStandardRigInputId,
   type AnimatableComponent as AnimComponent,
   type AnimatableValue,
+  type RigPipelineV1InputConfig,
   type RigBindingDefinition,
   type RigBindingSlot,
   type StandardRigInput,
@@ -63,6 +64,10 @@ import type {
 import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { normalizeGraphPath } from "../utils/graphPaths";
+import {
+  extractVizijPipelineConfigMapFromMetadata,
+  type VizijPipelineMetadataV1,
+} from "../utils/graphImport";
 import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
@@ -155,6 +160,102 @@ function isDefaultSlotAlias(slot: RigBindingSlot, index: number): boolean {
     return true;
   }
   return false;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function derivePipelineConfigFromInputBindings(
+  inputBindings: InputBindingMap,
+): Record<string, RigPipelineV1InputConfig> {
+  const next: Record<string, RigPipelineV1InputConfig> = {};
+  Object.entries(inputBindings).forEach(([inputId, binding]) => {
+    if (!binding) {
+      return;
+    }
+    const metadata = asRecord(binding.metadata);
+    const vizij = asRecord(metadata?.vizij);
+    const pipeline = asRecord(vizij?.pipelineV1);
+    if (!pipeline) {
+      return;
+    }
+    const legacy = asRecord(pipeline.legacy);
+    if (legacy?.readOnly === true) {
+      return;
+    }
+
+    const migration = asRecord(pipeline.migration);
+    const migrated = migration?.status === "migrated";
+    const direct = asRecord(pipeline.directInput);
+    const override = asRecord(pipeline.override);
+    const clamp = asRecord(pipeline.clamp);
+
+    const parentEntries = (binding.slots ?? [])
+      .map((slot, index) => {
+        if (!slot.inputId || slot.inputId === SELF_BINDING_ID) {
+          return null;
+        }
+        const alias = slot.alias?.trim() || slot.id?.trim() || `s${index + 1}`;
+        return {
+          inputId: slot.inputId,
+          alias,
+        };
+      })
+      .filter(
+        (entry): entry is { inputId: string; alias: string } => entry !== null,
+      );
+
+    const directEnabled =
+      typeof direct?.enabled === "boolean" ? direct.enabled : undefined;
+    const overrideEnabled =
+      typeof override?.enabled === "boolean" ? override.enabled : undefined;
+    const overrideValue =
+      typeof override?.value === "number" && Number.isFinite(override.value)
+        ? override.value
+        : undefined;
+    const clampEnabled =
+      typeof clamp?.enabled === "boolean" ? clamp.enabled : undefined;
+
+    const hasStageControls =
+      directEnabled !== undefined ||
+      overrideEnabled !== undefined ||
+      overrideValue !== undefined ||
+      clampEnabled !== undefined;
+    if (!migrated && !hasStageControls) {
+      return;
+    }
+
+    const config: RigPipelineV1InputConfig = {
+      inputId,
+    };
+    if (parentEntries.length > 0) {
+      config.parents = parentEntries;
+    }
+    if (directEnabled !== undefined) {
+      config.directInput = {
+        enabled: directEnabled,
+      };
+    }
+    if (overrideEnabled !== undefined || overrideValue !== undefined) {
+      config.override = {
+        ...(overrideEnabled !== undefined
+          ? { enabledDefault: overrideEnabled }
+          : {}),
+        ...(overrideValue !== undefined ? { valueDefault: overrideValue } : {}),
+      };
+    }
+    if (clampEnabled !== undefined) {
+      config.clamp = {
+        enabled: clampEnabled,
+      };
+    }
+    next[inputId] = config;
+  });
+  return next;
 }
 
 type AnimatableComponent = AnimComponent;
@@ -398,6 +499,8 @@ export function useRigController(
   }, []);
   const [graphInsights, setGraphInsights] =
     useState<PersistedGraphInsight | null>(null);
+  const [pipelineMetadataV1, setPipelineMetadataV1] =
+    useState<VizijPipelineMetadataV1 | null>(null);
 
   useEffect(() => {
     graphRuntimeStore.setState({ graphInsights });
@@ -549,6 +652,19 @@ export function useRigController(
     maybeAutoAliasSlot,
     debugLog,
   });
+
+  const pipelineConfigByInputId = useMemo(() => {
+    const imported =
+      extractVizijPipelineConfigMapFromMetadata(pipelineMetadataV1);
+    const localEdits = derivePipelineConfigFromInputBindings(inputBindings);
+    if (Object.keys(localEdits).length === 0) {
+      return imported;
+    }
+    return {
+      ...imported,
+      ...localEdits,
+    };
+  }, [inputBindings, pipelineMetadataV1]);
 
   useEffect(() => {
     const validTargets = new Set(
@@ -1076,6 +1192,7 @@ export function useRigController(
     featureFlags,
     standardInputSchema,
     graphInsights,
+    pipelineMetadataV1,
     setAutoInputs,
     setCustomInputs,
     setBindings,
@@ -1088,6 +1205,7 @@ export function useRigController(
     setStandardInputSchema: handleSetStandardInputSchema,
     setFeatureFlags,
     setGraphInsights,
+    setPipelineMetadataV1,
     updateInputValues,
     pendingInputBindingDefinitionsRef,
     persistedAutoInputsRef,
@@ -1331,6 +1449,8 @@ export function useRigController(
         inputBindings,
         inputMetadata: standardInputMetadataById,
         poseConfig: poseConfigSnapshot ?? null,
+        pipelineConfigByInputId,
+        pipelineMetadataV1,
       }),
     [
       animatableComponents,
@@ -1338,6 +1458,8 @@ export function useRigController(
       bindings,
       faceId,
       inputBindings,
+      pipelineConfigByInputId,
+      pipelineMetadataV1,
       poseConfigSnapshot,
       standardInputMetadataById,
       standardInputsById,
@@ -1916,6 +2038,7 @@ export function useRigController(
     alertDialog,
     debugLog,
     pendingFaceRenameRef,
+    setPipelineMetadataV1,
     onImportPhaseChange: emitLoadPhase,
   });
 
@@ -2227,6 +2350,8 @@ export function useRigController(
       standardInputsByPath,
       rigOutputLookup,
       validOutputTargets,
+      pipelineMetadataV1,
+      pipelineConfigByInputId,
       inputValues,
       bindings,
       inputBindings,
@@ -2327,6 +2452,8 @@ export function useRigController(
     hiddenDriverIds,
     handleCreateParentDriverBinding,
     handleEnableParentLocalControl,
+    pipelineConfigByInputId,
+    pipelineMetadataV1,
     rigOutputLookup,
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,

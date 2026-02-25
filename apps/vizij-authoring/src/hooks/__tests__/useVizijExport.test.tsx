@@ -311,6 +311,87 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("passes staged pipeline config to graph build and preserves pipeline metadata in rig graph spec", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: {
+        nodes: [{ id: "n1", type: "input" }],
+        metadata: {
+          vizij: {
+            faceId: "face",
+            inputs: [],
+            bindings: [],
+          },
+        },
+      } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const options = createOptions({
+      pipelineMetadataV1: {
+        links: {
+          link_jaw: {
+            scale: 1,
+            offset: 0,
+          },
+        },
+      },
+      pipelineConfigByInputId: {
+        input_a: {
+          clamp: { enabled: true },
+        },
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedBuildRigGraphSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pipelineV1: expect.objectContaining({
+          byInputId: expect.objectContaining({
+            input_a: expect.objectContaining({
+              clamp: { enabled: true },
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    const exportPayload = mockedExportScene.mock.calls[0]?.[1] as {
+      bundle?: { graphs?: Array<{ kind?: string; spec?: unknown }> };
+    };
+    const rigGraphSpec = exportPayload.bundle?.graphs?.find(
+      (graph) => graph.kind === "rig",
+    )?.spec as {
+      metadata?: {
+        vizij?: {
+          pipelineV1?: unknown;
+        };
+      };
+    };
+    expect(rigGraphSpec.metadata?.vizij?.pipelineV1).toEqual({
+      links: {
+        link_jaw: {
+          scale: 1,
+          offset: 0,
+        },
+      },
+      byInputId: {
+        input_a: {
+          clamp: { enabled: true },
+        },
+      },
+    });
+    hook.unmount();
+  });
+
   it("skips null exportable bodies and exports with the first valid body", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,

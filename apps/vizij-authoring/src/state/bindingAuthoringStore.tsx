@@ -13,6 +13,10 @@ import type {
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { ManagedStandardInput } from "../types/standardInputs";
 import type { SceneObjectNode } from "../scene/sceneGraph";
+import type {
+  VizijPipelineConfigMap,
+  VizijPipelineMetadataV1,
+} from "../utils/graphImport";
 import {
   FEATURE_FLAG_DEFAULTS,
   type AuthoringFeatureFlag,
@@ -44,6 +48,8 @@ export interface BindingAuthoringState {
   standardInputsByPath: Map<string, StandardRigInput>;
   rigOutputLookup: Map<string, StandardRigInput>;
   validOutputTargets: Set<string>;
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null;
+  pipelineConfigByInputId: VizijPipelineConfigMap;
   inputValues: StandardInputValues;
   bindings: BindingMap;
   inputBindings: InputBindingMap;
@@ -186,6 +192,8 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   standardInputsByPath: new Map(),
   rigOutputLookup: new Map(),
   validOutputTargets: new Set(),
+  pipelineMetadataV1: null,
+  pipelineConfigByInputId: {},
   inputValues: {},
   bindings: {},
   inputBindings: {},

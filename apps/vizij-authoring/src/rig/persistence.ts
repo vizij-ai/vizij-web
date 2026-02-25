@@ -41,6 +41,7 @@ export interface PersistedRigState {
   inputBindingDefinitions?: Record<string, RigBindingDefinition>;
   featureFlags?: Record<string, boolean>;
   graphInsights?: PersistedGraphInsight;
+  pipelineMetadataV1?: Record<string, unknown> | null;
   schemaVersion?: number;
   standardInputSchema?: { id: string; version: string };
 }
