@@ -202,6 +202,7 @@ function derivePipelineConfigFromInputBindings(
 ): DerivedPipelineEdits {
   const byInputId: Record<string, RigPipelineV1InputConfig> = {};
   const links: Record<string, RigPipelineV1LinkConfig> = {};
+  const linkPriorityById: Record<string, number> = {};
   Object.entries(inputBindings).forEach(([inputId, binding]) => {
     if (!binding) {
       return;
@@ -243,6 +244,13 @@ function derivePipelineConfigFromInputBindings(
         if (enabled !== undefined) {
           nextLink.enabled = enabled;
         }
+        const isOwnerRecord = childInputId === inputId;
+        const nextPriority = isOwnerRecord ? 2 : 1;
+        const previousPriority = linkPriorityById[linkId] ?? 0;
+        if (nextPriority < previousPriority) {
+          return;
+        }
+        linkPriorityById[linkId] = nextPriority;
         links[linkId] = nextLink;
       });
     }

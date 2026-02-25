@@ -3016,7 +3016,7 @@ export function InspectorContent({
       const isLegacyReadOnlyBinding =
         legacyMigrationAssessment.kind === "non-convertible";
 
-      const applyPipelineMetadataPatch = (patch: {
+      type PipelineMetadataPatch = {
         directInputEnabled?: boolean;
         overrideEnabled?: boolean;
         overrideValue?: number;
@@ -3036,14 +3036,19 @@ export function InspectorContent({
         migrationExpression?: string;
         legacyReadOnly?: boolean;
         legacyReadOnlyReason?: string;
-      }) => {
+      };
+
+      const applyPipelineMetadataPatchForInput = (
+        targetInputId: string,
+        patch: PipelineMetadataPatch,
+      ) => {
         applyInputBindingPatch((previous) => {
-          const sourceInput = standardInputsById.get(input.id);
+          const sourceInput = standardInputsById.get(targetInputId);
           if (!sourceInput) {
             return previous;
           }
           const existingBinding =
-            previous[input.id] ??
+            previous[targetInputId] ??
             createDefaultParentBinding(bindingTargetFromInput(sourceInput));
           const nextMetadata = mergePipelineMetadata(
             (existingBinding.metadata ?? undefined) as
@@ -3056,19 +3061,23 @@ export function InspectorContent({
           );
           const nextMetadataSignature = JSON.stringify(nextMetadata);
           if (
-            previous[input.id] &&
+            previous[targetInputId] &&
             previousMetadataSignature === nextMetadataSignature
           ) {
             return previous;
           }
           return {
             ...previous,
-            [input.id]: {
+            [targetInputId]: {
               ...existingBinding,
               metadata: nextMetadata,
             },
           };
         });
+      };
+
+      const applyPipelineMetadataPatch = (patch: PipelineMetadataPatch) => {
+        applyPipelineMetadataPatchForInput(input.id, patch);
       };
 
       const handlePipelineDirectEnabledChange = (enabled: boolean) => {
@@ -3108,7 +3117,8 @@ export function InspectorContent({
           enabled?: boolean;
         },
       ) => {
-        applyPipelineMetadataPatch({
+        // Link records are owned by child input to avoid conflicting duplicates.
+        applyPipelineMetadataPatchForInput(childInputId, {
           linkUpserts: {
             [linkId]: {
               parentInputId,
@@ -3121,6 +3131,7 @@ export function InspectorContent({
       const buildMigrationLinkUpserts = (
         binding:
           | {
+              inputId?: string | null;
               slots?: Array<{
                 inputId?: string | null;
               }>;
@@ -3130,6 +3141,23 @@ export function InspectorContent({
         childInputId: string,
         factorsByInputId: Record<string, number>,
       ) => {
+        const parentInputIds = new Set<string>();
+        if (
+          binding?.inputId &&
+          binding.inputId !== SELF_BINDING_ID &&
+          binding.inputId.trim().length > 0
+        ) {
+          parentInputIds.add(binding.inputId);
+        }
+        (binding?.slots ?? []).forEach((slot) => {
+          if (
+            slot.inputId &&
+            slot.inputId !== SELF_BINDING_ID &&
+            slot.inputId.trim().length > 0
+          ) {
+            parentInputIds.add(slot.inputId);
+          }
+        });
         const upserts: Record<
           string,
           {
@@ -3140,15 +3168,7 @@ export function InspectorContent({
             enabled: boolean;
           }
         > = {};
-        (binding?.slots ?? []).forEach((slot) => {
-          if (
-            !slot.inputId ||
-            slot.inputId === SELF_BINDING_ID ||
-            slot.inputId.trim().length === 0
-          ) {
-            return;
-          }
-          const parentInputId = slot.inputId;
+        parentInputIds.forEach((parentInputId) => {
           const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
           const scale = factorsByInputId[parentInputId] ?? 1;
           upserts[linkId] = {
