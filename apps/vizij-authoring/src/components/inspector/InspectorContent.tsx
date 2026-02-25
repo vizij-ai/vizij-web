@@ -511,6 +511,9 @@ export function InspectorContent({
   hasReferenceFaceFile = false,
 }: InspectorContentProps) {
   const [showSelector, setShowSelector] = useState(false);
+  const [rigLinkSelectorMode, setRigLinkSelectorMode] = useState<
+    "child" | "parent"
+  >("child");
   const [blendAmount, setBlendAmount] = useState(0);
 
   const showAutorigInternals = false;
@@ -610,9 +613,6 @@ export function InspectorContent({
   );
   const handleBindingInputChange = useBindingAuthoring(
     (state) => state.handleBindingInputChange,
-  );
-  const handleEnsureParentBinding = useBindingAuthoring(
-    (state) => state.handleEnsureParentBinding,
   );
   const handleParentBindingInputChange = useBindingAuthoring(
     (state) => state.handleParentBindingInputChange,
@@ -2474,7 +2474,7 @@ export function InspectorContent({
             );
             return;
           }
-          const existingBinding = inputBindings[resolvedSelection.childInputId];
+          const existingBinding = inputBindings[resolvedChildInputId];
           const alreadyLinked = hasParentBindingInput(
             existingBinding,
             resolvedSelectedRigId,
@@ -2487,10 +2487,14 @@ export function InspectorContent({
             return;
           }
           handleCreateParentDriverBinding(
-            resolvedSelection.childInputId,
+            resolvedChildInputId,
             resolvedSelectedRigId,
           );
-          openRigInspector(resolvedSelection.childInputId);
+          applyPipelineMetadataPatchForInput(resolvedChildInputId, {
+            migrationStatus: "migrated",
+            migrationSource: "staged-link-authoring",
+          });
+          openRigInspector(resolvedChildInputId);
           return;
         }
 
@@ -2585,7 +2589,11 @@ export function InspectorContent({
           }
           let linkedCount = 0;
           resolvedAutorigInputIds.forEach((autorigInputId) => {
-            const existingInputBinding = inputBindings[autorigInputId];
+            const resolvedAutorigInputId = resolveRigMetadataInputId(
+              autorigInputId,
+              standardInputsById,
+            );
+            const existingInputBinding = inputBindings[resolvedAutorigInputId];
             const alreadyLinked = hasParentBindingInput(
               existingInputBinding,
               resolvedSelectedRigId,
@@ -2594,9 +2602,13 @@ export function InspectorContent({
               return;
             }
             handleCreateParentDriverBinding(
-              autorigInputId,
+              resolvedAutorigInputId,
               resolvedSelectedRigId,
             );
+            applyPipelineMetadataPatchForInput(resolvedAutorigInputId, {
+              migrationStatus: "migrated",
+              migrationSource: "staged-link-authoring",
+            });
             linkedCount += 1;
           });
           if (
@@ -2611,6 +2623,114 @@ export function InspectorContent({
               );
               return;
             }
+            alertDialog(
+              "Some selected properties are not currently mapped to autorig inputs.",
+            );
+          }
+          return;
+        }
+      };
+      const handleAddRigParentVariable = (selection: VariableSelection) => {
+        setShowSelector(false);
+        const resolvedSelection = resolveRigDrivenSelection(
+          selection,
+          resolvedSelectedRigId,
+          objects,
+        );
+
+        if (resolvedSelection.kind === "self-variable") {
+          alertDialog("A variable cannot directly drive itself.");
+          return;
+        }
+
+        if (resolvedSelection.kind === "variable") {
+          const parentInputId = resolveRigMetadataInputId(
+            resolvedSelection.childInputId,
+            standardInputsById,
+          );
+          const existingBinding = inputBindings[resolvedSelectedRigId];
+          if (hasParentBindingInput(existingBinding, parentInputId)) {
+            alertDialog(
+              "This variable is already linked as a parent for the selected variable.",
+            );
+            openRigInspector(parentInputId);
+            return;
+          }
+          handleCreateParentDriverBinding(resolvedSelectedRigId, parentInputId);
+          applyPipelineMetadataPatchForInput(resolvedSelectedRigId, {
+            migrationStatus: "migrated",
+            migrationSource: "staged-link-authoring",
+          });
+          return;
+        }
+
+        if (resolvedSelection.kind === "empty-property") {
+          return;
+        }
+
+        if (resolvedSelection.kind === "property") {
+          const componentTargetIds = resolveAnimatablePropertyTargetIds(
+            resolvedSelection.targetIds,
+          );
+          if (componentTargetIds.length === 0) {
+            alertDialog(
+              "Selected properties are not currently mapped to animatable targets.",
+            );
+            return;
+          }
+          const missingTargetIds: string[] = [];
+          const parentInputIds = new Set<string>();
+          componentTargetIds.forEach((targetId) => {
+            const parentInputId = autorigInputIdByComponentId.get(targetId);
+            if (!parentInputId) {
+              missingTargetIds.push(targetId);
+              return;
+            }
+            parentInputIds.add(parentInputId);
+          });
+          const resolvedParentInputIds = Array.from(parentInputIds);
+          if (resolvedParentInputIds.length === 0) {
+            alertDialog(
+              "Some selected properties are not currently mapped to autorig inputs.",
+            );
+            return;
+          }
+          const selectionLabel =
+            selection.type === "property" ? selection.label : "selection";
+          const shouldApplyBulk =
+            resolvedParentInputIds.length === 1 ||
+            (typeof window !== "undefined" &&
+              window.confirm(
+                `Link all ${resolvedParentInputIds.length} components from "${selectionLabel}" as parents for this variable?`,
+              ));
+          if (!shouldApplyBulk) {
+            return;
+          }
+          const existingBinding = inputBindings[resolvedSelectedRigId];
+          let linkedCount = 0;
+          resolvedParentInputIds.forEach((parentInputId) => {
+            if (hasParentBindingInput(existingBinding, parentInputId)) {
+              return;
+            }
+            handleCreateParentDriverBinding(
+              resolvedSelectedRigId,
+              parentInputId,
+            );
+            linkedCount += 1;
+          });
+          if (linkedCount > 0) {
+            applyPipelineMetadataPatchForInput(resolvedSelectedRigId, {
+              migrationStatus: "migrated",
+              migrationSource: "staged-link-authoring",
+            });
+          }
+          if (linkedCount === 0) {
+            alertDialog(
+              "Selected properties are already linked as parents for this variable.",
+            );
+            return;
+          }
+          if (missingTargetIds.length > 0) {
             alertDialog(
               "Some selected properties are not currently mapped to autorig inputs.",
             );
@@ -3321,7 +3441,10 @@ export function InspectorContent({
                 : (expression) =>
                     handleParentBindingExpressionChange(input.id, expression)
             }
-            onCreateParentBinding={() => handleEnsureParentBinding(input.id)}
+            onAddParent={() => {
+              setRigLinkSelectorMode("parent");
+              setShowSelector(true);
+            }}
             compiledEquation={compiledPipelineEquation}
             parents={parentRigChainItems.map((entry) => ({
               id: entry.key,
@@ -3437,7 +3560,10 @@ export function InspectorContent({
                 ? handleMigrateLegacyBinding
                 : undefined
             }
-            onAddChild={() => setShowSelector(true)}
+            onAddChild={() => {
+              setRigLinkSelectorMode("child");
+              setShowSelector(true);
+            }}
             showClampStage={false}
           />
           {sharedLink && (
@@ -3533,11 +3659,19 @@ export function InspectorContent({
           <Modal
             open={showSelector}
             onClose={() => setShowSelector(false)}
-            title="Select Variable or Property to Drive"
+            title={
+              rigLinkSelectorMode === "parent"
+                ? "Select Variable or Property to Use as Parent"
+                : "Select Variable or Property to Drive"
+            }
             maxWidth="md"
           >
             <VariableSelector
-              onSelect={handleAddRigDrivenVariable}
+              onSelect={
+                rigLinkSelectorMode === "parent"
+                  ? handleAddRigParentVariable
+                  : handleAddRigDrivenVariable
+              }
               onCancel={() => setShowSelector(false)}
               defaultTab="variables"
             />

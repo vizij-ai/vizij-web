@@ -84,7 +84,7 @@ function createBaseProps(): VariablePipelineStagesProps {
     clampEnabled: true,
     onClampEnabledChange: vi.fn(),
     onParentExpressionChange: vi.fn(),
-    onCreateParentBinding: vi.fn(),
+    onAddParent: vi.fn(),
     onMigrateLegacyBinding: vi.fn(),
     onAddChild: vi.fn(),
   };
@@ -307,7 +307,7 @@ describe("VariablePipelineStages", () => {
     expect(within(overrideStage).getByText("Disabled")).toBeTruthy();
   });
 
-  it("shows parent binding creation action when no parent links exist", () => {
+  it("shows add parent action", () => {
     const props = createBaseProps();
     props.parents = [];
     const view = render(<VariablePipelineStages {...props} />);
@@ -315,10 +315,10 @@ describe("VariablePipelineStages", () => {
     const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
     fireEvent.click(
       within(parentStage).getByRole("button", {
-        name: "Create Parent Binding",
+        name: "Add Parent Link",
       }),
     );
-    expect(props.onCreateParentBinding).toHaveBeenCalledTimes(1);
+    expect(props.onAddParent).toHaveBeenCalledTimes(1);
   });
 
   it("shows staged parent contribution formula after migration", () => {

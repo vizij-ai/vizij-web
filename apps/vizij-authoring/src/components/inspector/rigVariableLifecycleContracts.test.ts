@@ -37,4 +37,13 @@ describe("B2.1 variable lifecycle contracts", () => {
       "Editable metadata: name/path/min/max/default",
     );
   });
+
+  it("authors parent/child links in staged pipeline mode by default", () => {
+    expect(inspectorContentTsx).toContain("onAddParent");
+    expect(inspectorContentTsx).toContain("onAddChild");
+    expect(inspectorContentTsx).toContain(
+      'migrationSource: "staged-link-authoring"',
+    );
+    expect(inspectorContentTsx).toContain("applyPipelineMetadataPatchForInput");
+  });
 });

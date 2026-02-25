@@ -46,7 +46,7 @@ interface VariablePipelineStagesProps {
   parentExpressionReadOnly?: boolean;
   parentExpressionReadOnlyReason?: string | null;
   onParentExpressionChange?: (expression: string) => void;
-  onCreateParentBinding?: () => void;
+  onAddParent?: () => void;
   compiledEquation: string;
   parents: PipelineStageLinkItem[];
   children: PipelineStageLinkItem[];
@@ -261,7 +261,7 @@ export function VariablePipelineStages({
   parentExpressionReadOnly = false,
   parentExpressionReadOnlyReason = null,
   onParentExpressionChange,
-  onCreateParentBinding,
+  onAddParent,
   compiledEquation,
   parents,
   children,
@@ -494,14 +494,15 @@ export function VariablePipelineStages({
             No parent links configured.
           </span>
         )}
-        {onCreateParentBinding && parents.length === 0 ? (
+        {onAddParent ? (
           <Button
             variant="secondary"
             size="sm"
-            className="h-6 text-[10px] w-fit"
-            onClick={onCreateParentBinding}
+            className="h-7 text-[10px] w-fit gap-1.5 font-semibold border-accent/50 text-accent hover:bg-accent/15"
+            onClick={onAddParent}
           >
-            Create Parent Binding
+            <Plus size={11} aria-hidden="true" />
+            Add Parent Link
           </Button>
         ) : null}
       </StageSection>
