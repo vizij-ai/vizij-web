@@ -1,0 +1,126 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildRigPipelineV1DirectValuePath,
+  buildRigPipelineV1OverrideEnabledPath,
+  buildRigPipelineV1OverrideValuePath,
+  hasRigPipelineV1InputConfig,
+  resolveRigPipelineV1InputConfig,
+  type RigPipelineV1Metadata,
+} from "./pipeline-v1";
+
+const TEST_INPUT = {
+  id: "jaw_open",
+  path: "/controls/jaw/open",
+  defaultValue: 0.25,
+};
+
+describe("pipeline-v1 path helpers", () => {
+  it("builds canonical direct and override paths", () => {
+    expect(buildRigPipelineV1DirectValuePath("robot", TEST_INPUT.path)).toBe(
+      "rig/robot/controls/jaw/open",
+    );
+    expect(buildRigPipelineV1OverrideEnabledPath("robot", TEST_INPUT.id)).toBe(
+      "rig/robot/override/jaw_open/enabled",
+    );
+    expect(buildRigPipelineV1OverrideValuePath("robot", TEST_INPUT.id)).toBe(
+      "rig/robot/override/jaw_open/value",
+    );
+  });
+});
+
+describe("resolveRigPipelineV1InputConfig", () => {
+  it("uses canonical defaults when staged config is absent", () => {
+    const resolved = resolveRigPipelineV1InputConfig({
+      faceId: "robot",
+      input: TEST_INPUT,
+      pipelineV1: undefined,
+    });
+
+    expect(resolved.staged).toBe(false);
+    expect(resolved.parents).toEqual([]);
+    expect(resolved.directInput.enabled).toBe(false);
+    expect(resolved.directInput.valuePath).toBe("rig/robot/controls/jaw/open");
+    expect(resolved.sourceBlend.mode).toBe("normalized-additive");
+    expect(resolved.parentBlend.mode).toBe("normalized-additive");
+    expect(resolved.clamp.enabled).toBe(true);
+    expect(resolved.override.enabledDefault).toBe(false);
+    expect(resolved.override.valueDefault).toBe(TEST_INPUT.defaultValue);
+  });
+
+  it("normalizes staged settings and parent defaults", () => {
+    const pipelineV1: RigPipelineV1Metadata = {
+      version: 1,
+      byInputId: {
+        [TEST_INPUT.id]: {
+          inputId: TEST_INPUT.id,
+          parents: [
+            {
+              inputId: "brow_raise",
+            },
+            {
+              inputId: "blink",
+              linkId: "custom-link",
+              alias: "blinkParent",
+              scale: 0.5,
+              offset: 0.1,
+              enabled: false,
+            },
+          ],
+          poseSource: {
+            targetIds: ["pose_a", "pose_b"],
+          },
+          directInput: {
+            enabled: true,
+            valuePath: "rig/ignored/for/contracts",
+          },
+          clamp: {
+            enabled: false,
+          },
+          override: {
+            enabledDefault: true,
+            valueDefault: 0.9,
+            enabledPath: "rig/ignored/enabled",
+            valuePath: "rig/ignored/value",
+          },
+        },
+      },
+    };
+
+    expect(hasRigPipelineV1InputConfig(pipelineV1, TEST_INPUT.id)).toBe(true);
+
+    const resolved = resolveRigPipelineV1InputConfig({
+      faceId: "robot",
+      input: TEST_INPUT,
+      pipelineV1,
+    });
+
+    expect(resolved.staged).toBe(true);
+    expect(resolved.parents).toHaveLength(2);
+    expect(resolved.parents[0]).toMatchObject({
+      inputId: "brow_raise",
+      alias: "p1",
+      scale: 1,
+      offset: 0,
+      enabled: true,
+    });
+    expect(resolved.parents[1]).toMatchObject({
+      inputId: "blink",
+      linkId: "custom-link",
+      alias: "blinkParent",
+      scale: 0.5,
+      offset: 0.1,
+      enabled: false,
+    });
+    expect(resolved.poseSource.targetIds).toEqual(["pose_a", "pose_b"]);
+    expect(resolved.directInput.enabled).toBe(true);
+    expect(resolved.clamp.enabled).toBe(false);
+    expect(resolved.override.enabledDefault).toBe(true);
+    expect(resolved.override.valueDefault).toBe(0.9);
+    expect(resolved.override.enabledPath).toBe(
+      "rig/robot/override/jaw_open/enabled",
+    );
+    expect(resolved.override.valuePath).toBe(
+      "rig/robot/override/jaw_open/value",
+    );
+  });
+});

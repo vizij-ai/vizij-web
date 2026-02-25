@@ -1,13 +1,21 @@
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { StandardRigInput } from "@vizij/utils";
-import type { AnimatableComponent } from "@vizij/utils";
-import type { RigBindingMetadata } from "@vizij/utils";
+import type {
+  AnimatableValue,
+  RawValue,
+  StandardRigInput,
+  AnimatableComponent,
+  RigBindingMetadata,
+  RigPipelineV1Metadata,
+  RigPipelineV1ResolvedInputConfig,
+} from "@vizij/utils";
 import {
+  RIG_PIPELINE_V1_VERSION,
   buildAnimatableValue,
   cloneDeepSafe,
+  hasRigPipelineV1InputConfig,
   isRigElementStandardInputPath,
   normalizeStandardRigInputPath,
+  resolveRigPipelineV1InputConfig,
   resolveStandardRigInputId,
 } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
@@ -439,6 +447,7 @@ export interface BuildGraphOptions {
   inputBindings: InputBindingMap;
   inputMetadata?: Map<string, InputExportMetadata>;
   inputComposeModesById?: Partial<Record<string, InputComposeMode>>;
+  pipelineV1?: RigPipelineV1Metadata | null;
 }
 
 export interface GraphBindingSummary {
@@ -1443,6 +1452,7 @@ export function buildRigGraphSpec({
   inputBindings,
   inputMetadata,
   inputComposeModesById,
+  pipelineV1,
 }: BuildGraphOptions): BuildGraphResult {
   const metadataByInputId =
     inputMetadata ?? new Map<string, InputExportMetadata>();
@@ -1470,6 +1480,10 @@ export function buildRigGraphSpec({
   const computedInputs = new Set<string>();
   const summaryBindings: GraphBindingSummary[] = [];
   const bindingIssues = new Map<string, Set<string>>();
+  const stagedPipelineByInputId = new Map<
+    string,
+    RigPipelineV1ResolvedInputConfig
+  >();
   const animatableEntries = new Map<string, AnimatableGraphEntry>();
   const outputs = new Set<string>();
   const composeModeByInputId = new Map<string, InputComposeMode>();
@@ -1493,7 +1507,57 @@ export function buildRigGraphSpec({
     return true;
   };
 
-  const buildEffectiveInputNodeId = (
+  const buildNormalizedAdditiveBlendNodeId = ({
+    nodeIdPrefix,
+    sourceNodeIds,
+    baseline,
+  }: {
+    nodeIdPrefix: string;
+    sourceNodeIds: string[];
+    baseline: number;
+  }): string => {
+    if (sourceNodeIds.length === 0) {
+      const fallbackNodeId = `${nodeIdPrefix}_baseline`;
+      nodes.push({
+        id: fallbackNodeId,
+        type: "constant",
+        params: {
+          value: baseline,
+        },
+      });
+      return fallbackNodeId;
+    }
+    if (sourceNodeIds.length === 1) {
+      return sourceNodeIds[0]!;
+    }
+    const addNodeId = `${nodeIdPrefix}_add`;
+    nodes.push({
+      id: addNodeId,
+      type: "add",
+    });
+    sourceNodeIds.forEach((sourceNodeId, index) => {
+      edges.push({
+        from: { nodeId: sourceNodeId },
+        to: { nodeId: addNodeId, portId: `operand_${index + 1}` },
+      });
+    });
+
+    const normalizedNodeId = `${nodeIdPrefix}_normalized_add`;
+    nodes.push({
+      id: normalizedNodeId,
+      type: "subtract",
+      inputDefaults: {
+        rhs: (sourceNodeIds.length - 1) * baseline,
+      },
+    });
+    edges.push({
+      from: { nodeId: addNodeId },
+      to: { nodeId: normalizedNodeId, portId: "lhs" },
+    });
+    return normalizedNodeId;
+  };
+
+  const buildLegacyEffectiveInputNodeId = (
     input: StandardRigInput,
     directNodeId: string,
   ): string => {
@@ -1573,6 +1637,203 @@ export function buildRigGraphSpec({
     return clampNodeId;
   };
 
+  const buildStagedEffectiveInputNodeId = (
+    input: StandardRigInput,
+    stagedConfig: RigPipelineV1ResolvedInputConfig,
+  ): string => {
+    const safeInputId = sanitizeNodeId(input.id);
+    const composeBaseline = Number.isFinite(input.defaultValue)
+      ? input.defaultValue
+      : 0;
+
+    const parentContributionNodes: string[] = [];
+    stagedConfig.parents.forEach((parent, index) => {
+      if (!parent.enabled) {
+        return;
+      }
+      const parentInput = ensureInputNode(parent.inputId);
+      if (!parentInput) {
+        const issueSet = bindingIssues.get(input.id) ?? new Set<string>();
+        issueSet.add(
+          `Staged parent "${parent.inputId}" missing for "${input.id}".`,
+        );
+        bindingIssues.set(input.id, issueSet);
+        return;
+      }
+
+      let transformedNodeId = parentInput.nodeId;
+      const nodeSuffix = `${safeInputId}_${index + 1}`;
+      if (parent.scale !== 1) {
+        const scaledNodeId = `input_parent_scale_${nodeSuffix}`;
+        nodes.push({
+          id: scaledNodeId,
+          type: "multiply",
+          inputDefaults: {
+            operand_2: parent.scale,
+          },
+        });
+        edges.push({
+          from: { nodeId: transformedNodeId },
+          to: { nodeId: scaledNodeId, portId: "operand_1" },
+        });
+        transformedNodeId = scaledNodeId;
+      }
+      if (parent.offset !== 0) {
+        const offsetNodeId = `input_parent_offset_${nodeSuffix}`;
+        nodes.push({
+          id: offsetNodeId,
+          type: "add",
+          inputDefaults: {
+            operand_2: parent.offset,
+          },
+        });
+        edges.push({
+          from: { nodeId: transformedNodeId },
+          to: { nodeId: offsetNodeId, portId: "operand_1" },
+        });
+        transformedNodeId = offsetNodeId;
+      }
+      parentContributionNodes.push(transformedNodeId);
+    });
+
+    const parentContributionNodeId =
+      parentContributionNodes.length > 0
+        ? buildNormalizedAdditiveBlendNodeId({
+            nodeIdPrefix: `input_parent_blend_${safeInputId}`,
+            sourceNodeIds: parentContributionNodes,
+            baseline: composeBaseline,
+          })
+        : null;
+
+    let poseContributionNodeId: string | null = null;
+    const hasPoseContribution =
+      stagedConfig.poseSource.targetIds.length > 0 ||
+      shouldComposeInputWithPoseControl(input);
+    if (hasPoseContribution) {
+      poseContributionNodeId = `input_pose_control_${safeInputId}`;
+      nodes.push({
+        id: poseContributionNodeId,
+        type: "input",
+        params: {
+          path: buildPoseControlInputPath(faceId, input.id),
+          value: { float: composeBaseline },
+        },
+      });
+    }
+
+    const sourceBranchNodeIds: string[] = [];
+    if (parentContributionNodeId) {
+      sourceBranchNodeIds.push(parentContributionNodeId);
+    }
+    if (poseContributionNodeId) {
+      sourceBranchNodeIds.push(poseContributionNodeId);
+    }
+    if (stagedConfig.directInput.enabled) {
+      const directNodeId = `input_direct_${safeInputId}`;
+      nodes.push({
+        id: directNodeId,
+        type: "input",
+        params: {
+          path: stagedConfig.directInput.valuePath,
+          value: { float: composeBaseline },
+        },
+      });
+      sourceBranchNodeIds.push(directNodeId);
+    }
+
+    const sourceBlendNodeId = buildNormalizedAdditiveBlendNodeId({
+      nodeIdPrefix: `input_source_blend_${safeInputId}`,
+      sourceNodeIds: sourceBranchNodeIds,
+      baseline: composeBaseline,
+    });
+
+    const overrideEnabledNodeId = `input_override_enabled_${safeInputId}`;
+    nodes.push({
+      id: overrideEnabledNodeId,
+      type: "input",
+      params: {
+        path: stagedConfig.override.enabledPath,
+        value: { float: stagedConfig.override.enabledDefault ? 1 : 0 },
+      },
+    });
+
+    const overrideValueNodeId = `input_override_value_${safeInputId}`;
+    nodes.push({
+      id: overrideValueNodeId,
+      type: "input",
+      params: {
+        path: stagedConfig.override.valuePath,
+        value: { float: stagedConfig.override.valueDefault },
+      },
+    });
+
+    const overrideDeltaNodeId = `input_override_delta_${safeInputId}`;
+    nodes.push({
+      id: overrideDeltaNodeId,
+      type: "subtract",
+    });
+    edges.push(
+      {
+        from: { nodeId: overrideValueNodeId },
+        to: { nodeId: overrideDeltaNodeId, portId: "lhs" },
+      },
+      {
+        from: { nodeId: sourceBlendNodeId },
+        to: { nodeId: overrideDeltaNodeId, portId: "rhs" },
+      },
+    );
+
+    const overrideScaleNodeId = `input_override_scale_${safeInputId}`;
+    nodes.push({
+      id: overrideScaleNodeId,
+      type: "multiply",
+    });
+    edges.push(
+      {
+        from: { nodeId: overrideEnabledNodeId },
+        to: { nodeId: overrideScaleNodeId, portId: "operand_1" },
+      },
+      {
+        from: { nodeId: overrideDeltaNodeId },
+        to: { nodeId: overrideScaleNodeId, portId: "operand_2" },
+      },
+    );
+
+    const overrideSelectedNodeId = `input_override_selected_${safeInputId}`;
+    nodes.push({
+      id: overrideSelectedNodeId,
+      type: "add",
+    });
+    edges.push(
+      {
+        from: { nodeId: sourceBlendNodeId },
+        to: { nodeId: overrideSelectedNodeId, portId: "operand_1" },
+      },
+      {
+        from: { nodeId: overrideScaleNodeId },
+        to: { nodeId: overrideSelectedNodeId, portId: "operand_2" },
+      },
+    );
+
+    if (!stagedConfig.clamp.enabled) {
+      return overrideSelectedNodeId;
+    }
+
+    const minValue = Number.isFinite(input.range.min) ? input.range.min : -1;
+    const maxValue = Number.isFinite(input.range.max) ? input.range.max : 1;
+    const clampNodeId = `input_effective_${safeInputId}`;
+    nodes.push({
+      id: clampNodeId,
+      type: "clamp",
+      inputDefaults: { min: minValue, max: maxValue },
+    });
+    edges.push({
+      from: { nodeId: overrideSelectedNodeId },
+      to: { nodeId: clampNodeId, portId: "in" },
+    });
+    return clampNodeId;
+  };
+
   const ensureInputNode = (
     inputId: string,
   ): { nodeId: string; input: StandardRigInput } | null => {
@@ -1589,7 +1850,8 @@ export function buildRigGraphSpec({
       : 0;
 
     const inputBindingRaw = inputBindings[inputId];
-    if (inputBindingRaw) {
+    const isStagedInput = hasRigPipelineV1InputConfig(pipelineV1, inputId);
+    if (isStagedInput || inputBindingRaw) {
       if (buildingDerived.has(inputId)) {
         const issueSet = bindingIssues.get(inputId) ?? new Set<string>();
         issueSet.add("Derived input cycle detected.");
@@ -1598,6 +1860,22 @@ export function buildRigGraphSpec({
       }
       buildingDerived.add(inputId);
       try {
+        if (isStagedInput) {
+          const stagedConfig = resolveRigPipelineV1InputConfig({
+            faceId,
+            input,
+            pipelineV1,
+          });
+          stagedPipelineByInputId.set(input.id, stagedConfig);
+          computedInputs.add(inputId);
+          const record = {
+            nodeId: buildStagedEffectiveInputNodeId(input, stagedConfig),
+            input,
+          };
+          inputNodes.set(inputId, record);
+          return record;
+        }
+
         const target = bindingTargetFromInput(input);
         const binding = ensureBindingStructure(inputBindingRaw, target);
         const requiresSelf =
@@ -1647,7 +1925,7 @@ export function buildRigGraphSpec({
             },
           });
           const record = {
-            nodeId: buildEffectiveInputNodeId(input, constNodeId),
+            nodeId: buildLegacyEffectiveInputNodeId(input, constNodeId),
             input,
           };
           inputNodes.set(inputId, record);
@@ -1655,7 +1933,7 @@ export function buildRigGraphSpec({
         }
         computedInputs.add(inputId);
         const record = {
-          nodeId: buildEffectiveInputNodeId(input, valueNodeId),
+          nodeId: buildLegacyEffectiveInputNodeId(input, valueNodeId),
           input,
         };
         inputNodes.set(inputId, record);
@@ -1674,7 +1952,10 @@ export function buildRigGraphSpec({
         value: { float: defaultValue },
       },
     });
-    const record = { nodeId: buildEffectiveInputNodeId(input, nodeId), input };
+    const record = {
+      nodeId: buildLegacyEffectiveInputNodeId(input, nodeId),
+      input,
+    };
     inputNodes.set(inputId, record);
     return record;
   };
@@ -1903,6 +2184,72 @@ export function buildRigGraphSpec({
       computedInputs.has(binding.animatableId),
   );
 
+  const pipelineV1ByInputId =
+    stagedPipelineByInputId.size > 0
+      ? Object.fromEntries(
+          Array.from(stagedPipelineByInputId.entries()).map(
+            ([inputId, stagedConfig]) => [
+              inputId,
+              {
+                inputId: stagedConfig.inputId,
+                parents: stagedConfig.parents.map((parent) => ({
+                  linkId: parent.linkId,
+                  inputId: parent.inputId,
+                  alias: parent.alias,
+                  scale: parent.scale,
+                  offset: parent.offset,
+                  enabled: parent.enabled,
+                })),
+                children: stagedConfig.children.map((child) => ({
+                  linkId: child.linkId,
+                  childInputId: child.childInputId,
+                })),
+                parentBlend: {
+                  mode: stagedConfig.parentBlend.mode,
+                },
+                poseSource: {
+                  targetIds: [...stagedConfig.poseSource.targetIds],
+                },
+                directInput: {
+                  enabled: stagedConfig.directInput.enabled,
+                  valuePath: stagedConfig.directInput.valuePath,
+                },
+                sourceBlend: {
+                  mode: stagedConfig.sourceBlend.mode,
+                },
+                sourceFallback: {
+                  whenNoSources: stagedConfig.sourceFallback.whenNoSources,
+                },
+                clamp: {
+                  enabled: stagedConfig.clamp.enabled,
+                },
+                override: {
+                  enabledDefault: stagedConfig.override.enabledDefault,
+                  valueDefault: stagedConfig.override.valueDefault,
+                  enabledPath: stagedConfig.override.enabledPath,
+                  valuePath: stagedConfig.override.valuePath,
+                },
+              },
+            ],
+          ),
+        )
+      : undefined;
+
+  const hasPipelineLinks =
+    pipelineV1?.links &&
+    typeof pipelineV1.links === "object" &&
+    Object.keys(pipelineV1.links).length > 0;
+  const pipelineV1Metadata =
+    pipelineV1ByInputId || hasPipelineLinks
+      ? {
+          version: RIG_PIPELINE_V1_VERSION,
+          ...(pipelineV1ByInputId ? { byInputId: pipelineV1ByInputId } : {}),
+          ...(hasPipelineLinks
+            ? { links: cloneJsonLike(pipelineV1?.links) }
+            : {}),
+        }
+      : undefined;
+
   const vizijMetadata = {
     vizij: {
       faceId,
@@ -1942,6 +2289,7 @@ export function buildRigGraphSpec({
           ? cloneJsonLike(binding.metadata)
           : undefined,
       })),
+      ...(pipelineV1Metadata ? { pipelineV1: pipelineV1Metadata } : {}),
     },
   };
 
