@@ -14,6 +14,7 @@ import {
   bindingToDefinition,
   createDefaultBinding,
   createDefaultInputValues,
+  createDefaultParentBinding,
   ensureBindingStructure,
   reconcileBindings,
   updateBindingSlotAlias,
@@ -66,6 +67,7 @@ import type {
 import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { normalizeGraphPath } from "../utils/graphPaths";
+import { resolveRigMetadataInputId } from "../utils/rigElementInputs";
 import {
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
@@ -77,6 +79,11 @@ import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
 import type { SelectionStore } from "../state/selectionStore";
+import {
+  assessLegacyBindingMigration,
+  buildLegacyMigrationLinkUpserts,
+  mergePipelineMetadata,
+} from "../components/inspector/pipelineStages";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { useFeatureLabels } from "./useFeatureLabels";
@@ -1678,6 +1685,65 @@ export function useRigController(
     return next;
   }, [basePipelineConfigByInputId, lockedAutorigInputIds]);
 
+  const handleMigrateAllLegacyBindings = useCallback((): number => {
+    let migratedCount = 0;
+    applyInputBindingPatch((previous) => {
+      let changed = false;
+      const next: typeof previous = { ...previous };
+      Object.entries(previous).forEach(([targetInputId, binding]) => {
+        const assessment = assessLegacyBindingMigration(binding ?? null);
+        if (assessment.kind !== "convertible") {
+          return;
+        }
+        const sourceInput = standardInputsById.get(targetInputId);
+        if (!sourceInput) {
+          return;
+        }
+        const existingBinding =
+          next[targetInputId] ??
+          createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+        const linkUpserts = buildLegacyMigrationLinkUpserts({
+          binding: existingBinding,
+          childInputId: targetInputId,
+          factorsByInputId: assessment.parentFactorsByInputId ?? {},
+          defaultOffset: sourceInput.defaultValue,
+          resolveInputId: (rawInputId) =>
+            resolveRigMetadataInputId(rawInputId, standardInputsById),
+        });
+        const nextMetadata = mergePipelineMetadata(
+          (existingBinding.metadata ?? undefined) as
+            | Record<string, unknown>
+            | undefined,
+          {
+            directInputEnabled: true,
+            overrideEnabled: false,
+            overrideValue: sourceInput.defaultValue,
+            clampEnabled: true,
+            ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
+            migrationStatus: "migrated",
+            migrationSource: "canonical-self-parent",
+            migrationExpression: assessment.expression,
+          },
+        );
+        const previousMetadataSignature = JSON.stringify(
+          existingBinding.metadata ?? null,
+        );
+        const nextMetadataSignature = JSON.stringify(nextMetadata);
+        if (previousMetadataSignature === nextMetadataSignature) {
+          return;
+        }
+        changed = true;
+        migratedCount += 1;
+        next[targetInputId] = {
+          ...existingBinding,
+          metadata: nextMetadata,
+        };
+      });
+      return changed ? next : previous;
+    });
+    return migratedCount;
+  }, [applyInputBindingPatch, standardInputsById]);
+
   const faceSegment = useMemo(
     () => (faceId && faceId.length > 0 ? faceId : "face"),
     [faceId],
@@ -2782,6 +2848,7 @@ export function useRigController(
       lockedAutorigInputIds,
       handleSetInspectorTargetLocked,
       handleToggleInspectorTargetLock,
+      handleMigrateAllLegacyBindings,
       collectAnimatableExportState,
       hiddenDriverIds,
       handleHideDriver,
@@ -2813,6 +2880,7 @@ export function useRigController(
     handleFeatureFlagChange,
     handleSetInspectorTargetLocked,
     handleToggleInspectorTargetLock,
+    handleMigrateAllLegacyBindings,
     handleHideDriver,
     handleInputValueChange,
     stageRuntimeGraphPathValue,

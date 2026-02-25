@@ -257,6 +257,11 @@ function createDefaultFaceLoadSteps(): FaceLoadStep[] {
           label: "Settle compile/import cycles",
           status: "pending",
         },
+        {
+          id: "migrate-legacy-bindings",
+          label: "Migrate legacy variable bindings",
+          status: "pending",
+        },
       ],
     },
   ];

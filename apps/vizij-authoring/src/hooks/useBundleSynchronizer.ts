@@ -85,12 +85,41 @@ export function useBundleSynchronizer({
     };
 
     const applyBundleState = async () => {
-      if (!rootId || !loadedBundle) {
+      if (!rootId) {
         importedRigFingerprintsRef.current.clear();
         importedPoseFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
         importedFaceIdByFingerprintRef.current.clear();
+        return;
+      }
+
+      if (!loadedBundle) {
+        importedRigFingerprintsRef.current.clear();
+        importedPoseFingerprintsRef.current.clear();
+        inflightRigFingerprintsRef.current.clear();
+        inflightPoseFingerprintsRef.current.clear();
+        importedFaceIdByFingerprintRef.current.clear();
+
+        emitPhase({
+          stepId: "bundle-sync",
+          status: "complete",
+          substepId: "normalize-rig-graph",
+        });
+        emitPhase({
+          stepId: "bundle-sync",
+          status: "complete",
+          substepId: "import-rig-graph",
+        });
+        emitPhase({
+          stepId: "bundle-sync",
+          status: "complete",
+          substepId: "import-pose-config",
+        });
+        emitPhase({
+          stepId: "bundle-sync",
+          status: "complete",
+        });
         return;
       }
 

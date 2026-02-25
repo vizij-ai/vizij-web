@@ -45,11 +45,74 @@ import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfac
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+const UNKNOWN_FACE_LOAD_STEP_WEIGHT = 6;
+const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
+  "select-import-source": 0,
+  "load-asset": 18,
+  "validate-root": 6,
+  "reset-state": 6,
+  "mount-runtime": 8,
+  "finalize-load": 8,
+  "bundle-sync": 16,
+  "rig-import-normalization": 14,
+  "pose-graph-bootstrap": 10,
+  "runtime-stabilization": 10,
+});
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 type FaceLoadPhaseChange = Parameters<
   VizijAssetLoaderState["updateExternalPhase"]
 >[0];
+type FaceLoadStep = VizijAssetLoaderState["faceLoadSteps"][number];
+
+function statusProgress(status: FaceLoadStep["status"]): number {
+  switch (status) {
+    case "complete":
+    case "error":
+      return 1;
+    case "active":
+      return 0.45;
+    case "pending":
+    default:
+      return 0;
+  }
+}
+
+function stepProgress(step: FaceLoadStep): number {
+  if (step.status === "complete" || step.status === "error") {
+    return 1;
+  }
+  if (step.substeps.length === 0) {
+    return statusProgress(step.status);
+  }
+  const substepAverage =
+    step.substeps.reduce(
+      (sum, substep) => sum + statusProgress(substep.status),
+      0,
+    ) / step.substeps.length;
+  if (step.status === "active") {
+    return Math.max(0.12, substepAverage);
+  }
+  return substepAverage;
+}
+
+function computeWeightedFaceLoadProgress(steps: FaceLoadStep[]): number {
+  if (steps.length === 0) {
+    return 0;
+  }
+  let weightedProgress = 0;
+  let totalWeight = 0;
+  steps.forEach((step) => {
+    const weight =
+      FACE_LOAD_STEP_WEIGHTS[step.id] ?? UNKNOWN_FACE_LOAD_STEP_WEIGHT;
+    totalWeight += weight;
+    weightedProgress += stepProgress(step) * weight;
+  });
+  if (totalWeight <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, weightedProgress / totalWeight));
+}
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
@@ -130,7 +193,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     bundle: loadedBundle,
     beginImportFlow,
     markImportFileSelected,
-    cancelImportFlow,
     markImportFlowError,
     completeImportFlow,
   } = loader;
@@ -241,6 +303,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.standardInputsByPath,
   );
   const rigOutputLookup = useBindingAuthoring((state) => state.rigOutputLookup);
+  const handleMigrateAllLegacyBindings = useBindingAuthoring(
+    (state) => state.handleMigrateAllLegacyBindings,
+  );
 
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
@@ -425,37 +490,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) {
-        cancelImportFlow();
+        skipNextDiscrepancyCheck.current = false;
         return;
       }
+      const skipChecks = skipNextDiscrepancyCheck.current;
+      beginImportFlow(skipChecks ? "File import (skip checks)" : "File import");
       markImportFileSelected();
 
-      if (skipNextDiscrepancyCheck.current) {
+      if (skipChecks) {
         uiActions.setSkipDiscrepancyCheck(true);
-        skipNextDiscrepancyCheck.current = false;
       } else {
         uiActions.setSkipDiscrepancyCheck(false);
       }
+      skipNextDiscrepancyCheck.current = false;
 
       await loadFromFile(file, () =>
         loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
       );
       event.target.value = "";
     },
-    [cancelImportFlow, loadFromFile, markImportFileSelected, uiActions],
+    [beginImportFlow, loadFromFile, markImportFileSelected, uiActions],
   );
 
   const handleImportClick = useCallback(() => {
     skipNextDiscrepancyCheck.current = false;
-    beginImportFlow("File import");
     fileInputRef.current?.click();
-  }, [beginImportFlow]);
+  }, []);
 
   const handleImportSkipChecksClick = useCallback(() => {
     skipNextDiscrepancyCheck.current = true;
-    beginImportFlow("File import (skip checks)");
     fileInputRef.current?.click();
-  }, [beginImportFlow]);
+  }, []);
 
   const menuBar = (
     <AppMenuBar
@@ -496,16 +561,31 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     faceLoadMilestones["bundle-synced"] !== null &&
     faceLoadMilestones["graph-ready"] !== null;
   const loadingBarVisible = loadingSessionActive;
+  const weightedStepProgress = useMemo(
+    () => computeWeightedFaceLoadProgress(loader.faceLoadSteps),
+    [loader.faceLoadSteps],
+  );
+  const migrationStepInFlightRef = useRef(false);
+  const [migrationCompletedSessionToken, setMigrationCompletedSessionToken] =
+    useState<string | null>(null);
+  const migrationCompleteForSession =
+    faceLoadSessionToken !== null &&
+    migrationCompletedSessionToken === faceLoadSessionToken;
   const loadingBarProgress =
-    runtimeInputReady && runtimeVisibleReady && loadingCoordinatorSettled
+    runtimeInputReady &&
+    runtimeVisibleReady &&
+    loadingCoordinatorSettled &&
+    migrationCompleteForSession
       ? 1
-      : graphStatus === "ready"
-        ? Math.max(
-            loadingCoordinatorSettled ? 0.95 : 0.92,
-            loader.faceLoadProgress,
-          )
-        : loader.faceLoadProgress;
+      : weightedStepProgress;
   const previousLoadingSessionActiveRef = useRef(loadingSessionActive);
+
+  useEffect(() => {
+    if (!loadingSessionActive) {
+      migrationStepInFlightRef.current = false;
+      setMigrationCompletedSessionToken(null);
+    }
+  }, [loadingSessionActive]);
 
   useEffect(() => {
     if (!__DEV__) {
@@ -551,17 +631,60 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     if (!loadingSessionActive) {
       return;
     }
+    if (
+      rootId &&
+      loadedBundle === null &&
+      faceLoadMilestones["asset-loaded"] !== null &&
+      faceLoadMilestones["bundle-synced"] === null
+    ) {
+      onFaceLoadPhaseChange({
+        stepId: "bundle-sync",
+        substepId: "normalize-rig-graph",
+        status: "complete",
+      });
+      onFaceLoadPhaseChange({
+        stepId: "bundle-sync",
+        substepId: "import-rig-graph",
+        status: "complete",
+      });
+      onFaceLoadPhaseChange({
+        stepId: "bundle-sync",
+        substepId: "import-pose-config",
+        status: "complete",
+      });
+      onFaceLoadPhaseChange({
+        stepId: "bundle-sync",
+        status: "complete",
+      });
+    }
     onFaceLoadPhaseChange({
       stepId: "runtime-stabilization",
       substepId: "wait-runtime-input-bridge",
       status: runtimeInputReady ? "complete" : "active",
     });
+    if (migrationStepInFlightRef.current || migrationCompleteForSession) {
+      onFaceLoadPhaseChange({
+        stepId: "runtime-stabilization",
+        substepId: "migrate-legacy-bindings",
+        status: migrationStepInFlightRef.current ? "active" : "complete",
+      });
+    }
     if (runtimeInputReady && runtimeVisibleReady) {
       if (deterministicMilestoneChainReady) {
         markFaceLoadMilestone("runtime-ready", {
           sessionToken: faceLoadSessionToken,
         });
       }
+    }
+    if (
+      graphStatus === "ready" &&
+      faceLoadMilestones["asset-loaded"] !== null &&
+      faceLoadMilestones["bundle-synced"] !== null &&
+      faceLoadMilestones["graph-ready"] === null
+    ) {
+      markFaceLoadMilestone("graph-ready", {
+        sessionToken: faceLoadSessionToken,
+      });
     }
     if (!runtimeInputReady || !runtimeVisibleReady) {
       return;
@@ -588,6 +711,42 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           event: "wait-operations",
           sessionToken: faceLoadSessionToken,
           inFlightOperations: faceLoadInFlightOperationCount,
+        });
+      }
+      return;
+    }
+    if (!migrationCompleteForSession) {
+      if (!faceLoadSessionToken || migrationStepInFlightRef.current) {
+        return;
+      }
+      migrationStepInFlightRef.current = true;
+      onFaceLoadPhaseChange({
+        stepId: "runtime-stabilization",
+        substepId: "migrate-legacy-bindings",
+        status: "active",
+      });
+      let migratedCount = 0;
+      try {
+        migratedCount = handleMigrateAllLegacyBindings();
+      } catch (error) {
+        console.error(
+          "[face-load][app] failed to auto-migrate legacy bindings",
+          error,
+        );
+      } finally {
+        if (__DEV__) {
+          console.log("[face-load][app]", {
+            event: "migrate-legacy-bindings-complete",
+            sessionToken: faceLoadSessionToken,
+            migratedCount,
+          });
+        }
+        migrationStepInFlightRef.current = false;
+        setMigrationCompletedSessionToken(faceLoadSessionToken);
+        onFaceLoadPhaseChange({
+          stepId: "runtime-stabilization",
+          substepId: "migrate-legacy-bindings",
+          status: "complete",
         });
       }
       return;
@@ -627,10 +786,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     faceLoadLastOperationUpdateAtMs,
     faceLoadMilestones,
     faceLoadSessionToken,
+    handleMigrateAllLegacyBindings,
     graphStatus,
     loadingCoordinatorSettled,
+    migrationCompleteForSession,
     loadingSessionActive,
+    loadedBundle,
     markFaceLoadMilestone,
+    setMigrationCompletedSessionToken,
     runtimeInputReady,
     runtimeViewRootId,
     runtimeViewGraphCount,

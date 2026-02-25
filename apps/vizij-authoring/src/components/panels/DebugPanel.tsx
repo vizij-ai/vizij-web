@@ -1,12 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import {
-  bindingTargetFromInput,
-  compileIrGraph,
-  createDefaultParentBinding,
-  type IrGraph,
-} from "@vizij/node-graph-authoring";
+import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   Activity,
@@ -34,12 +29,7 @@ import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { cloneSerializable } from "../../utils/serialization";
 import { usePoseRigStore } from "../../poseRig/store";
-import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
-import {
-  assessLegacyBindingMigration,
-  buildLegacyMigrationLinkUpserts,
-  mergePipelineMetadata,
-} from "../inspector/pipelineStages";
+import { assessLegacyBindingMigration } from "../inspector/pipelineStages";
 import { collectGlobalUnmatchedPoseOutputs } from "../inspector/rigConnections";
 
 type HealthTabId =
@@ -115,14 +105,11 @@ export function DebugPanel({
   const handleResetAllInputs = useBindingAuthoring(
     (state) => state.handleResetAllInputValues,
   );
+  const handleMigrateAllLegacyBindings = useBindingAuthoring(
+    (state) => state.handleMigrateAllLegacyBindings,
+  );
   const bindings = useBindingAuthoring((state) => state.bindings);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
-  const standardInputsById = useBindingAuthoring(
-    (state) => state.standardInputsById,
-  );
-  const applyInputBindingPatch = useBindingAuthoring(
-    (state) => state.applyInputBindingPatch,
-  );
 
   const poses = usePoseRigStore((state) => state.poses);
   const neutralInputs = usePoseRigStore((state) => state.neutralInputs);
@@ -157,63 +144,6 @@ export function DebugPanel({
     }),
     [convertibleMigrationEntries.length, migrationEntries],
   );
-
-  const handleMigrateAllLegacyBindings = useCallback(() => {
-    if (convertibleMigrationEntries.length === 0) {
-      return;
-    }
-    applyInputBindingPatch((previous) => {
-      let changed = false;
-      const next: typeof previous = { ...previous };
-      convertibleMigrationEntries.forEach(
-        ({ inputId: targetInputId, assessment }) => {
-          const sourceInput = standardInputsById.get(targetInputId);
-          if (!sourceInput) {
-            return;
-          }
-          const existingBinding =
-            next[targetInputId] ??
-            createDefaultParentBinding(bindingTargetFromInput(sourceInput));
-          const linkUpserts = buildLegacyMigrationLinkUpserts({
-            binding: existingBinding,
-            childInputId: targetInputId,
-            factorsByInputId: assessment.parentFactorsByInputId ?? {},
-            defaultOffset: sourceInput.defaultValue,
-            resolveInputId: (rawInputId) =>
-              resolveRigMetadataInputId(rawInputId, standardInputsById),
-          });
-          const nextMetadata = mergePipelineMetadata(
-            (existingBinding.metadata ?? undefined) as
-              | Record<string, unknown>
-              | undefined,
-            {
-              directInputEnabled: true,
-              overrideEnabled: false,
-              overrideValue: sourceInput.defaultValue,
-              clampEnabled: true,
-              ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
-              migrationStatus: "migrated",
-              migrationSource: "canonical-self-parent",
-              migrationExpression: assessment.expression,
-            },
-          );
-          const previousMetadataSignature = JSON.stringify(
-            existingBinding.metadata ?? null,
-          );
-          const nextMetadataSignature = JSON.stringify(nextMetadata);
-          if (previousMetadataSignature === nextMetadataSignature) {
-            return;
-          }
-          changed = true;
-          next[targetInputId] = {
-            ...existingBinding,
-            metadata: nextMetadata,
-          };
-        },
-      );
-      return changed ? next : previous;
-    });
-  }, [applyInputBindingPatch, convertibleMigrationEntries, standardInputsById]);
 
   const unmatchedPoseOutputs = useMemo(
     () =>

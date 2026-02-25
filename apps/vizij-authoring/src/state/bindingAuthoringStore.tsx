@@ -158,6 +158,7 @@ export interface BindingAuthoringState {
   lockedAutorigInputIds: Set<string>;
   handleSetInspectorTargetLocked: (targetId: string, locked: boolean) => void;
   handleToggleInspectorTargetLock: (targetId: string) => void;
+  handleMigrateAllLegacyBindings: () => number;
   collectAnimatableExportState: () => AnimatableExportState;
   sceneObjects: SceneObjectNode[];
   sceneObjectRoots: string[];
@@ -245,6 +246,7 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   lockedAutorigInputIds: new Set(),
   handleSetInspectorTargetLocked: () => undefined,
   handleToggleInspectorTargetLock: () => undefined,
+  handleMigrateAllLegacyBindings: () => 0,
   collectAnimatableExportState: () => ({
     appliedOverrides: false,
     nextAnimatables: {},
