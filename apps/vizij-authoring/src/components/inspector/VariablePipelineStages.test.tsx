@@ -230,6 +230,62 @@ describe("VariablePipelineStages", () => {
     );
   });
 
+  it("commits parent and child link scale/offset changes on blur", () => {
+    const props = createBaseProps();
+    const parentScaleChange = props.parents[0]?.linkControl?.onScaleChange;
+    const parentOffsetChange = props.parents[0]?.linkControl?.onOffsetChange;
+    const childScaleChange = props.children[0]?.linkControl?.onScaleChange;
+    const childOffsetChange = props.children[0]?.linkControl?.onOffsetChange;
+
+    const view = render(<VariablePipelineStages {...props} />);
+
+    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    fireEvent.click(
+      within(parentStage).getByRole("button", { name: /jaw parent/i }),
+    );
+    const parentFields = Array.from(
+      parentStage.querySelectorAll(
+        'input[aria-roledescription="Number field"]',
+      ),
+    ) as HTMLInputElement[];
+    const parentScaleField = parentFields[0];
+    const parentOffsetField = parentFields[1];
+    expect(parentScaleField).toBeTruthy();
+    expect(parentOffsetField).toBeTruthy();
+
+    fireEvent.change(parentScaleField!, { target: { value: "1.5" } });
+    expect(parentScaleChange).not.toHaveBeenCalled();
+    fireEvent.blur(parentScaleField!);
+    expect(parentScaleChange).toHaveBeenCalledWith(1.5);
+
+    fireEvent.change(parentOffsetField!, { target: { value: "0.4" } });
+    expect(parentOffsetChange).toHaveBeenCalledTimes(0);
+    fireEvent.blur(parentOffsetField!);
+    expect(parentOffsetChange).toHaveBeenCalledWith(0.4);
+
+    const childStage = openStage(view, "pipeline-stage-children", /children/i);
+    fireEvent.click(
+      within(childStage).getByRole("button", { name: /mouth child/i }),
+    );
+    const childFields = Array.from(
+      childStage.querySelectorAll('input[aria-roledescription="Number field"]'),
+    ) as HTMLInputElement[];
+    const childScaleField = childFields[0];
+    const childOffsetField = childFields[1];
+    expect(childScaleField).toBeTruthy();
+    expect(childOffsetField).toBeTruthy();
+
+    fireEvent.change(childScaleField!, { target: { value: "2.25" } });
+    expect(childScaleChange).toHaveBeenCalledTimes(0);
+    fireEvent.blur(childScaleField!);
+    expect(childScaleChange).toHaveBeenCalledWith(2.25);
+
+    fireEvent.change(childOffsetField!, { target: { value: "-0.5" } });
+    expect(childOffsetChange).toHaveBeenCalledTimes(0);
+    fireEvent.blur(childOffsetField!);
+    expect(childOffsetChange).toHaveBeenCalledWith(-0.5);
+  });
+
   it("runs migrate action when migrate button is provided", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);

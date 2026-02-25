@@ -205,6 +205,8 @@ function LinkControlEditor({
           min={-3}
           max={3}
           step={0.01}
+          commitMode="blur"
+          allowScrub={false}
           onChange={(value) => linkControl.onScaleChange?.(value)}
           disabled={!linkControl.enabled}
         />
@@ -217,6 +219,8 @@ function LinkControlEditor({
           min={-2}
           max={2}
           step={0.01}
+          commitMode="blur"
+          allowScrub={false}
           onChange={(value) => linkControl.onOffsetChange?.(value)}
           disabled={!linkControl.enabled}
         />
@@ -909,6 +913,8 @@ export function VariablePipelineStages({
                           min={-3}
                           max={3}
                           step={0.01}
+                          commitMode="blur"
+                          allowScrub={false}
                           onChange={(value) =>
                             child.linkControl?.onScaleChange?.(value)
                           }
@@ -925,6 +931,8 @@ export function VariablePipelineStages({
                           min={-2}
                           max={2}
                           step={0.01}
+                          commitMode="blur"
+                          allowScrub={false}
                           onChange={(value) =>
                             child.linkControl?.onOffsetChange?.(value)
                           }

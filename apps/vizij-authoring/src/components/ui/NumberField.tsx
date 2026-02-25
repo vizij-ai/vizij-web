@@ -1,3 +1,4 @@
+import React from "react";
 import { NumberField as BaseNumberField } from "@base-ui/react";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "../../utils/cn";
@@ -13,6 +14,8 @@ export interface NumberFieldProps {
   className?: string;
   size?: "sm" | "md";
   placeholder?: string;
+  commitMode?: "immediate" | "blur";
+  allowScrub?: boolean;
 }
 
 export function NumberField({
@@ -26,15 +29,53 @@ export function NumberField({
   className,
   size = "md",
   placeholder,
+  commitMode = "immediate",
+  allowScrub = true,
 }: NumberFieldProps) {
+  const [draftValue, setDraftValue] = React.useState(value);
+
+  React.useEffect(() => {
+    setDraftValue(value);
+  }, [value]);
+
+  const displayedValue = commitMode === "blur" ? draftValue : value;
+
+  const inputElement = (
+    <BaseNumberField.Input
+      className={cn(
+        "w-full bg-transparent border-none text-text-primary focus:outline-none tabular-nums p-0",
+        {
+          "text-xs": size === "sm",
+          "text-sm": size === "md",
+        },
+      )}
+      placeholder={placeholder}
+    />
+  );
+
   return (
     <BaseNumberField.Root
-      value={value}
+      value={displayedValue}
       min={min}
       max={max}
       step={step}
       format={format}
       onValueChange={(val) => {
+        if (val === null) {
+          return;
+        }
+        if (commitMode === "blur") {
+          setDraftValue(val);
+          return;
+        }
+        if (onChange) {
+          onChange(val);
+        }
+      }}
+      onValueCommitted={(val) => {
+        if (commitMode !== "blur") {
+          return;
+        }
         if (onChange && val !== null) {
           onChange(val);
         }
@@ -49,18 +90,15 @@ export function NumberField({
         className,
       )}
     >
-      <BaseNumberField.ScrubArea className="cursor-ew-resize flex-1 h-full flex items-center px-2">
-        <BaseNumberField.Input
-          className={cn(
-            "w-full bg-transparent border-none text-text-primary focus:outline-none tabular-nums p-0",
-            {
-              "text-xs": size === "sm",
-              "text-sm": size === "md",
-            },
-          )}
-          placeholder={placeholder}
-        />
-      </BaseNumberField.ScrubArea>
+      {allowScrub ? (
+        <BaseNumberField.ScrubArea className="cursor-ew-resize flex-1 h-full flex items-center px-2">
+          {inputElement}
+        </BaseNumberField.ScrubArea>
+      ) : (
+        <div className="flex-1 h-full flex items-center px-2">
+          {inputElement}
+        </div>
+      )}
       <div className="flex flex-col border-l border-border-default w-5 h-full">
         <BaseNumberField.Increment className="flex-1 flex items-center justify-center hover:bg-bg-hover text-text-muted hover:text-text-primary cursor-default active:bg-bg-active">
           <ChevronUp size={size === "sm" ? 8 : 10} />
