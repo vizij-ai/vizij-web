@@ -1,10 +1,4 @@
-import React, {
-  useMemo,
-  useRef,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import React, { useMemo, useRef, useCallback } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { cn } from "../../utils/cn";
@@ -16,11 +10,7 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
-import {
-  isInspectorChannelLocked,
-  resolveFaceInspectorCurrentValue,
-  toggleInspectorChannelLock,
-} from "./faceInspectorSemantics";
+import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 
 interface RiggingTransformSectionProps {
   node: SceneObjectNode;
@@ -190,19 +180,12 @@ function RiggingVectorRow({
   setStaticFeatureValue,
 }: RiggingVectorRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
-    () => new Set(),
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
   );
-
-  useEffect(() => {
-    setLockedChannels(new Set());
-  }, [feature.id]);
-
-  const toggleChannelLock = useCallback((channelLockId: string) => {
-    setLockedChannels((current) =>
-      toggleInspectorChannelLock(current, channelLockId),
-    );
-  }, []);
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
+  );
 
   // Extract inputs for x, y, z components
   const components = useMemo(() => {
@@ -240,18 +223,18 @@ function RiggingVectorRow({
         inputValues,
         staticValue: comp.staticValue ?? 0,
       });
-      const channelLockId =
-        targetId ??
-        `${feature.id}:${comp.componentKey ?? comp.label ?? String(label)}`;
+      const isLocked = Boolean(
+        targetId && lockedInspectorTargetIds.has(targetId),
+      );
 
       if (hasInputMetadata && inputId) {
         // Bound Case
         const range = standardInput!.range;
         return {
           componentLabel: label,
-          channelLockId,
           inputId,
           targetId,
+          isLocked,
           currentValue: authority.currentValue,
           currentValueSource: authority.sourceLabel,
           defaultValue: standardInput!.defaultValue ?? 0,
@@ -287,9 +270,9 @@ function RiggingVectorRow({
 
         return {
           componentLabel: label,
-          channelLockId,
           inputId,
           targetId,
+          isLocked,
           currentValue: val,
           currentValueSource: authority.sourceLabel,
           defaultValue: val,
@@ -309,6 +292,7 @@ function RiggingVectorRow({
     standardInputsById,
     inputBindings,
     inputValues,
+    lockedInspectorTargetIds,
   ]);
 
   if (components.length === 0) return null;
@@ -330,10 +314,18 @@ function RiggingVectorRow({
 
   const handleSaveToDefault = () => {
     components.forEach((c) => {
-      if (c.isBound && c.inputId)
+      if (c.isBound && c.inputId) {
         onUpdateStandardInput(c.inputId, {
           defaultValue: c.currentValue as number,
         });
+      }
+      if (onStaticValueChange && (c.targetId || feature.animatableId)) {
+        onStaticValueChange(
+          c.targetId ?? feature.animatableId!,
+          c.currentValue as number,
+          c.componentLabel.toLowerCase(),
+        );
+      }
     });
   };
 
@@ -359,9 +351,7 @@ function RiggingVectorRow({
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         const currentVals = { ...(nextConstraints.min || {}) };
         components.forEach((c) => {
-          if (!c.isBound) {
-            currentVals[c.componentLabel.toLowerCase()] = c.currentValue;
-          }
+          currentVals[c.componentLabel.toLowerCase()] = c.currentValue;
         });
         nextConstraints.min = currentVals;
         return { ...curr, constraints: nextConstraints } as any;
@@ -383,9 +373,7 @@ function RiggingVectorRow({
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         const currentVals = { ...(nextConstraints.max || {}) };
         components.forEach((c) => {
-          if (!c.isBound) {
-            currentVals[c.componentLabel.toLowerCase()] = c.currentValue;
-          }
+          currentVals[c.componentLabel.toLowerCase()] = c.currentValue;
         });
         nextConstraints.max = currentVals;
         return { ...curr, constraints: nextConstraints } as any;
@@ -406,9 +394,7 @@ function RiggingVectorRow({
 
           if (type === "current") {
             val = c.currentValue;
-            canEdit =
-              !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
-              (c.isBound || !!onStaticValueChange);
+            canEdit = !c.isLocked && (c.isBound || !!onStaticValueChange);
           } else if (type === "default") {
             val = c.defaultValue;
             canEdit = c.hasInputMetadata;
@@ -438,6 +424,9 @@ function RiggingVectorRow({
                 onScrub={(_, totalDelta) => {
                   const step = 0.05;
                   if (type === "current") {
+                    if (c.isLocked) {
+                      return;
+                    }
                     if (c.isBound && c.inputId) {
                       const startVal = scrubValuesRef.current[c.inputId] ?? 0;
                       onValueChange(c.inputId, startVal + totalDelta * step);
@@ -461,7 +450,18 @@ function RiggingVectorRow({
                     }
                   } else if (type === "default" && c.inputId) {
                     const startVal = scrubValuesRef.current[c.inputId] ?? 0;
-                    onDefaultChange(c.inputId, startVal + totalDelta * step);
+                    const nextVal = startVal + totalDelta * step;
+                    onDefaultChange(c.inputId, nextVal);
+                    if (
+                      onStaticValueChange &&
+                      (c.targetId || feature.animatableId)
+                    ) {
+                      onStaticValueChange(
+                        c.targetId ?? feature.animatableId!,
+                        nextVal,
+                        c.componentLabel.toLowerCase(),
+                      );
+                    }
                   } else if (
                     (type === "min" || type === "max") &&
                     (c.inputId || feature.animatableId)
@@ -471,11 +471,12 @@ function RiggingVectorRow({
                       scrubValuesRef.current[`${type}:${key}`] ?? 0;
                     const nextVal = startVal + totalDelta * step;
 
-                    if (c.isBound && c.inputId) {
+                    if (c.inputId) {
                       onUpdateStandardInput(c.inputId, {
                         range: { [type]: nextVal },
                       });
-                    } else if (feature.animatableId) {
+                    }
+                    if (feature.animatableId) {
                       onConstraintChange(feature.animatableId, (curr) => {
                         const nextConstraints = {
                           ...(curr.constraints || {}),
@@ -530,6 +531,9 @@ function RiggingVectorRow({
                   if (isNaN(num)) return;
 
                   if (type === "current") {
+                    if (c.isLocked) {
+                      return;
+                    }
                     if (c.isBound && c.inputId) {
                       onValueChange(c.inputId, num);
                     } else if (onStaticValueChange) {
@@ -549,16 +553,27 @@ function RiggingVectorRow({
                     }
                   } else if (type === "default" && c.inputId) {
                     onDefaultChange(c.inputId, num);
+                    if (
+                      onStaticValueChange &&
+                      (c.targetId || feature.animatableId)
+                    ) {
+                      onStaticValueChange(
+                        c.targetId ?? feature.animatableId!,
+                        num,
+                        c.componentLabel.toLowerCase(),
+                      );
+                    }
                   } else if (
                     (type === "min" || type === "max") &&
                     (c.inputId || feature.animatableId)
                   ) {
                     const key = c.componentLabel.toLowerCase();
-                    if (c.isBound && c.inputId) {
+                    if (c.inputId) {
                       onUpdateStandardInput(c.inputId, {
                         range: { [type]: num },
                       });
-                    } else if (feature.animatableId) {
+                    }
+                    if (feature.animatableId) {
                       onConstraintChange(feature.animatableId, (curr) => {
                         const nextConstraints = {
                           ...(curr.constraints || {}),
@@ -606,13 +621,19 @@ function RiggingVectorRow({
           title={`Current Source: ${c.currentValueSource}`}
           className={cn(
             "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            isInspectorChannelLocked(lockedChannels, c.channelLockId)
+            c.isLocked
               ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
               : "bg-accent/10 text-accent hover:bg-accent/20",
           )}
-          onClick={() => toggleChannelLock(c.channelLockId)}
+          disabled={!c.targetId}
+          onClick={() => {
+            if (!c.targetId) {
+              return;
+            }
+            handleSetInspectorTargetLocked(c.targetId, !c.isLocked);
+          }}
         >
-          {isInspectorChannelLocked(lockedChannels, c.channelLockId) ? (
+          {c.isLocked ? (
             <Lock size={10} className="shrink-0" />
           ) : (
             <LockOpen size={10} className="shrink-0" />

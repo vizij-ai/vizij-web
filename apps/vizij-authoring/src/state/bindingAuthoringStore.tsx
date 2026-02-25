@@ -154,6 +154,10 @@ export interface BindingAuthoringState {
   ) => void;
   handleSelectStandardInputRoots: (roots: string[]) => void;
   handleSelectStandardInputSubgroups: (groups: string[]) => void;
+  lockedInspectorTargetIds: Set<string>;
+  lockedAutorigInputIds: Set<string>;
+  handleSetInspectorTargetLocked: (targetId: string, locked: boolean) => void;
+  handleToggleInspectorTargetLock: (targetId: string) => void;
   collectAnimatableExportState: () => AnimatableExportState;
   sceneObjects: SceneObjectNode[];
   sceneObjectRoots: string[];
@@ -237,6 +241,10 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleFeatureFlagChange: () => undefined,
   handleSelectStandardInputRoots: () => undefined,
   handleSelectStandardInputSubgroups: () => undefined,
+  lockedInspectorTargetIds: new Set(),
+  lockedAutorigInputIds: new Set(),
+  handleSetInspectorTargetLocked: () => undefined,
+  handleToggleInspectorTargetLock: () => undefined,
   collectAnimatableExportState: () => ({
     appliedOverrides: false,
     nextAnimatables: {},

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useState } from "react";
+import React, { useMemo, useRef } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
@@ -10,11 +10,7 @@ import {
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
-import {
-  isInspectorChannelLocked,
-  resolveFaceInspectorCurrentValue,
-  toggleInspectorChannelLock,
-} from "./faceInspectorSemantics";
+import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 
 interface RiggingMorphTargetsSectionProps {
   node: SceneObjectNode;
@@ -156,13 +152,12 @@ function RiggingScalarRow({
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
-    () => new Set(),
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
   );
-
-  useEffect(() => {
-    setLockedChannels(new Set());
-  }, [feature.id]);
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
+  );
 
   const component = feature.components[0];
   if (!component) return null;
@@ -197,10 +192,8 @@ function RiggingScalarRow({
     inputValues,
     staticValue: component.staticValue ?? 0,
   });
-  const channelLockId = targetId ?? `${feature.id}:value`;
-  const isChannelLocked = isInspectorChannelLocked(
-    lockedChannels,
-    channelLockId,
+  const isChannelLocked = Boolean(
+    targetId && lockedInspectorTargetIds.has(targetId),
   );
 
   const minVal = hasInputMetadata
@@ -225,8 +218,12 @@ function RiggingScalarRow({
   };
 
   const handleSaveToDefault = () => {
-    if (isBound && inputId)
+    if (isBound && inputId) {
       onUpdateStandardInput(inputId, { defaultValue: currentValue as number });
+    }
+    if (onStaticValueChange && (targetId || feature.animatableId)) {
+      onStaticValueChange(targetId ?? feature.animatableId!, currentValue);
+    }
   };
 
   const hasMinChanged =
@@ -235,11 +232,12 @@ function RiggingScalarRow({
     Math.abs((currentValue as number) - (maxVal as number)) > 0.0001;
 
   const handleSaveToMin = () => {
-    if (isBound && inputId) {
+    if (inputId) {
       onUpdateStandardInput(inputId, {
         range: { min: currentValue as number },
       });
-    } else if (feature.animatableId) {
+    }
+    if (feature.animatableId) {
       onConstraintChange(feature.animatableId, (curr: AnimatableValue) => {
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         nextConstraints.min = currentValue;
@@ -249,11 +247,12 @@ function RiggingScalarRow({
   };
 
   const handleSaveToMax = () => {
-    if (isBound && inputId) {
+    if (inputId) {
       onUpdateStandardInput(inputId, {
         range: { max: currentValue as number },
       });
-    } else if (feature.animatableId) {
+    }
+    if (feature.animatableId) {
       onConstraintChange(feature.animatableId, (curr: AnimatableValue) => {
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         nextConstraints.max = currentValue;
@@ -297,6 +296,9 @@ function RiggingScalarRow({
           onScrub={(delta: number, totalDelta: number) => {
             const step = 0.01;
             if (type === "current") {
+              if (isChannelLocked) {
+                return;
+              }
               if (isBound && inputId) {
                 const startVal = scrubValuesRef.current[inputId] ?? 0;
                 onValueChange(inputId, startVal + totalDelta * step);
@@ -311,16 +313,21 @@ function RiggingScalarRow({
               }
             } else if (type === "default" && inputId) {
               const startVal = scrubValuesRef.current[inputId] ?? 0;
-              onDefaultChange(inputId, startVal + totalDelta * step);
+              const nextVal = startVal + totalDelta * step;
+              onDefaultChange(inputId, nextVal);
+              if (onStaticValueChange && (targetId || feature.animatableId)) {
+                onStaticValueChange(targetId ?? feature.animatableId!, nextVal);
+              }
             } else if (
               (type === "min" || type === "max") &&
               (inputId || feature.animatableId)
             ) {
               const startVal = scrubValuesRef.current[type] ?? 0;
               const nextVal = startVal + totalDelta * step;
-              if (isBound && inputId) {
+              if (inputId) {
                 onUpdateStandardInput(inputId, { range: { [type]: nextVal } });
-              } else if (feature.animatableId) {
+              }
+              if (feature.animatableId) {
                 onConstraintChange(
                   feature.animatableId,
                   (curr: AnimatableValue) => {
@@ -365,6 +372,9 @@ function RiggingScalarRow({
             if (isNaN(num)) return;
 
             if (type === "current") {
+              if (isChannelLocked) {
+                return;
+              }
               if (isBound && inputId) {
                 onValueChange(inputId, num);
               } else if (onStaticValueChange) {
@@ -376,13 +386,17 @@ function RiggingScalarRow({
               }
             } else if (type === "default" && inputId) {
               onDefaultChange(inputId, num);
+              if (onStaticValueChange && (targetId || feature.animatableId)) {
+                onStaticValueChange(targetId ?? feature.animatableId!, num);
+              }
             } else if (
               (type === "min" || type === "max") &&
               (inputId || feature.animatableId)
             ) {
-              if (isBound && inputId) {
+              if (inputId) {
                 onUpdateStandardInput(inputId, { range: { [type]: num } });
-              } else if (feature.animatableId) {
+              }
+              if (feature.animatableId) {
                 onConstraintChange(
                   feature.animatableId,
                   (curr: AnimatableValue) => {
@@ -430,11 +444,13 @@ function RiggingScalarRow({
             ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
             : "bg-accent/10 text-accent hover:bg-accent/20",
         )}
-        onClick={() =>
-          setLockedChannels((current) =>
-            toggleInspectorChannelLock(current, channelLockId),
-          )
-        }
+        disabled={!targetId}
+        onClick={() => {
+          if (!targetId) {
+            return;
+          }
+          handleSetInspectorTargetLocked(targetId, !isChannelLocked);
+        }}
       >
         {isChannelLocked ? (
           <Lock size={10} className="shrink-0" />

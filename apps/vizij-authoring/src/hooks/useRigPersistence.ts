@@ -45,6 +45,7 @@ interface UseRigPersistenceOptions {
   selectedStandardInputRoots: string[];
   selectedStandardInputSubgroups: string[];
   disabledStandardInputIds: string[];
+  lockedInspectorTargetIds: Set<string>;
   hiddenDriverIds: Set<string>;
   featureLabelOverrides: Record<string, string>;
   featureFlags: FeatureFlagState;
@@ -58,6 +59,7 @@ interface UseRigPersistenceOptions {
   setSelectedStandardInputRoots: Dispatch<SetStateAction<string[]>>;
   setSelectedStandardInputSubgroups: Dispatch<SetStateAction<string[]>>;
   setDisabledStandardInputIds: Dispatch<SetStateAction<string[]>>;
+  setLockedInspectorTargetIds: Dispatch<SetStateAction<Set<string>>>;
   setHiddenDriverIds: Dispatch<SetStateAction<Set<string>>>;
   setFeatureLabelOverrides: Dispatch<SetStateAction<Record<string, string>>>;
   setStandardInputSchema: Dispatch<
@@ -95,6 +97,7 @@ export function useRigPersistence({
   selectedStandardInputRoots,
   selectedStandardInputSubgroups,
   disabledStandardInputIds,
+  lockedInspectorTargetIds,
   hiddenDriverIds,
   featureLabelOverrides,
   featureFlags,
@@ -108,6 +111,7 @@ export function useRigPersistence({
   setSelectedStandardInputRoots,
   setSelectedStandardInputSubgroups,
   setDisabledStandardInputIds,
+  setLockedInspectorTargetIds,
   setHiddenDriverIds,
   setFeatureLabelOverrides,
   setStandardInputSchema: _setStandardInputSchema,
@@ -197,6 +201,10 @@ export function useRigPersistence({
         disabledStandardInputIds.length > 0
           ? disabledStandardInputIds
           : undefined,
+      lockedInspectorTargetIds:
+        lockedInspectorTargetIds.size > 0
+          ? Array.from(lockedInspectorTargetIds)
+          : undefined,
       hiddenDriverIds:
         hiddenDriverIds.size > 0 ? Array.from(hiddenDriverIds) : undefined,
       featureLabels:
@@ -223,6 +231,7 @@ export function useRigPersistence({
     bindings,
     customInputs,
     disabledStandardInputIds,
+    lockedInspectorTargetIds,
     hiddenDriverIds,
     faceId,
     featureLabelOverrides,
@@ -252,6 +261,7 @@ export function useRigPersistence({
     updateInputValues(() => ({}));
     setSelectedStandardInputRoots([]);
     setSelectedStandardInputSubgroups([]);
+    setLockedInspectorTargetIds(new Set());
     setFeatureLabelOverrides({});
     setPipelineMetadataV1(null);
     setTimeout(() => {
@@ -272,6 +282,7 @@ export function useRigPersistence({
     setPipelineMetadataV1,
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
+    setLockedInspectorTargetIds,
     skipPersistRef,
     updateInputValues,
   ]);
@@ -325,6 +336,9 @@ export function useRigPersistence({
           ? persisted.disabledStandardInputIds
           : [],
       );
+      setLockedInspectorTargetIds(
+        new Set(persisted.lockedInspectorTargetIds ?? []),
+      );
       setHiddenDriverIds(new Set(persisted.hiddenDriverIds ?? []));
 
       const persistedBindings: BindingMap = {};
@@ -368,6 +382,7 @@ export function useRigPersistence({
       setAutoInputs(new Map());
       updateInputValues(() => ({}));
       setDisabledStandardInputIds([]);
+      setLockedInspectorTargetIds(new Set());
       setBindings(createDefaultBindings(animatableComponents));
       setSelectedStandardInputRoots([]);
       setSelectedStandardInputSubgroups([]);
@@ -398,6 +413,7 @@ export function useRigPersistence({
     setFeatureFlags,
     setFeatureLabelOverrides,
     setGraphInsights,
+    setLockedInspectorTargetIds,
     setPipelineMetadataV1,
     setInputBindings,
     setSelectedStandardInputRoots,
@@ -442,6 +458,7 @@ export function useRigPersistence({
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
     disabledStandardInputIds,
+    lockedInspectorTargetIds,
     hiddenDriverIds,
     featureFlags,
     graphInsights,

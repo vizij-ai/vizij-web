@@ -31,10 +31,10 @@ describe("B1.4 face inspector truthfulness + lock contracts", () => {
     expect(materialSectionTsx).toContain("Current Source:");
   });
 
-  it("uses per-channel lock toggles instead of shared feature lock toggles", () => {
-    expect(transformSectionTsx).toContain("toggleInspectorChannelLock");
-    expect(morphSectionTsx).toContain("toggleInspectorChannelLock");
-    expect(materialSectionTsx).toContain("toggleInspectorChannelLock");
+  it("uses per-channel lock toggles backed by authoring store state", () => {
+    expect(transformSectionTsx).toContain("handleSetInspectorTargetLocked");
+    expect(morphSectionTsx).toContain("handleSetInspectorTargetLocked");
+    expect(materialSectionTsx).toContain("handleSetInspectorTargetLocked");
     expect(transformSectionTsx).not.toContain("setFeatureAnimated(");
     expect(morphSectionTsx).not.toContain("setFeatureAnimated(");
     expect(materialSectionTsx).not.toContain("setFeatureAnimated(");

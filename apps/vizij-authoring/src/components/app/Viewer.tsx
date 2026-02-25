@@ -1,5 +1,8 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
-import type { VizijAssetBundle } from "@vizij/runtime-react";
+import type {
+  RuntimeOutputWrite,
+  VizijAssetBundle,
+} from "@vizij/runtime-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
@@ -13,6 +16,10 @@ import {
 import { isPoseControlInputPath } from "../../poseRig/utils";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
+import {
+  applyLockedRuntimeOutputWrite,
+  buildLockedRuntimeOutputIndex,
+} from "./runtimeOutputLocks";
 
 type RuntimeRenderableSelectionType =
   | "group"
@@ -320,8 +327,26 @@ export function Viewer({
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
+  );
   const applyStandardInputBatch = useBindingAuthoring(
     (state) => state.applyStandardInputBatch,
+  );
+  const lockedRuntimeOutputIndex = useMemo(
+    () => buildLockedRuntimeOutputIndex(lockedInspectorTargetIds),
+    [lockedInspectorTargetIds],
+  );
+  const lockedRuntimeOutputIndexRef = useRef(lockedRuntimeOutputIndex);
+
+  useEffect(() => {
+    lockedRuntimeOutputIndexRef.current = lockedRuntimeOutputIndex;
+  }, [lockedRuntimeOutputIndex]);
+
+  const transformOutputWrite = useCallback(
+    (write: RuntimeOutputWrite) =>
+      applyLockedRuntimeOutputWrite(write, lockedRuntimeOutputIndexRef.current),
+    [],
   );
 
   const resetInputEntries = useMemo(() => {
@@ -394,6 +419,7 @@ export function Viewer({
             assetBundle={bundle}
             autostart
             onRegisterControllers={handleRuntimeControllersRegistered}
+            transformOutputWrite={transformOutputWrite}
           >
             {onSelectScene ? (
               <RuntimeSelectionBridge

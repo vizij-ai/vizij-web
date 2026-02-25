@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
@@ -14,11 +14,7 @@ import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
-import {
-  isInspectorChannelLocked,
-  resolveFaceInspectorCurrentValue,
-  toggleInspectorChannelLock,
-} from "./faceInspectorSemantics";
+import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -229,13 +225,12 @@ export function RiggingScalarRow({
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
-    () => new Set(),
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
   );
-
-  useEffect(() => {
-    setLockedChannels(new Set());
-  }, [feature.id]);
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
+  );
 
   const component = feature.components[0];
   if (!component) return null;
@@ -269,10 +264,8 @@ export function RiggingScalarRow({
     inputValues,
     staticValue: component.staticValue ?? 0,
   });
-  const channelLockId = targetId ?? `${feature.id}:value`;
-  const isChannelLocked = isInspectorChannelLocked(
-    lockedChannels,
-    channelLockId,
+  const isChannelLocked = Boolean(
+    targetId && lockedInspectorTargetIds.has(targetId),
   );
 
   const minVal = isBound
@@ -297,8 +290,12 @@ export function RiggingScalarRow({
   };
 
   const handleSaveToDefault = () => {
-    if (isBound && inputId)
+    if (isBound && inputId) {
       onUpdateStandardInput(inputId, { defaultValue: currentValue as number });
+    }
+    if (onStaticValueChange && (targetId || feature.animatableId)) {
+      onStaticValueChange(targetId ?? feature.animatableId!, currentValue);
+    }
   };
 
   const hasMinChanged =
@@ -307,11 +304,12 @@ export function RiggingScalarRow({
     Math.abs((currentValue as number) - (maxVal as number)) > 0.0001;
 
   const handleSaveToMin = () => {
-    if (isBound && inputId) {
+    if (inputId) {
       onUpdateStandardInput(inputId, {
         range: { min: currentValue as number },
       });
-    } else if (feature.animatableId) {
+    }
+    if (feature.animatableId) {
       onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         nextConstraints.min = currentValue;
@@ -321,11 +319,12 @@ export function RiggingScalarRow({
   };
 
   const handleSaveToMax = () => {
-    if (isBound && inputId) {
+    if (inputId) {
       onUpdateStandardInput(inputId, {
         range: { max: currentValue as number },
       });
-    } else if (feature.animatableId) {
+    }
+    if (feature.animatableId) {
       onConstraintChange?.(feature.animatableId, (curr: AnimatableValue) => {
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         nextConstraints.max = currentValue;
@@ -369,6 +368,9 @@ export function RiggingScalarRow({
           onScrub={(_, totalDelta) => {
             const step = 0.01;
             if (type === "current") {
+              if (isChannelLocked) {
+                return;
+              }
               if (isBound && inputId) {
                 const startVal = scrubValuesRef.current[inputId] ?? 0;
                 onValueChange(inputId, startVal + totalDelta * step);
@@ -383,16 +385,21 @@ export function RiggingScalarRow({
               }
             } else if (type === "default" && inputId) {
               const startVal = scrubValuesRef.current[inputId] ?? 0;
-              onDefaultChange(inputId, startVal + totalDelta * step);
+              const nextVal = startVal + totalDelta * step;
+              onDefaultChange(inputId, nextVal);
+              if (onStaticValueChange && (targetId || feature.animatableId)) {
+                onStaticValueChange(targetId ?? feature.animatableId!, nextVal);
+              }
             } else if (
               (type === "min" || type === "max") &&
               (inputId || feature.animatableId)
             ) {
               const startVal = scrubValuesRef.current[type] ?? 0;
               const nextVal = startVal + totalDelta * step;
-              if (isBound && inputId) {
+              if (inputId) {
                 onUpdateStandardInput(inputId, { range: { [type]: nextVal } });
-              } else if (feature.animatableId) {
+              }
+              if (feature.animatableId) {
                 onConstraintChange?.(
                   feature.animatableId,
                   (curr: AnimatableValue) => {
@@ -440,6 +447,9 @@ export function RiggingScalarRow({
             const num = parseFloat(e.target.value);
             if (isNaN(num)) return;
             if (type === "current") {
+              if (isChannelLocked) {
+                return;
+              }
               if (isBound && inputId) onValueChange(inputId, num);
               else if (onStaticValueChange) {
                 if (feature.animated && feature.animatableId) {
@@ -450,13 +460,17 @@ export function RiggingScalarRow({
               }
             } else if (type === "default" && inputId) {
               onDefaultChange(inputId, num);
+              if (onStaticValueChange && (targetId || feature.animatableId)) {
+                onStaticValueChange(targetId ?? feature.animatableId!, num);
+              }
             } else if (
               (type === "min" || type === "max") &&
               (inputId || feature.animatableId)
             ) {
-              if (isBound && inputId) {
+              if (inputId) {
                 onUpdateStandardInput(inputId, { range: { [type]: num } });
-              } else if (feature.animatableId) {
+              }
+              if (feature.animatableId) {
                 onConstraintChange?.(
                   feature.animatableId,
                   (curr: AnimatableValue) => {
@@ -504,11 +518,13 @@ export function RiggingScalarRow({
             ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
             : "bg-accent/10 text-accent hover:bg-accent/20",
         )}
-        onClick={() =>
-          setLockedChannels((current) =>
-            toggleInspectorChannelLock(current, channelLockId),
-          )
-        }
+        disabled={!targetId}
+        onClick={() => {
+          if (!targetId) {
+            return;
+          }
+          handleSetInspectorTargetLocked(targetId, !isChannelLocked);
+        }}
       >
         {isChannelLocked ? (
           <Lock size={10} className="shrink-0" />
@@ -556,13 +572,12 @@ export function RiggingColorRow({
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const [lockedChannels, setLockedChannels] = useState<Set<string>>(
-    () => new Set(),
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
   );
-
-  useEffect(() => {
-    setLockedChannels(new Set());
-  }, [feature.id]);
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
+  );
 
   const getCompData = (key: string, fallbackIndex: number) => {
     const comp =
@@ -604,9 +619,9 @@ export function RiggingColorRow({
       inputValues,
       staticValue: comp.staticValue ?? 0,
     });
-    const channelLockId =
-      targetId ??
-      `${feature.id}:${comp.componentKey ?? comp.label ?? String(compLabel)}`;
+    const isLocked = Boolean(
+      targetId && lockedInspectorTargetIds.has(targetId),
+    );
     const currentValue = authority.currentValue;
     const defaultValue = isBound
       ? (standardInput!.defaultValue ?? 0)
@@ -617,9 +632,9 @@ export function RiggingColorRow({
 
     return {
       label: compLabel,
-      channelLockId,
       inputId,
       targetId,
+      isLocked,
       currentValue,
       currentValueSource: authority.sourceLabel,
       defaultValue,
@@ -657,10 +672,18 @@ export function RiggingColorRow({
 
   const handleSaveToDefault = () => {
     components.forEach((c) => {
-      if (c.isBound && c.inputId)
+      if (c.isBound && c.inputId) {
         onUpdateStandardInput(c.inputId, {
           defaultValue: c.currentValue as number,
         });
+      }
+      if (onStaticValueChange && (c.targetId || feature.animatableId)) {
+        onStaticValueChange(
+          c.targetId ?? feature.animatableId!,
+          c.currentValue as number,
+          c.label.toLowerCase(),
+        );
+      }
     });
   };
 
@@ -685,9 +708,7 @@ export function RiggingColorRow({
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         const currentVals = { ...(nextConstraints.min || {}) };
         components.forEach((c) => {
-          if (!c.isBound) {
-            currentVals[c.label.toLowerCase()] = c.currentValue;
-          }
+          currentVals[c.label.toLowerCase()] = c.currentValue;
         });
         nextConstraints.min = currentVals;
         return { ...curr, constraints: nextConstraints } as AnimatableValue;
@@ -709,9 +730,7 @@ export function RiggingColorRow({
         const nextConstraints = { ...(curr.constraints || {}) } as any;
         const currentVals = { ...(nextConstraints.max || {}) };
         components.forEach((c) => {
-          if (!c.isBound) {
-            currentVals[c.label.toLowerCase()] = c.currentValue;
-          }
+          currentVals[c.label.toLowerCase()] = c.currentValue;
         });
         nextConstraints.max = currentVals;
         return { ...curr, constraints: nextConstraints } as AnimatableValue;
@@ -770,9 +789,7 @@ export function RiggingColorRow({
     const canEditAny =
       type === "current"
         ? components.some(
-            (c) =>
-              !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
-              (c.isBound || !!onStaticValueChange),
+            (c) => !c.isLocked && (c.isBound || !!onStaticValueChange),
           )
         : type === "default"
           ? components.some((c) => c.isBound)
@@ -789,15 +806,23 @@ export function RiggingColorRow({
           { comp: bComp, val: rgb.b },
         ].forEach(({ comp, val }) => {
           if (!comp) return;
-          if (
-            type === "current" &&
-            isInspectorChannelLocked(lockedChannels, comp.channelLockId)
-          ) {
+          if (type === "current" && comp.isLocked) {
             return;
           }
           if (comp.isBound && comp.inputId) {
             if (type === "current") onValueChange(comp.inputId, val);
             else onDefaultChange(comp.inputId, val);
+          }
+          if (
+            type === "default" &&
+            onStaticValueChange &&
+            (comp.targetId || feature.animatableId)
+          ) {
+            onStaticValueChange(
+              comp.targetId ?? feature.animatableId!,
+              val,
+              comp.label.toLowerCase(),
+            );
           } else if (type === "current" && onStaticValueChange) {
             if (feature.animated && feature.animatableId) {
               onStaticValueChange(
@@ -874,8 +899,7 @@ export function RiggingColorRow({
 
             const canEditComp =
               type === "current"
-                ? !isInspectorChannelLocked(lockedChannels, c.channelLockId) &&
-                  (c.isBound || !!onStaticValueChange)
+                ? !c.isLocked && (c.isBound || !!onStaticValueChange)
                 : type === "default"
                   ? c.isBound
                   : !!feature.animatableId;
@@ -912,6 +936,9 @@ export function RiggingColorRow({
                     const nextVal = startVal + totalDelta * step;
 
                     if (type === "current") {
+                      if (c.isLocked) {
+                        return;
+                      }
                       if (c.isBound && c.inputId)
                         onValueChange(c.inputId, nextVal);
                       else if (onStaticValueChange) {
@@ -933,12 +960,23 @@ export function RiggingColorRow({
                       onUpdateStandardInput(c.inputId, {
                         defaultValue: nextVal,
                       });
+                      if (
+                        onStaticValueChange &&
+                        (c.targetId || feature.animatableId)
+                      ) {
+                        onStaticValueChange(
+                          c.targetId ?? feature.animatableId!,
+                          nextVal,
+                          c.label.toLowerCase(),
+                        );
+                      }
                     } else if (c.inputId || feature.animatableId) {
-                      if (c.isBound && c.inputId) {
+                      if (c.inputId) {
                         onUpdateStandardInput(c.inputId, {
                           range: { [type]: nextVal },
                         });
-                      } else if (feature.animatableId) {
+                      }
+                      if (feature.animatableId) {
                         onConstraintChange?.(
                           feature.animatableId,
                           (curr: AnimatableValue) => {
@@ -985,6 +1023,9 @@ export function RiggingColorRow({
                     const num = parseFloat(e.target.value);
                     if (isNaN(num)) return;
                     if (type === "current") {
+                      if (c.isLocked) {
+                        return;
+                      }
                       if (c.isBound && c.inputId) onValueChange(c.inputId, num);
                       else if (onStaticValueChange) {
                         if (feature.animated && feature.animatableId) {
@@ -1003,12 +1044,23 @@ export function RiggingColorRow({
                       }
                     } else if (type === "default" && c.inputId) {
                       onUpdateStandardInput(c.inputId, { defaultValue: num });
+                      if (
+                        onStaticValueChange &&
+                        (c.targetId || feature.animatableId)
+                      ) {
+                        onStaticValueChange(
+                          c.targetId ?? feature.animatableId!,
+                          num,
+                          c.label.toLowerCase(),
+                        );
+                      }
                     } else if (c.inputId || feature.animatableId) {
-                      if (c.isBound && c.inputId) {
+                      if (c.inputId) {
                         onUpdateStandardInput(c.inputId, {
                           range: { [type]: num },
                         });
-                      } else if (feature.animatableId) {
+                      }
+                      if (feature.animatableId) {
                         onConstraintChange?.(
                           feature.animatableId,
                           (curr: AnimatableValue) => {
@@ -1065,17 +1117,19 @@ export function RiggingColorRow({
           title={`Current Source: ${c.currentValueSource}`}
           className={cn(
             "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            isInspectorChannelLocked(lockedChannels, c.channelLockId)
+            c.isLocked
               ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
               : "bg-accent/10 text-accent hover:bg-accent/20",
           )}
-          onClick={() =>
-            setLockedChannels((current) =>
-              toggleInspectorChannelLock(current, c.channelLockId),
-            )
-          }
+          disabled={!c.targetId}
+          onClick={() => {
+            if (!c.targetId) {
+              return;
+            }
+            handleSetInspectorTargetLocked(c.targetId, !c.isLocked);
+          }}
         >
-          {isInspectorChannelLocked(lockedChannels, c.channelLockId) ? (
+          {c.isLocked ? (
             <Lock size={10} className="shrink-0" />
           ) : (
             <LockOpen size={10} className="shrink-0" />

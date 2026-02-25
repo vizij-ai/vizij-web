@@ -34,7 +34,7 @@ import {
 } from "@vizij/orchestrator-react";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { valueAsNumber } from "@vizij/value-json";
-import type { AnimatableValue, RawValue } from "@vizij/utils";
+import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
 import {
   resolveRuntimeUpdatePlan,
@@ -57,6 +57,7 @@ import type {
   VizijRuntimeContextValue,
   VizijRuntimeProviderProps,
   VizijRuntimeStatus,
+  RuntimeOutputWrite,
 } from "./types";
 import {
   collectInputPathMap,
@@ -865,6 +866,7 @@ export function VizijRuntimeProvider({
   mergeStrategy,
   onRegisterControllers,
   onStatusChange,
+  transformOutputWrite,
   orchestratorScope = "auto",
 }: ProviderProps) {
   const storeRef = useRef<VizijStore | null>(null);
@@ -898,6 +900,7 @@ export function VizijRuntimeProvider({
         mergeStrategy={mergeStrategy}
         onRegisterControllers={onRegisterControllers}
         onStatusChange={onStatusChange}
+        transformOutputWrite={transformOutputWrite}
         store={storeRef.current}
       >
         {children}
@@ -928,6 +931,9 @@ type VizijRuntimeProviderInnerProps = {
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
+  transformOutputWrite?: (
+    write: RuntimeOutputWrite,
+  ) => RuntimeOutputWrite | null;
   store: VizijStore;
   children: ReactNode;
   autoCreate: boolean;
@@ -944,6 +950,7 @@ function VizijRuntimeProviderInner({
   mergeStrategy,
   onRegisterControllers,
   onStatusChange,
+  transformOutputWrite,
   store,
   children,
   autoCreate,
@@ -1595,6 +1602,7 @@ function VizijRuntimeProviderInner({
     }
     const setWorldValues = store.getState().setValues;
     const namespaceValue = status.namespace;
+    const currentValues = store.getState().values;
     const batched: Array<{ id: string; namespace: string; value: RawValue }> =
       [];
     const namespacedOutputs = namespacedOutputPathsRef.current;
@@ -1610,12 +1618,29 @@ function VizijRuntimeProviderInner({
       }
       const basePath = stripNamespace(path, namespaceValue);
       const targetPath = baseOutputs.has(basePath) ? basePath : path;
-      batched.push({ id: targetPath, namespace: namespaceValue, value: raw });
+      const currentValue = currentValues.get(
+        getLookup(namespaceValue, targetPath),
+      );
+      const nextWrite = transformOutputWrite
+        ? transformOutputWrite({
+            id: targetPath,
+            namespace: namespaceValue,
+            value: raw,
+            currentValue,
+          })
+        : {
+            id: targetPath,
+            namespace: namespaceValue,
+            value: raw,
+          };
+      if (nextWrite) {
+        batched.push(nextWrite);
+      }
     });
     if (batched.length > 0) {
       setWorldValues(batched);
     }
-  }, [frame, status.namespace, store]);
+  }, [frame, status.namespace, store, transformOutputWrite]);
 
   const stagePoseNeutral = useCallback(
     (force = false) => {

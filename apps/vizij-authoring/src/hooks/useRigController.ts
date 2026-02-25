@@ -127,6 +127,66 @@ function resolvePersistedAutoKey(
   return null;
 }
 
+function extractComponentIdFromInputSourceId(
+  sourceId: string | null | undefined,
+): string | null {
+  if (!sourceId) {
+    return null;
+  }
+  const parts = sourceId.split(":");
+  if (parts[0] !== "component" || parts.length < 5) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(parts[4] ?? "");
+  } catch {
+    return parts[4] ?? null;
+  }
+}
+
+function isCanonicalAutorigInputPath(path: string | null | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path).replace(
+    /^\/rig\/[^/]+\//,
+    "/",
+  );
+  return normalized.startsWith("/autorig/");
+}
+
+function collectBindingInputIds(
+  binding:
+    | {
+        inputId?: string | null;
+        slots?: ReadonlyArray<{ inputId?: string | null }>;
+      }
+    | null
+    | undefined,
+): string[] {
+  if (!binding) {
+    return [];
+  }
+  const ids = new Set<string>();
+  if (
+    binding.inputId &&
+    binding.inputId !== SELF_BINDING_ID &&
+    binding.inputId.trim().length > 0
+  ) {
+    ids.add(binding.inputId);
+  }
+  binding.slots?.forEach((slot) => {
+    if (
+      slot.inputId &&
+      slot.inputId !== SELF_BINDING_ID &&
+      slot.inputId.trim().length > 0
+    ) {
+      ids.add(slot.inputId);
+    }
+  });
+  return Array.from(ids);
+}
+
 function deriveAliasFromInputDescriptor(
   input?: StandardRigInput | null,
 ): string | null {
@@ -490,6 +550,9 @@ export function useRigController(
   const [disabledStandardInputIds, setDisabledStandardInputIds] = useState<
     string[]
   >([]);
+  const [lockedInspectorTargetIds, setLockedInspectorTargetIds] = useState<
+    Set<string>
+  >(() => new Set());
   const [standardInputSchema, setStandardInputSchema] = useState<{
     id: string;
     version: string;
@@ -572,6 +635,45 @@ export function useRigController(
         return previous;
       }
       return new Set();
+    });
+  }, []);
+
+  const handleSetInspectorTargetLocked = useCallback(
+    (targetId: string, locked: boolean) => {
+      const normalized = targetId.trim();
+      if (!normalized) {
+        return;
+      }
+      setLockedInspectorTargetIds((previous) => {
+        const alreadyLocked = previous.has(normalized);
+        if (locked ? alreadyLocked : !alreadyLocked) {
+          return previous;
+        }
+        const next = new Set(previous);
+        if (locked) {
+          next.add(normalized);
+        } else {
+          next.delete(normalized);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleToggleInspectorTargetLock = useCallback((targetId: string) => {
+    const normalized = targetId.trim();
+    if (!normalized) {
+      return;
+    }
+    setLockedInspectorTargetIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(normalized)) {
+        next.delete(normalized);
+      } else {
+        next.add(normalized);
+      }
+      return next;
     });
   }, []);
   const [graphInsights, setGraphInsights] =
@@ -735,7 +837,7 @@ export function useRigController(
     [inputBindings],
   );
 
-  const pipelineConfigByInputId: Record<
+  const basePipelineConfigByInputId: Record<
     string,
     Record<string, unknown>
   > = useMemo(() => {
@@ -1137,6 +1239,24 @@ export function useRigController(
   }, [inputBindings]);
 
   useEffect(() => {
+    const validTargetIds = new Set(
+      animatableComponents.map((component) => component.id),
+    );
+    setLockedInspectorTargetIds((previous) => {
+      let changed = false;
+      const next = new Set<string>();
+      previous.forEach((targetId) => {
+        if (validTargetIds.has(targetId)) {
+          next.add(targetId);
+          return;
+        }
+        changed = true;
+      });
+      return changed ? next : previous;
+    });
+  }, [animatableComponents]);
+
+  useEffect(() => {
     disabledStandardInputIdsRef.current = new Set(disabledStandardInputIds);
   }, [disabledStandardInputIds]);
 
@@ -1314,6 +1434,7 @@ export function useRigController(
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
     disabledStandardInputIds,
+    lockedInspectorTargetIds,
     hiddenDriverIds,
     featureLabelOverrides,
     featureFlags,
@@ -1327,6 +1448,7 @@ export function useRigController(
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
     setDisabledStandardInputIds,
+    setLockedInspectorTargetIds,
     setHiddenDriverIds,
     setFeatureLabelOverrides,
     setStandardInputSchema: handleSetStandardInputSchema,
@@ -1444,6 +1566,117 @@ export function useRigController(
     allStandardInputsRef,
     standardInputsByIdRef,
   });
+
+  const autorigInputIdByComponentId = useMemo(() => {
+    type Candidate = {
+      inputId: string;
+      resolvedInputId: string;
+      rank: number;
+    };
+    const candidatesByComponentId = new Map<string, Candidate[]>();
+    managedStandardInputs.forEach((entry) => {
+      const componentId =
+        entry.metadata?.componentId ??
+        extractComponentIdFromInputSourceId(entry.input.sourceId);
+      if (!componentId) {
+        return;
+      }
+      const resolvedInputId = resolveStandardRigInputId(
+        entry.input.id,
+        standardInputsById,
+      );
+      const resolvedInput =
+        standardInputsById.get(resolvedInputId) ??
+        standardInputsById.get(entry.input.id) ??
+        entry.input;
+      const rank =
+        (isCanonicalAutorigInputPath(resolvedInput.path) ? 10 : 0) +
+        (entry.source === "auto" ? 1 : 0);
+      const candidate: Candidate = {
+        inputId: entry.input.id,
+        resolvedInputId,
+        rank,
+      };
+      const existing = candidatesByComponentId.get(componentId);
+      if (existing) {
+        existing.push(candidate);
+      } else {
+        candidatesByComponentId.set(componentId, [candidate]);
+      }
+    });
+    const next = new Map<string, string>();
+    candidatesByComponentId.forEach((candidates, componentId) => {
+      const selected = [...candidates].sort((left, right) => {
+        if (right.rank !== left.rank) {
+          return right.rank - left.rank;
+        }
+        return left.resolvedInputId.localeCompare(right.resolvedInputId);
+      })[0];
+      if (!selected) {
+        return;
+      }
+      next.set(componentId, selected.resolvedInputId);
+    });
+    return next;
+  }, [managedStandardInputs, standardInputsById]);
+
+  const lockedAutorigInputIds = useMemo(() => {
+    if (lockedInspectorTargetIds.size === 0) {
+      return new Set<string>();
+    }
+    const next = new Set<string>();
+    lockedInspectorTargetIds.forEach((targetId) => {
+      const mappedAutorigId = autorigInputIdByComponentId.get(targetId);
+      if (mappedAutorigId) {
+        next.add(mappedAutorigId);
+        return;
+      }
+      const bindingInputIds = collectBindingInputIds(bindings[targetId]);
+      const resolvedIds = bindingInputIds
+        .map((inputId) =>
+          resolveStandardRigInputId(inputId, standardInputsById),
+        )
+        .filter((inputId) => standardInputsById.has(inputId));
+      const preferredId =
+        resolvedIds.find((inputId) =>
+          isCanonicalAutorigInputPath(standardInputsById.get(inputId)?.path),
+        ) ?? resolvedIds[0];
+      if (preferredId) {
+        next.add(preferredId);
+      }
+    });
+    return next;
+  }, [
+    autorigInputIdByComponentId,
+    bindings,
+    lockedInspectorTargetIds,
+    standardInputsById,
+  ]);
+
+  const pipelineConfigByInputId: Record<
+    string,
+    Record<string, unknown>
+  > = useMemo(() => {
+    if (lockedAutorigInputIds.size === 0) {
+      return basePipelineConfigByInputId;
+    }
+    const next: Record<string, Record<string, unknown>> = {
+      ...basePipelineConfigByInputId,
+    };
+    lockedAutorigInputIds.forEach((inputId) => {
+      const existingConfig =
+        asRecord(basePipelineConfigByInputId[inputId]) ?? {};
+      const directInputConfig = asRecord(existingConfig.directInput) ?? {};
+      next[inputId] = {
+        ...existingConfig,
+        directInput: {
+          ...directInputConfig,
+          enabled: false,
+        },
+      };
+    });
+    return next;
+  }, [basePipelineConfigByInputId, lockedAutorigInputIds]);
 
   const faceSegment = useMemo(
     () => (faceId && faceId.length > 0 ? faceId : "face"),
@@ -2545,6 +2778,10 @@ export function useRigController(
       handleFeatureFlagChange,
       handleSelectStandardInputRoots,
       handleSelectStandardInputSubgroups,
+      lockedInspectorTargetIds,
+      lockedAutorigInputIds,
+      handleSetInspectorTargetLocked,
+      handleToggleInspectorTargetLock,
       collectAnimatableExportState,
       hiddenDriverIds,
       handleHideDriver,
@@ -2574,6 +2811,8 @@ export function useRigController(
     handleEnableStandardInput,
     handleEnsureParentBinding,
     handleFeatureFlagChange,
+    handleSetInspectorTargetLocked,
+    handleToggleInspectorTargetLock,
     handleHideDriver,
     handleInputValueChange,
     stageRuntimeGraphPathValue,
@@ -2606,6 +2845,8 @@ export function useRigController(
     hiddenDriverIds,
     handleCreateParentDriverBinding,
     handleEnableParentLocalControl,
+    lockedInspectorTargetIds,
+    lockedAutorigInputIds,
     pipelineConfigByInputId,
     mergedPipelineMetadataV1,
     rigOutputLookup,

@@ -14,6 +14,8 @@ interface TreeRowProps {
   highlightQuery?: string;
   className?: string;
   style?: React.CSSProperties;
+  disabled?: boolean;
+  disabledReason?: string;
   children?: ReactNode;
 }
 
@@ -30,6 +32,8 @@ export function TreeRow({
   highlightQuery,
   className,
   style,
+  disabled = false,
+  disabledReason,
   children,
 }: TreeRowProps) {
   const matchesQuery =
@@ -45,11 +49,16 @@ export function TreeRow({
           isSelected
             ? "bg-accent/10 text-accent shadow-premium shadow-accent-glow border border-accent/20"
             : "text-text-muted hover:bg-bg-hover hover:text-text-primary",
+          disabled && "cursor-not-allowed opacity-45 hover:bg-transparent",
           className,
         )}
         style={{ paddingLeft: `${depth * 12 + 12}px`, ...style }}
+        title={disabledReason ?? undefined}
         onClick={(e) => {
           e.stopPropagation();
+          if (disabled) {
+            return;
+          }
           // If we have select handler, call it. Otherwise toggle if children exist.
           if (onSelect) {
             onSelect();
@@ -71,8 +80,12 @@ export function TreeRow({
             !hasChildren && "opacity-0 pointer-events-none",
             isExpanded && "rotate-90",
           )}
+          disabled={disabled}
           onClick={(e) => {
             e.stopPropagation();
+            if (disabled) {
+              return;
+            }
             onToggle();
           }}
         >

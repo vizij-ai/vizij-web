@@ -7,12 +7,8 @@ const mockedUseBindingAuthoring = vi.fn();
 const mockedUseSceneComposer = vi.fn();
 
 vi.mock("../../state/RigControllerProvider", () => ({
-  useBindingAuthoring: (
-    selector: (state: {
-      managedStandardInputs: unknown[];
-      bindings: Record<string, unknown>;
-    }) => unknown,
-  ) => selector(mockedUseBindingAuthoring()),
+  useBindingAuthoring: (selector: (state: any) => unknown) =>
+    selector(mockedUseBindingAuthoring()),
 }));
 
 vi.mock("../../scene/useSceneComposer", () => ({
@@ -146,6 +142,52 @@ describe("VariableSelector", () => {
       inputId: "autorig_jaw_x",
       targetId: "comp_jaw_x",
     });
+  });
+
+  it("greys out locked properties and blocks selection", () => {
+    mockedUseBindingAuthoring.mockReturnValue({
+      managedStandardInputs: [
+        {
+          input: {
+            id: "autorig_jaw_x",
+            path: "/autorig/face/jaw/x",
+            label: "Jaw X",
+            group: "face",
+            sourceId: "component:face:jaw:rot:comp_jaw_x",
+          },
+          metadata: {
+            elementId: "face_mesh",
+            elementName: "Face",
+            featureKey: "jaw",
+            featureLabel: "Jaw",
+            componentId: "comp_jaw_x",
+            componentKey: "x",
+            animatableId: "jaw_rot",
+          },
+        },
+      ],
+      bindings: {},
+      lockedInspectorTargetIds: new Set(["comp_jaw_x"]),
+      lockedAutorigInputIds: new Set(["autorig_jaw_x"]),
+    });
+    mockedUseSceneComposer.mockReturnValue({
+      objects: [],
+      rootIds: [],
+      getChildren: () => [],
+    });
+
+    const onSelect = vi.fn();
+    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+
+    fireEvent.click(screen.getByText("Group · face"));
+    expect(screen.getByText("Locked")).toBeTruthy();
+    const addButtons = screen.getAllByRole("button", { name: "Add" });
+    expect(addButtons[0]).toHaveProperty("disabled", true);
+
+    fireEvent.click(screen.getByText("Jaw X"));
+    fireEvent.click(addButtons[0]);
+
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("supports property search plus multi-filter by type and leaf", () => {

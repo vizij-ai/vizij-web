@@ -567,6 +567,12 @@ export function InspectorContent({
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
   );
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
+  );
+  const lockedAutorigInputIds = useBindingAuthoring(
+    (state) => state.lockedAutorigInputIds,
+  );
   const handleDeleteCustomStandardInput = useBindingAuthoring(
     (state) => state.handleDeleteCustomStandardInput,
   );
@@ -2156,16 +2162,20 @@ export function InspectorContent({
         input.id,
         inputBindings,
       );
+      const isLockedFromFaceInspector = lockedAutorigInputIds.has(input.id);
       const isDirectRigControlAvailable =
+        !isLockedFromFaceInspector &&
         !controllableResolution.blockedReason &&
         (controllableResolution.inputId === null ||
           controllableResolution.inputId === input.id);
-      const directRigControlReason = controllableResolution.blockedReason
-        ? controllableResolution.blockedReason
-        : controllableResolution.inputId &&
-            controllableResolution.inputId !== input.id
-          ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Use the Parents expression/links below to add local control or adjust "${controllableResolution.inputId}".`
-          : null;
+      const directRigControlReason = isLockedFromFaceInspector
+        ? "Direct input is disabled while this property is locked in the Face Element inspector."
+        : controllableResolution.blockedReason
+          ? controllableResolution.blockedReason
+          : controllableResolution.inputId &&
+              controllableResolution.inputId !== input.id
+            ? `This variable is derived from "${controllableResolution.inputId}" without a local self slot. Use the Parents expression/links below to add local control or adjust "${controllableResolution.inputId}".`
+            : null;
       const {
         downstreamInputs,
         downstreamAutorigInputs,
@@ -2363,6 +2373,19 @@ export function InspectorContent({
         }
 
         if (resolvedSelection.kind === "variable") {
+          const resolvedChildInputId = resolveRigMetadataInputId(
+            resolvedSelection.childInputId,
+            standardInputsById,
+          );
+          if (
+            lockedAutorigInputIds.has(resolvedSelection.childInputId) ||
+            lockedAutorigInputIds.has(resolvedChildInputId)
+          ) {
+            alertDialog(
+              "Cannot add a child driver for a locked face property. Unlock it first in the Face Element inspector.",
+            );
+            return;
+          }
           const existingBinding = inputBindings[resolvedSelection.childInputId];
           const alreadyLinked = hasParentBindingInput(
             existingBinding,
@@ -2398,8 +2421,24 @@ export function InspectorContent({
             return;
           }
           const missingTargetIds: string[] = [];
+          const lockedTargetIds: string[] = [];
+          const lockedAutorigTargets: string[] = [];
           const autorigInputIds = new Set<string>();
           componentTargetIds.forEach((targetId) => {
+            if (lockedInspectorTargetIds.has(targetId)) {
+              lockedTargetIds.push(targetId);
+              return;
+            }
+            const mappedAutorigInputId =
+              autorigInputIdByComponentId.get(targetId);
+            if (
+              mappedAutorigInputId &&
+              lockedAutorigInputIds.has(mappedAutorigInputId)
+            ) {
+              lockedAutorigTargets.push(targetId);
+              return;
+            }
+
             const componentBinding = bindings[targetId];
             if (componentBinding) {
               const slotIdsToClear = new Set<string>();
@@ -2434,6 +2473,12 @@ export function InspectorContent({
           });
           const resolvedAutorigInputIds = Array.from(autorigInputIds);
           if (resolvedAutorigInputIds.length === 0) {
+            if (lockedTargetIds.length > 0 || lockedAutorigTargets.length > 0) {
+              alertDialog(
+                "Selected properties are locked in the Face Element inspector. Unlock them before adding child drivers.",
+              );
+              return;
+            }
             alertDialog(
               "Some selected properties are not currently mapped to autorig inputs.",
             );
@@ -2466,7 +2511,18 @@ export function InspectorContent({
             );
             linkedCount += 1;
           });
-          if (missingTargetIds.length > 0 && linkedCount === 0) {
+          if (
+            (missingTargetIds.length > 0 ||
+              lockedTargetIds.length > 0 ||
+              lockedAutorigTargets.length > 0) &&
+            linkedCount === 0
+          ) {
+            if (lockedTargetIds.length > 0 || lockedAutorigTargets.length > 0) {
+              alertDialog(
+                "Selected properties are locked in the Face Element inspector. Unlock them before adding child drivers.",
+              );
+              return;
+            }
             alertDialog(
               "Some selected properties are not currently mapped to autorig inputs.",
             );
@@ -2741,6 +2797,9 @@ export function InspectorContent({
           fallbackDirectEnabled: true,
         },
       );
+      const effectiveDirectInputEnabled = isLockedFromFaceInspector
+        ? false
+        : pipelineStageSettings.directInputEnabled;
       const poseContribution = computePoseContribution(
         linkedPoseStageItems.map((item) => ({
           targetValue: item.targetValue,
@@ -2756,7 +2815,7 @@ export function InspectorContent({
         parentValues,
         poseContribution,
         directValue: value,
-        directEnabled: pipelineStageSettings.directInputEnabled,
+        directEnabled: effectiveDirectInputEnabled,
         overrideEnabled: pipelineStageSettings.overrideEnabled,
         overrideValue: pipelineStageSettings.overrideValue,
         clampEnabled: pipelineStageSettings.clampEnabled,
@@ -2764,7 +2823,7 @@ export function InspectorContent({
       const compiledPipelineEquation = buildCompiledPipelineEquation({
         hasParents: parentInputIds.length > 0,
         hasPoses: linkedPoseStageItems.length > 0,
-        directEnabled: pipelineStageSettings.directInputEnabled,
+        directEnabled: effectiveDirectInputEnabled,
         clampEnabled: pipelineStageSettings.clampEnabled,
       });
       const legacyMigrationAssessment = assessLegacyBindingMigration(
@@ -2853,6 +2912,9 @@ export function InspectorContent({
       };
 
       const handlePipelineDirectEnabledChange = (enabled: boolean) => {
+        if (isLockedFromFaceInspector) {
+          return;
+        }
         applyPipelineMetadataPatch({
           directInputEnabled: enabled,
         });
@@ -3206,7 +3268,7 @@ export function InspectorContent({
             }))}
             poses={linkedPoseStageItems}
             diagnostics={pipelineDiagnostics}
-            directInputEnabled={pipelineStageSettings.directInputEnabled}
+            directInputEnabled={effectiveDirectInputEnabled}
             directInputPath={directInputRuntimePath}
             directValue={value}
             directDefaultValue={input.defaultValue}
@@ -3215,7 +3277,7 @@ export function InspectorContent({
             directControlDisabled={!isDirectRigControlAvailable}
             directControlReason={directRigControlReason}
             onEnableLocalControl={
-              isDirectRigControlAvailable
+              isLockedFromFaceInspector || isDirectRigControlAvailable
                 ? undefined
                 : () => handleEnableParentLocalControl(input.id)
             }

@@ -27,4 +27,5 @@ export type {
   RuntimeUpdateTier,
   RuntimeUpdatePlan,
   RuntimeGraphBundle,
+  RuntimeOutputWrite,
 } from "./types";

@@ -204,6 +204,13 @@ export type InputDriverFactory = (
   ctx: InputDriverContext,
 ) => InputDriverLifecycle;
 
+export type RuntimeOutputWrite = {
+  id: string;
+  namespace: string;
+  value: RawValue;
+  currentValue?: RawValue;
+};
+
 export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
   namespaceOverride?: string;
 };
@@ -257,6 +264,9 @@ export type VizijRuntimeProviderProps = {
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
+  transformOutputWrite?: (
+    write: RuntimeOutputWrite,
+  ) => RuntimeOutputWrite | null;
   orchestratorScope?: "auto" | "shared" | "isolated";
 };
 

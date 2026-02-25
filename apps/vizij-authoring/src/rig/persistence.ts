@@ -34,6 +34,7 @@ export interface PersistedRigState {
   selectedStandardInputSubgroups?: string[];
   featureLabels?: Record<string, string>;
   disabledStandardInputIds?: string[];
+  lockedInspectorTargetIds?: string[];
   hiddenDriverIds?: string[];
   /** @deprecated retained for backward compatibility with legacy saves */
   derivedStandardInputs?: Record<string, RigBindingDefinition>;

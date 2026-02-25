@@ -68,6 +68,8 @@ interface SelectorRow {
   selectionLabel?: string;
   propertyTypeKey?: string;
   propertyLeafKey?: string;
+  disabled: boolean;
+  disabledReason: string | null;
 }
 
 interface FilterOption {
@@ -193,6 +195,8 @@ const PROPERTY_LEAF_ALIASES: Record<string, string> = {
   yaw: "yaw",
   roll: "roll",
 };
+
+const EMPTY_SET: ReadonlySet<string> = Object.freeze(new Set<string>());
 
 function normalizeSearchText(value: string | null | undefined): string {
   return value?.toLowerCase().trim() ?? "";
@@ -543,6 +547,10 @@ function InputList({
     (state) => state.managedStandardInputs,
   );
   const bindings = useBindingAuthoring((state) => state.bindings);
+  const lockedInspectorTargetIds =
+    useBindingAuthoring((state) => state.lockedInspectorTargetIds) ?? EMPTY_SET;
+  const lockedAutorigInputIds =
+    useBindingAuthoring((state) => state.lockedAutorigInputIds) ?? EMPTY_SET;
   const { objects } = useSceneComposer();
 
   const queryTokens = useMemo(() => splitSearchTokens(search), [search]);
@@ -856,6 +864,18 @@ function InputList({
               .join(" ")
           : variableTargetText;
 
+      const disabledByTargetLock =
+        mode === "properties" &&
+        componentId !== null &&
+        lockedInspectorTargetIds.has(componentId);
+      const disabledByAutorigLock = lockedAutorigInputIds.has(input.id);
+      const rowDisabled = disabledByTargetLock || disabledByAutorigLock;
+      const rowDisabledReason = disabledByTargetLock
+        ? "Locked in Face Element inspector."
+        : disabledByAutorigLock
+          ? "Direct control disabled from Face Element inspector lock."
+          : null;
+
       const searchText = normalizeSearchText(
         [
           label,
@@ -910,6 +930,8 @@ function InputList({
           mode === "properties" ? `${label} · ${displayPath}` : undefined,
         propertyTypeKey: propertyTypeKey ?? undefined,
         propertyLeafKey: propertyLeafKey ?? undefined,
+        disabled: rowDisabled,
+        disabledReason: rowDisabledReason,
       });
     });
 
@@ -952,6 +974,8 @@ function InputList({
     queryTokens,
     selectedPropertyLeafFilters,
     selectedPropertyTypeFilters,
+    lockedAutorigInputIds,
+    lockedInspectorTargetIds,
     targetMetadataByInputId,
   ]);
 
@@ -960,7 +984,7 @@ function InputList({
       mode === "properties"
         ? groups
             .flatMap((group) => group.rows)
-            .filter((row) => Boolean(row.targetId))
+            .filter((row) => Boolean(row.targetId) && !row.disabled)
         : [],
     [groups, mode],
   );
@@ -973,7 +997,16 @@ function InputList({
     [filteredPropertyRows],
   );
 
-  const selectedPropertyCount = selectedPropertyTargetIds.size;
+  const selectedPropertyCount = useMemo(() => {
+    if (selectedPropertyTargetIds.size === 0) {
+      return 0;
+    }
+    return filteredPropertyTargetIds.reduce(
+      (count, targetId) =>
+        selectedPropertyTargetIds.has(targetId) ? count + 1 : count,
+      0,
+    );
+  }, [filteredPropertyTargetIds, selectedPropertyTargetIds]);
 
   const groupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -1062,16 +1095,21 @@ function InputList({
       return;
     }
 
-    const ordered = Array.from(selectedPropertyTargetIds).sort(compareText);
-    const selectedInputIds = Array.from(
+    const selectedRows = filteredPropertyRows.filter(
+      (row) => row.targetId && selectedPropertyTargetIds.has(row.targetId),
+    );
+    if (selectedRows.length === 0) {
+      return;
+    }
+    const ordered = Array.from(
       new Set(
-        filteredPropertyRows
-          .filter(
-            (row) =>
-              row.targetId && selectedPropertyTargetIds.has(row.targetId),
-          )
-          .map((row) => row.id),
+        selectedRows
+          .map((row) => row.targetId)
+          .filter((targetId): targetId is string => Boolean(targetId)),
       ),
+    ).sort(compareText);
+    const selectedInputIds = Array.from(
+      new Set(selectedRows.map((row) => row.id)),
     ).sort(compareText);
     if (ordered.length === 1) {
       const singleRow = filteredPropertyRows.find(
@@ -1101,7 +1139,7 @@ function InputList({
   };
 
   const handleAddSingleProperty = (row: SelectorRow) => {
-    if (!row.targetId) {
+    if (!row.targetId || row.disabled) {
       return;
     }
     onSelect({
@@ -1281,8 +1319,13 @@ function InputList({
                       label={row.label}
                       hasChildren={false}
                       isSelected={isPropertySelected}
+                      disabled={row.disabled}
+                      disabledReason={row.disabledReason ?? undefined}
                       onToggle={() => undefined}
                       onSelect={() => {
+                        if (row.disabled) {
+                          return;
+                        }
                         if (mode === "variables") {
                           onSelect({ type: "variable", id: row.id });
                           return;
@@ -1302,6 +1345,14 @@ function InputList({
                       highlightQuery=""
                       actions={
                         <div className="flex items-center gap-1 max-w-[220px]">
+                          {row.disabled ? (
+                            <span
+                              className="text-[9px] px-1.5 py-0.5 rounded border border-border-default/70 bg-bg-input/70 text-text-muted"
+                              title={row.disabledReason ?? undefined}
+                            >
+                              Locked
+                            </span>
+                          ) : null}
                           {mode === "properties" && row.targetId ? (
                             <Button
                               size="sm"
@@ -1309,8 +1360,12 @@ function InputList({
                                 isPropertySelected ? "secondary" : "ghost"
                               }
                               className="h-5 px-1.5 text-[9px]"
+                              disabled={row.disabled}
                               onClick={(event) => {
                                 event.stopPropagation();
+                                if (row.disabled) {
+                                  return;
+                                }
                                 togglePropertySelection(row.targetId!);
                               }}
                             >
@@ -1323,8 +1378,12 @@ function InputList({
                               size="sm"
                               variant="ghost"
                               className="h-5 px-1.5 text-[9px]"
+                              disabled={row.disabled}
                               onClick={(event) => {
                                 event.stopPropagation();
+                                if (row.disabled) {
+                                  return;
+                                }
                                 handleAddSingleProperty(row);
                               }}
                             >

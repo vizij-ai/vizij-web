@@ -489,6 +489,7 @@ export function VariablePipelineStages({
             onChange={onDirectInputEnabledChange}
             label={directInputEnabled ? "Enabled" : "Disabled"}
             size="sm"
+            disabled={directControlDisabled}
           />
           <span className="text-[10px] text-text-secondary">
             Inspector-only runtime control.
