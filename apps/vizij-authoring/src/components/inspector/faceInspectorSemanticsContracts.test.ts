@@ -29,16 +29,19 @@ const inspectorContentTsx = readFileSync(
 );
 
 describe("B1.4 face inspector truthfulness + lock contracts", () => {
-  it("renders explicit current-value source labels", () => {
-    expect(transformSectionTsx).toContain("Current Source:");
-    expect(morphSectionTsx).toContain("Current Source:");
-    expect(materialSectionTsx).toContain("Current Source:");
+  it("removes explicit current-value source sublabels from property rows", () => {
+    expect(transformSectionTsx).not.toContain("Current Source: {");
+    expect(morphSectionTsx).not.toContain("Current Source: {");
+    expect(materialSectionTsx).not.toContain("Current Source: {");
   });
 
-  it("uses per-channel lock toggles backed by authoring store state", () => {
+  it("uses per-row lock toggles backed by authoring store state", () => {
     expect(transformSectionTsx).toContain("handleSetInspectorTargetLocked");
     expect(morphSectionTsx).toContain("handleSetInspectorTargetLocked");
     expect(materialSectionTsx).toContain("handleSetInspectorTargetLocked");
+    expect(transformSectionTsx).toContain("renderRowAction");
+    expect(morphSectionTsx).toContain("renderRowAction");
+    expect(materialSectionTsx).toContain("renderRowAction");
     expect(transformSectionTsx).not.toContain("setFeatureAnimated(");
     expect(morphSectionTsx).not.toContain("setFeatureAnimated(");
     expect(materialSectionTsx).not.toContain("setFeatureAnimated(");

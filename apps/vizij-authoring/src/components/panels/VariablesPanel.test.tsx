@@ -402,7 +402,7 @@ describe("VariablesPanel", () => {
     expect(scoped.getByTitle("Jaw Open")).toBeTruthy();
   });
 
-  it("keeps autorig inputs visible when only part of a face element is locked", () => {
+  it("hides individually locked autorig components when only part of a face element is locked", () => {
     const partialX = makeInput("autorig_eye_x", "/autorig/eye/open_x", {
       label: "Eye Open X",
     });
@@ -432,6 +432,9 @@ describe("VariablesPanel", () => {
     );
     const scoped = within(view.container);
     const search = scoped.getByPlaceholderText("Search inputs...");
+
+    fireEvent.change(search, { target: { value: "Eye Open X" } });
+    expect(scoped.queryByTitle("Eye Open X")).toBeNull();
 
     fireEvent.change(search, { target: { value: "Eye Open Y" } });
     expect(scoped.getByTitle("Eye Open Y")).toBeTruthy();

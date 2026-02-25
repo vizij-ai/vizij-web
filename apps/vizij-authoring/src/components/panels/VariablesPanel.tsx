@@ -302,6 +302,29 @@ function collectFullyLockedFaceElementIds(
   return lockedElementIds;
 }
 
+function collectLockedAutorigComponentIds(
+  managedInputs: readonly ManagedStandardInput[],
+  lockedTargetIds: ReadonlySet<string>,
+): Set<string> {
+  if (lockedTargetIds.size === 0) {
+    return new Set<string>();
+  }
+  const lockedComponentIds = new Set<string>();
+  managedInputs.forEach((entry) => {
+    if (!isAutorigStandardInputPath(entry.input.path)) {
+      return;
+    }
+    const componentId = entry.metadata?.componentId?.trim();
+    if (!componentId) {
+      return;
+    }
+    if (lockedTargetIds.has(componentId)) {
+      lockedComponentIds.add(componentId);
+    }
+  });
+  return lockedComponentIds;
+}
+
 const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
   auto: "bg-sky-900/40 text-sky-200",
   preset: "bg-emerald-900/40 text-emerald-200",
@@ -1273,6 +1296,14 @@ export function VariablesPanel({
       ),
     [lockedInspectorTargetIds, managedStandardInputs],
   );
+  const lockedAutorigComponentIds = useMemo(
+    () =>
+      collectLockedAutorigComponentIds(
+        managedStandardInputs,
+        lockedInspectorTargetIds,
+      ),
+    [lockedInspectorTargetIds, managedStandardInputs],
+  );
 
   const managedInputRows = useMemo(
     () =>
@@ -1281,6 +1312,10 @@ export function VariablesPanel({
         .filter((entry) => {
           if (!isAutorigStandardInputPath(entry.input.path)) {
             return true;
+          }
+          const componentId = entry.metadata?.componentId?.trim();
+          if (componentId && lockedAutorigComponentIds.has(componentId)) {
+            return false;
           }
           const elementId = entry.metadata?.elementId?.trim();
           if (!elementId) {
@@ -1323,6 +1358,7 @@ export function VariablesPanel({
     [
       fullyLockedFaceElementIds,
       inputValues,
+      lockedAutorigComponentIds,
       managedStandardInputs,
       poseNameById,
     ],

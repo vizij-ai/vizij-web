@@ -12,6 +12,7 @@ export interface RiggingPropertyRowProps {
   renderMinInput?: () => React.ReactNode;
   renderMaxInput?: () => React.ReactNode;
   renderAnimatableRow?: () => React.ReactNode;
+  renderRowAction?: () => React.ReactNode;
   defaultLabel?: string;
   hasDifferentDefault?: boolean;
   onResetToDefault?: () => void;
@@ -127,6 +128,7 @@ export function RiggingPropertyRow({
   renderMinInput,
   renderMaxInput,
   renderAnimatableRow,
+  renderRowAction,
   defaultLabel = "Def",
 
   hasDifferentDefault,
@@ -145,6 +147,7 @@ export function RiggingPropertyRow({
 }: RiggingPropertyRowProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = controlledExpanded ?? internalExpanded;
+  const canToggleExpanded = Boolean(renderDefaultInput);
 
   const handleToggle = () => {
     if (onExpandedChange) {
@@ -165,9 +168,12 @@ export function RiggingPropertyRow({
       <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-1.5 p-1 pl-1.5 min-h-[32px]">
         {/* Label Container */}
         <div className="flex items-center gap-2 @[300px]:w-20 w-full flex-shrink-0 min-w-0">
-          {renderDefaultInput ? (
+          {canToggleExpanded ? (
             <BaseButton
-              onClick={handleToggle}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleToggle();
+              }}
               className={cn(
                 "p-0.5 -ml-1 text-text-secondary hover:text-text-primary transition-colors rounded hover:bg-bg-hover cursor-pointer",
                 isExpanded && "text-text-primary",
@@ -185,13 +191,29 @@ export function RiggingPropertyRow({
             {hasDifferentDefault && (
               <div className="w-1 h-1 rounded-full bg-accent flex-shrink-0" />
             )}
-            <ScrubbableLabel
-              label={label}
-              onScrub={onScrub}
-              onScrubStart={onScrubStart}
-              onScrubEnd={onScrubEnd}
-              className="text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors"
-            />
+            {canToggleExpanded ? (
+              <BaseButton
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleToggle();
+                }}
+                className={cn(
+                  "min-w-0 text-left rounded px-0.5 -mx-0.5",
+                  "text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors hover:bg-bg-hover cursor-pointer",
+                )}
+                title={`Toggle ${label} edit controls`}
+              >
+                {label}
+              </BaseButton>
+            ) : (
+              <ScrubbableLabel
+                label={label}
+                onScrub={onScrub}
+                onScrubStart={onScrubStart}
+                onScrubEnd={onScrubEnd}
+                className="text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors"
+              />
+            )}
           </div>
         </div>
 
@@ -217,6 +239,9 @@ export function RiggingPropertyRow({
             >
               <RotateCcw size={10} />
             </BaseButton>
+          )}
+          {renderRowAction && (
+            <div className="ml-1 flex items-center">{renderRowAction()}</div>
           )}
         </div>
       </div>

@@ -381,12 +381,29 @@ function RiggingVectorRow({
     }
   };
 
-  const renderInputs = (type: "current" | "default" | "min" | "max") => {
-    const sourceSummary = components
-      .map((c) => `${c.componentLabel}: ${c.currentValueSource}`)
-      .join(" | ");
+  const lockableTargetIds = components
+    .map((component) => component.targetId)
+    .filter((targetId): targetId is string => Boolean(targetId));
+  const lockedTargetCount = lockableTargetIds.reduce(
+    (count, targetId) =>
+      lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
+    0,
+  );
+  const areAllLockableTargetsLocked =
+    lockableTargetIds.length > 0 &&
+    lockedTargetCount === lockableTargetIds.length;
+  const toggleRowLock = () => {
+    if (lockableTargetIds.length === 0) {
+      return;
+    }
+    const nextLocked = !areAllLockableTargetsLocked;
+    lockableTargetIds.forEach((targetId) => {
+      handleSetInspectorTargetLocked(targetId, nextLocked);
+    });
+  };
 
-    const row = (
+  const renderInputs = (type: "current" | "default" | "min" | "max") => {
+    return (
       <div className="flex gap-1.5 flex-1">
         {components.map((c, i) => {
           let val: number | undefined;
@@ -595,54 +612,43 @@ function RiggingVectorRow({
         })}
       </div>
     );
-
-    if (type !== "current") {
-      return row;
-    }
-
-    return (
-      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-        {row}
-        <div
-          className="px-1 text-[9px] text-text-muted font-mono truncate"
-          title={sourceSummary}
-        >
-          Current Source: {sourceSummary}
-        </div>
-      </div>
-    );
   };
 
   const renderAnimatableRow = () => (
     <div className="flex gap-1.5 flex-1">
-      {components.map((c, i) => (
+      {components.map((component, index) => (
         <button
-          key={i}
-          title={`Current Source: ${c.currentValueSource}`}
+          key={index}
+          type="button"
+          title={`Toggle ${component.componentLabel} channel lock`}
           className={cn(
             "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            c.isLocked
+            component.isLocked
               ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
               : "bg-accent/10 text-accent hover:bg-accent/20",
           )}
-          disabled={!c.targetId}
+          disabled={!component.targetId}
           onClick={() => {
-            if (!c.targetId) {
+            if (!component.targetId) {
               return;
             }
-            handleSetInspectorTargetLocked(c.targetId, !c.isLocked);
+            handleSetInspectorTargetLocked(
+              component.targetId,
+              !component.isLocked,
+            );
           }}
         >
-          {c.isLocked ? (
+          {component.isLocked ? (
             <Lock size={10} className="shrink-0" />
           ) : (
             <LockOpen size={10} className="shrink-0" />
           )}
-          <span>{c.componentLabel}</span>
+          <span>{component.componentLabel}</span>
         </button>
       ))}
     </div>
   );
+
   return (
     <RiggingPropertyRow
       label={label}
@@ -658,6 +664,30 @@ function RiggingVectorRow({
       renderMinInput={() => renderInputs("min")}
       renderMaxInput={() => renderInputs("max")}
       renderAnimatableRow={renderAnimatableRow}
+      renderRowAction={() => (
+        <button
+          type="button"
+          className={cn(
+            "p-1 rounded transition-colors",
+            areAllLockableTargetsLocked
+              ? "text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
+              : "text-text-muted hover:text-accent hover:bg-accent/10",
+          )}
+          title={
+            areAllLockableTargetsLocked
+              ? `Unlock ${label} channels`
+              : `Lock ${label} channels`
+          }
+          disabled={lockableTargetIds.length === 0}
+          onClick={toggleRowLock}
+        >
+          {areAllLockableTargetsLocked ? (
+            <Lock size={10} />
+          ) : (
+            <LockOpen size={10} />
+          )}
+        </button>
+      )}
     />
   );
 }

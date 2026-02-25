@@ -261,6 +261,13 @@ function RiggingScalarRow({
     }
   };
 
+  const toggleRowLock = () => {
+    if (!targetId) {
+      return;
+    }
+    handleSetInspectorTargetLocked(targetId, !isChannelLocked);
+  };
+
   const renderInput = (type: "current" | "default" | "min" | "max") => {
     let val: number | undefined;
     let canEdit = true;
@@ -279,7 +286,7 @@ function RiggingScalarRow({
       canEdit = true;
     }
 
-    const row = (
+    return (
       <div
         title={
           type === "current"
@@ -416,51 +423,7 @@ function RiggingScalarRow({
         />
       </div>
     );
-
-    if (type !== "current") {
-      return row;
-    }
-
-    return (
-      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-        {row}
-        <div
-          className="px-1 text-[9px] text-text-muted font-mono truncate"
-          title={authority.sourceLabel}
-        >
-          Current Source: {authority.sourceLabel}
-        </div>
-      </div>
-    );
   };
-
-  const renderAnimatableRow = () => (
-    <div className="flex gap-1.5 flex-1">
-      <button
-        title={`Current Source: ${authority.sourceLabel}`}
-        className={cn(
-          "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-          isChannelLocked
-            ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
-            : "bg-accent/10 text-accent hover:bg-accent/20",
-        )}
-        disabled={!targetId}
-        onClick={() => {
-          if (!targetId) {
-            return;
-          }
-          handleSetInspectorTargetLocked(targetId, !isChannelLocked);
-        }}
-      >
-        {isChannelLocked ? (
-          <Lock size={10} className="shrink-0" />
-        ) : (
-          <LockOpen size={10} className="shrink-0" />
-        )}
-        <span>Value</span>
-      </button>
-    </div>
-  );
 
   return (
     <RiggingPropertyRow
@@ -476,7 +439,22 @@ function RiggingScalarRow({
       renderDefaultInput={() => renderInput("default")}
       renderMinInput={() => renderInput("min")}
       renderMaxInput={() => renderInput("max")}
-      renderAnimatableRow={renderAnimatableRow}
+      renderRowAction={() => (
+        <button
+          type="button"
+          className={cn(
+            "p-1 rounded transition-colors",
+            isChannelLocked
+              ? "text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
+              : "text-text-muted hover:text-accent hover:bg-accent/10",
+          )}
+          title={isChannelLocked ? `Unlock ${label}` : `Lock ${label}`}
+          disabled={!targetId}
+          onClick={toggleRowLock}
+        >
+          {isChannelLocked ? <Lock size={10} /> : <LockOpen size={10} />}
+        </button>
+      )}
     />
   );
 }
