@@ -526,41 +526,102 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedId,
     selectedRigId,
     selectedPoseId,
+    selectedMaterialId,
     handleSelectObject,
     handleSelectPose,
     handleSelectRig,
+    handleSelectMaterial,
     handleClearSelection,
   } = useUnifiedSelection();
   const selectedSceneId = selectedId;
+  const clearPoseGraphInspectorSelection = useCallback(() => {
+    setSelectedPoseGroup(null);
+    setSelectedBlendStage(null);
+  }, []);
+  const handleSelectObjectWithInspectorSync = useCallback(
+    (id: string, options?: { additive?: boolean }) => {
+      if (id) {
+        clearPoseGraphInspectorSelection();
+      }
+      handleSelectObject(id, options);
+    },
+    [clearPoseGraphInspectorSelection, handleSelectObject],
+  );
+  const handleSelectRigWithInspectorSync = useCallback(
+    (id: string | null) => {
+      if (id) {
+        clearPoseGraphInspectorSelection();
+      }
+      handleSelectRig(id);
+    },
+    [clearPoseGraphInspectorSelection, handleSelectRig],
+  );
+  const handleClearSelectionWithInspectorSync = useCallback(() => {
+    clearPoseGraphInspectorSelection();
+    handleClearSelection();
+  }, [clearPoseGraphInspectorSelection, handleClearSelection]);
   const handleSelectPoseWithInspectorSync = useCallback(
     (id: string) => {
       if (id) {
-        setSelectedPoseGroup(null);
-        setSelectedBlendStage(null);
+        clearPoseGraphInspectorSelection();
       }
       handleSelectPose(id);
     },
-    [handleSelectPose],
+    [clearPoseGraphInspectorSelection, handleSelectPose],
   );
   const handleSelectPoseGroupWithInspectorSync = useCallback(
     (selection: PoseGroupInspectorSelection | null) => {
       if (selection) {
+        if (selectedId) {
+          handleClearSelection();
+        }
+        if (selectedRigId) {
+          handleSelectRig(null);
+        }
+        if (selectedMaterialId) {
+          handleSelectMaterial(null);
+        }
         poseRig.selectPose("");
         setSelectedBlendStage(null);
       }
       setSelectedPoseGroup(selection);
     },
-    [poseRig],
+    [
+      handleClearSelection,
+      handleSelectMaterial,
+      handleSelectRig,
+      poseRig,
+      selectedId,
+      selectedMaterialId,
+      selectedRigId,
+    ],
   );
   const handleSelectBlendStageWithInspectorSync = useCallback(
     (selection: BlendStageInspectorSelection | null) => {
       if (selection) {
+        if (selectedId) {
+          handleClearSelection();
+        }
+        if (selectedRigId) {
+          handleSelectRig(null);
+        }
+        if (selectedMaterialId) {
+          handleSelectMaterial(null);
+        }
         poseRig.selectPose("");
         setSelectedPoseGroup(null);
       }
       setSelectedBlendStage(selection);
     },
-    [poseRig],
+    [
+      handleClearSelection,
+      handleSelectMaterial,
+      handleSelectRig,
+      poseRig,
+      selectedId,
+      selectedMaterialId,
+      selectedRigId,
+    ],
   );
 
   const sharedVariableSync = useSharedVariableSync({
@@ -950,9 +1011,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 namespace={DEFAULT_NAMESPACE}
                 bundle={rootId ? runtimeBundle : null}
                 selectedSceneId={selectedSceneId}
-                onSelectScene={handleSelectObject}
+                onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
-                onClearSelection={handleClearSelection}
+                onClearSelection={handleClearSelectionWithInspectorSync}
                 showSelectionGlow={showSelectionGlow}
                 onImportClick={handleImportClick}
                 onLoadQuori={handleLoadQuori}
@@ -998,9 +1059,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             namespace={DEFAULT_NAMESPACE}
             bundle={rootId ? runtimeBundle : null}
             selectedSceneId={selectedSceneId}
-            onSelectScene={handleSelectObject}
+            onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}
-            onClearSelection={handleClearSelection}
+            onClearSelection={handleClearSelectionWithInspectorSync}
             showSelectionGlow={showSelectionGlow}
             onImportClick={handleImportClick}
             onLoadQuori={handleLoadQuori}
@@ -1031,7 +1092,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             <HierarchyPanel
               showSelectionGlow={showSelectionGlow}
               onToggleSelectionGlow={setShowSelectionGlow}
-              onSelectObject={handleSelectObject}
+              onSelectObject={handleSelectObjectWithInspectorSync}
               referenceFaceFile={referenceFaceContextValue.file}
             />
           }
@@ -1040,9 +1101,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               selectedRigId={selectedRigId}
               selectedPoseId={selectedPoseId}
               selectedSceneId={selectedSceneId}
-              onSelectRig={handleSelectRig}
+              onSelectRig={handleSelectRigWithInspectorSync}
               onSelectPose={handleSelectPoseWithInspectorSync}
-              onSelectScene={handleSelectObject}
+              onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={controlAuthoringSurfaces}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
@@ -1060,9 +1121,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               selectedRigId={selectedRigId}
               selectedPoseId={selectedPoseId}
               selectedSceneId={selectedSceneId}
-              onSelectRig={handleSelectRig}
+              onSelectRig={handleSelectRigWithInspectorSync}
               onSelectPose={handleSelectPoseWithInspectorSync}
-              onSelectScene={handleSelectObject}
+              onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
               panelDescription="Preview and adjust live rig and pose-weight inputs."

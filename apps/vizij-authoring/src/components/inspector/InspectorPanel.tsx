@@ -6,7 +6,10 @@ import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
 import { EmptyState } from "../ui/EmptyState";
 import { usePoseRig } from "../../state/PoseRigProvider";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useSelectionStore,
+} from "../../state/RigControllerProvider";
 import { cn } from "../../utils/cn";
 import type {
   PoseDefinition,
@@ -155,6 +158,12 @@ export function InspectorPanel({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
+  const selectedMaterialId = useBindingAuthoring(
+    (state) => state.selectedMaterialId,
+  );
+  const selectionStack = useSelectionStore((state) => state.selectionStack);
+  const selectedSceneId = selectionStack[0]?.id ?? null;
 
   const poseLookup = useMemo(() => {
     const lookup = new Map<string, PoseDefinition>();
@@ -741,11 +750,14 @@ export function InspectorPanel({
     standardInputs,
   ]);
 
+  const hasCompetingInspectorSelection = Boolean(
+    selectedPoseId || selectedRigId || selectedMaterialId || selectedSceneId,
+  );
   const isPoseGroupInspectorMode = Boolean(
-    selectedPoseGroup && !selectedPoseId,
+    selectedPoseGroup && !hasCompetingInspectorSelection,
   );
   const isBlendStageInspectorMode = Boolean(
-    selectedBlendStage && !selectedPoseGroup && !selectedPoseId,
+    selectedBlendStage && !selectedPoseGroup && !hasCompetingInspectorSelection,
   );
   const isDedicatedInspectorMode =
     isPoseGroupInspectorMode || isBlendStageInspectorMode;
