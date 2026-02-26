@@ -541,6 +541,79 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });
 
+  it("surfaces reference child mappings from runtime bindings when bundle links are missing", () => {
+    const source = makeInput("ref_blink", "/standard/eyes/blink", {
+      label: "Blink",
+    });
+    const sourcePropsChild = makeInput(
+      "ref_props_child",
+      "/propsrig/left_eye/lid_lower",
+      {
+        label: "Ref Child Prop",
+        parentBinding: {
+          inputId: source.id,
+          slots: [
+            {
+              id: "slot_parent",
+              alias: "parent",
+              inputId: source.id,
+            },
+          ],
+          expression: "parent",
+        },
+      },
+    );
+    const destinationSource = makeInput("main_blink", "/standard/eyes/blink", {
+      label: "Main Blink",
+    });
+    const destinationPropsChild = makeInput(
+      "main_props_child",
+      "/propsrig/left_eye/lid_lower",
+      {
+        label: "Main Child Prop",
+      },
+    );
+
+    referenceFaceState.standardInputs = [source, sourcePropsChild];
+    referenceFaceState.standardInputsById = new Map([
+      [source.id, source],
+      [sourcePropsChild.id, sourcePropsChild],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      source,
+      sourcePropsChild,
+    ]);
+
+    bindingState.managedStandardInputs = [
+      { input: destinationSource, source: "custom" },
+      { input: destinationPropsChild, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [destinationSource.id, destinationSource],
+      [destinationPropsChild.id, destinationPropsChild],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [destinationSource.path, destinationSource],
+      [destinationPropsChild.path, destinationPropsChild],
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/eyes/blink" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle("Copy driver to main face"),
+    );
+
+    expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
+  });
+
   it("surfaces reference poses and opens the pose copy modal from row copy action", () => {
     const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
       label: "Smile",
@@ -697,6 +770,51 @@ describe("VariablesPanel", () => {
       0.25,
     );
     expect(poseRigState.deletePose).not.toHaveBeenCalled();
+  });
+
+  it("allows pose copy mappings to propsrig destinations", () => {
+    const sourceProps = makeInput("ref_prop_target", "/propsrig/jaw/open", {
+      label: "Ref Prop Target",
+    });
+    const destinationProps = makeInput(
+      "main_prop_target",
+      "/propsrig/jaw/open",
+      {
+        label: "Main Prop Target",
+      },
+    );
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceProps],
+      [],
+      [
+        {
+          id: "ref_pose_props",
+          name: "Ref Props Pose",
+          targets: [{ inputId: sourceProps.id, value: 0.66 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationProps, source: "custom" },
+    ];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(poseRigState.createPose).toHaveBeenCalledWith("Ref Props Pose");
+    const createdPoseId = poseRigState.updatePoseGroup.mock.calls[0]?.[0];
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      createdPoseId,
+      destinationProps.id,
+      0.66,
+    );
   });
 
   it("blocks pose copy confirm when unresolved mappings remain", () => {

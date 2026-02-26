@@ -815,6 +815,15 @@ function createPoseCopyTargetRowDraft(
   };
 }
 
+function isPrimaryVariableDestinationInput(
+  input: Pick<ReferenceCatalogInput, "path">,
+): boolean {
+  return (
+    !isPropsRigStandardInputPath(input.path) &&
+    !isPoseControlInputPath(input.path)
+  );
+}
+
 function isUnresolvedMappingStatus(
   status: VariableCopyProposal["destinationRow"]["status"],
 ): boolean {
@@ -850,16 +859,24 @@ function createVariableCopyModalState(params: {
   params.proposal.childRows.forEach((row) => {
     childRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(row);
   });
+  const proposedDestinationInput =
+    params.proposal.destinationRow.destinationInputId === null
+      ? null
+      : (params.destinationCatalog.inputsById.get(
+          params.proposal.destinationRow.destinationInputId,
+        ) ?? null);
+  const hasPrimaryDestinationProposal =
+    proposedDestinationInput !== null &&
+    isPrimaryVariableDestinationInput(proposedDestinationInput);
   return {
     sourceReferenceEntry: params.sourceReferenceEntry,
     proposal: params.proposal,
     destinationCatalog: params.destinationCatalog,
     launchSource: params.launchSource,
-    destinationMode:
-      params.proposal.destinationRow.destinationInputId !== null
-        ? "existing"
-        : "new",
-    destinationInputId: params.proposal.destinationRow.destinationInputId ?? "",
+    destinationMode: hasPrimaryDestinationProposal ? "existing" : "new",
+    destinationInputId: hasPrimaryDestinationProposal
+      ? proposedDestinationInput.id
+      : "",
     newDestinationPath: params.proposal.sourceInputPath,
     newDestinationLabel: params.proposal.sourceInputLabel,
     valueMerge: {
@@ -1971,16 +1988,35 @@ export function VariablesPanel({
       }));
   }, [managedStandardInputs]);
 
-  const mainFaceReferenceCatalog = useMemo(
+  const mainFaceCopyTargetReferenceCatalog = useMemo(
     () =>
       buildMainFaceReferenceCatalog({
-        mainInputs: mainFaceRigEntries.map((entry) => entry.input),
+        mainInputs: managedStandardInputs
+          .filter((entry) => Boolean(entry.input.path?.trim()))
+          .filter((entry) => !isPoseControlInputPath(entry.input.path))
+          .map((entry) => entry.input),
         inputBindings: inputBindings as Record<
           string,
           BindingInputLike | undefined
         >,
       }),
-    [inputBindings, mainFaceRigEntries],
+    [inputBindings, managedStandardInputs],
+  );
+
+  const referenceFaceRuntimeCatalog = useMemo(
+    () =>
+      buildMainFaceReferenceCatalog({
+        mainInputs: referenceFace.standardInputs
+          .filter((entry) => Boolean(entry.path?.trim()))
+          .filter((entry) => !isPoseControlInputPath(entry.path)),
+        inputBindings: Object.fromEntries(
+          referenceFace.standardInputs.map((input) => [
+            input.id,
+            (input.parentBinding ?? undefined) as BindingInputLike | undefined,
+          ]),
+        ) as Record<string, BindingInputLike | undefined>,
+      }),
+    [referenceFace.standardInputs],
   );
 
   const referenceRigEntries = useMemo(() => {
@@ -2307,22 +2343,45 @@ export function VariablesPanel({
       if (referenceEntry.source !== "reference") {
         return;
       }
-      const sourceCatalog = referenceFace.referenceCatalog;
-      const sourceCatalogInputId = resolveVariableCopySourceCatalogInputId({
-        sourceCatalog,
-        sourceReferenceEntry: referenceEntry,
-      });
-      if (!sourceCatalogInputId) {
-        return;
-      }
-      let proposal: VariableCopyProposal;
-      try {
-        proposal = buildVariableCopyProposal({
+      const tryBuildProposal = (
+        sourceCatalog: ReferenceCatalog,
+      ): VariableCopyProposal | null => {
+        const sourceCatalogInputId = resolveVariableCopySourceCatalogInputId({
           sourceCatalog,
-          destinationCatalog: mainFaceReferenceCatalog,
-          sourceInputId: sourceCatalogInputId,
+          sourceReferenceEntry: referenceEntry,
         });
-      } catch {
+        if (!sourceCatalogInputId) {
+          return null;
+        }
+        try {
+          return buildVariableCopyProposal({
+            sourceCatalog,
+            destinationCatalog: mainFaceCopyTargetReferenceCatalog,
+            sourceInputId: sourceCatalogInputId,
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      const primarySourceCatalog = referenceFace.referenceCatalog;
+      let proposal = tryBuildProposal(primarySourceCatalog);
+      if (!proposal) {
+        proposal = tryBuildProposal(referenceFaceRuntimeCatalog);
+      } else if (
+        proposal.parentRows.length === 0 &&
+        proposal.childRows.length === 0
+      ) {
+        const runtimeProposal = tryBuildProposal(referenceFaceRuntimeCatalog);
+        if (
+          runtimeProposal &&
+          (runtimeProposal.parentRows.length > 0 ||
+            runtimeProposal.childRows.length > 0)
+        ) {
+          proposal = runtimeProposal;
+        }
+      }
+      if (!proposal) {
         return;
       }
       setVariableCopyBlockingMessages([]);
@@ -2330,12 +2389,16 @@ export function VariablesPanel({
         createVariableCopyModalState({
           sourceReferenceEntry: referenceEntry,
           proposal,
-          destinationCatalog: mainFaceReferenceCatalog,
+          destinationCatalog: mainFaceCopyTargetReferenceCatalog,
           launchSource,
         }),
       );
     },
-    [mainFaceReferenceCatalog, referenceFace.referenceCatalog],
+    [
+      mainFaceCopyTargetReferenceCatalog,
+      referenceFace.referenceCatalog,
+      referenceFaceRuntimeCatalog,
+    ],
   );
 
   const closeVariableCopyModal = useCallback(() => {
@@ -2364,6 +2427,12 @@ export function VariablesPanel({
         if (!existingDestinationInput) {
           blockingMessages.push(
             "Destination unresolved: selected destination input is unavailable.",
+          );
+        } else if (
+          !isPrimaryVariableDestinationInput(existingDestinationInput)
+        ) {
+          blockingMessages.push(
+            "Destination unresolved: selected destination cannot be used as the primary variable target.",
           );
         }
       }
@@ -2583,7 +2652,7 @@ export function VariablesPanel({
       try {
         proposal = buildPoseCopyProposal({
           sourceCatalog: referenceFace.referenceCatalog,
-          destinationCatalog: mainFaceReferenceCatalog,
+          destinationCatalog: mainFaceCopyTargetReferenceCatalog,
           sourcePoseId: sourcePose.id,
           destinationPoseName: sourcePose.name,
         });
@@ -2595,12 +2664,12 @@ export function VariablesPanel({
         createPoseCopyModalState({
           sourcePose,
           proposal,
-          destinationCatalog: mainFaceReferenceCatalog,
+          destinationCatalog: mainFaceCopyTargetReferenceCatalog,
           launchSource,
         }),
       );
     },
-    [mainFaceReferenceCatalog, referenceFace.referenceCatalog],
+    [mainFaceCopyTargetReferenceCatalog, referenceFace.referenceCatalog],
   );
 
   const closePoseCopyModal = useCallback(() => {
@@ -3805,23 +3874,36 @@ export function VariablesPanel({
     },
     [],
   );
-  const variableCopyDestinationOptions = useMemo(
+  const variableCopyPrimaryDestinationOptions = useMemo(
     () =>
       variableCopyModal
-        ? [...variableCopyModal.destinationCatalog.inputs].sort(
-            sortCatalogInputs,
-          )
+        ? [...variableCopyModal.destinationCatalog.inputs]
+            .filter(isPrimaryVariableDestinationInput)
+            .sort(sortCatalogInputs)
         : [],
     [variableCopyModal],
   );
-  const variableCopyDestinationComboboxOptions = useMemo(
+  const variableCopyPrimaryDestinationComboboxOptions = useMemo(
     () =>
-      variableCopyDestinationOptions.map((input) => ({
+      variableCopyPrimaryDestinationOptions.map((input) => ({
         value: input.id,
         label: input.path,
         description: input.label,
       })),
-    [variableCopyDestinationOptions],
+    [variableCopyPrimaryDestinationOptions],
+  );
+  const variableCopyRelationshipDestinationComboboxOptions = useMemo(
+    () =>
+      variableCopyModal
+        ? [...variableCopyModal.destinationCatalog.inputs]
+            .sort(sortCatalogInputs)
+            .map((input) => ({
+              value: input.id,
+              label: input.path,
+              description: input.label,
+            }))
+        : [],
+    [variableCopyModal],
   );
   const variableCopyUnresolvedCount = variableCopyModal
     ? [
@@ -4873,7 +4955,7 @@ export function VariablesPanel({
                           : current,
                       );
                     }}
-                    options={variableCopyDestinationComboboxOptions}
+                    options={variableCopyPrimaryDestinationComboboxOptions}
                     placeholder="Search destination input"
                     size="sm"
                   />
@@ -5084,7 +5166,9 @@ export function VariablesPanel({
                                   }),
                                 );
                               }}
-                              options={variableCopyDestinationComboboxOptions}
+                              options={
+                                variableCopyRelationshipDestinationComboboxOptions
+                              }
                               placeholder="Search destination input"
                               size="sm"
                             />
