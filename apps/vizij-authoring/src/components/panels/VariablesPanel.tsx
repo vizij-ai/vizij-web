@@ -1061,6 +1061,13 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
   if (directMatch) {
     return directMatch;
   }
+  const directPathCandidates =
+    params.runtimeInputsByPath.get(
+      normalizeStandardRigInputPath(params.targetInputId),
+    ) ?? [];
+  if (directPathCandidates.length > 0) {
+    return directPathCandidates[0] ?? null;
+  }
   const catalogInput = params.referenceCatalog.inputsById.get(
     params.targetInputId,
   );

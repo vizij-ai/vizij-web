@@ -1036,6 +1036,66 @@ describe("VariablesPanel", () => {
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
+  it("plays and resets reference poses when target keys are path-like and not catalog ids", () => {
+    const catalogInput = makeInput("legacy_smile", "/standard/mouth/smile", {
+      label: "Ref Smile Catalog",
+      defaultValue: 0.12,
+      range: { min: 0, max: 1 },
+    });
+    const runtimeInput = makeInput("runtime_smile", "/standard/mouth/smile", {
+      label: "Ref Smile Runtime",
+      defaultValue: 0.44,
+      range: { min: 0, max: 1 },
+    });
+    referenceFaceState.standardInputs = [runtimeInput];
+    referenceFaceState.standardInputsById = new Map([
+      [runtimeInput.id, runtimeInput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [catalogInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile_path_key",
+          name: "Ref Smile Path Key Pose",
+          targets: [{ inputId: "/standard/mouth/smile", value: 0.76 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile Path Key Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      runtimeInput.id,
+      0.76,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      runtimeInput.id,
+      runtimeInput.defaultValue,
+    );
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalledWith(
+      "/standard/mouth/smile",
+      expect.any(Number),
+    );
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
   it("does not write when pose copy modal is cancelled", () => {
     const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
       label: "Smile",
