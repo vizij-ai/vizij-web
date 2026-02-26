@@ -7,6 +7,7 @@ import { NumberField } from "../ui/NumberField";
 import { EmptyState } from "../ui/EmptyState";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { cn } from "../../utils/cn";
 import type {
   PoseDefinition,
   PoseGroupDefinition,
@@ -803,14 +804,20 @@ export function InspectorPanel({
               <div className="flex items-center gap-2">
                 <Button
                   variant={
-                    activePoseGroupBlendMode === "average" &&
-                    selectedPoseGroup?.groupId
+                    activePoseGroupBlendMode === "average"
                       ? "primary"
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedPoseGroup?.groupId}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activePoseGroupBlendMode === "average" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedPoseGroup?.groupId ||
+                    activePoseGroupBlendMode === "average"
+                  }
                   onClick={() =>
                     selectedPoseGroup?.groupId &&
                     setPoseGroupBlendMode(selectedPoseGroup.groupId, "average")
@@ -820,14 +827,20 @@ export function InspectorPanel({
                 </Button>
                 <Button
                   variant={
-                    activePoseGroupBlendMode === "additive" &&
-                    selectedPoseGroup?.groupId
+                    activePoseGroupBlendMode === "additive"
                       ? "primary"
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedPoseGroup?.groupId}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activePoseGroupBlendMode === "additive" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedPoseGroup?.groupId ||
+                    activePoseGroupBlendMode === "additive"
+                  }
                   onClick={() =>
                     selectedPoseGroup?.groupId &&
                     setPoseGroupBlendMode(selectedPoseGroup.groupId, "additive")
@@ -861,7 +874,7 @@ export function InspectorPanel({
                 </span>
               </div>
               {activePoseGroupPoses.length > 0 ? (
-                <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                <div className="flex flex-col gap-1.5">
                   {activePoseGroupPoses.map((pose) => {
                     const weight = clamp01(poseGroupWeights[pose.id] ?? 0);
                     return (
@@ -942,7 +955,7 @@ export function InspectorPanel({
               )}
             </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 min-h-0 flex-1">
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-text-muted">
                   Neutral Source
@@ -969,8 +982,15 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedPoseGroup.groupId}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activeGroupNeutralSourceType === "inherit" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedPoseGroup.groupId ||
+                    activeGroupNeutralSourceType === "inherit"
+                  }
                   onClick={() => setActiveGroupNeutralSourceType("inherit")}
                 >
                   Inherit
@@ -982,8 +1002,16 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedPoseGroup.groupId || poses.length === 0}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activeGroupNeutralSourceType === "pose-reference" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedPoseGroup.groupId ||
+                    poses.length === 0 ||
+                    activeGroupNeutralSourceType === "pose-reference"
+                  }
                   onClick={() =>
                     setActiveGroupNeutralSourceType("pose-reference")
                   }
@@ -997,8 +1025,15 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedPoseGroup.groupId}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activeGroupNeutralSourceType === "direct-values" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedPoseGroup.groupId ||
+                    activeGroupNeutralSourceType === "direct-values"
+                  }
                   onClick={() =>
                     setActiveGroupNeutralSourceType("direct-values")
                   }
@@ -1196,7 +1231,7 @@ export function InspectorPanel({
               </Button>
             </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 min-h-0 flex-1">
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-text-muted">
                   Stage Settings
@@ -1214,8 +1249,15 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedStageDefinition}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    selectedStageDefinition?.mode === "average" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedStageDefinition ||
+                    selectedStageDefinition.mode === "average"
+                  }
                   onClick={() =>
                     selectedStageDefinition &&
                     setBlendStageMode(selectedStageDefinition.id, "average")
@@ -1230,8 +1272,15 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedStageDefinition}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    selectedStageDefinition?.mode === "add" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedStageDefinition ||
+                    selectedStageDefinition.mode === "add"
+                  }
                   onClick={() =>
                     selectedStageDefinition &&
                     setBlendStageMode(selectedStageDefinition.id, "add")
@@ -1258,11 +1307,12 @@ export function InspectorPanel({
                         <button
                           key={group.id}
                           type="button"
-                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                          className={cn(
+                            "text-[10px] px-2 py-1 rounded border transition-colors disabled:cursor-default",
                             selected
-                              ? "border-accent/50 bg-accent/10 text-accent"
-                              : "border-border-default text-text-muted hover:text-text-primary"
-                          }`}
+                              ? "border-accent/50 bg-accent/10 text-accent hover:bg-accent/15"
+                              : "border-border-default text-text-muted hover:border-border-default/80 hover:text-text-primary",
+                          )}
                           aria-pressed={selected}
                           disabled={!selectedStageDefinition}
                           onClick={() =>
@@ -1305,11 +1355,12 @@ export function InspectorPanel({
                         <button
                           key={stage.id}
                           type="button"
-                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                          className={cn(
+                            "text-[10px] px-2 py-1 rounded border transition-colors disabled:cursor-default",
                             selected
-                              ? "border-accent/50 bg-accent/10 text-accent"
-                              : "border-border-default text-text-muted hover:text-text-primary"
-                          }`}
+                              ? "border-accent/50 bg-accent/10 text-accent hover:bg-accent/15"
+                              : "border-border-default text-text-muted hover:border-border-default/80 hover:text-text-primary",
+                          )}
                           aria-pressed={selected}
                           disabled={!selectedStageDefinition}
                           onClick={() =>
@@ -1355,8 +1406,15 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedStageDefinition}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activeStageNeutralSourceType === "inherit" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedStageDefinition ||
+                    activeStageNeutralSourceType === "inherit"
+                  }
                   onClick={() => setActiveStageNeutralSourceType("inherit")}
                 >
                   Inherit
@@ -1368,8 +1426,16 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedStageDefinition || poses.length === 0}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activeStageNeutralSourceType === "pose-reference" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedStageDefinition ||
+                    poses.length === 0 ||
+                    activeStageNeutralSourceType === "pose-reference"
+                  }
                   onClick={() =>
                     setActiveStageNeutralSourceType("pose-reference")
                   }
@@ -1383,8 +1449,15 @@ export function InspectorPanel({
                       : "subtle"
                   }
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={!selectedStageDefinition}
+                  className={cn(
+                    "h-6 px-2 text-[10px] disabled:cursor-default",
+                    activeStageNeutralSourceType === "direct-values" &&
+                      "disabled:opacity-100",
+                  )}
+                  disabled={
+                    !selectedStageDefinition ||
+                    activeStageNeutralSourceType === "direct-values"
+                  }
                   onClick={() =>
                     setActiveStageNeutralSourceType("direct-values")
                   }
@@ -1496,7 +1569,7 @@ export function InspectorPanel({
               </div>
             </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 min-h-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-text-muted">
                   Composition Outputs

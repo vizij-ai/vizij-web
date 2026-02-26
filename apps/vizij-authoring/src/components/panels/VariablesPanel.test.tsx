@@ -2343,7 +2343,7 @@ describe("VariablesPanel", () => {
     ).toHaveLength(2);
   });
 
-  it("wires multi-stage blend authoring controls on pose-groups surface", () => {
+  it("wires multi-stage blend authoring management controls on pose-groups surface", () => {
     poseRigState.poseConfigDraft = {
       version: 1,
       faceId: "face",
@@ -2380,6 +2380,9 @@ describe("VariablesPanel", () => {
         activeSurfaceOverride="pose-groups"
       />,
     );
+    expect(
+      within(view.container).queryByTitle("Inspect blend stage"),
+    ).toBeNull();
 
     fireEvent.click(
       within(view.container).getByRole("button", { name: "New Stage" }),
@@ -2393,22 +2396,6 @@ describe("VariablesPanel", () => {
     expect(poseRigState.renameBlendStage).toHaveBeenCalledWith(
       "stage_base",
       "Base Layer",
-    );
-
-    fireEvent.click(
-      within(view.container).getAllByRole("button", { name: "Add" })[0]!,
-    );
-    expect(poseRigState.setBlendStageMode).toHaveBeenCalledWith(
-      "stage_base",
-      "add",
-    );
-
-    fireEvent.click(
-      within(view.container).getAllByTitle("Toggle group source viseme")[0]!,
-    );
-    expect(poseRigState.setBlendStageSources).toHaveBeenCalledWith(
-      "stage_base",
-      [{ kind: "group", id: "emotion" }],
     );
 
     fireEvent.click(within(view.container).getAllByTitle("Move stage up")[1]!);
@@ -2465,7 +2452,9 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getAllByTitle("Inspect blend stage")[1]!,
+      within(view.container).getByRole("button", {
+        name: "Inspect blend stage Final",
+      }),
     );
 
     expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
@@ -2524,13 +2513,6 @@ describe("VariablesPanel", () => {
       expect(button).toHaveProperty("disabled", true);
     });
 
-    fireEvent.click(
-      within(view.container).getAllByTitle("Toggle group source emotion")[0]!,
-    );
-
-    expect(within(view.container).getByRole("alert").textContent).toContain(
-      "requires at least one source",
-    );
     expect(poseRigState.setBlendStageSources).not.toHaveBeenCalled();
     expect(poseRigState.reorderBlendStage).not.toHaveBeenCalled();
     expect(poseRigState.deleteBlendStage).not.toHaveBeenCalled();

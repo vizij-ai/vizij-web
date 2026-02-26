@@ -2020,10 +2020,8 @@ export function VariablesPanel({
     setCrossGroupBlendMode,
     createBlendStage,
     renameBlendStage,
-    setBlendStageMode,
     deleteBlendStage,
     reorderBlendStage,
-    setBlendStageSources,
     addPoseToGroup,
     removePoseFromGroup,
     poseConfigDraft,
@@ -4147,51 +4145,6 @@ export function VariablesPanel({
     setStageEditMessage(null);
   };
 
-  const handleToggleBlendStageSource = (
-    stage: BlendStageDefinition,
-    source: PoseIrStageSource,
-  ) => {
-    const hasSource = stage.sources.some(
-      (candidate) =>
-        candidate.kind === source.kind && candidate.id === source.id,
-    );
-    const nextSources = hasSource
-      ? stage.sources.filter(
-          (candidate) =>
-            !(candidate.kind === source.kind && candidate.id === source.id),
-        )
-      : [...stage.sources, source];
-    if (nextSources.length === 0) {
-      setStageEditMessage(
-        `Stage "${stage.name?.trim() || stage.id}" requires at least one source.`,
-      );
-      return;
-    }
-    const dedupedSources = Array.from(
-      new Map(
-        nextSources.map((candidate) => [
-          `${candidate.kind}:${candidate.id}`,
-          candidate,
-        ]),
-      ).values(),
-    );
-    const candidateStages = stageDefinitions.map((candidate) =>
-      candidate.id === stage.id
-        ? { ...candidate, sources: dedupedSources }
-        : candidate,
-    );
-    const topologyIssue = evaluateBlendStageTopology(
-      candidateStages,
-      stageGroupIds,
-    );
-    if (topologyIssue) {
-      setStageEditMessage(`Source update blocked: ${topologyIssue}`);
-      return;
-    }
-    setBlendStageSources(stage.id, dedupedSources);
-    setStageEditMessage(null);
-  };
-
   const variableItemCount =
     mainFaceRigEntries.length +
     referenceRigEntries.length +
@@ -4900,7 +4853,8 @@ export function VariablesPanel({
                               : "subtle"
                           }
                           size="sm"
-                          className="h-6 px-2 text-[10px]"
+                          className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
+                          disabled={crossGroupBlendMode === "average"}
                           onClick={() => setCrossGroupBlendMode("average")}
                         >
                           Average
@@ -4912,7 +4866,8 @@ export function VariablesPanel({
                               : "subtle"
                           }
                           size="sm"
-                          className="h-6 px-2 text-[10px]"
+                          className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
+                          disabled={crossGroupBlendMode === "additive"}
                           onClick={() => setCrossGroupBlendMode("additive")}
                         >
                           Additive
@@ -4951,16 +4906,18 @@ export function VariablesPanel({
                               stage,
                               stageIndex,
                             );
-                            const stageGroupSources = stage.sources.filter(
-                              (source) => source.kind === "group",
-                            );
-                            const stageStageSources = stage.sources.filter(
-                              (source) => source.kind === "stage",
-                            );
-                            const priorStageOptions = stageDefinitions.slice(
-                              0,
-                              stageIndex,
-                            );
+                            const isSelectedStage =
+                              selectedBlendStage?.id === stage.id;
+                            const stageSourceSummary =
+                              stage.sources.length === 0
+                                ? "No sources configured"
+                                : stage.sources
+                                    .map((source) =>
+                                      source.kind === "group"
+                                        ? source.id
+                                        : `stage:${source.id}`,
+                                    )
+                                    .join(" · ");
                             const referencesThisStage = stageDefinitions
                               .slice(stageIndex + 1)
                               .some((candidate) =>
@@ -5002,7 +4959,29 @@ export function VariablesPanel({
                             return (
                               <div
                                 key={stage.id}
-                                className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2"
+                                role="button"
+                                tabIndex={0}
+                                aria-pressed={isSelectedStage}
+                                aria-label={`Inspect blend stage ${stageName}`}
+                                className={cn(
+                                  "rounded border p-2 flex flex-col gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                                  isSelectedStage
+                                    ? "border-accent/60 bg-accent/10"
+                                    : "border-border-default/50 bg-bg-panel/30 hover:border-border-default/70 hover:bg-bg-panel/45",
+                                )}
+                                onClick={() =>
+                                  handleInspectBlendStage(stage, stageIndex)
+                                }
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key !== "Enter" &&
+                                    event.key !== " "
+                                  ) {
+                                    return;
+                                  }
+                                  event.preventDefault();
+                                  handleInspectBlendStage(stage, stageIndex);
+                                }}
                               >
                                 <div className="flex items-center gap-1">
                                   <span className="text-[10px] text-text-muted font-mono">
@@ -5011,38 +4990,27 @@ export function VariablesPanel({
                                   <span className="text-xs text-text-primary">
                                     {stageName}
                                   </span>
+                                  <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                                    {stage.mode === "add" ? "Add" : "Average"}
+                                  </span>
+                                  {isSelectedStage && (
+                                    <span className="rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                                      Inspecting
+                                    </span>
+                                  )}
                                   <div className="ml-auto flex items-center gap-1">
-                                    <Button
-                                      variant={
-                                        selectedBlendStage?.id === stage.id
-                                          ? "primary"
-                                          : "ghost"
-                                      }
-                                      size="sm"
-                                      className="h-6 px-2 text-[10px]"
-                                      onClick={() =>
-                                        handleInspectBlendStage(
-                                          stage,
-                                          stageIndex,
-                                        )
-                                      }
-                                      title="Inspect blend stage"
-                                    >
-                                      {selectedBlendStage?.id === stage.id
-                                        ? "Inspecting"
-                                        : "Inspect"}
-                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       className="h-6 px-1"
                                       disabled={Boolean(moveUpIssue)}
-                                      onClick={() =>
+                                      onClick={(event) => {
+                                        event.stopPropagation();
                                         handleReorderBlendStage(
                                           stageIndex,
                                           "up",
-                                        )
-                                      }
+                                        );
+                                      }}
                                       title={
                                         moveUpIssue &&
                                         moveUpIssue !== "Boundary"
@@ -5057,12 +5025,13 @@ export function VariablesPanel({
                                       size="sm"
                                       className="h-6 px-1"
                                       disabled={Boolean(moveDownIssue)}
-                                      onClick={() =>
+                                      onClick={(event) => {
+                                        event.stopPropagation();
                                         handleReorderBlendStage(
                                           stageIndex,
                                           "down",
-                                        )
-                                      }
+                                        );
+                                      }}
                                       title={
                                         moveDownIssue &&
                                         moveDownIssue !== "Boundary"
@@ -5076,12 +5045,13 @@ export function VariablesPanel({
                                       variant="ghost"
                                       size="sm"
                                       className="h-6 px-2 text-[10px]"
-                                      onClick={() =>
+                                      onClick={(event) => {
+                                        event.stopPropagation();
                                         handleRenameBlendStage(
                                           stage,
                                           stageIndex,
-                                        )
-                                      }
+                                        );
+                                      }}
                                       title="Rename blend stage"
                                     >
                                       Rename
@@ -5091,12 +5061,13 @@ export function VariablesPanel({
                                       size="sm"
                                       className="h-6 px-2 text-[10px] text-amber-300 hover:text-amber-200"
                                       disabled={referencesThisStage}
-                                      onClick={() =>
+                                      onClick={(event) => {
+                                        event.stopPropagation();
                                         handleDeleteBlendStage(
                                           stage,
                                           stageIndex,
-                                        )
-                                      }
+                                        );
+                                      }}
                                       title={
                                         referencesThisStage
                                           ? "Delete blocked while later stages reference this stage"
@@ -5107,133 +5078,8 @@ export function VariablesPanel({
                                     </Button>
                                   </div>
                                 </div>
-
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[10px] text-text-muted">
-                                    Mode
-                                  </span>
-                                  <Button
-                                    variant={
-                                      stage.mode === "average"
-                                        ? "primary"
-                                        : "subtle"
-                                    }
-                                    size="sm"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={() =>
-                                      setBlendStageMode(stage.id, "average")
-                                    }
-                                  >
-                                    Average
-                                  </Button>
-                                  <Button
-                                    variant={
-                                      stage.mode === "add"
-                                        ? "primary"
-                                        : "subtle"
-                                    }
-                                    size="sm"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={() =>
-                                      setBlendStageMode(stage.id, "add")
-                                    }
-                                  >
-                                    Add
-                                  </Button>
-                                </div>
-
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-[10px] text-text-muted">
-                                    Group sources
-                                  </span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {stageGroupOptions.length === 0 ? (
-                                      <span className="text-[10px] text-text-muted">
-                                        No configured groups
-                                      </span>
-                                    ) : (
-                                      stageGroupOptions.map((group) => {
-                                        const selected = stageGroupSources.some(
-                                          (source) => source.id === group.id,
-                                        );
-                                        return (
-                                          <button
-                                            key={group.id}
-                                            type="button"
-                                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                                              selected
-                                                ? "border-accent/50 bg-accent/10 text-accent"
-                                                : "border-border-default text-text-muted hover:text-text-primary"
-                                            }`}
-                                            aria-pressed={selected}
-                                            onClick={() =>
-                                              handleToggleBlendStageSource(
-                                                stage,
-                                                {
-                                                  kind: "group",
-                                                  id: group.id,
-                                                },
-                                              )
-                                            }
-                                            title={`Toggle group source ${group.label}`}
-                                          >
-                                            {group.label}
-                                          </button>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-[10px] text-text-muted">
-                                    Prior stage sources
-                                  </span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {priorStageOptions.length === 0 ? (
-                                      <span className="text-[10px] text-text-muted">
-                                        No prior stages
-                                      </span>
-                                    ) : (
-                                      priorStageOptions.map(
-                                        (sourceStage, sourceIndex) => {
-                                          const label = blendStageDisplayName(
-                                            sourceStage,
-                                            sourceIndex,
-                                          );
-                                          const selected =
-                                            stageStageSources.some(
-                                              (source) =>
-                                                source.id === sourceStage.id,
-                                            );
-                                          return (
-                                            <button
-                                              key={sourceStage.id}
-                                              type="button"
-                                              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                                                selected
-                                                  ? "border-accent/50 bg-accent/10 text-accent"
-                                                  : "border-border-default text-text-muted hover:text-text-primary"
-                                              }`}
-                                              aria-pressed={selected}
-                                              onClick={() =>
-                                                handleToggleBlendStageSource(
-                                                  stage,
-                                                  {
-                                                    kind: "stage",
-                                                    id: sourceStage.id,
-                                                  },
-                                                )
-                                              }
-                                              title={`Toggle stage source ${label}`}
-                                            >
-                                              {label}
-                                            </button>
-                                          );
-                                        },
-                                      )
-                                    )}
-                                  </div>
+                                <div className="text-[10px] text-text-muted font-mono truncate">
+                                  Sources: {stageSourceSummary}
                                 </div>
                               </div>
                             );
