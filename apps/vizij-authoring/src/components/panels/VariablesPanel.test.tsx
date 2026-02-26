@@ -614,6 +614,79 @@ describe("VariablesPanel", () => {
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
   });
 
+  it("prefers the path-matched reference source with relationships when catalog ids differ", () => {
+    const runtimeBlink = makeInput(
+      "ref_runtime_blink",
+      "/standard/eyes/blink",
+      {
+        label: "Blink",
+      },
+    );
+    const catalogBlinkNoLinks = makeInput(
+      "ref_catalog_blink_a",
+      "/standard/eyes/blink",
+      {
+        label: "Blink (A)",
+      },
+    );
+    const catalogBlinkWithLinks = makeInput(
+      "ref_catalog_blink_b",
+      "/standard/eyes/blink",
+      {
+        label: "Blink",
+      },
+    );
+    const catalogChild = makeInput("ref_catalog_child", "/propsrig/eye/lid", {
+      label: "Reference Child",
+    });
+    const destinationBlink = makeInput("main_blink", "/standard/eyes/blink", {
+      label: "Main Blink",
+    });
+    const destinationChild = makeInput("main_child", "/propsrig/eye/lid", {
+      label: "Main Child",
+    });
+
+    referenceFaceState.standardInputs = [runtimeBlink];
+    referenceFaceState.standardInputsById = new Map([
+      [runtimeBlink.id, runtimeBlink],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [catalogBlinkNoLinks, catalogBlinkWithLinks, catalogChild],
+      [
+        {
+          parentInputId: catalogBlinkWithLinks.id,
+          childInputId: catalogChild.id,
+        },
+      ],
+    );
+
+    bindingState.managedStandardInputs = [
+      { input: destinationBlink, source: "custom" },
+      { input: destinationChild, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [destinationBlink.id, destinationBlink],
+      [destinationChild.id, destinationChild],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [destinationBlink.path, destinationBlink],
+      [destinationChild.path, destinationChild],
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/eyes/blink" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle("Copy driver to main face"),
+    );
+
+    expect(screen.getByText(/Reference Child/)).toBeTruthy();
+  });
+
   it("surfaces reference poses and opens the pose copy modal from row copy action", () => {
     const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
       label: "Smile",

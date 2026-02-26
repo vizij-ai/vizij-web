@@ -26,9 +26,22 @@ interface BundlePoseFixture {
   values: Record<string, number>;
 }
 
+interface BundleBindingFixture {
+  targetId: string;
+  animatableId?: string;
+  slotId?: string;
+  slotAlias?: string;
+  inputId: string | null;
+  expression?: string;
+  valueType?: "scalar" | "vector";
+  nodeId?: string;
+  expressionNodeId?: string;
+}
+
 function makeBundle(params: {
   inputs: BundleInputFixture[];
   pipelineV1?: RigPipelineV1Metadata;
+  bindings?: BundleBindingFixture[];
   poses?: BundlePoseFixture[];
 }): VizijBundleExtension {
   return {
@@ -48,6 +61,22 @@ function makeBundle(params: {
                 defaultValue: input.defaultValue ?? 0,
                 range: input.range ?? { min: -1, max: 1 },
               })),
+              ...(params.bindings
+                ? {
+                    bindings: params.bindings.map((binding, index) => ({
+                      targetId: binding.targetId,
+                      animatableId: binding.animatableId ?? binding.targetId,
+                      slotId: binding.slotId ?? `slot_${index + 1}`,
+                      slotAlias: binding.slotAlias ?? "slot",
+                      inputId: binding.inputId,
+                      expression: binding.expression ?? "slot",
+                      valueType: binding.valueType ?? "scalar",
+                      nodeId: binding.nodeId ?? `node_${index + 1}`,
+                      expressionNodeId:
+                        binding.expressionNodeId ?? `expr_${index + 1}`,
+                    })),
+                  }
+                : {}),
               ...(params.pipelineV1 ? { pipelineV1: params.pipelineV1 } : {}),
             },
           },
@@ -160,6 +189,54 @@ describe("referenceFace catalog + mapping", () => {
         { inputId: "src_mouth", value: 1 },
       ],
     });
+  });
+
+  it("derives parent-child links from binding summaries when pipeline metadata is missing", () => {
+    const bundle = makeBundle({
+      inputs: [
+        { id: "src_blink", path: "/controls/eyes/blink", label: "Blink" },
+        {
+          id: "src_lid_squint",
+          path: "/controls/eyes/lid_squint",
+          label: "Lid Squint",
+        },
+      ],
+      bindings: [
+        {
+          targetId: "src_blink",
+          inputId: "src_lid_squint",
+        },
+        {
+          targetId: "src_blink",
+          inputId: "__self__",
+        },
+      ],
+    });
+
+    const catalog = extractReferenceCatalog(bundle);
+    const blink = catalog.inputsById.get("src_blink");
+    const squint = catalog.inputsById.get("src_lid_squint");
+
+    expect(blink?.parents).toEqual([
+      {
+        linkId: "link/src_lid_squint->src_blink",
+        parentInputId: "src_lid_squint",
+        scale: 1,
+        offset: 0,
+        enabled: true,
+      },
+    ]);
+    expect(squint?.children).toEqual([
+      {
+        linkId: "link/src_lid_squint->src_blink",
+        childInputId: "src_blink",
+        scale: 1,
+        offset: 0,
+        enabled: true,
+      },
+    ]);
+    expect(catalog.pipelineLinks).toHaveLength(1);
+    expect(catalog.pipelineLinks[0]?.source).toBe("by-input-parent");
   });
 
   it("maps variable destination by path before label fallback", () => {

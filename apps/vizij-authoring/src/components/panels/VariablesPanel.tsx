@@ -361,6 +361,13 @@ function normalizeCatalogPath(path: string | null | undefined): string {
   return withLeadingSlash.replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
 }
 
+function normalizeLookupLabel(label: string | null | undefined): string {
+  if (!label) {
+    return "";
+  }
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -839,10 +846,52 @@ function resolveVariableCopySourceCatalogInputId(params: {
   ) {
     return params.sourceReferenceEntry.input.id;
   }
-  const byPath = params.sourceCatalog.inputsByPath.get(
-    normalizeCatalogPath(params.sourceReferenceEntry.input.path),
+  const byPathCandidates = [
+    ...(params.sourceCatalog.inputsByPath.get(
+      normalizeCatalogPath(params.sourceReferenceEntry.input.path),
+    ) ?? []),
+  ];
+  if (byPathCandidates.length === 0) {
+    return null;
+  }
+  if (byPathCandidates.length === 1) {
+    return byPathCandidates[0]?.id ?? null;
+  }
+
+  const sourceNormalizedLabel = normalizeLookupLabel(
+    params.sourceReferenceEntry.input.label,
   );
-  return byPath?.[0]?.id ?? null;
+  const sourceInputId = params.sourceReferenceEntry.input.id;
+  const sourceSourceId = params.sourceReferenceEntry.input.sourceId ?? null;
+
+  const ranked = byPathCandidates.sort((left, right) => {
+    const leftRelationshipCount = left.parents.length + left.children.length;
+    const rightRelationshipCount = right.parents.length + right.children.length;
+    const leftSourceIdMatch =
+      left.id === sourceInputId || left.id === sourceSourceId;
+    const rightSourceIdMatch =
+      right.id === sourceInputId || right.id === sourceSourceId;
+    if (leftSourceIdMatch !== rightSourceIdMatch) {
+      return leftSourceIdMatch ? -1 : 1;
+    }
+
+    const leftLabelMatch =
+      sourceNormalizedLabel.length > 0 &&
+      normalizeLookupLabel(left.label) === sourceNormalizedLabel;
+    const rightLabelMatch =
+      sourceNormalizedLabel.length > 0 &&
+      normalizeLookupLabel(right.label) === sourceNormalizedLabel;
+    if (leftLabelMatch !== rightLabelMatch) {
+      return leftLabelMatch ? -1 : 1;
+    }
+
+    if (leftRelationshipCount !== rightRelationshipCount) {
+      return rightRelationshipCount - leftRelationshipCount;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+  return ranked[0]?.id ?? null;
 }
 
 function createVariableCopyModalState(params: {

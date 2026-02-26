@@ -1,4 +1,5 @@
 import type { VizijBundleExtension } from "@vizij/render";
+import { SELF_BINDING_ID } from "@vizij/utils";
 import type {
   ReferenceCatalog,
   ReferenceCatalogChildLink,
@@ -137,6 +138,27 @@ function pairKey(parentInputId: string, childInputId: string): string {
   return `${parentInputId}::${childInputId}`;
 }
 
+function sortPipelineLinks(
+  left: Pick<
+    ReferenceCatalogPipelineLink,
+    "childInputId" | "parentInputId" | "linkId"
+  >,
+  right: Pick<
+    ReferenceCatalogPipelineLink,
+    "childInputId" | "parentInputId" | "linkId"
+  >,
+): number {
+  const byChild = left.childInputId.localeCompare(right.childInputId);
+  if (byChild !== 0) {
+    return byChild;
+  }
+  const byParent = left.parentInputId.localeCompare(right.parentInputId);
+  if (byParent !== 0) {
+    return byParent;
+  }
+  return left.linkId.localeCompare(right.linkId);
+}
+
 function extractPipelineLinks(
   vizij: UnknownRecord | null,
 ): ReferenceCatalogPipelineLink[] {
@@ -232,17 +254,73 @@ function extractPipelineLinks(
       });
   }
 
-  return Array.from(byLinkId.values()).sort((left, right) => {
-    const byChild = left.childInputId.localeCompare(right.childInputId);
-    if (byChild !== 0) {
-      return byChild;
+  return Array.from(byLinkId.values()).sort(sortPipelineLinks);
+}
+
+function extractBindingFallbackLinks(
+  vizij: UnknownRecord | null,
+  knownInputIds: ReadonlySet<string>,
+): ReferenceCatalogPipelineLink[] {
+  const rawBindings = Array.isArray(vizij?.bindings) ? vizij.bindings : [];
+  const linksByPair = new Map<string, ReferenceCatalogPipelineLink>();
+
+  rawBindings.forEach((rawBinding) => {
+    const binding = asRecord(rawBinding);
+    if (!binding) {
+      return;
     }
-    const byParent = left.parentInputId.localeCompare(right.parentInputId);
-    if (byParent !== 0) {
-      return byParent;
+    const childInputId = asString(binding.targetId);
+    const parentInputId = asString(binding.inputId);
+    if (!childInputId || !parentInputId || parentInputId === SELF_BINDING_ID) {
+      return;
     }
-    return left.linkId.localeCompare(right.linkId);
+    if (
+      !knownInputIds.has(parentInputId) ||
+      !knownInputIds.has(childInputId) ||
+      parentInputId === childInputId
+    ) {
+      return;
+    }
+    const key = pairKey(parentInputId, childInputId);
+    if (linksByPair.has(key)) {
+      return;
+    }
+    linksByPair.set(key, {
+      linkId: buildSyntheticLinkId(parentInputId, childInputId),
+      parentInputId,
+      childInputId,
+      scale: 1,
+      offset: 0,
+      enabled: true,
+      source: "by-input-parent",
+    });
   });
+
+  return Array.from(linksByPair.values()).sort(sortPipelineLinks);
+}
+
+function mergePipelineAndFallbackLinks(params: {
+  primaryLinks: readonly ReferenceCatalogPipelineLink[];
+  fallbackLinks: readonly ReferenceCatalogPipelineLink[];
+}): ReferenceCatalogPipelineLink[] {
+  if (params.fallbackLinks.length === 0) {
+    return [...params.primaryLinks];
+  }
+  const existingPairs = new Set(
+    params.primaryLinks.map((link) =>
+      pairKey(link.parentInputId, link.childInputId),
+    ),
+  );
+  const merged = [...params.primaryLinks];
+  params.fallbackLinks.forEach((link) => {
+    const key = pairKey(link.parentInputId, link.childInputId);
+    if (existingPairs.has(key)) {
+      return;
+    }
+    existingPairs.add(key);
+    merged.push(link);
+  });
+  return merged.sort(sortPipelineLinks);
 }
 
 function toReferenceInput(
@@ -319,7 +397,11 @@ export function extractReferenceCatalog(
 
   const vizij = extractVizijMetadata(bundle);
   const inputDescriptors = extractInputDescriptors(vizij);
-  const pipelineLinks = extractPipelineLinks(vizij);
+  const inputIds = new Set(inputDescriptors.map((descriptor) => descriptor.id));
+  const pipelineLinks = mergePipelineAndFallbackLinks({
+    primaryLinks: extractPipelineLinks(vizij),
+    fallbackLinks: extractBindingFallbackLinks(vizij, inputIds),
+  });
 
   const parentsByInputId = new Map<string, ReferenceCatalogParentLink[]>();
   const childrenByInputId = new Map<string, ReferenceCatalogChildLink[]>();
