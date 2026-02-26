@@ -4589,6 +4589,8 @@ export function VariablesPanel({
         badge={`${totalCount}`}
       >
         <Tabs
+          className="flex-1 min-h-0"
+          fillPanels
           items={surfaceTabs}
           value={activeSurface}
           onValueChange={(id) => {

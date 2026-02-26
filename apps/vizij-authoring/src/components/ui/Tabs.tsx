@@ -22,6 +22,7 @@ export interface TabsProps {
   panelClassName?: string;
   size?: "sm" | "md";
   variant?: "default" | "pill" | "underline";
+  fillPanels?: boolean;
 }
 
 export function Tabs({
@@ -34,6 +35,7 @@ export function Tabs({
   panelClassName,
   size = "md",
   variant = "default",
+  fillPanels = false,
 }: TabsProps) {
   return (
     <BaseTabs.Root
@@ -44,6 +46,7 @@ export function Tabs({
       <BaseTabs.List
         className={cn(
           "flex w-full overflow-x-auto custom-scrollbar",
+          fillPanels && "shrink-0",
           {
             "gap-1 border-b border-border-default": variant === "default",
             "gap-1 rounded-xl border border-border-default bg-bg-input p-1":
@@ -105,12 +108,18 @@ export function Tabs({
           </BaseTabs.Tab>
         ))}
       </BaseTabs.List>
-      <div className={cn("mt-1 focus:outline-none", panelClassName)}>
+      <div
+        className={cn(
+          "mt-1 focus:outline-none",
+          fillPanels && "flex-1 min-h-0",
+          panelClassName,
+        )}
+      >
         {items.map((item) => (
           <BaseTabs.Panel
             key={item.id}
             value={item.id}
-            className="focus:outline-none"
+            className={cn("focus:outline-none", fillPanels && "h-full min-h-0")}
           >
             {/* Optimization: only render content if active to match typical tab behavior, OR rely on Tabs.Panel hidden prop.
                  Base UI Tabs.Panel usually handles `hidden` or doesn't render children if not active if `keepMounted` is false.
