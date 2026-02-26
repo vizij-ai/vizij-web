@@ -1,6 +1,6 @@
 # Vizij Authoring Architecture
 
-Last updated: 2026-02-19
+Last updated: 2026-02-26
 Audience: engineers working on `apps/vizij-authoring`
 
 This document defines system boundaries, canonical data contracts, and compile/runtime invariants.
@@ -41,7 +41,7 @@ Boundary invariant:
 
 Current compile path:
 
-1. Authoring store mutations (poses, groups, and blend stages) land in pose IR first; config/UI views are projected from IR (`PoseIrService`).
+1. Authoring store mutations update authored pose state, then projection rebuilds flow through `PoseConfigService` + `PoseIrService` (config -> IR -> projected config drafts).
 2. IR compiles into pose graph spec (`buildPoseGraphSpecFromIr`).
 3. Compiler resolves canonical target channels, neutral baseline, group contributions, and cross-group composition.
 4. Compiler emits pose graph output nodes to internal pose-control rig input paths: `rig/<face>/pose/control/<inputId>`.
@@ -59,6 +59,10 @@ Composition semantics currently supported:
 6. Neutral strategy:
    - `explicit`: authored neutral values with per-channel fallback to standard-input defaults when missing.
    - `face-default`: compile directly from standard-input defaults.
+7. Scoped neutral strategy for stage/group contexts:
+   - neutral source type: `inherit`, `pose-reference`, `direct-values`.
+   - effective precedence: `stage > group > global > input.defaultValue > 0`.
+   - current `average` behavior remains overlay-average relative to the effective neutral baseline.
 
 Direct/pose channel composition contract (execution target):
 

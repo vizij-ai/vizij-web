@@ -20,6 +20,8 @@ import type {
   PoseInputComposeMode,
   PosePriorityTieBreak,
   PoseNeutralMode,
+  PoseScopedNeutralDefinition,
+  PoseScopedNeutralSourceType,
   PoseRigConfigFile,
   PoseRigIrFile,
 } from "../types";
@@ -195,6 +197,27 @@ function mapIrOverridesToConfig(
   return Object.fromEntries(mappedEntries);
 }
 
+function cloneScopedNeutral(
+  neutral: PoseScopedNeutralDefinition | undefined,
+): PoseScopedNeutralDefinition | undefined {
+  if (!neutral) {
+    return undefined;
+  }
+  if (neutral.sourceType === "inherit") {
+    return { sourceType: "inherit" };
+  }
+  if (neutral.sourceType === "pose-reference") {
+    return {
+      sourceType: "pose-reference",
+      poseId: neutral.poseId,
+    };
+  }
+  return {
+    sourceType: "direct-values",
+    values: { ...neutral.values },
+  };
+}
+
 function clonePoseComposeModes(
   composeModes: PoseDefinition["composeModes"] | undefined,
 ): Record<string, PoseInputComposeMode> | undefined {
@@ -321,6 +344,12 @@ function normalizePoseGroups(
         group.blendMode === "additive" || group.blendMode === "average"
           ? group.blendMode
           : defaultBlendMode,
+      ...(group.neutral !== undefined
+        ? {
+            neutral: (group as { neutral?: PoseScopedNeutralDefinition })
+              .neutral,
+          }
+        : {}),
     };
     groups.push(normalized);
     byPath.set(path, normalized);
@@ -504,6 +533,162 @@ function canonicalizePoseComposeModes(
   return clonePoseComposeModes(normalized);
 }
 
+function normalizeScopedNeutralForIr(
+  scopedNeutral: unknown,
+  params: {
+    collector: DiagnosticCollector;
+    source: "pose-config" | "pose-ir";
+    path: string;
+    scopeLabel: string;
+    scopeId: string;
+    knownPoseIds: Set<string>;
+    canonicalInputs: Set<string>;
+  },
+): PoseScopedNeutralDefinition | undefined {
+  const {
+    collector,
+    source,
+    path,
+    scopeLabel,
+    scopeId,
+    knownPoseIds,
+    canonicalInputs,
+  } = params;
+
+  if (scopedNeutral === undefined || scopedNeutral === null) {
+    return undefined;
+  }
+
+  if (
+    !scopedNeutral ||
+    typeof scopedNeutral !== "object" ||
+    Array.isArray(scopedNeutral)
+  ) {
+    pushPoseDiagnostic(collector, {
+      severity: "warning",
+      source,
+      code: "invalid-scoped-neutral-payload",
+      message: `${scopeLabel} "${scopeId}" neutral was ignored because payload is not an object.`,
+      location: {
+        path,
+      },
+      metadata: {
+        scopeId,
+      },
+    });
+    return undefined;
+  }
+
+  const scopedNeutralPayload = scopedNeutral as {
+    sourceType?: unknown;
+    type?: unknown;
+    poseId?: unknown;
+    values?: unknown;
+  };
+  const sourceTypeCandidate =
+    scopedNeutralPayload.sourceType ?? scopedNeutralPayload.type ?? null;
+  const sourceType: PoseScopedNeutralSourceType | null =
+    sourceTypeCandidate === "inherit" ||
+    sourceTypeCandidate === "pose-reference" ||
+    sourceTypeCandidate === "direct-values"
+      ? sourceTypeCandidate
+      : null;
+  if (!sourceType) {
+    pushPoseDiagnostic(collector, {
+      severity: "warning",
+      source,
+      code: "invalid-scoped-neutral-source-type",
+      message: `${scopeLabel} "${scopeId}" neutral source type "${String(sourceTypeCandidate)}" is invalid and was ignored.`,
+      location: {
+        path: `${path}.sourceType`,
+      },
+      metadata: {
+        scopeId,
+        sourceType: sourceTypeCandidate,
+      },
+    });
+    return undefined;
+  }
+
+  if (sourceType === "inherit") {
+    return { sourceType: "inherit" };
+  }
+
+  if (sourceType === "pose-reference") {
+    const poseId =
+      typeof scopedNeutralPayload.poseId === "string"
+        ? scopedNeutralPayload.poseId.trim()
+        : "";
+    if (!poseId) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "missing-scoped-neutral-pose-reference",
+        message: `${scopeLabel} "${scopeId}" neutral pose-reference is missing poseId and was ignored.`,
+        location: {
+          path: `${path}.poseId`,
+        },
+        metadata: {
+          scopeId,
+        },
+      });
+      return undefined;
+    }
+    if (knownPoseIds.size > 0 && !knownPoseIds.has(poseId)) {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "unknown-scoped-neutral-pose-reference",
+        message: `${scopeLabel} "${scopeId}" neutral references unknown pose "${poseId}" and was ignored.`,
+        location: {
+          poseId,
+          path: `${path}.poseId`,
+        },
+        metadata: {
+          scopeId,
+          poseId,
+        },
+      });
+      return undefined;
+    }
+    return {
+      sourceType: "pose-reference",
+      poseId,
+    };
+  }
+
+  if (
+    !scopedNeutralPayload.values ||
+    typeof scopedNeutralPayload.values !== "object" ||
+    Array.isArray(scopedNeutralPayload.values)
+  ) {
+    pushPoseDiagnostic(collector, {
+      severity: "warning",
+      source,
+      code: "invalid-scoped-neutral-direct-values-shape",
+      message: `${scopeLabel} "${scopeId}" neutral direct-values payload is invalid and was ignored.`,
+      location: {
+        path: `${path}.values`,
+      },
+      metadata: {
+        scopeId,
+      },
+    });
+    return undefined;
+  }
+
+  return {
+    sourceType: "direct-values",
+    values: canonicalizeInputValues(
+      scopedNeutralPayload.values as Record<string, number>,
+      canonicalInputs,
+      collector,
+      `${scopeLabel} "${scopeId}" neutral`,
+      source,
+    ),
+  };
+}
+
 function cloneBlendStages(
   blendStages: PoseIrBlendStageDefinition[] | undefined,
 ): PoseIrBlendStageDefinition[] | undefined {
@@ -514,6 +699,7 @@ function cloneBlendStages(
     id: stage.id,
     name: stage.name,
     mode: stage.mode,
+    ...(stage.neutral ? { neutral: cloneScopedNeutral(stage.neutral) } : {}),
     sources: stage.sources.map((source) => ({
       kind: source.kind,
       id: source.id,
@@ -527,7 +713,12 @@ function normalizeBlendStages(
   fallbackMode: PoseIrBlendMode,
   collector: DiagnosticCollector,
   source: "pose-config" | "pose-ir",
+  options: {
+    knownPoseIds: Set<string>;
+    canonicalInputs: Set<string>;
+  },
 ): PoseIrBlendStageDefinition[] | undefined {
+  const { knownPoseIds, canonicalInputs } = options;
   if (blendStages === undefined || blendStages === null) {
     return undefined;
   }
@@ -737,10 +928,23 @@ function normalizeBlendStages(
       typeof stage.name === "string" && stage.name.trim().length > 0
         ? stage.name.trim()
         : undefined;
+    const stageNeutral = normalizeScopedNeutralForIr(
+      (stage as { neutral?: unknown }).neutral,
+      {
+        collector,
+        source,
+        path: `${stagePath}.neutral`,
+        scopeLabel: "Blend stage",
+        scopeId: stageId,
+        knownPoseIds,
+        canonicalInputs,
+      },
+    );
     normalizedStages.push({
       id: stageId,
       name: stageName,
       mode: stageMode,
+      ...(stageNeutral ? { neutral: stageNeutral } : {}),
       sources: normalizedSources,
     });
     knownStageIds.add(stageId);
@@ -1187,21 +1391,37 @@ function mapConfigToPoseIr(
       updatedAt: pose.updatedAt ?? new Date().toISOString(),
     };
   });
+  const knownPoseIds = new Set(poses.map((pose) => pose.id));
 
-  const groups = normalizedGroups.map((group) => ({
-    id: group.id,
-    name: group.name,
-    path: group.path,
-    intraGroupBlendMode: toPoseIrBlendMode(group.blendMode),
-    poseIds: (groupPoseIds.get(group.id) ?? []).sort((leftId, rightId) => {
-      const leftOrder = poseOrder.get(leftId) ?? Number.MAX_SAFE_INTEGER;
-      const rightOrder = poseOrder.get(rightId) ?? Number.MAX_SAFE_INTEGER;
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
-      }
-      return leftId.localeCompare(rightId);
-    }),
-  }));
+  const groups = normalizedGroups.map((group, groupIndex) => {
+    const scopedNeutral = normalizeScopedNeutralForIr(group.neutral, {
+      collector,
+      source: diagnosticSource,
+      path:
+        diagnosticSource === "pose-config"
+          ? `poseGroups[${groupIndex}].neutral`
+          : `groups[${groupIndex}].neutral`,
+      scopeLabel: "Pose group",
+      scopeId: group.id,
+      knownPoseIds,
+      canonicalInputs,
+    });
+    return {
+      id: group.id,
+      name: group.name,
+      path: group.path,
+      intraGroupBlendMode: toPoseIrBlendMode(group.blendMode),
+      ...(scopedNeutral ? { neutral: scopedNeutral } : {}),
+      poseIds: (groupPoseIds.get(group.id) ?? []).sort((leftId, rightId) => {
+        const leftOrder = poseOrder.get(leftId) ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = poseOrder.get(rightId) ?? Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+        return leftId.localeCompare(rightId);
+      }),
+    };
+  });
   const crossGroupOverrides = normalizeCrossGroupChannelOverridesForIr(
     config.crossGroupChannelOverrides,
     {
@@ -1218,6 +1438,10 @@ function mapConfigToPoseIr(
     crossGroupPolicyMode,
     collector,
     diagnosticSource,
+    {
+      knownPoseIds,
+      canonicalInputs,
+    },
   );
 
   const overlapGroupIdsByInput = new Map<string, Set<string>>();
@@ -1387,6 +1611,7 @@ function mapPoseIrToConfig(ir: PoseRigIrFile): PoseRigConfigFile {
       name: group.name,
       path: group.path,
       blendMode: toPoseConfigBlendMode(group.intraGroupBlendMode),
+      ...(group.neutral ? { neutral: cloneScopedNeutral(group.neutral) } : {}),
     })),
     crossGroupBlendMode: toPoseConfigBlendMode(ir.crossGroupPolicy?.mode),
     crossGroupChannelOverrides: cloneConfigCrossGroupChannelOverrides(
@@ -1517,6 +1742,13 @@ export const PoseIrService = {
         name: group.name,
         path: group.path,
         blendMode: toPoseConfigBlendMode(group.intraGroupBlendMode),
+        ...(group && typeof group === "object" && "neutral" in group
+          ? {
+              neutral: (group as { neutral?: unknown }).neutral as
+                | PoseScopedNeutralDefinition
+                | undefined,
+            }
+          : {}),
       })),
       crossGroupBlendMode: toPoseConfigBlendMode(
         candidate.crossGroupPolicy?.mode ?? candidate.crossGroupBlendMode,
@@ -1527,7 +1759,14 @@ export const PoseIrService = {
             candidate.crossGroupChannelOverrides,
         ),
       ),
-      blendStages: cloneBlendStages(candidate.blendStages),
+      blendStages: Array.isArray(candidate.blendStages)
+        ? (candidate.blendStages.map((stage) => {
+            if (!stage || typeof stage !== "object") {
+              return stage;
+            }
+            return { ...(stage as unknown as Record<string, unknown>) };
+          }) as unknown as PoseRigConfigFile["blendStages"])
+        : undefined,
       poses: (Array.isArray(candidate.poses) ? candidate.poses : []).map(
         (pose) => {
           const fallbackGroupIds = membershipByPoseId.get(pose.id) ?? [];

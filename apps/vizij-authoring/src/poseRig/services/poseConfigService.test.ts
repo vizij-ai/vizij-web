@@ -403,6 +403,187 @@ describe("PoseConfigService", () => {
     ).toBe(true);
   });
 
+  it("retains scoped neutral definitions for groups and blend stages", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0, brow: 0 },
+      crossGroupBlendMode: "average" as const,
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          neutral: {
+            sourceType: "pose-reference" as const,
+            poseId: "pose_smile",
+          },
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+          neutral: {
+            sourceType: "direct-values" as const,
+            values: { smile: 0.25, brow: -0.1 },
+          },
+        },
+      ],
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average" as const,
+          neutral: {
+            sourceType: "inherit" as const,
+          },
+          sources: [
+            { kind: "group" as const, id: "emotion" },
+            { kind: "group" as const, id: "viseme" },
+          ],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const { config } = PoseConfigService.normalize(input);
+    expect(config.poseGroups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        blendMode: "average",
+        neutral: {
+          sourceType: "pose-reference",
+          poseId: "pose_smile",
+        },
+      },
+      {
+        id: "viseme",
+        name: "Viseme",
+        path: "viseme",
+        blendMode: "average",
+        neutral: {
+          sourceType: "direct-values",
+          values: { smile: 0.25, brow: -0.1 },
+        },
+      },
+    ]);
+    expect(config.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        neutral: {
+          sourceType: "inherit",
+        },
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+    ]);
+  });
+
+  it("warns and drops malformed scoped neutral payloads", () => {
+    const input = {
+      version: POSE_RIG_CONFIG_VERSION,
+      neutralInputs: { smile: 0 },
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          neutral: {
+            sourceType: "pose-reference",
+            poseId: "unknown_pose",
+          },
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+          neutral: {
+            sourceType: "direct-values",
+            values: "not-a-map",
+          },
+        },
+      ],
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average",
+          neutral: {
+            sourceType: "bogus",
+          },
+          sources: [{ kind: "group", id: "emotion" }],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { smile: 0.7 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    } as any;
+
+    const { config, warnings } = PoseConfigService.normalize(input);
+    expect(config.poseGroups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        blendMode: "average",
+      },
+      {
+        id: "viseme",
+        name: "Viseme",
+        path: "viseme",
+        blendMode: "average",
+      },
+    ]);
+    expect(config.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        sources: [{ kind: "group", id: "emotion" }],
+      },
+    ]);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'neutral at "poseGroups[0].neutral" references unknown pose',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'neutral at "poseGroups[1].neutral" direct values are invalid',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      warnings.some((warning) =>
+        warning.includes(
+          'neutral at "blendStages[0].neutral" has invalid source type',
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("normalizes cross-group channel overrides and preserves deterministic ordering", () => {
     const standardInputs = [
       createStandardRigInput({

@@ -18,6 +18,29 @@ export type PoseDiagnosticSeverity = "warning" | "error" | "info";
 export type PoseInputComposeModeMap = Partial<
   Record<StandardInputId, PoseInputComposeMode>
 >;
+export type PoseScopedNeutralSourceType =
+  | "inherit"
+  | "pose-reference"
+  | "direct-values";
+
+export interface PoseScopedNeutralInheritDefinition {
+  sourceType: "inherit";
+}
+
+export interface PoseScopedNeutralPoseReferenceDefinition {
+  sourceType: "pose-reference";
+  poseId: string;
+}
+
+export interface PoseScopedNeutralDirectValuesDefinition {
+  sourceType: "direct-values";
+  values: Record<StandardInputId, number>;
+}
+
+export type PoseScopedNeutralDefinition =
+  | PoseScopedNeutralInheritDefinition
+  | PoseScopedNeutralPoseReferenceDefinition
+  | PoseScopedNeutralDirectValuesDefinition;
 
 export interface PoseDiagnosticLocation {
   poseId?: string;
@@ -68,6 +91,7 @@ export interface PoseIrGroupDefinition {
   name: string;
   path: string;
   intraGroupBlendMode: PoseIrBlendMode;
+  neutral?: PoseScopedNeutralDefinition;
   poseIds: string[];
 }
 
@@ -105,6 +129,7 @@ export interface PoseIrBlendStageDefinition {
   id: string;
   name?: string;
   mode: PoseIrBlendMode;
+  neutral?: PoseScopedNeutralDefinition;
   sources: PoseIrStageSource[];
 }
 
@@ -137,6 +162,7 @@ export interface PoseGroupDefinition {
   name: string;
   path: string;
   blendMode?: PoseBlendMode;
+  neutral?: PoseScopedNeutralDefinition;
 }
 
 export interface LowLevelBinding {

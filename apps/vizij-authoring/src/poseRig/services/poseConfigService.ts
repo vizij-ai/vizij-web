@@ -15,6 +15,8 @@ import type {
   PosePriorityTieBreak,
   PoseNeutralMode,
   PoseInputComposeMode,
+  PoseScopedNeutralDefinition,
+  PoseScopedNeutralSourceType,
 } from "../types";
 import { POSE_RIG_CONFIG_VERSION } from "../types";
 import {
@@ -24,10 +26,196 @@ import {
   sanitizePoseGroupId,
 } from "../groupMembership";
 
+type InputResolutionReason = "sourceId" | "path" | "normalized" | null;
+type ResolveInputId = (rawKey: string) => {
+  id: string | null;
+  reason: InputResolutionReason;
+};
+
+interface ScopedNeutralNormalizationContext {
+  scopeLabel: string;
+  path: string;
+}
+
+type ScopedNeutralNormalizer = (
+  neutral: unknown,
+  context: ScopedNeutralNormalizationContext,
+) => PoseScopedNeutralDefinition | undefined;
+
+function cloneScopedNeutral(
+  neutral: PoseScopedNeutralDefinition | undefined,
+): PoseScopedNeutralDefinition | undefined {
+  if (!neutral) {
+    return undefined;
+  }
+  if (neutral.sourceType === "inherit") {
+    return { sourceType: "inherit" };
+  }
+  if (neutral.sourceType === "pose-reference") {
+    return {
+      sourceType: "pose-reference",
+      poseId: neutral.poseId,
+    };
+  }
+  return {
+    sourceType: "direct-values",
+    values: { ...neutral.values },
+  };
+}
+
+function clonePoseGroups(
+  poseGroups: PoseGroupDefinition[],
+): PoseGroupDefinition[] {
+  return poseGroups.map((group) => ({
+    id: group.id,
+    path: group.path,
+    name: group.name,
+    blendMode: group.blendMode,
+    ...(group.neutral ? { neutral: cloneScopedNeutral(group.neutral) } : {}),
+  }));
+}
+
+function normalizeScopedNeutral(
+  neutral: unknown,
+  options: {
+    scopeLabel: string;
+    path: string;
+    validInputIds: Set<string>;
+    knownPoseIds: Set<string>;
+    resolveInputId: ResolveInputId;
+    pushWarning: (message: string) => void;
+  },
+): PoseScopedNeutralDefinition | undefined {
+  const {
+    scopeLabel,
+    path,
+    validInputIds,
+    knownPoseIds,
+    resolveInputId,
+    pushWarning,
+  } = options;
+  if (neutral === undefined || neutral === null) {
+    return undefined;
+  }
+  if (!neutral || typeof neutral !== "object" || Array.isArray(neutral)) {
+    pushWarning(
+      `${scopeLabel} neutral at "${path}" was ignored because payload is not an object.`,
+    );
+    return undefined;
+  }
+
+  const neutralPayload = neutral as {
+    sourceType?: unknown;
+    type?: unknown;
+    poseId?: unknown;
+    values?: unknown;
+  };
+  const sourceTypeCandidate =
+    neutralPayload.sourceType ?? neutralPayload.type ?? null;
+  const sourceType: PoseScopedNeutralSourceType | null =
+    sourceTypeCandidate === "inherit" ||
+    sourceTypeCandidate === "pose-reference" ||
+    sourceTypeCandidate === "direct-values"
+      ? sourceTypeCandidate
+      : null;
+  if (!sourceType) {
+    pushWarning(
+      `${scopeLabel} neutral at "${path}" has invalid source type "${String(sourceTypeCandidate)}" and was ignored.`,
+    );
+    return undefined;
+  }
+
+  if (sourceType === "inherit") {
+    return { sourceType: "inherit" };
+  }
+
+  if (sourceType === "pose-reference") {
+    const poseId =
+      typeof neutralPayload.poseId === "string"
+        ? neutralPayload.poseId.trim()
+        : "";
+    if (!poseId) {
+      pushWarning(
+        `${scopeLabel} neutral at "${path}" is missing poseId and was ignored.`,
+      );
+      return undefined;
+    }
+    if (knownPoseIds.size > 0 && !knownPoseIds.has(poseId)) {
+      pushWarning(
+        `${scopeLabel} neutral at "${path}" references unknown pose "${poseId}" and was ignored.`,
+      );
+      return undefined;
+    }
+    return {
+      sourceType: "pose-reference",
+      poseId,
+    };
+  }
+
+  if (
+    !neutralPayload.values ||
+    typeof neutralPayload.values !== "object" ||
+    Array.isArray(neutralPayload.values)
+  ) {
+    pushWarning(
+      `${scopeLabel} neutral at "${path}" direct values are invalid and were ignored.`,
+    );
+    return undefined;
+  }
+
+  const values: Record<string, number> = {};
+  const valueSourcesByResolvedId = new Map<string, string>();
+  Object.entries(neutralPayload.values as Record<string, unknown>).forEach(
+    ([key, rawValue]) => {
+      if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+        pushWarning(
+          `${scopeLabel} neutral at "${path}" input "${key}" ignored invalid value.`,
+        );
+        return;
+      }
+
+      if (validInputIds.size === 0) {
+        values[key] = rawValue;
+        return;
+      }
+
+      const resolved = resolveInputId(key);
+      if (!resolved.id) {
+        pushWarning(
+          `${scopeLabel} neutral at "${path}" input "${key}" references missing input and was ignored.`,
+        );
+        return;
+      }
+
+      const firstSource = valueSourcesByResolvedId.get(resolved.id);
+      if (firstSource && firstSource !== key) {
+        pushWarning(
+          `${scopeLabel} neutral at "${path}" inputs "${firstSource}" and "${key}" both remap to "${resolved.id}"; keeping value from "${key}".`,
+        );
+      } else if (!firstSource) {
+        valueSourcesByResolvedId.set(resolved.id, key);
+      }
+
+      values[resolved.id] = rawValue;
+      if (resolved.id !== key) {
+        pushWarning(
+          `${scopeLabel} neutral at "${path}" input "${key}" remapped to "${resolved.id}" via ${resolved.reason ?? "id"} match.`,
+        );
+      }
+    },
+  );
+
+  return {
+    sourceType: "direct-values",
+    values,
+  };
+}
+
 function normalizePoseGroups(
   poses: PoseDefinition[],
   poseGroups: unknown,
   defaultGroupBlendMode: PoseBlendMode,
+  normalizeScopedNeutralForGroup?: ScopedNeutralNormalizer,
 ): {
   poseGroups: PoseGroupDefinition[];
   groupById: Map<string, PoseGroupDefinition>;
@@ -40,7 +228,7 @@ function normalizePoseGroups(
     ? (poseGroups as PoseGroupDefinition[])
     : [];
 
-  sourceGroups.forEach((group) => {
+  sourceGroups.forEach((group, groupIndex) => {
     if (!group || typeof group !== "object") {
       return;
     }
@@ -62,6 +250,18 @@ function normalizePoseGroups(
         group.blendMode === "additive" || group.blendMode === "average"
           ? group.blendMode
           : defaultGroupBlendMode,
+      ...(normalizeScopedNeutralForGroup
+        ? (() => {
+            const normalizedNeutral = normalizeScopedNeutralForGroup(
+              (group as { neutral?: unknown }).neutral,
+              {
+                scopeLabel: `Pose group "${id}"`,
+                path: `poseGroups[${groupIndex}].neutral`,
+              },
+            );
+            return normalizedNeutral ? { neutral: normalizedNeutral } : {};
+          })()
+        : {}),
     };
     groups.push(normalized);
     groupById.set(id, normalized);
@@ -111,6 +311,7 @@ function cloneBlendStages(
     id: stage.id,
     name: stage.name,
     mode: stage.mode,
+    ...(stage.neutral ? { neutral: cloneScopedNeutral(stage.neutral) } : {}),
     sources: stage.sources.map((source) => ({
       kind: source.kind,
       id: source.id,
@@ -200,10 +401,7 @@ function normalizeCrossGroupChannelOverrides(
     validInputIds: Set<string>;
     knownGroupIds: string[];
     fallbackMode: PoseBlendMode;
-    resolveInputId: (rawKey: string) => {
-      id: string | null;
-      reason: "sourceId" | "path" | "normalized" | null;
-    };
+    resolveInputId: ResolveInputId;
     pushWarning: (message: string) => void;
   },
 ): PoseRigConfigFile["crossGroupChannelOverrides"] | undefined {
@@ -360,6 +558,7 @@ function normalizeBlendStages(
   groupIds: string[],
   fallbackMode: PoseIrBlendMode,
   pushWarning: (message: string) => void,
+  normalizeScopedNeutralForStage?: ScopedNeutralNormalizer,
 ): PoseIrBlendStageDefinition[] | undefined {
   if (blendStages === undefined || blendStages === null) {
     return undefined;
@@ -483,10 +682,18 @@ function normalizeBlendStages(
       typeof stage.name === "string" && stage.name.trim().length > 0
         ? stage.name.trim()
         : undefined;
+    const scopedNeutral = normalizeScopedNeutralForStage?.(
+      (stage as { neutral?: unknown }).neutral,
+      {
+        scopeLabel: `Blend stage "${stageId}"`,
+        path: `blendStages[${stageIndex}].neutral`,
+      },
+    );
     normalizedStages.push({
       id: stageId,
       name: stageName,
       mode: stageMode,
+      ...(scopedNeutral ? { neutral: scopedNeutral } : {}),
       sources: normalizedSources,
     });
     knownStageIds.add(stageId);
@@ -602,12 +809,7 @@ export const PoseConfigService = {
       warnings.push(message);
     };
 
-    const resolveInputId = (
-      rawKey: string,
-    ): {
-      id: string | null;
-      reason: "sourceId" | "path" | "normalized" | null;
-    } => {
+    const resolveInputId: ResolveInputId = (rawKey: string) => {
       const key = rawKey.trim();
       if (!key) {
         return { id: null, reason: null };
@@ -666,11 +868,36 @@ export const PoseConfigService = {
       }
     }
 
+    const knownPoseIds = new Set<string>();
+    candidate.poses.forEach((pose) => {
+      if (!pose || typeof pose !== "object") {
+        return;
+      }
+      const poseId = typeof pose.id === "string" ? pose.id.trim() : "";
+      if (poseId) {
+        knownPoseIds.add(poseId);
+      }
+    });
+
+    const normalizeScopedNeutralForConfig: ScopedNeutralNormalizer = (
+      neutral,
+      context,
+    ) =>
+      normalizeScopedNeutral(neutral, {
+        scopeLabel: context.scopeLabel,
+        path: context.path,
+        validInputIds: validInputs,
+        knownPoseIds,
+        resolveInputId,
+        pushWarning,
+      });
+
     const defaultGroupBlendMode: PoseBlendMode = "average";
     const { poseGroups: normalizedGroups } = normalizePoseGroups(
       candidate.poses as PoseDefinition[],
       candidate.poseGroups,
       defaultGroupBlendMode,
+      normalizeScopedNeutralForConfig,
     );
     const crossGroupBlendMode: PoseBlendMode =
       candidate.crossGroupBlendMode === "average" ||
@@ -682,6 +909,7 @@ export const PoseConfigService = {
       normalizedGroups.map((group) => group.id),
       resolveDefaultStageMode(crossGroupBlendMode),
       pushWarning,
+      normalizeScopedNeutralForConfig,
     );
     const normalizedCrossGroupChannelOverrides =
       normalizeCrossGroupChannelOverrides(
@@ -812,7 +1040,7 @@ export const PoseConfigService = {
         rigKind: candidate.rigKind ?? "face-specific",
         title: candidate.title ?? undefined,
         description: candidate.description ?? undefined,
-        poseGroups: normalizedGroups,
+        poseGroups: clonePoseGroups(normalizedGroups),
         crossGroupBlendMode,
         crossGroupChannelOverrides: cloneCrossGroupChannelOverrides(
           normalizedCrossGroupChannelOverrides,
@@ -859,10 +1087,34 @@ export const PoseConfigService = {
     },
   ): PoseRigConfigFile {
     const defaultGroupBlendMode = options?.defaultGroupBlendMode ?? "average";
+    const knownPoseIds = new Set(
+      poses
+        .map((pose) => (typeof pose.id === "string" ? pose.id.trim() : ""))
+        .filter((poseId) => poseId.length > 0),
+    );
+    const resolveCreateInputId: ResolveInputId = (rawKey) => ({
+      id: rawKey.trim() || null,
+      reason: null,
+    });
+    const normalizeScopedNeutralForCreate: ScopedNeutralNormalizer = (
+      neutral,
+      context,
+    ) =>
+      normalizeScopedNeutral(neutral, {
+        scopeLabel: context.scopeLabel,
+        path: context.path,
+        validInputIds: new Set(),
+        knownPoseIds,
+        resolveInputId: resolveCreateInputId,
+        pushWarning: () => {
+          // create() returns normalized payload; invalid scoped neutral entries are silently dropped.
+        },
+      });
     const { poseGroups } = normalizePoseGroups(
       poses,
       options?.poseGroups,
       defaultGroupBlendMode,
+      normalizeScopedNeutralForCreate,
     );
     const crossGroupBlendMode = options?.crossGroupBlendMode ?? "additive";
     const normalizedBlendStages = normalizeBlendStages(
@@ -872,16 +1124,14 @@ export const PoseConfigService = {
       () => {
         // create() returns normalized payload; invalid blend stages are silently dropped.
       },
+      normalizeScopedNeutralForCreate,
     );
     const normalizedCrossGroupChannelOverrides =
       normalizeCrossGroupChannelOverrides(options?.crossGroupChannelOverrides, {
         validInputIds: new Set(),
         knownGroupIds: poseGroups.map((group) => group.id),
         fallbackMode: crossGroupBlendMode,
-        resolveInputId: (rawKey) => ({
-          id: rawKey.trim() || null,
-          reason: null,
-        }),
+        resolveInputId: resolveCreateInputId,
         pushWarning: () => {
           // create() returns normalized payload; invalid override entries are silently dropped.
         },
@@ -907,7 +1157,7 @@ export const PoseConfigService = {
       title: rigName,
       neutralMode: options?.neutralMode ?? "explicit",
       neutralInputs: { ...neutralInputs },
-      poseGroups,
+      poseGroups: clonePoseGroups(poseGroups),
       crossGroupBlendMode,
       crossGroupChannelOverrides: cloneCrossGroupChannelOverrides(
         normalizedCrossGroupChannelOverrides,

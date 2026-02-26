@@ -1,6 +1,6 @@
 # Vizij Authoring UI Design
 
-Last updated: 2026-02-19
+Last updated: 2026-02-26
 Status: active
 
 This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `plans/ROADMAP.md` and `plans/BACKLOG.md`.
@@ -111,6 +111,12 @@ Interaction requirements:
 4. Multi-stage composition supports explicit stage ordering and operations (`add` / `average`) with stage source selection (group and prior-stage references).
 5. Stage editing blocks invalid topology before apply/export (self/forward references, unknown sources, duplicate/empty sources).
 6. Data contracts support per-channel cross-group overrides, including `priority` mode with deterministic ordering/tie-break semantics; import/export and diagnostics must preserve and explain these policies.
+7. Stage/group inspectors are the neutral authoring home for composition contexts; Inputs remains read-only observability for derived outputs.
+8. Stage/group neutral source authoring supports:
+   - `inherit`,
+   - `pose-reference`,
+   - `direct-values`.
+9. Inspector composition outputs must show effective values for current authored live source weights; fixed checkpoint sampling is optional and non-default.
 
 Direct+pose effective-channel contract:
 
@@ -125,7 +131,13 @@ Direct+pose effective-channel contract:
    - target value,
    - current/applied value,
    - contribution strength.
-3. Neutral strategy (`face-default` vs explicit) must be visible once neutral authoring is enabled.
+3. Global neutral strategy (`face-default` vs explicit) must be visible once neutral authoring is enabled.
+4. Scoped neutral precedence for composition contexts must be:
+   - stage override,
+   - group override,
+   - global neutral,
+   - channel default fallback.
+5. Current `average` semantics are overlay-average relative to the effective neutral baseline (not a pure absolute overwrite).
 
 ## Props Rig Visibility Contract
 

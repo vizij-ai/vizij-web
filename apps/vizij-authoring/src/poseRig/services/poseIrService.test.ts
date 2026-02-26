@@ -810,6 +810,231 @@ describe("PoseIrService", () => {
     ).toBe(true);
   });
 
+  it("round-trips scoped neutral definitions between config and IR", () => {
+    const { ir } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        crossGroupBlendMode: "average",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+            neutral: {
+              sourceType: "pose-reference",
+              poseId: "pose_smile",
+            },
+          },
+          {
+            id: "viseme",
+            name: "Viseme",
+            path: "viseme",
+            blendMode: "average",
+            neutral: {
+              sourceType: "direct-values",
+              values: {
+                smile: 0.2,
+                brow: -0.1,
+              },
+            },
+          },
+        ],
+        blendStages: [
+          {
+            id: "stage_base",
+            mode: "average",
+            neutral: {
+              sourceType: "inherit",
+            },
+            sources: [
+              { kind: "group", id: "emotion" },
+              { kind: "group", id: "viseme" },
+            ],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+          {
+            id: "pose_talk",
+            name: "Talk",
+            groupIds: ["viseme"],
+            values: { brow: 0.4 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.groups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        intraGroupBlendMode: "average",
+        neutral: {
+          sourceType: "pose-reference",
+          poseId: "pose_smile",
+        },
+        poseIds: ["pose_smile"],
+      },
+      {
+        id: "viseme",
+        name: "Viseme",
+        path: "viseme",
+        intraGroupBlendMode: "average",
+        neutral: {
+          sourceType: "direct-values",
+          values: {
+            smile: 0.2,
+            brow: -0.1,
+          },
+        },
+        poseIds: ["pose_talk"],
+      },
+    ]);
+    expect(ir.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        neutral: {
+          sourceType: "inherit",
+        },
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+    ]);
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.poseGroups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        blendMode: "average",
+        neutral: {
+          sourceType: "pose-reference",
+          poseId: "pose_smile",
+        },
+      },
+      {
+        id: "viseme",
+        name: "Viseme",
+        path: "viseme",
+        blendMode: "average",
+        neutral: {
+          sourceType: "direct-values",
+          values: {
+            smile: 0.2,
+            brow: -0.1,
+          },
+        },
+      },
+    ]);
+    expect(config.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        neutral: {
+          sourceType: "inherit",
+        },
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+    ]);
+  });
+
+  it("normalizes malformed scoped neutral payloads with structured diagnostics", () => {
+    const { ir, diagnostics } = PoseIrService.normalize(
+      {
+        version: 1,
+        faceId: "robot",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: { smile: 0 },
+        },
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            neutral: {
+              sourceType: "pose-reference",
+              poseId: "unknown_pose",
+            },
+            poseIds: ["pose_smile"],
+          },
+        ],
+        crossGroupPolicy: { mode: "average" },
+        blendStages: [
+          {
+            id: "stage_base",
+            mode: "average",
+            neutral: {
+              sourceType: "direct-values",
+              values: "bad-shape",
+            },
+            sources: [{ kind: "group", id: "emotion" }],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      } as any,
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.groups[0]?.neutral).toBeUndefined();
+    expect(ir.blendStages?.[0]?.neutral).toBeUndefined();
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "unknown-scoped-neutral-pose-reference" &&
+          diagnostic.source === "pose-ir" &&
+          diagnostic.location?.path === "groups[0].neutral.poseId",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-scoped-neutral-direct-values-shape" &&
+          diagnostic.source === "pose-ir" &&
+          diagnostic.location?.path === "blendStages[0].neutral.values",
+      ),
+    ).toBe(true);
+  });
+
   it("falls back to legacy blending when all blend stages are malformed", () => {
     const { ir, diagnostics } = PoseIrService.normalize(
       {
