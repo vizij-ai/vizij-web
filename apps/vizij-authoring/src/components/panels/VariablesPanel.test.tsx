@@ -325,6 +325,58 @@ describe("VariablesPanel", () => {
     expect(within(view.container).getByText("Inputs (0)")).toBeTruthy();
   });
 
+  it("shows explicit variables context labels when reference face is available", () => {
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["variables"]}
+        activeSurfaceOverride="variables"
+      />,
+    );
+
+    const contextRow = within(view.container)
+      .getByText("Variables Context")
+      .closest("div");
+    expect(contextRow).toBeTruthy();
+    const scoped = within(contextRow as HTMLElement);
+    expect(scoped.getByText("Main Face")).toBeTruthy();
+    expect(scoped.getByText("Shared")).toBeTruthy();
+    expect(scoped.getByText("Reference Face")).toBeTruthy();
+  });
+
+  it("shows explicit poses context labels when reference face is available", () => {
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    const contextRow = within(view.container)
+      .getByText("Poses Context")
+      .closest("div");
+    expect(contextRow).toBeTruthy();
+    const scoped = within(contextRow as HTMLElement);
+    expect(scoped.getByText("Main Face")).toBeTruthy();
+    expect(scoped.getByText("Reference Face")).toBeTruthy();
+  });
+
+  it("shows inputs context labels describing main-only inputs and where to compare", () => {
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    const contextRow = within(view.container)
+      .getByText("Inputs Context")
+      .closest("div");
+    expect(contextRow).toBeTruthy();
+    const scoped = within(contextRow as HTMLElement);
+    expect(scoped.getByText("Main Face Inputs Only")).toBeTruthy();
+    expect(scoped.getByText("Compare in Variables/Poses")).toBeTruthy();
+  });
+
   it("filters out /rig/element variables from the variables panel", () => {
     const metadataInput = makeInput("rig_jaw", "/rig/element/jaw/open", {
       label: "Rig Element Jaw",

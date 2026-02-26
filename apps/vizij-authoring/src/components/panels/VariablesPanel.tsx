@@ -3907,6 +3907,9 @@ export function VariablesPanel({
             const isPoseGroups = id === "pose-groups";
             const isPoses = id === "poses";
             const isInputs = id === "inputs";
+            const hasReferenceFace = Boolean(referenceFace.file);
+            const showSurfaceContext =
+              hasReferenceFace && (isVariables || isPoses || isInputs);
             const filteredSearch = searchQuery.trim().toLowerCase();
 
             return (
@@ -4075,6 +4078,50 @@ export function VariablesPanel({
                     </span>
                   )}
                 </div>
+                {showSurfaceContext && (
+                  <div className="flex flex-wrap items-center gap-1 px-1 mb-1">
+                    {isVariables ? (
+                      <>
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                          Variables Context
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                          Main Face
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-teal-500/40 text-teal-200">
+                          Shared
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/40 text-cyan-200">
+                          Reference Face
+                        </span>
+                      </>
+                    ) : isPoses ? (
+                      <>
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                          Poses Context
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                          Main Face
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/40 text-cyan-200">
+                          Reference Face
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                          Inputs Context
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                          Main Face Inputs Only
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
+                          Compare in Variables/Poses
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
                 {isPoseGroups && (
                   <div className="flex flex-col gap-2 px-1">
                     <div className="flex flex-wrap items-center gap-1">
