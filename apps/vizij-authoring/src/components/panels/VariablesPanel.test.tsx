@@ -509,6 +509,11 @@ describe("VariablesPanel", () => {
       [destinationChild.id, destinationChild],
     ]);
     bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
+    bindingState.applyInputBindingPatch.mockImplementation((updater) => {
+      bindingState.inputBindings = updater(
+        bindingState.inputBindings as any,
+      ) as typeof bindingState.inputBindings;
+    });
 
     const onSelectRig = vi.fn();
     render(<VariablesPanel onSelectRig={onSelectRig} />);
@@ -537,6 +542,63 @@ describe("VariablesPanel", () => {
     expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
       created.id,
       destinationChild.id,
+    );
+
+    const createdBinding = bindingState.inputBindings[created.id] as
+      | {
+          slots?: Array<{ inputId?: string | null }>;
+          metadata?: {
+            vizij?: {
+              pipelineV1?: {
+                links?: Record<
+                  string,
+                  {
+                    parentInputId?: string;
+                    childInputId?: string;
+                    scale?: number;
+                    offset?: number;
+                  }
+                >;
+              };
+            };
+          };
+        }
+      | undefined;
+    const destinationChildBinding = bindingState.inputBindings[
+      destinationChild.id
+    ] as typeof createdBinding;
+
+    expect(
+      createdBinding?.slots?.some(
+        (slot) => slot.inputId === destinationParent.id,
+      ),
+    ).toBe(true);
+    expect(
+      destinationChildBinding?.slots?.some(
+        (slot) => slot.inputId === created.id,
+      ),
+    ).toBe(true);
+    expect(
+      Object.values(createdBinding?.metadata?.vizij?.pipelineV1?.links ?? {}),
+    ).toContainEqual(
+      expect.objectContaining({
+        parentInputId: destinationParent.id,
+        childInputId: created.id,
+        scale: 0.5,
+        offset: 0.1,
+      }),
+    );
+    expect(
+      Object.values(
+        destinationChildBinding?.metadata?.vizij?.pipelineV1?.links ?? {},
+      ),
+    ).toContainEqual(
+      expect.objectContaining({
+        parentInputId: created.id,
+        childInputId: destinationChild.id,
+        scale: 0.8,
+        offset: -0.2,
+      }),
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });

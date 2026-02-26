@@ -15,12 +15,21 @@ import {
   Users,
 } from "lucide-react";
 import {
+  addBindingSlot,
+  bindingTargetFromInput,
+  bindingToDefinition,
+  createDefaultParentBinding,
+  ensureBindingStructure,
+  updateBindingWithInput,
+  type AnimatableBinding,
+  type InputBindingMap,
+} from "@vizij/node-graph-authoring";
+import {
   buildRigPipelineV1LinkId,
   normalizeStandardRigInputPath,
   SELF_BINDING_ID,
-  type StandardRigInput,
 } from "@vizij/utils";
-import type { AnimatableBinding } from "@vizij/node-graph-authoring";
+import type { StandardRigInput } from "@vizij/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -1034,6 +1043,79 @@ function upsertBindingPipelineLinkMetadata(
       },
     },
   };
+}
+
+function applyVariableCopyLinkPlansToInputBindings(params: {
+  bindings: InputBindingMap;
+  linkPlans: readonly VariableCopyCommitLinkPlan[];
+  standardInputsById: ReadonlyMap<string, StandardRigInput>;
+}): InputBindingMap {
+  let changed = false;
+  let nextBindings = params.bindings;
+
+  params.linkPlans.forEach((plan) => {
+    const parentInput = params.standardInputsById.get(plan.parentInputId);
+    const childInput = params.standardInputsById.get(plan.childInputId);
+    if (!parentInput || !childInput) {
+      return;
+    }
+
+    const target = bindingTargetFromInput(childInput);
+    const existingBinding = nextBindings[plan.childInputId];
+    let linkedBinding = ensureBindingStructure(
+      existingBinding ?? createDefaultParentBinding(target),
+      target,
+    );
+
+    let targetSlotId =
+      linkedBinding.slots.find((slot) => slot.inputId === parentInput.id)?.id ??
+      null;
+    if (!targetSlotId) {
+      const reusableSlot = linkedBinding.slots.find(
+        (slot, index) =>
+          index > 0 && (slot.inputId === null || slot.inputId === undefined),
+      );
+      if (reusableSlot) {
+        targetSlotId = reusableSlot.id;
+      } else {
+        linkedBinding = addBindingSlot(linkedBinding, target);
+        targetSlotId =
+          linkedBinding.slots[linkedBinding.slots.length - 1]?.id ?? null;
+      }
+    }
+
+    linkedBinding = updateBindingWithInput(
+      linkedBinding,
+      target,
+      parentInput,
+      targetSlotId ?? undefined,
+    );
+    const linkedWithMetadata = upsertBindingPipelineLinkMetadata(
+      linkedBinding,
+      {
+        parentInputId: plan.parentInputId,
+        childInputId: plan.childInputId,
+        scale: plan.scale,
+        offset: plan.offset,
+      },
+    );
+
+    if (
+      existingBinding &&
+      JSON.stringify(bindingToDefinition(existingBinding)) ===
+        JSON.stringify(bindingToDefinition(linkedWithMetadata))
+    ) {
+      return;
+    }
+
+    if (!changed) {
+      changed = true;
+      nextBindings = { ...nextBindings };
+    }
+    nextBindings[plan.childInputId] = linkedWithMetadata;
+  });
+
+  return changed ? nextBindings : params.bindings;
 }
 
 function simplifyNode(node: TreeNode): TreeNode {
@@ -2600,6 +2682,7 @@ export function VariablesPanel({
     }
 
     let destinationInputId = destinationInputIdRaw;
+    let createdDestinationInput: StandardRigInput | null = null;
     if (variableCopyModal.destinationMode === "new") {
       const created = handleCreateCustomStandardInput(
         normalizedNewDestinationPath!,
@@ -2611,6 +2694,7 @@ export function VariablesPanel({
         return;
       }
       destinationInputId = created.id;
+      createdDestinationInput = created;
     }
 
     handleUpdateStandardInput(destinationInputId, {
@@ -2650,29 +2734,21 @@ export function VariablesPanel({
     });
 
     if (linkPlans.length > 0) {
+      const linkPlanInputLookup = new Map<string, StandardRigInput>(
+        standardInputsById,
+      );
+      if (createdDestinationInput) {
+        linkPlanInputLookup.set(
+          createdDestinationInput.id,
+          createdDestinationInput,
+        );
+      }
       applyInputBindingPatch((bindings) => {
-        let changed = false;
-        let nextBindings = bindings;
-        linkPlans.forEach((plan) => {
-          const childBinding = nextBindings[plan.childInputId];
-          if (!childBinding || typeof childBinding !== "object") {
-            return;
-          }
-          if (!changed) {
-            changed = true;
-            nextBindings = { ...nextBindings };
-          }
-          nextBindings[plan.childInputId] = upsertBindingPipelineLinkMetadata(
-            childBinding,
-            {
-              parentInputId: plan.parentInputId,
-              childInputId: plan.childInputId,
-              scale: plan.scale,
-              offset: plan.offset,
-            },
-          );
+        return applyVariableCopyLinkPlansToInputBindings({
+          bindings,
+          linkPlans,
+          standardInputsById: linkPlanInputLookup,
         });
-        return changed ? nextBindings : bindings;
       });
     }
 
