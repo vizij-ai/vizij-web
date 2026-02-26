@@ -1,7 +1,7 @@
 # Pose Group + Stage Inspector Sprint Plan (Proposal + SOP)
 
 Last updated: 2026-02-26  
-Status: `in_progress`
+Status: `done`
 
 ## Goal
 
@@ -186,7 +186,7 @@ Acceptance:
 1. Stage inspector supports `inherit`, `pose-reference`, `direct-values`.
 2. Stage output diagnostics/analysis are visible without using Inputs pane alone.
 
-### Chunk S7 — Test Matrix, Regression Proof, Docs Closeout (`S7`) [planned]
+### Chunk S7 — Test Matrix, Regression Proof, Docs Closeout (`S7`) [done]
 
 1. Add/expand tests for scoped neutral precedence and inspector flows.
 2. Update docs + tracker + validation evidence.
@@ -209,16 +209,16 @@ Acceptance:
 
 ## Progress Board
 
-| Chunk | Status  | Owner                 | Notes                                                       |
-| ----- | ------- | --------------------- | ----------------------------------------------------------- |
-| S0    | done    | main agent + explorer | Contract lock + tracker linkage                             |
-| S1    | done    | worker                | Types/services scoped neutral contracts + service tests     |
-| S2    | done    | worker                | Store action/state plumbing + hook API exposure             |
-| S3    | done    | worker                | Compiler neutral precedence + scoped coverage diagnostics   |
-| S4    | done    | worker                | Stage selection state + routing + stale-selection guards    |
-| S5    | done    | worker                | Group neutral source editing + composition output analysis  |
-| S6    | done    | worker                | Stage neutral authoring + stage composition output analysis |
-| S7    | planned | main agent + awaiter  | Validation, docs closeout                                   |
+| Chunk | Status | Owner                 | Notes                                                       |
+| ----- | ------ | --------------------- | ----------------------------------------------------------- |
+| S0    | done   | main agent + explorer | Contract lock + tracker linkage                             |
+| S1    | done   | worker                | Types/services scoped neutral contracts + service tests     |
+| S2    | done   | worker                | Store action/state plumbing + hook API exposure             |
+| S3    | done   | worker                | Compiler neutral precedence + scoped coverage diagnostics   |
+| S4    | done   | worker                | Stage selection state + routing + stale-selection guards    |
+| S5    | done   | worker                | Group neutral source editing + composition output analysis  |
+| S6    | done   | worker                | Stage neutral authoring + stage composition output analysis |
+| S7    | done   | main agent + awaiter  | Validation, docs closeout                                   |
 
 ## Progress Log
 
@@ -270,6 +270,11 @@ Acceptance:
      - `pnpm --filter vizij-authoring test -- src/components/inspector/poseCompositionPreview.test.ts src/components/inspector/poseWeightSyncContracts.test.ts src/components/inspector/inspectorSizingContracts.test.ts`
      - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx`
      - `pnpm --filter vizij-authoring typecheck`
+- 2026-02-26: Chunk `S7` completed.
+  1. Ran targeted matrix across pose config/IR/store/graph and inspector/panel contracts.
+  2. Ran `pnpm --filter vizij-authoring run validate` with `lint`, `typecheck`, and `test` all passing.
+  3. Ran `pnpm run prep`; formatting passed and affected-workspace validate reported no matched projects for base `origin/chris-authoring-latest`.
+  4. Marked sprint closeout complete in plan + tracker.
 
 ## Validation Evidence
 
@@ -289,6 +294,10 @@ Acceptance:
    - `pnpm --filter vizij-authoring test -- src/components/inspector/poseCompositionPreview.test.ts src/components/inspector/poseWeightSyncContracts.test.ts src/components/inspector/inspectorSizingContracts.test.ts` (pass; 3 files / 9 tests)
    - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx` (pass; 1 file / 55 tests)
    - `pnpm --filter vizij-authoring typecheck` (pass)
+6. `S7`:
+   - `pnpm --filter vizij-authoring exec vitest --run src/poseRig/services/poseConfigService.test.ts src/poseRig/services/poseIrService.test.ts src/poseRig/store.test.ts src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/components/inspector/poseInspectorSemanticsContracts.test.ts src/components/inspector/poseCompositionPreview.test.ts src/components/panels/VariablesPanel.test.tsx` (pass; 8 files / 158 tests)
+   - `pnpm --filter vizij-authoring run validate` (pass; lint/typecheck/test all green, 81 files passed + 1 skipped / 548 tests passed + 1 skipped)
+   - `pnpm run prep` (pass; format unchanged, affected-workspace validate reported no matched projects for base `origin/chris-authoring-latest`)
 
 ## Risks / Watch Items
 
