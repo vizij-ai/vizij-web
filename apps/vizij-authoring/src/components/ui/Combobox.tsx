@@ -13,6 +13,8 @@ export interface ComboboxProps {
   value: string | null;
   onChange: (value: string | null) => void;
   options: ComboboxOption[];
+  query?: string;
+  onQueryChange?: (query: string) => void;
   placeholder?: string;
   label?: string;
   disabled?: boolean;
@@ -24,6 +26,8 @@ export function Combobox({
   value,
   onChange,
   options,
+  query: queryProp,
+  onQueryChange,
   placeholder = "Search or select...",
   label,
   disabled = false,
@@ -31,10 +35,22 @@ export function Combobox({
   size = "md",
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isQueryControlled = queryProp !== undefined;
+  const query = queryProp ?? internalQuery;
+
+  const setQuery = (nextQuery: string) => {
+    if (nextQuery === query) {
+      return;
+    }
+    if (!isQueryControlled) {
+      setInternalQuery(nextQuery);
+    }
+    onQueryChange?.(nextQuery);
+  };
 
   const selectedOption = useMemo(
     () => options.find((opt) => opt.value === value),

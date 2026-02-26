@@ -546,10 +546,23 @@ describe("VariablesPanel", () => {
 
     const createdBinding = bindingState.inputBindings[created.id] as
       | {
+          expression?: string;
           slots?: Array<{ inputId?: string | null }>;
           metadata?: {
             vizij?: {
               pipelineV1?: {
+                directInput?: {
+                  enabled?: boolean;
+                };
+                override?: {
+                  enabled?: boolean;
+                };
+                clamp?: {
+                  enabled?: boolean;
+                };
+                migration?: {
+                  status?: string;
+                };
                 links?: Record<
                   string,
                   {
@@ -578,6 +591,7 @@ describe("VariablesPanel", () => {
         (slot) => slot.inputId === created.id,
       ),
     ).toBe(true);
+    expect((createdBinding?.expression ?? "").toLowerCase()).toContain("s2");
     expect(
       Object.values(createdBinding?.metadata?.vizij?.pipelineV1?.links ?? {}),
     ).toContainEqual(
@@ -599,6 +613,18 @@ describe("VariablesPanel", () => {
         scale: 0.8,
         offset: -0.2,
       }),
+    );
+    expect(
+      createdBinding?.metadata?.vizij?.pipelineV1?.directInput?.enabled,
+    ).toBe(true);
+    expect(createdBinding?.metadata?.vizij?.pipelineV1?.override?.enabled).toBe(
+      false,
+    );
+    expect(createdBinding?.metadata?.vizij?.pipelineV1?.clamp?.enabled).toBe(
+      true,
+    );
+    expect(createdBinding?.metadata?.vizij?.pipelineV1?.migration?.status).toBe(
+      "migrated",
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });
@@ -674,6 +700,70 @@ describe("VariablesPanel", () => {
       0,
     );
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
+  });
+
+  it("defaults mapping rows to apply and seeds destination search from source path", () => {
+    const source = makeInput("ref_source", "/standard/eyes/blink", {
+      label: "Blink",
+    });
+    const sourceChild = makeInput("ref_child", "/propsrig/eye/lid_lower", {
+      label: "Ref Child",
+    });
+    const destinationSource = makeInput("main_source", "/standard/eyes/blink", {
+      label: "Main Blink",
+    });
+
+    referenceFaceState.standardInputs = [source, sourceChild];
+    referenceFaceState.standardInputsById = new Map([
+      [source.id, source],
+      [sourceChild.id, sourceChild],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [source, sourceChild],
+      [
+        {
+          parentInputId: source.id,
+          childInputId: sourceChild.id,
+        },
+      ],
+    );
+
+    bindingState.managedStandardInputs = [
+      { input: destinationSource, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [destinationSource.id, destinationSource],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [destinationSource.path, destinationSource],
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/eyes/blink" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle("Copy driver to main face"),
+    );
+
+    const applyCheckboxes = screen.getAllByRole("checkbox");
+    expect(applyCheckboxes.length).toBeGreaterThan(0);
+    applyCheckboxes.forEach((checkbox) => {
+      expect((checkbox as HTMLInputElement).checked).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Use Source Path" }));
+    const destinationSearchInputs = screen.getAllByPlaceholderText(
+      "Search destination input",
+    ) as HTMLInputElement[];
+    expect(
+      destinationSearchInputs.some(
+        (input) => input.value === "/propsrig/eye/lid_lower",
+      ),
+    ).toBe(true);
   });
 
   it("prefers the path-matched reference source with relationships when catalog ids differ", () => {

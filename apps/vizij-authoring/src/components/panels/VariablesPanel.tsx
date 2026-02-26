@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   addBindingSlot,
+  buildCanonicalBindingExpression,
   bindingTargetFromInput,
   bindingToDefinition,
   createDefaultParentBinding,
@@ -306,6 +307,7 @@ interface VariableCopyNumericDecisionDraft {
 interface VariableCopyLinkRowDraft {
   apply: boolean;
   destinationInputId: string;
+  searchQuery: string;
   scale: VariableCopyNumericDecisionDraft;
   offset: VariableCopyNumericDecisionDraft;
 }
@@ -806,8 +808,9 @@ function createVariableCopyLinkRowDraft(
   row: VariableLinkMappingRow,
 ): VariableCopyLinkRowDraft {
   return {
-    apply: row.status === "resolved",
+    apply: true,
     destinationInputId: row.destinationInputId ?? "",
+    searchQuery: "",
     scale: createVariableCopyNumericDecisionDraft({
       mode: row.merge.scale.mode,
       fallbackValue: row.sourceScale,
@@ -1018,6 +1021,10 @@ function upsertBindingPipelineLinkMetadata(
   const pipeline = asRecord(vizij.pipelineV1) ?? {};
   const links = asRecord(pipeline.links) ?? {};
   const existingLink = asRecord(links[linkId]) ?? {};
+  const directInput = asRecord(pipeline.directInput) ?? {};
+  const override = asRecord(pipeline.override) ?? {};
+  const clamp = asRecord(pipeline.clamp) ?? {};
+  const migration = asRecord(pipeline.migration) ?? {};
   const nextLink = {
     ...existingLink,
     linkId,
@@ -1035,6 +1042,27 @@ function upsertBindingPipelineLinkMetadata(
         ...vizij,
         pipelineV1: {
           ...pipeline,
+          directInput: {
+            ...directInput,
+            enabled: true,
+          },
+          override: {
+            ...override,
+            enabled: false,
+          },
+          clamp: {
+            ...clamp,
+            enabled: true,
+          },
+          migration: {
+            ...migration,
+            status: "migrated",
+            source:
+              typeof migration.source === "string" &&
+              migration.source.trim().length > 0
+                ? migration.source
+                : "reference-variable-copy",
+          },
           links: {
             ...links,
             [linkId]: nextLink,
@@ -1062,10 +1090,17 @@ function applyVariableCopyLinkPlansToInputBindings(params: {
 
     const target = bindingTargetFromInput(childInput);
     const existingBinding = nextBindings[plan.childInputId];
-    let linkedBinding = ensureBindingStructure(
+    const baseBinding = ensureBindingStructure(
       existingBinding ?? createDefaultParentBinding(target),
       target,
     );
+    const expressionBefore = (baseBinding.expression ?? "").trim();
+    const canonicalExpressionBefore =
+      buildCanonicalBindingExpression(baseBinding).trim();
+    const expressionWasAuto =
+      expressionBefore.length === 0 ||
+      expressionBefore === canonicalExpressionBefore;
+    let linkedBinding = baseBinding;
 
     let targetSlotId =
       linkedBinding.slots.find((slot) => slot.inputId === parentInput.id)?.id ??
@@ -1090,6 +1125,19 @@ function applyVariableCopyLinkPlansToInputBindings(params: {
       parentInput,
       targetSlotId ?? undefined,
     );
+    if (expressionWasAuto) {
+      const canonicalExpressionAfter =
+        buildCanonicalBindingExpression(linkedBinding).trim();
+      if (
+        canonicalExpressionAfter.length > 0 &&
+        (linkedBinding.expression ?? "").trim() !== canonicalExpressionAfter
+      ) {
+        linkedBinding = {
+          ...linkedBinding,
+          expression: canonicalExpressionAfter,
+        };
+      }
+    }
     const linkedWithMetadata = upsertBindingPipelineLinkMetadata(
       linkedBinding,
       {
@@ -5276,9 +5324,34 @@ export function VariablesPanel({
                             </span>
                           </div>
                           <div className="flex flex-col gap-1 text-xs text-text-muted">
-                            <span>Destination input</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span>Destination input</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[10px]"
+                                disabled={!draft.apply || !row.sourcePath}
+                                onClick={() => {
+                                  const sourcePath = row.sourcePath ?? "";
+                                  setVariableCopyBlockingMessages([]);
+                                  setVariableCopyLinkRowDraft(
+                                    relationship,
+                                    row.rowId,
+                                    (current) => ({
+                                      ...current,
+                                      destinationInputId: "",
+                                      searchQuery: sourcePath,
+                                    }),
+                                  );
+                                }}
+                                title="Seed destination search with source path"
+                              >
+                                Use Source Path
+                              </Button>
+                            </div>
                             <Combobox
                               value={draft.destinationInputId || null}
+                              query={draft.searchQuery}
                               disabled={!draft.apply}
                               onChange={(nextValue) => {
                                 setVariableCopyBlockingMessages([]);
@@ -5288,6 +5361,16 @@ export function VariablesPanel({
                                   (current) => ({
                                     ...current,
                                     destinationInputId: nextValue ?? "",
+                                  }),
+                                );
+                              }}
+                              onQueryChange={(nextQuery) => {
+                                setVariableCopyLinkRowDraft(
+                                  relationship,
+                                  row.rowId,
+                                  (current) => ({
+                                    ...current,
+                                    searchQuery: nextQuery,
                                   }),
                                 );
                               }}
