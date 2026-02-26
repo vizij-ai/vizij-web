@@ -740,18 +740,39 @@ export function InspectorPanel({
     standardInputs,
   ]);
 
+  const isPoseGroupInspectorMode = Boolean(
+    selectedPoseGroup && !selectedPoseId,
+  );
+  const isBlendStageInspectorMode = Boolean(
+    selectedBlendStage && !selectedPoseGroup && !selectedPoseId,
+  );
+  const isDedicatedInspectorMode =
+    isPoseGroupInspectorMode || isBlendStageInspectorMode;
+
   return (
     <Panel
-      title="Inspector"
-      description="View and edit selected object properties."
+      title={
+        isPoseGroupInspectorMode
+          ? "Pose Group Inspector"
+          : isBlendStageInspectorMode
+            ? "Blend Stage Inspector"
+            : "Inspector"
+      }
+      description={
+        isDedicatedInspectorMode
+          ? "Author composition and inspect live output behavior."
+          : "View and edit selected object properties."
+      }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
     >
       <div className="flex flex-col h-full min-h-0">
-        <div className="flex-1 min-h-0">
-          <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
-        </div>
-        {selectedPoseGroup && !selectedPoseId && (
-          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[54%] overflow-y-auto custom-scrollbar">
+        {!isDedicatedInspectorMode && (
+          <div className="flex-1 min-h-0">
+            <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
+          </div>
+        )}
+        {isPoseGroupInspectorMode && selectedPoseGroup && (
+          <div className="px-2 pb-2 flex flex-col gap-2 min-h-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold text-text-primary truncate">
@@ -830,90 +851,98 @@ export function InspectorPanel({
               </div>
             </div>
 
-            {activePoseGroupPoses.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {activePoseGroupPoses.map((pose) => {
-                  const weight = clamp01(poseGroupWeights[pose.id] ?? 0);
-                  return (
-                    <div
-                      key={pose.id}
-                      className="rounded border border-border-default/60 bg-bg-panel/30 px-2 py-2"
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="min-w-0">
-                          <div className="text-xs text-text-primary truncate">
-                            {pose.name}
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  Pose Weights
+                </span>
+                <span className="text-[10px] text-text-muted font-mono">
+                  {activePoseGroupPoses.length} poses
+                </span>
+              </div>
+              {activePoseGroupPoses.length > 0 ? (
+                <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                  {activePoseGroupPoses.map((pose) => {
+                    const weight = clamp01(poseGroupWeights[pose.id] ?? 0);
+                    return (
+                      <div
+                        key={pose.id}
+                        className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5"
+                      >
+                        <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+                          <div className="min-w-0 w-[120px] shrink-0">
+                            <div className="text-[11px] text-text-primary truncate">
+                              {pose.name}
+                            </div>
+                            <div className="text-[9px] text-text-muted font-mono truncate">
+                              {pose.id}
+                            </div>
                           </div>
-                          <div className="text-[10px] text-text-muted font-mono truncate">
-                            {pose.id}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px]"
-                            onClick={() => handlePoseGroupSolo(pose.id)}
-                            title="Solo this pose at 100%"
-                          >
-                            Solo
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px]"
-                            onClick={() => {
-                              onSelectPoseGroup?.(null);
-                              selectPose(pose.id);
-                              handlePoseGroupSolo(pose.id);
-                            }}
-                            title="Select and play this pose"
-                          >
-                            Play
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
-                        <Slider
-                          min={0}
-                          max={1}
-                          step={0.01}
-                          value={weight}
-                          fillMode="value"
-                          className="flex-1"
-                          onChange={(value) =>
-                            handlePoseGroupWeightChange(
-                              pose.id,
-                              value as number,
-                            )
-                          }
-                        />
-                        <div className="inspector-numeric-control flex-shrink-0">
-                          <NumberField
-                            size="sm"
+                          <Slider
+                            min={0}
+                            max={1}
+                            step={0.01}
                             value={weight}
-                            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-xs"
+                            fillMode="value"
+                            className="flex-1 min-w-[120px]"
                             onChange={(value) =>
-                              handlePoseGroupWeightChange(pose.id, value)
+                              handlePoseGroupWeightChange(
+                                pose.id,
+                                value as number,
+                              )
                             }
                           />
+                          <div className="inspector-numeric-control w-[72px] shrink-0">
+                            <NumberField
+                              size="sm"
+                              value={weight}
+                              className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-[10px]"
+                              onChange={(value) =>
+                                handlePoseGroupWeightChange(pose.id, value)
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => handlePoseGroupSolo(pose.id)}
+                              title="Solo this pose at 100%"
+                            >
+                              Solo
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => {
+                                onSelectPoseGroup?.(null);
+                                selectPose(pose.id);
+                                handlePoseGroupSolo(pose.id);
+                              }}
+                              title="Select and play this pose"
+                            >
+                              Play
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState
-                icon={Activity}
-                iconSize={16}
-                title="No Poses In Group"
-                description="This group no longer contains pose entries."
-                className="py-4"
-              />
-            )}
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Activity}
+                  iconSize={16}
+                  title="No Poses In Group"
+                  description="This group no longer contains pose entries."
+                  className="py-3"
+                />
+              )}
+            </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 min-h-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-text-muted">
                   Neutral Source
@@ -1092,7 +1121,7 @@ export function InspectorPanel({
               </div>
               {groupCompositionPreview &&
               groupCompositionPreview.channels.length > 0 ? (
-                <div className="max-h-44 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
                   {groupCompositionPreview.channels.map((channel) => {
                     const contributionSummary = channel.contributions
                       .filter(
@@ -1145,8 +1174,8 @@ export function InspectorPanel({
             </div>
           </div>
         )}
-        {selectedBlendStage && !selectedPoseGroup && !selectedPoseId && (
-          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[54%] overflow-y-auto custom-scrollbar">
+        {isBlendStageInspectorMode && selectedBlendStage && (
+          <div className="px-2 pb-2 flex flex-col gap-2 min-h-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold text-text-primary truncate">
@@ -1167,7 +1196,7 @@ export function InspectorPanel({
               </Button>
             </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 min-h-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] uppercase tracking-wider text-text-muted">
                   Stage Settings
@@ -1478,7 +1507,7 @@ export function InspectorPanel({
               </div>
               {stageCompositionPreview &&
               stageCompositionPreview.channels.length > 0 ? (
-                <div className="max-h-44 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
                   {stageCompositionPreview.channels.map((channel) => {
                     const sourceSummary = channel.contributions
                       .map(
