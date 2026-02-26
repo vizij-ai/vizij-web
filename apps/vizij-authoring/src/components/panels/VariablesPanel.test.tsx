@@ -1,13 +1,99 @@
-import { render, screen, fireEvent, within } from "@testing-library/react";
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  cleanup,
+} from "@testing-library/react";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
+import type { ReferenceCatalog } from "../../referenceFace/types";
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
   formatSurfaceLabelWithCount,
   resolveVisibleRootForActiveSurface,
 } from "./VariablesPanel";
+
+function normalizeCatalogPath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
+}
+
+function makeReferenceCatalog(
+  inputs: StandardRigInput[],
+  links?: Array<{
+    parentInputId: string;
+    childInputId: string;
+    linkId?: string;
+    scale?: number;
+    offset?: number;
+    enabled?: boolean;
+  }>,
+): ReferenceCatalog {
+  const normalizedLinks = (links ?? []).map((link) => ({
+    linkId: link.linkId ?? `${link.parentInputId}->${link.childInputId}`,
+    parentInputId: link.parentInputId,
+    childInputId: link.childInputId,
+    scale: link.scale ?? 1,
+    offset: link.offset ?? 0,
+    enabled: link.enabled ?? true,
+    source: "pipeline-link" as const,
+  }));
+
+  const inputsWithRelationships = inputs.map((input) => ({
+    id: input.id,
+    path: input.path,
+    label: input.label,
+    defaultValue: input.defaultValue,
+    range: {
+      min: input.range.min,
+      max: input.range.max,
+    },
+    parents: normalizedLinks
+      .filter((link) => link.childInputId === input.id)
+      .map((link) => ({
+        linkId: link.linkId,
+        parentInputId: link.parentInputId,
+        scale: link.scale,
+        offset: link.offset,
+        enabled: link.enabled,
+      })),
+    children: normalizedLinks
+      .filter((link) => link.parentInputId === input.id)
+      .map((link) => ({
+        linkId: link.linkId,
+        childInputId: link.childInputId,
+        scale: link.scale,
+        offset: link.offset,
+        enabled: link.enabled,
+      })),
+  }));
+
+  const inputsById = new Map(
+    inputsWithRelationships.map((input) => [input.id, input]),
+  );
+  const inputsByPath = new Map<string, typeof inputsWithRelationships>();
+  inputsWithRelationships.forEach((input) => {
+    const key = normalizeCatalogPath(input.path);
+    const existing = inputsByPath.get(key) ?? [];
+    inputsByPath.set(key, [...existing, input]);
+  });
+
+  return {
+    inputs: inputsWithRelationships,
+    inputsById,
+    inputsByPath,
+    pipelineLinks: normalizedLinks,
+    poses: [],
+    posesById: new Map(),
+  };
+}
 
 const poseRigState = {
   poses: [] as PoseDefinition[],
@@ -44,6 +130,11 @@ const referenceFaceState = {
   standardInputs: [] as StandardRigInput[],
   standardInputsById: new Map<string, StandardRigInput>(),
   inputIdsWithBindings: new Set<string>(),
+  bundle: null,
+  referenceCatalog: makeReferenceCatalog([]),
+  getReferenceCatalogInput: vi.fn(),
+  getReferenceCatalogPose: vi.fn(),
+  getReferenceCatalogLinksForInput: vi.fn(() => []),
   inputValues: {} as Record<string, number>,
   handleInputValueChange: vi.fn(),
   handleResetAllInputValues: vi.fn(),
@@ -72,6 +163,7 @@ const bindingState = {
   bindings: {} as Record<string, unknown>,
   inputBindings: {} as Record<string, unknown>,
   handleInputValueChange: vi.fn(),
+  applyInputBindingPatch: vi.fn(),
   applyStandardInputBatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
   handleUpdateStandardInput: vi.fn(),
@@ -154,7 +246,13 @@ describe("VariablesPanel", () => {
     referenceFaceState.isLoading = false;
     referenceFaceState.standardInputs = [];
     referenceFaceState.standardInputsById = new Map();
+    referenceFaceState.bundle = null;
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([]);
     referenceFaceState.inputValues = {};
+    referenceFaceState.getReferenceCatalogInput.mockReset();
+    referenceFaceState.getReferenceCatalogPose.mockReset();
+    referenceFaceState.getReferenceCatalogLinksForInput.mockReset();
+    referenceFaceState.getReferenceCatalogLinksForInput.mockReturnValue([]);
 
     bindingState.managedStandardInputs = [];
     bindingState.lockedInspectorTargetIds = new Set();
@@ -164,6 +262,7 @@ describe("VariablesPanel", () => {
     bindingState.bindings = {};
     bindingState.inputBindings = {};
     bindingState.handleInputValueChange.mockReset();
+    bindingState.applyInputBindingPatch.mockReset();
     bindingState.applyStandardInputBatch.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
@@ -173,6 +272,10 @@ describe("VariablesPanel", () => {
     bindingState.handleCloneStandardInputs.mockImplementation(
       () => new Map<string, string>(),
     );
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("surfaces shared variables when main and reference paths overlap", () => {
@@ -231,42 +334,150 @@ describe("VariablesPanel", () => {
     expect(screen.queryByText("Rig Element Jaw")).toBeNull();
   });
 
-  it("copies a reference variable into main-face variables from toolbar action", () => {
+  it("opens the variable copy modal from row copy action", () => {
+    const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Brow Up",
+    });
+    referenceFaceState.standardInputs = [referenceOnly];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceOnly.id, referenceOnly],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([referenceOnly]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/brow/up" },
+      },
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle("Copy driver to main face"),
+    );
+
+    expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
+      0,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]!);
+  });
+
+  it("does not write when variable copy modal is cancelled", () => {
     const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
       label: "Brow Up",
       defaultValue: 0.25,
       range: { min: 0, max: 1 },
       sourceId: "legacy_ref_brow",
     });
-    const created = makeInput("standard_brow_up", "/standard/brow/up", {
-      label: "Brow Up",
-      defaultValue: 0.25,
-      range: { min: 0, max: 1 },
-      sourceId: "legacy_ref_brow",
-    });
-
     referenceFaceState.standardInputs = [referenceOnly];
     referenceFaceState.standardInputsById = new Map([
       [referenceOnly.id, referenceOnly],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([referenceOnly]);
+
+    render(<VariablesPanel />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Copy Ref (1)" })[0]!,
+    );
+    expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
+      0,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel" })[0]!);
+
+    expect(bindingState.handleCreateCustomStandardInput).not.toHaveBeenCalled();
+    expect(bindingState.handleUpdateStandardInput).not.toHaveBeenCalled();
+    expect(bindingState.handleLinkChildInput).not.toHaveBeenCalled();
+  });
+
+  it("commits variable copy writes only after confirm", () => {
+    const sourceParent = makeInput("ref_parent", "/standard/parent", {
+      label: "Parent",
+    });
+    const source = makeInput("ref_source", "/standard/source", {
+      label: "Source",
+      defaultValue: 0.35,
+      range: { min: 0, max: 1 },
+      sourceId: "legacy_ref_source",
+    });
+    const sourceChild = makeInput("ref_child", "/standard/child", {
+      label: "Child",
+    });
+    const destinationParent = makeInput("main_parent", "/standard/parent", {
+      label: "Main Parent",
+    });
+    const destinationChild = makeInput("main_child", "/standard/child", {
+      label: "Main Child",
+    });
+    const created = makeInput("main_source", "/standard/source", {
+      label: "Source",
+      defaultValue: 0.35,
+      range: { min: 0, max: 1 },
+      sourceId: "legacy_ref_source",
+    });
+
+    referenceFaceState.standardInputs = [source];
+    referenceFaceState.standardInputsById = new Map([[source.id, source]]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceParent, source, sourceChild],
+      [
+        {
+          parentInputId: sourceParent.id,
+          childInputId: source.id,
+          scale: 0.5,
+          offset: 0.1,
+        },
+        {
+          parentInputId: source.id,
+          childInputId: sourceChild.id,
+          scale: 0.8,
+          offset: -0.2,
+        },
+      ],
+    );
+
+    bindingState.managedStandardInputs = [
+      { input: destinationParent, source: "custom" },
+      { input: destinationChild, source: "custom" },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      [destinationParent.path, destinationParent],
+      [destinationChild.path, destinationChild],
+    ]);
+    bindingState.standardInputsById = new Map([
+      [destinationParent.id, destinationParent],
+      [destinationChild.id, destinationChild],
     ]);
     bindingState.handleCreateCustomStandardInput.mockReturnValue(created);
 
     const onSelectRig = vi.fn();
     render(<VariablesPanel onSelectRig={onSelectRig} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (1)" }));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Copy Ref (1)" })[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
 
     expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledWith(
-      "/standard/brow/up",
+      "/standard/source",
     );
     expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
       created.id,
       {
-        label: referenceOnly.label,
-        defaultValue: referenceOnly.defaultValue,
-        range: referenceOnly.range,
-        sourceId: referenceOnly.sourceId,
+        label: source.label,
+        sourceId: source.sourceId,
+        defaultValue: source.defaultValue,
+        range: source.range,
       },
+    );
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      destinationParent.id,
+      created.id,
+    );
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      created.id,
+      destinationChild.id,
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });

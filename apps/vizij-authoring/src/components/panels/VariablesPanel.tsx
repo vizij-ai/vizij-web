@@ -15,14 +15,17 @@ import {
   Users,
 } from "lucide-react";
 import {
+  buildRigPipelineV1LinkId,
   normalizeStandardRigInputPath,
   SELF_BINDING_ID,
   type StandardRigInput,
 } from "@vizij/utils";
+import type { AnimatableBinding } from "@vizij/node-graph-authoring";
 import { EmptyState } from "../ui/EmptyState";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
-import { PanelSearch, TreeRow, Tabs } from "../ui";
+import { Modal } from "../ui/Modal";
+import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
 import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
@@ -41,6 +44,15 @@ import {
   isPoseControlInputPath,
   parsePoseWeightInputSourceId,
 } from "../../poseRig/utils";
+import { buildVariableCopyProposal } from "../../referenceFace/mapping";
+import type {
+  MergeDecisionMode,
+  ReferenceCatalog,
+  ReferenceCatalogInput,
+  ReferenceCatalogPipelineLink,
+  VariableCopyProposal,
+  VariableLinkMappingRow,
+} from "../../referenceFace/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 import type {
@@ -258,8 +270,308 @@ interface TreeNode {
 interface BindingInputLike {
   inputId?: string | null;
   slots?: Array<{
+    id?: string;
     inputId?: string | null;
   }>;
+  metadata?: unknown;
+}
+
+interface VariableCopyNumericDecisionDraft {
+  mode: MergeDecisionMode;
+  customValue: string;
+}
+
+interface VariableCopyLinkRowDraft {
+  apply: boolean;
+  destinationInputId: string;
+  scale: VariableCopyNumericDecisionDraft;
+  offset: VariableCopyNumericDecisionDraft;
+}
+
+interface VariableCopyModalState {
+  sourceReferenceEntry: RigNodeData;
+  proposal: VariableCopyProposal;
+  destinationCatalog: ReferenceCatalog;
+  launchSource: "row-action" | "toolbar";
+  destinationMode: "existing" | "new";
+  destinationInputId: string;
+  newDestinationPath: string;
+  newDestinationLabel: string;
+  valueMerge: {
+    min: VariableCopyNumericDecisionDraft;
+    max: VariableCopyNumericDecisionDraft;
+    defaultValue: VariableCopyNumericDecisionDraft;
+  };
+  parentRowDrafts: Record<string, VariableCopyLinkRowDraft>;
+  childRowDrafts: Record<string, VariableCopyLinkRowDraft>;
+}
+
+interface VariableCopyCommitLinkPlan {
+  rowId: string;
+  relationship: "parent" | "child";
+  parentInputId: string;
+  childInputId: string;
+  scale: number;
+  offset: number;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function normalizeCatalogPath(path: string | null | undefined): string {
+  if (!path) {
+    return "";
+  }
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function sortCatalogInputs(
+  left: Pick<ReferenceCatalogInput, "path" | "id">,
+  right: Pick<ReferenceCatalogInput, "path" | "id">,
+): number {
+  const byPath = left.path.localeCompare(right.path);
+  if (byPath !== 0) {
+    return byPath;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+function extractBindingPipelineLinks(
+  binding: BindingInputLike | null | undefined,
+): ReferenceCatalogPipelineLink[] {
+  const metadata = asRecord(binding?.metadata);
+  const vizij = asRecord(metadata?.vizij);
+  const pipeline = asRecord(vizij?.pipelineV1);
+  const links = asRecord(pipeline?.links);
+  if (!links) {
+    return [];
+  }
+  const entries: ReferenceCatalogPipelineLink[] = [];
+  Object.entries(links).forEach(([rawLinkId, rawLinkConfig]) => {
+    const linkConfig = asRecord(rawLinkConfig);
+    if (!linkConfig) {
+      return;
+    }
+    const parentInputId =
+      typeof linkConfig.parentInputId === "string"
+        ? linkConfig.parentInputId.trim()
+        : "";
+    const childInputId =
+      typeof linkConfig.childInputId === "string"
+        ? linkConfig.childInputId.trim()
+        : "";
+    if (!parentInputId || !childInputId) {
+      return;
+    }
+    const candidateLinkId =
+      typeof linkConfig.linkId === "string"
+        ? linkConfig.linkId.trim()
+        : rawLinkId.trim();
+    const linkId =
+      candidateLinkId || buildRigPipelineV1LinkId(parentInputId, childInputId);
+    entries.push({
+      linkId,
+      parentInputId,
+      childInputId,
+      scale: isFiniteNumber(linkConfig.scale) ? linkConfig.scale : 1,
+      offset: isFiniteNumber(linkConfig.offset) ? linkConfig.offset : 0,
+      enabled:
+        typeof linkConfig.enabled === "boolean" ? linkConfig.enabled : true,
+      source: "pipeline-link",
+    });
+  });
+  return entries.sort((left, right) => {
+    const byChild = left.childInputId.localeCompare(right.childInputId);
+    if (byChild !== 0) {
+      return byChild;
+    }
+    const byParent = left.parentInputId.localeCompare(right.parentInputId);
+    if (byParent !== 0) {
+      return byParent;
+    }
+    return left.linkId.localeCompare(right.linkId);
+  });
+}
+
+function buildMainFaceReferenceCatalog(params: {
+  mainInputs: readonly StandardRigInput[];
+  inputBindings: Record<string, BindingInputLike | undefined>;
+}): ReferenceCatalog {
+  const baseInputs = params.mainInputs
+    .filter((input) => Boolean(input.path?.trim()))
+    .map((input) => ({
+      id: input.id,
+      path: input.path,
+      label: input.label,
+      defaultValue: input.defaultValue,
+      range: {
+        min: input.range.min,
+        max: input.range.max,
+      },
+    }))
+    .sort(sortCatalogInputs);
+  const baseInputsById = new Map(baseInputs.map((input) => [input.id, input]));
+
+  const linksByPair = new Map<string, ReferenceCatalogPipelineLink>();
+  const makePairKey = (parentInputId: string, childInputId: string) =>
+    `${parentInputId}::${childInputId}`;
+
+  Object.entries(params.inputBindings).forEach(([childInputId, binding]) => {
+    if (!baseInputsById.has(childInputId)) {
+      return;
+    }
+    extractBindingPipelineLinks(binding).forEach((link) => {
+      if (
+        !baseInputsById.has(link.parentInputId) ||
+        !baseInputsById.has(link.childInputId)
+      ) {
+        return;
+      }
+      const pairKey = makePairKey(link.parentInputId, link.childInputId);
+      const existing = linksByPair.get(pairKey);
+      if (!existing) {
+        linksByPair.set(pairKey, link);
+        return;
+      }
+      linksByPair.set(pairKey, {
+        ...existing,
+        ...link,
+        source:
+          existing.source === "by-input-parent" ? "merged" : existing.source,
+      });
+    });
+  });
+
+  Object.entries(params.inputBindings).forEach(([childInputId, binding]) => {
+    if (!baseInputsById.has(childInputId)) {
+      return;
+    }
+    collectBindingInputIds(binding).forEach((parentInputId) => {
+      if (!baseInputsById.has(parentInputId)) {
+        return;
+      }
+      const pairKey = makePairKey(parentInputId, childInputId);
+      const existing = linksByPair.get(pairKey);
+      if (!existing) {
+        linksByPair.set(pairKey, {
+          linkId: buildRigPipelineV1LinkId(parentInputId, childInputId),
+          parentInputId,
+          childInputId,
+          scale: 1,
+          offset: 0,
+          enabled: true,
+          source: "by-input-parent",
+        });
+        return;
+      }
+      if (existing.source === "pipeline-link") {
+        linksByPair.set(pairKey, { ...existing, source: "merged" });
+      }
+    });
+  });
+
+  const pipelineLinks = Array.from(linksByPair.values()).sort((left, right) => {
+    const byChild = left.childInputId.localeCompare(right.childInputId);
+    if (byChild !== 0) {
+      return byChild;
+    }
+    const byParent = left.parentInputId.localeCompare(right.parentInputId);
+    if (byParent !== 0) {
+      return byParent;
+    }
+    return left.linkId.localeCompare(right.linkId);
+  });
+
+  const parentsByInputId = new Map<
+    string,
+    Array<{
+      linkId: string;
+      parentInputId: string;
+      scale: number;
+      offset: number;
+      enabled: boolean;
+    }>
+  >();
+  const childrenByInputId = new Map<
+    string,
+    Array<{
+      linkId: string;
+      childInputId: string;
+      scale: number;
+      offset: number;
+      enabled: boolean;
+    }>
+  >();
+
+  pipelineLinks.forEach((link) => {
+    const parents = parentsByInputId.get(link.childInputId) ?? [];
+    parents.push({
+      linkId: link.linkId,
+      parentInputId: link.parentInputId,
+      scale: link.scale,
+      offset: link.offset,
+      enabled: link.enabled,
+    });
+    parentsByInputId.set(link.childInputId, parents);
+
+    const children = childrenByInputId.get(link.parentInputId) ?? [];
+    children.push({
+      linkId: link.linkId,
+      childInputId: link.childInputId,
+      scale: link.scale,
+      offset: link.offset,
+      enabled: link.enabled,
+    });
+    childrenByInputId.set(link.parentInputId, children);
+  });
+
+  const inputs = baseInputs.map((input) => ({
+    ...input,
+    parents: (parentsByInputId.get(input.id) ?? []).sort((left, right) => {
+      const byParent = left.parentInputId.localeCompare(right.parentInputId);
+      if (byParent !== 0) {
+        return byParent;
+      }
+      return left.linkId.localeCompare(right.linkId);
+    }),
+    children: (childrenByInputId.get(input.id) ?? []).sort((left, right) => {
+      const byChild = left.childInputId.localeCompare(right.childInputId);
+      if (byChild !== 0) {
+        return byChild;
+      }
+      return left.linkId.localeCompare(right.linkId);
+    }),
+  }));
+
+  const inputsById = new Map(inputs.map((input) => [input.id, input]));
+  const inputsByPath = new Map<string, readonly ReferenceCatalogInput[]>();
+  inputs.forEach((input) => {
+    const key = normalizeCatalogPath(input.path);
+    const existing = inputsByPath.get(key) ?? [];
+    inputsByPath.set(key, [...existing, input].sort(sortCatalogInputs));
+  });
+
+  return {
+    inputs,
+    inputsById,
+    inputsByPath,
+    pipelineLinks,
+    poses: [],
+    posesById: new Map(),
+  };
 }
 
 function resolveManagedSource(entry: ManagedStandardInput): RigNodeSource {
@@ -431,6 +743,171 @@ function collectBindingInputIds(
     push(slot.inputId);
   });
   return inputIds;
+}
+
+function toDecisionCustomValue(value: number): string {
+  return Number.isFinite(value) ? value.toString(10) : "";
+}
+
+function createVariableCopyNumericDecisionDraft(params: {
+  mode?: MergeDecisionMode;
+  fallbackValue: number;
+}): VariableCopyNumericDecisionDraft {
+  return {
+    mode: params.mode ?? "source",
+    customValue: toDecisionCustomValue(params.fallbackValue),
+  };
+}
+
+function createVariableCopyLinkRowDraft(
+  row: VariableLinkMappingRow,
+): VariableCopyLinkRowDraft {
+  return {
+    apply: row.status === "resolved",
+    destinationInputId: row.destinationInputId ?? "",
+    scale: createVariableCopyNumericDecisionDraft({
+      mode: row.merge.scale.mode,
+      fallbackValue: row.sourceScale,
+    }),
+    offset: createVariableCopyNumericDecisionDraft({
+      mode: row.merge.offset.mode,
+      fallbackValue: row.sourceOffset,
+    }),
+  };
+}
+
+function isUnresolvedMappingStatus(
+  status: VariableCopyProposal["destinationRow"]["status"],
+): boolean {
+  return status === "ambiguous" || status === "unmapped";
+}
+
+function resolveVariableCopySourceCatalogInputId(params: {
+  sourceCatalog: ReferenceCatalog;
+  sourceReferenceEntry: RigNodeData;
+}): string | null {
+  if (
+    params.sourceCatalog.inputsById.has(params.sourceReferenceEntry.input.id)
+  ) {
+    return params.sourceReferenceEntry.input.id;
+  }
+  const byPath = params.sourceCatalog.inputsByPath.get(
+    normalizeCatalogPath(params.sourceReferenceEntry.input.path),
+  );
+  return byPath?.[0]?.id ?? null;
+}
+
+function createVariableCopyModalState(params: {
+  sourceReferenceEntry: RigNodeData;
+  proposal: VariableCopyProposal;
+  destinationCatalog: ReferenceCatalog;
+  launchSource: "row-action" | "toolbar";
+}): VariableCopyModalState {
+  const parentRowDrafts: Record<string, VariableCopyLinkRowDraft> = {};
+  params.proposal.parentRows.forEach((row) => {
+    parentRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(row);
+  });
+  const childRowDrafts: Record<string, VariableCopyLinkRowDraft> = {};
+  params.proposal.childRows.forEach((row) => {
+    childRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(row);
+  });
+  return {
+    sourceReferenceEntry: params.sourceReferenceEntry,
+    proposal: params.proposal,
+    destinationCatalog: params.destinationCatalog,
+    launchSource: params.launchSource,
+    destinationMode:
+      params.proposal.destinationRow.destinationInputId !== null
+        ? "existing"
+        : "new",
+    destinationInputId: params.proposal.destinationRow.destinationInputId ?? "",
+    newDestinationPath: params.proposal.sourceInputPath,
+    newDestinationLabel: params.proposal.sourceInputLabel,
+    valueMerge: {
+      min: createVariableCopyNumericDecisionDraft({
+        mode: params.proposal.valueMerge.min.mode,
+        fallbackValue: params.sourceReferenceEntry.input.range.min,
+      }),
+      max: createVariableCopyNumericDecisionDraft({
+        mode: params.proposal.valueMerge.max.mode,
+        fallbackValue: params.sourceReferenceEntry.input.range.max,
+      }),
+      defaultValue: createVariableCopyNumericDecisionDraft({
+        mode: params.proposal.valueMerge.defaultValue.mode,
+        fallbackValue: params.sourceReferenceEntry.input.defaultValue,
+      }),
+    },
+    parentRowDrafts,
+    childRowDrafts,
+  };
+}
+
+function resolveVariableCopyDecisionValue(params: {
+  decision: VariableCopyNumericDecisionDraft;
+  sourceValue: number;
+  destinationValue: number | null;
+  fieldLabel: string;
+  errors: string[];
+}): number {
+  if (params.decision.mode === "source") {
+    return params.sourceValue;
+  }
+  if (params.decision.mode === "destination") {
+    return isFiniteNumber(params.destinationValue)
+      ? params.destinationValue
+      : params.sourceValue;
+  }
+  const parsed = Number(params.decision.customValue.trim());
+  if (!Number.isFinite(parsed)) {
+    params.errors.push(`Invalid custom value for ${params.fieldLabel}.`);
+    return params.sourceValue;
+  }
+  return parsed;
+}
+
+function upsertBindingPipelineLinkMetadata(
+  binding: AnimatableBinding,
+  params: {
+    parentInputId: string;
+    childInputId: string;
+    scale: number;
+    offset: number;
+  },
+): AnimatableBinding {
+  const linkId = buildRigPipelineV1LinkId(
+    params.parentInputId,
+    params.childInputId,
+  );
+  const metadata = asRecord(binding.metadata) ?? {};
+  const vizij = asRecord(metadata.vizij) ?? {};
+  const pipeline = asRecord(vizij.pipelineV1) ?? {};
+  const links = asRecord(pipeline.links) ?? {};
+  const existingLink = asRecord(links[linkId]) ?? {};
+  const nextLink = {
+    ...existingLink,
+    linkId,
+    parentInputId: params.parentInputId,
+    childInputId: params.childInputId,
+    scale: params.scale,
+    offset: params.offset,
+    enabled: true,
+  };
+  return {
+    ...binding,
+    metadata: {
+      ...metadata,
+      vizij: {
+        ...vizij,
+        pipelineV1: {
+          ...pipeline,
+          links: {
+            ...links,
+            [linkId]: nextLink,
+          },
+        },
+      },
+    },
+  };
 }
 
 function simplifyNode(node: TreeNode): TreeNode {
@@ -1290,6 +1767,9 @@ export function VariablesPanel({
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
+  const applyInputBindingPatch = useBindingAuthoring(
+    (state) => state.applyInputBindingPatch,
+  );
   const applyStandardInputBatch = useBindingAuthoring(
     (state) => state.applyStandardInputBatch,
   );
@@ -1383,6 +1863,10 @@ export function VariablesPanel({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     new Set(["root"]),
   );
+  const [variableCopyModal, setVariableCopyModal] =
+    useState<VariableCopyModalState | null>(null);
+  const [variableCopyBlockingMessages, setVariableCopyBlockingMessages] =
+    useState<string[]>([]);
 
   const mainFaceRigEntries = useMemo(() => {
     return managedStandardInputs
@@ -1394,6 +1878,18 @@ export function VariablesPanel({
         disabled: entry.disabled,
       }));
   }, [managedStandardInputs]);
+
+  const mainFaceReferenceCatalog = useMemo(
+    () =>
+      buildMainFaceReferenceCatalog({
+        mainInputs: mainFaceRigEntries.map((entry) => entry.input),
+        inputBindings: inputBindings as Record<
+          string,
+          BindingInputLike | undefined
+        >,
+      }),
+    [inputBindings, mainFaceRigEntries],
+  );
 
   const referenceRigEntries = useMemo(() => {
     const mainByPath = new Map<string, StandardRigInput>();
@@ -1700,51 +2196,280 @@ export function VariablesPanel({
     resolveSharedSyncConflict(conflict.path, winner);
   };
 
-  const copyReferenceVariableToMain = (
-    referenceEntry: RigNodeData,
-    options?: { select?: boolean },
-  ): string | null => {
-    const select = options?.select ?? true;
-    if (referenceEntry.source !== "reference") {
-      return null;
-    }
-    if (referenceEntry.linkedMainInputId) {
-      if (select) {
-        onSelectRig?.(referenceEntry.linkedMainInputId);
-        onSelectPoseGroup?.(null);
+  const openVariableCopyModalForEntry = useCallback(
+    (
+      referenceEntry: RigNodeData,
+      launchSource: VariableCopyModalState["launchSource"],
+    ) => {
+      if (referenceEntry.source !== "reference") {
+        return;
       }
-      return referenceEntry.linkedMainInputId;
-    }
-    const normalizedPath =
-      referenceEntry.normalizedPath ??
-      normalizeStandardRigInputPath(referenceEntry.input.path);
-    const existing = standardInputsByPath.get(normalizedPath);
-    if (existing) {
-      if (select) {
-        onSelectRig?.(existing.id);
-        onSelectPoseGroup?.(null);
+      const sourceCatalog = referenceFace.referenceCatalog;
+      const sourceCatalogInputId = resolveVariableCopySourceCatalogInputId({
+        sourceCatalog,
+        sourceReferenceEntry: referenceEntry,
+      });
+      if (!sourceCatalogInputId) {
+        return;
       }
-      return existing.id;
+      let proposal: VariableCopyProposal;
+      try {
+        proposal = buildVariableCopyProposal({
+          sourceCatalog,
+          destinationCatalog: mainFaceReferenceCatalog,
+          sourceInputId: sourceCatalogInputId,
+        });
+      } catch {
+        return;
+      }
+      setVariableCopyBlockingMessages([]);
+      setVariableCopyModal(
+        createVariableCopyModalState({
+          sourceReferenceEntry: referenceEntry,
+          proposal,
+          destinationCatalog: mainFaceReferenceCatalog,
+          launchSource,
+        }),
+      );
+    },
+    [mainFaceReferenceCatalog, referenceFace.referenceCatalog],
+  );
+
+  const closeVariableCopyModal = useCallback(() => {
+    setVariableCopyModal(null);
+    setVariableCopyBlockingMessages([]);
+  }, []);
+
+  const handleConfirmVariableCopyModal = useCallback(() => {
+    if (!variableCopyModal) {
+      return;
     }
-    const created = handleCreateCustomStandardInput(normalizedPath);
-    if (!created) {
-      return null;
+    const sourceInput = variableCopyModal.sourceReferenceEntry.input;
+    const blockingMessages: string[] = [];
+    const destinationInputIdRaw = variableCopyModal.destinationInputId.trim();
+    let existingDestinationInput: StandardRigInput | null = null;
+    let normalizedNewDestinationPath: string | null = null;
+
+    if (variableCopyModal.destinationMode === "existing") {
+      if (!destinationInputIdRaw) {
+        blockingMessages.push(
+          "Destination unresolved: select an existing destination input or create a new one.",
+        );
+      } else {
+        existingDestinationInput =
+          standardInputsById.get(destinationInputIdRaw) ?? null;
+        if (!existingDestinationInput) {
+          blockingMessages.push(
+            "Destination unresolved: selected destination input is unavailable.",
+          );
+        }
+      }
+    } else {
+      const normalized = normalizeStandardRigInputPath(
+        variableCopyModal.newDestinationPath,
+      );
+      if (!normalized) {
+        blockingMessages.push(
+          "Destination unresolved: provide a valid destination path for the new input.",
+        );
+      } else if (standardInputsByPath.has(normalized)) {
+        blockingMessages.push(
+          "Destination unresolved: destination path already exists. Pick Existing or change the new path.",
+        );
+      } else {
+        normalizedNewDestinationPath = normalized;
+      }
     }
-    handleUpdateStandardInput(created.id, {
-      label: referenceEntry.input.label,
-      defaultValue: referenceEntry.input.defaultValue,
-      range: {
-        min: referenceEntry.input.range.min,
-        max: referenceEntry.input.range.max,
-      },
-      sourceId: referenceEntry.input.sourceId ?? null,
+
+    const mergedMin = resolveVariableCopyDecisionValue({
+      decision: variableCopyModal.valueMerge.min,
+      sourceValue: sourceInput.range.min,
+      destinationValue: existingDestinationInput?.range.min ?? null,
+      fieldLabel: "minimum",
+      errors: blockingMessages,
     });
-    if (select) {
-      onSelectRig?.(created.id);
-      onSelectPoseGroup?.(null);
+    const mergedMax = resolveVariableCopyDecisionValue({
+      decision: variableCopyModal.valueMerge.max,
+      sourceValue: sourceInput.range.max,
+      destinationValue: existingDestinationInput?.range.max ?? null,
+      fieldLabel: "maximum",
+      errors: blockingMessages,
+    });
+    const mergedDefaultValue = resolveVariableCopyDecisionValue({
+      decision: variableCopyModal.valueMerge.defaultValue,
+      sourceValue: sourceInput.defaultValue,
+      destinationValue: existingDestinationInput?.defaultValue ?? null,
+      fieldLabel: "default",
+      errors: blockingMessages,
+    });
+    if (mergedMin > mergedMax) {
+      blockingMessages.push(
+        "Invalid custom values: minimum cannot be greater than maximum.",
+      );
     }
-    return created.id;
-  };
+
+    const pendingAppliedRows: Array<{
+      rowId: string;
+      relationship: "parent" | "child";
+      mappedInputId: string;
+      scale: number;
+      offset: number;
+    }> = [];
+    const collectAppliedRows = (
+      rows: readonly VariableLinkMappingRow[],
+      drafts: Record<string, VariableCopyLinkRowDraft>,
+      relationship: "parent" | "child",
+      relationshipLabel: string,
+    ) => {
+      rows.forEach((row) => {
+        const draft = drafts[row.rowId];
+        if (!draft?.apply) {
+          return;
+        }
+        const mappedInputId = draft.destinationInputId.trim();
+        if (
+          !mappedInputId ||
+          !variableCopyModal.destinationCatalog.inputsById.has(mappedInputId)
+        ) {
+          blockingMessages.push(
+            `Applied row unresolved: ${relationshipLabel} "${row.sourceLabel}".`,
+          );
+          return;
+        }
+        const scale = resolveVariableCopyDecisionValue({
+          decision: draft.scale,
+          sourceValue: row.sourceScale,
+          destinationValue: row.destinationScale,
+          fieldLabel: `${relationshipLabel} scale`,
+          errors: blockingMessages,
+        });
+        const offset = resolveVariableCopyDecisionValue({
+          decision: draft.offset,
+          sourceValue: row.sourceOffset,
+          destinationValue: row.destinationOffset,
+          fieldLabel: `${relationshipLabel} offset`,
+          errors: blockingMessages,
+        });
+        pendingAppliedRows.push({
+          rowId: row.rowId,
+          relationship,
+          mappedInputId,
+          scale,
+          offset,
+        });
+      });
+    };
+
+    collectAppliedRows(
+      variableCopyModal.proposal.parentRows,
+      variableCopyModal.parentRowDrafts,
+      "parent",
+      "parent mapping",
+    );
+    collectAppliedRows(
+      variableCopyModal.proposal.childRows,
+      variableCopyModal.childRowDrafts,
+      "child",
+      "child mapping",
+    );
+
+    if (blockingMessages.length > 0) {
+      setVariableCopyBlockingMessages(blockingMessages);
+      return;
+    }
+
+    let destinationInputId = destinationInputIdRaw;
+    if (variableCopyModal.destinationMode === "new") {
+      const created = handleCreateCustomStandardInput(
+        normalizedNewDestinationPath!,
+      );
+      if (!created) {
+        setVariableCopyBlockingMessages([
+          "Destination unresolved: failed to create destination input.",
+        ]);
+        return;
+      }
+      destinationInputId = created.id;
+    }
+
+    handleUpdateStandardInput(destinationInputId, {
+      ...(variableCopyModal.destinationMode === "new"
+        ? {
+            label:
+              variableCopyModal.newDestinationLabel.trim() || sourceInput.label,
+            sourceId: sourceInput.sourceId ?? null,
+          }
+        : {}),
+      defaultValue: mergedDefaultValue,
+      range: {
+        min: mergedMin,
+        max: mergedMax,
+      },
+    });
+
+    const linkPlans: VariableCopyCommitLinkPlan[] = pendingAppliedRows.map(
+      (row) => ({
+        rowId: row.rowId,
+        relationship: row.relationship,
+        parentInputId:
+          row.relationship === "parent"
+            ? row.mappedInputId
+            : destinationInputId,
+        childInputId:
+          row.relationship === "parent"
+            ? destinationInputId
+            : row.mappedInputId,
+        scale: row.scale,
+        offset: row.offset,
+      }),
+    );
+
+    linkPlans.forEach((plan) => {
+      handleLinkChildInput(plan.parentInputId, plan.childInputId);
+    });
+
+    if (linkPlans.length > 0) {
+      applyInputBindingPatch((bindings) => {
+        let changed = false;
+        let nextBindings = bindings;
+        linkPlans.forEach((plan) => {
+          const childBinding = nextBindings[plan.childInputId];
+          if (!childBinding || typeof childBinding !== "object") {
+            return;
+          }
+          if (!changed) {
+            changed = true;
+            nextBindings = { ...nextBindings };
+          }
+          nextBindings[plan.childInputId] = upsertBindingPipelineLinkMetadata(
+            childBinding,
+            {
+              parentInputId: plan.parentInputId,
+              childInputId: plan.childInputId,
+              scale: plan.scale,
+              offset: plan.offset,
+            },
+          );
+        });
+        return changed ? nextBindings : bindings;
+      });
+    }
+
+    setVariableCopyBlockingMessages([]);
+    setVariableCopyModal(null);
+    onSelectRig?.(destinationInputId);
+    onSelectPoseGroup?.(null);
+  }, [
+    applyInputBindingPatch,
+    handleCreateCustomStandardInput,
+    handleLinkChildInput,
+    handleUpdateStandardInput,
+    onSelectPoseGroup,
+    onSelectRig,
+    standardInputsById,
+    standardInputsByPath,
+    variableCopyModal,
+  ]);
 
   // Build Drivers tree
   const variablesRootNode = useMemo(() => {
@@ -2177,7 +2902,7 @@ export function VariablesPanel({
     if (node.type === "rig" && action === "copy-to-main") {
       const rigData = node.data as RigNodeData;
       if (rigData.source === "reference") {
-        copyReferenceVariableToMain(rigData, { select: true });
+        openVariableCopyModalForEntry(rigData, "row-action");
       }
       return;
     }
@@ -2315,20 +3040,13 @@ export function VariablesPanel({
   };
 
   const handleCopyReferenceToMain = () => {
-    let firstCopied: string | null = null;
-    referenceRigEntries.forEach((entry) => {
-      if (entry.linkedMainInputId) {
-        return;
-      }
-      const copied = copyReferenceVariableToMain(entry, { select: false });
-      if (!firstCopied && copied) {
-        firstCopied = copied;
-      }
-    });
-    if (firstCopied) {
-      onSelectRig?.(firstCopied);
-      onSelectPoseGroup?.(null);
+    const firstUncopiedReference = referenceRigEntries.find(
+      (entry) => !entry.linkedMainInputId,
+    );
+    if (!firstUncopiedReference) {
+      return;
     }
+    openVariableCopyModalForEntry(firstUncopiedReference, "toolbar");
   };
 
   const handleCreatePoseGroup = () => {
@@ -2654,496 +3372,545 @@ export function VariablesPanel({
             label: UNASSIGNED_POSE_GROUP_LABEL,
           },
         ];
+  const setVariableCopyValueMergeDraft = useCallback(
+    (
+      key: keyof VariableCopyModalState["valueMerge"],
+      updater: (
+        current: VariableCopyNumericDecisionDraft,
+      ) => VariableCopyNumericDecisionDraft,
+    ) => {
+      setVariableCopyModal((current) => {
+        if (!current) {
+          return current;
+        }
+        return {
+          ...current,
+          valueMerge: {
+            ...current.valueMerge,
+            [key]: updater(current.valueMerge[key]),
+          },
+        };
+      });
+    },
+    [],
+  );
+  const setVariableCopyLinkRowDraft = useCallback(
+    (
+      relationship: "parent" | "child",
+      rowId: string,
+      updater: (current: VariableCopyLinkRowDraft) => VariableCopyLinkRowDraft,
+    ) => {
+      setVariableCopyModal((current) => {
+        if (!current) {
+          return current;
+        }
+        if (relationship === "parent") {
+          const draft = current.parentRowDrafts[rowId];
+          if (!draft) {
+            return current;
+          }
+          return {
+            ...current,
+            parentRowDrafts: {
+              ...current.parentRowDrafts,
+              [rowId]: updater(draft),
+            },
+          };
+        }
+        const draft = current.childRowDrafts[rowId];
+        if (!draft) {
+          return current;
+        }
+        return {
+          ...current,
+          childRowDrafts: {
+            ...current.childRowDrafts,
+            [rowId]: updater(draft),
+          },
+        };
+      });
+    },
+    [],
+  );
+  const variableCopyDestinationOptions = useMemo(
+    () =>
+      variableCopyModal
+        ? [...variableCopyModal.destinationCatalog.inputs].sort(
+            sortCatalogInputs,
+          )
+        : [],
+    [variableCopyModal],
+  );
+  const variableCopyDestinationComboboxOptions = useMemo(
+    () =>
+      variableCopyDestinationOptions.map((input) => ({
+        value: input.id,
+        label: input.path,
+        description: input.label,
+      })),
+    [variableCopyDestinationOptions],
+  );
+  const variableCopyUnresolvedCount = variableCopyModal
+    ? [
+        variableCopyModal.proposal.destinationRow,
+        ...variableCopyModal.proposal.parentRows,
+        ...variableCopyModal.proposal.childRows,
+      ].filter((row) => isUnresolvedMappingStatus(row.status)).length
+    : 0;
 
   return (
-    <Panel
-      title={panelTitle}
-      description={panelDescription}
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-      actions={actions}
-      badge={`${totalCount}`}
-    >
-      <Tabs
-        items={surfaceTabs}
-        value={activeSurface}
-        onValueChange={(id) => {
-          if (activeSurfaceOverride) {
-            return;
-          }
-          setActiveSurfaceState(surfaceForTab(id));
-        }}
-        renderPanel={(id) => {
-          if (surfaceForTab(id) !== activeSurface) {
-            return null;
-          }
-          const isVariables = id === "variables";
-          const isPoseGroups = id === "pose-groups";
-          const isPoses = id === "poses";
-          const isInputs = id === "inputs";
-          const filteredSearch = searchQuery.trim().toLowerCase();
+    <>
+      <Panel
+        title={panelTitle}
+        description={panelDescription}
+        className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+        actions={actions}
+        badge={`${totalCount}`}
+      >
+        <Tabs
+          items={surfaceTabs}
+          value={activeSurface}
+          onValueChange={(id) => {
+            if (activeSurfaceOverride) {
+              return;
+            }
+            setActiveSurfaceState(surfaceForTab(id));
+          }}
+          renderPanel={(id) => {
+            if (surfaceForTab(id) !== activeSurface) {
+              return null;
+            }
+            const isVariables = id === "variables";
+            const isPoseGroups = id === "pose-groups";
+            const isPoses = id === "poses";
+            const isInputs = id === "inputs";
+            const filteredSearch = searchQuery.trim().toLowerCase();
 
-          return (
-            <div className="flex flex-col h-full min-h-0 gap-1 p-2">
-              <div className="flex items-center gap-2 px-1 mb-1">
-                <PanelSearch
-                  ref={searchInputRef}
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder={
-                    searchQuery
-                      ? "Filter..."
-                      : isVariables
-                        ? "Search drivers..."
-                        : isPoses
-                          ? "Search poses..."
-                          : isPoseGroups
-                            ? "Search pose groups..."
-                            : "Search inputs..."
-                  }
-                />
-              </div>
-              <div className="flex items-center gap-1 px-1 mb-1">
-                {isVariables && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] gap-1"
-                    onClick={handleCreateVariable}
-                    title="Create a new driver and inspect it"
-                  >
-                    <Plus size={11} />
-                    New Driver
-                  </Button>
-                )}
-                {isVariables && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] gap-1"
-                    onClick={handleDuplicateSelectedVariable}
-                    disabled={!selectedMainVariableId}
-                    title={
-                      selectedMainVariableId
-                        ? "Duplicate selected driver and inspect the copy"
-                        : "Select a driver to duplicate"
+            return (
+              <div className="flex flex-col h-full min-h-0 gap-1 p-2">
+                <div className="flex items-center gap-2 px-1 mb-1">
+                  <PanelSearch
+                    ref={searchInputRef}
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder={
+                      searchQuery
+                        ? "Filter..."
+                        : isVariables
+                          ? "Search drivers..."
+                          : isPoses
+                            ? "Search poses..."
+                            : isPoseGroups
+                              ? "Search pose groups..."
+                              : "Search inputs..."
                     }
-                  >
-                    <Copy size={11} />
-                    Duplicate Driver
-                  </Button>
-                )}
-                {isPoses && (
-                  <>
+                  />
+                </div>
+                <div className="flex items-center gap-1 px-1 mb-1">
+                  {isVariables && (
                     <Button
                       variant="secondary"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleCreatePose}
-                      title="Create a new pose and inspect it"
+                      onClick={handleCreateVariable}
+                      title="Create a new driver and inspect it"
                     >
-                      <Activity size={11} className="text-purple-400" />
-                      New Pose
+                      <Plus size={11} />
+                      New Driver
                     </Button>
+                  )}
+                  {isVariables && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleDuplicateSelectedPose}
-                      disabled={
-                        !selectedPoseId ||
-                        selectedPoseId === "__pose_rig_neutral__"
-                      }
+                      onClick={handleDuplicateSelectedVariable}
+                      disabled={!selectedMainVariableId}
                       title={
-                        selectedPoseId &&
-                        selectedPoseId !== "__pose_rig_neutral__"
-                          ? "Duplicate selected pose"
-                          : "Select a pose to duplicate"
+                        selectedMainVariableId
+                          ? "Duplicate selected driver and inspect the copy"
+                          : "Select a driver to duplicate"
                       }
                     >
                       <Copy size={11} />
-                      Duplicate Pose
+                      Duplicate Driver
                     </Button>
-                  </>
-                )}
-                {isVariables && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-                    onClick={handleCopyReferenceToMain}
-                    disabled={uncopiedReferenceCount === 0}
-                    title="Copy reference-only drivers to main face"
-                  >
-                    <Copy size={11} />
-                    Copy Ref ({uncopiedReferenceCount})
-                  </Button>
-                )}
-                {isPoseGroups && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleCreatePoseGroup}
-                    >
-                      <Plus size={11} />
-                      New Group
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleCreateBlendStage}
-                      title="Create a new blend stage"
-                    >
-                      <Plus size={11} />
-                      New Stage
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      disabled={!selectedPoseGroup?.groupId}
-                      onClick={handleRenameSelectedPoseGroup}
-                      title={
-                        selectedPoseGroup?.groupId
-                          ? "Rename selected pose group"
-                          : "Select a configured pose group first"
-                      }
-                    >
-                      Rename
-                    </Button>
+                  )}
+                  {isPoses && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={handleCreatePose}
+                        title="Create a new pose and inspect it"
+                      >
+                        <Activity size={11} className="text-purple-400" />
+                        New Pose
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={handleDuplicateSelectedPose}
+                        disabled={
+                          !selectedPoseId ||
+                          selectedPoseId === "__pose_rig_neutral__"
+                        }
+                        title={
+                          selectedPoseId &&
+                          selectedPoseId !== "__pose_rig_neutral__"
+                            ? "Duplicate selected pose"
+                            : "Select a pose to duplicate"
+                        }
+                      >
+                        <Copy size={11} />
+                        Duplicate Pose
+                      </Button>
+                    </>
+                  )}
+                  {isVariables && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
-                      disabled={!selectedPoseGroup?.groupId}
-                      onClick={handleDeleteSelectedPoseGroup}
-                      title={
-                        selectedPoseGroup?.groupId
-                          ? "Delete selected pose group"
-                          : "Select a configured pose group first"
-                      }
+                      className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                      onClick={handleCopyReferenceToMain}
+                      disabled={uncopiedReferenceCount === 0}
+                      title="Copy reference-only drivers to main face"
                     >
-                      Delete
+                      <Copy size={11} />
+                      Copy Ref ({uncopiedReferenceCount})
                     </Button>
-                  </>
-                )}
-                {isPoseGroups && (
-                  <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                    Compatibility blend
-                  </span>
-                )}
-              </div>
-              {isPoseGroups && (
-                <div className="flex flex-col gap-2 px-1">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[10px] text-text-muted">
-                      {selectedPoseName
-                        ? `Selected pose: ${selectedPoseName}`
-                        : "Select a pose to edit membership"}
+                  )}
+                  {isPoseGroups && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={handleCreatePoseGroup}
+                      >
+                        <Plus size={11} />
+                        New Group
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={handleCreateBlendStage}
+                        title="Create a new blend stage"
+                      >
+                        <Plus size={11} />
+                        New Stage
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        disabled={!selectedPoseGroup?.groupId}
+                        onClick={handleRenameSelectedPoseGroup}
+                        title={
+                          selectedPoseGroup?.groupId
+                            ? "Rename selected pose group"
+                            : "Select a configured pose group first"
+                        }
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
+                        disabled={!selectedPoseGroup?.groupId}
+                        onClick={handleDeleteSelectedPoseGroup}
+                        title={
+                          selectedPoseGroup?.groupId
+                            ? "Delete selected pose group"
+                            : "Select a configured pose group first"
+                        }
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                  {isPoseGroups && (
+                    <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                      Compatibility blend
                     </span>
-                    {selectedPoseName && (
-                      <div className="flex flex-wrap items-center gap-1">
-                        {selectedPoseMemberships.map((membership) => (
-                          <span
-                            key={membership.path}
-                            className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
-                          >
-                            {membership.label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="ml-auto flex flex-wrap items-center gap-1">
+                  )}
+                </div>
+                {isPoseGroups && (
+                  <div className="flex flex-col gap-2 px-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       <span className="text-[10px] text-text-muted">
-                        {stageDefinitions.length === 0
-                          ? "Legacy cross-group mode"
-                          : "Fallback mode"}
+                        {selectedPoseName
+                          ? `Selected pose: ${selectedPoseName}`
+                          : "Select a pose to edit membership"}
                       </span>
-                      <Button
-                        variant={
-                          crossGroupBlendMode === "average"
-                            ? "primary"
-                            : "subtle"
-                        }
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={() => setCrossGroupBlendMode("average")}
-                      >
-                        Average
-                      </Button>
-                      <Button
-                        variant={
-                          crossGroupBlendMode === "additive"
-                            ? "primary"
-                            : "subtle"
-                        }
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
-                        onClick={() => setCrossGroupBlendMode("additive")}
-                      >
-                        Additive
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="rounded border border-border-default/50 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                        Blend Stages
-                      </span>
-                      <span className="text-[10px] text-text-muted">
-                        {stageDefinitions.length === 0
-                          ? "No stages (compatibility mode)"
-                          : `${stageDefinitions.length} configured`}
-                      </span>
-                    </div>
-                    {stageEditMessage && (
-                      <div
-                        role="alert"
-                        className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100"
-                      >
-                        {stageEditMessage}
-                      </div>
-                    )}
-                    {stageDefinitions.length === 0 ? (
-                      <div className="text-[10px] text-text-muted">
-                        Add stages to author explicit multi-stage blending.
-                        Until then, cross-group blend mode above is used.
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {stageDefinitions.map((stage, stageIndex) => {
-                          const stageName = blendStageDisplayName(
-                            stage,
-                            stageIndex,
-                          );
-                          const stageGroupSources = stage.sources.filter(
-                            (source) => source.kind === "group",
-                          );
-                          const stageStageSources = stage.sources.filter(
-                            (source) => source.kind === "stage",
-                          );
-                          const priorStageOptions = stageDefinitions.slice(
-                            0,
-                            stageIndex,
-                          );
-                          const referencesThisStage = stageDefinitions
-                            .slice(stageIndex + 1)
-                            .some((candidate) =>
-                              candidate.sources.some(
-                                (source) =>
-                                  source.kind === "stage" &&
-                                  source.id === stage.id,
-                              ),
-                            );
-
-                          const moveIssueFor = (
-                            direction: "up" | "down",
-                          ): string | null => {
-                            const toIndex =
-                              direction === "up"
-                                ? stageIndex - 1
-                                : stageIndex + 1;
-                            if (
-                              toIndex < 0 ||
-                              toIndex >= stageDefinitions.length
-                            ) {
-                              return "Boundary";
-                            }
-                            const nextStages = [...stageDefinitions];
-                            const [moved] = nextStages.splice(stageIndex, 1);
-                            if (!moved) {
-                              return "Missing stage";
-                            }
-                            nextStages.splice(toIndex, 0, moved);
-                            return evaluateBlendStageTopology(
-                              nextStages,
-                              stageGroupIds,
-                            );
-                          };
-
-                          const moveUpIssue = moveIssueFor("up");
-                          const moveDownIssue = moveIssueFor("down");
-
-                          return (
-                            <div
-                              key={stage.id}
-                              className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2"
+                      {selectedPoseName && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          {selectedPoseMemberships.map((membership) => (
+                            <span
+                              key={membership.path}
+                              className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
                             >
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {stage.id}
-                                </span>
-                                <span className="text-xs text-text-primary">
-                                  {stageName}
-                                </span>
-                                <div className="ml-auto flex items-center gap-1">
+                              {membership.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="ml-auto flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-text-muted">
+                          {stageDefinitions.length === 0
+                            ? "Legacy cross-group mode"
+                            : "Fallback mode"}
+                        </span>
+                        <Button
+                          variant={
+                            crossGroupBlendMode === "average"
+                              ? "primary"
+                              : "subtle"
+                          }
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => setCrossGroupBlendMode("average")}
+                        >
+                          Average
+                        </Button>
+                        <Button
+                          variant={
+                            crossGroupBlendMode === "additive"
+                              ? "primary"
+                              : "subtle"
+                          }
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => setCrossGroupBlendMode("additive")}
+                        >
+                          Additive
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="rounded border border-border-default/50 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                          Blend Stages
+                        </span>
+                        <span className="text-[10px] text-text-muted">
+                          {stageDefinitions.length === 0
+                            ? "No stages (compatibility mode)"
+                            : `${stageDefinitions.length} configured`}
+                        </span>
+                      </div>
+                      {stageEditMessage && (
+                        <div
+                          role="alert"
+                          className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100"
+                        >
+                          {stageEditMessage}
+                        </div>
+                      )}
+                      {stageDefinitions.length === 0 ? (
+                        <div className="text-[10px] text-text-muted">
+                          Add stages to author explicit multi-stage blending.
+                          Until then, cross-group blend mode above is used.
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {stageDefinitions.map((stage, stageIndex) => {
+                            const stageName = blendStageDisplayName(
+                              stage,
+                              stageIndex,
+                            );
+                            const stageGroupSources = stage.sources.filter(
+                              (source) => source.kind === "group",
+                            );
+                            const stageStageSources = stage.sources.filter(
+                              (source) => source.kind === "stage",
+                            );
+                            const priorStageOptions = stageDefinitions.slice(
+                              0,
+                              stageIndex,
+                            );
+                            const referencesThisStage = stageDefinitions
+                              .slice(stageIndex + 1)
+                              .some((candidate) =>
+                                candidate.sources.some(
+                                  (source) =>
+                                    source.kind === "stage" &&
+                                    source.id === stage.id,
+                                ),
+                              );
+
+                            const moveIssueFor = (
+                              direction: "up" | "down",
+                            ): string | null => {
+                              const toIndex =
+                                direction === "up"
+                                  ? stageIndex - 1
+                                  : stageIndex + 1;
+                              if (
+                                toIndex < 0 ||
+                                toIndex >= stageDefinitions.length
+                              ) {
+                                return "Boundary";
+                              }
+                              const nextStages = [...stageDefinitions];
+                              const [moved] = nextStages.splice(stageIndex, 1);
+                              if (!moved) {
+                                return "Missing stage";
+                              }
+                              nextStages.splice(toIndex, 0, moved);
+                              return evaluateBlendStageTopology(
+                                nextStages,
+                                stageGroupIds,
+                              );
+                            };
+
+                            const moveUpIssue = moveIssueFor("up");
+                            const moveDownIssue = moveIssueFor("down");
+
+                            return (
+                              <div
+                                key={stage.id}
+                                className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] text-text-muted font-mono">
+                                    {stage.id}
+                                  </span>
+                                  <span className="text-xs text-text-primary">
+                                    {stageName}
+                                  </span>
+                                  <div className="ml-auto flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-1"
+                                      disabled={Boolean(moveUpIssue)}
+                                      onClick={() =>
+                                        handleReorderBlendStage(
+                                          stageIndex,
+                                          "up",
+                                        )
+                                      }
+                                      title={
+                                        moveUpIssue &&
+                                        moveUpIssue !== "Boundary"
+                                          ? moveUpIssue
+                                          : "Move stage up"
+                                      }
+                                    >
+                                      <ArrowUp size={11} />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-1"
+                                      disabled={Boolean(moveDownIssue)}
+                                      onClick={() =>
+                                        handleReorderBlendStage(
+                                          stageIndex,
+                                          "down",
+                                        )
+                                      }
+                                      title={
+                                        moveDownIssue &&
+                                        moveDownIssue !== "Boundary"
+                                          ? moveDownIssue
+                                          : "Move stage down"
+                                      }
+                                    >
+                                      <ArrowDown size={11} />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px]"
+                                      onClick={() =>
+                                        handleRenameBlendStage(
+                                          stage,
+                                          stageIndex,
+                                        )
+                                      }
+                                      title="Rename blend stage"
+                                    >
+                                      Rename
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] text-amber-300 hover:text-amber-200"
+                                      disabled={referencesThisStage}
+                                      onClick={() =>
+                                        handleDeleteBlendStage(
+                                          stage,
+                                          stageIndex,
+                                        )
+                                      }
+                                      title={
+                                        referencesThisStage
+                                          ? "Delete blocked while later stages reference this stage"
+                                          : "Delete blend stage"
+                                      }
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] text-text-muted">
+                                    Mode
+                                  </span>
                                   <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-1"
-                                    disabled={Boolean(moveUpIssue)}
-                                    onClick={() =>
-                                      handleReorderBlendStage(stageIndex, "up")
+                                    variant={
+                                      stage.mode === "average"
+                                        ? "primary"
+                                        : "subtle"
                                     }
-                                    title={
-                                      moveUpIssue && moveUpIssue !== "Boundary"
-                                        ? moveUpIssue
-                                        : "Move stage up"
-                                    }
-                                  >
-                                    <ArrowUp size={11} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-1"
-                                    disabled={Boolean(moveDownIssue)}
-                                    onClick={() =>
-                                      handleReorderBlendStage(
-                                        stageIndex,
-                                        "down",
-                                      )
-                                    }
-                                    title={
-                                      moveDownIssue &&
-                                      moveDownIssue !== "Boundary"
-                                        ? moveDownIssue
-                                        : "Move stage down"
-                                    }
-                                  >
-                                    <ArrowDown size={11} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
                                     size="sm"
                                     className="h-6 px-2 text-[10px]"
                                     onClick={() =>
-                                      handleRenameBlendStage(stage, stageIndex)
+                                      setBlendStageMode(stage.id, "average")
                                     }
-                                    title="Rename blend stage"
                                   >
-                                    Rename
+                                    Average
                                   </Button>
                                   <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-[10px] text-amber-300 hover:text-amber-200"
-                                    disabled={referencesThisStage}
-                                    onClick={() =>
-                                      handleDeleteBlendStage(stage, stageIndex)
+                                    variant={
+                                      stage.mode === "add"
+                                        ? "primary"
+                                        : "subtle"
                                     }
-                                    title={
-                                      referencesThisStage
-                                        ? "Delete blocked while later stages reference this stage"
-                                        : "Delete blend stage"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={() =>
+                                      setBlendStageMode(stage.id, "add")
                                     }
                                   >
-                                    Delete
+                                    Add
                                   </Button>
                                 </div>
-                              </div>
 
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-text-muted">
-                                  Mode
-                                </span>
-                                <Button
-                                  variant={
-                                    stage.mode === "average"
-                                      ? "primary"
-                                      : "subtle"
-                                  }
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px]"
-                                  onClick={() =>
-                                    setBlendStageMode(stage.id, "average")
-                                  }
-                                >
-                                  Average
-                                </Button>
-                                <Button
-                                  variant={
-                                    stage.mode === "add" ? "primary" : "subtle"
-                                  }
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px]"
-                                  onClick={() =>
-                                    setBlendStageMode(stage.id, "add")
-                                  }
-                                >
-                                  Add
-                                </Button>
-                              </div>
-
-                              <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-text-muted">
-                                  Group sources
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {stageGroupOptions.length === 0 ? (
-                                    <span className="text-[10px] text-text-muted">
-                                      No configured groups
-                                    </span>
-                                  ) : (
-                                    stageGroupOptions.map((group) => {
-                                      const selected = stageGroupSources.some(
-                                        (source) => source.id === group.id,
-                                      );
-                                      return (
-                                        <button
-                                          key={group.id}
-                                          type="button"
-                                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                                            selected
-                                              ? "border-accent/50 bg-accent/10 text-accent"
-                                              : "border-border-default text-text-muted hover:text-text-primary"
-                                          }`}
-                                          aria-pressed={selected}
-                                          onClick={() =>
-                                            handleToggleBlendStageSource(
-                                              stage,
-                                              {
-                                                kind: "group",
-                                                id: group.id,
-                                              },
-                                            )
-                                          }
-                                          title={`Toggle group source ${group.label}`}
-                                        >
-                                          {group.label}
-                                        </button>
-                                      );
-                                    })
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-text-muted">
-                                  Prior stage sources
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {priorStageOptions.length === 0 ? (
-                                    <span className="text-[10px] text-text-muted">
-                                      No prior stages
-                                    </span>
-                                  ) : (
-                                    priorStageOptions.map(
-                                      (sourceStage, sourceIndex) => {
-                                        const label = blendStageDisplayName(
-                                          sourceStage,
-                                          sourceIndex,
-                                        );
-                                        const selected = stageStageSources.some(
-                                          (source) =>
-                                            source.id === sourceStage.id,
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-[10px] text-text-muted">
+                                    Group sources
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {stageGroupOptions.length === 0 ? (
+                                      <span className="text-[10px] text-text-muted">
+                                        No configured groups
+                                      </span>
+                                    ) : (
+                                      stageGroupOptions.map((group) => {
+                                        const selected = stageGroupSources.some(
+                                          (source) => source.id === group.id,
                                         );
                                         return (
                                           <button
-                                            key={sourceStage.id}
+                                            key={group.id}
                                             type="button"
                                             className={`text-[10px] px-2 py-1 rounded border transition-colors ${
                                               selected
@@ -3155,187 +3922,340 @@ export function VariablesPanel({
                                               handleToggleBlendStageSource(
                                                 stage,
                                                 {
-                                                  kind: "stage",
-                                                  id: sourceStage.id,
+                                                  kind: "group",
+                                                  id: group.id,
                                                 },
                                               )
                                             }
-                                            title={`Toggle stage source ${label}`}
+                                            title={`Toggle group source ${group.label}`}
                                           >
-                                            {label}
+                                            {group.label}
                                           </button>
                                         );
-                                      },
-                                    )
-                                  )}
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-[10px] text-text-muted">
+                                    Prior stage sources
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {priorStageOptions.length === 0 ? (
+                                      <span className="text-[10px] text-text-muted">
+                                        No prior stages
+                                      </span>
+                                    ) : (
+                                      priorStageOptions.map(
+                                        (sourceStage, sourceIndex) => {
+                                          const label = blendStageDisplayName(
+                                            sourceStage,
+                                            sourceIndex,
+                                          );
+                                          const selected =
+                                            stageStageSources.some(
+                                              (source) =>
+                                                source.id === sourceStage.id,
+                                            );
+                                          return (
+                                            <button
+                                              key={sourceStage.id}
+                                              type="button"
+                                              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                                selected
+                                                  ? "border-accent/50 bg-accent/10 text-accent"
+                                                  : "border-border-default text-text-muted hover:text-text-primary"
+                                              }`}
+                                              aria-pressed={selected}
+                                              onClick={() =>
+                                                handleToggleBlendStageSource(
+                                                  stage,
+                                                  {
+                                                    kind: "stage",
+                                                    id: sourceStage.id,
+                                                  },
+                                                )
+                                              }
+                                              title={`Toggle stage source ${label}`}
+                                            >
+                                              {label}
+                                            </button>
+                                          );
+                                        },
+                                      )
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-              {isVariables && (
-                <>
-                  <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
-                    {referenceFace.file && (
-                      <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
-                          Shared Sync
-                        </span>
-                        {(
-                          [
-                            ["off", "Off"],
-                            ["bidirectional", "Both"],
-                            ["main-to-reference", "Main→Ref"],
-                            ["reference-to-main", "Ref→Main"],
-                          ] as Array<[SharedVariableSyncPolicy, string]>
-                        ).map(([mode, label]) => {
-                          const isActive = sharedSyncPolicy === mode;
+                )}
+                {isVariables && (
+                  <>
+                    <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                      {referenceFace.file && (
+                        <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
+                            Shared Sync
+                          </span>
+                          {(
+                            [
+                              ["off", "Off"],
+                              ["bidirectional", "Both"],
+                              ["main-to-reference", "Main→Ref"],
+                              ["reference-to-main", "Ref→Main"],
+                            ] as Array<[SharedVariableSyncPolicy, string]>
+                          ).map(([mode, label]) => {
+                            const isActive = sharedSyncPolicy === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                  isActive
+                                    ? "border-accent/50 bg-accent/10 text-accent"
+                                    : "border-border-default text-text-muted hover:text-text-primary"
+                                }`}
+                                onClick={() => applySharedSyncPolicy(mode)}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                          <span className="text-[10px] text-text-muted font-mono ml-1">
+                            Drift {sharedOutOfSyncCount}
+                          </span>
+                        </div>
+                      )}
+                      {(
+                        [
+                          ["auto", "Auto"],
+                          ["preset", "Preset"],
+                          ["custom", "Custom"],
+                          ...(referenceFace.file
+                            ? ([["shared", "Shared"]] as const)
+                            : []),
+                          ["reference", "Reference"],
+                        ] as Array<[RigNodeSource, string]>
+                      )
+                        .filter(([source]) =>
+                          source === "reference"
+                            ? Boolean(referenceFace.file)
+                            : true,
+                        )
+                        .map(([source, label]) => {
+                          const isActive = enabledSources.has(source);
+                          const count = sourceCounts[source];
                           return (
                             <button
-                              key={mode}
+                              key={source}
                               type="button"
                               className={`text-[10px] px-2 py-1 rounded border transition-colors ${
                                 isActive
-                                  ? "border-accent/50 bg-accent/10 text-accent"
+                                  ? "border-border-hover bg-bg-panel text-text-primary"
                                   : "border-border-default text-text-muted hover:text-text-primary"
                               }`}
-                              onClick={() => applySharedSyncPolicy(mode)}
+                              onClick={() => {
+                                setEnabledSources((previous) => {
+                                  const next = new Set(previous);
+                                  if (next.has(source)) {
+                                    next.delete(source);
+                                  } else {
+                                    next.add(source);
+                                  }
+                                  return next;
+                                });
+                              }}
                             >
-                              {label}
+                              {label} ({count})
                             </button>
                           );
                         })}
-                        <span className="text-[10px] text-text-muted font-mono ml-1">
-                          Drift {sharedOutOfSyncCount}
-                        </span>
+                    </div>
+
+                    {referenceFace.file && sharedSyncConflicts.length > 0 && (
+                      <div className="mx-1 mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-amber-200">
+                            Shared Sync Conflicts ({sharedSyncConflicts.length})
+                          </span>
+                          <span className="text-[10px] text-amber-100/80">
+                            Different edits detected across faces
+                          </span>
+                        </div>
+                        {sharedSyncConflicts.slice(0, 4).map((conflict) => (
+                          <div
+                            key={`${conflict.path}:${conflict.detectedAt}`}
+                            className="rounded border border-amber-500/30 bg-bg-panel/40 p-2 flex flex-col gap-1"
+                          >
+                            <div className="text-[10px] font-mono text-amber-100 truncate">
+                              {conflict.path}
+                            </div>
+                            <div className="text-[10px] text-text-muted">
+                              {conflict.firstSource}{" "}
+                              {conflict.firstValue.toFixed(3)} →{" "}
+                              {conflict.secondSource}{" "}
+                              {conflict.secondValue.toFixed(3)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={() =>
+                                  resolveConflict(conflict, "main")
+                                }
+                              >
+                                Keep Main
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={() =>
+                                  resolveConflict(conflict, "reference")
+                                }
+                              >
+                                Keep Ref
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[10px] ml-auto"
+                                onClick={() =>
+                                  dismissSharedSyncConflict(conflict.path)
+                                }
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
-                    {(
-                      [
-                        ["auto", "Auto"],
-                        ["preset", "Preset"],
-                        ["custom", "Custom"],
-                        ...(referenceFace.file
-                          ? ([["shared", "Shared"]] as const)
-                          : []),
-                        ["reference", "Reference"],
-                      ] as Array<[RigNodeSource, string]>
-                    )
-                      .filter(([source]) =>
-                        source === "reference"
-                          ? Boolean(referenceFace.file)
-                          : true,
-                      )
-                      .map(([source, label]) => {
-                        const isActive = enabledSources.has(source);
-                        const count = sourceCounts[source];
-                        return (
-                          <button
-                            key={source}
-                            type="button"
-                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                              isActive
-                                ? "border-border-hover bg-bg-panel text-text-primary"
-                                : "border-border-default text-text-muted hover:text-text-primary"
-                            }`}
-                            onClick={() => {
-                              setEnabledSources((previous) => {
-                                const next = new Set(previous);
-                                if (next.has(source)) {
-                                  next.delete(source);
-                                } else {
-                                  next.add(source);
-                                }
-                                return next;
-                              });
-                            }}
-                          >
-                            {label} ({count})
-                          </button>
-                        );
-                      })}
-                  </div>
-
-                  {referenceFace.file && sharedSyncConflicts.length > 0 && (
-                    <div className="mx-1 mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-2 flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase tracking-wider font-bold text-amber-200">
-                          Shared Sync Conflicts ({sharedSyncConflicts.length})
-                        </span>
-                        <span className="text-[10px] text-amber-100/80">
-                          Different edits detected across faces
-                        </span>
+                  </>
+                )}
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                  {isPoseGroups ? (
+                    poseGroupsForSurface.length === 0 ? (
+                      <EmptyState
+                        icon={Search}
+                        iconSize={18}
+                        title={
+                          filteredSearch.length > 0
+                            ? "No pose groups found"
+                            : "No pose groups yet"
+                        }
+                        description={
+                          filteredSearch.length > 0
+                            ? `No items found matching "${searchQuery}"`
+                            : "Create a group or assign poses to populate this list."
+                        }
+                        action={
+                          filteredSearch.length > 0 ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSearchQuery("")}
+                              className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                            >
+                              Clear Search
+                            </Button>
+                          ) : undefined
+                        }
+                        className="py-12"
+                      />
+                    ) : (
+                      <div className="flex flex-col">
+                        {poseGroupsForSurface.map((group) => {
+                          const isMember =
+                            selectedPoseId &&
+                            selectedPoseGroupPaths.includes(group.path);
+                          const isUnassigned =
+                            group.path === UNASSIGNED_POSE_GROUP_PATH;
+                          return (
+                            <TreeRow
+                              key={group.id}
+                              depth={0}
+                              label={group.label}
+                              hasChildren={false}
+                              isExpanded={false}
+                              isSelected={
+                                activeSelection?.type === "pose-group" &&
+                                activeSelection.id === group.id
+                              }
+                              onToggle={() => {}}
+                              onSelect={() => selectPoseGroup(group)}
+                              highlightQuery={searchQuery}
+                              icon={
+                                <Users size={12} className="text-purple-300" />
+                              }
+                              actions={
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] text-text-muted font-mono">
+                                    {group.source}
+                                  </span>
+                                  <span className="text-[10px] text-text-muted font-mono">
+                                    {group.poseIds.length}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={!selectedPoseId || isUnassigned}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handlePoseGroupMembershipToggle(group);
+                                    }}
+                                    title={
+                                      !selectedPoseId
+                                        ? "Select a pose first"
+                                        : isUnassigned
+                                          ? "Unassigned membership is derived from poses with no groups"
+                                          : isMember
+                                            ? "Unassign selected pose"
+                                            : "Assign selected pose"
+                                    }
+                                  >
+                                    {isMember ? "Unassign" : "Assign"}
+                                  </Button>
+                                </div>
+                              }
+                            />
+                          );
+                        })}
                       </div>
-                      {sharedSyncConflicts.slice(0, 4).map((conflict) => (
-                        <div
-                          key={`${conflict.path}:${conflict.detectedAt}`}
-                          className="rounded border border-amber-500/30 bg-bg-panel/40 p-2 flex flex-col gap-1"
-                        >
-                          <div className="text-[10px] font-mono text-amber-100 truncate">
-                            {conflict.path}
-                          </div>
-                          <div className="text-[10px] text-text-muted">
-                            {conflict.firstSource}{" "}
-                            {conflict.firstValue.toFixed(3)} →{" "}
-                            {conflict.secondSource}{" "}
-                            {conflict.secondValue.toFixed(3)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-[10px]"
-                              onClick={() => resolveConflict(conflict, "main")}
-                            >
-                              Keep Main
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-[10px]"
-                              onClick={() =>
-                                resolveConflict(conflict, "reference")
-                              }
-                            >
-                              Keep Ref
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-[10px] ml-auto"
-                              onClick={() =>
-                                dismissSharedSyncConflict(conflict.path)
-                              }
-                            >
-                              Dismiss
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                {isPoseGroups ? (
-                  poseGroupsForSurface.length === 0 ? (
+                    )
+                  ) : visibleRoot.children.size === 0 ? (
                     <EmptyState
                       icon={Search}
                       iconSize={18}
                       title={
                         filteredSearch.length > 0
-                          ? "No pose groups found"
-                          : "No pose groups yet"
+                          ? "No results"
+                          : isVariables
+                            ? "No drivers defined"
+                            : isPoses
+                              ? "No poses defined"
+                              : isInputs
+                                ? "No inputs defined"
+                                : "No pose groups defined"
                       }
                       description={
                         filteredSearch.length > 0
                           ? `No items found matching "${searchQuery}"`
-                          : "Create a group or assign poses to populate this list."
+                          : isVariables
+                            ? "Create new drivers or import a model with poses."
+                            : isPoses
+                              ? "Create a pose to get started."
+                              : isInputs
+                                ? "Inputs are populated from rig auto-generation and references."
+                                : "No pose groups yet."
                       }
                       action={
                         filteredSearch.length > 0 ? (
@@ -3352,133 +4272,444 @@ export function VariablesPanel({
                       className="py-12"
                     />
                   ) : (
-                    <div className="flex flex-col">
-                      {poseGroupsForSurface.map((group) => {
-                        const isMember =
-                          selectedPoseId &&
-                          selectedPoseGroupPaths.includes(group.path);
-                        const isUnassigned =
-                          group.path === UNASSIGNED_POSE_GROUP_PATH;
-                        return (
-                          <TreeRow
-                            key={group.id}
-                            depth={0}
-                            label={group.label}
-                            hasChildren={false}
-                            isExpanded={false}
-                            isSelected={
-                              activeSelection?.type === "pose-group" &&
-                              activeSelection.id === group.id
-                            }
-                            onToggle={() => {}}
-                            onSelect={() => selectPoseGroup(group)}
-                            highlightQuery={searchQuery}
-                            icon={
-                              <Users size={12} className="text-purple-300" />
-                            }
-                            actions={
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {group.source}
-                                </span>
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {group.poseIds.length}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-2 text-[10px]"
-                                  disabled={!selectedPoseId || isUnassigned}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handlePoseGroupMembershipToggle(group);
-                                  }}
-                                  title={
-                                    !selectedPoseId
-                                      ? "Select a pose first"
-                                      : isUnassigned
-                                        ? "Unassigned membership is derived from poses with no groups"
-                                        : isMember
-                                          ? "Unassign selected pose"
-                                          : "Assign selected pose"
-                                  }
-                                >
-                                  {isMember ? "Unassign" : "Assign"}
-                                </Button>
-                              </div>
-                            }
-                          />
-                        );
-                      })}
-                    </div>
-                  )
-                ) : visibleRoot.children.size === 0 ? (
-                  <EmptyState
-                    icon={Search}
-                    iconSize={18}
-                    title={
-                      filteredSearch.length > 0
-                        ? "No results"
-                        : isVariables
-                          ? "No drivers defined"
-                          : isPoses
-                            ? "No poses defined"
-                            : isInputs
-                              ? "No inputs defined"
-                              : "No pose groups defined"
-                    }
-                    description={
-                      filteredSearch.length > 0
-                        ? `No items found matching "${searchQuery}"`
-                        : isVariables
-                          ? "Create new drivers or import a model with poses."
-                          : isPoses
-                            ? "Create a pose to get started."
-                            : isInputs
-                              ? "Inputs are populated from rig auto-generation and references."
-                              : "No pose groups yet."
-                    }
-                    action={
-                      filteredSearch.length > 0 ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSearchQuery("")}
-                          className="h-6 text-[10px] text-accent hover:text-accent-hover"
-                        >
-                          Clear Search
-                        </Button>
-                      ) : undefined
-                    }
-                    className="py-12"
-                  />
-                ) : (
-                  Array.from(visibleRoot.children.values())
-                    .sort((a, b) => {
-                      if (a.type === "folder" && b.type !== "folder") return -1;
-                      if (a.type !== "folder" && b.type === "folder") return 1;
-                      return a.label.localeCompare(b.label);
-                    })
-                    .map((child) => (
-                      <TreeRowWrapper
-                        key={child.id}
-                        node={child}
-                        depth={0}
-                        expanded={expandedIds}
-                        onToggle={handleToggle}
-                        onAction={handleAction}
-                        onSelect={handleSelect}
-                        onInputValueChange={activeInputValueChange}
-                        selection={activeSelection}
-                        searchQuery={searchQuery}
-                      />
-                    ))
-                )}
+                    Array.from(visibleRoot.children.values())
+                      .sort((a, b) => {
+                        if (a.type === "folder" && b.type !== "folder")
+                          return -1;
+                        if (a.type !== "folder" && b.type === "folder")
+                          return 1;
+                        return a.label.localeCompare(b.label);
+                      })
+                      .map((child) => (
+                        <TreeRowWrapper
+                          key={child.id}
+                          node={child}
+                          depth={0}
+                          expanded={expandedIds}
+                          onToggle={handleToggle}
+                          onAction={handleAction}
+                          onSelect={handleSelect}
+                          onInputValueChange={activeInputValueChange}
+                          selection={activeSelection}
+                          searchQuery={searchQuery}
+                        />
+                      ))
+                  )}
+                </div>
               </div>
+            );
+          }}
+        />
+      </Panel>
+      {variableCopyModal && (
+        <Modal
+          open={true}
+          onClose={closeVariableCopyModal}
+          title="Variable Copy Mapping"
+          maxWidth="4xl"
+        >
+          <div className="space-y-4">
+            <div className="text-xs text-text-muted">
+              {variableCopyModal.launchSource === "toolbar"
+                ? "Toolbar copy flow"
+                : "Row copy flow"}{" "}
+              · unresolved rows: {variableCopyUnresolvedCount}
             </div>
-          );
-        }}
-      />
-    </Panel>
+
+            {variableCopyBlockingMessages.length > 0 && (
+              <div
+                role="alert"
+                className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
+              >
+                {variableCopyBlockingMessages.map((message, index) => (
+                  <div key={`${message}:${index.toString(10)}`}>{message}</div>
+                ))}
+              </div>
+            )}
+
+            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
+              <div className="text-xs font-semibold text-text-primary">
+                Destination
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={cn(
+                    "h-7 px-3 rounded border text-[11px]",
+                    variableCopyModal.destinationMode === "existing"
+                      ? "border-accent/50 bg-accent/10 text-accent"
+                      : "border-border-default text-text-muted hover:text-text-primary",
+                  )}
+                  onClick={() => {
+                    setVariableCopyBlockingMessages([]);
+                    setVariableCopyModal((current) =>
+                      current
+                        ? {
+                            ...current,
+                            destinationMode: "existing",
+                          }
+                        : current,
+                    );
+                  }}
+                >
+                  Existing
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "h-7 px-3 rounded border text-[11px]",
+                    variableCopyModal.destinationMode === "new"
+                      ? "border-accent/50 bg-accent/10 text-accent"
+                      : "border-border-default text-text-muted hover:text-text-primary",
+                  )}
+                  onClick={() => {
+                    setVariableCopyBlockingMessages([]);
+                    setVariableCopyModal((current) =>
+                      current
+                        ? {
+                            ...current,
+                            destinationMode: "new",
+                          }
+                        : current,
+                    );
+                  }}
+                >
+                  New
+                </button>
+              </div>
+              {variableCopyModal.destinationMode === "existing" ? (
+                <div className="flex flex-col gap-1 text-xs text-text-muted">
+                  <span>Map to existing input</span>
+                  <Combobox
+                    value={variableCopyModal.destinationInputId.trim() || null}
+                    onChange={(nextValue) => {
+                      setVariableCopyBlockingMessages([]);
+                      setVariableCopyModal((current) =>
+                        current
+                          ? { ...current, destinationInputId: nextValue ?? "" }
+                          : current,
+                      );
+                    }}
+                    options={variableCopyDestinationComboboxOptions}
+                    placeholder="Search destination input"
+                    size="sm"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs text-text-muted">
+                    New path
+                    <input
+                      value={variableCopyModal.newDestinationPath}
+                      onChange={(event) => {
+                        setVariableCopyBlockingMessages([]);
+                        setVariableCopyModal((current) =>
+                          current
+                            ? {
+                                ...current,
+                                newDestinationPath: event.target.value,
+                              }
+                            : current,
+                        );
+                      }}
+                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-text-muted">
+                    New label
+                    <input
+                      value={variableCopyModal.newDestinationLabel}
+                      onChange={(event) => {
+                        setVariableCopyBlockingMessages([]);
+                        setVariableCopyModal((current) =>
+                          current
+                            ? {
+                                ...current,
+                                newDestinationLabel: event.target.value,
+                              }
+                            : current,
+                        );
+                      }}
+                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                    />
+                  </label>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
+              <div className="text-xs font-semibold text-text-primary">
+                Value Merge
+              </div>
+              {(
+                [
+                  {
+                    key: "min",
+                    label: "Min",
+                    sourceValue:
+                      variableCopyModal.sourceReferenceEntry.input.range.min,
+                  },
+                  {
+                    key: "max",
+                    label: "Max",
+                    sourceValue:
+                      variableCopyModal.sourceReferenceEntry.input.range.max,
+                  },
+                  {
+                    key: "defaultValue",
+                    label: "Default",
+                    sourceValue:
+                      variableCopyModal.sourceReferenceEntry.input.defaultValue,
+                  },
+                ] as const
+              ).map((field) => {
+                const draft = variableCopyModal.valueMerge[field.key];
+                return (
+                  <div
+                    key={field.key}
+                    className="grid grid-cols-1 gap-2 md:grid-cols-[96px_minmax(0,1fr)_minmax(0,1fr)] md:items-center"
+                  >
+                    <div className="text-xs text-text-muted">
+                      {field.label} ({field.sourceValue.toFixed(3)})
+                    </div>
+                    <select
+                      value={draft.mode}
+                      onChange={(event) => {
+                        const nextMode = event.target
+                          .value as VariableCopyNumericDecisionDraft["mode"];
+                        setVariableCopyBlockingMessages([]);
+                        setVariableCopyValueMergeDraft(
+                          field.key,
+                          (current) => ({
+                            ...current,
+                            mode: nextMode,
+                          }),
+                        );
+                      }}
+                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                    >
+                      <option value="source">Use source</option>
+                      <option value="destination">Keep destination</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <input
+                      value={draft.customValue}
+                      disabled={draft.mode !== "custom"}
+                      onChange={(event) => {
+                        setVariableCopyBlockingMessages([]);
+                        setVariableCopyValueMergeDraft(
+                          field.key,
+                          (current) => ({
+                            ...current,
+                            customValue: event.target.value,
+                          }),
+                        );
+                      }}
+                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                    />
+                  </div>
+                );
+              })}
+            </section>
+
+            {(
+              [
+                [
+                  "parent",
+                  "Parent mappings",
+                  variableCopyModal.proposal.parentRows,
+                ],
+                [
+                  "child",
+                  "Child mappings",
+                  variableCopyModal.proposal.childRows,
+                ],
+              ] as const
+            ).map(([relationship, label, rows]) => {
+              const drafts =
+                relationship === "parent"
+                  ? variableCopyModal.parentRowDrafts
+                  : variableCopyModal.childRowDrafts;
+              return (
+                <section
+                  key={relationship}
+                  className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2"
+                >
+                  <div className="text-xs font-semibold text-text-primary">
+                    {label}
+                  </div>
+                  {rows.length === 0 ? (
+                    <div className="text-xs text-text-muted">No mappings.</div>
+                  ) : (
+                    rows.map((row) => {
+                      const draft =
+                        drafts[row.rowId] ??
+                        createVariableCopyLinkRowDraft(row);
+                      return (
+                        <div
+                          key={row.rowId}
+                          className="rounded border border-border-default/50 bg-bg-panel/50 p-2 space-y-2"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="flex items-center gap-2 text-xs text-text-primary">
+                              <input
+                                type="checkbox"
+                                checked={draft.apply}
+                                onChange={(event) => {
+                                  setVariableCopyBlockingMessages([]);
+                                  setVariableCopyLinkRowDraft(
+                                    relationship,
+                                    row.rowId,
+                                    (current) => ({
+                                      ...current,
+                                      apply: event.target.checked,
+                                    }),
+                                  );
+                                }}
+                              />
+                              Apply
+                            </label>
+                            <span
+                              className={cn(
+                                "text-[11px] uppercase tracking-wide",
+                                row.status === "resolved"
+                                  ? "text-emerald-300"
+                                  : row.status === "skipped"
+                                    ? "text-text-muted"
+                                    : "text-amber-300",
+                              )}
+                            >
+                              {row.status}
+                            </span>
+                            <span className="text-xs text-text-muted">
+                              {row.sourceLabel} ({row.sourcePath ?? "no-path"})
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-1 text-xs text-text-muted">
+                            <span>Destination input</span>
+                            <Combobox
+                              value={draft.destinationInputId || null}
+                              disabled={!draft.apply}
+                              onChange={(nextValue) => {
+                                setVariableCopyBlockingMessages([]);
+                                setVariableCopyLinkRowDraft(
+                                  relationship,
+                                  row.rowId,
+                                  (current) => ({
+                                    ...current,
+                                    destinationInputId: nextValue ?? "",
+                                  }),
+                                );
+                              }}
+                              options={variableCopyDestinationComboboxOptions}
+                              placeholder="Search destination input"
+                              size="sm"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            {(
+                              [
+                                ["scale", "Scale", row.sourceScale],
+                                ["offset", "Offset", row.sourceOffset],
+                              ] as const
+                            ).map(([key, mergeLabel, sourceValue]) => {
+                              const decision = draft[key];
+                              return (
+                                <div
+                                  key={key}
+                                  className="grid grid-cols-1 gap-2 md:grid-cols-2"
+                                >
+                                  <select
+                                    value={decision.mode}
+                                    disabled={!draft.apply}
+                                    onChange={(event) => {
+                                      const nextMode = event.target
+                                        .value as VariableCopyNumericDecisionDraft["mode"];
+                                      setVariableCopyBlockingMessages([]);
+                                      setVariableCopyLinkRowDraft(
+                                        relationship,
+                                        row.rowId,
+                                        (current) => ({
+                                          ...current,
+                                          [key]: {
+                                            ...current[key],
+                                            mode: nextMode,
+                                          },
+                                        }),
+                                      );
+                                    }}
+                                    className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                                  >
+                                    <option value="source">
+                                      {mergeLabel}: source (
+                                      {sourceValue.toFixed(3)})
+                                    </option>
+                                    <option value="destination">
+                                      {mergeLabel}: destination
+                                    </option>
+                                    <option value="custom">
+                                      {mergeLabel}: custom
+                                    </option>
+                                  </select>
+                                  <input
+                                    value={decision.customValue}
+                                    disabled={
+                                      !draft.apply || decision.mode !== "custom"
+                                    }
+                                    onChange={(event) => {
+                                      setVariableCopyBlockingMessages([]);
+                                      setVariableCopyLinkRowDraft(
+                                        relationship,
+                                        row.rowId,
+                                        (current) => ({
+                                          ...current,
+                                          [key]: {
+                                            ...current[key],
+                                            customValue: event.target.value,
+                                          },
+                                        }),
+                                      );
+                                    }}
+                                    className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {row.rationale.length > 0 && (
+                            <div className="text-[11px] text-text-muted">
+                              {row.rationale.join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </section>
+              );
+            })}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={closeVariableCopyModal}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={handleConfirmVariableCopyModal}
+              >
+                Confirm Copy
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
