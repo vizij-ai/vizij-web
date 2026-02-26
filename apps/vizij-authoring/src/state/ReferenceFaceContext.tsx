@@ -1,6 +1,23 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import type { VizijBundleExtension } from "@vizij/render";
+import type {
+  ReferenceCatalog,
+  ReferenceCatalogInput,
+  ReferenceCatalogPipelineLink,
+  ReferencePoseDefinition,
+} from "../referenceFace/types";
+
+const EMPTY_REFERENCE_CATALOG: ReferenceCatalog = {
+  inputs: [],
+  inputsById: new Map(),
+  inputsByPath: new Map(),
+  pipelineLinks: [],
+  poses: [],
+  posesById: new Map(),
+};
+
+const EMPTY_REFERENCE_LINKS: ReferenceCatalogPipelineLink[] = [];
 
 export interface ReferenceFaceState {
   /** The reference face file loaded */
@@ -17,6 +34,18 @@ export interface ReferenceFaceState {
   standardInputsById: Map<string, StandardRigInput>;
   /** Set of input IDs that have bindings (connections to other nodes) */
   inputIdsWithBindings: Set<string>;
+  /** Last loaded reference bundle extension */
+  bundle: VizijBundleExtension | null;
+  /** Derived reference catalog for inputs, relationships, and poses */
+  referenceCatalog: ReferenceCatalog;
+  /** Fast getter for a reference input catalog entry */
+  getReferenceCatalogInput: (inputId: string) => ReferenceCatalogInput | null;
+  /** Fast getter for a reference pose catalog entry */
+  getReferenceCatalogPose: (poseId: string) => ReferencePoseDefinition | null;
+  /** Fast getter for parent/child link rows touching an input */
+  getReferenceCatalogLinksForInput: (
+    inputId: string,
+  ) => ReferenceCatalogPipelineLink[];
   /** Current input values */
   inputValues: Record<string, number>;
   /** Handler to change an input value */
@@ -45,6 +74,11 @@ const defaultState: ReferenceFaceState = {
   standardInputs: [],
   standardInputsById: new Map(),
   inputIdsWithBindings: new Set(),
+  bundle: null,
+  referenceCatalog: EMPTY_REFERENCE_CATALOG,
+  getReferenceCatalogInput: () => null,
+  getReferenceCatalogPose: () => null,
+  getReferenceCatalogLinksForInput: () => EMPTY_REFERENCE_LINKS,
   inputValues: {},
   handleInputValueChange: () => {},
   handleResetAllInputValues: () => {},
