@@ -111,8 +111,10 @@ export function WorkspaceLayout({
                               minSize={5}
                               id={section.id}
                             >
-                              <div className="h-full border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
-                                {section.panel}
+                              <div className="h-full min-h-0 border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-hidden overflow-x-hidden animate-slide-in flex flex-col">
+                                <div className="flex-1 min-h-0">
+                                  {section.panel}
+                                </div>
                               </div>
                             </Panel>
                             {index + 1 < extendedLeftSections.length ? (
