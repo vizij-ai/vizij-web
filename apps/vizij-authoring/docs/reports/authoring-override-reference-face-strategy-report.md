@@ -1,5 +1,13 @@
 # Authoring Override Pipeline Plan: Reference Face Strategy Report
 
+Last updated: 2026-02-26
+Status: `baseline-analysis-with-execution-update`
+
+Follow-on planning docs:
+
+1. `apps/vizij-authoring/docs/references/authoring-reference-face-workflow-sop.md`
+2. `apps/vizij-authoring/docs/plans/authoring-reference-face-implementation-plan.md`
+
 ## Executive Summary
 
 Recommendation: **do not delete and restart the current reference-face implementation**.
@@ -11,6 +19,22 @@ Why:
 1. The current system already has working dual-face runtime wiring and copy-entry points.
 2. A restart would recreate a large amount of plumbing before delivering user value.
 3. The biggest problem (unresponsiveness) is concentrated in specific synchronization and rendering hot paths that can be refactored incrementally.
+
+## Implementation Progress Update (2026-02-26)
+
+Executed milestone commits:
+
+1. `973b873` - introduced reference catalog extraction and deterministic copy proposal/preflight models.
+2. `d3dbf62` - replaced direct variable copy writes with a mapping modal confirm flow.
+3. `5b2d1f5` - added reference pose copy mapping modal with transactional commit/rollback semantics.
+4. `acfac7d` - added explicit dual-face context labeling across Variables, Poses, and Inputs surfaces.
+
+Current state after these milestones:
+
+1. Core variable + pose reference copy workflows now satisfy review-before-write requirements.
+2. Unresolved critical mappings are blocked at confirm time.
+3. Validation pass is green (`pnpm --filter vizij-authoring run validate`).
+4. Performance hotspot refactors and perf-gate artifacts remain the primary open track.
 
 ### Sources
 
