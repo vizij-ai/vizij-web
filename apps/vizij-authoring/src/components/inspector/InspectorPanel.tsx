@@ -7,13 +7,25 @@ import { NumberField } from "../ui/NumberField";
 import { EmptyState } from "../ui/EmptyState";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import type { PoseDefinition } from "../../poseRig/types";
+import type {
+  PoseDefinition,
+  PoseGroupDefinition,
+  PoseIrBlendStageDefinition,
+  PoseIrStageSource,
+  PoseScopedNeutralDefinition,
+} from "../../poseRig/types";
 import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import { InspectorContent } from "./InspectorContent";
+import {
+  buildPoseGroupCompositionPreview,
+  buildPoseStageCompositionPreview,
+  type PoseGroupCompositionChannel,
+  type PoseStageCompositionChannel,
+} from "./poseCompositionPreview";
 
 interface InspectorPanelProps {
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
@@ -30,6 +42,81 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizePoseGroupPath(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
+}
+
+function blendStageLabel(
+  stage: PoseIrBlendStageDefinition,
+  index: number,
+): string {
+  const trimmed = stage.name?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return `Stage ${index + 1}`;
+}
+
+function resolveNeutralSourceType(
+  neutral: PoseScopedNeutralDefinition | undefined,
+): "inherit" | "pose-reference" | "direct-values" {
+  return neutral?.sourceType ?? "inherit";
+}
+
+function clampToInputRange(
+  input:
+    | {
+        range?: {
+          min: number;
+          max: number;
+        };
+      }
+    | undefined,
+  value: number,
+): number {
+  if (!isFiniteNumber(value)) {
+    return 0;
+  }
+  if (!input?.range) {
+    return value;
+  }
+  const min = isFiniteNumber(input.range.min) ? input.range.min : value;
+  const max = isFiniteNumber(input.range.max) ? input.range.max : value;
+  return Math.max(min, Math.min(max, value));
+}
+
+function sortInputIds(
+  inputIds: Iterable<string>,
+  orderByInputId: Map<string, number>,
+): string[] {
+  return Array.from(new Set(inputIds)).sort((left, right) => {
+    const leftIndex = orderByInputId.get(left);
+    const rightIndex = orderByInputId.get(right);
+    if (leftIndex !== undefined && rightIndex !== undefined) {
+      return leftIndex - rightIndex;
+    }
+    if (leftIndex !== undefined) {
+      return -1;
+    }
+    if (rightIndex !== undefined) {
+      return 1;
+    }
+    return left.localeCompare(right);
+  });
+}
+
+function stageSourceToken(source: PoseIrStageSource): string {
+  return `${source.kind}:${source.id}`;
+}
+
 export function InspectorPanel({
   selectedPoseGroup = null,
   onSelectPoseGroup,
@@ -43,8 +130,16 @@ export function InspectorPanel({
     poseConfigDraft,
     blendMode,
     setPoseGroupBlendMode,
+    setPoseGroupNeutralSource,
+    clearPoseGroupNeutralSource,
+    blendStages,
+    setBlendStageMode,
+    setBlendStageSources,
+    setBlendStageNeutralSource,
+    clearBlendStageNeutralSource,
     selectPose,
     selectedPoseId,
+    standardInputs,
   } = usePoseRig();
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -59,11 +154,28 @@ export function InspectorPanel({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+
   const poseLookup = useMemo(() => {
     const lookup = new Map<string, PoseDefinition>();
     poses.forEach((pose) => lookup.set(pose.id, pose));
     return lookup;
   }, [poses]);
+
+  const authoringInputById = useMemo(() => {
+    const lookup = new Map<string, (typeof standardInputs)[number]>();
+    standardInputs.forEach((input) => {
+      lookup.set(input.id, input);
+    });
+    return lookup;
+  }, [standardInputs]);
+
+  const authoringInputOrderById = useMemo(() => {
+    const order = new Map<string, number>();
+    standardInputs.forEach((input, index) => {
+      order.set(input.id, index);
+    });
+    return order;
+  }, [standardInputs]);
 
   const activePoseGroupPoses = useMemo(() => {
     if (!selectedPoseGroup) {
@@ -73,6 +185,22 @@ export function InspectorPanel({
       .map((poseId) => poseLookup.get(poseId))
       .filter((pose): pose is PoseDefinition => Boolean(pose));
   }, [selectedPoseGroup, poseLookup]);
+
+  const poseGroupsFromConfig = useMemo(
+    () => (poseConfigDraft?.poseGroups ?? []) as PoseGroupDefinition[],
+    [poseConfigDraft?.poseGroups],
+  );
+
+  const activePoseGroupConfig = useMemo(() => {
+    if (!selectedPoseGroup?.groupId) {
+      return null;
+    }
+    return (
+      poseGroupsFromConfig.find(
+        (group) => group.id === selectedPoseGroup.groupId,
+      ) ?? null
+    );
+  }, [poseGroupsFromConfig, selectedPoseGroup?.groupId]);
 
   const activePoseGroupBlendMode = useMemo(() => {
     if (!selectedPoseGroup?.groupId || !poseConfigDraft?.poseGroups) {
@@ -96,35 +224,38 @@ export function InspectorPanel({
     return map;
   }, [managedStandardInputs]);
 
+  const poseWeightsByPoseId = useMemo(() => {
+    const weights: Record<string, number> = {};
+    poses.forEach((pose) => {
+      const inputId = poseWeightInputIdByPoseId.get(pose.id);
+      const stored = inputId ? inputValues[inputId] : undefined;
+      if (isFiniteNumber(stored)) {
+        weights[pose.id] = clamp01(stored);
+        return;
+      }
+      weights[pose.id] = selectedPoseId === pose.id ? 1 : 0;
+    });
+    return weights;
+  }, [inputValues, poseWeightInputIdByPoseId, poses, selectedPoseId]);
+
   const poseGroupWeights = useMemo(() => {
     if (!selectedPoseGroup) {
       return {} as Record<string, number>;
     }
     const next: Record<string, number> = {};
     selectedPoseGroup.poseIds.forEach((poseId) => {
-      const inputId = poseWeightInputIdByPoseId.get(poseId);
-      const stored = inputId ? inputValues[inputId] : undefined;
-      if (typeof stored === "number" && Number.isFinite(stored)) {
-        next[poseId] = clamp01(stored);
-        return;
-      }
-      next[poseId] = selectedPoseId === poseId ? 1 : 0;
+      next[poseId] = clamp01(poseWeightsByPoseId[poseId] ?? 0);
     });
     return next;
-  }, [
-    inputValues,
-    poseWeightInputIdByPoseId,
-    selectedPoseGroup,
-    selectedPoseId,
-  ]);
+  }, [poseWeightsByPoseId, selectedPoseGroup]);
 
   const resolveNeutralValue = (inputId: string) => {
     const neutral = neutralInputs[inputId];
-    if (typeof neutral === "number" && Number.isFinite(neutral)) {
+    if (isFiniteNumber(neutral)) {
       return neutral;
     }
     const fallback = standardInputsById.get(inputId)?.defaultValue;
-    if (typeof fallback === "number" && Number.isFinite(fallback)) {
+    if (isFiniteNumber(fallback)) {
       return fallback;
     }
     return 0;
@@ -132,12 +263,7 @@ export function InspectorPanel({
 
   const clampInputValue = (inputId: string, value: number) => {
     const input = standardInputsById.get(inputId);
-    if (!input?.range) {
-      return value;
-    }
-    const min = Number.isFinite(input.range.min) ? input.range.min : value;
-    const max = Number.isFinite(input.range.max) ? input.range.max : value;
-    return Math.max(min, Math.min(max, value));
+    return clampToInputRange(input, value);
   };
 
   const applyPoseGroupPreview = (
@@ -166,10 +292,7 @@ export function InspectorPanel({
           return;
         }
         const target = pose.values[inputId];
-        const poseValue =
-          typeof target === "number" && Number.isFinite(target)
-            ? target
-            : neutral;
+        const poseValue = isFiniteNumber(target) ? target : neutral;
         const delta = poseValue - neutral;
         if (Math.abs(delta) < 1e-6) {
           return;
@@ -251,6 +374,372 @@ export function InspectorPanel({
     applyPoseGroupPreview(activePoseGroupPoses, next);
   };
 
+  const defaultPoseReferenceId = poses[0]?.id ?? null;
+  const activeGroupNeutral = activePoseGroupConfig?.neutral;
+  const activeGroupNeutralSourceType =
+    resolveNeutralSourceType(activeGroupNeutral);
+
+  const setActiveGroupNeutralSourceType = (
+    sourceType: "inherit" | "pose-reference" | "direct-values",
+  ) => {
+    const groupId = selectedPoseGroup?.groupId;
+    if (!groupId) {
+      return;
+    }
+    if (sourceType === "inherit") {
+      setPoseGroupNeutralSource(groupId, { sourceType: "inherit" });
+      return;
+    }
+    if (sourceType === "pose-reference") {
+      const currentPoseId =
+        activeGroupNeutral?.sourceType === "pose-reference"
+          ? activeGroupNeutral.poseId
+          : null;
+      const poseId =
+        (currentPoseId && poseLookup.has(currentPoseId)
+          ? currentPoseId
+          : defaultPoseReferenceId) ?? null;
+      if (!poseId) {
+        return;
+      }
+      setPoseGroupNeutralSource(groupId, {
+        sourceType: "pose-reference",
+        poseId,
+      });
+      return;
+    }
+
+    const nextValues =
+      activeGroupNeutral?.sourceType === "direct-values"
+        ? { ...activeGroupNeutral.values }
+        : {};
+    setPoseGroupNeutralSource(groupId, {
+      sourceType: "direct-values",
+      values: nextValues,
+    });
+  };
+
+  const setActiveGroupNeutralPoseReference = (poseId: string) => {
+    const groupId = selectedPoseGroup?.groupId;
+    if (!groupId || !poseLookup.has(poseId)) {
+      return;
+    }
+    setPoseGroupNeutralSource(groupId, {
+      sourceType: "pose-reference",
+      poseId,
+    });
+  };
+
+  const activeBlendStageDefinitions = useMemo(
+    () => (Array.isArray(blendStages) ? blendStages : []),
+    [blendStages],
+  );
+
+  const selectedStageIndex = useMemo(() => {
+    if (!selectedBlendStage) {
+      return -1;
+    }
+    return activeBlendStageDefinitions.findIndex(
+      (stage) => stage.id === selectedBlendStage.id,
+    );
+  }, [activeBlendStageDefinitions, selectedBlendStage]);
+
+  const selectedStageDefinition =
+    selectedStageIndex >= 0
+      ? activeBlendStageDefinitions[selectedStageIndex]
+      : null;
+
+  const setActiveGroupNeutralDirectValue = (inputId: string, value: number) => {
+    const groupId = selectedPoseGroup?.groupId;
+    if (!groupId) {
+      return;
+    }
+    const input = authoringInputById.get(inputId);
+    if (!input) {
+      return;
+    }
+    const clamped = clampToInputRange(input, value);
+    const baseValues =
+      activeGroupNeutral?.sourceType === "direct-values"
+        ? activeGroupNeutral.values
+        : {};
+    setPoseGroupNeutralSource(groupId, {
+      sourceType: "direct-values",
+      values: {
+        ...baseValues,
+        [inputId]: clamped,
+      },
+    });
+  };
+
+  const groupCompositionPreview = useMemo(() => {
+    if (!selectedPoseGroup) {
+      return null;
+    }
+    return buildPoseGroupCompositionPreview({
+      standardInputs,
+      neutralInputs,
+      poses,
+      poseWeights: poseWeightsByPoseId,
+      group: {
+        id: selectedPoseGroup.groupId ?? selectedPoseGroup.groupPath,
+        label: selectedPoseGroup.label,
+        blendMode: activePoseGroupBlendMode,
+        poseIds: selectedPoseGroup.poseIds,
+        neutral: activeGroupNeutral,
+      },
+    });
+  }, [
+    activeGroupNeutral,
+    activePoseGroupBlendMode,
+    neutralInputs,
+    poseWeightsByPoseId,
+    poses,
+    selectedPoseGroup,
+    standardInputs,
+  ]);
+
+  const groupPreviewChannelByInputId = useMemo(() => {
+    const map = new Map<string, PoseGroupCompositionChannel>();
+    groupCompositionPreview?.channels.forEach((channel) => {
+      map.set(channel.inputId, channel);
+    });
+    return map;
+  }, [groupCompositionPreview]);
+
+  const groupNeutralEditableInputIds = useMemo(() => {
+    const ids = new Set<string>();
+    activePoseGroupPoses.forEach((pose) => {
+      Object.keys(pose.values).forEach((inputId) => ids.add(inputId));
+    });
+    if (activeGroupNeutralSourceType === "direct-values") {
+      standardInputs.forEach((input) => ids.add(input.id));
+    }
+    if (activeGroupNeutral?.sourceType === "direct-values") {
+      Object.keys(activeGroupNeutral.values).forEach((inputId) =>
+        ids.add(inputId),
+      );
+    }
+    groupCompositionPreview?.channels.forEach((channel) =>
+      ids.add(channel.inputId),
+    );
+    return sortInputIds(ids, authoringInputOrderById).filter((inputId) =>
+      authoringInputById.has(inputId),
+    );
+  }, [
+    activeGroupNeutral,
+    activeGroupNeutralSourceType,
+    activePoseGroupPoses,
+    authoringInputById,
+    authoringInputOrderById,
+    groupCompositionPreview,
+    standardInputs,
+  ]);
+
+  const activeStageNeutral = selectedStageDefinition?.neutral;
+  const activeStageNeutralSourceType =
+    resolveNeutralSourceType(activeStageNeutral);
+
+  const stageGroupOptions = useMemo(() => {
+    const options = new Map<string, { id: string; label: string }>();
+    poseGroupsFromConfig.forEach((group) => {
+      const id = group.id?.trim();
+      if (!id || options.has(id)) {
+        return;
+      }
+      const path =
+        normalizePoseGroupPath(group.path) ||
+        normalizePoseGroupPath(group.name) ||
+        normalizePoseGroupPath(group.id) ||
+        id;
+      options.set(id, {
+        id,
+        label: path,
+      });
+    });
+    return Array.from(options.values());
+  }, [poseGroupsFromConfig]);
+
+  const priorStageOptions = useMemo(
+    () => activeBlendStageDefinitions.slice(0, Math.max(0, selectedStageIndex)),
+    [activeBlendStageDefinitions, selectedStageIndex],
+  );
+
+  const selectedStageGroupSourceIds = useMemo(
+    () =>
+      new Set(
+        (selectedStageDefinition?.sources ?? [])
+          .filter((source) => source.kind === "group")
+          .map((source) => source.id),
+      ),
+    [selectedStageDefinition?.sources],
+  );
+
+  const selectedStageStageSourceIds = useMemo(
+    () =>
+      new Set(
+        (selectedStageDefinition?.sources ?? [])
+          .filter((source) => source.kind === "stage")
+          .map((source) => source.id),
+      ),
+    [selectedStageDefinition?.sources],
+  );
+
+  const toggleStageSource = (source: PoseIrStageSource) => {
+    if (!selectedStageDefinition) {
+      return;
+    }
+    const hasSource = selectedStageDefinition.sources.some(
+      (entry) => entry.kind === source.kind && entry.id === source.id,
+    );
+    const nextSources = hasSource
+      ? selectedStageDefinition.sources.filter(
+          (entry) => !(entry.kind === source.kind && entry.id === source.id),
+        )
+      : [...selectedStageDefinition.sources, source];
+    const dedupedSources: PoseIrStageSource[] = [];
+    const seen = new Set<string>();
+    nextSources.forEach((entry) => {
+      const key = stageSourceToken(entry);
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      dedupedSources.push(entry);
+    });
+    setBlendStageSources(selectedStageDefinition.id, dedupedSources);
+  };
+
+  const setActiveStageNeutralSourceType = (
+    sourceType: "inherit" | "pose-reference" | "direct-values",
+  ) => {
+    if (!selectedStageDefinition) {
+      return;
+    }
+    if (sourceType === "inherit") {
+      setBlendStageNeutralSource(selectedStageDefinition.id, {
+        sourceType: "inherit",
+      });
+      return;
+    }
+    if (sourceType === "pose-reference") {
+      const currentPoseId =
+        activeStageNeutral?.sourceType === "pose-reference"
+          ? activeStageNeutral.poseId
+          : null;
+      const poseId =
+        (currentPoseId && poseLookup.has(currentPoseId)
+          ? currentPoseId
+          : defaultPoseReferenceId) ?? null;
+      if (!poseId) {
+        return;
+      }
+      setBlendStageNeutralSource(selectedStageDefinition.id, {
+        sourceType: "pose-reference",
+        poseId,
+      });
+      return;
+    }
+    const nextValues =
+      activeStageNeutral?.sourceType === "direct-values"
+        ? { ...activeStageNeutral.values }
+        : {};
+    setBlendStageNeutralSource(selectedStageDefinition.id, {
+      sourceType: "direct-values",
+      values: nextValues,
+    });
+  };
+
+  const setActiveStageNeutralPoseReference = (poseId: string) => {
+    if (!selectedStageDefinition || !poseLookup.has(poseId)) {
+      return;
+    }
+    setBlendStageNeutralSource(selectedStageDefinition.id, {
+      sourceType: "pose-reference",
+      poseId,
+    });
+  };
+
+  const setActiveStageNeutralDirectValue = (inputId: string, value: number) => {
+    if (!selectedStageDefinition) {
+      return;
+    }
+    const input = authoringInputById.get(inputId);
+    if (!input) {
+      return;
+    }
+    const clamped = clampToInputRange(input, value);
+    const baseValues =
+      activeStageNeutral?.sourceType === "direct-values"
+        ? activeStageNeutral.values
+        : {};
+    setBlendStageNeutralSource(selectedStageDefinition.id, {
+      sourceType: "direct-values",
+      values: {
+        ...baseValues,
+        [inputId]: clamped,
+      },
+    });
+  };
+
+  const stageCompositionPreview = useMemo(() => {
+    if (!selectedBlendStage) {
+      return null;
+    }
+    return buildPoseStageCompositionPreview({
+      standardInputs,
+      neutralInputs,
+      poses,
+      poseWeights: poseWeightsByPoseId,
+      poseGroups: poseConfigDraft?.poseGroups,
+      blendStages: activeBlendStageDefinitions,
+      defaultGroupBlendMode: blendMode,
+      stageId: selectedBlendStage.id,
+    });
+  }, [
+    activeBlendStageDefinitions,
+    blendMode,
+    neutralInputs,
+    poseConfigDraft?.poseGroups,
+    poseWeightsByPoseId,
+    poses,
+    selectedBlendStage,
+    standardInputs,
+  ]);
+
+  const stagePreviewChannelByInputId = useMemo(() => {
+    const map = new Map<string, PoseStageCompositionChannel>();
+    stageCompositionPreview?.channels.forEach((channel) => {
+      map.set(channel.inputId, channel);
+    });
+    return map;
+  }, [stageCompositionPreview]);
+
+  const stageNeutralEditableInputIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (activeStageNeutralSourceType === "direct-values") {
+      standardInputs.forEach((input) => ids.add(input.id));
+    }
+    stageCompositionPreview?.channels.forEach((channel) =>
+      ids.add(channel.inputId),
+    );
+    if (activeStageNeutral?.sourceType === "direct-values") {
+      Object.keys(activeStageNeutral.values).forEach((inputId) =>
+        ids.add(inputId),
+      );
+    }
+    return sortInputIds(ids, authoringInputOrderById).filter((inputId) =>
+      authoringInputById.has(inputId),
+    );
+  }, [
+    activeStageNeutral,
+    activeStageNeutralSourceType,
+    authoringInputById,
+    authoringInputOrderById,
+    stageCompositionPreview,
+    standardInputs,
+  ]);
+
   return (
     <Panel
       title="Inspector"
@@ -262,7 +751,7 @@ export function InspectorPanel({
           <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
         </div>
         {selectedPoseGroup && !selectedPoseId && (
-          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[42%] overflow-y-auto custom-scrollbar">
+          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[54%] overflow-y-auto custom-scrollbar">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold text-text-primary truncate">
@@ -420,13 +909,244 @@ export function InspectorPanel({
                 iconSize={16}
                 title="No Poses In Group"
                 description="This group no longer contains pose entries."
-                className="py-6"
+                className="py-4"
               />
             )}
+
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  Neutral Source
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedPoseGroup.groupId}
+                  onClick={() =>
+                    selectedPoseGroup.groupId &&
+                    clearPoseGroupNeutralSource(selectedPoseGroup.groupId)
+                  }
+                  title="Reset to inherited neutral"
+                >
+                  Reset
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  variant={
+                    activeGroupNeutralSourceType === "inherit"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedPoseGroup.groupId}
+                  onClick={() => setActiveGroupNeutralSourceType("inherit")}
+                >
+                  Inherit
+                </Button>
+                <Button
+                  variant={
+                    activeGroupNeutralSourceType === "pose-reference"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedPoseGroup.groupId || poses.length === 0}
+                  onClick={() =>
+                    setActiveGroupNeutralSourceType("pose-reference")
+                  }
+                >
+                  Pose Reference
+                </Button>
+                <Button
+                  variant={
+                    activeGroupNeutralSourceType === "direct-values"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedPoseGroup.groupId}
+                  onClick={() =>
+                    setActiveGroupNeutralSourceType("direct-values")
+                  }
+                >
+                  Direct Values
+                </Button>
+              </div>
+
+              {activeGroupNeutralSourceType === "pose-reference" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-text-muted">Pose</span>
+                  <select
+                    className="h-7 min-w-0 flex-1 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                    value={
+                      activeGroupNeutral?.sourceType === "pose-reference"
+                        ? activeGroupNeutral.poseId
+                        : (defaultPoseReferenceId ?? "")
+                    }
+                    onChange={(event) =>
+                      setActiveGroupNeutralPoseReference(event.target.value)
+                    }
+                  >
+                    {poses.map((pose) => (
+                      <option key={pose.id} value={pose.id}>
+                        {pose.name} ({pose.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {activeGroupNeutralSourceType === "direct-values" && (
+                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                  {groupNeutralEditableInputIds.length === 0 ? (
+                    <span className="text-[10px] text-text-muted">
+                      No channels available for direct neutral editing.
+                    </span>
+                  ) : (
+                    groupNeutralEditableInputIds.map((inputId) => {
+                      const input = authoringInputById.get(inputId);
+                      if (!input) {
+                        return null;
+                      }
+                      const directValue =
+                        activeGroupNeutral?.sourceType === "direct-values" &&
+                        isFiniteNumber(activeGroupNeutral.values[inputId])
+                          ? clampToInputRange(
+                              input,
+                              activeGroupNeutral.values[inputId],
+                            )
+                          : (groupPreviewChannelByInputId.get(inputId)?.neutral
+                              .value ?? resolveNeutralValue(inputId));
+                      return (
+                        <div
+                          key={inputId}
+                          className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5 flex flex-col gap-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-text-primary truncate">
+                              {input.label}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-mono truncate">
+                              {inputId}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Slider
+                              min={input.range.min}
+                              max={input.range.max}
+                              step={0.0001}
+                              value={directValue}
+                              className="flex-1"
+                              fillMode="value"
+                              onChange={(value) =>
+                                setActiveGroupNeutralDirectValue(
+                                  inputId,
+                                  value as number,
+                                )
+                              }
+                            />
+                            <div className="inspector-numeric-control w-[88px]">
+                              <NumberField
+                                size="sm"
+                                min={input.range.min}
+                                max={input.range.max}
+                                step={0.0001}
+                                value={directValue}
+                                className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-[10px]"
+                                onChange={(value) =>
+                                  setActiveGroupNeutralDirectValue(
+                                    inputId,
+                                    value,
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+              <div className="text-[10px] text-text-muted">
+                Effective neutral:{" "}
+                <span className="font-mono text-text-primary">
+                  {groupCompositionPreview?.neutral.detail ?? "Global neutral"}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  Composition Outputs
+                </span>
+                <span className="text-[10px] text-text-muted font-mono">
+                  {groupCompositionPreview?.channels.length ?? 0} channels
+                </span>
+              </div>
+              {groupCompositionPreview &&
+              groupCompositionPreview.channels.length > 0 ? (
+                <div className="max-h-44 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
+                  {groupCompositionPreview.channels.map((channel) => {
+                    const contributionSummary = channel.contributions
+                      .filter(
+                        (contribution) =>
+                          contribution.hasAuthoredValue ||
+                          contribution.activity > 0 ||
+                          Math.abs(contribution.delta) >= 1e-6,
+                      )
+                      .map(
+                        (contribution) =>
+                          `${contribution.poseName}: w ${contribution.weight.toFixed(2)}, Δ ${contribution.delta.toFixed(4)}, wΔ ${contribution.weightedDelta.toFixed(4)}`,
+                      )
+                      .join(" · ");
+                    return (
+                      <div
+                        key={channel.inputId}
+                        className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5 flex flex-col gap-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-text-primary truncate">
+                            {channel.label}
+                          </span>
+                          <span className="text-[10px] text-text-muted font-mono whitespace-nowrap">
+                            out {channel.effectiveValue.toFixed(4)} · Δ{" "}
+                            {channel.delta.toFixed(4)}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-text-muted font-mono truncate">
+                          {channel.inputId}
+                        </div>
+                        <div className="text-[10px] text-text-muted font-mono">
+                          neutral {channel.neutral.value.toFixed(4)} · activity{" "}
+                          {channel.maxActivity.toFixed(3)}
+                        </div>
+                        <div className="text-[10px] text-text-muted truncate">
+                          neutral source: {channel.neutral.detail}
+                        </div>
+                        <div className="text-[10px] text-text-muted">
+                          {contributionSummary || "No active contributions."}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-[10px] text-text-muted">
+                  No composed group channels at current live pose weights.
+                </div>
+              )}
+            </div>
           </div>
         )}
         {selectedBlendStage && !selectedPoseGroup && !selectedPoseId && (
-          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0">
+          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0 max-h-[54%] overflow-y-auto custom-scrollbar">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold text-text-primary truncate">
@@ -446,19 +1166,363 @@ export function InspectorPanel({
                 Close
               </Button>
             </div>
-            <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-1">
-              <div className="text-[10px] text-text-muted">
-                Mode:{" "}
-                <span className="font-mono text-text-primary">
-                  {selectedBlendStage.mode}
+
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  Stage Settings
+                </span>
+                <span className="text-[10px] text-text-muted font-mono">
+                  {selectedStageDefinition?.id ?? selectedBlendStage.id}
                 </span>
               </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-text-muted">Mode</span>
+                <Button
+                  variant={
+                    selectedStageDefinition?.mode === "average"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedStageDefinition}
+                  onClick={() =>
+                    selectedStageDefinition &&
+                    setBlendStageMode(selectedStageDefinition.id, "average")
+                  }
+                >
+                  Average
+                </Button>
+                <Button
+                  variant={
+                    selectedStageDefinition?.mode === "add"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedStageDefinition}
+                  onClick={() =>
+                    selectedStageDefinition &&
+                    setBlendStageMode(selectedStageDefinition.id, "add")
+                  }
+                >
+                  Add
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted">
+                  Group Sources
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {stageGroupOptions.length === 0 ? (
+                    <span className="text-[10px] text-text-muted">
+                      No configured groups.
+                    </span>
+                  ) : (
+                    stageGroupOptions.map((group) => {
+                      const selected = selectedStageGroupSourceIds.has(
+                        group.id,
+                      );
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                            selected
+                              ? "border-accent/50 bg-accent/10 text-accent"
+                              : "border-border-default text-text-muted hover:text-text-primary"
+                          }`}
+                          aria-pressed={selected}
+                          disabled={!selectedStageDefinition}
+                          onClick={() =>
+                            toggleStageSource({
+                              kind: "group",
+                              id: group.id,
+                            })
+                          }
+                        >
+                          {group.label}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted">
+                  Prior Stage Sources
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {priorStageOptions.length === 0 ? (
+                    <span className="text-[10px] text-text-muted">
+                      No prior stages.
+                    </span>
+                  ) : (
+                    priorStageOptions.map((stage, index) => {
+                      const selected = selectedStageStageSourceIds.has(
+                        stage.id,
+                      );
+                      const foundStageOrderIndex =
+                        activeBlendStageDefinitions.findIndex(
+                          (candidate) => candidate.id === stage.id,
+                        );
+                      const stageOrderIndex =
+                        foundStageOrderIndex >= 0
+                          ? foundStageOrderIndex
+                          : index;
+                      return (
+                        <button
+                          key={stage.id}
+                          type="button"
+                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                            selected
+                              ? "border-accent/50 bg-accent/10 text-accent"
+                              : "border-border-default text-text-muted hover:text-text-primary"
+                          }`}
+                          aria-pressed={selected}
+                          disabled={!selectedStageDefinition}
+                          onClick={() =>
+                            toggleStageSource({
+                              kind: "stage",
+                              id: stage.id,
+                            })
+                          }
+                        >
+                          {blendStageLabel(stage, stageOrderIndex)}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  Neutral Source
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedStageDefinition}
+                  onClick={() =>
+                    selectedStageDefinition &&
+                    clearBlendStageNeutralSource(selectedStageDefinition.id)
+                  }
+                  title="Reset to inherited neutral"
+                >
+                  Reset
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  variant={
+                    activeStageNeutralSourceType === "inherit"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedStageDefinition}
+                  onClick={() => setActiveStageNeutralSourceType("inherit")}
+                >
+                  Inherit
+                </Button>
+                <Button
+                  variant={
+                    activeStageNeutralSourceType === "pose-reference"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedStageDefinition || poses.length === 0}
+                  onClick={() =>
+                    setActiveStageNeutralSourceType("pose-reference")
+                  }
+                >
+                  Pose Reference
+                </Button>
+                <Button
+                  variant={
+                    activeStageNeutralSourceType === "direct-values"
+                      ? "primary"
+                      : "subtle"
+                  }
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  disabled={!selectedStageDefinition}
+                  onClick={() =>
+                    setActiveStageNeutralSourceType("direct-values")
+                  }
+                >
+                  Direct Values
+                </Button>
+              </div>
+
+              {activeStageNeutralSourceType === "pose-reference" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-text-muted">Pose</span>
+                  <select
+                    className="h-7 min-w-0 flex-1 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                    value={
+                      activeStageNeutral?.sourceType === "pose-reference"
+                        ? activeStageNeutral.poseId
+                        : (defaultPoseReferenceId ?? "")
+                    }
+                    onChange={(event) =>
+                      setActiveStageNeutralPoseReference(event.target.value)
+                    }
+                  >
+                    {poses.map((pose) => (
+                      <option key={pose.id} value={pose.id}>
+                        {pose.name} ({pose.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {activeStageNeutralSourceType === "direct-values" && (
+                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                  {stageNeutralEditableInputIds.length === 0 ? (
+                    <span className="text-[10px] text-text-muted">
+                      No channels available for direct neutral editing.
+                    </span>
+                  ) : (
+                    stageNeutralEditableInputIds.map((inputId) => {
+                      const input = authoringInputById.get(inputId);
+                      if (!input) {
+                        return null;
+                      }
+                      const directValue =
+                        activeStageNeutral?.sourceType === "direct-values" &&
+                        isFiniteNumber(activeStageNeutral.values[inputId])
+                          ? clampToInputRange(
+                              input,
+                              activeStageNeutral.values[inputId],
+                            )
+                          : (stagePreviewChannelByInputId.get(inputId)?.neutral
+                              .value ?? resolveNeutralValue(inputId));
+                      return (
+                        <div
+                          key={inputId}
+                          className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5 flex flex-col gap-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-text-primary truncate">
+                              {input.label}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-mono truncate">
+                              {inputId}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Slider
+                              min={input.range.min}
+                              max={input.range.max}
+                              step={0.0001}
+                              value={directValue}
+                              className="flex-1"
+                              fillMode="value"
+                              onChange={(value) =>
+                                setActiveStageNeutralDirectValue(
+                                  inputId,
+                                  value as number,
+                                )
+                              }
+                            />
+                            <div className="inspector-numeric-control w-[88px]">
+                              <NumberField
+                                size="sm"
+                                min={input.range.min}
+                                max={input.range.max}
+                                step={0.0001}
+                                value={directValue}
+                                className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-[10px]"
+                                onChange={(value) =>
+                                  setActiveStageNeutralDirectValue(
+                                    inputId,
+                                    value,
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
               <div className="text-[10px] text-text-muted">
-                Sources:{" "}
+                Effective neutral:{" "}
                 <span className="font-mono text-text-primary">
-                  {selectedBlendStage.sourceSummary}
+                  {stageCompositionPreview?.neutral.detail ?? "Global neutral"}
                 </span>
               </div>
+            </div>
+
+            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                  Composition Outputs
+                </span>
+                <span className="text-[10px] text-text-muted font-mono">
+                  {stageCompositionPreview?.channels.length ?? 0} channels
+                </span>
+              </div>
+              {stageCompositionPreview &&
+              stageCompositionPreview.channels.length > 0 ? (
+                <div className="max-h-44 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
+                  {stageCompositionPreview.channels.map((channel) => {
+                    const sourceSummary = channel.contributions
+                      .map(
+                        (contribution) =>
+                          `${contribution.sourceKind}:${contribution.sourceLabel} · Δ ${contribution.delta.toFixed(4)} · act ${contribution.activity.toFixed(3)}`,
+                      )
+                      .join(" · ");
+                    return (
+                      <div
+                        key={channel.inputId}
+                        className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5 flex flex-col gap-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-text-primary truncate">
+                            {channel.label}
+                          </span>
+                          <span className="text-[10px] text-text-muted font-mono whitespace-nowrap">
+                            out {channel.effectiveValue.toFixed(4)} · Δ{" "}
+                            {channel.delta.toFixed(4)}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-text-muted font-mono truncate">
+                          {channel.inputId}
+                        </div>
+                        <div className="text-[10px] text-text-muted font-mono">
+                          neutral {channel.neutral.value.toFixed(4)} · activity{" "}
+                          {channel.activity.toFixed(3)}
+                        </div>
+                        <div className="text-[10px] text-text-muted truncate">
+                          neutral source: {channel.neutral.detail}
+                        </div>
+                        <div className="text-[10px] text-text-muted">
+                          {sourceSummary ||
+                            "No active stage-source contributions."}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-[10px] text-text-muted">
+                  No composed stage channels at current live pose weights.
+                </div>
+              )}
             </div>
           </div>
         )}

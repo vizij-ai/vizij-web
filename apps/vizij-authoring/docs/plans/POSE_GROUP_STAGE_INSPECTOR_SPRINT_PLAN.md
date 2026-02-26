@@ -151,7 +151,7 @@ Acceptance:
 1. Selecting a stage opens stage-specific inspector content.
 2. Existing pose/group inspector workflows still work.
 
-### Chunk S5 — Group Inspector Neutral Authoring + Outputs (`S5`) [planned]
+### Chunk S5 — Group Inspector Neutral Authoring + Outputs (`S5`) [done]
 
 1. Extend group inspector with neutral source selector.
 2. Add pose-reference picker and direct-values editor.
@@ -170,7 +170,7 @@ Acceptance:
 1. Group inspector can author scoped neutral fully.
 2. Output analysis matches current authored live weights.
 
-### Chunk S6 — Stage Inspector Neutral Authoring + Outputs (`S6`) [planned]
+### Chunk S6 — Stage Inspector Neutral Authoring + Outputs (`S6`) [done]
 
 1. Implement full stage inspector with parity to group neutral controls.
 2. Include stage source controls and composition output analysis in inspector context.
@@ -209,16 +209,16 @@ Acceptance:
 
 ## Progress Board
 
-| Chunk | Status  | Owner                 | Notes                                                     |
-| ----- | ------- | --------------------- | --------------------------------------------------------- |
-| S0    | done    | main agent + explorer | Contract lock + tracker linkage                           |
-| S1    | done    | worker                | Types/services scoped neutral contracts + service tests   |
-| S2    | done    | worker                | Store action/state plumbing + hook API exposure           |
-| S3    | done    | worker                | Compiler neutral precedence + scoped coverage diagnostics |
-| S4    | done    | worker                | Stage selection state + routing + stale-selection guards  |
-| S5    | planned | worker                | Group inspector neutral UX                                |
-| S6    | planned | worker                | Stage inspector neutral UX                                |
-| S7    | planned | main agent + awaiter  | Validation, docs closeout                                 |
+| Chunk | Status  | Owner                 | Notes                                                       |
+| ----- | ------- | --------------------- | ----------------------------------------------------------- |
+| S0    | done    | main agent + explorer | Contract lock + tracker linkage                             |
+| S1    | done    | worker                | Types/services scoped neutral contracts + service tests     |
+| S2    | done    | worker                | Store action/state plumbing + hook API exposure             |
+| S3    | done    | worker                | Compiler neutral precedence + scoped coverage diagnostics   |
+| S4    | done    | worker                | Stage selection state + routing + stale-selection guards    |
+| S5    | done    | worker                | Group neutral source editing + composition output analysis  |
+| S6    | done    | worker                | Stage neutral authoring + stage composition output analysis |
+| S7    | planned | main agent + awaiter  | Validation, docs closeout                                   |
 
 ## Progress Log
 
@@ -261,6 +261,15 @@ Acceptance:
   5. Validation:
      - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx`
      - `pnpm --filter vizij-authoring typecheck`
+- 2026-02-26: Chunks `S5` + `S6` completed.
+  1. Added scoped-neutral authoring controls in group + stage inspectors for `inherit`, `pose-reference`, and `direct-values`.
+  2. Added deterministic composition preview helpers for neutral resolution and live group/stage output analysis aligned to runtime overlay semantics.
+  3. Extended stage inspector with mode/source controls and read-only composition contribution breakdown.
+  4. Ensured direct-values neutral authoring can target all authoring channels in both group and stage contexts.
+  5. Validation:
+     - `pnpm --filter vizij-authoring test -- src/components/inspector/poseCompositionPreview.test.ts src/components/inspector/poseWeightSyncContracts.test.ts src/components/inspector/inspectorSizingContracts.test.ts`
+     - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx`
+     - `pnpm --filter vizij-authoring typecheck`
 
 ## Validation Evidence
 
@@ -274,6 +283,10 @@ Acceptance:
    - `pnpm --filter vizij-authoring exec vitest --run src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/poseRig/services/poseIrService.test.ts` (pass; 3 files / 42 tests)
    - `pnpm --filter vizij-authoring typecheck` (pass)
 4. `S4`:
+   - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx` (pass; 1 file / 55 tests)
+   - `pnpm --filter vizij-authoring typecheck` (pass)
+5. `S5/S6`:
+   - `pnpm --filter vizij-authoring test -- src/components/inspector/poseCompositionPreview.test.ts src/components/inspector/poseWeightSyncContracts.test.ts src/components/inspector/inspectorSizingContracts.test.ts` (pass; 3 files / 9 tests)
    - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx` (pass; 1 file / 55 tests)
    - `pnpm --filter vizij-authoring typecheck` (pass)
 
