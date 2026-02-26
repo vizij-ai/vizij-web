@@ -8,7 +8,10 @@ import {
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
-import type { ReferenceCatalog } from "../../referenceFace/types";
+import type {
+  ReferenceCatalog,
+  ReferencePoseDefinition,
+} from "../../referenceFace/types";
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
@@ -35,6 +38,7 @@ function makeReferenceCatalog(
     offset?: number;
     enabled?: boolean;
   }>,
+  poses?: ReferencePoseDefinition[],
 ): ReferenceCatalog {
   const normalizedLinks = (links ?? []).map((link) => ({
     linkId: link.linkId ?? `${link.parentInputId}->${link.childInputId}`,
@@ -84,14 +88,15 @@ function makeReferenceCatalog(
     const existing = inputsByPath.get(key) ?? [];
     inputsByPath.set(key, [...existing, input]);
   });
+  const catalogPoses = poses ?? [];
 
   return {
     inputs: inputsWithRelationships,
     inputsById,
     inputsByPath,
     pipelineLinks: normalizedLinks,
-    poses: [],
-    posesById: new Map(),
+    poses: catalogPoses,
+    posesById: new Map(catalogPoses.map((pose) => [pose.id, pose])),
   };
 }
 
@@ -106,6 +111,7 @@ const poseRigState = {
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
   deletePose: vi.fn(),
+  updatePoseValue: vi.fn(),
   blendStages: [] as NonNullable<PoseRigConfigFile["blendStages"]>,
   createBlendStage: vi.fn(),
   renameBlendStage: vi.fn(),
@@ -228,6 +234,7 @@ describe("VariablesPanel", () => {
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
     poseRigState.deletePose.mockReset();
+    poseRigState.updatePoseValue.mockReset();
     poseRigState.blendStages = [];
     poseRigState.createBlendStage.mockReset();
     poseRigState.renameBlendStage.mockReset();
@@ -480,6 +487,199 @@ describe("VariablesPanel", () => {
       destinationChild.id,
     );
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
+  });
+
+  it("surfaces reference poses and opens the pose copy modal from row copy action", () => {
+    const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    const destinationInput = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceInput.id, value: 0.7 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationInput, source: "custom" },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle("Copy pose to main face"),
+    );
+
+    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+  });
+
+  it("does not write when pose copy modal is cancelled", () => {
+    const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    const destinationInput = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceInput.id, value: 0.7 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationInput, source: "custom" },
+    ];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(poseRigState.createPose).not.toHaveBeenCalled();
+    expect(poseRigState.updatePoseGroup).not.toHaveBeenCalled();
+    expect(poseRigState.updatePoseValue).not.toHaveBeenCalled();
+    expect(poseRigState.deletePose).not.toHaveBeenCalled();
+  });
+
+  it("commits pose copy writes only after confirm", () => {
+    const sourceSmile = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    const sourceJaw = makeInput("ref_jaw", "/standard/jaw/open", {
+      label: "Jaw Open",
+    });
+    const destinationSmile = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    const destinationJaw = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Main Jaw Open",
+    });
+
+    poseRigState.poses = [
+      {
+        id: "pose_existing",
+        name: "Existing",
+        description: "",
+        group: null,
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceSmile, sourceJaw],
+      [],
+      [
+        {
+          id: "ref_pose_happy",
+          name: "Ref Happy",
+          targets: [
+            { inputId: sourceSmile.id, value: 0.8 },
+            { inputId: sourceJaw.id, value: 0.25 },
+          ],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationSmile, source: "custom" },
+      { input: destinationJaw, source: "custom" },
+    ];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+
+    expect(poseRigState.createPose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(poseRigState.createPose).toHaveBeenCalledWith("Ref Happy");
+    expect(poseRigState.updatePoseGroup).toHaveBeenCalledTimes(1);
+    const createdPoseId = poseRigState.updatePoseGroup.mock.calls[0]?.[0];
+    expect(poseRigState.updatePoseGroup).toHaveBeenCalledWith(
+      createdPoseId,
+      null,
+    );
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      createdPoseId,
+      destinationSmile.id,
+      0.8,
+    );
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      createdPoseId,
+      destinationJaw.id,
+      0.25,
+    );
+    expect(poseRigState.deletePose).not.toHaveBeenCalled();
+  });
+
+  it("blocks pose copy confirm when unresolved mappings remain", () => {
+    const sourceOnly = makeInput("ref_missing", "/standard/mouth/missing", {
+      label: "Missing",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceOnly],
+      [],
+      [
+        {
+          id: "ref_pose_unresolved",
+          name: "Ref Unresolved",
+          targets: [{ inputId: sourceOnly.id, value: 0.42 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Blocking unresolved mapping",
+    );
+    expect(poseRigState.createPose).not.toHaveBeenCalled();
+    expect(poseRigState.updatePoseGroup).not.toHaveBeenCalled();
+    expect(poseRigState.updatePoseValue).not.toHaveBeenCalled();
   });
 
   it("creates a new variable from toolbar action with a generated path", () => {

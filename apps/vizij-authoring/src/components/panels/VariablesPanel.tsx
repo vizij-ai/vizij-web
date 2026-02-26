@@ -43,13 +43,21 @@ import type {
 import {
   isPoseControlInputPath,
   parsePoseWeightInputSourceId,
+  resolveDeterministicPoseId,
 } from "../../poseRig/utils";
-import { buildVariableCopyProposal } from "../../referenceFace/mapping";
+import {
+  buildPoseCopyProposal,
+  buildVariableCopyProposal,
+  validatePoseCopyProposalPreflight,
+} from "../../referenceFace/mapping";
 import type {
   MergeDecisionMode,
+  PoseCopyProposal,
+  PoseTargetMappingRow,
   ReferenceCatalog,
   ReferenceCatalogInput,
   ReferenceCatalogPipelineLink,
+  ReferencePoseDefinition,
   VariableCopyProposal,
   VariableLinkMappingRow,
 } from "../../referenceFace/types";
@@ -252,8 +260,13 @@ interface PoseGroupNodeData {
   groupPath: string;
 }
 
+interface PoseNodeData {
+  source: "main" | "reference";
+  pose: PoseDefinition | ReferencePoseDefinition;
+}
+
 type TreeNodeData =
-  | PoseDefinition
+  | PoseNodeData
   | RigNodeData
   | PoseGroupNodeData
   | InputListRow;
@@ -304,6 +317,20 @@ interface VariableCopyModalState {
   };
   parentRowDrafts: Record<string, VariableCopyLinkRowDraft>;
   childRowDrafts: Record<string, VariableCopyLinkRowDraft>;
+}
+
+interface PoseCopyTargetRowDraft {
+  destinationInputId: string;
+  value: VariableCopyNumericDecisionDraft;
+}
+
+interface PoseCopyModalState {
+  sourcePose: ReferencePoseDefinition;
+  proposal: PoseCopyProposal;
+  destinationCatalog: ReferenceCatalog;
+  launchSource: "row-action" | "toolbar";
+  destinationPoseName: string;
+  targetRowDrafts: Record<string, PoseCopyTargetRowDraft>;
 }
 
 interface VariableCopyCommitLinkPlan {
@@ -776,6 +803,18 @@ function createVariableCopyLinkRowDraft(
   };
 }
 
+function createPoseCopyTargetRowDraft(
+  row: PoseTargetMappingRow,
+): PoseCopyTargetRowDraft {
+  return {
+    destinationInputId: row.destinationInputId ?? "",
+    value: createVariableCopyNumericDecisionDraft({
+      mode: row.valueMerge.mode,
+      fallbackValue: row.valueMerge.value ?? row.sourceValue,
+    }),
+  };
+}
+
 function isUnresolvedMappingStatus(
   status: VariableCopyProposal["destinationRow"]["status"],
 ): boolean {
@@ -839,6 +878,27 @@ function createVariableCopyModalState(params: {
     },
     parentRowDrafts,
     childRowDrafts,
+  };
+}
+
+function createPoseCopyModalState(params: {
+  sourcePose: ReferencePoseDefinition;
+  proposal: PoseCopyProposal;
+  destinationCatalog: ReferenceCatalog;
+  launchSource: PoseCopyModalState["launchSource"];
+}): PoseCopyModalState {
+  const targetRowDrafts: Record<string, PoseCopyTargetRowDraft> = {};
+  params.proposal.targetRows.forEach((row) => {
+    targetRowDrafts[row.rowId] = createPoseCopyTargetRowDraft(row);
+  });
+  return {
+    sourcePose: params.sourcePose,
+    proposal: params.proposal,
+    destinationCatalog: params.destinationCatalog,
+    launchSource: params.launchSource,
+    destinationPoseName:
+      params.proposal.destinationPoseName || params.sourcePose.name,
+    targetRowDrafts,
   };
 }
 
@@ -961,9 +1021,9 @@ function collectPoseIds(node: TreeNode): string[] {
   const ids: string[] = [];
   const visit = (candidate: TreeNode) => {
     if (candidate.type === "pose") {
-      const pose = candidate.data as PoseDefinition | undefined;
-      if (pose?.id) {
-        ids.push(pose.id);
+      const poseData = candidate.data as PoseNodeData | undefined;
+      if (poseData?.source === "main" && poseData.pose.id) {
+        ids.push(poseData.pose.id);
       }
       return;
     }
@@ -1121,13 +1181,17 @@ function TreeRowWrapper({
   const isPoseGroupFolder =
     node.type === "folder" &&
     (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
+  const poseNodeData =
+    node.type === "pose" ? (node.data as PoseNodeData | undefined) : undefined;
+  const isReferencePoseNode = poseNodeData?.source === "reference";
 
   // Check selection
   const isSelected =
     selection &&
     ((node.type === "pose" &&
       selection.type === "pose" &&
-      (node.data as PoseDefinition)?.id === selection.id) ||
+      poseNodeData?.source === "main" &&
+      poseNodeData.pose.id === selection.id) ||
       (node.type === "rig" &&
         selection.type === "rig" &&
         (node.data as RigNodeData)?.input?.id === selection.id) ||
@@ -1157,7 +1221,8 @@ function TreeRowWrapper({
 
   // Determine Icon Color
   let iconClass = "text-text-muted";
-  if (node.type === "pose") iconClass = "text-purple-400";
+  if (node.type === "pose")
+    iconClass = isReferencePoseNode ? "text-cyan-300" : "text-purple-400";
   else if (node.type === "rig") iconClass = "text-yellow-400";
   else if (node.type === "input") iconClass = "text-cyan-300";
   else if (
@@ -1247,7 +1312,7 @@ function TreeRowWrapper({
       icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
       actions={
         <>
-          {node.type === "pose" && (
+          {node.type === "pose" && !isReferencePoseNode && (
             <>
               <Button
                 variant="ghost"
@@ -1297,6 +1362,25 @@ function TreeRowWrapper({
               >
                 <Trash2 size={10} />
               </Button>
+            </>
+          )}
+          {node.type === "pose" && isReferencePoseNode && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-cyan-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "copy-pose-to-main");
+                }}
+                title="Copy pose to main face"
+              >
+                <Copy size={10} />
+              </Button>
+              <span className="text-[9px] font-mono px-1 rounded bg-cyan-900/40 text-cyan-200">
+                reference
+              </span>
             </>
           )}
 
@@ -1503,6 +1587,8 @@ export function VariablesPanel({
     renamePoseGroup,
     deletePoseGroup,
     deletePose,
+    updatePoseGroup,
+    updatePoseValue,
     crossGroupBlendMode,
     blendMode,
     blendStages,
@@ -1867,6 +1953,12 @@ export function VariablesPanel({
     useState<VariableCopyModalState | null>(null);
   const [variableCopyBlockingMessages, setVariableCopyBlockingMessages] =
     useState<string[]>([]);
+  const [poseCopyModal, setPoseCopyModal] = useState<PoseCopyModalState | null>(
+    null,
+  );
+  const [poseCopyBlockingMessages, setPoseCopyBlockingMessages] = useState<
+    string[]
+  >([]);
 
   const mainFaceRigEntries = useMemo(() => {
     return managedStandardInputs
@@ -1945,6 +2037,17 @@ export function VariablesPanel({
     referenceFace.isLoaded,
     referenceRigEntries,
   ]);
+  const referencePoseEntries = useMemo(
+    () =>
+      [...referenceFace.referenceCatalog.poses].sort((left, right) => {
+        const byName = left.name.localeCompare(right.name);
+        if (byName !== 0) {
+          return byName;
+        }
+        return left.id.localeCompare(right.id);
+      }),
+    [referenceFace.referenceCatalog.poses],
+  );
 
   const resolvedSelectedRigId = useMemo(() => {
     if (!selectedRigId) {
@@ -2471,6 +2574,191 @@ export function VariablesPanel({
     variableCopyModal,
   ]);
 
+  const openPoseCopyModalForPose = useCallback(
+    (
+      sourcePose: ReferencePoseDefinition,
+      launchSource: PoseCopyModalState["launchSource"],
+    ) => {
+      let proposal: PoseCopyProposal;
+      try {
+        proposal = buildPoseCopyProposal({
+          sourceCatalog: referenceFace.referenceCatalog,
+          destinationCatalog: mainFaceReferenceCatalog,
+          sourcePoseId: sourcePose.id,
+          destinationPoseName: sourcePose.name,
+        });
+      } catch {
+        return;
+      }
+      setPoseCopyBlockingMessages([]);
+      setPoseCopyModal(
+        createPoseCopyModalState({
+          sourcePose,
+          proposal,
+          destinationCatalog: mainFaceReferenceCatalog,
+          launchSource,
+        }),
+      );
+    },
+    [mainFaceReferenceCatalog, referenceFace.referenceCatalog],
+  );
+
+  const closePoseCopyModal = useCallback(() => {
+    setPoseCopyModal(null);
+    setPoseCopyBlockingMessages([]);
+  }, []);
+
+  const handleConfirmPoseCopyModal = useCallback(() => {
+    if (!poseCopyModal) {
+      return;
+    }
+    const blockingMessages: string[] = [];
+    const destinationPoseName = poseCopyModal.destinationPoseName.trim();
+    if (!destinationPoseName) {
+      blockingMessages.push("Destination pose name is required.");
+    }
+
+    const targetRowsWithDrafts = poseCopyModal.proposal.targetRows.map(
+      (row) => {
+        const draft =
+          poseCopyModal.targetRowDrafts[row.rowId] ??
+          createPoseCopyTargetRowDraft(row);
+        const destinationInputId = draft.destinationInputId.trim();
+        const destinationInput = destinationInputId
+          ? (poseCopyModal.destinationCatalog.inputsById.get(
+              destinationInputId,
+            ) ?? null)
+          : null;
+        const nextStatus = destinationInput ? "resolved" : "unmapped";
+        const nextRationale = destinationInput
+          ? ["Resolved by modal destination remap"]
+          : row.rationale.length > 0
+            ? [...row.rationale]
+            : ["No destination input selected"];
+
+        const value = resolveVariableCopyDecisionValue({
+          decision: draft.value,
+          sourceValue: row.sourceValue,
+          destinationValue: null,
+          fieldLabel: `target "${row.sourcePath ?? row.sourceInputId}"`,
+          errors: blockingMessages,
+        });
+
+        return {
+          row: {
+            ...row,
+            destinationInputId: destinationInput?.id ?? null,
+            destinationPath: destinationInput?.path ?? null,
+            destinationLabel: destinationInput?.label ?? null,
+            candidateDestinationInputIds: destinationInput
+              ? [destinationInput.id]
+              : row.candidateDestinationInputIds,
+            status: nextStatus,
+            confidence: destinationInput ? "high" : "none",
+            rationale: nextRationale,
+          } as PoseTargetMappingRow,
+          value,
+        };
+      },
+    );
+
+    const draftedProposal: PoseCopyProposal = {
+      ...poseCopyModal.proposal,
+      destinationPoseName,
+      targetRows: targetRowsWithDrafts.map((entry) => entry.row),
+      unresolvedRows: targetRowsWithDrafts
+        .map((entry) => entry.row)
+        .filter((row) => isUnresolvedMappingStatus(row.status)),
+    };
+    const preflight = validatePoseCopyProposalPreflight(draftedProposal);
+    if (!preflight.ok) {
+      const rowById = new Map(
+        draftedProposal.targetRows.map((row) => [row.rowId, row]),
+      );
+      preflight.blockingErrors.forEach((error) => {
+        const row = rowById.get(error.rowId);
+        const rowLabel = row
+          ? (row.sourcePath ?? row.sourceInputId)
+          : error.rowId;
+        blockingMessages.push(
+          `Blocking unresolved mapping: ${rowLabel} (${error.status}).`,
+        );
+      });
+    }
+
+    if (blockingMessages.length > 0) {
+      setPoseCopyBlockingMessages(blockingMessages);
+      return;
+    }
+
+    const previousSelectedPoseId = selectedPoseId;
+    const createdPoseId = resolveDeterministicPoseId({
+      existingIds: poses.map((pose) => pose.id),
+      name: destinationPoseName,
+      reservedIds: ["__pose_rig_neutral__"],
+    });
+
+    try {
+      createPose(destinationPoseName);
+      updatePoseGroup(createdPoseId, null);
+      targetRowsWithDrafts.forEach((entry) => {
+        if (!entry.row.destinationInputId) {
+          return;
+        }
+        updatePoseValue(
+          createdPoseId,
+          entry.row.destinationInputId,
+          entry.value,
+        );
+      });
+      setPoseCopyBlockingMessages([]);
+      setPoseCopyModal(null);
+      onSelectRig?.(null);
+      onSelectPoseGroup?.(null);
+      if (onSelectPose) {
+        onSelectPose(createdPoseId);
+      } else {
+        selectPose(createdPoseId);
+      }
+    } catch (error) {
+      let rollbackFailed = false;
+      try {
+        deletePose(createdPoseId);
+      } catch {
+        rollbackFailed = true;
+      }
+      if (previousSelectedPoseId) {
+        if (onSelectPose) {
+          onSelectPose(previousSelectedPoseId);
+        } else {
+          selectPose(previousSelectedPoseId);
+        }
+      } else if (onSelectPose) {
+        onSelectPose("__pose_rig_neutral__");
+      } else {
+        selectPose("__pose_rig_neutral__");
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      setPoseCopyBlockingMessages([
+        rollbackFailed
+          ? `Pose copy failed and rollback was incomplete. ${detail}`
+          : `Pose copy failed. Changes were rolled back. ${detail}`,
+      ]);
+    }
+  }, [
+    createPose,
+    deletePose,
+    onSelectPose,
+    onSelectPoseGroup,
+    onSelectRig,
+    poseCopyModal,
+    poses,
+    selectPose,
+    selectedPoseId,
+    updatePoseGroup,
+    updatePoseValue,
+  ]);
+
   // Build Drivers tree
   const variablesRootNode = useMemo(() => {
     const root: TreeNode = {
@@ -2601,7 +2889,23 @@ export function VariablesPanel({
       showChildren: true,
     };
 
-    const targetRoot: TreeNode = root;
+    const shouldSurfaceReferencePoses =
+      Boolean(referenceFace.file) &&
+      referenceFace.isLoaded &&
+      referencePoseEntries.length > 0;
+    let targetRoot: TreeNode = root;
+
+    if (shouldSurfaceReferencePoses) {
+      const mainFaceRoot: TreeNode = {
+        id: "main_pose_face",
+        label: "Main Face",
+        type: "folder",
+        children: new Map(),
+        showChildren: true,
+      };
+      root.children.set("main_pose_face", mainFaceRoot);
+      targetRoot = mainFaceRoot;
+    }
 
     poses.forEach((pose) => {
       const groupParts = pose.group
@@ -2634,9 +2938,38 @@ export function VariablesPanel({
         type: "pose",
         children: new Map(),
         showChildren: false,
-        data: pose,
+        data: {
+          source: "main",
+          pose,
+        } as PoseNodeData,
       });
     });
+
+    if (shouldSurfaceReferencePoses) {
+      const referenceFaceRoot: TreeNode = {
+        id: "reference_pose_face",
+        label: "Reference Face",
+        type: "folder",
+        children: new Map(),
+        showChildren: true,
+      };
+      root.children.set("reference_pose_face", referenceFaceRoot);
+
+      referencePoseEntries.forEach((pose) => {
+        const poseKey = `reference_pose_${pose.id}`;
+        referenceFaceRoot.children.set(poseKey, {
+          id: `${referenceFaceRoot.id}/${poseKey}`,
+          label: pose.name,
+          type: "pose",
+          children: new Map(),
+          showChildren: false,
+          data: {
+            source: "reference",
+            pose,
+          } as PoseNodeData,
+        });
+      });
+    }
 
     const simplifiedChildren = new Map<string, TreeNode>();
     for (const [key, child] of root.children) {
@@ -2645,7 +2978,7 @@ export function VariablesPanel({
     root.children = simplifiedChildren;
 
     return root;
-  }, [poses]);
+  }, [poses, referenceFace.file, referenceFace.isLoaded, referencePoseEntries]);
 
   const visibleRoot = useMemo(
     () =>
@@ -2841,15 +3174,34 @@ export function VariablesPanel({
   );
 
   const handleAction = (node: TreeNode, action: string) => {
+    if (node.type === "pose" && action === "copy-pose-to-main") {
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "reference") {
+        return;
+      }
+      openPoseCopyModalForPose(
+        poseNodeData.pose as ReferencePoseDefinition,
+        "row-action",
+      );
+      return;
+    }
     if (node.type === "pose" && action === "play") {
-      const poseData = node.data as PoseDefinition;
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "main") {
+        return;
+      }
+      const poseData = poseNodeData.pose as PoseDefinition;
       if (!setPoseWeightSolo(poseData.id)) {
         applyPose(poseData.id);
       }
       return;
     }
     if (node.type === "pose" && action === "reset-pose") {
-      const poseData = node.data as PoseDefinition;
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "main") {
+        return;
+      }
+      const poseData = poseNodeData.pose as PoseDefinition;
       const poseWeightInputId = poseWeightInputIdByPoseId.get(poseData.id);
       if (!poseWeightInputId) {
         return;
@@ -2862,7 +3214,11 @@ export function VariablesPanel({
       return;
     }
     if (node.type === "pose" && action === "duplicate-pose") {
-      const poseData = node.data as PoseDefinition;
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "main") {
+        return;
+      }
+      const poseData = poseNodeData.pose as PoseDefinition;
       if (poseData.id === "__pose_rig_neutral__") {
         return;
       }
@@ -2872,7 +3228,11 @@ export function VariablesPanel({
       return;
     }
     if (node.type === "pose" && action === "delete-pose") {
-      const poseData = node.data as PoseDefinition;
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "main") {
+        return;
+      }
+      const poseData = poseNodeData.pose as PoseDefinition;
       if (poseData.id === "__pose_rig_neutral__") {
         return;
       }
@@ -2966,7 +3326,11 @@ export function VariablesPanel({
 
   const handleSelect = (node: TreeNode) => {
     if (node.type === "pose") {
-      const poseData = node.data as PoseDefinition;
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "main") {
+        return;
+      }
+      const poseData = poseNodeData.pose as PoseDefinition;
       onSelectPoseGroup?.(null);
       if (onSelectPose) {
         onSelectPose(poseData.id);
@@ -3047,6 +3411,14 @@ export function VariablesPanel({
       return;
     }
     openVariableCopyModalForEntry(firstUncopiedReference, "toolbar");
+  };
+
+  const handleCopyReferencePoseToMain = () => {
+    const firstReferencePose = referencePoseEntries[0];
+    if (!firstReferencePose) {
+      return;
+    }
+    openPoseCopyModalForPose(firstReferencePose, "toolbar");
   };
 
   const handleCreatePoseGroup = () => {
@@ -3220,7 +3592,7 @@ export function VariablesPanel({
     mainFaceRigEntries.length +
     referenceRigEntries.length +
     sharedRigEntries.length;
-  const poseItemCount = poses.length;
+  const poseItemCount = poses.length + referencePoseEntries.length;
   const poseGroupItemCount = poseGroups.length;
   const inputItemCount = inputRows.length;
   const poseGroupsForSurface = useMemo(() => {
@@ -3274,6 +3646,7 @@ export function VariablesPanel({
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
   ).length;
+  const referencePoseCopyCount = referencePoseEntries.length;
 
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -3457,6 +3830,56 @@ export function VariablesPanel({
         ...variableCopyModal.proposal.childRows,
       ].filter((row) => isUnresolvedMappingStatus(row.status)).length
     : 0;
+  const setPoseCopyTargetRowDraft = useCallback(
+    (
+      rowId: string,
+      updater: (current: PoseCopyTargetRowDraft) => PoseCopyTargetRowDraft,
+    ) => {
+      setPoseCopyModal((current) => {
+        if (!current) {
+          return current;
+        }
+        const draft = current.targetRowDrafts[rowId];
+        if (!draft) {
+          return current;
+        }
+        return {
+          ...current,
+          targetRowDrafts: {
+            ...current.targetRowDrafts,
+            [rowId]: updater(draft),
+          },
+        };
+      });
+    },
+    [],
+  );
+  const poseCopyDestinationOptions = useMemo(
+    () =>
+      poseCopyModal
+        ? [...poseCopyModal.destinationCatalog.inputs].sort(sortCatalogInputs)
+        : [],
+    [poseCopyModal],
+  );
+  const poseCopyDestinationComboboxOptions = useMemo(
+    () =>
+      poseCopyDestinationOptions.map((input) => ({
+        value: input.id,
+        label: input.path,
+        description: input.label,
+      })),
+    [poseCopyDestinationOptions],
+  );
+  const poseCopyUnresolvedCount = poseCopyModal
+    ? poseCopyModal.proposal.targetRows.filter((row) => {
+        const draft = poseCopyModal.targetRowDrafts[row.rowId];
+        const mappedInputId = draft?.destinationInputId.trim() ?? "";
+        if (!mappedInputId) {
+          return true;
+        }
+        return !poseCopyModal.destinationCatalog.inputsById.has(mappedInputId);
+      }).length
+    : 0;
 
   return (
     <>
@@ -3567,6 +3990,19 @@ export function VariablesPanel({
                         <Copy size={11} />
                         Duplicate Pose
                       </Button>
+                      {referenceFace.file && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
+                          onClick={handleCopyReferencePoseToMain}
+                          disabled={referencePoseCopyCount === 0}
+                          title="Copy a reference pose to the main face"
+                        >
+                          <Copy size={11} />
+                          Copy Ref Pose ({referencePoseCopyCount})
+                        </Button>
+                      )}
                     </>
                   )}
                   {isVariables && (
@@ -4703,6 +5139,188 @@ export function VariablesPanel({
                 size="sm"
                 className="h-8 px-3 text-xs"
                 onClick={handleConfirmVariableCopyModal}
+              >
+                Confirm Copy
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {poseCopyModal && (
+        <Modal
+          open={true}
+          onClose={closePoseCopyModal}
+          title="Pose Copy Mapping"
+          maxWidth="4xl"
+        >
+          <div className="space-y-4">
+            <div className="text-xs text-text-muted">
+              {poseCopyModal.launchSource === "toolbar"
+                ? "Toolbar copy flow"
+                : "Row copy flow"}{" "}
+              · unresolved rows: {poseCopyUnresolvedCount}
+            </div>
+
+            {poseCopyBlockingMessages.length > 0 && (
+              <div
+                role="alert"
+                className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
+              >
+                {poseCopyBlockingMessages.map((message, index) => (
+                  <div key={`${message}:${index.toString(10)}`}>{message}</div>
+                ))}
+              </div>
+            )}
+
+            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
+              <div className="text-xs font-semibold text-text-primary">
+                Destination Pose
+              </div>
+              <label className="flex flex-col gap-1 text-xs text-text-muted">
+                Name
+                <input
+                  value={poseCopyModal.destinationPoseName}
+                  onChange={(event) => {
+                    setPoseCopyBlockingMessages([]);
+                    setPoseCopyModal((current) =>
+                      current
+                        ? {
+                            ...current,
+                            destinationPoseName: event.target.value,
+                          }
+                        : current,
+                    );
+                  }}
+                  className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                />
+              </label>
+            </section>
+
+            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
+              <div className="text-xs font-semibold text-text-primary">
+                Target mappings
+              </div>
+              {poseCopyModal.proposal.targetRows.length === 0 ? (
+                <div className="text-xs text-text-muted">
+                  No targets available.
+                </div>
+              ) : (
+                poseCopyModal.proposal.targetRows.map((row) => {
+                  const draft =
+                    poseCopyModal.targetRowDrafts[row.rowId] ??
+                    createPoseCopyTargetRowDraft(row);
+                  const mappedInputId = draft.destinationInputId.trim();
+                  const mappedInput = mappedInputId
+                    ? (poseCopyModal.destinationCatalog.inputsById.get(
+                        mappedInputId,
+                      ) ?? null)
+                    : null;
+                  const mappedStatus = mappedInput ? "resolved" : "unmapped";
+                  return (
+                    <div
+                      key={row.rowId}
+                      className="rounded border border-border-default/50 bg-bg-panel/50 p-2 space-y-2"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-text-muted">
+                          {row.sourcePath ?? row.sourceInputId}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[11px] uppercase tracking-wide",
+                            mappedStatus === "resolved"
+                              ? "text-emerald-300"
+                              : "text-amber-300",
+                          )}
+                        >
+                          {mappedStatus}
+                        </span>
+                        <span className="text-xs text-text-muted">
+                          source value: {row.sourceValue.toFixed(3)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1 text-xs text-text-muted">
+                        <span>Destination input</span>
+                        <Combobox
+                          value={draft.destinationInputId || null}
+                          onChange={(nextValue) => {
+                            setPoseCopyBlockingMessages([]);
+                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                              ...current,
+                              destinationInputId: nextValue ?? "",
+                            }));
+                          }}
+                          options={poseCopyDestinationComboboxOptions}
+                          placeholder="Search destination input"
+                          size="sm"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        <select
+                          value={draft.value.mode}
+                          onChange={(event) => {
+                            const nextMode = event.target
+                              .value as VariableCopyNumericDecisionDraft["mode"];
+                            setPoseCopyBlockingMessages([]);
+                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                              ...current,
+                              value: {
+                                ...current.value,
+                                mode: nextMode,
+                              },
+                            }));
+                          }}
+                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                        >
+                          <option value="source">
+                            Value: source ({row.sourceValue.toFixed(3)})
+                          </option>
+                          <option value="custom">Value: custom</option>
+                        </select>
+                        <input
+                          value={draft.value.customValue}
+                          disabled={draft.value.mode !== "custom"}
+                          onChange={(event) => {
+                            setPoseCopyBlockingMessages([]);
+                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                              ...current,
+                              value: {
+                                ...current.value,
+                                customValue: event.target.value,
+                              },
+                            }));
+                          }}
+                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                        />
+                      </div>
+
+                      {row.rationale.length > 0 && (
+                        <div className="text-[11px] text-text-muted">
+                          {row.rationale.join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </section>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={closePoseCopyModal}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={handleConfirmPoseCopyModal}
               >
                 Confirm Copy
               </Button>
