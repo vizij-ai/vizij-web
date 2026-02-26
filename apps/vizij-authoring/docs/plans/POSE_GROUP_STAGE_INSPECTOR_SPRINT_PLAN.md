@@ -119,7 +119,7 @@ Acceptance:
 1. Stage/group neutral edits are represented in state and drafts.
 2. No data loss across rebuild cycles or imports.
 
-### Chunk S3 — Compiler Neutral Resolution by Context (`S3`) [planned]
+### Chunk S3 — Compiler Neutral Resolution by Context (`S3`) [done]
 
 1. Implement effective neutral resolution per stage/group context using locked precedence.
 2. Keep additive + overlay-average behavior unchanged except baseline source.
@@ -209,16 +209,16 @@ Acceptance:
 
 ## Progress Board
 
-| Chunk | Status  | Owner                 | Notes                                                   |
-| ----- | ------- | --------------------- | ------------------------------------------------------- |
-| S0    | done    | main agent + explorer | Contract lock + tracker linkage                         |
-| S1    | done    | worker                | Types/services scoped neutral contracts + service tests |
-| S2    | done    | worker                | Store action/state plumbing + hook API exposure         |
-| S3    | planned | worker                | Compiler neutral precedence                             |
-| S4    | planned | worker                | Inspector stage selection foundation                    |
-| S5    | planned | worker                | Group inspector neutral UX                              |
-| S6    | planned | worker                | Stage inspector neutral UX                              |
-| S7    | planned | main agent + awaiter  | Validation, docs closeout                               |
+| Chunk | Status  | Owner                 | Notes                                                     |
+| ----- | ------- | --------------------- | --------------------------------------------------------- |
+| S0    | done    | main agent + explorer | Contract lock + tracker linkage                           |
+| S1    | done    | worker                | Types/services scoped neutral contracts + service tests   |
+| S2    | done    | worker                | Store action/state plumbing + hook API exposure           |
+| S3    | done    | worker                | Compiler neutral precedence + scoped coverage diagnostics |
+| S4    | planned | worker                | Inspector stage selection foundation                      |
+| S5    | planned | worker                | Group inspector neutral UX                                |
+| S6    | planned | worker                | Stage inspector neutral UX                                |
+| S7    | planned | main agent + awaiter  | Validation, docs closeout                                 |
 
 ## Progress Log
 
@@ -245,6 +245,14 @@ Acceptance:
   5. Validation:
      - `pnpm --filter vizij-authoring test -- src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx`
      - `pnpm --filter vizij-authoring typecheck`
+- 2026-02-26: Chunk `S3` completed.
+  1. Preserved stage/group scoped-neutral metadata through graph compile normalization paths.
+  2. Implemented context-aware neutral precedence in compiler paths (`stage > group > global > default`).
+  3. Kept additive and overlay-average operators intact while rebasing layer deltas to context neutral.
+  4. Added scoped-neutral coverage diagnostics in `poseIrService` for partial pose-reference/direct-values channel coverage.
+  5. Validation:
+     - `pnpm --filter vizij-authoring exec vitest --run src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/poseRig/services/poseIrService.test.ts`
+     - `pnpm --filter vizij-authoring typecheck`
 
 ## Validation Evidence
 
@@ -253,6 +261,9 @@ Acceptance:
    - `pnpm --filter vizij-authoring typecheck` (pass)
 2. `S2`:
    - `pnpm --filter vizij-authoring test -- src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx` (pass; 2 files / 54 tests)
+   - `pnpm --filter vizij-authoring typecheck` (pass)
+3. `S3`:
+   - `pnpm --filter vizij-authoring exec vitest --run src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/poseRig/services/poseIrService.test.ts` (pass; 3 files / 42 tests)
    - `pnpm --filter vizij-authoring typecheck` (pass)
 
 ## Risks / Watch Items

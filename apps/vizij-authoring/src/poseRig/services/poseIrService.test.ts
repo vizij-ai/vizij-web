@@ -963,6 +963,84 @@ describe("PoseIrService", () => {
     ]);
   });
 
+  it("emits scoped-neutral coverage diagnostics for partial pose-reference and direct-values baselines", () => {
+    const { diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+            neutral: {
+              sourceType: "pose-reference",
+              poseId: "pose_reference",
+            },
+          },
+        ],
+        blendStages: [
+          {
+            id: "stage_mix",
+            mode: "average",
+            neutral: {
+              sourceType: "direct-values",
+              values: { smile: 0.15 },
+            },
+            sources: [{ kind: "group", id: "emotion" }],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_main",
+            name: "Main",
+            groupIds: ["emotion"],
+            values: { smile: 0.7, brow: 0.4 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+          {
+            id: "pose_reference",
+            name: "Reference",
+            groupIds: ["emotion"],
+            values: { smile: 0.2 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code ===
+            "scoped-neutral-pose-reference-partial-coverage" &&
+          diagnostic.source === "pose-config" &&
+          diagnostic.location?.path === "poseGroups[0].neutral.poseId" &&
+          diagnostic.metadata?.missingInputIds &&
+          Array.isArray(diagnostic.metadata.missingInputIds) &&
+          diagnostic.metadata.missingInputIds.includes("brow"),
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "scoped-neutral-direct-values-partial-coverage" &&
+          diagnostic.source === "pose-config" &&
+          diagnostic.location?.path === "blendStages[0].neutral.values" &&
+          diagnostic.metadata?.missingInputIds &&
+          Array.isArray(diagnostic.metadata.missingInputIds) &&
+          diagnostic.metadata.missingInputIds.includes("brow"),
+      ),
+    ).toBe(true);
+  });
+
   it("normalizes malformed scoped neutral payloads with structured diagnostics", () => {
     const { ir, diagnostics } = PoseIrService.normalize(
       {

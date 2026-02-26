@@ -18,6 +18,7 @@ import type {
   PoseDefinition,
   PoseGroupDefinition,
   PoseIrBlendStageDefinition,
+  PoseScopedNeutralDefinition,
   PoseRigIrFile,
   PoseRigGraphSummary,
   StandardInputId,
@@ -84,6 +85,7 @@ interface ResolvedPoseGroup {
   path: string;
   name: string;
   blendMode: PoseBlendMode;
+  neutral?: PoseScopedNeutralDefinition;
   poseIds: string[];
 }
 
@@ -96,6 +98,108 @@ interface BlendSignalLayer {
   valueNodeId: string;
   deltaNodeId: string;
   activity: BlendSignalRef;
+  neutralNodeId: string;
+}
+
+function normalizeScopedNeutralForCompile(
+  scopedNeutral: unknown,
+): PoseScopedNeutralDefinition | undefined {
+  if (!scopedNeutral || typeof scopedNeutral !== "object") {
+    return undefined;
+  }
+  if (Array.isArray(scopedNeutral)) {
+    return undefined;
+  }
+
+  const payload = scopedNeutral as {
+    sourceType?: unknown;
+    type?: unknown;
+    poseId?: unknown;
+    values?: unknown;
+  };
+  const sourceType = payload.sourceType ?? payload.type;
+  if (sourceType === "inherit") {
+    return { sourceType: "inherit" };
+  }
+  if (sourceType === "pose-reference") {
+    const poseId =
+      typeof payload.poseId === "string" ? payload.poseId.trim() : "";
+    if (!poseId) {
+      return undefined;
+    }
+    return {
+      sourceType: "pose-reference",
+      poseId,
+    };
+  }
+  if (sourceType !== "direct-values") {
+    return undefined;
+  }
+  if (!payload.values || typeof payload.values !== "object") {
+    return undefined;
+  }
+  if (Array.isArray(payload.values)) {
+    return undefined;
+  }
+  const values: Record<StandardInputId, number> = {};
+  Object.entries(payload.values as Record<string, unknown>).forEach(
+    ([inputId, value]) => {
+      if (!Number.isFinite(value)) {
+        return;
+      }
+      values[inputId as StandardInputId] = value as number;
+    },
+  );
+  return {
+    sourceType: "direct-values",
+    values,
+  };
+}
+
+function resolveScopedNeutralRecordForCompile(options: {
+  scopedNeutral: PoseScopedNeutralDefinition | undefined;
+  lowerRecord: Record<StandardInputId, number>;
+  standardInputs: StandardRigInput[];
+  poseById: Map<string, PoseDefinition>;
+}): Record<StandardInputId, number> {
+  const { scopedNeutral, lowerRecord, standardInputs, poseById } = options;
+  if (!scopedNeutral || scopedNeutral.sourceType === "inherit") {
+    return { ...lowerRecord };
+  }
+
+  const record: Record<StandardInputId, number> = {};
+  const referencedPose =
+    scopedNeutral.sourceType === "pose-reference"
+      ? poseById.get(scopedNeutral.poseId)
+      : undefined;
+
+  standardInputs.forEach((input) => {
+    const fallback = clampValueForInput(input, lowerRecord[input.id] ?? 0);
+    if (scopedNeutral.sourceType === "pose-reference") {
+      const poseValue = referencedPose?.values[input.id];
+      record[input.id] =
+        poseValue === undefined
+          ? fallback
+          : clampValueForInput(input, poseValue);
+      return;
+    }
+    const directValue = scopedNeutral.values[input.id];
+    record[input.id] =
+      directValue === undefined
+        ? fallback
+        : clampValueForInput(input, directValue);
+  });
+
+  return record;
+}
+
+function buildNeutralRecordKey(
+  standardInputs: StandardRigInput[],
+  values: Record<StandardInputId, number>,
+): string {
+  return standardInputs
+    .map((input) => `${input.id}:${values[input.id] ?? 0}`)
+    .join("|");
 }
 
 function resolvePoseGroups(
@@ -128,6 +232,11 @@ function resolvePoseGroups(
         group.blendMode === "additive" || group.blendMode === "average"
           ? group.blendMode
           : defaultGroupBlendMode,
+      ...(group.neutral
+        ? {
+            neutral: normalizeScopedNeutralForCompile(group.neutral),
+          }
+        : {}),
       poseIds: [],
     };
     groups.push(normalized);
@@ -241,6 +350,9 @@ function normalizeBlendStagesForCompile(
       return;
     }
 
+    const stageNeutral = normalizeScopedNeutralForCompile(
+      (stage as { neutral?: unknown }).neutral,
+    );
     normalizedStages.push({
       id: stageId,
       name:
@@ -248,6 +360,7 @@ function normalizeBlendStagesForCompile(
           ? stage.name.trim()
           : undefined,
       mode: stage.mode,
+      ...(stageNeutral ? { neutral: stageNeutral } : {}),
       sources,
     });
     knownStageIds.add(stageId);
@@ -456,6 +569,7 @@ function buildAddStageSignal(options: {
     valueNodeId: applyNodeId,
     deltaNodeId: runningDeltaRef.nodeId,
     activity: runningActivityRef,
+    neutralNodeId,
   };
 }
 
@@ -562,6 +676,7 @@ function buildAverageStageSignal(options: {
       nodeId: wsNodeId,
       output: "max_effective_weight",
     },
+    neutralNodeId,
   };
 }
 
@@ -692,16 +807,54 @@ function buildPriorityCrossGroupSignal(options: {
       valueNodeId: overlayNodeId,
       deltaNodeId: deltaFromNeutralNodeId,
       activity: prioritized.layer.activity,
+      neutralNodeId,
     };
   }
 
   return runningSignal;
 }
 
+function rebaseLayerForNeutral(options: {
+  layer: BlendSignalLayer;
+  neutralNodeId: string;
+  inputId: string;
+  nodePrefix: string;
+  nodes: NodeSpec[];
+  edges: EdgeSpec[];
+}): BlendSignalLayer {
+  const { layer, neutralNodeId, inputId, nodePrefix, nodes, edges } = options;
+  if (layer.neutralNodeId === neutralNodeId) {
+    return layer;
+  }
+  const deltaNodeId = `${nodePrefix}_delta_rebase`;
+  nodes.push({
+    id: deltaNodeId,
+    type: "subtract",
+  });
+  edges.push(
+    {
+      from: { node_id: layer.valueNodeId },
+      to: { node_id: deltaNodeId, input: "lhs" },
+    },
+    {
+      from: { node_id: neutralNodeId },
+      to: { node_id: deltaNodeId, input: "rhs" },
+      selector: [{ field: "values" }, { field: inputId }],
+    },
+  );
+  return {
+    valueNodeId: layer.valueNodeId,
+    deltaNodeId,
+    activity: layer.activity,
+    neutralNodeId,
+  };
+}
+
 function buildBlendStageChain(options: {
   blendStages: PoseIrBlendStageDefinition[];
   inputId: string;
-  neutralNodeId: string;
+  globalNeutralNodeId: string;
+  stageNeutralNodeIdById: Map<string, string>;
   activeGroupLayersById: Map<string, BlendSignalLayer>;
   nodes: NodeSpec[];
   edges: EdgeSpec[];
@@ -709,7 +862,8 @@ function buildBlendStageChain(options: {
   const {
     blendStages,
     inputId,
-    neutralNodeId,
+    globalNeutralNodeId,
+    stageNeutralNodeIdById,
     activeGroupLayersById,
     nodes,
     edges,
@@ -722,6 +876,8 @@ function buildBlendStageChain(options: {
   let lastStageSignal: BlendSignalLayer | null = null;
 
   blendStages.forEach((stage, stageIndex) => {
+    const stageNeutralNodeId =
+      stageNeutralNodeIdById.get(stage.id) ?? globalNeutralNodeId;
     const sources = stage.sources
       .map((source) =>
         source.kind === "group"
@@ -734,15 +890,30 @@ function buildBlendStageChain(options: {
       return;
     }
     const stagePrefix = `pose_stage_${sanitizeId(inputId)}_${stageIndex + 1}_${sanitizeId(stage.id)}`;
+    const rebasedSources = sources.map((source, sourceIndex) =>
+      rebaseLayerForNeutral({
+        layer: source,
+        neutralNodeId: stageNeutralNodeId,
+        inputId,
+        nodePrefix: `${stagePrefix}_source_${sourceIndex + 1}`,
+        nodes,
+        edges,
+      }),
+    );
 
     let stageSignal: BlendSignalLayer;
-    if (sources.length === 1) {
-      stageSignal = sources[0];
+    if (rebasedSources.length === 1) {
+      stageSignal = {
+        valueNodeId: rebasedSources[0]!.valueNodeId,
+        deltaNodeId: rebasedSources[0]!.deltaNodeId,
+        activity: rebasedSources[0]!.activity,
+        neutralNodeId: stageNeutralNodeId,
+      };
     } else if (stage.mode === "add") {
       stageSignal = buildAddStageSignal({
         nodePrefix: stagePrefix,
-        sources,
-        neutralNodeId,
+        sources: rebasedSources,
+        neutralNodeId: stageNeutralNodeId,
         inputId,
         nodes,
         edges,
@@ -750,8 +921,8 @@ function buildBlendStageChain(options: {
     } else {
       stageSignal = buildAverageStageSignal({
         nodePrefix: stagePrefix,
-        sources,
-        neutralNodeId,
+        sources: rebasedSources,
+        neutralNodeId: stageNeutralNodeId,
         inputId,
         nodes,
         edges,
@@ -860,7 +1031,7 @@ export function buildPoseGraphSpec(options: {
     groupWeightJoinIds.set(group.id, weightsJoinId);
   });
 
-  const neutralRecordFields: Record<string, number> = {};
+  const neutralRecordFields: Record<StandardInputId, number> = {};
   standardInputs.forEach((input) => {
     const value = clampValueForInput(
       input,
@@ -878,6 +1049,80 @@ export function buildPoseGraphSpec(options: {
     },
   });
 
+  const neutralNodeByKey = new Map<string, string>([
+    [buildNeutralRecordKey(standardInputs, neutralRecordFields), neutralNodeId],
+  ]);
+  const ensureNeutralRecordNode = (
+    candidateNodeId: string,
+    values: Record<StandardInputId, number>,
+  ): string => {
+    const key = buildNeutralRecordKey(standardInputs, values);
+    const existingNodeId = neutralNodeByKey.get(key);
+    if (existingNodeId) {
+      return existingNodeId;
+    }
+    nodes.push({
+      id: candidateNodeId,
+      type: "constant",
+      params: {
+        value: buildRecordValue(values),
+      },
+    });
+    neutralNodeByKey.set(key, candidateNodeId);
+    return candidateNodeId;
+  };
+
+  const groupNeutralRecordById = new Map<
+    string,
+    Record<StandardInputId, number>
+  >();
+  const groupNeutralNodeIdById = new Map<string, string>();
+  resolvedGroups.forEach((group, groupIndex) => {
+    const neutralRecord = resolveScopedNeutralRecordForCompile({
+      scopedNeutral: group.neutral,
+      lowerRecord: neutralRecordFields,
+      standardInputs,
+      poseById,
+    });
+    groupNeutralRecordById.set(group.id, neutralRecord);
+    const nodeId = ensureNeutralRecordNode(
+      `pose_neutral_group_${groupIndex + 1}_${sanitizeId(group.id)}`,
+      neutralRecord,
+    );
+    groupNeutralNodeIdById.set(group.id, nodeId);
+  });
+
+  const stageNeutralRecordById = new Map<
+    string,
+    Record<StandardInputId, number>
+  >();
+  const stageNeutralNodeIdById = new Map<string, string>();
+  (blendStages ?? []).forEach((stage, stageIndex) => {
+    const lowerRecord =
+      stage.sources
+        .map((source) =>
+          source.kind === "group"
+            ? (groupNeutralRecordById.get(source.id) ?? null)
+            : (stageNeutralRecordById.get(source.id) ?? null),
+        )
+        .find(
+          (record): record is Record<StandardInputId, number> =>
+            record !== null,
+        ) ?? neutralRecordFields;
+    const neutralRecord = resolveScopedNeutralRecordForCompile({
+      scopedNeutral: stage.neutral,
+      lowerRecord,
+      standardInputs,
+      poseById,
+    });
+    stageNeutralRecordById.set(stage.id, neutralRecord);
+    const nodeId = ensureNeutralRecordNode(
+      `pose_neutral_stage_${stageIndex + 1}_${sanitizeId(stage.id)}`,
+      neutralRecord,
+    );
+    stageNeutralNodeIdById.set(stage.id, nodeId);
+  });
+
   const summary: PoseRigGraphSummary = {
     inputs: [],
     outputs: [],
@@ -885,8 +1130,7 @@ export function buildPoseGraphSpec(options: {
 
   standardInputs.forEach((input) => {
     const seenGroupSignals = new Set<string>();
-    const neutral = getNeutralValue(input, neutralInputs);
-    const neutralValue = clampValueForInput(input, neutral);
+    const neutralValue = neutralRecordFields[input.id] ?? 0;
 
     const contributions: PoseRigGraphSummary["inputs"][number]["contributions"] =
       [];
@@ -896,6 +1140,10 @@ export function buildPoseGraphSpec(options: {
     const activeGroupOrderById = new Map<string, number>();
 
     resolvedGroups.forEach((group, groupIndex) => {
+      const groupNeutralRecord = groupNeutralRecordById.get(group.id);
+      const groupNeutralNodeId =
+        groupNeutralNodeIdById.get(group.id) ?? neutralNodeId;
+      const groupNeutralValue = groupNeutralRecord?.[input.id] ?? neutralValue;
       const deltas: number[] = [];
       const masks: number[] = [];
       let hasContribution = false;
@@ -908,9 +1156,9 @@ export function buildPoseGraphSpec(options: {
         const poseValueRaw = pose.values[input.id];
         const poseValue = clampValueForInput(
           input,
-          poseValueRaw === undefined ? neutralValue : poseValueRaw,
+          poseValueRaw === undefined ? groupNeutralValue : poseValueRaw,
         );
-        const delta = poseValue - neutralValue;
+        const delta = poseValue - groupNeutralValue;
         const isActive = Math.abs(delta) >= 1e-6;
         deltas.push(delta);
         masks.push(isActive ? 1 : 0);
@@ -992,7 +1240,7 @@ export function buildPoseGraphSpec(options: {
             to: { node_id: addNodeId, input: "a" },
           },
           {
-            from: { node_id: neutralNodeId },
+            from: { node_id: groupNeutralNodeId },
             to: { node_id: addNodeId, input: "b" },
             selector: [{ field: "values" }, { field: input.id }],
           },
@@ -1009,7 +1257,7 @@ export function buildPoseGraphSpec(options: {
             to: { node_id: deltaFromNeutralNodeId, input: "lhs" },
           },
           {
-            from: { node_id: neutralNodeId },
+            from: { node_id: groupNeutralNodeId },
             to: { node_id: deltaFromNeutralNodeId, input: "rhs" },
             selector: [{ field: "values" }, { field: input.id }],
           },
@@ -1022,6 +1270,7 @@ export function buildPoseGraphSpec(options: {
             nodeId: wsNodeId,
             output: "max_effective_weight",
           },
+          neutralNodeId: groupNeutralNodeId,
         };
         activeGroupLayers.push(layer);
         activeGroupLayersById.set(group.id, layer);
@@ -1046,7 +1295,7 @@ export function buildPoseGraphSpec(options: {
             to: { node_id: overlayNodeId, input: "max_effective_weight" },
           },
           {
-            from: { node_id: neutralNodeId },
+            from: { node_id: groupNeutralNodeId },
             to: { node_id: overlayNodeId, input: "base" },
             selector: [{ field: "values" }, { field: input.id }],
           },
@@ -1063,7 +1312,7 @@ export function buildPoseGraphSpec(options: {
             to: { node_id: deltaFromNeutralNodeId, input: "lhs" },
           },
           {
-            from: { node_id: neutralNodeId },
+            from: { node_id: groupNeutralNodeId },
             to: { node_id: deltaFromNeutralNodeId, input: "rhs" },
             selector: [{ field: "values" }, { field: input.id }],
           },
@@ -1076,6 +1325,7 @@ export function buildPoseGraphSpec(options: {
             nodeId: wsNodeId,
             output: "max_effective_weight",
           },
+          neutralNodeId: groupNeutralNodeId,
         };
         activeGroupLayers.push(layer);
         activeGroupLayersById.set(group.id, layer);
@@ -1108,7 +1358,8 @@ export function buildPoseGraphSpec(options: {
       finalSignal = buildBlendStageChain({
         blendStages: blendStages!,
         inputId: input.id,
-        neutralNodeId,
+        globalNeutralNodeId: neutralNodeId,
+        stageNeutralNodeIdById,
         activeGroupLayersById,
         nodes,
         edges,
@@ -1140,8 +1391,18 @@ export function buildPoseGraphSpec(options: {
     } else if (activeGroupLayers.length === 1) {
       finalSignal = activeGroupLayers[0];
     } else if (crossGroupMode === "additive") {
-      let runningDeltaNodeId = activeGroupLayers[0]?.deltaNodeId ?? null;
-      activeGroupLayers.slice(1).forEach((layer, index) => {
+      const rebasedLayers = activeGroupLayers.map((layer, index) =>
+        rebaseLayerForNeutral({
+          layer,
+          neutralNodeId,
+          inputId: input.id,
+          nodePrefix: `pose_cross_${sanitizeId(input.id)}_source_${index + 1}`,
+          nodes,
+          edges,
+        }),
+      );
+      let runningDeltaNodeId = rebasedLayers[0]?.deltaNodeId ?? null;
+      rebasedLayers.slice(1).forEach((layer, index) => {
         if (!runningDeltaNodeId) {
           runningDeltaNodeId = layer.deltaNodeId;
           return;
@@ -1183,12 +1444,23 @@ export function buildPoseGraphSpec(options: {
         finalSignal = {
           valueNodeId: addNeutralNodeId,
           deltaNodeId: runningDeltaNodeId,
-          activity: activeGroupLayers[0]?.activity ?? {
+          activity: rebasedLayers[0]?.activity ?? {
             nodeId: runningDeltaNodeId,
           },
+          neutralNodeId,
         };
       }
     } else {
+      const rebasedLayers = activeGroupLayers.map((layer, index) =>
+        rebaseLayerForNeutral({
+          layer,
+          neutralNodeId,
+          inputId: input.id,
+          nodePrefix: `pose_cross_${sanitizeId(input.id)}_source_${index + 1}`,
+          nodes,
+          edges,
+        }),
+      );
       const valuesJoinNodeId = `pose_cross_values_join_${sanitizeId(input.id)}`;
       const weightsJoinNodeId = `pose_cross_weights_join_${sanitizeId(input.id)}`;
       const maskNodeId = `pose_cross_mask_${sanitizeId(input.id)}`;
@@ -1206,7 +1478,7 @@ export function buildPoseGraphSpec(options: {
         id: maskNodeId,
         type: "constant",
         params: {
-          value: { vector: activeGroupLayers.map(() => 1) },
+          value: { vector: rebasedLayers.map(() => 1) },
         },
       });
       nodes.push({
@@ -1218,7 +1490,7 @@ export function buildPoseGraphSpec(options: {
         type: "blendweightedaverageoverlay",
       });
 
-      activeGroupLayers.forEach((layer, index) => {
+      rebasedLayers.forEach((layer, index) => {
         edges.push(
           {
             from: { node_id: layer.deltaNodeId },
@@ -1283,6 +1555,7 @@ export function buildPoseGraphSpec(options: {
           nodeId: wsNodeId,
           output: "max_effective_weight",
         },
+        neutralNodeId,
       };
     }
 
@@ -1419,6 +1692,7 @@ export function buildPoseGraphSpecFromIr(options: {
     name: group.name,
     path: group.path,
     blendMode: mapPoseIrBlendMode(group.intraGroupBlendMode),
+    ...(group.neutral ? { neutral: group.neutral } : {}),
   }));
 
   const defaultGroupBlendMode = mapPoseIrBlendMode(

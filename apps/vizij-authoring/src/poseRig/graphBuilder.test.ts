@@ -47,6 +47,21 @@ function findEdge(
   );
 }
 
+function extractRecord(node: any): Record<string, number> {
+  const record =
+    node?.params?.value?.record?.values?.record ??
+    ({} as Record<string, { float?: unknown }>);
+  return Object.fromEntries(
+    Object.entries(record).flatMap(([inputId, value]) => {
+      const floatValue = (value as { float?: unknown } | undefined)?.float;
+      if (!Number.isFinite(floatValue)) {
+        return [];
+      }
+      return [[inputId, floatValue as number] as const];
+    }),
+  );
+}
+
 describe("buildPoseGraphSpec", () => {
   const mouth = stdInput("mouth_open", "/mouth/open");
   const brow = stdInput("brow_raise", "/brow/raise");
@@ -388,6 +403,179 @@ describe("buildPoseGraphSpec", () => {
       ),
     ).toBeTruthy();
     expect(findNode(spec.nodes, "pose_cross_apply_mouth_open")).toBeUndefined();
+  });
+
+  it("resolves scoped neutral precedence as stage > group > global > default > 0", () => {
+    const scopedInputs: StandardRigInput[] = [
+      {
+        ...stdInput("smile", "/face/smile"),
+        defaultValue: 0.2,
+      },
+      {
+        ...stdInput("jaw", "/face/jaw"),
+        defaultValue: 0.25,
+      },
+      {
+        ...stdInput("brow", "/face/brow"),
+        defaultValue: Number.NaN,
+      },
+    ];
+    const scopedPoses = [
+      {
+        id: "pose_emotion",
+        name: "Emotion",
+        values: { smile: 0.9, jaw: 0.8, brow: 0.6 },
+        createdAt: "now",
+        updatedAt: "now",
+        group: "emotion",
+        description: "",
+      },
+      {
+        id: "pose_viseme",
+        name: "Viseme",
+        values: { smile: -0.3, jaw: -0.2, brow: 0.4 },
+        createdAt: "now",
+        updatedAt: "now",
+        group: "viseme",
+        description: "",
+      },
+    ];
+
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { smile: 0.1 },
+      poses: scopedPoses,
+      standardInputs: scopedInputs,
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          neutral: {
+            sourceType: "direct-values",
+            values: { smile: 0.55 },
+          },
+        },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+      blendStages: [
+        {
+          id: "stage_mix",
+          mode: "average",
+          neutral: {
+            sourceType: "direct-values",
+            values: { brow: 0.7 },
+          },
+          sources: [
+            { kind: "group", id: "emotion" },
+            { kind: "group", id: "viseme" },
+          ],
+        },
+      ],
+    });
+
+    const globalNeutral = findNode(spec.nodes, "pose_neutral_record");
+    const groupNeutral = findNode(spec.nodes, "pose_neutral_group_1_emotion");
+    const stageNeutral = findNode(spec.nodes, "pose_neutral_stage_1_stage_mix");
+    expect(extractRecord(globalNeutral)).toMatchObject({
+      smile: 0.1,
+      jaw: 0.25,
+      brow: 0,
+    });
+    expect(extractRecord(groupNeutral)).toMatchObject({
+      smile: 0.55,
+      jaw: 0.25,
+      brow: 0,
+    });
+    expect(extractRecord(stageNeutral)).toMatchObject({
+      smile: 0.55,
+      jaw: 0.25,
+      brow: 0.7,
+    });
+
+    expect(
+      findEdge(
+        spec.edges,
+        "pose_neutral_group_1_emotion",
+        "pose_group_overlay_smile_1_emotion",
+        "base",
+        "smile",
+      ),
+    ).toBeTruthy();
+    expect(
+      findEdge(
+        spec.edges,
+        "pose_neutral_stage_1_stage_mix",
+        "pose_stage_smile_1_stage_mix_overlay",
+        "base",
+        "smile",
+      ),
+    ).toBeTruthy();
+    expect(
+      findEdge(
+        spec.edges,
+        "pose_neutral_stage_1_stage_mix",
+        "pose_stage_brow_1_stage_mix_overlay",
+        "base",
+        "brow",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("resolves pose-reference scoped neutrals with per-channel lower-layer fallback", () => {
+    const { spec } = buildPoseGraphSpec({
+      faceId: "face",
+      neutralInputs: { mouth_open: 0.1, brow_raise: -0.25 },
+      poses: [
+        {
+          id: "pose_primary",
+          name: "Primary",
+          values: { mouth_open: 0.9, brow_raise: 0.6 },
+          createdAt: "now",
+          updatedAt: "now",
+          group: "emotion",
+          description: "",
+        },
+        {
+          id: "pose_reference",
+          name: "Reference",
+          values: { mouth_open: 0.35 },
+          createdAt: "now",
+          updatedAt: "now",
+          group: "emotion",
+          description: "",
+        },
+      ],
+      standardInputs,
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          neutral: {
+            sourceType: "pose-reference",
+            poseId: "pose_reference",
+          },
+        },
+      ],
+      defaultGroupBlendMode: "average",
+      crossGroupBlendMode: "average",
+    });
+
+    const groupNeutral = findNode(spec.nodes, "pose_neutral_group_1_emotion");
+    expect(extractRecord(groupNeutral)).toMatchObject({
+      mouth_open: 0.35,
+      brow_raise: -0.25,
+    });
+    expect(
+      findEdge(
+        spec.edges,
+        "pose_neutral_group_1_emotion",
+        "pose_group_overlay_mouth_open_1_emotion",
+        "base",
+        "mouth_open",
+      ),
+    ).toBeTruthy();
   });
 
   it("resolves pose memberships from canonical groupIds", () => {

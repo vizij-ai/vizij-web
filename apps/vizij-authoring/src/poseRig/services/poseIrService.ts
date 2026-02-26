@@ -963,6 +963,189 @@ function normalizeBlendStages(
   return normalizedStages;
 }
 
+function collectGroupTargetChannels(
+  groups: PoseRigIrFile["groups"],
+  poseTargetChannelsById: Map<string, Set<string>>,
+): Map<string, string[]> {
+  const channelsByGroupId = new Map<string, string[]>();
+  groups.forEach((group) => {
+    const channelIds = new Set<string>();
+    group.poseIds.forEach((poseId) => {
+      poseTargetChannelsById.get(poseId)?.forEach((inputId) => {
+        channelIds.add(inputId);
+      });
+    });
+    channelsByGroupId.set(group.id, Array.from(channelIds).sort());
+  });
+  return channelsByGroupId;
+}
+
+function collectStageTargetChannels(
+  blendStages: PoseIrBlendStageDefinition[] | undefined,
+  groupTargetChannelsById: Map<string, string[]>,
+): Map<string, string[]> {
+  const channelsByStageId = new Map<string, string[]>();
+  (blendStages ?? []).forEach((stage) => {
+    const channelIds = new Set<string>();
+    stage.sources.forEach((source) => {
+      if (source.kind === "group") {
+        (groupTargetChannelsById.get(source.id) ?? []).forEach((inputId) => {
+          channelIds.add(inputId);
+        });
+        return;
+      }
+      (channelsByStageId.get(source.id) ?? []).forEach((inputId) => {
+        channelIds.add(inputId);
+      });
+    });
+    channelsByStageId.set(stage.id, Array.from(channelIds).sort());
+  });
+  return channelsByStageId;
+}
+
+function emitScopedNeutralCoverageDiagnostics(options: {
+  collector: DiagnosticCollector;
+  source: "pose-config" | "pose-ir";
+  groups: PoseRigIrFile["groups"];
+  blendStages: PoseIrBlendStageDefinition[] | undefined;
+  poses: PoseRigIrFile["poses"];
+}): void {
+  const { collector, source, groups, blendStages, poses } = options;
+  const poseTargetChannelsById = new Map<string, Set<string>>();
+  poses.forEach((pose) => {
+    poseTargetChannelsById.set(pose.id, new Set(Object.keys(pose.targets)));
+  });
+  const groupTargetChannelsById = collectGroupTargetChannels(
+    groups,
+    poseTargetChannelsById,
+  );
+  const stageTargetChannelsById = collectStageTargetChannels(
+    blendStages,
+    groupTargetChannelsById,
+  );
+
+  const pushCoverageDiagnostic = (params: {
+    scopeLabel: "Pose group" | "Blend stage";
+    scopeId: string;
+    neutral: PoseScopedNeutralDefinition;
+    targetInputIds: string[];
+    missingInputIds: string[];
+    path: string;
+  }) => {
+    const {
+      scopeLabel,
+      scopeId,
+      neutral,
+      targetInputIds,
+      missingInputIds,
+      path,
+    } = params;
+    if (missingInputIds.length === 0) {
+      return;
+    }
+    if (neutral.sourceType === "pose-reference") {
+      pushPoseDiagnostic(collector, {
+        severity: "warning",
+        source,
+        code: "scoped-neutral-pose-reference-partial-coverage",
+        message: `${scopeLabel} "${scopeId}" neutral pose-reference "${neutral.poseId}" does not define ${missingInputIds.length} scoped target channel(s); missing channels fallback to lower neutral layers.`,
+        location: {
+          poseId: neutral.poseId,
+          path: `${path}.poseId`,
+        },
+        metadata: {
+          scopeId,
+          targetInputIds,
+          missingInputIds,
+          poseId: neutral.poseId,
+        },
+      });
+      return;
+    }
+    pushPoseDiagnostic(collector, {
+      severity: "warning",
+      source,
+      code: "scoped-neutral-direct-values-partial-coverage",
+      message: `${scopeLabel} "${scopeId}" neutral direct-values omit ${missingInputIds.length} scoped target channel(s); missing channels fallback to lower neutral layers.`,
+      location: {
+        path: `${path}.values`,
+      },
+      metadata: {
+        scopeId,
+        targetInputIds,
+        missingInputIds,
+      },
+    });
+  };
+
+  groups.forEach((group, groupIndex) => {
+    const scopedNeutral = group.neutral;
+    if (
+      !scopedNeutral ||
+      scopedNeutral.sourceType === "inherit" ||
+      !groupTargetChannelsById.has(group.id)
+    ) {
+      return;
+    }
+    const targetInputIds = groupTargetChannelsById.get(group.id) ?? [];
+    if (targetInputIds.length === 0) {
+      return;
+    }
+    const missingInputIds =
+      scopedNeutral.sourceType === "pose-reference"
+        ? targetInputIds.filter(
+            (inputId) =>
+              !poseTargetChannelsById.get(scopedNeutral.poseId)?.has(inputId),
+          )
+        : targetInputIds.filter(
+            (inputId) => scopedNeutral.values[inputId] === undefined,
+          );
+    pushCoverageDiagnostic({
+      scopeLabel: "Pose group",
+      scopeId: group.id,
+      neutral: scopedNeutral,
+      targetInputIds,
+      missingInputIds,
+      path:
+        source === "pose-config"
+          ? `poseGroups[${groupIndex}].neutral`
+          : `groups[${groupIndex}].neutral`,
+    });
+  });
+
+  (blendStages ?? []).forEach((stage, stageIndex) => {
+    const scopedNeutral = stage.neutral;
+    if (
+      !scopedNeutral ||
+      scopedNeutral.sourceType === "inherit" ||
+      !stageTargetChannelsById.has(stage.id)
+    ) {
+      return;
+    }
+    const targetInputIds = stageTargetChannelsById.get(stage.id) ?? [];
+    if (targetInputIds.length === 0) {
+      return;
+    }
+    const missingInputIds =
+      scopedNeutral.sourceType === "pose-reference"
+        ? targetInputIds.filter(
+            (inputId) =>
+              !poseTargetChannelsById.get(scopedNeutral.poseId)?.has(inputId),
+          )
+        : targetInputIds.filter(
+            (inputId) => scopedNeutral.values[inputId] === undefined,
+          );
+    pushCoverageDiagnostic({
+      scopeLabel: "Blend stage",
+      scopeId: stage.id,
+      neutral: scopedNeutral,
+      targetInputIds,
+      missingInputIds,
+      path: `blendStages[${stageIndex}].neutral`,
+    });
+  });
+}
+
 function normalizeOverrideTieBreak(
   tieBreak: unknown,
   collector: DiagnosticCollector,
@@ -1443,6 +1626,13 @@ function mapConfigToPoseIr(
       canonicalInputs,
     },
   );
+  emitScopedNeutralCoverageDiagnostics({
+    collector,
+    source: diagnosticSource,
+    groups,
+    blendStages,
+    poses,
+  });
 
   const overlapGroupIdsByInput = new Map<string, Set<string>>();
   poses.forEach((pose) => {
