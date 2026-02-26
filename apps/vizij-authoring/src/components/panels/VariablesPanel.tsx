@@ -72,7 +72,10 @@ import type {
   VariableLinkMappingRow,
 } from "../../referenceFace/types";
 import type { ManagedStandardInput } from "../../types/standardInputs";
-import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
+import type {
+  BlendStageInspectorSelection,
+  PoseGroupInspectorSelection,
+} from "../../types/poseGroupInspector";
 import type {
   SharedVariableConflict,
   SharedVariableSyncPolicy,
@@ -164,6 +167,10 @@ function blendStageDisplayName(
     return trimmed;
   }
   return `Stage ${index + 1}`;
+}
+
+function blendStageSourceToken(source: PoseIrStageSource): string {
+  return `${source.kind}:${source.id}`;
 }
 
 function evaluateBlendStageTopology(
@@ -1424,6 +1431,13 @@ function arePoseIdListsEqual(left: string[], right: string[]): boolean {
   return left.every((id, index) => id === right[index]);
 }
 
+function areStringListsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => value === right[index]);
+}
+
 function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) {
@@ -1962,6 +1976,8 @@ interface VariablesPanelProps {
   onInputValueChange?: (inputId: string, value: number) => void;
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
+  selectedBlendStage?: BlendStageInspectorSelection | null;
+  onSelectBlendStage?: (selection: BlendStageInspectorSelection | null) => void;
   activeSurfaceOverride?: SurfaceTab;
   availableSurfaces?: SurfaceTab[];
   panelTitle?: string;
@@ -1978,6 +1994,8 @@ export function VariablesPanel({
   onInputValueChange,
   selectedPoseGroup,
   onSelectPoseGroup,
+  selectedBlendStage,
+  onSelectBlendStage,
   activeSurfaceOverride,
   availableSurfaces,
   panelTitle = "Control Elements",
@@ -3028,11 +3046,13 @@ export function VariablesPanel({
     setVariableCopyModal(null);
     onSelectRig?.(destinationInputId);
     onSelectPoseGroup?.(null);
+    onSelectBlendStage?.(null);
   }, [
     applyInputBindingPatch,
     handleCreateCustomStandardInput,
     handleLinkChildInput,
     handleUpdateStandardInput,
+    onSelectBlendStage,
     onSelectPoseGroup,
     onSelectRig,
     standardInputsById,
@@ -3184,6 +3204,7 @@ export function VariablesPanel({
       setPoseCopyModal(null);
       onSelectRig?.(null);
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
       if (onSelectPose) {
         onSelectPose(createdPoseId);
       } else {
@@ -3217,6 +3238,7 @@ export function VariablesPanel({
   }, [
     createPose,
     deletePose,
+    onSelectBlendStage,
     onSelectPose,
     onSelectPoseGroup,
     onSelectRig,
@@ -3536,6 +3558,7 @@ export function VariablesPanel({
       (group) => group.path === folderData.groupPath,
     );
     const nodeId = matchingGroup?.id ?? node.id;
+    onSelectBlendStage?.(null);
     onSelectPoseGroup?.({
       groupPath: folderData.groupPath,
       label: node.label,
@@ -3546,6 +3569,7 @@ export function VariablesPanel({
   };
 
   const selectPoseGroup = (group: PoseGroupSummary) => {
+    onSelectBlendStage?.(null);
     onSelectPoseGroup?.({
       groupPath: group.path,
       label: group.label,
@@ -3630,12 +3654,14 @@ export function VariablesPanel({
 
       onSelectRig?.(clonedInputId);
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
       return clonedInputId;
     },
     [
       handleCloneStandardInputs,
       handleLinkChildInput,
       inputBindings,
+      onSelectBlendStage,
       onSelectPoseGroup,
       onSelectRig,
       standardInputsById,
@@ -3784,6 +3810,7 @@ export function VariablesPanel({
       pendingPoseSelectionRef.current = true;
       duplicatePose(poseData.id);
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
       return;
     }
     if (node.type === "pose" && action === "delete-pose") {
@@ -3884,6 +3911,7 @@ export function VariablesPanel({
         onSelectRig?.(null);
       }
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
     }
   };
 
@@ -3895,6 +3923,7 @@ export function VariablesPanel({
       }
       const poseData = poseNodeData.pose as PoseDefinition;
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
       if (onSelectPose) {
         onSelectPose(poseData.id);
       } else {
@@ -3914,6 +3943,7 @@ export function VariablesPanel({
         onSelectRig?.(rigData.input.id);
       }
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
     } else if (
       node.type === "folder" &&
       (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
@@ -3924,6 +3954,7 @@ export function VariablesPanel({
       const inputData = node.data as InputListRow;
       onSelectRig?.(inputData.inputId);
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
     }
   };
 
@@ -3933,6 +3964,7 @@ export function VariablesPanel({
     if (newInput) {
       onSelectRig?.(newInput.id);
       onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
     }
   };
 
@@ -4031,6 +4063,15 @@ export function VariablesPanel({
     }
     deletePoseGroup(current.groupId);
     onSelectPoseGroup?.(null);
+    onSelectBlendStage?.(null);
+  };
+
+  const handleInspectBlendStage = (
+    stage: BlendStageDefinition,
+    stageIndex: number,
+  ) => {
+    onSelectPoseGroup?.(null);
+    onSelectBlendStage?.(buildBlendStageInspectorSelection(stage, stageIndex));
   };
 
   const handleCreateBlendStage = () => {
@@ -4197,6 +4238,74 @@ export function VariablesPanel({
     () => (Array.isArray(blendStages) ? blendStages : []),
     [blendStages],
   );
+  const blendStageLabelById = useMemo(() => {
+    const labels = new Map<string, string>();
+    stageDefinitions.forEach((stage, index) => {
+      labels.set(stage.id, blendStageDisplayName(stage, index));
+    });
+    return labels;
+  }, [stageDefinitions]);
+  const buildBlendStageInspectorSelection = useCallback(
+    (
+      stage: BlendStageDefinition,
+      stageIndex: number,
+    ): BlendStageInspectorSelection => {
+      const label = blendStageDisplayName(stage, stageIndex);
+      const sourceSummary =
+        stage.sources
+          .map((source) => {
+            if (source.kind === "group") {
+              return `group:${poseGroupLabelById.get(source.id) ?? source.id}`;
+            }
+            return `stage:${blendStageLabelById.get(source.id) ?? source.id}`;
+          })
+          .join(", ") || "none";
+      return {
+        id: stage.id,
+        label,
+        mode: stage.mode,
+        sourceSummary,
+        sourceIds: stage.sources.map((source) => blendStageSourceToken(source)),
+      };
+    },
+    [blendStageLabelById, poseGroupLabelById],
+  );
+
+  useEffect(() => {
+    if (!selectedBlendStage || !onSelectBlendStage) {
+      return;
+    }
+
+    const stageIndex = stageDefinitions.findIndex(
+      (stage) => stage.id === selectedBlendStage.id,
+    );
+    if (stageIndex < 0) {
+      onSelectBlendStage(null);
+      return;
+    }
+
+    const nextSelection = buildBlendStageInspectorSelection(
+      stageDefinitions[stageIndex]!,
+      stageIndex,
+    );
+    if (
+      selectedBlendStage.id === nextSelection.id &&
+      selectedBlendStage.label === nextSelection.label &&
+      selectedBlendStage.mode === nextSelection.mode &&
+      selectedBlendStage.sourceSummary === nextSelection.sourceSummary &&
+      areStringListsEqual(selectedBlendStage.sourceIds, nextSelection.sourceIds)
+    ) {
+      return;
+    }
+
+    onSelectBlendStage(nextSelection);
+  }, [
+    buildBlendStageInspectorSelection,
+    onSelectBlendStage,
+    selectedBlendStage,
+    stageDefinitions,
+  ]);
+
   const totalCount =
     activeSurface === "variables"
       ? variableItemCount
@@ -4903,6 +5012,26 @@ export function VariablesPanel({
                                     {stageName}
                                   </span>
                                   <div className="ml-auto flex items-center gap-1">
+                                    <Button
+                                      variant={
+                                        selectedBlendStage?.id === stage.id
+                                          ? "primary"
+                                          : "ghost"
+                                      }
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px]"
+                                      onClick={() =>
+                                        handleInspectBlendStage(
+                                          stage,
+                                          stageIndex,
+                                        )
+                                      }
+                                      title="Inspect blend stage"
+                                    >
+                                      {selectedBlendStage?.id === stage.id
+                                        ? "Inspecting"
+                                        : "Inspect"}
+                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="sm"

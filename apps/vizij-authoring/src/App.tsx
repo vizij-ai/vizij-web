@@ -35,7 +35,10 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
-import type { PoseGroupInspectorSelection } from "./types/poseGroupInspector";
+import type {
+  BlendStageInspectorSelection,
+  PoseGroupInspectorSelection,
+} from "./types/poseGroupInspector";
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
@@ -210,6 +213,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPoseGroup, setSelectedPoseGroup] =
     useState<PoseGroupInspectorSelection | null>(null);
+  const [selectedBlendStage, setSelectedBlendStage] =
+    useState<BlendStageInspectorSelection | null>(null);
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
     useState<string | null>(null);
@@ -531,6 +536,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (id: string) => {
       if (id) {
         setSelectedPoseGroup(null);
+        setSelectedBlendStage(null);
       }
       handleSelectPose(id);
     },
@@ -540,8 +546,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (selection: PoseGroupInspectorSelection | null) => {
       if (selection) {
         poseRig.selectPose("");
+        setSelectedBlendStage(null);
       }
       setSelectedPoseGroup(selection);
+    },
+    [poseRig],
+  );
+  const handleSelectBlendStageWithInspectorSync = useCallback(
+    (selection: BlendStageInspectorSelection | null) => {
+      if (selection) {
+        poseRig.selectPose("");
+        setSelectedPoseGroup(null);
+      }
+      setSelectedBlendStage(selection);
     },
     [poseRig],
   );
@@ -1029,6 +1046,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               availableSurfaces={controlAuthoringSurfaces}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
+              selectedBlendStage={selectedBlendStage}
+              onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
               panelTitle="Control Authoring"
               panelDescription="Author and organize variables, poses, and pose groups."
             />
@@ -1063,6 +1082,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             <InspectorPanel
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
+              selectedBlendStage={selectedBlendStage}
+              onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
               hasReferenceFaceFile={Boolean(referenceFaceContextValue.file)}
             />
           }

@@ -8,6 +8,7 @@ import {
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
+import type { BlendStageInspectorSelection } from "../../types/poseGroupInspector";
 import type {
   ReferenceCatalog,
   ReferencePoseDefinition,
@@ -2191,16 +2192,19 @@ describe("VariablesPanel", () => {
     };
 
     const onSelectPoseGroup = vi.fn();
+    const onSelectBlendStage = vi.fn();
     const view = render(
       <VariablesPanel
         availableSurfaces={["pose-groups"]}
         activeSurfaceOverride="pose-groups"
         onSelectPoseGroup={onSelectPoseGroup}
+        onSelectBlendStage={onSelectBlendStage}
       />,
     );
 
     fireEvent.click(within(view.container).getByTitle("emotion"));
 
+    expect(onSelectBlendStage).toHaveBeenCalledWith(null);
     expect(onSelectPoseGroup).toHaveBeenCalledWith(
       expect.objectContaining({
         groupId: "emotion",
@@ -2420,6 +2424,60 @@ describe("VariablesPanel", () => {
     confirmSpy.mockRestore();
   });
 
+  it("emits stable stage inspector selection payloads from inspect actions", () => {
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: "face",
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        { id: "emotion", name: "Emotion", path: "emotion" },
+        { id: "viseme", name: "Viseme", path: "viseme" },
+      ],
+    };
+    poseRigState.blendStages = [
+      {
+        id: "stage_base",
+        name: "Base",
+        mode: "add",
+        sources: [{ kind: "group", id: "emotion" }],
+      },
+      {
+        id: "stage_final",
+        name: "Final",
+        mode: "average",
+        sources: [
+          { kind: "stage", id: "stage_base" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+    ];
+
+    const onSelectPoseGroup = vi.fn();
+    const onSelectBlendStage = vi.fn();
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+        onSelectPoseGroup={onSelectPoseGroup}
+        onSelectBlendStage={onSelectBlendStage}
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getAllByTitle("Inspect blend stage")[1]!,
+    );
+
+    expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
+    expect(onSelectBlendStage).toHaveBeenCalledWith({
+      id: "stage_final",
+      label: "Final",
+      mode: "average",
+      sourceSummary: "stage:Base, group:viseme",
+      sourceIds: ["stage:stage_base", "group:viseme"],
+    });
+  });
+
   it("blocks invalid stage topology interactions before dispatching actions", () => {
     poseRigState.poseConfigDraft = {
       version: 1,
@@ -2496,6 +2554,28 @@ describe("VariablesPanel", () => {
     );
 
     expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
+  });
+
+  it("clears stale blend-stage selection when the backing stage no longer exists", () => {
+    const onSelectBlendStage = vi.fn();
+    const selectedBlendStage: BlendStageInspectorSelection = {
+      id: "missing_stage",
+      label: "Missing",
+      mode: "add",
+      sourceSummary: "group:emotion",
+      sourceIds: ["group:emotion"],
+    };
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["pose-groups"]}
+        activeSurfaceOverride="pose-groups"
+        selectedBlendStage={selectedBlendStage}
+        onSelectBlendStage={onSelectBlendStage}
+      />,
+    );
+
+    expect(onSelectBlendStage).toHaveBeenCalledWith(null);
   });
 });
 

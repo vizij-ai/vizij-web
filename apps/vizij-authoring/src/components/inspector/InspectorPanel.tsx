@@ -8,13 +8,18 @@ import { EmptyState } from "../ui/EmptyState";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import type { PoseDefinition } from "../../poseRig/types";
-import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
+import type {
+  BlendStageInspectorSelection,
+  PoseGroupInspectorSelection,
+} from "../../types/poseGroupInspector";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import { InspectorContent } from "./InspectorContent";
 
 interface InspectorPanelProps {
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
+  selectedBlendStage?: BlendStageInspectorSelection | null;
+  onSelectBlendStage?: (selection: BlendStageInspectorSelection | null) => void;
   hasReferenceFaceFile?: boolean;
 }
 
@@ -28,6 +33,8 @@ function clamp01(value: number): number {
 export function InspectorPanel({
   selectedPoseGroup = null,
   onSelectPoseGroup,
+  selectedBlendStage = null,
+  onSelectBlendStage,
   hasReferenceFaceFile = false,
 }: InspectorPanelProps) {
   const {
@@ -416,6 +423,43 @@ export function InspectorPanel({
                 className="py-6"
               />
             )}
+          </div>
+        )}
+        {selectedBlendStage && !selectedPoseGroup && !selectedPoseId && (
+          <div className="mt-2 border-t border-border-default/60 pt-2 px-2 pb-2 flex flex-col gap-2 min-h-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold text-text-primary truncate">
+                  Blend Stage Inspector · {selectedBlendStage.label}
+                </div>
+                <div className="text-[10px] text-text-muted font-mono truncate">
+                  {selectedBlendStage.id}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => onSelectBlendStage?.(null)}
+                title="Close Blend Stage Inspector"
+              >
+                Close
+              </Button>
+            </div>
+            <div className="rounded border border-border-default/60 bg-bg-panel/40 px-2 py-2 flex flex-col gap-1">
+              <div className="text-[10px] text-text-muted">
+                Mode:{" "}
+                <span className="font-mono text-text-primary">
+                  {selectedBlendStage.mode}
+                </span>
+              </div>
+              <div className="text-[10px] text-text-muted">
+                Sources:{" "}
+                <span className="font-mono text-text-primary">
+                  {selectedBlendStage.sourceSummary}
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>

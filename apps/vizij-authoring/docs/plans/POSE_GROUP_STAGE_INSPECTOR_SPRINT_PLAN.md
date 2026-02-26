@@ -1,7 +1,7 @@
 # Pose Group + Stage Inspector Sprint Plan (Proposal + SOP)
 
 Last updated: 2026-02-26  
-Status: `planned`
+Status: `in_progress`
 
 ## Goal
 
@@ -135,7 +135,7 @@ Acceptance:
 1. Stage/group-scoped neutral changes affect compiled outputs as expected.
 2. Existing non-scoped behavior remains stable.
 
-### Chunk S4 — Inspector Selection/State Foundations for Stages (`S4`) [planned]
+### Chunk S4 — Inspector Selection/State Foundations for Stages (`S4`) [done]
 
 1. Add stage-level selection context to inspector routing.
 2. Wire stage inspector entry point without breaking pose/group selection behavior.
@@ -215,7 +215,7 @@ Acceptance:
 | S1    | done    | worker                | Types/services scoped neutral contracts + service tests   |
 | S2    | done    | worker                | Store action/state plumbing + hook API exposure           |
 | S3    | done    | worker                | Compiler neutral precedence + scoped coverage diagnostics |
-| S4    | planned | worker                | Inspector stage selection foundation                      |
+| S4    | done    | worker                | Stage selection state + routing + stale-selection guards  |
 | S5    | planned | worker                | Group inspector neutral UX                                |
 | S6    | planned | worker                | Stage inspector neutral UX                                |
 | S7    | planned | main agent + awaiter  | Validation, docs closeout                                 |
@@ -253,6 +253,14 @@ Acceptance:
   5. Validation:
      - `pnpm --filter vizij-authoring exec vitest --run src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/poseRig/services/poseIrService.test.ts`
      - `pnpm --filter vizij-authoring typecheck`
+- 2026-02-26: Chunk `S4` completed.
+  1. Added stage inspector selection contract and app-level stage selection state.
+  2. Wired mutually exclusive pose/group/stage selection callbacks across `App`, `VariablesPanel`, and `InspectorPanel`.
+  3. Added explicit blend-stage inspect entrypoint and stale stage-selection reconciliation in `VariablesPanel`.
+  4. Added regression coverage for stage selection payload emission and stale selection clearing.
+  5. Validation:
+     - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx`
+     - `pnpm --filter vizij-authoring typecheck`
 
 ## Validation Evidence
 
@@ -264,6 +272,9 @@ Acceptance:
    - `pnpm --filter vizij-authoring typecheck` (pass)
 3. `S3`:
    - `pnpm --filter vizij-authoring exec vitest --run src/poseRig/graphBuilder.test.ts src/poseRig/topologyGolden.test.ts src/poseRig/services/poseIrService.test.ts` (pass; 3 files / 42 tests)
+   - `pnpm --filter vizij-authoring typecheck` (pass)
+4. `S4`:
+   - `pnpm --filter vizij-authoring test -- src/components/panels/VariablesPanel.test.tsx` (pass; 1 file / 55 tests)
    - `pnpm --filter vizij-authoring typecheck` (pass)
 
 ## Risks / Watch Items

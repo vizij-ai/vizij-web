@@ -45,7 +45,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | S1   | done    | P1       | Scoped-neutral config/IR contracts landed for groups/stages (`inherit`, `pose-reference`, `direct-values`) with deterministic normalize/round-trip and diagnostics.     |
 | S2   | done    | P1       | Stage/group scoped-neutral store/hook APIs landed with projection-safe state retention and targeted regression coverage.                                                |
 | S3   | done    | P1       | Compiler now resolves scoped neutral precedence by context (`stage > group > global > default`) with scoped-neutral coverage diagnostics.                               |
-| S4   | planned | P2       | Add stage selection + inspector routing foundation without pose/group regression.                                                                                       |
+| S4   | done    | P2       | Stage selection + inspector routing foundation landed with stale-selection reconciliation and stage inspect entrypoint tests.                                           |
 | S5   | planned | P2       | Extend group inspector with neutral authoring + composition-output analysis surface.                                                                                    |
 | S6   | planned | P2       | Implement stage inspector with neutral authoring + composition-output analysis surface.                                                                                 |
 | S7   | planned | P1       | Land scoped-neutral test matrix, validation evidence, and docs closeout.                                                                                                |
