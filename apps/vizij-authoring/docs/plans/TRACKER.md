@@ -43,7 +43,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | E4.3 | done    | P3       | Design pack delivered in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md` with scenario outputs, policy tradeoffs, and follow-on implementation scope.            |
 | S0   | done    | P1       | Scoped-neutral sprint contract lock landed across docs (`UI_DESIGN.md`, `ARCHITECTURE.md`, explainer, docs index) with active plan/tracker linkage.                     |
 | S1   | done    | P1       | Scoped-neutral config/IR contracts landed for groups/stages (`inherit`, `pose-reference`, `direct-values`) with deterministic normalize/round-trip and diagnostics.     |
-| S2   | planned | P1       | Add stage/group neutral store APIs and projection-safe state retention across rebuild/import paths.                                                                     |
+| S2   | done    | P1       | Stage/group scoped-neutral store/hook APIs landed with projection-safe state retention and targeted regression coverage.                                                |
 | S3   | planned | P1       | Implement compiler context-aware neutral precedence (`stage > group > global > default`) with diagnostics.                                                              |
 | S4   | planned | P2       | Add stage selection + inspector routing foundation without pose/group regression.                                                                                       |
 | S5   | planned | P2       | Extend group inspector with neutral authoring + composition-output analysis surface.                                                                                    |

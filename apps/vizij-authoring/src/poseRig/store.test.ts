@@ -590,6 +590,157 @@ describe("PoseRigStore", () => {
     );
   });
 
+  it("sets and clears pose-group neutral source", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPoseGroup("emotion");
+    store.getState().createPose("Smile", "emotion");
+    const poseId = store.getState().poses[0]?.id;
+    expect(poseId).toBeTruthy();
+    if (!poseId) {
+      return;
+    }
+
+    store.getState().setPoseGroupNeutralSource("emotion", {
+      sourceType: "pose-reference",
+      poseId,
+    });
+
+    expect(
+      store
+        .getState()
+        .poseConfigDraft?.poseGroups?.find((group) => group.id === "emotion")
+        ?.neutral,
+    ).toEqual({
+      sourceType: "pose-reference",
+      poseId,
+    });
+    expect(
+      store
+        .getState()
+        .poseIrDraft?.groups.find((group) => group.id === "emotion")?.neutral,
+    ).toEqual({
+      sourceType: "pose-reference",
+      poseId,
+    });
+
+    store.getState().clearPoseGroupNeutralSource("emotion");
+
+    expect(
+      store
+        .getState()
+        .poseConfigDraft?.poseGroups?.find((group) => group.id === "emotion")
+        ?.neutral,
+    ).toBeUndefined();
+    expect(
+      store
+        .getState()
+        .poseIrDraft?.groups.find((group) => group.id === "emotion")?.neutral,
+    ).toBeUndefined();
+  });
+
+  it("sets and clears blend-stage neutral source", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPoseGroup("emotion");
+    store.getState().createBlendStage("stage_base");
+
+    store.getState().setBlendStageNeutralSource("stage_base", {
+      sourceType: "direct-values",
+      values: { smile: 0.25 },
+    });
+
+    expect(
+      store
+        .getState()
+        .poseConfigDraft?.blendStages?.find(
+          (stage) => stage.id === "stage_base",
+        )?.neutral,
+    ).toEqual({
+      sourceType: "direct-values",
+      values: { smile: 0.25 },
+    });
+    expect(
+      store
+        .getState()
+        .poseIrDraft?.blendStages?.find((stage) => stage.id === "stage_base")
+        ?.neutral,
+    ).toEqual({
+      sourceType: "direct-values",
+      values: { smile: 0.25 },
+    });
+
+    store.getState().clearBlendStageNeutralSource("stage_base");
+
+    expect(
+      store
+        .getState()
+        .poseConfigDraft?.blendStages?.find(
+          (stage) => stage.id === "stage_base",
+        )?.neutral,
+    ).toBeUndefined();
+    expect(
+      store
+        .getState()
+        .poseIrDraft?.blendStages?.find((stage) => stage.id === "stage_base")
+        ?.neutral,
+    ).toBeUndefined();
+  });
+
+  it("retains scoped neutral fields across projection rebuild paths", () => {
+    const store = createPoseRigStore();
+    store.getState().setStandardInputs([createInput("smile")]);
+    store.getState().createPoseGroup("emotion");
+    store.getState().createBlendStage("stage_base");
+
+    store.getState().setPoseGroupNeutralSource("emotion", {
+      sourceType: "direct-values",
+      values: { smile: 0.1 },
+    });
+    store.getState().setBlendStageNeutralSource("stage_base", {
+      sourceType: "inherit",
+    });
+
+    store.getState().setRigName("Renamed");
+    store.getState().setPoseGroupBlendMode("emotion", "additive");
+    store.getState().setBlendStageMode("stage_base", "average");
+
+    expect(
+      store
+        .getState()
+        .poseConfigDraft?.poseGroups?.find((group) => group.id === "emotion")
+        ?.neutral,
+    ).toEqual({
+      sourceType: "direct-values",
+      values: { smile: 0.1 },
+    });
+    expect(
+      store
+        .getState()
+        .poseConfigDraft?.blendStages?.find(
+          (stage) => stage.id === "stage_base",
+        )?.neutral,
+    ).toEqual({
+      sourceType: "inherit",
+    });
+    expect(
+      store
+        .getState()
+        .poseIrDraft?.groups.find((group) => group.id === "emotion")?.neutral,
+    ).toEqual({
+      sourceType: "direct-values",
+      values: { smile: 0.1 },
+    });
+    expect(
+      store
+        .getState()
+        .poseIrDraft?.blendStages?.find((stage) => stage.id === "stage_base")
+        ?.neutral,
+    ).toEqual({
+      sourceType: "inherit",
+    });
+  });
+
   it("supports blend-stage authoring actions and recompiles through IR projection", () => {
     const store = createPoseRigStore();
     store.getState().setStandardInputs([createInput("smile")]);

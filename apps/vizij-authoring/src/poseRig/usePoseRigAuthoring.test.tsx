@@ -946,6 +946,59 @@ describe("usePoseRigAuthoring", () => {
     ]);
   });
 
+  it("exposes scoped neutral source actions and applies set/clear updates", () => {
+    const { result } = hook!;
+
+    expect(typeof result.current?.setPoseGroupNeutralSource).toBe("function");
+    expect(typeof result.current?.clearPoseGroupNeutralSource).toBe("function");
+    expect(typeof result.current?.setBlendStageNeutralSource).toBe("function");
+    expect(typeof result.current?.clearBlendStageNeutralSource).toBe(
+      "function",
+    );
+
+    act(() => {
+      result.current?.createPoseGroup("emotion");
+      result.current?.createBlendStage("stage_base");
+      result.current?.setPoseGroupNeutralSource("emotion", {
+        sourceType: "direct-values",
+        values: { smile: 0.2 },
+      });
+      result.current?.setBlendStageNeutralSource("stage_base", {
+        sourceType: "inherit",
+      });
+    });
+
+    expect(
+      result.current?.poseConfigDraft?.poseGroups?.find(
+        (group) => group.id === "emotion",
+      )?.neutral,
+    ).toEqual({
+      sourceType: "direct-values",
+      values: { smile: 0.2 },
+    });
+    expect(
+      result.current?.blendStages.find((stage) => stage.id === "stage_base")
+        ?.neutral,
+    ).toEqual({
+      sourceType: "inherit",
+    });
+
+    act(() => {
+      result.current?.clearPoseGroupNeutralSource("emotion");
+      result.current?.clearBlendStageNeutralSource("stage_base");
+    });
+
+    expect(
+      result.current?.poseConfigDraft?.poseGroups?.find(
+        (group) => group.id === "emotion",
+      )?.neutral,
+    ).toBeUndefined();
+    expect(
+      result.current?.blendStages.find((stage) => stage.id === "stage_base")
+        ?.neutral,
+    ).toBeUndefined();
+  });
+
   it("blocks invalid blend-stage topology edits from hook actions", () => {
     const { result } = hook!;
 

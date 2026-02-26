@@ -8,6 +8,7 @@ import type {
   PoseInputComposeMode,
   PoseIrBlendMode,
   PoseIrBlendStageDefinition,
+  PoseScopedNeutralDefinition,
   PoseIrStageSource,
   PoseRigConfigFile,
   PoseRigGraphSummary,
@@ -55,6 +56,11 @@ export interface UsePoseRigAuthoringResult {
   deleteBlendStage: (stageId: string) => void;
   reorderBlendStage: (fromIndex: number, toIndex: number) => void;
   setBlendStageSources: (stageId: string, sources: PoseIrStageSource[]) => void;
+  setBlendStageNeutralSource: (
+    stageId: string,
+    neutral: PoseScopedNeutralDefinition,
+  ) => void;
+  clearBlendStageNeutralSource: (stageId: string) => void;
   createPoseGroup: (groupPath: string) => void;
   renamePoseGroup: (groupId: string, nextPath: string) => void;
   deletePoseGroup: (groupId: string) => void;
@@ -62,6 +68,11 @@ export interface UsePoseRigAuthoringResult {
     groupId: string,
     mode: "average" | "additive",
   ) => void;
+  setPoseGroupNeutralSource: (
+    groupId: string,
+    neutral: PoseScopedNeutralDefinition,
+  ) => void;
+  clearPoseGroupNeutralSource: (groupId: string) => void;
   addPoseToGroup: (poseId: string, group: string) => void;
   removePoseFromGroup: (poseId: string, group: string) => void;
   standardInputs: StandardRigInput[];
@@ -219,6 +230,8 @@ export function usePoseRigAuthoring(
   const deleteBlendStage = store.deleteBlendStage;
   const reorderBlendStage = store.reorderBlendStage;
   const setBlendStageSources = store.setBlendStageSources;
+  const setBlendStageNeutralSource = store.setBlendStageNeutralSource;
+  const clearBlendStageNeutralSource = store.clearBlendStageNeutralSource;
   const setRigKind = store.setRigKind;
   const setNeutralMode = store.setNeutralMode;
 
@@ -277,6 +290,20 @@ export function usePoseRigAuthoring(
   const setPoseGroupBlendMode = useCallback(
     (groupId: string, mode: "average" | "additive") => {
       store.setPoseGroupBlendMode(groupId, mode);
+    },
+    [store],
+  );
+
+  const setPoseGroupNeutralSource = useCallback(
+    (groupId: string, neutral: PoseScopedNeutralDefinition) => {
+      store.setPoseGroupNeutralSource(groupId, neutral);
+    },
+    [store],
+  );
+
+  const clearPoseGroupNeutralSource = useCallback(
+    (groupId: string) => {
+      store.clearPoseGroupNeutralSource(groupId);
     },
     [store],
   );
@@ -560,6 +587,8 @@ export function usePoseRigAuthoring(
     deleteBlendStage,
     reorderBlendStage,
     setBlendStageSources,
+    setBlendStageNeutralSource,
+    clearBlendStageNeutralSource,
     rigKind,
     setRigKind,
     setNeutralMode,
@@ -569,6 +598,8 @@ export function usePoseRigAuthoring(
     renamePoseGroup,
     deletePoseGroup,
     setPoseGroupBlendMode,
+    setPoseGroupNeutralSource,
+    clearPoseGroupNeutralSource,
     addPoseToGroup,
     removePoseFromGroup,
     selectedPoseId,

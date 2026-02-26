@@ -8,6 +8,7 @@ import type {
   PoseDefinition,
   PoseIrBlendMode,
   PoseIrBlendStageDefinition,
+  PoseScopedNeutralDefinition,
   PoseIrStageSource,
   PoseRigConfigFile,
   PoseRigGraphSummary,
@@ -65,6 +66,76 @@ function nextBlendStageId(base: string, existing: Set<string>): string {
   return `${sanitized}_${counter}`;
 }
 
+function cloneScopedNeutralDefinition(
+  neutral: PoseScopedNeutralDefinition | undefined,
+): PoseScopedNeutralDefinition | undefined {
+  if (!neutral) {
+    return undefined;
+  }
+  if (neutral.sourceType === "inherit") {
+    return { sourceType: "inherit" };
+  }
+  if (neutral.sourceType === "pose-reference") {
+    return {
+      sourceType: "pose-reference",
+      poseId: neutral.poseId,
+    };
+  }
+  return {
+    sourceType: "direct-values",
+    values: { ...neutral.values },
+  };
+}
+
+function areScopedNeutralDefinitionsEqual(
+  left: PoseScopedNeutralDefinition | undefined,
+  right: PoseScopedNeutralDefinition | undefined,
+): boolean {
+  if (!left && !right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  if (left.sourceType !== right.sourceType) {
+    return false;
+  }
+  if (left.sourceType === "inherit") {
+    return true;
+  }
+  if (left.sourceType === "pose-reference") {
+    return (
+      right.sourceType === "pose-reference" && left.poseId === right.poseId
+    );
+  }
+  if (right.sourceType !== "direct-values") {
+    return false;
+  }
+  const leftEntries = Object.entries(left.values).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  const rightEntries = Object.entries(right.values).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  if (leftEntries.length !== rightEntries.length) {
+    return false;
+  }
+  for (let index = 0; index < leftEntries.length; index += 1) {
+    const leftEntry = leftEntries[index];
+    const rightEntry = rightEntries[index];
+    if (!leftEntry || !rightEntry) {
+      return false;
+    }
+    if (
+      leftEntry[0] !== rightEntry[0] ||
+      !Object.is(leftEntry[1], rightEntry[1])
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function cloneBlendStages(
   blendStages: PoseRigConfigFile["blendStages"] | undefined | null,
 ): PoseIrBlendStageDefinition[] {
@@ -75,6 +146,9 @@ function cloneBlendStages(
     id: stage.id,
     name: stage.name,
     mode: stage.mode,
+    ...(stage.neutral
+      ? { neutral: cloneScopedNeutralDefinition(stage.neutral) }
+      : {}),
     sources: stage.sources.map((source) => ({
       kind: source.kind,
       id: source.id,
@@ -313,6 +387,7 @@ function normalizePoseGroupsForState(source: unknown): Array<{
   path: string;
   name: string;
   blendMode?: "average" | "additive";
+  neutral?: PoseScopedNeutralDefinition;
 }> {
   const groups = Array.isArray(source) ? source : [];
   const normalized = groups
@@ -324,6 +399,7 @@ function normalizePoseGroupsForState(source: unknown): Array<{
         path: string;
         name: string;
         blendMode?: "average" | "additive";
+        neutral?: PoseScopedNeutralDefinition;
       } =>
         Boolean(
           group && typeof group === "object" && typeof group.name === "string",
@@ -339,6 +415,9 @@ function normalizePoseGroupsForState(source: unknown): Array<{
           group.blendMode === "additive" || group.blendMode === "average"
             ? group.blendMode
             : undefined,
+        ...(group.neutral
+          ? { neutral: cloneScopedNeutralDefinition(group.neutral) }
+          : {}),
       };
     });
   return normalized;
@@ -540,6 +619,11 @@ export interface PoseRigState {
   deleteBlendStage: (stageId: string) => void;
   reorderBlendStage: (fromIndex: number, toIndex: number) => void;
   setBlendStageSources: (stageId: string, sources: PoseIrStageSource[]) => void;
+  setBlendStageNeutralSource: (
+    stageId: string,
+    neutral: PoseScopedNeutralDefinition,
+  ) => void;
+  clearBlendStageNeutralSource: (stageId: string) => void;
   updatePoseName: (poseId: string, name: string) => void;
   createPoseGroup: (groupPath: string) => void;
   renamePoseGroup: (groupId: string, nextPath: string) => void;
@@ -548,6 +632,11 @@ export interface PoseRigState {
     groupId: string,
     mode: "average" | "additive",
   ) => void;
+  setPoseGroupNeutralSource: (
+    groupId: string,
+    neutral: PoseScopedNeutralDefinition,
+  ) => void;
+  clearPoseGroupNeutralSource: (groupId: string) => void;
   addPoseToGroup: (poseId: string, group: string) => void;
   removePoseFromGroup: (poseId: string, group: string) => void;
   updatePoseGroup: (poseId: string, group: string | null) => void;
@@ -607,11 +696,15 @@ const defaultState: Omit<
   | "deleteBlendStage"
   | "reorderBlendStage"
   | "setBlendStageSources"
+  | "setBlendStageNeutralSource"
+  | "clearBlendStageNeutralSource"
   | "updatePoseName"
   | "createPoseGroup"
   | "renamePoseGroup"
   | "deletePoseGroup"
   | "setPoseGroupBlendMode"
+  | "setPoseGroupNeutralSource"
+  | "clearPoseGroupNeutralSource"
   | "addPoseToGroup"
   | "removePoseFromGroup"
   | "updatePoseGroup"
@@ -908,11 +1001,15 @@ export function createPoseRigStore(
     | "deleteBlendStage"
     | "reorderBlendStage"
     | "setBlendStageSources"
+    | "setBlendStageNeutralSource"
+    | "clearBlendStageNeutralSource"
     | "updatePoseName"
     | "createPoseGroup"
     | "renamePoseGroup"
     | "deletePoseGroup"
     | "setPoseGroupBlendMode"
+    | "setPoseGroupNeutralSource"
+    | "clearPoseGroupNeutralSource"
     | "addPoseToGroup"
     | "removePoseFromGroup"
     | "updatePoseGroup"
@@ -1120,6 +1217,65 @@ export function createPoseRigStore(
             ? { ...stage, sources: normalizedSources }
             : stage,
         );
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
+    },
+    setBlendStageNeutralSource: (stageId, neutral) => {
+      setState((prev) => {
+        const trimmedStageId = stageId.trim();
+        if (!trimmedStageId) {
+          return;
+        }
+        const normalizedNeutral = cloneScopedNeutralDefinition(neutral);
+        if (!normalizedNeutral) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        const targetIndex = existingStages.findIndex(
+          (stage) => stage.id === trimmedStageId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const target = existingStages[targetIndex];
+        if (
+          !target ||
+          areScopedNeutralDefinitionsEqual(target.neutral, normalizedNeutral)
+        ) {
+          return;
+        }
+        const nextStages = existingStages.map((stage, index) =>
+          index === targetIndex
+            ? { ...stage, neutral: normalizedNeutral }
+            : stage,
+        );
+        return buildBlendStagesProjectionPatch(prev, nextStages);
+      });
+    },
+    clearBlendStageNeutralSource: (stageId) => {
+      setState((prev) => {
+        const trimmedStageId = stageId.trim();
+        if (!trimmedStageId) {
+          return;
+        }
+        const existingStages = getConfiguredBlendStages(prev);
+        const targetIndex = existingStages.findIndex(
+          (stage) => stage.id === trimmedStageId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const target = existingStages[targetIndex];
+        if (!target?.neutral) {
+          return;
+        }
+        const nextStages = existingStages.map((stage, index) => {
+          if (index !== targetIndex) {
+            return stage;
+          }
+          const { neutral: _neutral, ...withoutNeutral } = stage;
+          return withoutNeutral;
+        });
         return buildBlendStagesProjectionPatch(prev, nextStages);
       });
     },
@@ -1339,6 +1495,61 @@ export function createPoseRigStore(
         const nextGroups = configured.map((group, index) =>
           index === targetIndex ? { ...group, blendMode: mode } : group,
         );
+        return buildProjectedPoseIrPatch(prev, {
+          poseGroups: nextGroups,
+        });
+      });
+    },
+    setPoseGroupNeutralSource: (groupId, neutral) => {
+      setState((prev) => {
+        const configured = getConfiguredPoseGroups(prev);
+        const targetIndex = configured.findIndex(
+          (group) => group.id === groupId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const normalizedNeutral = cloneScopedNeutralDefinition(neutral);
+        if (!normalizedNeutral) {
+          return;
+        }
+        const target = configured[targetIndex];
+        if (
+          !target ||
+          areScopedNeutralDefinitionsEqual(target.neutral, normalizedNeutral)
+        ) {
+          return;
+        }
+        const nextGroups = configured.map((group, index) =>
+          index === targetIndex
+            ? { ...group, neutral: normalizedNeutral }
+            : group,
+        );
+        return buildProjectedPoseIrPatch(prev, {
+          poseGroups: nextGroups,
+        });
+      });
+    },
+    clearPoseGroupNeutralSource: (groupId) => {
+      setState((prev) => {
+        const configured = getConfiguredPoseGroups(prev);
+        const targetIndex = configured.findIndex(
+          (group) => group.id === groupId,
+        );
+        if (targetIndex < 0) {
+          return;
+        }
+        const target = configured[targetIndex];
+        if (!target?.neutral) {
+          return;
+        }
+        const nextGroups = configured.map((group, index) => {
+          if (index !== targetIndex) {
+            return group;
+          }
+          const { neutral: _neutral, ...withoutNeutral } = group;
+          return withoutNeutral;
+        });
         return buildProjectedPoseIrPatch(prev, {
           poseGroups: nextGroups,
         });

@@ -104,7 +104,7 @@ Acceptance:
 2. Legacy payloads normalize without behavior regressions.
 3. Diagnostics cover malformed scoped-neutral payloads.
 
-### Chunk S2 — Store APIs + Projection Safety (`S2`) [planned]
+### Chunk S2 — Store APIs + Projection Safety (`S2`) [done]
 
 1. Add store actions/selectors for stage/group neutral source editing.
 2. Ensure rebuild/projection pipeline retains new fields deterministically.
@@ -213,7 +213,7 @@ Acceptance:
 | ----- | ------- | --------------------- | ------------------------------------------------------- |
 | S0    | done    | main agent + explorer | Contract lock + tracker linkage                         |
 | S1    | done    | worker                | Types/services scoped neutral contracts + service tests |
-| S2    | planned | worker                | Store action/state plumbing                             |
+| S2    | done    | worker                | Store action/state plumbing + hook API exposure         |
 | S3    | planned | worker                | Compiler neutral precedence                             |
 | S4    | planned | worker                | Inspector stage selection foundation                    |
 | S5    | planned | worker                | Group inspector neutral UX                              |
@@ -237,11 +237,22 @@ Acceptance:
   4. Validation:
      - `pnpm --filter vizij-authoring test -- src/poseRig/services/poseConfigService.test.ts src/poseRig/services/poseIrService.test.ts`
      - `pnpm --filter vizij-authoring typecheck`
+- 2026-02-26: Chunk `S2` completed.
+  1. Added store actions for group/stage scoped-neutral set and clear operations.
+  2. Routed scoped-neutral edits through projection-safe rebuild paths in store actions.
+  3. Exposed new group/stage scoped-neutral actions in `usePoseRigAuthoring`.
+  4. Added store + hook test coverage for set/clear and rebuild retention behavior.
+  5. Validation:
+     - `pnpm --filter vizij-authoring test -- src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx`
+     - `pnpm --filter vizij-authoring typecheck`
 
 ## Validation Evidence
 
 1. `S1`:
    - `pnpm --filter vizij-authoring test -- src/poseRig/services/poseConfigService.test.ts src/poseRig/services/poseIrService.test.ts` (pass; 2 files / 42 tests)
+   - `pnpm --filter vizij-authoring typecheck` (pass)
+2. `S2`:
+   - `pnpm --filter vizij-authoring test -- src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx` (pass; 2 files / 54 tests)
    - `pnpm --filter vizij-authoring typecheck` (pass)
 
 ## Risks / Watch Items
