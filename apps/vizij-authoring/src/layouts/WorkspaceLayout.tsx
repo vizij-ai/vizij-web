@@ -112,7 +112,7 @@ export function WorkspaceLayout({
                               id={section.id}
                             >
                               <div className="h-full min-h-0 border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-hidden overflow-x-hidden animate-slide-in flex flex-col">
-                                <div className="flex-1 min-h-0">
+                                <div className="h-full min-h-0 flex flex-col">
                                   {section.panel}
                                 </div>
                               </div>

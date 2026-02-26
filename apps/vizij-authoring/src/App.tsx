@@ -497,6 +497,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
+  const setWorkspacePanelVisibility = useWorkspaceStore(
+    (state) => state.setPanelVisibility,
+  );
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -522,6 +525,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const inputControlsPanelVisible = inputControlSurfaces.length > 0;
   const controlAuthoringPanelVisible = controlAuthoringSurfaces.length > 0;
+  const handleHideControlAuthoringPanel = useCallback(() => {
+    setWorkspacePanelVisibility("variables", false);
+    setWorkspacePanelVisibility("poses", false);
+    setWorkspacePanelVisibility("materials", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideInputControlsPanel = useCallback(() => {
+    setWorkspacePanelVisibility("inputs", false);
+  }, [setWorkspacePanelVisibility]);
   const {
     selectedId,
     selectedRigId,
@@ -1111,6 +1122,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
               panelTitle="Control Authoring"
               panelDescription="Author and organize variables, poses, and pose groups."
+              onClosePanel={handleHideControlAuthoringPanel}
             />
           }
           leftBottomVisible2={false}
@@ -1127,6 +1139,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
               panelDescription="Preview and adjust live rig and pose-weight inputs."
+              onClosePanel={handleHideInputControlsPanel}
             />
           }
           leftBottomVisible={controlAuthoringPanelVisible}

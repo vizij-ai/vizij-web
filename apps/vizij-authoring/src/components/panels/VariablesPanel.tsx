@@ -13,6 +13,7 @@ import {
   Search,
   Sliders,
   Users,
+  X,
 } from "lucide-react";
 import {
   addBindingSlot,
@@ -1982,6 +1983,7 @@ interface VariablesPanelProps {
   availableSurfaces?: SurfaceTab[];
   panelTitle?: string;
   panelDescription?: string;
+  onClosePanel?: () => void;
 }
 
 export function VariablesPanel({
@@ -2000,6 +2002,7 @@ export function VariablesPanel({
   availableSurfaces,
   panelTitle = "Control Elements",
   panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
+  onClosePanel,
 }: VariablesPanelProps) {
   const {
     poses,
@@ -4314,18 +4317,17 @@ export function VariablesPanel({
     effectiveSelectedRigId,
   ]);
 
-  const actions = (
+  const actions = onClosePanel ? (
     <Button
       variant="ghost"
       size="icon"
       className="h-6 w-6 text-text-secondary hover:text-text-primary"
-      onClick={() => {
-        searchInputRef.current?.focus();
-      }}
+      onClick={onClosePanel}
+      title="Hide panel"
     >
-      <Plus className="h-4 w-4" />
+      <X className="h-4 w-4" />
     </Button>
-  );
+  ) : null;
 
   const surfaceTabs = allSurfaces.map((id) => {
     if (id === "variables") {
