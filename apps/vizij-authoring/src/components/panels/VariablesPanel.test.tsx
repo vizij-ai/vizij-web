@@ -256,6 +256,7 @@ describe("VariablesPanel", () => {
     referenceFaceState.bundle = null;
     referenceFaceState.referenceCatalog = makeReferenceCatalog([]);
     referenceFaceState.inputValues = {};
+    referenceFaceState.handleInputValueChange.mockReset();
     referenceFaceState.getReferenceCatalogInput.mockReset();
     referenceFaceState.getReferenceCatalogPose.mockReset();
     referenceFaceState.getReferenceCatalogLinksForInput.mockReset();
@@ -391,6 +392,48 @@ describe("VariablesPanel", () => {
     render(<VariablesPanel />);
 
     expect(screen.queryByText("Rig Element Jaw")).toBeNull();
+  });
+
+  it("applies min/default/max actions to reference drivers", () => {
+    const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Ref Brow Up",
+      defaultValue: 0.42,
+      range: { min: -0.25, max: 0.9 },
+    });
+    referenceFaceState.standardInputs = [referenceOnly];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceOnly.id, referenceOnly],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([referenceOnly]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/brow/up" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Set current value to min"));
+    fireEvent.click(screen.getByTitle("Set current value to default"));
+    fireEvent.click(screen.getByTitle("Set current value to max"));
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      referenceOnly.id,
+      referenceOnly.range.min,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      referenceOnly.id,
+      referenceOnly.defaultValue,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      3,
+      referenceOnly.id,
+      referenceOnly.range.max,
+    );
+    expect(bindingState.handleInputValueChange).not.toHaveBeenCalled();
   });
 
   it("opens the variable copy modal from row copy action", () => {
@@ -940,6 +983,57 @@ describe("VariablesPanel", () => {
     );
 
     expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+  });
+
+  it("plays and resets reference poses on the reference face runtime", () => {
+    const referenceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Ref Smile",
+      defaultValue: 0.12,
+      range: { min: 0, max: 1 },
+    });
+    referenceFaceState.standardInputs = [referenceInput];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceInput.id, referenceInput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [referenceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile Pose",
+          targets: [{ inputId: referenceInput.id, value: 0.76 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      referenceInput.id,
+      0.76,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      referenceInput.id,
+      referenceInput.defaultValue,
+    );
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
   it("does not write when pose copy modal is cancelled", () => {

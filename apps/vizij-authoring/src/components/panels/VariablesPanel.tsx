@@ -1051,6 +1051,40 @@ function resolveVariableCopyDecisionValue(params: {
   return parsed;
 }
 
+function resolveReferenceRuntimeInputForCatalogTarget(params: {
+  targetInputId: string;
+  referenceCatalog: ReferenceCatalog;
+  runtimeInputsById: ReadonlyMap<string, StandardRigInput>;
+  runtimeInputsByPath: ReadonlyMap<string, StandardRigInput[]>;
+}): StandardRigInput | null {
+  const directMatch = params.runtimeInputsById.get(params.targetInputId);
+  if (directMatch) {
+    return directMatch;
+  }
+  const catalogInput = params.referenceCatalog.inputsById.get(
+    params.targetInputId,
+  );
+  if (!catalogInput) {
+    return null;
+  }
+  const candidates =
+    params.runtimeInputsByPath.get(
+      normalizeStandardRigInputPath(catalogInput.path),
+    ) ?? [];
+  if (candidates.length === 0) {
+    return null;
+  }
+  if (candidates.length === 1) {
+    return candidates[0] ?? null;
+  }
+  const normalizedCatalogLabel = normalizeLookupLabel(catalogInput.label);
+  const byLabel = candidates.find(
+    (candidate) =>
+      normalizeLookupLabel(candidate.label) === normalizedCatalogLabel,
+  );
+  return byLabel ?? candidates[0] ?? null;
+}
+
 function upsertBindingPipelineLinkMetadata(
   binding: AnimatableBinding,
   params: {
@@ -1613,6 +1647,30 @@ function TreeRowWrapper({
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-5 w-5 p-0 hover:text-accent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "play");
+                }}
+                title="Apply Pose"
+              >
+                <Play size={10} fill="currentColor" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:text-accent text-sky-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAction?.(node, "reset-pose");
+                }}
+                title="Reset pose targets to defaults"
+              >
+                <RotateCcw size={10} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-5 w-5 p-0 hover:text-accent text-cyan-300"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1629,7 +1687,6 @@ function TreeRowWrapper({
           )}
 
           {node.type === "rig" &&
-            (node.data as RigNodeData | undefined)?.source !== "reference" &&
             !(node.data as RigNodeData | undefined)?.disabled && (
               <>
                 <Button
@@ -2311,6 +2368,15 @@ export function VariablesPanel({
       }),
     [referenceFace.referenceCatalog.poses],
   );
+  const referenceRuntimeInputsByPath = useMemo(() => {
+    const map = new Map<string, StandardRigInput[]>();
+    referenceFace.standardInputs.forEach((input) => {
+      const key = normalizeStandardRigInputPath(input.path);
+      const existing = map.get(key) ?? [];
+      map.set(key, [...existing, input]);
+    });
+    return map;
+  }, [referenceFace.standardInputs]);
 
   const resolvedSelectedRigId = useMemo(() => {
     if (!selectedRigId) {
@@ -3480,6 +3546,22 @@ export function VariablesPanel({
     }
     if (node.type === "pose" && action === "play") {
       const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source === "reference") {
+        const referencePose = poseNodeData.pose as ReferencePoseDefinition;
+        referencePose.targets.forEach((target) => {
+          const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
+            targetInputId: target.inputId,
+            referenceCatalog: referenceFace.referenceCatalog,
+            runtimeInputsById: referenceFace.standardInputsById,
+            runtimeInputsByPath: referenceRuntimeInputsByPath,
+          });
+          if (!runtimeInput) {
+            return;
+          }
+          referenceFace.handleInputValueChange(runtimeInput.id, target.value);
+        });
+        return;
+      }
       if (poseNodeData.source !== "main") {
         return;
       }
@@ -3491,6 +3573,25 @@ export function VariablesPanel({
     }
     if (node.type === "pose" && action === "reset-pose") {
       const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source === "reference") {
+        const referencePose = poseNodeData.pose as ReferencePoseDefinition;
+        referencePose.targets.forEach((target) => {
+          const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
+            targetInputId: target.inputId,
+            referenceCatalog: referenceFace.referenceCatalog,
+            runtimeInputsById: referenceFace.standardInputsById,
+            runtimeInputsByPath: referenceRuntimeInputsByPath,
+          });
+          if (!runtimeInput) {
+            return;
+          }
+          referenceFace.handleInputValueChange(
+            runtimeInput.id,
+            runtimeInput.defaultValue,
+          );
+        });
+        return;
+      }
       if (poseNodeData.source !== "main") {
         return;
       }
@@ -3541,7 +3642,7 @@ export function VariablesPanel({
       (action === "set-min" || action === "set-default" || action === "set-max")
     ) {
       const rigData = node.data as RigNodeData;
-      if (rigData.source === "reference" || rigData.disabled) {
+      if (rigData.disabled) {
         return;
       }
       const min = rigData.input.range?.min ?? 0;
@@ -3549,7 +3650,11 @@ export function VariablesPanel({
       const defaultValue = rigData.input.defaultValue ?? 0;
       const nextValue =
         action === "set-min" ? min : action === "set-max" ? max : defaultValue;
-      activeInputValueChange(rigData.input.id, nextValue);
+      if (rigData.source === "reference") {
+        referenceFace.handleInputValueChange(rigData.input.id, nextValue);
+      } else {
+        activeInputValueChange(rigData.input.id, nextValue);
+      }
       return;
     }
     if (node.type === "rig" && action === "copy-to-main") {
