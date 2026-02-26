@@ -332,6 +332,7 @@ interface VariableCopyModalState {
 
 interface PoseCopyTargetRowDraft {
   destinationInputId: string;
+  searchQuery: string;
   value: VariableCopyNumericDecisionDraft;
 }
 
@@ -377,6 +378,29 @@ function normalizeLookupLabel(label: string | null | undefined): string {
     return "";
   }
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeComboboxPathQuery(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, "");
+}
+
+function filterCatalogInputsByPathQuery<
+  TInput extends Pick<ReferenceCatalogInput, "path">,
+>(inputs: readonly TInput[], query: string): TInput[] {
+  const normalizedQuery = normalizeComboboxPathQuery(query);
+  if (normalizedQuery.length === 0) {
+    return [...inputs];
+  }
+  return inputs.filter((input) =>
+    normalizeComboboxPathQuery(input.path).includes(normalizedQuery),
+  );
+}
+
+function resolveUniqueCatalogInputByPathQuery<
+  TInput extends Pick<ReferenceCatalogInput, "path">,
+>(inputs: readonly TInput[], query: string): TInput | null {
+  const matches = filterCatalogInputsByPathQuery(inputs, query);
+  return matches.length === 1 ? (matches[0] ?? null) : null;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -795,28 +819,30 @@ function toDecisionCustomValue(value: number): string {
 }
 
 function createVariableCopyNumericDecisionDraft(params: {
-  mode?: MergeDecisionMode;
   fallbackValue: number;
 }): VariableCopyNumericDecisionDraft {
   return {
-    mode: params.mode ?? "source",
+    mode: "source",
     customValue: toDecisionCustomValue(params.fallbackValue),
   };
 }
 
 function createVariableCopyLinkRowDraft(
   row: VariableLinkMappingRow,
+  destinationInputs: readonly ReferenceCatalogInput[],
 ): VariableCopyLinkRowDraft {
+  const sourcePath = row.sourcePath ?? "";
+  const autoMatchedInput = row.destinationInputId?.trim().length
+    ? null
+    : resolveUniqueCatalogInputByPathQuery(destinationInputs, sourcePath);
   return {
     apply: true,
-    destinationInputId: row.destinationInputId ?? "",
+    destinationInputId: row.destinationInputId ?? autoMatchedInput?.id ?? "",
     searchQuery: "",
     scale: createVariableCopyNumericDecisionDraft({
-      mode: row.merge.scale.mode,
       fallbackValue: row.sourceScale,
     }),
     offset: createVariableCopyNumericDecisionDraft({
-      mode: row.merge.offset.mode,
       fallbackValue: row.sourceOffset,
     }),
   };
@@ -824,11 +850,16 @@ function createVariableCopyLinkRowDraft(
 
 function createPoseCopyTargetRowDraft(
   row: PoseTargetMappingRow,
+  destinationInputs: readonly ReferenceCatalogInput[],
 ): PoseCopyTargetRowDraft {
+  const sourcePath = row.sourcePath ?? "";
+  const autoMatchedInput = row.destinationInputId?.trim().length
+    ? null
+    : resolveUniqueCatalogInputByPathQuery(destinationInputs, sourcePath);
   return {
-    destinationInputId: row.destinationInputId ?? "",
+    destinationInputId: row.destinationInputId ?? autoMatchedInput?.id ?? "",
+    searchQuery: "",
     value: createVariableCopyNumericDecisionDraft({
-      mode: row.valueMerge.mode,
       fallbackValue: row.valueMerge.value ?? row.sourceValue,
     }),
   };
@@ -913,12 +944,19 @@ function createVariableCopyModalState(params: {
   launchSource: "row-action" | "toolbar";
 }): VariableCopyModalState {
   const parentRowDrafts: Record<string, VariableCopyLinkRowDraft> = {};
+  const destinationInputs = [...params.destinationCatalog.inputs];
   params.proposal.parentRows.forEach((row) => {
-    parentRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(row);
+    parentRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(
+      row,
+      destinationInputs,
+    );
   });
   const childRowDrafts: Record<string, VariableCopyLinkRowDraft> = {};
   params.proposal.childRows.forEach((row) => {
-    childRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(row);
+    childRowDrafts[row.rowId] = createVariableCopyLinkRowDraft(
+      row,
+      destinationInputs,
+    );
   });
   const proposedDestinationInput =
     params.proposal.destinationRow.destinationInputId === null
@@ -926,9 +964,18 @@ function createVariableCopyModalState(params: {
       : (params.destinationCatalog.inputsById.get(
           params.proposal.destinationRow.destinationInputId,
         ) ?? null);
-  const hasPrimaryDestinationProposal =
-    proposedDestinationInput !== null &&
-    isPrimaryVariableDestinationInput(proposedDestinationInput);
+  const primaryDestinationOptions = destinationInputs.filter(
+    isPrimaryVariableDestinationInput,
+  );
+  const autoMatchedPrimaryDestination =
+    proposedDestinationInput &&
+    isPrimaryVariableDestinationInput(proposedDestinationInput)
+      ? proposedDestinationInput
+      : resolveUniqueCatalogInputByPathQuery(
+          primaryDestinationOptions,
+          params.proposal.sourceInputPath,
+        );
+  const hasPrimaryDestinationProposal = autoMatchedPrimaryDestination !== null;
   return {
     sourceReferenceEntry: params.sourceReferenceEntry,
     proposal: params.proposal,
@@ -936,21 +983,18 @@ function createVariableCopyModalState(params: {
     launchSource: params.launchSource,
     destinationMode: hasPrimaryDestinationProposal ? "existing" : "new",
     destinationInputId: hasPrimaryDestinationProposal
-      ? proposedDestinationInput.id
+      ? autoMatchedPrimaryDestination.id
       : "",
     newDestinationPath: params.proposal.sourceInputPath,
     newDestinationLabel: params.proposal.sourceInputLabel,
     valueMerge: {
       min: createVariableCopyNumericDecisionDraft({
-        mode: params.proposal.valueMerge.min.mode,
         fallbackValue: params.sourceReferenceEntry.input.range.min,
       }),
       max: createVariableCopyNumericDecisionDraft({
-        mode: params.proposal.valueMerge.max.mode,
         fallbackValue: params.sourceReferenceEntry.input.range.max,
       }),
       defaultValue: createVariableCopyNumericDecisionDraft({
-        mode: params.proposal.valueMerge.defaultValue.mode,
         fallbackValue: params.sourceReferenceEntry.input.defaultValue,
       }),
     },
@@ -966,8 +1010,12 @@ function createPoseCopyModalState(params: {
   launchSource: PoseCopyModalState["launchSource"];
 }): PoseCopyModalState {
   const targetRowDrafts: Record<string, PoseCopyTargetRowDraft> = {};
+  const destinationInputs = [...params.destinationCatalog.inputs];
   params.proposal.targetRows.forEach((row) => {
-    targetRowDrafts[row.rowId] = createPoseCopyTargetRowDraft(row);
+    targetRowDrafts[row.rowId] = createPoseCopyTargetRowDraft(
+      row,
+      destinationInputs,
+    );
   });
   return {
     sourcePose: params.sourcePose,
@@ -2864,7 +2912,10 @@ export function VariablesPanel({
       (row) => {
         const draft =
           poseCopyModal.targetRowDrafts[row.rowId] ??
-          createPoseCopyTargetRowDraft(row);
+          createPoseCopyTargetRowDraft(
+            row,
+            poseCopyModal.destinationCatalog.inputs,
+          );
         const destinationInputId = draft.destinationInputId.trim();
         const destinationInput = destinationInputId
           ? (poseCopyModal.destinationCatalog.inputsById.get(
@@ -4078,13 +4129,73 @@ export function VariablesPanel({
         : [],
     [variableCopyModal],
   );
-  const variableCopyUnresolvedCount = variableCopyModal
-    ? [
-        variableCopyModal.proposal.destinationRow,
-        ...variableCopyModal.proposal.parentRows,
-        ...variableCopyModal.proposal.childRows,
-      ].filter((row) => isUnresolvedMappingStatus(row.status)).length
-    : 0;
+  const variableCopyRelationshipDestinationOptions = useMemo(
+    () =>
+      variableCopyModal
+        ? [...variableCopyModal.destinationCatalog.inputs].sort(
+            sortCatalogInputs,
+          )
+        : [],
+    [variableCopyModal],
+  );
+  const variableCopyUnresolvedCount = useMemo(() => {
+    if (!variableCopyModal) {
+      return 0;
+    }
+    let unresolvedCount = 0;
+    if (variableCopyModal.destinationMode === "existing") {
+      const destinationInputId = variableCopyModal.destinationInputId.trim();
+      if (
+        !destinationInputId ||
+        !variableCopyModal.destinationCatalog.inputsById.has(destinationInputId)
+      ) {
+        unresolvedCount += 1;
+      }
+    } else {
+      const normalized = normalizeStandardRigInputPath(
+        variableCopyModal.newDestinationPath,
+      );
+      if (!normalized || standardInputsByPath.has(normalized)) {
+        unresolvedCount += 1;
+      }
+    }
+    const relationshipRows: Array<{
+      row: VariableLinkMappingRow;
+      draft: VariableCopyLinkRowDraft | undefined;
+    }> = [
+      ...variableCopyModal.proposal.parentRows.map((row) => ({
+        row,
+        draft: variableCopyModal.parentRowDrafts[row.rowId],
+      })),
+      ...variableCopyModal.proposal.childRows.map((row) => ({
+        row,
+        draft: variableCopyModal.childRowDrafts[row.rowId],
+      })),
+    ];
+    relationshipRows.forEach(({ row, draft }) => {
+      const activeDraft =
+        draft ??
+        createVariableCopyLinkRowDraft(
+          row,
+          variableCopyRelationshipDestinationOptions,
+        );
+      if (!activeDraft.apply) {
+        return;
+      }
+      const destinationInputId = activeDraft.destinationInputId.trim();
+      if (
+        !destinationInputId ||
+        !variableCopyModal.destinationCatalog.inputsById.has(destinationInputId)
+      ) {
+        unresolvedCount += 1;
+      }
+    });
+    return unresolvedCount;
+  }, [
+    standardInputsByPath,
+    variableCopyModal,
+    variableCopyRelationshipDestinationOptions,
+  ]);
   const setPoseCopyTargetRowDraft = useCallback(
     (
       rowId: string,
@@ -5064,6 +5175,14 @@ export function VariablesPanel({
                 ))}
               </div>
             )}
+            {variableCopyBlockingMessages.length === 0 &&
+              variableCopyUnresolvedCount > 0 && (
+                <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  {variableCopyUnresolvedCount} unresolved mappings need review
+                  before confirm. Use `Match Source Path` for quick
+                  auto-mapping.
+                </div>
+              )}
 
             <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
               <div className="text-xs font-semibold text-text-primary">
@@ -5202,49 +5321,68 @@ export function VariablesPanel({
                 ] as const
               ).map((field) => {
                 const draft = variableCopyModal.valueMerge[field.key];
+                const existingDestinationInput =
+                  variableCopyModal.destinationMode === "existing"
+                    ? (variableCopyModal.destinationCatalog.inputsById.get(
+                        variableCopyModal.destinationInputId.trim(),
+                      ) ?? null)
+                    : null;
+                const destinationValue = existingDestinationInput
+                  ? field.key === "min"
+                    ? existingDestinationInput.range.min
+                    : field.key === "max"
+                      ? existingDestinationInput.range.max
+                      : existingDestinationInput.defaultValue
+                  : null;
                 return (
                   <div
                     key={field.key}
-                    className="grid grid-cols-1 gap-2 md:grid-cols-[96px_minmax(0,1fr)_minmax(0,1fr)] md:items-center"
+                    className="grid grid-cols-1 gap-2 md:grid-cols-[96px_minmax(0,1fr)_auto] md:items-center"
                   >
                     <div className="text-xs text-text-muted">
                       {field.label} ({field.sourceValue.toFixed(3)})
                     </div>
-                    <select
-                      value={draft.mode}
-                      onChange={(event) => {
-                        const nextMode = event.target
-                          .value as VariableCopyNumericDecisionDraft["mode"];
-                        setVariableCopyBlockingMessages([]);
-                        setVariableCopyValueMergeDraft(
-                          field.key,
-                          (current) => ({
-                            ...current,
-                            mode: nextMode,
-                          }),
-                        );
-                      }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
-                    >
-                      <option value="source">Use source</option>
-                      <option value="destination">Keep destination</option>
-                      <option value="custom">Custom</option>
-                    </select>
                     <input
                       value={draft.customValue}
-                      disabled={draft.mode !== "custom"}
                       onChange={(event) => {
                         setVariableCopyBlockingMessages([]);
                         setVariableCopyValueMergeDraft(
                           field.key,
                           (current) => ({
                             ...current,
+                            mode: "custom",
                             customValue: event.target.value,
                           }),
                         );
                       }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
                     />
+                    {isFiniteNumber(destinationValue) ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-[10px]"
+                        onClick={() => {
+                          setVariableCopyBlockingMessages([]);
+                          setVariableCopyValueMergeDraft(
+                            field.key,
+                            (current) => ({
+                              ...current,
+                              mode: "custom",
+                              customValue:
+                                toDecisionCustomValue(destinationValue),
+                            }),
+                          );
+                        }}
+                      >
+                        Use current {field.label.toLowerCase()} (
+                        {destinationValue.toFixed(3)})
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] text-text-muted">
+                        No current main face value
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -5282,7 +5420,44 @@ export function VariablesPanel({
                     rows.map((row) => {
                       const draft =
                         drafts[row.rowId] ??
-                        createVariableCopyLinkRowDraft(row);
+                        createVariableCopyLinkRowDraft(
+                          row,
+                          variableCopyRelationshipDestinationOptions,
+                        );
+                      const mappedInputId = draft.destinationInputId.trim();
+                      const mappedInput = mappedInputId
+                        ? (variableCopyModal.destinationCatalog.inputsById.get(
+                            mappedInputId,
+                          ) ?? null)
+                        : null;
+                      const mappedStatus = draft.apply
+                        ? mappedInput
+                          ? "resolved"
+                          : "unmapped"
+                        : "skipped";
+                      const resolvedLinkValues =
+                        variableCopyModal.destinationMode === "existing" &&
+                        variableCopyModal.destinationInputId.trim().length >
+                          0 &&
+                        mappedInput
+                          ? relationship === "parent"
+                            ? (variableCopyModal.destinationCatalog.inputsById
+                                .get(
+                                  variableCopyModal.destinationInputId.trim(),
+                                )
+                                ?.parents.find(
+                                  (link) =>
+                                    link.parentInputId === mappedInput.id,
+                                ) ?? null)
+                            : (variableCopyModal.destinationCatalog.inputsById
+                                .get(
+                                  variableCopyModal.destinationInputId.trim(),
+                                )
+                                ?.children.find(
+                                  (link) =>
+                                    link.childInputId === mappedInput.id,
+                                ) ?? null)
+                          : null;
                       return (
                         <div
                           key={row.rowId}
@@ -5310,14 +5485,14 @@ export function VariablesPanel({
                             <span
                               className={cn(
                                 "text-[11px] uppercase tracking-wide",
-                                row.status === "resolved"
+                                mappedStatus === "resolved"
                                   ? "text-emerald-300"
-                                  : row.status === "skipped"
+                                  : mappedStatus === "skipped"
                                     ? "text-text-muted"
                                     : "text-amber-300",
                               )}
                             >
-                              {row.status}
+                              {mappedStatus}
                             </span>
                             <span className="text-xs text-text-muted">
                               {row.sourceLabel} ({row.sourcePath ?? "no-path"})
@@ -5333,20 +5508,26 @@ export function VariablesPanel({
                                 disabled={!draft.apply || !row.sourcePath}
                                 onClick={() => {
                                   const sourcePath = row.sourcePath ?? "";
+                                  const uniqueMatch =
+                                    resolveUniqueCatalogInputByPathQuery(
+                                      variableCopyRelationshipDestinationOptions,
+                                      sourcePath,
+                                    );
                                   setVariableCopyBlockingMessages([]);
                                   setVariableCopyLinkRowDraft(
                                     relationship,
                                     row.rowId,
                                     (current) => ({
                                       ...current,
-                                      destinationInputId: "",
+                                      apply: true,
+                                      destinationInputId: uniqueMatch?.id ?? "",
                                       searchQuery: sourcePath,
                                     }),
                                   );
                                 }}
-                                title="Seed destination search with source path"
+                                title="Seed destination search and auto-apply when one match exists"
                               >
-                                Use Source Path
+                                Match Source Path
                               </Button>
                             </div>
                             <Combobox
@@ -5360,6 +5541,7 @@ export function VariablesPanel({
                                   row.rowId,
                                   (current) => ({
                                     ...current,
+                                    apply: true,
                                     destinationInputId: nextValue ?? "",
                                   }),
                                 );
@@ -5389,64 +5571,73 @@ export function VariablesPanel({
                               ] as const
                             ).map(([key, mergeLabel, sourceValue]) => {
                               const decision = draft[key];
+                              const destinationValue =
+                                key === "scale"
+                                  ? (resolvedLinkValues?.scale ?? null)
+                                  : (resolvedLinkValues?.offset ?? null);
                               return (
                                 <div
                                   key={key}
-                                  className="grid grid-cols-1 gap-2 md:grid-cols-2"
+                                  className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]"
                                 >
-                                  <select
-                                    value={decision.mode}
-                                    disabled={!draft.apply}
-                                    onChange={(event) => {
-                                      const nextMode = event.target
-                                        .value as VariableCopyNumericDecisionDraft["mode"];
-                                      setVariableCopyBlockingMessages([]);
-                                      setVariableCopyLinkRowDraft(
-                                        relationship,
-                                        row.rowId,
-                                        (current) => ({
-                                          ...current,
-                                          [key]: {
-                                            ...current[key],
-                                            mode: nextMode,
-                                          },
-                                        }),
-                                      );
-                                    }}
-                                    className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
-                                  >
-                                    <option value="source">
-                                      {mergeLabel}: source (
-                                      {sourceValue.toFixed(3)})
-                                    </option>
-                                    <option value="destination">
-                                      {mergeLabel}: destination
-                                    </option>
-                                    <option value="custom">
-                                      {mergeLabel}: custom
-                                    </option>
-                                  </select>
-                                  <input
-                                    value={decision.customValue}
-                                    disabled={
-                                      !draft.apply || decision.mode !== "custom"
-                                    }
-                                    onChange={(event) => {
-                                      setVariableCopyBlockingMessages([]);
-                                      setVariableCopyLinkRowDraft(
-                                        relationship,
-                                        row.rowId,
-                                        (current) => ({
-                                          ...current,
-                                          [key]: {
-                                            ...current[key],
-                                            customValue: event.target.value,
-                                          },
-                                        }),
-                                      );
-                                    }}
-                                    className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
-                                  />
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                                      {mergeLabel} ({sourceValue.toFixed(3)})
+                                    </span>
+                                    <input
+                                      value={decision.customValue}
+                                      disabled={!draft.apply}
+                                      onChange={(event) => {
+                                        setVariableCopyBlockingMessages([]);
+                                        setVariableCopyLinkRowDraft(
+                                          relationship,
+                                          row.rowId,
+                                          (current) => ({
+                                            ...current,
+                                            [key]: {
+                                              ...current[key],
+                                              mode: "custom",
+                                              customValue: event.target.value,
+                                            },
+                                          }),
+                                        );
+                                      }}
+                                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                                    />
+                                  </div>
+                                  {isFiniteNumber(destinationValue) ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={!draft.apply}
+                                      className="h-8 px-2 text-[10px]"
+                                      onClick={() => {
+                                        setVariableCopyBlockingMessages([]);
+                                        setVariableCopyLinkRowDraft(
+                                          relationship,
+                                          row.rowId,
+                                          (current) => ({
+                                            ...current,
+                                            [key]: {
+                                              ...current[key],
+                                              mode: "custom",
+                                              customValue:
+                                                toDecisionCustomValue(
+                                                  destinationValue,
+                                                ),
+                                            },
+                                          }),
+                                        );
+                                      }}
+                                    >
+                                      Use current {mergeLabel.toLowerCase()} (
+                                      {destinationValue.toFixed(3)})
+                                    </Button>
+                                  ) : (
+                                    <span className="self-center text-[10px] text-text-muted">
+                                      No current value
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
@@ -5510,6 +5701,14 @@ export function VariablesPanel({
                 ))}
               </div>
             )}
+            {poseCopyBlockingMessages.length === 0 &&
+              poseCopyUnresolvedCount > 0 && (
+                <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  {poseCopyUnresolvedCount} unresolved target mappings need
+                  review before confirm. Use `Match Source Path` for quick
+                  auto-mapping.
+                </div>
+              )}
 
             <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
               <div className="text-xs font-semibold text-text-primary">
@@ -5547,7 +5746,10 @@ export function VariablesPanel({
                 poseCopyModal.proposal.targetRows.map((row) => {
                   const draft =
                     poseCopyModal.targetRowDrafts[row.rowId] ??
-                    createPoseCopyTargetRowDraft(row);
+                    createPoseCopyTargetRowDraft(
+                      row,
+                      poseCopyDestinationOptions,
+                    );
                   const mappedInputId = draft.destinationInputId.trim();
                   const mappedInput = mappedInputId
                     ? (poseCopyModal.destinationCatalog.inputsById.get(
@@ -5555,6 +5757,22 @@ export function VariablesPanel({
                       ) ?? null)
                     : null;
                   const mappedStatus = mappedInput ? "resolved" : "unmapped";
+                  const existingPoseValue =
+                    mappedInput &&
+                    poseCopyModal.destinationPoseName.trim().length > 0
+                      ? (() => {
+                          const existingPose = poses.find(
+                            (pose) =>
+                              pose.name.trim() ===
+                              poseCopyModal.destinationPoseName.trim(),
+                          );
+                          if (!existingPose) {
+                            return null;
+                          }
+                          const value = existingPose.values?.[mappedInput.id];
+                          return isFiniteNumber(value) ? value : null;
+                        })()
+                      : null;
                   return (
                     <div
                       key={row.rowId}
@@ -5580,14 +5798,48 @@ export function VariablesPanel({
                       </div>
 
                       <div className="flex flex-col gap-1 text-xs text-text-muted">
-                        <span>Destination input</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span>Destination input</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            disabled={!row.sourcePath}
+                            onClick={() => {
+                              const sourcePath = row.sourcePath ?? "";
+                              const uniqueMatch =
+                                resolveUniqueCatalogInputByPathQuery(
+                                  poseCopyDestinationOptions,
+                                  sourcePath,
+                                );
+                              setPoseCopyBlockingMessages([]);
+                              setPoseCopyTargetRowDraft(
+                                row.rowId,
+                                (current) => ({
+                                  ...current,
+                                  destinationInputId: uniqueMatch?.id ?? "",
+                                  searchQuery: sourcePath,
+                                }),
+                              );
+                            }}
+                          >
+                            Match Source Path
+                          </Button>
+                        </div>
                         <Combobox
                           value={draft.destinationInputId || null}
+                          query={draft.searchQuery}
                           onChange={(nextValue) => {
                             setPoseCopyBlockingMessages([]);
                             setPoseCopyTargetRowDraft(row.rowId, (current) => ({
                               ...current,
                               destinationInputId: nextValue ?? "",
+                            }));
+                          }}
+                          onQueryChange={(nextQuery) => {
+                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                              ...current,
+                              searchQuery: nextQuery,
                             }));
                           }}
                           options={poseCopyDestinationComboboxOptions}
@@ -5596,43 +5848,51 @@ export function VariablesPanel({
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <select
-                          value={draft.value.mode}
-                          onChange={(event) => {
-                            const nextMode = event.target
-                              .value as VariableCopyNumericDecisionDraft["mode"];
-                            setPoseCopyBlockingMessages([]);
-                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
-                              ...current,
-                              value: {
-                                ...current.value,
-                                mode: nextMode,
-                              },
-                            }));
-                          }}
-                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
-                        >
-                          <option value="source">
-                            Value: source ({row.sourceValue.toFixed(3)})
-                          </option>
-                          <option value="custom">Value: custom</option>
-                        </select>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
                         <input
                           value={draft.value.customValue}
-                          disabled={draft.value.mode !== "custom"}
                           onChange={(event) => {
                             setPoseCopyBlockingMessages([]);
                             setPoseCopyTargetRowDraft(row.rowId, (current) => ({
                               ...current,
                               value: {
                                 ...current.value,
+                                mode: "custom",
                                 customValue: event.target.value,
                               },
                             }));
                           }}
-                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
                         />
+                        {isFiniteNumber(existingPoseValue) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-[10px]"
+                            onClick={() => {
+                              setPoseCopyBlockingMessages([]);
+                              setPoseCopyTargetRowDraft(
+                                row.rowId,
+                                (current) => ({
+                                  ...current,
+                                  value: {
+                                    ...current.value,
+                                    mode: "custom",
+                                    customValue:
+                                      toDecisionCustomValue(existingPoseValue),
+                                  },
+                                }),
+                              );
+                            }}
+                          >
+                            Use current pose value (
+                            {existingPoseValue.toFixed(3)})
+                          </Button>
+                        ) : (
+                          <span className="self-center text-[10px] text-text-muted">
+                            No current pose value
+                          </span>
+                        )}
                       </div>
 
                       {row.rationale.length > 0 && (

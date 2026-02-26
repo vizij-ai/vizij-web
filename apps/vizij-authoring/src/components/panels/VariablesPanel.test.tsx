@@ -434,10 +434,15 @@ describe("VariablesPanel", () => {
     ]);
     referenceFaceState.referenceCatalog = makeReferenceCatalog([referenceOnly]);
 
-    render(<VariablesPanel />);
-
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/brow/up" },
+      },
+    );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Copy Ref (1)" })[0]!,
+      within(view.container).getByTitle("Copy driver to main face"),
     );
     expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
       0,
@@ -629,6 +634,54 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(created.id);
   });
 
+  it("allows choosing current destination default value when copying a variable", () => {
+    const source = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Brow Up",
+      defaultValue: 0.35,
+      range: { min: 0, max: 1 },
+    });
+    const destination = makeInput("main_brow", "/standard/brow/up", {
+      label: "Main Brow Up",
+      defaultValue: 0.88,
+      range: { min: -0.2, max: 0.9 },
+    });
+
+    referenceFaceState.standardInputs = [source];
+    referenceFaceState.standardInputsById = new Map([[source.id, source]]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([source]);
+
+    bindingState.managedStandardInputs = [
+      { input: destination, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([[destination.id, destination]]);
+    bindingState.standardInputsByPath = new Map([
+      [destination.path, destination],
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/brow/up" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle("Copy driver to main face"),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Use current default/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(bindingState.handleCreateCustomStandardInput).not.toHaveBeenCalled();
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      destination.id,
+      expect.objectContaining({
+        defaultValue: destination.defaultValue,
+      }),
+    );
+  });
+
   it("surfaces reference child mappings from runtime bindings when bundle links are missing", () => {
     const source = makeInput("ref_blink", "/standard/eyes/blink", {
       label: "Blink",
@@ -702,7 +755,7 @@ describe("VariablesPanel", () => {
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
   });
 
-  it("defaults mapping rows to apply and seeds destination search from source path", () => {
+  it("defaults mapping rows to apply and auto-maps unique fuzzy destination matches", () => {
     const source = makeInput("ref_source", "/standard/eyes/blink", {
       label: "Blink",
     });
@@ -712,6 +765,13 @@ describe("VariablesPanel", () => {
     const destinationSource = makeInput("main_source", "/standard/eyes/blink", {
       label: "Main Blink",
     });
+    const destinationChild = makeInput(
+      "main_child",
+      "/avatar/propsrig/eye/lid_lower",
+      {
+        label: "Main Child",
+      },
+    );
 
     referenceFaceState.standardInputs = [source, sourceChild];
     referenceFaceState.standardInputsById = new Map([
@@ -730,12 +790,15 @@ describe("VariablesPanel", () => {
 
     bindingState.managedStandardInputs = [
       { input: destinationSource, source: "custom" },
+      { input: destinationChild, source: "custom" },
     ];
     bindingState.standardInputsById = new Map([
       [destinationSource.id, destinationSource],
+      [destinationChild.id, destinationChild],
     ]);
     bindingState.standardInputsByPath = new Map([
       [destinationSource.path, destinationSource],
+      [destinationChild.path, destinationChild],
     ]);
 
     const view = render(<VariablesPanel />);
@@ -755,15 +818,13 @@ describe("VariablesPanel", () => {
       expect((checkbox as HTMLInputElement).checked).toBe(true);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Source Path" }));
-    const destinationSearchInputs = screen.getAllByPlaceholderText(
-      "Search destination input",
-    ) as HTMLInputElement[];
-    expect(
-      destinationSearchInputs.some(
-        (input) => input.value === "/propsrig/eye/lid_lower",
-      ),
-    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Match Source Path" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      destinationSource.id,
+      destinationChild.id,
+    );
   });
 
   it("prefers the path-matched reference source with relationships when catalog ids differ", () => {
@@ -1039,6 +1100,107 @@ describe("VariablesPanel", () => {
       createdPoseId,
       destinationProps.id,
       0.66,
+    );
+  });
+
+  it("auto-matches pose targets by source path when one fuzzy destination match exists", () => {
+    const sourceSmile = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    const destinationSmile = makeInput(
+      "main_smile",
+      "/avatar/standard/mouth/smile",
+      {
+        label: "Main Smile",
+      },
+    );
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceSmile],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceSmile.id, value: 0.73 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationSmile, source: "custom" },
+    ];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Match Source Path" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    const createdPoseId = poseRigState.updatePoseGroup.mock.calls[0]?.[0];
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      createdPoseId,
+      destinationSmile.id,
+      0.73,
+    );
+  });
+
+  it("allows choosing current pose target value instead of reference value", () => {
+    const sourceSmile = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    const destinationSmile = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    poseRigState.poses = [
+      {
+        id: "pose_existing",
+        name: "Ref Smile",
+        description: "",
+        group: null,
+        values: {
+          [destinationSmile.id]: 0.21,
+        },
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceSmile],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceSmile.id, value: 0.73 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationSmile, source: "custom" },
+    ];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Use current pose value/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    const createdPoseId = poseRigState.updatePoseGroup.mock.calls[0]?.[0];
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      createdPoseId,
+      destinationSmile.id,
+      0.21,
     );
   });
 
