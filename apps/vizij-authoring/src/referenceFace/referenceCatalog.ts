@@ -44,6 +44,42 @@ function asFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+function parsePoseTargetValue(value: unknown): number | null {
+  const direct = asFiniteNumber(value);
+  if (direct !== null) {
+    return direct;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const floatValue = asFiniteNumber(record.float);
+  if (floatValue !== null) {
+    return floatValue;
+  }
+  const numberValue = asFiniteNumber(record.value);
+  if (numberValue !== null) {
+    return numberValue;
+  }
+  if (typeof record.float === "string") {
+    const parsedFloat = Number(record.float.trim());
+    if (Number.isFinite(parsedFloat)) {
+      return parsedFloat;
+    }
+  }
+  if (typeof record.value === "string") {
+    const parsedValue = Number(record.value.trim());
+    if (Number.isFinite(parsedValue)) {
+      return parsedValue;
+    }
+  }
+  return null;
+}
+
 function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -356,7 +392,7 @@ function extractPoseDefinitions(
         ? []
         : Object.entries(values)
             .map(([inputId, rawValue]) => {
-              const value = asFiniteNumber(rawValue);
+              const value = parsePoseTargetValue(rawValue);
               if (value === null) {
                 return null;
               }

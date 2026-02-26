@@ -23,7 +23,7 @@ interface BundleInputFixture {
 interface BundlePoseFixture {
   id: string;
   name: string;
-  values: Record<string, number>;
+  values: Record<string, unknown>;
 }
 
 interface BundleBindingFixture {
@@ -92,7 +92,7 @@ function makeBundle(params: {
           },
         }
       : null,
-  };
+  } as unknown as VizijBundleExtension;
 }
 
 describe("referenceFace catalog + mapping", () => {
@@ -187,6 +187,38 @@ describe("referenceFace catalog + mapping", () => {
       targets: [
         { inputId: "src_jaw", value: 0.4 },
         { inputId: "src_mouth", value: 1 },
+      ],
+    });
+  });
+
+  it("parses legacy wrapped and string pose target values", () => {
+    const bundle = makeBundle({
+      inputs: [
+        { id: "src_smile", path: "/controls/mouth/smile", label: "Smile" },
+        { id: "src_frown", path: "/controls/mouth/frown", label: "Frown" },
+        { id: "src_jaw", path: "/controls/jaw/open", label: "Jaw Open" },
+      ],
+      poses: [
+        {
+          id: "pose_mixed_values",
+          name: "Mixed",
+          values: {
+            src_smile: { float: 0.75 },
+            src_frown: "0.25",
+            src_jaw: { value: "0.5" },
+          },
+        },
+      ],
+    });
+
+    const catalog = extractReferenceCatalog(bundle);
+    expect(catalog.posesById.get("pose_mixed_values")).toEqual({
+      id: "pose_mixed_values",
+      name: "Mixed",
+      targets: [
+        { inputId: "src_frown", value: 0.25 },
+        { inputId: "src_jaw", value: 0.5 },
+        { inputId: "src_smile", value: 0.75 },
       ],
     });
   });

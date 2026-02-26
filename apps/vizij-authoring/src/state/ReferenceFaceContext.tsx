@@ -50,6 +50,8 @@ export interface ReferenceFaceState {
   inputValues: Record<string, number>;
   /** Handler to change an input value */
   handleInputValueChange: (inputId: string, value: number) => void;
+  /** Handler to change an input by path, even when not surfaced in runtime input catalogs */
+  handleInputPathValueChange: (inputPath: string, value: number) => void;
   /** Handler to reset all input values to defaults */
   handleResetAllInputValues: () => void;
 
@@ -81,6 +83,7 @@ const defaultState: ReferenceFaceState = {
   getReferenceCatalogLinksForInput: () => EMPTY_REFERENCE_LINKS,
   inputValues: {},
   handleInputValueChange: () => {},
+  handleInputPathValueChange: () => {},
   handleResetAllInputValues: () => {},
   onStandardInputsReady: () => {},
   onLoadingStateChange: () => {},

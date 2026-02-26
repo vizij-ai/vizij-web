@@ -61,6 +61,7 @@ const referenceFaceState = {
   isLoading: false,
   standardInputs: [] as StandardRigInput[],
   standardInputsById: new Map<string, StandardRigInput>(),
+  handleInputPathValueChange: vi.fn(),
 };
 
 const bindingState = {

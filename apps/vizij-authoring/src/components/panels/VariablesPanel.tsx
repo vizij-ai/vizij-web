@@ -1051,11 +1051,85 @@ function resolveVariableCopyDecisionValue(params: {
   return parsed;
 }
 
+function resolveReferenceCatalogInputForTarget(params: {
+  targetInputId: string;
+  referenceCatalog: ReferenceCatalog;
+}): ReferenceCatalogInput | null {
+  const byId = params.referenceCatalog.inputsById.get(params.targetInputId);
+  if (byId) {
+    return byId;
+  }
+  const normalizedTargetPath = normalizeCatalogPath(params.targetInputId);
+  if (!normalizedTargetPath) {
+    return null;
+  }
+  const byPath = params.referenceCatalog.inputsByPath.get(normalizedTargetPath);
+  if (byPath && byPath.length > 0) {
+    return byPath[0] ?? null;
+  }
+  return null;
+}
+
+function addRuntimeInputLookupToken(
+  map: Map<string, StandardRigInput[]>,
+  token: string,
+  input: StandardRigInput,
+) {
+  if (!token) {
+    return;
+  }
+  const existing = map.get(token) ?? [];
+  if (existing.some((candidate) => candidate.id === input.id)) {
+    return;
+  }
+  map.set(token, [...existing, input]);
+}
+
+function buildReferenceRuntimeLookupTokenMap(
+  runtimeInputs: readonly StandardRigInput[],
+): Map<string, StandardRigInput[]> {
+  const map = new Map<string, StandardRigInput[]>();
+  runtimeInputs.forEach((input) => {
+    const normalizedPath = normalizeStandardRigInputPath(input.path);
+    const normalizedPathWithoutLeading = normalizedPath.startsWith("/")
+      ? normalizedPath.slice(1)
+      : normalizedPath;
+    const canonicalPathToken = normalizedPathWithoutLeading.replace(/\//g, "_");
+    const tokens = new Set<string>([
+      normalizeLookupLabel(input.id),
+      normalizeLookupLabel(input.path),
+      normalizeLookupLabel(normalizedPath),
+      normalizeLookupLabel(normalizedPathWithoutLeading),
+      normalizeLookupLabel(canonicalPathToken),
+    ]);
+    tokens.forEach((token) => {
+      addRuntimeInputLookupToken(map, token, input);
+    });
+  });
+  return map;
+}
+
+function resolveUniqueRuntimeInputByLookupToken(params: {
+  value: string;
+  runtimeInputsByLookupToken: ReadonlyMap<string, StandardRigInput[]>;
+}): StandardRigInput | null {
+  const token = normalizeLookupLabel(params.value);
+  if (!token) {
+    return null;
+  }
+  const candidates = params.runtimeInputsByLookupToken.get(token) ?? [];
+  if (candidates.length === 1) {
+    return candidates[0] ?? null;
+  }
+  return null;
+}
+
 function resolveReferenceRuntimeInputForCatalogTarget(params: {
   targetInputId: string;
   referenceCatalog: ReferenceCatalog;
   runtimeInputsById: ReadonlyMap<string, StandardRigInput>;
   runtimeInputsByPath: ReadonlyMap<string, StandardRigInput[]>;
+  runtimeInputsByLookupToken: ReadonlyMap<string, StandardRigInput[]>;
 }): StandardRigInput | null {
   const directMatch = params.runtimeInputsById.get(params.targetInputId);
   if (directMatch) {
@@ -1068,9 +1142,17 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
   if (directPathCandidates.length > 0) {
     return directPathCandidates[0] ?? null;
   }
-  const catalogInput = params.referenceCatalog.inputsById.get(
-    params.targetInputId,
-  );
+  const directTokenMatch = resolveUniqueRuntimeInputByLookupToken({
+    value: params.targetInputId,
+    runtimeInputsByLookupToken: params.runtimeInputsByLookupToken,
+  });
+  if (directTokenMatch) {
+    return directTokenMatch;
+  }
+  const catalogInput = resolveReferenceCatalogInputForTarget({
+    targetInputId: params.targetInputId,
+    referenceCatalog: params.referenceCatalog,
+  });
   if (!catalogInput) {
     return null;
   }
@@ -1089,7 +1171,24 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
     (candidate) =>
       normalizeLookupLabel(candidate.label) === normalizedCatalogLabel,
   );
-  return byLabel ?? candidates[0] ?? null;
+  if (byLabel) {
+    return byLabel;
+  }
+  const byCatalogIdToken = resolveUniqueRuntimeInputByLookupToken({
+    value: catalogInput.id,
+    runtimeInputsByLookupToken: params.runtimeInputsByLookupToken,
+  });
+  if (byCatalogIdToken) {
+    return byCatalogIdToken;
+  }
+  const byCatalogPathToken = resolveUniqueRuntimeInputByLookupToken({
+    value: catalogInput.path,
+    runtimeInputsByLookupToken: params.runtimeInputsByLookupToken,
+  });
+  if (byCatalogPathToken) {
+    return byCatalogPathToken;
+  }
+  return candidates[0] ?? null;
 }
 
 function upsertBindingPipelineLinkMetadata(
@@ -2384,6 +2483,10 @@ export function VariablesPanel({
     });
     return map;
   }, [referenceFace.standardInputs]);
+  const referenceRuntimeInputsByLookupToken = useMemo(
+    () => buildReferenceRuntimeLookupTokenMap(referenceFace.standardInputs),
+    [referenceFace.standardInputs],
+  );
 
   const resolvedSelectedRigId = useMemo(() => {
     if (!selectedRigId) {
@@ -3555,18 +3658,44 @@ export function VariablesPanel({
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
+        if (referencePose.targets.length === 0) {
+          console.warn(
+            `[VariablesPanel] Reference pose "${referencePose.name}" has no targets to apply.`,
+          );
+          return;
+        }
+        const unresolvedTargets: string[] = [];
         referencePose.targets.forEach((target) => {
           const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
             targetInputId: target.inputId,
             referenceCatalog: referenceFace.referenceCatalog,
             runtimeInputsById: referenceFace.standardInputsById,
             runtimeInputsByPath: referenceRuntimeInputsByPath,
+            runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
           });
-          if (!runtimeInput) {
+          if (runtimeInput) {
+            referenceFace.handleInputValueChange(runtimeInput.id, target.value);
             return;
           }
-          referenceFace.handleInputValueChange(runtimeInput.id, target.value);
+          const catalogInput = resolveReferenceCatalogInputForTarget({
+            targetInputId: target.inputId,
+            referenceCatalog: referenceFace.referenceCatalog,
+          });
+          const fallbackPath =
+            catalogInput?.path ??
+            (target.inputId.includes("/") ? target.inputId : null);
+          if (!fallbackPath) {
+            unresolvedTargets.push(target.inputId);
+            return;
+          }
+          referenceFace.handleInputPathValueChange(fallbackPath, target.value);
         });
+        if (unresolvedTargets.length > 0) {
+          console.warn(
+            `[VariablesPanel] Unable to resolve ${unresolvedTargets.length.toString(10)} reference pose target(s) for "${referencePose.name}".`,
+            unresolvedTargets.slice(0, 25),
+          );
+        }
         return;
       }
       if (poseNodeData.source !== "main") {
@@ -3582,21 +3711,50 @@ export function VariablesPanel({
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
+        if (referencePose.targets.length === 0) {
+          console.warn(
+            `[VariablesPanel] Reference pose "${referencePose.name}" has no targets to reset.`,
+          );
+          return;
+        }
+        const unresolvedTargets: string[] = [];
         referencePose.targets.forEach((target) => {
           const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
             targetInputId: target.inputId,
             referenceCatalog: referenceFace.referenceCatalog,
             runtimeInputsById: referenceFace.standardInputsById,
             runtimeInputsByPath: referenceRuntimeInputsByPath,
+            runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
           });
-          if (!runtimeInput) {
+          if (runtimeInput) {
+            referenceFace.handleInputValueChange(
+              runtimeInput.id,
+              runtimeInput.defaultValue,
+            );
             return;
           }
-          referenceFace.handleInputValueChange(
-            runtimeInput.id,
-            runtimeInput.defaultValue,
+          const catalogInput = resolveReferenceCatalogInputForTarget({
+            targetInputId: target.inputId,
+            referenceCatalog: referenceFace.referenceCatalog,
+          });
+          const fallbackPath =
+            catalogInput?.path ??
+            (target.inputId.includes("/") ? target.inputId : null);
+          if (!fallbackPath) {
+            unresolvedTargets.push(target.inputId);
+            return;
+          }
+          referenceFace.handleInputPathValueChange(
+            fallbackPath,
+            catalogInput?.defaultValue ?? 0,
           );
         });
+        if (unresolvedTargets.length > 0) {
+          console.warn(
+            `[VariablesPanel] Unable to resolve ${unresolvedTargets.length.toString(10)} reference pose reset target(s) for "${referencePose.name}".`,
+            unresolvedTargets.slice(0, 25),
+          );
+        }
         return;
       }
       if (poseNodeData.source !== "main") {

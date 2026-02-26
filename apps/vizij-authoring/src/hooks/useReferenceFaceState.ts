@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { StandardRigInput } from "@vizij/utils";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import type { VizijBundleExtension } from "@vizij/render";
 import { extractReferenceCatalog } from "../referenceFace/referenceCatalog";
 import type {
@@ -355,6 +358,39 @@ export function useReferenceFaceState(
     [standardInputsById],
   );
 
+  const handleInputPathValueChange = useCallback(
+    (inputPath: string, value: number) => {
+      const normalizedPath = normalizeStandardRigInputPath(inputPath);
+      if (!normalizedPath || normalizedPath === "/custom/input") {
+        console.warn(
+          `[useReferenceFaceState] Invalid reference face input path: ${inputPath}`,
+        );
+        return;
+      }
+
+      const runtimeInput = standardInputs.find(
+        (input) => normalizeStandardRigInputPath(input.path) === normalizedPath,
+      );
+
+      if (runtimeInput) {
+        setInputValues((prev) => {
+          const current = prev[runtimeInput.id];
+          if (
+            typeof current === "number" &&
+            Number.isFinite(current) &&
+            Math.abs(current - value) < VALUE_EPSILON
+          ) {
+            return prev;
+          }
+          return { ...prev, [runtimeInput.id]: value };
+        });
+      }
+
+      animateValueRef.current?.(normalizedPath, value);
+    },
+    [standardInputs],
+  );
+
   const handleResetAllInputValues = useCallback(() => {
     const resetValues: Record<string, number> = {};
     for (const input of standardInputs) {
@@ -451,6 +487,7 @@ export function useReferenceFaceState(
       getReferenceCatalogLinksForInput,
       inputValues,
       handleInputValueChange,
+      handleInputPathValueChange,
       handleResetAllInputValues,
       onStandardInputsReady,
       onLoadingStateChange,
@@ -472,6 +509,7 @@ export function useReferenceFaceState(
       getReferenceCatalogLinksForInput,
       inputValues,
       handleInputValueChange,
+      handleInputPathValueChange,
       handleResetAllInputValues,
       onStandardInputsReady,
       onLoadingStateChange,

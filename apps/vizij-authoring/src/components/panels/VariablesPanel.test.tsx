@@ -143,6 +143,7 @@ const referenceFaceState = {
   getReferenceCatalogLinksForInput: vi.fn(() => []),
   inputValues: {} as Record<string, number>,
   handleInputValueChange: vi.fn(),
+  handleInputPathValueChange: vi.fn(),
   handleResetAllInputValues: vi.fn(),
   onStandardInputsReady: vi.fn(),
   onLoadingStateChange: vi.fn(),
@@ -257,6 +258,7 @@ describe("VariablesPanel", () => {
     referenceFaceState.referenceCatalog = makeReferenceCatalog([]);
     referenceFaceState.inputValues = {};
     referenceFaceState.handleInputValueChange.mockReset();
+    referenceFaceState.handleInputPathValueChange.mockReset();
     referenceFaceState.getReferenceCatalogInput.mockReset();
     referenceFaceState.getReferenceCatalogPose.mockReset();
     referenceFaceState.getReferenceCatalogLinksForInput.mockReset();
@@ -1094,6 +1096,141 @@ describe("VariablesPanel", () => {
       expect.any(Number),
     );
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("plays and resets reference poses via path fallback when runtime inputs are missing", () => {
+    const catalogInput = makeInput("legacy_smile", "/standard/mouth/smile", {
+      label: "Ref Smile Catalog",
+      defaultValue: 0.21,
+      range: { min: 0, max: 1 },
+    });
+    referenceFaceState.standardInputs = [];
+    referenceFaceState.standardInputsById = new Map();
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [catalogInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile_path_fallback",
+          name: "Ref Smile Path Fallback Pose",
+          targets: [{ inputId: catalogInput.id, value: 0.89 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile Path Fallback Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(1, catalogInput.path, 0.89);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(2, catalogInput.path, catalogInput.defaultValue);
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("plays reference poses with tokenized id matching when catalog entries are unavailable", () => {
+    const runtimeInput = makeInput("mouth_smile_value", "/mouth/smile/value", {
+      label: "Mouth Smile Runtime",
+      defaultValue: 0.11,
+      range: { min: 0, max: 1 },
+    });
+    referenceFaceState.standardInputs = [runtimeInput];
+    referenceFaceState.standardInputsById = new Map([
+      [runtimeInput.id, runtimeInput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [],
+      [],
+      [
+        {
+          id: "ref_pose_tokenized",
+          name: "Ref Tokenized Pose",
+          targets: [{ inputId: "mouth-smile-value", value: 0.6 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Tokenized Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenCalledWith(
+      runtimeInput.id,
+      0.6,
+    );
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).not.toHaveBeenCalled();
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("warns when reference pose targets cannot be resolved", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    referenceFaceState.standardInputs = [];
+    referenceFaceState.standardInputsById = new Map();
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [],
+      [],
+      [
+        {
+          id: "ref_pose_unresolved",
+          name: "Ref Unresolved Pose",
+          targets: [{ inputId: "missing_target_id", value: 0.5 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Unresolved Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Unable to resolve 1 reference pose target"),
+      ["missing_target_id"],
+    );
+    warnSpy.mockRestore();
   });
 
   it("does not write when pose copy modal is cancelled", () => {
