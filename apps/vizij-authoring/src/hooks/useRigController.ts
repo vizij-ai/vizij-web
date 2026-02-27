@@ -167,9 +167,9 @@ function isCanonicalPropsRigInputPath(
 function collectBindingInputIds(
   binding:
     | {
-        inputId?: string | null;
-        slots?: ReadonlyArray<{ inputId?: string | null }>;
-      }
+      inputId?: string | null;
+      slots?: ReadonlyArray<{ inputId?: string | null }>;
+    }
     | null
     | undefined,
 ): string[] {
@@ -733,8 +733,8 @@ export function useRigController(
         | { id: string; version: string }
         | null
         | ((
-            prev: { id: string; version: string } | null,
-          ) => { id: string; version: string } | null),
+          prev: { id: string; version: string } | null,
+        ) => { id: string; version: string } | null),
     ) => {
       setStandardInputSchema((prev) =>
         typeof schema === "function" ? schema(prev) : schema,
@@ -862,6 +862,10 @@ export function useRigController(
     sourceMap: null,
     cache: new Map(),
   });
+
+  // Track managed standard inputs to enable exact metadata reverse lookup during runtime driver matching
+  const managedStandardInputsRef = useRef<ManagedStandardInput[]>([]);
+
   const autoPlayTokenRef = useRef<string | null>(null);
 
   const [graphInputDefaults, setGraphInputDefaults] = useState<
@@ -890,7 +894,40 @@ export function useRigController(
     if (cached) {
       return cached;
     }
-    const resolved = resolveStandardRigInputId(normalized, sourceMap);
+    let resolved = resolveStandardRigInputId(normalized, sourceMap);
+    if (resolved === normalized) {
+      // String manipulation fallback
+      const propertyCandidate = `propsrig/${normalized.replace(/^\/+/, "")}`;
+      const propertyResolved = resolveStandardRigInputId(propertyCandidate, sourceMap);
+      if (propertyResolved !== propertyCandidate) {
+        resolved = propertyResolved;
+      } else {
+        // Robust reverse-lookup using metadata (mirroring animationStore exactly)
+        const parts = normalized.split(/[:/]/).map(p => p.trim().toLowerCase()).filter(Boolean);
+        if (parts.length >= 2) {
+          const [elementPart, featurePart, componentPart] = parts;
+
+          for (const d of managedStandardInputsRef.current) {
+            if (d.metadata) {
+              const rElement = d.metadata.elementId?.toLowerCase();
+              const rName = d.metadata.elementName?.toLowerCase();
+              const rFeature = d.metadata.featureKey?.toLowerCase();
+              const rComponent = d.metadata.componentKey?.toLowerCase();
+
+              const matchesElement = (rElement === elementPart) || (rName === elementPart);
+              const matchesFeature = (rFeature === featurePart);
+              const matchesComponent = !componentPart || (rComponent === componentPart);
+
+              if (matchesElement && matchesFeature && matchesComponent) {
+                resolved = d.input.id;
+                console.log(`[useRigController] Robust fallback: parsed runtime request "${normalized}" to matched driver "${d.input.id}" via metadata`);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
     cacheState.cache.set(normalized, resolved);
     return resolved;
   }, []);
@@ -1055,8 +1092,8 @@ export function useRigController(
     }
     const next: VizijPipelineMetadataV1 = hasBase
       ? ({
-          ...(pipelineMetadataV1 as Record<string, unknown>),
-        } as VizijPipelineMetadataV1)
+        ...(pipelineMetadataV1 as Record<string, unknown>),
+      } as VizijPipelineMetadataV1)
       : {};
     if (hasByInput) {
       next.byInputId = basePipelineConfigByInputId;
@@ -1470,7 +1507,7 @@ export function useRigController(
         const existingHasCustomPath =
           existingEntry &&
           normalizeStandardRigInputPath(existingEntry.input.path) !==
-            normalizeStandardRigInputPath(existingEntry.sourcePath);
+          normalizeStandardRigInputPath(existingEntry.sourcePath);
         const existingPathOverride = existingHasCustomPath
           ? existingEntry?.input.path
           : undefined;
@@ -1497,12 +1534,12 @@ export function useRigController(
           : true;
         const rangeMatchesGenerated = existingEntry
           ? existingEntry.input.range.min ===
-              existingEntry.generatedRange.min &&
-            existingEntry.input.range.max === existingEntry.generatedRange.max
+          existingEntry.generatedRange.min &&
+          existingEntry.input.range.max === existingEntry.generatedRange.max
           : true;
         const defaultMatchesGenerated = existingEntry
           ? existingEntry.input.defaultValue ===
-            existingEntry.generatedDefaultValue
+          existingEntry.generatedDefaultValue
           : true;
 
         const nextLabel = labelMatchesGenerated
@@ -1580,11 +1617,11 @@ export function useRigController(
                 : undefined,
             range:
               updatedInput.range.min !== generatedRange.min ||
-              updatedInput.range.max !== generatedRange.max
+                updatedInput.range.max !== generatedRange.max
                 ? {
-                    min: updatedInput.range.min,
-                    max: updatedInput.range.max,
-                  }
+                  min: updatedInput.range.min,
+                  max: updatedInput.range.max,
+                }
                 : undefined,
           });
         }
@@ -1728,6 +1765,10 @@ export function useRigController(
     disabledStandardInputIds,
     resolvePersistedAutoKey,
   });
+
+  useEffect(() => {
+    managedStandardInputsRef.current = managedStandardInputs;
+  }, [managedStandardInputs]);
 
   const {
     standardInputs,
@@ -1881,8 +1922,8 @@ export function useRigController(
         });
         const nextMetadata = mergePipelineMetadata(
           (existingBinding.metadata ?? undefined) as
-            | Record<string, unknown>
-            | undefined,
+          | Record<string, unknown>
+          | undefined,
           {
             directInputEnabled: true,
             overrideEnabled: false,
@@ -2144,10 +2185,10 @@ export function useRigController(
   const graphPlaybackState = "paused" as const;
   const graphPlaybackAvailable = false;
   const graphFrameRate = 0;
-  const playGraph = () => {};
-  const pauseGraph = () => {};
-  const stopGraph = () => {};
-  const stepGraph = () => {};
+  const playGraph = () => { };
+  const pauseGraph = () => { };
+  const stopGraph = () => { };
+  const stepGraph = () => { };
 
   useEffect(() => {
     graphRuntimeStore.setState({
@@ -2294,9 +2335,9 @@ export function useRigController(
         const ensured =
           component !== undefined
             ? ensureBindingStructure(
-                binding,
-                bindingTargetFromComponent(component),
-              )
+              binding,
+              bindingTargetFromComponent(component),
+            )
             : binding;
         next[key] = ensured;
         if (ensured !== binding) {
@@ -2354,6 +2395,12 @@ export function useRigController(
     },
     [graphError, graphStatus, resolveRuntimeInputId],
   );
+
+  useEffect(() => {
+    if (standardInputsById.size > 0) {
+      console.log("[useRigController] Available StandardRigInput IDs:", Array.from(standardInputsById.keys()).slice(0, 20), "Total:", standardInputsById.size);
+    }
+  }, [standardInputsById]);
 
   const handleInputValueChange = useCallback(
     (inputId: string, value: number) => {
@@ -2587,9 +2634,9 @@ export function useRigController(
                   name: renamedName ?? descriptor.name,
                   pub: descriptor.pub
                     ? {
-                        ...descriptor.pub,
-                        output: renamedOutput ?? descriptor.pub.output,
-                      }
+                      ...descriptor.pub,
+                      output: renamedOutput ?? descriptor.pub.output,
+                    }
                     : descriptor.pub,
                 } as typeof descriptor;
                 animatableChanged = true;

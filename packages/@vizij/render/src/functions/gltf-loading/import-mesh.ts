@@ -29,11 +29,11 @@ export function importMesh(
   namespaces: string[],
   colorLookup: Record<string, [string, string, boolean]>,
 ): [
-  World,
-  Record<string, AnimatableValue>,
-  string,
-  Record<string, [string, string, boolean]>,
-] {
+    World,
+    Record<string, AnimatableValue>,
+    string,
+    Record<string, [string, string, boolean]>,
+  ] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
   let newColorLookup: Record<string, [string, string, boolean]> = {};
@@ -185,7 +185,7 @@ export function importMesh(
   });
 
   const newShape: Shape = {
-    id: mesh.uuid,
+    id: mesh.name || mesh.uuid,
     name: mesh.name,
     geometry: mesh.geometry,
     material: getShapeMaterial(mesh, useEmissive),

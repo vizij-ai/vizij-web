@@ -13,6 +13,40 @@ interface RobotFeatureInfo {
   valueType?: string;
 }
 
+function extractComponentValues(
+  allValues: number[],
+  numComponents: number,
+  componentIndex: number,
+): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < allValues.length / numComponents; i++) {
+    result.push(allValues[i * numComponents + componentIndex]);
+  }
+  return result;
+}
+
+function toNumberArray(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value.map((v) => (typeof v === "number" ? v : Number(v)));
+  }
+  if (
+    value &&
+    typeof value === "object" &&
+    "buffer" in (value as any) &&
+    typeof (value as any).length === "number"
+  ) {
+    // Typed array
+    return Array.from(value as any);
+  }
+  return [];
+}
+
+interface RenderableLike {
+  renderableId: string;
+  nodeName?: string;
+  features: Record<string, RobotFeatureInfo>;
+}
+
 interface RobotNodeInfo {
   renderableId: string;
   nodeName?: string;
@@ -34,9 +68,9 @@ const CHANNEL_PATH_TO_TRACK_PROPERTY: Record<string, string> = {
 function isPlainObject(value: unknown): value is PlainObject {
   return Boolean(
     value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      Object.prototype.toString.call(value) === "[object Object]",
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.prototype.toString.call(value) === "[object Object]",
   );
 }
 
@@ -172,59 +206,102 @@ function resolveRobotNodeIndex(
       return;
     }
     const extensions = (node as any).extensions;
-    if (!extensions || typeof extensions !== "object") {
-      return;
-    }
-    const robotData = (extensions as any).RobotData;
-    if (!robotData || typeof robotData !== "object") {
-      return;
-    }
-    const renderableId =
-      typeof robotData.id === "string" ? robotData.id : undefined;
-    if (!renderableId) {
-      return;
-    }
+    const robotData = extensions?.RobotData;
+    let renderableId: string | undefined;
+    const features: Record<string, RobotFeatureInfo> = {};
     const nodeName =
       typeof (node as any).name === "string" && (node as any).name.length > 0
         ? ((node as any).name as string)
         : undefined;
-    const features: Record<string, RobotFeatureInfo> = {};
-    const robotFeatures = (robotData as any).features;
-    if (robotFeatures && typeof robotFeatures === "object") {
-      Object.entries(robotFeatures as Record<string, unknown>).forEach(
-        ([featureKey, featureValue]) => {
-          if (
-            !featureValue ||
-            typeof featureValue !== "object" ||
-            !(featureValue as any).animated
-          ) {
-            return;
+
+    if (robotData && typeof robotData === "object") {
+      renderableId = typeof robotData.id === "string" ? robotData.id : undefined;
+      const robotFeatures = (robotData as any).features;
+      if (robotFeatures && typeof robotFeatures === "object") {
+        Object.entries(robotFeatures as Record<string, unknown>).forEach(
+          ([featureKey, featureValue]) => {
+            if (
+              !featureValue ||
+              typeof featureValue !== "object" ||
+              !(featureValue as any).animated
+            ) {
+              return;
+            }
+            const value = (featureValue as any).value;
+            const componentId =
+              value && typeof value === "object" && typeof value.id === "string"
+                ? (value.id as string)
+                : undefined;
+            if (!componentId) {
+              return;
+            }
+            const valueType =
+              value && typeof value === "object" && typeof value.type === "string"
+                ? (value.type as string)
+                : undefined;
+            features[featureKey] = {
+              feature: featureKey,
+              componentId,
+              valueType,
+            };
+          },
+        );
+      }
+    } else {
+      // Fallback for standard nodes: use node name as ID and provide default features
+      // Align with importGroup/importMesh which uses group.name || group.uuid
+      // Since we don't have UUIDs here, we use nodeIndex as a secondary fallback.
+      renderableId = nodeName || `fallback:${nodeIndex}`;
+
+      features.translation = {
+        feature: "translation",
+        componentId: `${renderableId}:translation`,
+        valueType: "vector3",
+      };
+      features.rotation = {
+        feature: "rotation",
+        componentId: `${renderableId}:rotation`,
+        valueType: "euler",
+      };
+      features.scale = {
+        feature: "scale",
+        componentId: `${renderableId}:scale`,
+        valueType: "vector3",
+      };
+
+      // Handle morph targets if this node has a mesh
+      const meshIndex = (node as any).mesh;
+      if (typeof meshIndex === "number") {
+        const gltfMeshes = (parserJson as any).meshes || [];
+        const mesh = gltfMeshes[meshIndex];
+        if (mesh) {
+          const targetNames = mesh.extras?.targetNames || [];
+          const weights = mesh.weights || [];
+          const targetCount = Math.max(targetNames.length, weights.length);
+
+          if (targetCount > 0) {
+            for (let i = 0; i < targetCount; i++) {
+              const name = targetNames[i] || `morph_${i + 1}`;
+              // Sanitize to match import-geometry.ts logic (simplified)
+              const safeName = name.toLowerCase().replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || `morph_${i + 1}`;
+              features[`weights:${i}`] = {
+                feature: safeName,
+                componentId: `${renderableId}:${safeName}`,
+                valueType: "number",
+              };
+            }
           }
-          const value = (featureValue as any).value;
-          const componentId =
-            value && typeof value === "object" && typeof value.id === "string"
-              ? (value.id as string)
-              : undefined;
-          if (!componentId) {
-            return;
-          }
-          const valueType =
-            value && typeof value === "object" && typeof value.type === "string"
-              ? (value.type as string)
-              : undefined;
-          features[featureKey] = {
-            feature: featureKey,
-            componentId,
-            valueType,
-          };
-        },
-      );
+        }
+      }
     }
-    indexMap.set(nodeIndex, {
-      renderableId,
-      nodeName,
-      features,
-    });
+
+    if (renderableId) {
+      indexMap.set(nodeIndex, {
+        renderableId,
+        nodeName,
+        features,
+      });
+    }
   });
 
   return indexMap;
@@ -316,13 +393,6 @@ function resolveTrackForChannel(
   return clip.tracks.find(matches);
 }
 
-function toNumberArray(arrayLike: ArrayLike<number> | undefined): number[] {
-  if (!arrayLike) {
-    return [];
-  }
-  return Array.from(arrayLike, (value) => Number(value));
-}
-
 function resolveClipDuration(
   clip: AnimationClip | undefined,
   tracks: VizijAnimationTrackData[],
@@ -369,12 +439,14 @@ export function extractVizijAnimations(
 
   const robotNodeIndex = resolveRobotNodeIndex(parserJson);
   if (robotNodeIndex.size === 0) {
+    console.warn("[vizij-render] extractVizijAnimations: No robot nodes found in parserJson. Map size: 0");
     return animations;
   }
 
   const json = parserJson as Record<string, unknown>;
   const gltfAnimations = Array.isArray(json.animations) ? json.animations : [];
   if (gltfAnimations.length === 0) {
+    console.warn("[vizij-render] extractVizijAnimations: No animations found in parserJson.animations");
     return animations;
   }
 
@@ -405,8 +477,8 @@ export function extractVizijAnimations(
       const target = channelRecord.target;
       const nodeIndex =
         target &&
-        typeof target === "object" &&
-        typeof (target as any).node === "number"
+          typeof target === "object" &&
+          typeof (target as any).node === "number"
           ? ((target as any).node as number)
           : undefined;
       if (nodeIndex == null || !robotNodeIndex.has(nodeIndex)) {
@@ -449,36 +521,60 @@ export function extractVizijAnimations(
           ? (sampler.interpolation as string)
           : undefined;
 
-      let valueSize =
-        typeof track.getValueSize === "function"
-          ? track.getValueSize()
-          : inferValueSize(featureInfo.valueType);
-      if (!Number.isFinite(valueSize) || valueSize <= 0) {
-        valueSize = inferValueSize(featureInfo.valueType);
+      // Special handling for weights (morph targets) which can contain multiple components
+      if (propertyName === "morphTargetInfluences") {
+        const numTargets = track.getValueSize();
+        for (let i = 0; i < numTargets; i++) {
+          const weightFeature = robotNode.features[`weights:${i}`];
+          if (!weightFeature) continue;
+
+          trackData.push({
+            componentId: weightFeature.componentId,
+            feature: weightFeature.feature,
+            renderableId: robotNode.renderableId,
+            nodeIndex,
+            nodeName: robotNode.nodeName,
+            path: "weights",
+            componentIndex: i,
+            valueType: "number",
+            valueSize: 1,
+            interpolation,
+            times: toNumberArray(track.times),
+            values: extractComponentValues(toNumberArray((track as any).values), numTargets, i),
+          });
+        }
+      } else {
+        let valueSize =
+          typeof track.getValueSize === "function"
+            ? track.getValueSize()
+            : inferValueSize(featureInfo.valueType);
+        if (!Number.isFinite(valueSize) || valueSize <= 0) {
+          valueSize = inferValueSize(featureInfo.valueType);
+        }
+
+        const { component, componentIndex } = readComponentInfo(target);
+
+        trackData.push({
+          componentId: featureInfo.componentId,
+          feature: featureInfo.feature,
+          renderableId: robotNode.renderableId,
+          nodeIndex,
+          nodeName: robotNode.nodeName,
+          path:
+            target &&
+              typeof target === "object" &&
+              typeof (target as any).path === "string"
+              ? ((target as any).path as string)
+              : undefined,
+          component,
+          componentIndex,
+          valueType: featureInfo.valueType,
+          valueSize,
+          interpolation,
+          times: toNumberArray(track.times),
+          values: toNumberArray((track as any).values),
+        });
       }
-
-      const { component, componentIndex } = readComponentInfo(target);
-
-      trackData.push({
-        componentId: featureInfo.componentId,
-        feature: featureInfo.feature,
-        renderableId: robotNode.renderableId,
-        nodeIndex,
-        nodeName: robotNode.nodeName,
-        path:
-          target &&
-          typeof target === "object" &&
-          typeof (target as any).path === "string"
-            ? ((target as any).path as string)
-            : undefined,
-        component,
-        componentIndex,
-        valueType: featureInfo.valueType,
-        valueSize,
-        interpolation,
-        times: toNumberArray(track.times),
-        values: toNumberArray((track as any).values),
-      });
     });
 
     if (trackData.length === 0) {
@@ -489,7 +585,7 @@ export function extractVizijAnimations(
       id: resolveClipId(animationRecord, clip, animationIndex),
       name:
         typeof animationRecord.name === "string" &&
-        animationRecord.name.length > 0
+          animationRecord.name.length > 0
           ? (animationRecord.name as string)
           : clip?.name,
       duration: resolveClipDuration(clip, trackData),

@@ -14,15 +14,16 @@ import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 export type VariableSelection =
   | { type: "variable"; id: string }
   | {
-      type: "property";
-      objectId: string;
-      featureId: string;
-      label: string;
-      inputId?: string;
-      inputIds?: string[];
-      targetId?: string;
-      targetIds?: string[];
-    };
+    type: "property";
+    objectId: string;
+    featureId: string;
+    label: string;
+    inputId?: string;
+    inputIds?: string[];
+    targetId?: string;
+    targetIds?: string[];
+    labels?: string[];
+  };
 
 interface VariableSelectorProps {
   onSelect: (selection: VariableSelection) => void;
@@ -795,21 +796,21 @@ function InputList({
       const propertyTypeKey =
         mode === "properties"
           ? derivePropertyTypeKey({
-              metadataFeatureKey: metadata?.featureKey,
-              metadataFeatureLabel: metadata?.featureLabel,
-              displayPath,
-            })
+            metadataFeatureKey: metadata?.featureKey,
+            metadataFeatureLabel: metadata?.featureLabel,
+            displayPath,
+          })
           : undefined;
       const propertyLeafKey =
         mode === "properties"
           ? derivePropertyLeafKey({
-              metadataComponentKey:
-                metadata?.componentKey !== undefined
-                  ? String(metadata.componentKey)
-                  : undefined,
-              displayPath,
-              label,
-            })
+            metadataComponentKey:
+              metadata?.componentKey !== undefined
+                ? String(metadata.componentKey)
+                : undefined,
+            displayPath,
+            label,
+          })
           : undefined;
 
       if (
@@ -854,14 +855,14 @@ function InputList({
       const targetText =
         mode === "properties"
           ? [
-              componentId,
-              metadata?.animatableId,
-              metadata?.featureKey,
-              propertyTypeKey,
-              propertyLeafKey,
-            ]
-              .filter(Boolean)
-              .join(" ")
+            componentId,
+            metadata?.animatableId,
+            metadata?.featureKey,
+            propertyTypeKey,
+            propertyLeafKey,
+          ]
+            .filter(Boolean)
+            .join(" ")
           : variableTargetText;
 
       const disabledByTargetLock =
@@ -983,8 +984,8 @@ function InputList({
     () =>
       mode === "properties"
         ? groups
-            .flatMap((group) => group.rows)
-            .filter((row) => Boolean(row.targetId) && !row.disabled)
+          .flatMap((group) => group.rows)
+          .filter((row) => Boolean(row.targetId) && !row.disabled)
         : [],
     [groups, mode],
   );
@@ -1101,20 +1102,16 @@ function InputList({
     if (selectedRows.length === 0) {
       return;
     }
-    const ordered = Array.from(
-      new Set(
-        selectedRows
-          .map((row) => row.targetId)
-          .filter((targetId): targetId is string => Boolean(targetId)),
-      ),
-    ).sort(compareText);
-    const selectedInputIds = Array.from(
-      new Set(selectedRows.map((row) => row.id)),
-    ).sort(compareText);
-    if (ordered.length === 1) {
-      const singleRow = filteredPropertyRows.find(
-        (row) => row.targetId === ordered[0],
-      );
+    const uniqueSelectedRows = Array.from(
+      new Map(selectedRows.map((row) => [row.id, row])).values()
+    ).sort((a, b) => compareText(a.id, b.id));
+
+    const selectedInputIds = uniqueSelectedRows.map((row) => row.id);
+    const selectedTargetIds = uniqueSelectedRows.map((row) => row.targetId as string);
+    const selectedLabels = uniqueSelectedRows.map((row) => row.selectionLabel ?? row.label);
+
+    if (uniqueSelectedRows.length === 1) {
+      const singleRow = uniqueSelectedRows[0];
       if (singleRow?.targetId) {
         onSelect({
           type: "property",
@@ -1132,9 +1129,10 @@ function InputList({
       type: "property",
       objectId: "propsrig",
       featureId: "propsrig",
-      label: `Selected Properties (${ordered.length})`,
+      label: `Selected Properties (${uniqueSelectedRows.length})`,
       inputIds: selectedInputIds,
-      targetIds: ordered,
+      targetIds: selectedTargetIds,
+      labels: selectedLabels,
     });
   };
 

@@ -1,5 +1,5 @@
-import * as THREE from "three";
-import type { AnimationClip, Group } from "three";
+import type { AnimationClip } from "three";
+import { Group } from "three";
 import type { GLTF } from "three-stdlib";
 import { GLTFLoader, DRACOLoader } from "three-stdlib";
 import type { AnimatableValue, RawVector2 } from "@vizij/utils";
@@ -9,7 +9,7 @@ import { traverseThree } from "./gltf-loading/traverse-three";
 import { extractVizijBundle } from "./vizij-bundle";
 import { extractVizijAnimations } from "./gltf-loading/extract-animations";
 
-THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+// No changes needed to traverseThree, it already uses Group
 
 export class EmptyModelError extends Error {
   constructor(message: string) {
@@ -124,9 +124,9 @@ function parseScene(
   aggressiveImport: boolean,
   rootBounds?:
     | {
-        center: RawVector2;
-        size: RawVector2;
-      }
+      center: RawVector2;
+      size: RawVector2;
+    }
     | undefined,
   parserJson?: unknown,
   clips?: AnimationClip[] | undefined,

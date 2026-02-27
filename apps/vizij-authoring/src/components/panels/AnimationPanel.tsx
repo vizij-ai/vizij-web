@@ -7,7 +7,10 @@ import {
   Plus,
   Settings2,
   Trash2,
+  Download,
+  Boxes,
 } from "lucide-react";
+import { useVizijStore } from "@vizij/render";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
@@ -18,22 +21,47 @@ import {
   type VariableSelection,
 } from "../inspector/VariableSelector";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { usePoseRigAuthoring } from "../../poseRig/usePoseRigAuthoring";
+import { AnimationPoseService } from "../../services/AnimationPoseService";
+import { PoseSnapshotService } from "../../poseRig/services/poseSnapshotService";
+
+
 
 export function AnimationPanel() {
+  const isDev = process.env.NODE_ENV !== "production";
   const {
+    animations,
+    activeAnimationId,
+    selectAnimation,
+    createAnimation,
     isPlaying,
     play,
     pause,
     currentTime,
-    duration,
     tick,
-    tracks,
-    addTrack,
-    removeTrack,
+    playSpeed,
+    setPlaySpeed,
     selectedTrackId,
     selectedKeyframeId,
+    addTrack,
+    removeTrack,
     updateKeyframe,
+    importExternalAnimations,
   } = useAnimationStore();
+
+  const activeAnimation = activeAnimationId ? animations[activeAnimationId] : null;
+  const tracks = activeAnimation?.tracks || [];
+  const duration = activeAnimation?.duration || 10;
+
+  const glbAnimations = useVizijStore((state) => state.animations);
+  console.log("AnimationPanel: glbAnimations", glbAnimations);
+  const poseRigAuthoring = usePoseRigAuthoring({
+    faceId: null, // These are usually provided by a parent or another hook, but we only need the actions
+    rootId: null,
+    standardInputs: [],
+    inputValues: {},
+    onInputValueChange: () => { },
+  });
 
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
@@ -68,14 +96,19 @@ export function AnimationPanel() {
 
   // Apply values to scene
   useEffect(() => {
-    // We run this effect whenever currentTime or tracks change
-    // In a real app we might want to do this inside the tick function or a subscriber
-    // to avoid React render overhead, but for now this is fine.
-    tracks.forEach((track) => {
-      const val = evaluateTrack(track, currentTime);
-      handleInputValueChange(track.variableId, val);
-    });
-  }, [currentTime, tracks, handleInputValueChange]);
+    if (tracks.length > 0 && currentTime >= 0) {
+      if (isDev && isPlaying && Math.floor(currentTime * 10) % 5 === 0) {
+        console.log(`[AnimationPanel] Playing t=${currentTime.toFixed(2)}s, tracks=${tracks.length}`);
+      }
+      tracks.forEach((track, i) => {
+        const val = evaluateTrack(track, currentTime);
+        if (isDev && isPlaying && Math.floor(currentTime * 10) % 10 === 0 && i < 3) {
+          console.log(`[AnimationPanel] Apply: ${track.variableId} = ${val.toFixed(3)}`);
+        }
+        handleInputValueChange(track.variableId, val);
+      });
+    }
+  }, [currentTime, tracks, handleInputValueChange, isPlaying]);
 
   const formatTime = (t: number) => {
     const mins = Math.floor(t / 60);
@@ -84,24 +117,57 @@ export function AnimationPanel() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}:${ms.toString().padStart(2, "0")}`;
   };
 
-  const handleAddVariable = (selection: VariableSelection) => {
-    setShowVariableSelector(false);
-    if (selection.type === "variable") {
-      addTrack(selection.id);
-    } else if (selection.type === "property") {
-      // For properties we might need to find the underlying input ID or create one?
-      // The variable selector usually returns IDs that are already inputs for "variable" type.
-      // For "property", it gives objectId/featureId.
-      // For this MVP, let's assume we can map it or just support variables.
-      // Actually `VariableController` handles creation of custom inputs for properties.
-      // We'll skip complex property creation for this step and focus on existing inputs.
-      // Or better, we can assume the user selecting a property expects us to create an input?
-      // Let's just alert for now if it's complex, or try to use the raw ID if it matches an input.
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const managedStandardInputs = useBindingAuthoring((state) => state.managedStandardInputs);
 
-      // Simple fallback:
-      console.warn(
-        "Direct property animation not fully implemented yet, select an existing variable.",
-      );
+  const handleAddVariable = (selection: VariableSelection) => {
+    console.log("[AnimationPanel] handleAddVariable selection:", selection);
+    setShowVariableSelector(false);
+
+    if (selection.type === "variable") {
+      if (activeAnimationId) {
+        addTrack(activeAnimationId, { variableId: selection.id });
+      } else {
+        console.warn("[AnimationPanel] No active animation to add track to.");
+      }
+    } else if (selection.type === "property") {
+      const addMappedTrack = (inputId: string, targetId: string | undefined, originalLabel: string) => {
+        const binding = targetId ? inputBindings[targetId] : undefined;
+        let mappedId = inputId;
+        let mappedLabel = originalLabel;
+
+        if (binding && binding.inputId && binding.inputId !== "__self__") {
+          mappedId = binding.inputId;
+          const driver = managedStandardInputs.find((d) => d.input.id === mappedId);
+          mappedLabel = driver ? driver.input.label : `${originalLabel} (Driver)`;
+          console.log(`[AnimationPanel] Mapped property ${inputId} to driver ${mappedId}`);
+        } else {
+          console.warn(
+            `[AnimationPanel] Property ${inputId} does not have an active driver binding. Animation may not play in graph context.`,
+          );
+        }
+
+        if (activeAnimationId) {
+          addTrack(activeAnimationId, { variableId: mappedId, label: mappedLabel });
+        } else {
+          console.warn("[AnimationPanel] No active animation to add track to.");
+        }
+      };
+
+      if (selection.inputIds && selection.targetIds) {
+        // Handle multiple properties
+        selection.inputIds.forEach((inputId, index) => {
+          const targetId = selection.targetIds?.[index];
+          const trackLabel = selection.labels?.[index] || selection.label;
+          addMappedTrack(inputId, targetId, trackLabel);
+        });
+      } else if (selection.inputId) {
+        addMappedTrack(selection.inputId, selection.targetId, selection.label);
+      } else {
+        console.warn(
+          "Direct property animation not fully implemented yet, select an existing variable.",
+        );
+      }
     }
   };
 
@@ -111,8 +177,53 @@ export function AnimationPanel() {
     }
   };
 
+  const handleExtractPoses = () => {
+    if (tracks.length === 0) return;
+    const timestamps = AnimationPoseService.getUniqueTimestamps(tracks);
+    timestamps.forEach((t, i) => {
+      const values = AnimationPoseService.evaluateAtTime(tracks, t);
+      const pose = PoseSnapshotService.capture(values, poseRigAuthoring.neutralInputs, {
+        name: `Extracted ${i + 1} (${t.toFixed(2)}s)`,
+      });
+      poseRigAuthoring.importPoseConfigFromData({
+        ...poseRigAuthoring.poseConfigDraft!,
+        poses: [...poseRigAuthoring.poses, pose],
+      });
+    });
+  };
+
+  const handleCreateAnimation = () => {
+    const name = window.prompt("Animation Name", "New Animation");
+    if (name) {
+      createAnimation(name);
+    }
+  };
+
   const actions = (
     <div className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
+        onClick={() => {
+          console.log(`[AnimationPanel] Importing ${glbAnimations.length} animations`);
+          importExternalAnimations(glbAnimations);
+        }}
+        disabled={glbAnimations.length === 0}
+        title="Import Animations from GLB"
+      >
+        <Download className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
+        onClick={handleExtractPoses}
+        disabled={tracks.length === 0}
+        title="Extract Keyframes as Poses"
+      >
+        <Boxes className="h-3.5 w-3.5" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"
@@ -183,6 +294,48 @@ export function AnimationPanel() {
 
           <div className="h-6 w-px bg-zinc-800/50 mx-2" />
 
+          {/* Animation Selector */}
+          <div className="flex items-center gap-1">
+            <select
+              className="bg-zinc-900 text-zinc-300 text-[10px] h-6 px-2 rounded-md border border-zinc-800 outline-none focus:border-blue-500 transition-colors cursor-pointer min-w-[120px]"
+              value={activeAnimationId || ""}
+              onChange={(e) => selectAnimation(e.target.value)}
+            >
+              {Object.values(animations).map((anim) => (
+                <option key={anim.id} value={anim.id}>
+                  {anim.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-zinc-500 hover:text-zinc-200 ml-1"
+              onClick={handleCreateAnimation}
+              title="Create New Animation"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+
+          <div className="h-6 w-px bg-zinc-800/50 mx-2" />
+
+          {/* Time Scale Control */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-tight">Time Scale</span>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              max="10"
+              className="bg-zinc-900 text-zinc-300 text-[10px] h-6 w-12 px-1 rounded-md border border-zinc-800 outline-none focus:border-blue-500 transition-colors text-center"
+              value={playSpeed}
+              onChange={(e) => setPlaySpeed(parseFloat(e.target.value) || 1)}
+            />
+          </div>
+
+          <div className="h-6 w-px bg-zinc-800/50 mx-2" />
+
           <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-800/50">
             <div className="flex items-baseline gap-1 font-mono text-zinc-300">
               <span className="text-sm font-bold tracking-tight">
@@ -216,12 +369,11 @@ export function AnimationPanel() {
         {selectedTrackId &&
           selectedKeyframeId &&
           (() => {
-            const track = tracks.find((t) => t.id === selectedTrackId);
-            const keyframe = track?.keyframes.find(
-              (k) => k.id === selectedKeyframeId,
+            const keyframe = tracks.find((t: any) => t.id === selectedTrackId)?.keyframes.find(
+              (k: any) => k.id === selectedKeyframeId,
             );
 
-            if (!track || !keyframe) return null;
+            if (!keyframe) return null;
 
             return (
               <div className="bg-zinc-900/80 border-t border-zinc-800 p-2 grid grid-cols-2 gap-4 backdrop-blur-sm">
@@ -235,7 +387,7 @@ export function AnimationPanel() {
                     className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
                     value={keyframe.time}
                     onChange={(e) =>
-                      updateKeyframe(track.id, keyframe.id, {
+                      updateKeyframe(selectedTrackId, keyframe.id, {
                         time: parseFloat(e.target.value),
                       })
                     }
@@ -251,7 +403,7 @@ export function AnimationPanel() {
                     className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
                     value={keyframe.value}
                     onChange={(e) =>
-                      updateKeyframe(track.id, keyframe.id, {
+                      updateKeyframe(selectedTrackId, keyframe.id, {
                         value: parseFloat(e.target.value),
                       })
                     }

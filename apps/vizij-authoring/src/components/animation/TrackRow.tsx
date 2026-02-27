@@ -4,6 +4,7 @@ import {
   useAnimationStore,
 } from "../../state/animationStore";
 import { cn } from "../../utils/cn";
+import { useVizijStore, type World } from "@vizij/render";
 
 interface TrackRowProps {
   track: AnimationTrack;
@@ -14,16 +15,42 @@ export function TrackRow({ track, duration }: TrackRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { selectKeyframe, selectedKeyframeId, selectTrack, selectedTrackId } =
     useAnimationStore();
+  const updateElementSelection = useVizijStore(
+    (state) => state.updateElementSelection,
+  );
+  const world = useVizijStore((state) => state.world) as World;
 
   const handleTrackClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     selectTrack(track.id);
+    const renderable = track.renderableId ? world[track.renderableId] : undefined;
+    if (track.renderableId && renderable) {
+      updateElementSelection(
+        {
+          id: track.renderableId,
+          namespace: (renderable as any).namespace || "default",
+          type: renderable.type as any, // "group", "shape", etc.
+        },
+        [track.renderableId]
+      );
+    }
   };
 
   const handleKeyframeClick = (e: React.MouseEvent, kfId: string) => {
     e.stopPropagation();
     selectKeyframe(kfId);
     selectTrack(track.id);
+    const renderable = track.renderableId ? world[track.renderableId] : undefined;
+    if (track.renderableId && renderable) {
+      updateElementSelection(
+        {
+          id: track.renderableId,
+          namespace: (renderable as any).namespace || "default",
+          type: renderable.type as any,
+        },
+        [track.renderableId]
+      );
+    }
   };
 
   const isSelected = selectedTrackId === track.id;

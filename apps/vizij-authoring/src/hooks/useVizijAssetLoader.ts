@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LoadedVizijAsset, VizijBundleExtension } from "@vizij/render";
+import type { LoadedVizijAsset, VizijBundleExtension, VizijAnimationClipData } from "@vizij/render";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import { findRootId } from "../utils/world";
 import { waitForNextFrame } from "../utils/frame";
@@ -314,6 +314,7 @@ function updateFaceLoadStatus(
 }
 
 export function useVizijAssetLoader() {
+  const setVizij = useVizijStore((state) => state.setVizij);
   const addWorldElements = useVizijStore((state) => state.addWorldElements);
   const setStoreState = useVizijStoreSetter();
 
@@ -323,6 +324,7 @@ export function useVizijAssetLoader() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<VizijBundleExtension | null>(null);
+  const animations = useVizijStore((state) => state.animations);
   const [exportSceneRoot, setExportSceneRoot] = useState<unknown>(null);
   const [faceLoadProgress, setFaceLoadProgress] = useState(0);
   const [faceLoadSteps, setFaceLoadSteps] = useState<FaceLoadStep[]>(
@@ -720,8 +722,8 @@ export function useVizijAssetLoader() {
           if (existingStep) {
             const existingSubstep = update.substepId
               ? existingStep.substeps.find(
-                  (substep) => substep.id === update.substepId,
-                )
+                (substep) => substep.id === update.substepId,
+              )
               : undefined;
             const stepStatusMatches = existingStep.status === update.status;
             const substepStatusMatches = update.substepId
@@ -735,22 +737,22 @@ export function useVizijAssetLoader() {
         const next = hasStep
           ? previous
           : [
-              ...previous,
-              {
-                id: update.stepId,
-                label: update.label ?? update.stepId,
-                status: "pending" as FaceLoadStepStatus,
-                substeps: update.substepId
-                  ? [
-                      {
-                        id: update.substepId,
-                        label: update.substepLabel ?? update.substepId,
-                        status: "pending" as FaceLoadStepStatus,
-                      },
-                    ]
-                  : [],
-              } satisfies FaceLoadStep,
-            ];
+            ...previous,
+            {
+              id: update.stepId,
+              label: update.label ?? update.stepId,
+              status: "pending" as FaceLoadStepStatus,
+              substeps: update.substepId
+                ? [
+                  {
+                    id: update.substepId,
+                    label: update.substepLabel ?? update.substepId,
+                    status: "pending" as FaceLoadStepStatus,
+                  },
+                ]
+                : [],
+            } satisfies FaceLoadStep,
+          ];
 
         return updateFaceLoadStatus(next, {
           stepId: update.stepId,
@@ -801,8 +803,10 @@ export function useVizijAssetLoader() {
           world: worldData,
           animatables,
           bundle: loadedBundle,
+          animations: loadedAnimations,
           scene,
         } = await loader();
+        console.log("useVizijAssetLoader: loadedAnimations", loadedAnimations);
         await waitForNextFrame();
 
         setFaceLoadSteps((previous) =>
@@ -917,6 +921,7 @@ export function useVizijAssetLoader() {
         setRootId(nextRootId);
         setSourceName(label);
         setBundle(loadedBundle ?? null);
+        setVizij(worldData, animatables, loadedAnimations ?? []);
         setExportSceneRoot(scene ?? null);
         await waitForNextFrame();
 
@@ -942,6 +947,7 @@ export function useVizijAssetLoader() {
         setError(message);
         console.error("demo-vizij-render: failed to load Vizij", err);
         setBundle(null);
+        setVizij({}, {}, []);
         setExportSceneRoot(null);
         markImportFlowError(activeStepId);
       } finally {
@@ -985,6 +991,7 @@ export function useVizijAssetLoader() {
     setAssetUrl("");
     setError(null);
     setBundle(null);
+    setVizij({}, {}, []);
     setExportSceneRoot(null);
     setFaceLoadProgress(0);
     setFaceLoadSteps(createDefaultFaceLoadSteps());
@@ -1005,8 +1012,8 @@ export function useVizijAssetLoader() {
         | VizijBundleExtension
         | null
         | ((
-            previous: VizijBundleExtension | null,
-          ) => VizijBundleExtension | null),
+          previous: VizijBundleExtension | null,
+        ) => VizijBundleExtension | null),
     ) => {
       if (typeof updater === "function") {
         setBundle((previous) =>
@@ -1055,6 +1062,7 @@ export function useVizijAssetLoader() {
     loadFromFile,
     loadFromUrl,
     bundle,
+    animations,
     exportSceneRoot,
     updateBundle,
   };

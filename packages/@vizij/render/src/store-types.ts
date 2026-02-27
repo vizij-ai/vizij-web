@@ -4,7 +4,7 @@ import type { Group, Mesh } from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { RawValue, AnimatableValue } from "@vizij/utils";
-import type { World, Selection, RenderableFeature } from "./types";
+import type { World, Selection, RenderableFeature, VizijAnimationClipData } from "./types";
 
 export interface VizijData {
   world: World;
@@ -18,6 +18,7 @@ export interface VizijData {
   elementSelection: Selection[];
   hoveredElement: Selection | null;
   slotConfig: Record<string, string>;
+  animations: VizijAnimationClipData[];
 }
 
 export interface VizijActions {
@@ -37,6 +38,7 @@ export interface VizijActions {
   setVizij: (
     scene: World,
     animatables: Record<string, AnimatableValue>,
+    animations?: VizijAnimationClipData[],
   ) => void;
   setSlot: (
     parentId: string,
@@ -49,6 +51,7 @@ export interface VizijActions {
   addWorldElements: (
     world: World,
     animatables: Record<string, AnimatableValue>,
+    animations?: VizijAnimationClipData[],
     replace?: boolean,
   ) => void;
   setPreferences: (preferences: Partial<VizijData["preferences"]>) => void;
@@ -101,8 +104,8 @@ export type VizijStoreSetter = (
     | (VizijData & VizijActions)
     | Partial<VizijData & VizijActions>
     | ((
-        state: VizijData & VizijActions,
-      ) => (VizijData & VizijActions) | Partial<VizijData & VizijActions>),
+      state: VizijData & VizijActions,
+    ) => (VizijData & VizijActions) | Partial<VizijData & VizijActions>),
   replace?: false | undefined,
 ) => void;
 

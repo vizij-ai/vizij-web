@@ -18,7 +18,7 @@ import type {
 } from "./store-types";
 import { createAnimatable } from "./functions/create-animatable";
 import type { RenderableFeature } from "./types/renderable-feature";
-import type { StaticFeature, GroupFeature, Selection } from "./types";
+import type { StaticFeature, GroupFeature, Selection, VizijAnimationClipData } from "./types";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
@@ -29,6 +29,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   animatables: {},
   values: new Map(),
   renderHit: false,
+  animations: [],
   preferences: {
     damping: false,
   },
@@ -356,23 +357,34 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => {
+  setVizij: (
+    scene: World,
+    animatables: Record<string, AnimatableValue>,
+    animations: VizijAnimationClipData[] = [],
+  ) => {
+    console.log("VizijStore: setVizij animations", animations);
     set({
       world: scene,
       animatables,
+      animations,
     });
   },
   addWorldElements(
     world: World,
     animatables: Record<string, AnimatableValue>,
-    replace?: boolean,
+    animationsOrReplace?: VizijAnimationClipData[] | boolean,
+    maybeReplace?: boolean,
   ) {
-    if (replace) {
-      set({ world, animatables });
+    const isReplace = typeof animationsOrReplace === "boolean" ? animationsOrReplace : maybeReplace;
+    const animations = Array.isArray(animationsOrReplace) ? animationsOrReplace : [];
+
+    if (isReplace) {
+      set({ world, animatables, animations });
     } else {
       set((state) => ({
         world: { ...state.world, ...world },
         animatables: { ...state.animatables, ...animatables },
+        animations: [...(state.animations || []), ...animations],
       }));
     }
   },

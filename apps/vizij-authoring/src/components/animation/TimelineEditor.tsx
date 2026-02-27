@@ -4,8 +4,8 @@ import { TrackRow } from "./TrackRow";
 
 export function TimelineEditor() {
   const {
-    tracks,
-    duration,
+    animations,
+    activeAnimationId,
     currentTime,
     seek,
     addKeyframe,
@@ -13,6 +13,10 @@ export function TimelineEditor() {
     selectTrack,
     selectKeyframe,
   } = useAnimationStore();
+
+  const activeAnimation = activeAnimationId ? animations[activeAnimationId] : null;
+  const tracks = activeAnimation?.tracks || [];
+  const duration = activeAnimation?.duration || 10;
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);

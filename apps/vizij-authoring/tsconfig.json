@@ -7,14 +7,27 @@
     "strict": true,
     "skipLibCheck": true,
     "paths": {
-      "three": ["../../node_modules/three"],
+      "three": [
+        "../../node_modules/three"
+      ],
       "@vizij/node-graph-authoring": [
         "../../packages/@vizij/node-graph-authoring/src/index.ts"
       ],
-      "@vizij/utils": ["../../packages/@vizij/utils/src/index.ts"],
-      "@vizij/utils/*": ["../../packages/@vizij/utils/src/*"],
-      "@vizij/authoring-shared": ["./src/shared/index.ts"],
-      "@vizij/authoring-shared/*": ["./src/shared/*"],
+      "@vizij/utils": [
+        "../../packages/@vizij/utils/src/index.ts"
+      ],
+      "@vizij/utils/*": [
+        "../../packages/@vizij/utils/src/*"
+      ],
+      "@vizij/render": [
+        "../../packages/@vizij/render/src/index.tsx"
+      ],
+      "@vizij/authoring-shared": [
+        "./src/shared/index.ts"
+      ],
+      "@vizij/authoring-shared/*": [
+        "./src/shared/*"
+      ],
       "@vizij/node-graph-wasm/metadata": [
         "../../packages/@vizij/node-graph-authoring/src/metadata-shim.d.ts"
       ]

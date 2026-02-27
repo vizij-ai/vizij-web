@@ -21,11 +21,11 @@ export function importGroup(
     size: RawVector2;
   },
 ): [
-  World,
-  Record<string, AnimatableValue>,
-  string,
-  Record<string, [string, string, boolean]>,
-] {
+    World,
+    Record<string, AnimatableValue>,
+    string,
+    Record<string, [string, string, boolean]>,
+  ] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
   let newColorLookup: Record<string, [string, string, boolean]> = {};
@@ -100,7 +100,7 @@ export function importGroup(
   });
 
   const newGroup: VizijGroup = {
-    id: group.uuid,
+    id: group.name || group.uuid,
     name: group.name,
     type: "group",
     tags: [],
