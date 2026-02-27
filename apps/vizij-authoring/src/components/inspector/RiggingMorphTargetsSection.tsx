@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
@@ -34,6 +34,12 @@ export function RiggingMorphTargetsSection({
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
   );
+  const lockedInspectorTargetIds = useBindingAuthoring(
+    (state) => state.lockedInspectorTargetIds,
+  );
+  const handleSetInspectorTargetLocked = useBindingAuthoring(
+    (state) => state.handleSetInspectorTargetLocked,
+  );
 
   const {
     updateAnimatableDescriptor,
@@ -68,14 +74,81 @@ export function RiggingMorphTargetsSection({
     return node.features.filter((f) => keys.has(f.key.trim().toLowerCase()));
   }, [morphTargetKeys, node.features]);
 
+  const lockableMorphTargetIds = useMemo(() => {
+    const targetIds = new Set<string>();
+    morphFeatures.forEach((feature) => {
+      feature.components.forEach((component) => {
+        const targetId = component.targetId?.trim();
+        if (targetId) {
+          targetIds.add(targetId);
+        }
+      });
+    });
+    return Array.from(targetIds);
+  }, [morphFeatures]);
+
+  const lockedMorphTargetCount = useMemo(
+    () =>
+      lockableMorphTargetIds.reduce(
+        (count, targetId) =>
+          lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
+        0,
+      ),
+    [lockableMorphTargetIds, lockedInspectorTargetIds],
+  );
+  const hasLockableMorphTargets = lockableMorphTargetIds.length > 0;
+  const areAllMorphTargetsLocked =
+    hasLockableMorphTargets &&
+    lockedMorphTargetCount === lockableMorphTargetIds.length;
+
+  const applyMorphTargetLockState = useCallback(
+    (locked: boolean) => {
+      if (lockableMorphTargetIds.length === 0) {
+        return;
+      }
+      lockableMorphTargetIds.forEach((targetId) => {
+        handleSetInspectorTargetLocked(targetId, locked);
+      });
+    },
+    [handleSetInspectorTargetLocked, lockableMorphTargetIds],
+  );
+
   if (morphFeatures.length === 0) {
     return null;
   }
 
   return (
     <div className="flex flex-col gap-0.5 p-1.5 bg-zinc-900/40 rounded-lg border border-zinc-800/50 mt-0.5">
-      <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5 px-0.5">
-        Morph Targets
+      <div className="mb-0.5 flex items-center justify-between gap-1 px-0.5">
+        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">
+          Morph Targets
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className={cn(
+              "rounded p-0.5 transition-colors",
+              "text-zinc-500 hover:text-amber-300 hover:bg-amber-500/15",
+            )}
+            title="Lock All Morph Targets"
+            disabled={!hasLockableMorphTargets || areAllMorphTargetsLocked}
+            onClick={() => applyMorphTargetLockState(true)}
+          >
+            <Lock size={10} />
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "rounded p-0.5 transition-colors",
+              "text-zinc-500 hover:text-accent hover:bg-accent/15",
+            )}
+            title="Unlock All Morph Targets"
+            disabled={!hasLockableMorphTargets || lockedMorphTargetCount === 0}
+            onClick={() => applyMorphTargetLockState(false)}
+          >
+            <LockOpen size={10} />
+          </button>
+        </div>
       </div>
 
       {morphFeatures.map((feature) => (

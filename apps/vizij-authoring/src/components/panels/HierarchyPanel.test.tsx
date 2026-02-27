@@ -73,6 +73,28 @@ function createLockableFeatures(
   ];
 }
 
+function createFeature(
+  key: string,
+  targetIds: string[],
+): SceneObjectNode["features"][number] {
+  return {
+    id: `feature_${key}`,
+    key,
+    label: key,
+    defaultLabel: key,
+    type: "number",
+    animated: true,
+    elementId: "shape",
+    elementName: "Shape",
+    elementType: "shape",
+    components: targetIds.map((targetId, index) => ({
+      id: `${key}_component_${index}`,
+      label: `C${index}`,
+      targetId,
+    })),
+  } as SceneObjectNode["features"][number];
+}
+
 function createSceneComposerMock(objects: SceneObjectNode[]) {
   const byId = new Map(objects.map((node) => [node.id, node]));
 
@@ -421,5 +443,81 @@ describe("HierarchyPanel", () => {
 
     expect(screen.getByTitle("Locked properties: 1/2")).toBeTruthy();
     expect(screen.getByText("1/2")).toBeTruthy();
+  });
+
+  it("applies smart transform locks across all face elements", () => {
+    const composer = createSceneComposerMock([
+      {
+        id: "shape_a",
+        name: "Shape A",
+        type: "shape",
+        parentId: null,
+        childIds: [],
+        features: [
+          createFeature("translation", ["shape_a:translation:x"]),
+          createFeature("color", ["shape_a:color:r"]),
+          createFeature("smile", ["shape_a:morph:smile"]),
+          createFeature("opacity", ["shape_a:opacity"]),
+        ],
+      },
+      {
+        id: "shape_b",
+        name: "Shape B",
+        type: "shape",
+        parentId: null,
+        childIds: [],
+        features: [
+          createFeature("rotation", ["shape_b:rotation:y"]),
+          createFeature("color", ["shape_b:color:r"]),
+          createFeature("jaw_open", ["shape_b:morph:jaw_open"]),
+        ],
+      },
+    ]);
+    mockUseSceneComposer.mockReturnValue(composer);
+    selectionStack = [
+      { id: "shape_a", namespace: DEFAULT_NAMESPACE, type: "shape" },
+    ];
+    lockedInspectorTargetIds = new Set([
+      "shape_a:color:r",
+      "shape_a:morph:smile",
+      "shape_b:color:r",
+      "shape_b:morph:jaw_open",
+    ]);
+
+    renderPanel();
+
+    fireEvent.click(
+      screen.getByTitle("Apply Smart Transform Locks (all face elements)"),
+    );
+
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledTimes(6);
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledWith(
+      "shape_a:translation:x",
+      true,
+    );
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledWith(
+      "shape_b:rotation:y",
+      true,
+    );
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledWith(
+      "shape_a:color:r",
+      false,
+    );
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledWith(
+      "shape_a:morph:smile",
+      false,
+    );
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledWith(
+      "shape_b:color:r",
+      false,
+    );
+    expect(handleSetInspectorTargetLocked).toHaveBeenCalledWith(
+      "shape_b:morph:jaw_open",
+      false,
+    );
+    expect(handleSetInspectorTargetLocked).not.toHaveBeenCalledWith(
+      "shape_a:opacity",
+      expect.anything(),
+    );
   });
 });

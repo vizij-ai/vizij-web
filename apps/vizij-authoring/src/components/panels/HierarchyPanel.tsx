@@ -6,7 +6,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { Popover as BasePopover } from "@base-ui/react";
-import { Box, Folder, Lock, Search, Unlock } from "lucide-react";
+import { Box, Folder, Lock, Plus, Search, Unlock } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
@@ -67,6 +67,15 @@ function collectLockableTargetIdsForNode(
   });
   return Array.from(ids);
 }
+
+const TRANSFORM_FEATURE_KEYS = new Set(["translation", "rotation", "scale"]);
+const KNOWN_NON_MORPH_FEATURE_KEYS = new Set([
+  "translation",
+  "rotation",
+  "scale",
+  "opacity",
+  "color",
+]);
 
 export function HierarchyPanel({
   allowEditActions = true,
@@ -206,6 +215,56 @@ export function HierarchyPanel({
     selectedLockTargetBatches,
     selectedLockTargetIds,
   ]);
+  const smartLockTargets = useMemo(() => {
+    const lockIds = new Set<string>();
+    const unlockIds = new Set<string>();
+
+    objects.forEach((node) => {
+      node.features.forEach((feature) => {
+        const featureKey = feature.key.trim().toLowerCase();
+        const shouldLock = TRANSFORM_FEATURE_KEYS.has(featureKey);
+        const shouldUnlock =
+          featureKey === "color" ||
+          !KNOWN_NON_MORPH_FEATURE_KEYS.has(featureKey);
+        feature.components.forEach((component) => {
+          const targetId = component.targetId?.trim();
+          if (!targetId) {
+            return;
+          }
+          if (shouldLock) {
+            lockIds.add(targetId);
+            return;
+          }
+          if (shouldUnlock) {
+            unlockIds.add(targetId);
+          }
+        });
+      });
+    });
+
+    lockIds.forEach((targetId) => {
+      unlockIds.delete(targetId);
+    });
+
+    return {
+      lockIds: Array.from(lockIds),
+      unlockIds: Array.from(unlockIds),
+    };
+  }, [objects]);
+  const hasSmartLockTargets =
+    smartLockTargets.lockIds.length > 0 ||
+    smartLockTargets.unlockIds.length > 0;
+  const handleApplySmartTransformLocks = useCallback(() => {
+    if (!hasSmartLockTargets) {
+      return;
+    }
+    smartLockTargets.lockIds.forEach((targetId) => {
+      handleSetInspectorTargetLocked(targetId, true);
+    });
+    smartLockTargets.unlockIds.forEach((targetId) => {
+      handleSetInspectorTargetLocked(targetId, false);
+    });
+  }, [handleSetInspectorTargetLocked, hasSmartLockTargets, smartLockTargets]);
 
   // Use the optimized filters from hierarchyFilters.ts
   const { visibleIds, matchingIds } = useMemo(
@@ -670,6 +729,19 @@ export function HierarchyPanel({
               ) : (
                 <Lock size={14} />
               )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-text-muted hover:text-accent hover:bg-accent/20"
+              onClick={handleApplySmartTransformLocks}
+              title="Apply Smart Transform Locks (all face elements)"
+              disabled={!hasSmartLockTargets}
+            >
+              <span className="relative flex items-center justify-center">
+                <Lock size={12} />
+                <Plus size={8} className="absolute -right-1 -bottom-1" />
+              </span>
             </Button>
 
             <div className="ml-auto" />
