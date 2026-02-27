@@ -3,13 +3,15 @@ import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import { waitForNextFrame } from "../utils/frame";
-import { prepareSpecForImport } from "../utils/graphImport";
+import { sanitizeFaceId } from "../utils/faceId";
+import { extractGraphFaceId, prepareSpecForImport } from "../utils/graphImport";
 import type { BundleGraphWithIr } from "../types/bundle";
 import { useLatestRef } from "./useLatestRef";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 
 export interface ImportGraphSpecOptions {
   skipDiscrepancyCheck?: boolean;
+  faceIdHint?: string;
 }
 
 interface UseBundleSynchronizerOptions {
@@ -25,12 +27,23 @@ interface UseBundleSynchronizerOptions {
     faceChanged: boolean;
     importedFaceId: string | null;
   } | void>;
+  canImportRigGraph?: boolean;
+  adoptFaceId?: (nextFaceId: string) => void;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  resetPoseState?: () => void;
   importMotionGraph?: (spec: Record<string, unknown> | null) => void;
   onPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
+
+function logBundleSyncDebug(
+  event: string,
+  payload?: Record<string, unknown>,
+): void {
+  // eslint-disable-next-line no-console -- local import/export smoke-test diagnostics
+  console.log("[bundle-sync]", { event, ...(payload ?? {}) });
+}
 
 function stableJsonFingerprint(value: unknown): string | null {
   const seen = new WeakSet<object>();
@@ -69,16 +82,23 @@ export function useBundleSynchronizer({
   standardInputCount,
   skipDiscrepancyCheck,
   importGraphSpec,
+  canImportRigGraph,
+  adoptFaceId,
   importPoseConfigFromData,
+  resetPoseState,
   importMotionGraph,
   onPhaseChange,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
+  const importGraphSpecRef = useLatestRef(importGraphSpec);
+  const importPoseConfigFromDataRef = useLatestRef(importPoseConfigFromData);
+  const adoptFaceIdRef = useLatestRef(adoptFaceId);
   const importedRigFingerprintsRef = useRef<Set<string>>(new Set());
   const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const importedMotionGraphFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightPoseFingerprintsRef = useRef<Set<string>>(new Set());
+  const poseResetKeysRef = useRef<Set<string>>(new Set());
   const objectIdentityMapRef = useRef<WeakMap<object, number>>(new WeakMap());
   const nextObjectIdentityRef = useRef(1);
   const importedFaceIdByFingerprintRef = useRef<Map<string, string | null>>(
@@ -119,6 +139,7 @@ export function useBundleSynchronizer({
         importedMotionGraphFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
+        poseResetKeysRef.current.clear();
         importedFaceIdByFingerprintRef.current.clear();
         return;
       }
@@ -129,6 +150,16 @@ export function useBundleSynchronizer({
         importedMotionGraphFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
+        const poseResetKey = `no-bundle::${rootId}`;
+        if (resetPoseState && !poseResetKeysRef.current.has(poseResetKey)) {
+          poseResetKeysRef.current.add(poseResetKey);
+          logBundleSyncDebug("pose-reset", {
+            reason: "no-loaded-bundle",
+            rootId,
+            poseResetKey,
+          });
+          resetPoseState();
+        }
         importedFaceIdByFingerprintRef.current.clear();
 
         emitPhase({
@@ -209,10 +240,44 @@ export function useBundleSynchronizer({
       const rigAlreadyImported =
         importedRigFingerprintsRef.current.has(fingerprint);
       const rigInFlight = inflightRigFingerprintsRef.current.has(fingerprint);
+      if (!canImportRigGraph) {
+        logBundleSyncDebug("rig-import:deferred", {
+          reason: "runtime-not-ready",
+          rootId,
+          fingerprint,
+        });
+        return;
+      }
 
       if (!rigAlreadyImported && !rigInFlight && rigEntry?.spec) {
         inflightRigFingerprintsRef.current.add(fingerprint);
         try {
+          const rigFaceId = extractGraphFaceId(rigEntry.spec);
+          const normalizedRigFaceId =
+            rigFaceId && rigFaceId.trim().length > 0
+              ? sanitizeFaceId(rigFaceId)
+              : null;
+          if (
+            normalizedRigFaceId &&
+            faceIdRef.current !== normalizedRigFaceId &&
+            adoptFaceIdRef.current
+          ) {
+            logBundleSyncDebug("rig-import:adopt-face-id:start", {
+              currentFaceId: faceIdRef.current,
+              nextFaceId: normalizedRigFaceId,
+            });
+            adoptFaceIdRef.current(normalizedRigFaceId);
+            await waitForFaceIdMatch(normalizedRigFaceId, () => cancelled);
+            if (cancelled) {
+              return;
+            }
+            logBundleSyncDebug("rig-import:adopt-face-id:complete", {
+              currentFaceId: faceIdRef.current,
+              nextFaceId: normalizedRigFaceId,
+              matched: faceIdRef.current === normalizedRigFaceId,
+            });
+          }
+
           emitPhase({
             stepId: "bundle-sync",
             status: "active",
@@ -232,8 +297,9 @@ export function useBundleSynchronizer({
             status: "active",
             substepId: "import-rig-graph",
           });
-          const result = await importGraphSpec(normalisedSpec, {
+          const result = await importGraphSpecRef.current(normalisedSpec, {
             skipDiscrepancyCheck,
+            faceIdHint: normalizedRigFaceId ?? undefined,
           });
           importedFaceIdFromRig = result?.importedFaceId ?? null;
           importedRigFingerprintsRef.current.add(fingerprint);
@@ -270,6 +336,19 @@ export function useBundleSynchronizer({
 
       const rigComplete =
         !rigEntry || importedRigFingerprintsRef.current.has(fingerprint);
+      const poseResetKey = `no-pose-config::${fingerprint}`;
+      if (!loadedBundle.poses?.config) {
+        if (resetPoseState && !poseResetKeysRef.current.has(poseResetKey)) {
+          poseResetKeysRef.current.add(poseResetKey);
+          logBundleSyncDebug("pose-reset", {
+            reason: "bundle-missing-pose-config",
+            rootId,
+            fingerprint,
+            poseResetKey,
+          });
+          resetPoseState();
+        }
+      }
 
       if (standardInputCount === 0) {
         if (rigComplete) {
@@ -288,6 +367,11 @@ export function useBundleSynchronizer({
       if (loadedBundle.poses?.config && !poseAlreadyImported && !poseInFlight) {
         inflightPoseFingerprintsRef.current.add(fingerprint);
         try {
+          logBundleSyncDebug("pose-import:start", {
+            rootId,
+            fingerprint,
+            hasPoseConfig: true,
+          });
           emitPhase({
             stepId: "bundle-sync",
             status: "active",
@@ -299,9 +383,13 @@ export function useBundleSynchronizer({
               return;
             }
           }
-          importPoseConfigFromData(
+          importPoseConfigFromDataRef.current(
             loadedBundle.poses.config as unknown as PoseRigConfigFile,
           );
+          logBundleSyncDebug("pose-import:complete", {
+            rootId,
+            fingerprint,
+          });
           importedPoseFingerprintsRef.current.add(fingerprint);
           emitPhase({
             stepId: "bundle-sync",
@@ -378,11 +466,14 @@ export function useBundleSynchronizer({
     };
   }, [
     faceIdRef,
-    importGraphSpec,
+    importGraphSpecRef,
+    importPoseConfigFromDataRef,
+    adoptFaceIdRef,
+    canImportRigGraph,
     importMotionGraph,
-    importPoseConfigFromData,
     loadedBundle,
     onPhaseChange,
+    resetPoseState,
     rootId,
     skipDiscrepancyCheck,
     standardInputCount,

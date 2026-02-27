@@ -47,7 +47,7 @@ export interface GraphRuntimeState {
   getGraphIr: () => BuildGraphResult["ir"] | null;
   handleImportGraphSpec: (
     spec: GraphSpec,
-    options?: { skipDiscrepancyCheck?: boolean },
+    options?: { skipDiscrepancyCheck?: boolean; faceIdHint?: string },
   ) => Promise<{ faceChanged: boolean; importedFaceId: string | null }>;
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;

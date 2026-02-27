@@ -2,14 +2,17 @@ import { useCallback, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   buildRigGraphSpec,
+  type AnimatableBinding,
   type BindingMap,
   type InputBindingMap,
   type StandardInputValues,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import {
+  SELF_BINDING_ID,
   createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
+  resolveStandardRigInputId,
   type AnimatableComponent as AnimComponent,
   type StandardRigInput,
 } from "@vizij/utils";
@@ -20,6 +23,7 @@ import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 import type {
   DiscrepancyResolutionResult,
+  GraphDiffEntry,
   GraphDiffResult,
 } from "../types/discrepancy";
 import {
@@ -53,6 +57,7 @@ interface UseRigGraphImportOptions {
   setInputBindings: Dispatch<SetStateAction<InputBindingMap>>;
   setSelectedStandardInputRoots: Dispatch<SetStateAction<string[]>>;
   setSelectedStandardInputSubgroups: Dispatch<SetStateAction<string[]>>;
+  setLockedInspectorTargetIds: Dispatch<SetStateAction<Set<string>>>;
   setPipelineMetadataV1: Dispatch<
     SetStateAction<VizijPipelineMetadataV1 | null>
   >;
@@ -74,6 +79,158 @@ interface UseRigGraphImportOptions {
   onImportPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function isCanonicalPropsRigInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path).replace(
+    /^\/rig\/[^/]+\//,
+    "/",
+  );
+  return normalized.startsWith("/propsrig/");
+}
+
+function collectBindingInputIds(
+  binding: AnimatableBinding | undefined,
+): string[] {
+  if (!binding) {
+    return [];
+  }
+  const ids = new Set<string>();
+  if (
+    binding.inputId &&
+    binding.inputId !== SELF_BINDING_ID &&
+    binding.inputId.trim().length > 0
+  ) {
+    ids.add(binding.inputId);
+  }
+  binding.slots.forEach((slot) => {
+    if (
+      slot.inputId &&
+      slot.inputId !== SELF_BINDING_ID &&
+      slot.inputId.trim().length > 0
+    ) {
+      ids.add(slot.inputId);
+    }
+  });
+  return Array.from(ids);
+}
+
+const GENERATED_NODE_ID_PREFIXES = [
+  "join_",
+  "out_",
+  "const_",
+  "input_",
+  "derived_default_",
+  "reserved_",
+];
+
+function isGeneratedNodeId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    GENERATED_NODE_ID_PREFIXES.some((prefix) => value.startsWith(prefix))
+  );
+}
+
+function isNodeIdDiffPath(path: string): boolean {
+  return (
+    /\.node_id$/i.test(path) ||
+    /\.nodeId$/i.test(path) ||
+    (/\.id$/i.test(path) && path.includes("nodes["))
+  );
+}
+
+export function isBenignGeneratedNodeIdDiff(entry: GraphDiffEntry): boolean {
+  if (entry.kind !== "mismatch") {
+    return false;
+  }
+  if (!isNodeIdDiffPath(entry.path)) {
+    return false;
+  }
+  return (
+    isGeneratedNodeId(entry.importedValue) &&
+    isGeneratedNodeId(entry.rebuiltValue)
+  );
+}
+
+export function filterBenignGeneratedNodeIdDiffs(diff: GraphDiffResult): {
+  filteredDiff: GraphDiffResult;
+  ignoredCount: number;
+} {
+  const filteredEntries = diff.entries.filter(
+    (entry) => !isBenignGeneratedNodeIdDiff(entry),
+  );
+  return {
+    filteredDiff: {
+      entries: filteredEntries,
+      limitReached: diff.limitReached,
+    },
+    ignoredCount: diff.entries.length - filteredEntries.length,
+  };
+}
+
+export function deriveLockedInspectorTargetsFromPipeline(options: {
+  bindings: BindingMap;
+  standardInputs: readonly StandardRigInput[];
+  pipelineConfigByInputId: Record<string, Record<string, unknown>>;
+}): Set<string> {
+  const { bindings, standardInputs, pipelineConfigByInputId } = options;
+  if (!bindings || !standardInputs.length) {
+    return new Set<string>();
+  }
+
+  const standardInputsById = new Map(
+    standardInputs.map((input) => [input.id, input]),
+  );
+  const directInputDisabledIds = new Set<string>();
+
+  Object.entries(pipelineConfigByInputId).forEach(([rawInputId, config]) => {
+    const directInput = asRecord(config?.directInput);
+    if (directInput?.enabled !== false) {
+      return;
+    }
+    const resolvedInputId = resolveStandardRigInputId(
+      rawInputId,
+      standardInputsById,
+    );
+    if (standardInputsById.has(resolvedInputId)) {
+      directInputDisabledIds.add(resolvedInputId);
+    }
+  });
+
+  if (directInputDisabledIds.size === 0) {
+    return new Set<string>();
+  }
+
+  const lockedTargets = new Set<string>();
+  Object.entries(bindings).forEach(([targetId, binding]) => {
+    const resolvedIds = collectBindingInputIds(binding)
+      .map((inputId) => resolveStandardRigInputId(inputId, standardInputsById))
+      .filter((inputId) => standardInputsById.has(inputId));
+    if (resolvedIds.length === 0) {
+      return;
+    }
+    const preferredId =
+      resolvedIds.find((inputId) =>
+        isCanonicalPropsRigInputPath(standardInputsById.get(inputId)?.path),
+      ) ?? resolvedIds[0];
+    if (preferredId && directInputDisabledIds.has(preferredId)) {
+      lockedTargets.add(targetId);
+    }
+  });
+
+  return lockedTargets;
+}
+
 export function useRigGraphImport({
   faceId,
   animatables,
@@ -87,6 +244,7 @@ export function useRigGraphImport({
   setInputBindings,
   setSelectedStandardInputRoots,
   setSelectedStandardInputSubgroups,
+  setLockedInspectorTargetIds,
   setPipelineMetadataV1,
   setFaceId,
   skipPersistRef,
@@ -111,9 +269,17 @@ export function useRigGraphImport({
   return useCallback(
     async (
       spec: GraphSpec,
-      options?: { skipDiscrepancyCheck?: boolean },
+      options?: { skipDiscrepancyCheck?: boolean; faceIdHint?: string },
     ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
       try {
+        const requestedFaceId =
+          options?.faceIdHint && options.faceIdHint.trim().length > 0
+            ? sanitizeFaceId(options.faceIdHint)
+            : null;
+        const loadedFaceId = requestedFaceId ?? faceId;
+        if (requestedFaceId && requestedFaceId !== faceId) {
+          setFaceId(requestedFaceId);
+        }
         onImportPhaseChange?.({
           stepId: "rig-import-normalization",
           substepId: "rehydrate-rig-data",
@@ -128,7 +294,7 @@ export function useRigGraphImport({
         );
         await waitForNextFrame();
         const rehydrated = rehydrateRigDataFromGraph(spec, {
-          faceId,
+          faceId: loadedFaceId,
           animatables,
           components: animatableComponents,
           provisionedPropsRigInputs: blueprint.blueprints.map(
@@ -150,8 +316,14 @@ export function useRigGraphImport({
         const importedPipelineMetadataV1 = extractVizijPipelineMetadataV1(spec);
         const importedPipelineConfigByInputId =
           extractVizijPipelineConfigMapFromMetadata(importedPipelineMetadataV1);
+        const importedLockedInspectorTargetIds =
+          deriveLockedInspectorTargetsFromPipeline({
+            bindings: rehydrated.bindings,
+            standardInputs: rehydrated.standardInputs,
+            pipelineConfigByInputId: importedPipelineConfigByInputId,
+          });
         const faceChangedDuringImport =
-          !!importedFaceId && importedFaceId !== faceId;
+          !!importedFaceId && importedFaceId !== loadedFaceId;
 
         const normalizedInputMetadata = new Map<
           string,
@@ -230,9 +402,8 @@ export function useRigGraphImport({
           nextInputValues[input.id] = input.defaultValue;
         });
 
-        const resolvedFaceId = importedFaceId ?? faceId ?? "face";
-        // If the import carries a faceId and we don't have one, adopt it immediately
-        if (!faceId && importedFaceId) {
+        const resolvedFaceId = importedFaceId ?? loadedFaceId ?? "face";
+        if (!loadedFaceId && importedFaceId) {
           setFaceId(importedFaceId);
         }
         const rebuiltSpec = withVizijPipelineMetadataV1(
@@ -280,7 +451,7 @@ export function useRigGraphImport({
         });
         debugLog("import comparison", {
           importedFaceId,
-          loadedFaceId: faceId,
+          loadedFaceId,
           importedSignatureHash: importedSignature.length,
           rebuiltSignatureHash: rebuiltSignature.length,
           missingBlueprintPaths,
@@ -376,7 +547,7 @@ export function useRigGraphImport({
           importedSignature.length,
           rebuiltSignature.length,
           importedFaceId ?? "",
-          faceId ?? "",
+          loadedFaceId ?? "",
         ].join("|");
 
         if (
@@ -403,39 +574,52 @@ export function useRigGraphImport({
               : diffGraphSpecs(importedComparable, rebuiltComparable, {
                   limit: 300,
                 });
-          let diffResult = initialDiffResult;
+          const initialFiltered =
+            filterBenignGeneratedNodeIdDiffs(initialDiffResult);
+          let diffResult = initialFiltered.filteredDiff;
+          let ignoredGeneratedNodeIdDiffs = initialFiltered.ignoredCount;
 
           let canAutoResolveFaceRename = false;
           if (
             importedFaceId !== null &&
-            importedFaceId !== faceId &&
+            importedFaceId !== loadedFaceId &&
             missingBlueprintPaths.length === 0
           ) {
             const rewrittenComparable = rewriteGraphFaceNamespace(
               importedComparable,
               importedFaceId,
-              faceId,
+              loadedFaceId,
             );
             const rewrittenSignature = JSON.stringify(rewrittenComparable);
-            diffResult =
+            const rewrittenDiffResult =
               rewrittenSignature === rebuiltSignature
                 ? { entries: [], limitReached: false }
                 : diffGraphSpecs(rewrittenComparable, rebuiltComparable, {
                     limit: 300,
                   });
+            const rewrittenFiltered =
+              filterBenignGeneratedNodeIdDiffs(rewrittenDiffResult);
+            diffResult = rewrittenFiltered.filteredDiff;
+            ignoredGeneratedNodeIdDiffs += rewrittenFiltered.ignoredCount;
             canAutoResolveFaceRename = diffResult.entries.length === 0;
           }
 
           debugLog("discrepancy diff summary", {
             initialDiffCount: initialDiffResult.entries.length,
             residualDiffCount: diffResult.entries.length,
+            ignoredGeneratedNodeIdDiffs,
             canAutoResolveFaceRename,
           });
 
-          if (canAutoResolveFaceRename) {
+          if (
+            diffResult.entries.length === 0 &&
+            missingBlueprintPaths.length === 0
+          ) {
             discrepancyResult = {
               accepted: true,
-              renameFaceId: importedFaceId ?? undefined,
+              renameFaceId: canAutoResolveFaceRename
+                ? (importedFaceId ?? undefined)
+                : undefined,
             };
           }
 
@@ -481,7 +665,7 @@ export function useRigGraphImport({
               );
             }
             pendingReviewRef.current = openDiscrepancyReview({
-              faceId,
+              faceId: loadedFaceId,
               importedFaceId: importedFaceId ?? null,
               mismatchReasons,
               diff: diffResult,
@@ -551,6 +735,7 @@ export function useRigGraphImport({
         updateInputValues(() => nextInputValues);
         setBindings(rehydrated.bindings);
         setInputBindings(rehydrated.inputBindings);
+        setLockedInspectorTargetIds(importedLockedInspectorTargetIds);
         setPipelineMetadataV1(importedPipelineMetadataV1);
         setSelectedStandardInputRoots([]);
         setSelectedStandardInputSubgroups([]);
@@ -562,7 +747,7 @@ export function useRigGraphImport({
           discrepancyResult?.renameFaceId &&
           discrepancyResult.renameFaceId.trim().length > 0
             ? sanitizeFaceId(discrepancyResult.renameFaceId)
-            : importedFaceId && importedFaceId !== faceId
+            : importedFaceId && importedFaceId !== loadedFaceId
               ? importedFaceId
               : null;
         if (targetFaceId) {
@@ -604,6 +789,7 @@ export function useRigGraphImport({
       updateInputValues,
       setBindings,
       setInputBindings,
+      setLockedInspectorTargetIds,
       setPipelineMetadataV1,
       setSelectedStandardInputRoots,
       setSelectedStandardInputSubgroups,

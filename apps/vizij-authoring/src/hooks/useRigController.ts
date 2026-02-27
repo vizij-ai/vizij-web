@@ -2650,6 +2650,7 @@ export function useRigController(
     setInputBindings,
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
+    setLockedInspectorTargetIds,
     setFaceId: renameFaceId,
     skipPersistRef,
     persistedAutoInputsRef,

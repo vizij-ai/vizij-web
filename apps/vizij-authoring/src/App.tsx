@@ -322,6 +322,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.managedStandardInputs,
   );
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const animatableComponentCount = useBindingAuthoring(
+    (state) => state.animatableComponents.length,
+  );
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
   );
@@ -382,6 +385,34 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const handleFaceIdChange = useGraphRuntime(
+    (state) => state.handleFaceIdChange,
+  );
+  const canImportRigGraphFromBundle = useMemo(() => {
+    if (!loader.rootId) {
+      return false;
+    }
+    if (!runtimeWorld[loader.rootId]) {
+      return false;
+    }
+    if (animatableComponentCount === 0) {
+      return false;
+    }
+    if (!runtimeAnimatables || Object.keys(runtimeAnimatables).length === 0) {
+      return false;
+    }
+    if (!runtimeViewReady) {
+      return false;
+    }
+    return graphStatus === "ready" || graphStatus === "error";
+  }, [
+    animatableComponentCount,
+    graphStatus,
+    loader.rootId,
+    runtimeAnimatables,
+    runtimeViewReady,
+    runtimeWorld,
+  ]);
   const rigInputPaths = useMemo(
     () =>
       standardInputs
@@ -422,7 +453,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     standardInputCount,
     skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
+    canImportRigGraph: canImportRigGraphFromBundle,
+    adoptFaceId: handleFaceIdChange,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
+    resetPoseState: poseRig.resetPoseState,
     importMotionGraph,
     onPhaseChange: onFaceLoadPhaseChange,
   });
