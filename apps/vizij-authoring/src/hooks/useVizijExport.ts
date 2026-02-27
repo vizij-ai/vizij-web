@@ -21,10 +21,7 @@ import { downloadJsonFile, ensureExtension } from "@vizij/authoring-shared";
 import { getLookup, cloneRawValue } from "@vizij/utils";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
-import {
-  withVizijPipelineMetadataV1,
-  type VizijPipelineMetadataV1,
-} from "../utils/graphImport";
+import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
@@ -121,6 +118,14 @@ interface VizijExportHandlers {
 const POSE_IR_SUPPORT_HINT =
   "Pose IR hooks unavailable. Expected core poseRig hooks: exportPoseIrData() and importPoseIr(file).";
 
+function logVizijExportDebug(
+  event: string,
+  payload?: Record<string, unknown>,
+): void {
+  // eslint-disable-next-line no-console -- local export smoke-test diagnostics
+  console.log("[vizij-export]", { event, ...(payload ?? {}) });
+}
+
 function resolveExportFaceId(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : faceSlug(value);
@@ -190,6 +195,22 @@ function resolvePoseConfigFromIr(
   return poseRig.poseConfigDraft;
 }
 
+function hasAuthoredPoseData(config: PoseRigConfigFile | null): boolean {
+  return Boolean(config && Array.isArray(config.poses) && config.poses.length);
+}
+
+function hasPoseConstantNodes(spec: GraphSpec | null | undefined): boolean {
+  if (!spec || !Array.isArray(spec.nodes)) {
+    return false;
+  }
+  return spec.nodes.some((node: { id?: unknown } | null | undefined) => {
+    if (!node || typeof node.id !== "string") {
+      return false;
+    }
+    return node.id.startsWith("pose_record_");
+  });
+}
+
 function resolveBundleContractViolationMessage(
   audits: Awaited<ReturnType<typeof auditBundleGraphs>>,
 ): string | null {
@@ -197,38 +218,15 @@ function resolveBundleContractViolationMessage(
   if (!contractAudits.length) {
     return null;
   }
-  const resolveBlockingDiffCount = (
-    entry: (typeof contractAudits)[number],
-  ): number | null => {
-    if (entry.status !== "diff") {
-      return null;
-    }
-    if (!entry.diff) {
-      return entry.diffCount;
-    }
-    const runtimeDiffCount = entry.diff.entries.filter(
-      (diffEntry) => diffEntry.category !== "metadata",
-    ).length;
-    return runtimeDiffCount;
-  };
-  const mismatchEntry = contractAudits.find((entry) => {
-    if (entry.status === "match") {
-      return false;
-    }
-    if (entry.status !== "diff") {
-      return true;
-    }
-    const blockingDiffCount = resolveBlockingDiffCount(entry);
-    return blockingDiffCount === null || blockingDiffCount > 0;
-  });
+  const mismatchEntry = contractAudits.find(
+    (entry) => entry.status !== "match",
+  );
   if (mismatchEntry) {
     if (mismatchEntry.status === "missing-ir") {
       return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" is missing IR metadata required for runtime compatibility checks.`;
     }
     if (mismatchEntry.status === "diff") {
-      const blockingDiffCount =
-        resolveBlockingDiffCount(mismatchEntry) ?? mismatchEntry.diffCount;
-      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${blockingDiffCount} diff${blockingDiffCount === 1 ? "" : "s"}).`;
+      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${mismatchEntry.diffCount} diff${mismatchEntry.diffCount === 1 ? "" : "s"}).`;
     }
     return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" failed runtime compatibility checks (${mismatchEntry.error ?? "unknown error"}).`;
   }
@@ -322,10 +320,7 @@ export function useVizijExport(
       ),
     );
 
-    const specPayload = withVizijPipelineMetadataV1(
-      cloneSerializable(graphResult.spec),
-      pipelineMetadataForExport,
-    );
+    const specPayload = cloneSerializable(graphResult.spec);
     downloadJsonFile(specPayload, `${base}.json`);
 
     if (graphResult.ir?.graph) {
@@ -347,34 +342,16 @@ export function useVizijExport(
   ]);
 
   const exportGlb = useCallback(async () => {
-    const exportFaceId = resolveExportFaceId(faceId);
-    const slug = faceSlug(exportFaceId);
-    const downloadName = ensureExtension(
-      exportFileName,
-      `${slug}_vizij`,
-      "glb",
-    );
+    logVizijExportDebug("export-glb:invoked", {
+      faceId,
+      rootId,
+      sourceName,
+      includeVizijBundle,
+      includeImportedAnimations,
+    });
 
     const originalAnimatables = animatables;
     const originalValues = values;
-    const { effectiveAnimatables } = collectAnimatableExportState();
-    const animatablesForExport = Object.fromEntries(
-      Object.entries(effectiveAnimatables).map(([id, anim]) => {
-        const lookup = getLookup(exportFaceId, id);
-        const override = values.get(lookup);
-        if (override === undefined) {
-          return [id, anim];
-        }
-        return [
-          id,
-          {
-            ...anim,
-            default: cloneRawValue(override),
-          } as AnimatableValue,
-        ];
-      }),
-    );
-
     let overridesApplied = false;
     const restoreOverrides = () => {
       if (!overridesApplied) {
@@ -389,6 +366,32 @@ export function useVizijExport(
     };
 
     try {
+      const exportFaceId = resolveExportFaceId(faceId);
+      const slug = faceSlug(exportFaceId);
+      const downloadName = ensureExtension(
+        exportFileName,
+        `${slug}_vizij`,
+        "glb",
+      );
+
+      const { effectiveAnimatables } = collectAnimatableExportState();
+      const animatablesForExport = Object.fromEntries(
+        Object.entries(effectiveAnimatables).map(([id, anim]) => {
+          const lookup = getLookup(exportFaceId, id);
+          const override = values.get(lookup);
+          if (override === undefined) {
+            return [id, anim];
+          }
+          return [
+            id,
+            {
+              ...anim,
+              default: cloneRawValue(override),
+            } as AnimatableValue,
+          ];
+        }),
+      );
+
       await waitForNextFrame();
 
       const resolveExportableBodies = (filterIds?: string[]) =>
@@ -427,6 +430,29 @@ export function useVizijExport(
         return;
       }
 
+      const poseConfigDraftCount = Array.isArray(poseRig.poseConfigDraft?.poses)
+        ? poseRig.poseConfigDraft?.poses.length
+        : null;
+      const poseIrDraftCount = isPoseRigIrFile(poseRig.poseIrDraft)
+        ? poseRig.poseIrDraft.poses.length
+        : null;
+      const poseGraphNodeCount = Array.isArray(poseRig.poseGraphSpec?.nodes)
+        ? poseRig.poseGraphSpec?.nodes.length
+        : null;
+      logVizijExportDebug("export-glb:start", {
+        exportFaceId,
+        rootId,
+        sourceName,
+        includeVizijBundle,
+        includeImportedAnimations,
+        loadedBundleGraphCount: loadedBundle?.graphs?.length ?? 0,
+        loadedBundleHasPoseConfig: Boolean(loadedBundle?.poses?.config),
+        poseConfigDraftCount,
+        poseIrDraftCount,
+        poseGraphNodeCount,
+        poseGraphHasPoseConstants: hasPoseConstantNodes(poseRig.poseGraphSpec),
+      });
+
       applyDefaultsToRobotData(
         exportableBodies,
         animatablesForExport,
@@ -434,11 +460,20 @@ export function useVizijExport(
       );
 
       const standardInputs = Array.from(standardInputsById.values());
-      let poseGraphSpecForExport = poseRig.poseGraphSpec;
+      let poseGraphSpecForExport: GraphSpec | null = null;
       const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
-      const poseConfigForExport = poseConfigFromIr
+      const poseConfigCandidate = poseConfigFromIr
         ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
         : null;
+      let poseConfigForExport = hasAuthoredPoseData(poseConfigCandidate)
+        ? poseConfigCandidate
+        : null;
+      logVizijExportDebug("export-glb:pose-config", {
+        poseConfigCandidateCount: Array.isArray(poseConfigCandidate?.poses)
+          ? poseConfigCandidate.poses.length
+          : null,
+        hasAuthoredPoseData: Boolean(poseConfigForExport),
+      });
       if (poseConfigForExport) {
         try {
           const { spec } = PoseGraphService.buildSpec(
@@ -449,8 +484,26 @@ export function useVizijExport(
               crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
             },
           );
-          poseGraphSpecForExport = spec;
+          const hasConstants = hasPoseConstantNodes(spec);
+          logVizijExportDebug("export-glb:pose-graph-built", {
+            builtPoseGraphNodeCount: Array.isArray(spec.nodes)
+              ? spec.nodes.length
+              : null,
+            hasPoseConstants: hasConstants,
+          });
+          if (hasConstants) {
+            poseGraphSpecForExport = spec;
+          } else {
+            poseGraphSpecForExport = null;
+            poseConfigForExport = null;
+            logVizijExportDebug("export-glb:pose-graph-pruned", {
+              reason: "no-pose-constant-nodes",
+            });
+          }
         } catch (error) {
+          logVizijExportDebug("export-glb:pose-graph-build-failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
           await alertDialog(
             `Failed to build pose graph for export: ${
               error instanceof Error ? error.message : String(error)
@@ -477,6 +530,7 @@ export function useVizijExport(
         pipelineMetadataV1,
         pipelineConfigByInputId,
         poseGraphSpecForExport,
+        poseConfigForExport,
       });
       if (bundle && getMotionGraphSpec) {
         const motionGraphSpec = getMotionGraphSpec();
@@ -508,12 +562,23 @@ export function useVizijExport(
             return;
           }
         }
-        if (poseGraphSpecForExport) {
+        if (
+          poseGraphSpecForExport &&
+          hasPoseConstantNodes(poseGraphSpecForExport)
+        ) {
+          logVizijExportDebug("export-glb:pose-graph-validate", {
+            poseGraphNodeCount: Array.isArray(poseGraphSpecForExport.nodes)
+              ? poseGraphSpecForExport.nodes.length
+              : null,
+          });
           const poseWarnings = PoseGraphService.validate(
             poseGraphSpecForExport,
             standardInputs,
           );
           if (poseWarnings.length > 0) {
+            logVizijExportDebug("export-glb:pose-graph-invalid", {
+              poseWarnings,
+            });
             await alertDialog(
               `Pose graph is invalid:\n${poseWarnings.join("\n")}`,
             );
@@ -531,6 +596,11 @@ export function useVizijExport(
         }
       }
 
+      logVizijExportDebug("export-glb:export-scene", {
+        finalBundleGraphKinds: bundle?.graphs?.map((graph) => graph.kind) ?? [],
+        finalBundleHasPosePayload: Boolean(bundle?.poses),
+      });
+
       exportScene(
         exportableBodies[0],
         bundle
@@ -547,6 +617,15 @@ export function useVizijExport(
                 void alertDialog(`GLB export failed: ${error.message}`);
               },
             },
+      );
+    } catch (error) {
+      logVizijExportDebug("export-glb:unhandled-error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await alertDialog(
+        `GLB export failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     } finally {
       restoreOverrides();
@@ -579,24 +658,33 @@ export function useVizijExport(
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {
-    const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
-    const exportFaceId = resolveExportFaceId(faceId);
-    const poseConfigForExport = poseConfigFromIr
-      ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
-      : null;
-    if (!poseConfigForExport) {
-      await alertDialog(
-        "Capture a neutral pose or add pose data before exporting.",
-      );
-      return;
-    }
     try {
+      const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+      const exportFaceId = resolveExportFaceId(faceId);
+      const poseConfigForExport = poseConfigFromIr
+        ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
+        : null;
+      if (!poseConfigForExport) {
+        await alertDialog(
+          "Capture a neutral pose or add pose data before exporting.",
+        );
+        return;
+      }
       const inputs = Array.from(standardInputsById.values());
       const { spec } = PoseGraphService.buildSpec(poseConfigForExport, inputs, {
         defaultGroupBlendMode: poseRig.blendMode ?? "average",
         crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
       });
-      const warnings = PoseGraphService.validate(spec, inputs);
+      const warnings = hasPoseConstantNodes(spec)
+        ? PoseGraphService.validate(spec, inputs)
+        : [];
+      logVizijExportDebug("export-pose-graph:file", {
+        poseGraphNodeCount: Array.isArray(spec.nodes)
+          ? spec.nodes.length
+          : null,
+        hasPoseConstants: hasPoseConstantNodes(spec),
+        warningCount: warnings.length,
+      });
       if (warnings.length > 0) {
         await alertDialog(`Pose graph is invalid:\n${warnings.join("\n")}`);
         return;
@@ -625,24 +713,32 @@ export function useVizijExport(
   ]);
 
   const exportPoseConfigFile = useCallback(async () => {
-    const configFromIr = resolvePoseConfigFromIr(poseRig);
-    const exportFaceId = resolveExportFaceId(faceId);
-    const config = configFromIr
-      ? withPoseConfigFaceId(configFromIr, exportFaceId)
-      : null;
-    if (!config) {
-      await alertDialog(
-        "Capture a neutral pose or add pose data before exporting.",
+    try {
+      const configFromIr = resolvePoseConfigFromIr(poseRig);
+      const exportFaceId = resolveExportFaceId(faceId);
+      const config = configFromIr
+        ? withPoseConfigFaceId(configFromIr, exportFaceId)
+        : null;
+      if (!config) {
+        await alertDialog(
+          "Capture a neutral pose or add pose data before exporting.",
+        );
+        return;
+      }
+      const slug = faceSlug(exportFaceId);
+      const fileName = ensureExtension(
+        poseRig.poseConfigFileName,
+        `${slug}_pose_config`,
+        "json",
       );
-      return;
+      downloadJsonFile(cloneSerializable(config), fileName);
+    } catch (error) {
+      await alertDialog(
+        `Failed to build pose config for export: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
-    const slug = faceSlug(exportFaceId);
-    const fileName = ensureExtension(
-      poseRig.poseConfigFileName,
-      `${slug}_pose_config`,
-      "json",
-    );
-    downloadJsonFile(cloneSerializable(config), fileName);
   }, [
     alertDialog,
     faceId,
@@ -775,6 +871,7 @@ interface BuildVizijBundleOptions {
   pipelineMetadataV1?: VizijPipelineMetadataV1 | null;
   pipelineConfigByInputId?: PipelineConfigByInputId;
   poseGraphSpecForExport?: GraphSpec | null;
+  poseConfigForExport?: PoseRigConfigFile | null;
 }
 
 function clonePoseIrForBundle(
@@ -870,11 +967,14 @@ function buildVizijBundle(
         unknown
       >)
     : undefined;
-  const rigSpec = withVizijPipelineMetadataV1(
-    cloneSerializable(rigGraphResult.spec),
-    pipelineMetadataForExport,
-  ) as Record<string, unknown>;
-  const poseGraphSpec = options.poseGraphSpecForExport ?? poseRig.poseGraphSpec;
+  const rigSpec = cloneSerializable(rigGraphResult.spec) as Record<
+    string,
+    unknown
+  >;
+  const poseGraphSpec =
+    options.poseGraphSpecForExport !== undefined
+      ? options.poseGraphSpecForExport
+      : poseRig.poseGraphSpec;
 
   const graphs: BundleGraphWithIr[] = [
     {
@@ -911,10 +1011,15 @@ function buildVizijBundle(
     });
   }
 
-  const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
-  const poseConfigForBundle = poseConfigFromIr
-    ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
-    : null;
+  const poseConfigForBundle =
+    options.poseConfigForExport !== undefined
+      ? options.poseConfigForExport
+      : (() => {
+          const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+          return poseConfigFromIr
+            ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
+            : null;
+        })();
   const poseConfig: VizijPoseRigConfig | null = poseConfigForBundle
     ? (cloneSerializable(poseConfigForBundle) as unknown as VizijPoseRigConfig)
     : null;

@@ -311,7 +311,28 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
-  it("passes staged pipeline config to graph build and preserves pipeline metadata in rig graph spec", async () => {
+  it("passes staged pipeline config to graph build and preserves compiled rig pipeline metadata", async () => {
+    const compiledPipelineMetadata = {
+      version: 1,
+      byInputId: {
+        input_a: {
+          inputId: "input_a",
+          directInput: {
+            enabled: false,
+            valuePath: "rig/face/controls/a",
+          },
+          clamp: {
+            enabled: true,
+          },
+        },
+      },
+      links: {
+        link_jaw: {
+          scale: 1,
+          offset: 0,
+        },
+      },
+    };
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: {
         nodes: [{ id: "n1", type: "input" }],
@@ -320,6 +341,7 @@ describe("useVizijExport", () => {
             faceId: "face",
             inputs: [],
             bindings: [],
+            pipelineV1: compiledPipelineMetadata,
           },
         },
       } as GraphSpec,
@@ -376,19 +398,9 @@ describe("useVizijExport", () => {
         };
       };
     };
-    expect(rigGraphSpec.metadata?.vizij?.pipelineV1).toEqual({
-      links: {
-        link_jaw: {
-          scale: 1,
-          offset: 0,
-        },
-      },
-      byInputId: {
-        input_a: {
-          clamp: { enabled: true },
-        },
-      },
-    });
+    expect(rigGraphSpec.metadata?.vizij?.pipelineV1).toEqual(
+      compiledPipelineMetadata,
+    );
     hook.unmount();
   });
 
@@ -460,7 +472,17 @@ describe("useVizijExport", () => {
           version: 1,
           faceId: "face",
           neutralInputs: {},
-          poses: [],
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              values: {
+                input_a: 0.5,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
         },
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
@@ -577,7 +599,12 @@ describe("useVizijExport", () => {
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
     mockedPoseGraphService.buildSpec.mockReturnValue({
-      spec: { nodes: [{ id: "pose1", type: "output" }] } as GraphSpec,
+      spec: {
+        nodes: [
+          { id: "pose_neutral_record", type: "constant" },
+          { id: "pose_record_pose_1", type: "constant" },
+        ],
+      } as GraphSpec,
       summary: { inputs: [], outputs: [] },
     });
     mockedPoseGraphService.validate.mockReturnValue([]);
@@ -590,7 +617,17 @@ describe("useVizijExport", () => {
           version: 1,
           faceId: "face",
           neutralInputs: {},
-          poses: [],
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              values: {
+                input_a: 0.5,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
         },
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
@@ -613,7 +650,12 @@ describe("useVizijExport", () => {
       }),
     );
     expect(mockedPoseGraphService.validate).toHaveBeenCalledWith(
-      { nodes: [{ id: "pose1", type: "output" }] },
+      {
+        nodes: [
+          { id: "pose_neutral_record", type: "constant" },
+          { id: "pose_record_pose_1", type: "constant" },
+        ],
+      },
       Array.from(options.standardInputsById.values()),
     );
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
@@ -622,7 +664,12 @@ describe("useVizijExport", () => {
         graphs: expect.arrayContaining([
           expect.objectContaining({
             kind: "pose-driver",
-            spec: { nodes: [{ id: "pose1", type: "output" }] },
+            spec: {
+              nodes: [
+                { id: "pose_neutral_record", type: "constant" },
+                { id: "pose_record_pose_1", type: "constant" },
+              ],
+            },
           }),
         ]),
       },
@@ -641,7 +688,12 @@ describe("useVizijExport", () => {
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
     mockedPoseGraphService.buildSpec.mockReturnValue({
-      spec: { nodes: [{ id: "pose1", type: "output" }] } as GraphSpec,
+      spec: {
+        nodes: [
+          { id: "pose_neutral_record", type: "constant" },
+          { id: "pose_record_pose_1", type: "constant" },
+        ],
+      } as GraphSpec,
       summary: { inputs: [], outputs: [] },
     });
     mockedPoseGraphService.validate.mockReturnValue([]);
@@ -748,7 +800,12 @@ describe("useVizijExport", () => {
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
     mockedPoseGraphService.buildSpec.mockReturnValue({
-      spec: { nodes: [{ id: "pose1", type: "output" }] } as GraphSpec,
+      spec: {
+        nodes: [
+          { id: "pose_neutral_record", type: "constant" },
+          { id: "pose_record_pose_1", type: "constant" },
+        ],
+      } as GraphSpec,
       summary: { inputs: [], outputs: [] },
     });
     mockedPoseGraphService.validate.mockReturnValue([]);
@@ -762,15 +819,43 @@ describe("useVizijExport", () => {
           version: 1,
           faceId: "legacy_face",
           neutralInputs: {},
-          poses: [],
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              values: {
+                input_a: 0.5,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
         },
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),
         poseIrDraft: {
           version: 1,
           faceId: "legacy_face",
+          contracts: {
+            targetIds: POSE_IR_TARGETING_CONTRACT,
+            syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+          },
           groups: [],
-          poses: [],
+          crossGroupPolicy: {
+            mode: "average",
+          },
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              groupIds: [],
+              targets: {
+                input_a: 0.5,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
           neutral: {
             mode: "explicit",
             values: {},
@@ -826,7 +911,7 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
-  it("blocks export when pose graph is invalid", async () => {
+  it("does not block export when pose graph metadata exists but no poses were authored", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
@@ -855,8 +940,187 @@ describe("useVizijExport", () => {
       await hook.result.current?.exportGlb();
     });
 
+    expect(mockedPoseGraphService.buildSpec).not.toHaveBeenCalled();
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it("does not block export when pose config exists but contains no poses", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: { nodes: [] } as GraphSpec,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: { input_a: 0 },
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        poseIrDraft: {
+          version: 1,
+          faceId: "face",
+          contracts: {
+            targetIds: POSE_IR_TARGETING_CONTRACT,
+            syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+          },
+          groups: [],
+          crossGroupPolicy: {
+            mode: "average",
+          },
+          poses: [],
+          neutral: {
+            mode: "explicit",
+            values: { input_a: 0 },
+          },
+        },
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedPoseGraphService.buildSpec).not.toHaveBeenCalled();
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it("blocks export when authored pose graph is invalid", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedPoseGraphService.buildSpec.mockReturnValue({
+      spec: {
+        nodes: [
+          { id: "pose_neutral_record", type: "constant" },
+          { id: "pose_record_pose_1", type: "constant" },
+        ],
+      } as GraphSpec,
+      summary: { inputs: [], outputs: [] },
+    });
+    mockedPoseGraphService.validate.mockReturnValue(["pose invalid"]);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {
+            input_a: 0,
+          },
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              values: {
+                input_a: 0.75,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
     expect(mockedExportScene).not.toHaveBeenCalled();
     expect(options.alertDialog).toHaveBeenCalledTimes(1);
+    hook.unmount();
+  });
+
+  it("does not block export when built pose graph has no pose constants", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedPoseGraphService.buildSpec.mockReturnValue({
+      spec: {
+        nodes: [{ id: "pose_neutral_record", type: "constant" }],
+      } as GraphSpec,
+      summary: { inputs: [], outputs: [] },
+    });
+    mockedPoseGraphService.validate.mockReturnValue([
+      "Pose graph does not contain any pose constant nodes.",
+    ]);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {
+            input_a: 0,
+          },
+          poses: [
+            {
+              id: "pose_1",
+              name: "Smile",
+              values: {
+                input_a: 0.75,
+              },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).not.toHaveBeenCalled();
     hook.unmount();
   });
 
@@ -893,56 +1157,6 @@ describe("useVizijExport", () => {
     expect(mockedExportScene).not.toHaveBeenCalled();
     expect(options.alertDialog).toHaveBeenCalledWith(
       'Export blocked: graph "face" does not match compiled IR (2 diffs).',
-    );
-    hook.unmount();
-  });
-
-  it("ignores metadata-only bundle audit diffs when checking runtime contract", async () => {
-    mockedBuildRigGraphSpec.mockReturnValue({
-      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
-      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
-      issues: { fatal: [], warnings: [], info: [] },
-      ir: { graph: { nodes: [{ id: "ir1" }] } },
-    } as unknown as ReturnType<typeof buildRigGraphSpec>);
-    mockedNormalizeGraphSpec.mockResolvedValue({
-      nodes: [{ id: "n1", type: "input" }],
-    } as GraphSpec);
-    mockedAuditBundleGraphs.mockResolvedValue([
-      {
-        id: "face",
-        kind: "rig",
-        status: "diff",
-        faceId: "face",
-        diffCount: 1,
-        diffLimitReached: false,
-        issues: [],
-        outputs: [],
-        diff: {
-          entries: [
-            {
-              id: "mismatch:1:spec.metadata.vizij.pipelineV1.byInputId.input_a",
-              kind: "mismatch",
-              path: "spec.metadata.vizij.pipelineV1.byInputId.input_a",
-              category: "metadata",
-              importedValue: { clamp: { enabled: true } },
-              rebuiltValue: undefined,
-            },
-          ],
-          limitReached: false,
-        },
-      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
-    ]);
-
-    const options = createOptions();
-    const hook = renderHook(options);
-
-    await act(async () => {
-      await hook.result.current?.exportGlb();
-    });
-
-    expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    expect(options.alertDialog).not.toHaveBeenCalledWith(
-      expect.stringContaining("does not match compiled IR"),
     );
     hook.unmount();
   });
@@ -1080,6 +1294,54 @@ describe("useVizijExport", () => {
       "Failed to build pose graph for export: build failed",
     );
     expect(mockedDownloadJsonFile).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it("exports a neutral-only pose graph without validation errors", async () => {
+    mockedPoseGraphService.buildSpec.mockReturnValue({
+      spec: {
+        nodes: [{ id: "pose_neutral_record", type: "constant" }],
+      } as GraphSpec,
+      summary: { inputs: [], outputs: [] },
+    });
+    mockedPoseGraphService.validate.mockReturnValue([
+      "Pose graph does not contain any pose constant nodes.",
+    ]);
+
+    const options = createOptions({
+      alertDialog: vi.fn(),
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: { input_a: 0 },
+          poses: [
+            {
+              id: "pose_1",
+              name: "Pose 1",
+              values: { input_a: 0.2 },
+              createdAt: "2026-02-19T00:00:00.000Z",
+              updatedAt: "2026-02-19T00:00:00.000Z",
+            },
+          ],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseGraphFile();
+    });
+
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
+    expect(options.alertDialog).not.toHaveBeenCalled();
+    expect(mockedDownloadJsonFile).toHaveBeenCalledTimes(1);
     hook.unmount();
   });
 
