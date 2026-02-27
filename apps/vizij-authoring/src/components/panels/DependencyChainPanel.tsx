@@ -5,29 +5,62 @@ import ReactFlow, {
     Edge,
     Node,
     Position,
+    MiniMap,
+    ReactFlowProvider,
+    useReactFlow
 } from "reactflow";
 import "reactflow/dist/style.css";
 import dagre from "dagre";
 import { useBindingAuthoringStore } from "../../state/bindingAuthoringStore";
 import { usePoseRigStore } from "../../poseRig/store";
+import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
 
-export function DependencyChainPanel({
-    onNodeClick
+function DependencyChainContent({
+    onNodeClick,
+    selectedPoseGroup
 }: {
     onNodeClick?: (id: string) => void;
+    selectedPoseGroup?: PoseGroupInspectorSelection | null;
 }) {
     const inputsById = useBindingAuthoringStore((state) => state.standardInputsById);
     const pipelineConfig = useBindingAuthoringStore((state) => state.pipelineConfigByInputId);
     const inputBindings = useBindingAuthoringStore((state) => state.inputBindings);
     const inputValues = useBindingAuthoringStore((state) => state.inputValues);
+    const selectedRigId = useBindingAuthoringStore((state) => state.selectedRigId);
 
     // Grab poses to show them as drivers
     const poses = usePoseRigStore((state) => state.poses);
+    const selectedPoseId = usePoseRigStore((state) => state.selectedPoseId);
+
+    const { setCenter } = useReactFlow();
 
     const [layoutDir, setLayoutDir] = React.useState<"LR" | "TB">("LR");
     const [hideUnconnected, setHideUnconnected] = React.useState(false);
     const [focusSelected, setFocusSelected] = React.useState(false);
     const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        // Find which id should actually be selected based on the three active global selections
+        let activeId: string | null = null;
+
+        if (selectedRigId) {
+            activeId = selectedRigId;
+        } else if (selectedPoseId && selectedPoseId !== "__pose_rig_neutral__") {
+            // we need to resolve the pose Id to the pose weight node id
+            const poseWeightInput = Array.from(inputsById.values()).find(i => i.path?.includes(`/poses/`) && i.path?.includes(selectedPoseId) && i.path?.endsWith(".weight"));
+            if (poseWeightInput) {
+                activeId = poseWeightInput.id;
+            }
+        } else if (selectedPoseGroup && selectedPoseGroup.groupId) {
+            activeId = `group:${selectedPoseGroup.groupId}`;
+        }
+
+        if (activeId && selectedNodeId !== activeId) {
+            setSelectedNodeId(activeId);
+        } else if (!activeId && selectedNodeId !== null) {
+            setSelectedNodeId(null);
+        }
+    }, [selectedRigId, selectedPoseId, selectedPoseGroup, inputsById]);
 
     const { nodes, edges } = useMemo(() => {
         let newNodes: Node[] = [];
@@ -67,6 +100,7 @@ export function DependencyChainPanel({
                 targetPosition,
                 data: { label },
                 type: "default",
+                selected: selectedNodeId === input.id,
                 style: {
                     background,
                     color: "#eee",
@@ -138,6 +172,7 @@ export function DependencyChainPanel({
                         targetPosition,
                         data: { label: `[Group]\n${groupId}` },
                         type: "default",
+                        selected: selectedNodeId === groupNodeId,
                         style: {
                             background: "#3a2a1e",
                             color: "#eee",
@@ -163,7 +198,11 @@ export function DependencyChainPanel({
         // 3. Filter graph
 
         let finalNodes = newNodes;
-        let finalEdges = newEdges;
+
+        // Deduplicate edge IDs (pose bindings from slots vs manual edges can overlap)
+        const uniqueEdgesMap = new Map<string, Edge>();
+        newEdges.forEach(e => uniqueEdgesMap.set(e.id, e));
+        let finalEdges = Array.from(uniqueEdgesMap.values());
 
         if (focusSelected && selectedNodeId) {
             const reachable = new Set<string>();
@@ -271,6 +310,63 @@ export function DependencyChainPanel({
         return { nodes: layoutedNodes, edges: finalEdges };
     }, [inputsById, pipelineConfig, inputBindings, inputValues, layoutDir, hideUnconnected, poses, focusSelected, selectedNodeId]);
 
+    const minimapStyle = useMemo(() => {
+        if (!nodes || nodes.length === 0) return { backgroundColor: "#1e1e1e" };
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(n => {
+            if (n.position.x < minX) minX = n.position.x;
+            if (n.position.y < minY) minY = n.position.y;
+            if (n.position.x + 150 > maxX) maxX = n.position.x + 150;
+            if (n.position.y + 60 > maxY) maxY = n.position.y + 60;
+        });
+
+        const padding = 50;
+        const graphWidth = Math.max(maxX - minX + padding * 2, 1);
+        const graphHeight = Math.max(maxY - minY + padding * 2, 1);
+        const aspectRatio = graphWidth / graphHeight;
+
+        const maxWidth = 250;
+        const maxHeight = 150;
+
+        let width = maxWidth;
+        let height = width / aspectRatio;
+
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = height * aspectRatio;
+        }
+
+        return {
+            backgroundColor: "#1e1e1e",
+            width,
+            height
+        };
+    }, [nodes]);
+
+    // Track the selection changes against the newly layouted nodes to pan when external selection changes
+    React.useEffect(() => {
+        // Resolve global selection to node id
+        let activeId: string | null = null;
+        if (selectedRigId) {
+            activeId = selectedRigId;
+        } else if (selectedPoseId && selectedPoseId !== "__pose_rig_neutral__") {
+            const poseWeightInput = Array.from(inputsById.values()).find(i => i.path?.includes(`/poses/`) && i.path?.includes(selectedPoseId) && i.path?.endsWith(".weight"));
+            if (poseWeightInput) {
+                activeId = poseWeightInput.id;
+            }
+        } else if (selectedPoseGroup && selectedPoseGroup.groupId) {
+            activeId = `group:${selectedPoseGroup.groupId}`;
+        }
+
+        if (activeId) {
+            const node = nodes.find(n => n.id === activeId);
+            if (node && node.position) {
+                // Focus on the node's layout position (offset roughly by its center)
+                setCenter(node.position.x + 75, node.position.y + 30, { duration: 800, zoom: 1.2 });
+            }
+        }
+    }, [selectedRigId, selectedPoseId, selectedPoseGroup, inputsById, nodes, setCenter]);
+
     const handleNodeClick = React.useCallback((event: React.MouseEvent, node: Node) => {
         setSelectedNodeId(node.id);
         if (onNodeClick) {
@@ -323,8 +419,33 @@ export function DependencyChainPanel({
                 >
                     <Background color="#444" gap={16} />
                     <Controls />
+                    <MiniMap
+                        nodeStrokeColor="#555"
+                        nodeColor="#222"
+                        maskColor="rgba(0,0,0,0.4)"
+                        style={minimapStyle}
+                        pannable
+                        zoomable
+                    />
                 </ReactFlow>
             </div>
         </div>
+    );
+}
+
+export function DependencyChainPanel({
+    onNodeClick,
+    selectedPoseGroup,
+}: {
+    onNodeClick?: (id: string) => void;
+    selectedPoseGroup?: PoseGroupInspectorSelection | null;
+}) {
+    return (
+        <ReactFlowProvider>
+            <DependencyChainContent
+                onNodeClick={onNodeClick}
+                selectedPoseGroup={selectedPoseGroup}
+            />
+        </ReactFlowProvider>
     );
 }

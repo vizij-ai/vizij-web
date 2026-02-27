@@ -1102,6 +1102,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               />
               <ResizablePanel defaultSize={30} minSize={20}>
                 <DependencyChainPanel
+                  selectedPoseGroup={selectedPoseGroup}
                   onNodeClick={(id) => {
                     handleSelectRigWithInspectorSync(id);
                   }}
