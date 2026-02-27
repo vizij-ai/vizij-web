@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractGraphFaceId,
+  prepareSpecForImport,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
   extractVizijPipelineMetadataV1,
@@ -123,5 +124,133 @@ describe("graph import helpers", () => {
       (payload as { metadata: { vizij: { pipelineV1?: unknown } } }).metadata
         .vizij.pipelineV1,
     ).toBeUndefined();
+  });
+
+  it("prefers IR vizij metadata when preparing spec import with payload metadata present", () => {
+    const irGraph = {
+      id: "ir-1",
+      faceId: "ir_face",
+      nodes: [],
+      edges: [],
+      constants: [],
+      issues: [],
+      summary: {
+        faceId: "ir_face",
+        inputs: [],
+        outputs: [],
+        bindings: [],
+      },
+      metadata: {
+        source: "test",
+        annotations: {
+          graphSpecMetadata: {
+            vizij: {
+              faceId: "ir_face",
+              inputs: [{ id: "ir_input", path: "/propsrig/jaw_open" }],
+              bindings: [{ targetId: "jaw_target" }],
+              pipelineV1: {
+                byInputId: {
+                  ir_input: {
+                    directInput: { enabled: false },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const payload = {
+      metadata: {
+        vizij: {
+          faceId: "payload_face",
+          inputs: [],
+          bindings: [],
+          pipelineV1: {
+            byInputId: {
+              payload_input: {
+                directInput: { enabled: true },
+              },
+            },
+          },
+          preservedOnlyInPayload: true,
+        },
+      },
+    };
+
+    const prepared = prepareSpecForImport(payload, irGraph) as {
+      metadata: {
+        vizij: {
+          faceId: string;
+          inputs: unknown[];
+          bindings: unknown[];
+          pipelineV1: Record<string, unknown>;
+          preservedOnlyInPayload?: boolean;
+        };
+      };
+    };
+
+    expect(prepared.metadata.vizij.faceId).toBe("ir_face");
+    expect(prepared.metadata.vizij.inputs).toEqual([
+      { id: "ir_input", path: "/propsrig/jaw_open" },
+    ]);
+    expect(prepared.metadata.vizij.bindings).toEqual([
+      { targetId: "jaw_target" },
+    ]);
+    expect(prepared.metadata.vizij.pipelineV1).toEqual({
+      byInputId: {
+        ir_input: {
+          directInput: { enabled: false },
+        },
+      },
+    });
+    expect(prepared.metadata.vizij.preservedOnlyInPayload).toBe(true);
+  });
+
+  it("falls back to payload vizij metadata when compiled IR spec has no metadata section", () => {
+    const irGraph = {
+      id: "ir-no-metadata",
+      faceId: "ir_face",
+      nodes: [],
+      edges: [],
+      constants: [],
+      issues: [],
+      summary: {
+        faceId: "ir_face",
+        inputs: [],
+        outputs: [],
+        bindings: [],
+      },
+      metadata: {
+        source: "test",
+      },
+    };
+    const payload = {
+      metadata: {
+        vizij: {
+          faceId: "payload_face",
+          pipelineV1: {
+            byInputId: {
+              payload_input: {
+                directInput: { enabled: true },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const prepared = prepareSpecForImport(payload, irGraph) as {
+      metadata: { vizij: { faceId: string; pipelineV1: unknown } };
+    };
+
+    expect(prepared.metadata.vizij.faceId).toBe("payload_face");
+    expect(prepared.metadata.vizij.pipelineV1).toEqual({
+      byInputId: {
+        payload_input: {
+          directInput: { enabled: true },
+        },
+      },
+    });
   });
 });

@@ -75,16 +75,23 @@ export function prepareSpecForImport(
     return payload;
   }
   const compiled = compileIrGraph(irGraph, { preferLegacySpec: false });
-  const vizijMetadata = extractVizijMetadataSection(payload);
-  if (!vizijMetadata) {
-    return compiled.spec;
-  }
   const enriched = cloneSerializable(compiled.spec) as Record<string, unknown>;
   const metadata =
     enriched.metadata && typeof enriched.metadata === "object"
       ? { ...(enriched.metadata as Record<string, unknown>) }
       : {};
-  metadata.vizij = vizijMetadata;
+  const payloadVizijMetadata = extractVizijMetadataSection(payload);
+  if (!payloadVizijMetadata) {
+    enriched.metadata = metadata;
+    return enriched;
+  }
+  const compiledVizijMetadata = extractVizijMetadataSection(compiled.spec);
+  metadata.vizij = compiledVizijMetadata
+    ? {
+        ...payloadVizijMetadata,
+        ...compiledVizijMetadata,
+      }
+    : payloadVizijMetadata;
   enriched.metadata = metadata;
   return enriched;
 }
