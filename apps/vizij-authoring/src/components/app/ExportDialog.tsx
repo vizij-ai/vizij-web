@@ -244,6 +244,8 @@ export function ExportDialog({
             onExportFileNameChange={handleExportFileNameChange}
             canExport={canExport}
             onExportGlb={() => {
+              // eslint-disable-next-line no-console -- export smoke-test diagnostics
+              console.log("[vizij-export-ui]", { event: "export-click" });
               void exportGlb();
             }}
             animationCount={bundleSummary.animationCount}

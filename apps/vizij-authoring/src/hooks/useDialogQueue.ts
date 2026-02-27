@@ -26,6 +26,8 @@ export function useDialogQueue(): DialogQueueApi {
   const alert = useCallback<AlertFn>(
     (message) =>
       enqueue(async () => {
+        // eslint-disable-next-line no-console -- export/import smoke-test diagnostics
+        console.log("[vizij-dialog]", { type: "alert", message });
         await Promise.resolve(alertDialog(message));
       }),
     [enqueue],
