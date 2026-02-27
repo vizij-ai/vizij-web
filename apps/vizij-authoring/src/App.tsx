@@ -12,6 +12,7 @@ import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
+import { DependencyChainPanel } from "./components/panels/DependencyChainPanel";
 import { BottomPanelContainer } from "./components/panels/BottomPanelContainer";
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
@@ -523,6 +524,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const referenceFacePanelVisible = useWorkspaceStore(
     (state) => state.panels.referenceFace.isVisible,
   );
+  const dependencyChainPanelVisible = useWorkspaceStore(
+    (state) => state.panels.dependencyChain.isVisible,
+  );
   const animationPanelVisible = useWorkspaceStore(
     (state) => state.panels.animation.isVisible,
   );
@@ -794,9 +798,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     migrationCompletedSessionToken === faceLoadSessionToken;
   const loadingBarProgress =
     runtimeInputReady &&
-    runtimeVisibleReady &&
-    loadingCoordinatorSettled &&
-    migrationCompleteForSession
+      runtimeVisibleReady &&
+      loadingCoordinatorSettled &&
+      migrationCompleteForSession
       ? 1
       : weightedStepProgress;
   const previousLoadingSessionActiveRef = useRef(loadingSessionActive);
@@ -1032,11 +1036,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       style={{ height: "100%", width: "100%" }}
     >
-      {referenceFacePanelVisible ? (
+      {referenceFacePanelVisible || dependencyChainPanelVisible ? (
         <PanelGroup
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
-          <ResizablePanel defaultSize={70} minSize={20}>
+          <ResizablePanel defaultSize={referenceFacePanelVisible && dependencyChainPanelVisible ? 40 : 70} minSize={20}>
             <div className="relative w-full h-full">
               {loadingBarVisible && (
                 <div className="absolute top-2 left-2 right-2 z-20 pointer-events-none">
@@ -1070,19 +1074,41 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               />
             </div>
           </ResizablePanel>
-          <PanelResizeHandle
-            className={
-              viewerSplitVertical
-                ? "w-1 bg-border-default hover:bg-border-hover transition-colors"
-                : "h-1 bg-border-default hover:bg-border-hover transition-colors"
-            }
-          />
-          <ResizablePanel defaultSize={30} minSize={20}>
-            <ReferenceFacePanel
-              splitVertical={viewerSplitVertical}
-              onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
-            />
-          </ResizablePanel>
+          {referenceFacePanelVisible && (
+            <>
+              <PanelResizeHandle
+                className={
+                  viewerSplitVertical
+                    ? "w-1 bg-border-default hover:bg-border-hover transition-colors"
+                    : "h-1 bg-border-default hover:bg-border-hover transition-colors"
+                }
+              />
+              <ResizablePanel defaultSize={30} minSize={20}>
+                <ReferenceFacePanel
+                  splitVertical={viewerSplitVertical}
+                  onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
+                />
+              </ResizablePanel>
+            </>
+          )}
+          {dependencyChainPanelVisible && (
+            <>
+              <PanelResizeHandle
+                className={
+                  viewerSplitVertical
+                    ? "w-1 bg-border-default hover:bg-border-hover transition-colors"
+                    : "h-1 bg-border-default hover:bg-border-hover transition-colors"
+                }
+              />
+              <ResizablePanel defaultSize={30} minSize={20}>
+                <DependencyChainPanel
+                  onNodeClick={(id) => {
+                    handleSelectRigWithInspectorSync(id);
+                  }}
+                />
+              </ResizablePanel>
+            </>
+          )}
         </PanelGroup>
       ) : (
         <div className="relative w-full h-full">

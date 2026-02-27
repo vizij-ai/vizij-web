@@ -53,6 +53,9 @@ export function AppMenuBar({
   const referenceFacePanelVisible = useWorkspaceStore(
     (state) => state.panels.referenceFace.isVisible,
   );
+  const dependencyChainPanelVisible = useWorkspaceStore(
+    (state) => state.panels.dependencyChain.isVisible,
+  );
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
@@ -75,14 +78,14 @@ export function AppMenuBar({
         </MenuItem>
         <MenuItem onSelect={onExport}>Export...</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => {}} disabled>
+        <MenuItem onSelect={() => { }} disabled>
           Save
         </MenuItem>
-        <MenuItem onSelect={() => {}} disabled>
+        <MenuItem onSelect={() => { }} disabled>
           Save As...
         </MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => {}}>Exit</MenuItem>
+        <MenuItem onSelect={() => { }}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit">
         <MenuItem>Undo</MenuItem>
@@ -140,6 +143,12 @@ export function AppMenuBar({
           onCheckedChange={() => togglePanel("referenceFace")}
         >
           Reference Face
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={dependencyChainPanelVisible}
+          onCheckedChange={() => togglePanel("dependencyChain")}
+        >
+          Dependency Chain
         </MenuCheckboxItem>
 
         <MenuSeparator />
