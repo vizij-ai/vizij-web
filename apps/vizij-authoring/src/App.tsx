@@ -798,9 +798,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     migrationCompletedSessionToken === faceLoadSessionToken;
   const loadingBarProgress =
     runtimeInputReady &&
-      runtimeVisibleReady &&
-      loadingCoordinatorSettled &&
-      migrationCompleteForSession
+    runtimeVisibleReady &&
+    loadingCoordinatorSettled &&
+    migrationCompleteForSession
       ? 1
       : weightedStepProgress;
   const previousLoadingSessionActiveRef = useRef(loadingSessionActive);
@@ -1040,7 +1040,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         <PanelGroup
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
-          <ResizablePanel defaultSize={referenceFacePanelVisible && dependencyChainPanelVisible ? 40 : 70} minSize={20}>
+          <ResizablePanel
+            defaultSize={
+              referenceFacePanelVisible && dependencyChainPanelVisible ? 40 : 70
+            }
+            minSize={20}
+          >
             <div className="relative w-full h-full">
               {loadingBarVisible && (
                 <div className="absolute top-2 left-2 right-2 z-20 pointer-events-none">

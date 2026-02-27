@@ -78,14 +78,14 @@ export function AppMenuBar({
         </MenuItem>
         <MenuItem onSelect={onExport}>Export...</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => { }} disabled>
+        <MenuItem onSelect={() => {}} disabled>
           Save
         </MenuItem>
-        <MenuItem onSelect={() => { }} disabled>
+        <MenuItem onSelect={() => {}} disabled>
           Save As...
         </MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={() => { }}>Exit</MenuItem>
+        <MenuItem onSelect={() => {}}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit">
         <MenuItem>Undo</MenuItem>
