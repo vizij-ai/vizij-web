@@ -83,6 +83,7 @@ export interface UsePoseRigAuthoringResult {
     poseIds: Iterable<string>,
     group: string | null | undefined,
   ) => void;
+  addPose: (pose: PoseDefinition) => void;
   createPoseFromSnapshot: (name?: string) => void;
   capturePose: (poseId: string) => void;
   clearPose: (poseId: string) => void;
@@ -291,6 +292,13 @@ export function usePoseRigAuthoring(
   const removePoseFromGroup = useCallback(
     (poseId: string, group: string) => {
       store.removePoseFromGroup(poseId, group);
+    },
+    [store],
+  );
+
+  const addPose = useCallback(
+    (pose: PoseDefinition) => {
+      store.addPose(pose);
     },
     [store],
   );
@@ -571,6 +579,7 @@ export function usePoseRigAuthoring(
     setPoseGroupBlendMode,
     addPoseToGroup,
     removePoseFromGroup,
+    addPose,
     selectedPoseId,
     selectedPose,
     isNeutralSelected,

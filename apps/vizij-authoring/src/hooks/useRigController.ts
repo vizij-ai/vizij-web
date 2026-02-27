@@ -88,6 +88,7 @@ import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { useFeatureLabels } from "./useFeatureLabels";
 import { useManagedStandardInputs } from "./useManagedStandardInputs";
+import type { ManagedStandardInput } from "../types/standardInputs";
 import { useStandardInputCollections } from "./useStandardInputCollections";
 import { useStandardInputSelectionSync } from "./useStandardInputSelectionSync";
 import { applyShapeInputRename } from "./shapeRenaming";

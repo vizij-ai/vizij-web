@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { VizijAnimationClipData } from "@vizij/render";
+import type { ManagedStandardInput } from "../types/standardInputs";
 
 export interface AnimationKeyframe {
   id: string;
@@ -71,7 +72,10 @@ interface AnimationState {
   tick: (deltaTime: number) => void;
   setPlaySpeed: (speed: number) => void;
 
-  importExternalAnimations: (animations: VizijAnimationClipData[]) => void;
+  importExternalAnimations: (
+    animations: VizijAnimationClipData[],
+    managedStandardInputs?: ManagedStandardInput[],
+  ) => void;
 }
 
 const DEFAULT_ANIM_ID = "default";

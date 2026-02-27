@@ -179,17 +179,37 @@ export function AnimationPanel() {
 
   const handleExtractPoses = () => {
     if (tracks.length === 0) return;
-    const timestamps = AnimationPoseService.getUniqueTimestamps(tracks);
-    timestamps.forEach((t, i) => {
-      const values = AnimationPoseService.evaluateAtTime(tracks, t);
-      const pose = PoseSnapshotService.capture(values, poseRigAuthoring.neutralInputs, {
-        name: `Extracted ${i + 1} (${t.toFixed(2)}s)`,
-      });
-      poseRigAuthoring.importPoseConfigFromData({
-        ...poseRigAuthoring.poseConfigDraft!,
-        poses: [...poseRigAuthoring.poses, pose],
-      });
+    const values = AnimationPoseService.evaluateAtTime(tracks, currentTime);
+
+    const reverseLookup = new Map<string, string>();
+    managedStandardInputs.forEach((input) => {
+      const { elementId, featureKey, componentKey } = input.metadata || {};
+      if (elementId && featureKey && componentKey) {
+        let suffix = "";
+        if (componentKey === "x") suffix = "/x";
+        if (componentKey === "y") suffix = "/y";
+        if (componentKey === "z") suffix = "/z";
+        if ((componentKey as string) === "w") suffix = "/w";
+        let featurePath = featureKey.replace(/:/g, "/");
+        if (featureKey === "transform") featurePath = "translation";
+        const lookupKey = `${elementId}/${featurePath}${suffix}`;
+        reverseLookup.set(lookupKey, input.input.id);
+      }
     });
+
+    const resolvedValues: Record<string, number> = {};
+    Object.entries(values).forEach(([vid, val]) => {
+      let finalId = vid;
+      if (reverseLookup.has(vid)) {
+        finalId = reverseLookup.get(vid)!;
+      }
+      resolvedValues[finalId] = val;
+    });
+
+    const pose = PoseSnapshotService.createPoseDefinition(`Extracted (${currentTime.toFixed(2)}s)`);
+    pose.values = resolvedValues;
+
+    poseRigAuthoring.addPose(pose);
   };
 
   const handleCreateAnimation = () => {
@@ -207,7 +227,7 @@ export function AnimationPanel() {
         className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
         onClick={() => {
           console.log(`[AnimationPanel] Importing ${glbAnimations.length} animations`);
-          importExternalAnimations(glbAnimations);
+          importExternalAnimations(glbAnimations, managedStandardInputs);
         }}
         disabled={glbAnimations.length === 0}
         title="Import Animations from GLB"
@@ -220,7 +240,7 @@ export function AnimationPanel() {
         className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
         onClick={handleExtractPoses}
         disabled={tracks.length === 0}
-        title="Extract Keyframes as Poses"
+        title="Extract Pose at Current Time"
       >
         <Boxes className="h-3.5 w-3.5" />
       </Button>
