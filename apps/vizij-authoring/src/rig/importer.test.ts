@@ -401,6 +401,74 @@ describe("rehydrateRigDataFromGraph", () => {
     expect(result.inputBindings.propsrig_jaw_open?.inputId).toBe("jaw_control");
   });
 
+  it("remaps component target ids when propsrig source ids drift between exports", () => {
+    const importedTargetId = "legacy_background_component:b";
+    const currentTargetId = "current_background_component:b";
+    const inputId = "propsrig_background_color_b";
+    const inputPath = "/propsrig/background/color/b";
+    const importedSourceId = `component:legacy:background:${encodeURIComponent(
+      importedTargetId,
+    )}`;
+    const currentSourceId = `component:current:background:${encodeURIComponent(
+      currentTargetId,
+    )}`;
+
+    const spec = makeSpec({
+      faceId: "legacy_face",
+      inputs: [
+        makeInput({
+          id: inputId,
+          path: inputPath,
+          group: "background",
+          sourceId: importedSourceId,
+        }),
+      ],
+      bindings: [
+        makeBindingSummary({
+          targetId: importedTargetId,
+          animatableId: "legacy_background_component",
+          component: "b",
+          inputId,
+        }),
+      ],
+    });
+
+    const currentComponent: AnimatableComponent = {
+      id: currentTargetId,
+      safeId: "current_background_component_b",
+      animatableId: "current_background_component",
+      animatableType: "number",
+      component: "b",
+      label: "Background Color B",
+      defaultValue: 0,
+      range: { min: 0, max: 1 },
+    };
+    const provisionedPropsRigInput = makeInput({
+      id: inputId,
+      path: inputPath,
+      group: "background",
+      sourceId: currentSourceId,
+    });
+
+    const result = rehydrateRigDataFromGraph(spec, {
+      faceId: "robot",
+      animatables: {},
+      components: [currentComponent],
+      provisionedPropsRigInputs: [provisionedPropsRigInput],
+    });
+
+    expect(result.normalizationDiagnostics.targetIdRemaps).toContainEqual({
+      fromTargetId: importedTargetId,
+      toTargetId: currentTargetId,
+    });
+    expect(result.bindings[currentTargetId]?.inputId).toBe(inputId);
+    expect(result.bindings[importedTargetId]).toBeUndefined();
+    const importedInput = result.standardInputs.find(
+      (entry) => entry.id === inputId,
+    );
+    expect(importedInput?.sourceId).toBe(currentSourceId);
+  });
+
   it("is deterministic and idempotent for repeated re-imports", () => {
     const spec = makeSpec({
       faceId: "legacy_face",

@@ -220,9 +220,35 @@ function normalizeBindingTargetId(
   targetId: string,
   componentIds: Set<string>,
   standardInputs: Map<string, StandardRigInput>,
+  componentIdRemaps?: Map<string, string>,
 ): string {
   const trimmed = targetId.trim();
-  if (!trimmed || componentIds.has(trimmed)) {
+  if (!trimmed) {
+    return targetId;
+  }
+
+  if (componentIdRemaps && componentIdRemaps.size > 0) {
+    const directRemap = componentIdRemaps.get(trimmed);
+    if (directRemap && componentIds.has(directRemap)) {
+      return directRemap;
+    }
+
+    const separatorIndex = trimmed.indexOf(":");
+    const baseTargetId =
+      separatorIndex > 0 ? trimmed.slice(0, separatorIndex) : trimmed;
+    const remappedBaseTargetId = componentIdRemaps.get(baseTargetId);
+    if (remappedBaseTargetId) {
+      const remappedTargetId =
+        separatorIndex > 0
+          ? `${remappedBaseTargetId}${trimmed.slice(separatorIndex)}`
+          : remappedBaseTargetId;
+      if (componentIds.has(remappedTargetId)) {
+        return remappedTargetId;
+      }
+    }
+  }
+
+  if (componentIds.has(trimmed)) {
     return trimmed || targetId;
   }
   if (standardInputs.has(trimmed)) {
@@ -377,6 +403,7 @@ function normalizeImportedBindingSummaries(
   options: {
     components: AnimatableComponent[];
     standardInputs: Map<string, StandardRigInput>;
+    componentIdRemaps?: Map<string, string>;
   },
 ): {
   summaries: GraphBindingSummary[];
@@ -392,6 +419,7 @@ function normalizeImportedBindingSummaries(
       summary.targetId,
       componentIds,
       options.standardInputs,
+      options.componentIdRemaps,
     );
     if (normalizedTargetId !== summary.targetId) {
       diagnostics.targetIdRemaps.push({
@@ -673,6 +701,57 @@ export function rehydrateRigDataFromGraph(
       input,
     ]),
   );
+  const provisionedPropsRigInputsByPath = new Map<string, StandardRigInput>();
+  (options.provisionedPropsRigInputs ?? []).forEach((provisioned) => {
+    const normalizedPath = normalizeStandardRigInputPath(provisioned.path);
+    if (!isPropsRigStandardInputPath(normalizedPath)) {
+      return;
+    }
+    provisionedPropsRigInputsByPath.set(normalizedPath, provisioned);
+  });
+  const componentIdRemaps = new Map<string, string>();
+  standardInputs.forEach((input) => {
+    const normalizedPath = normalizeStandardRigInputPath(input.path);
+    if (!isPropsRigStandardInputPath(normalizedPath)) {
+      return;
+    }
+    const provisioned = provisionedPropsRigInputsByPath.get(normalizedPath);
+    if (!provisioned) {
+      return;
+    }
+    const importedComponentId = resolveComponentIdFromSourceId(input.sourceId);
+    const currentComponentId = resolveComponentIdFromSourceId(
+      provisioned.sourceId,
+    );
+    if (!importedComponentId || !currentComponentId) {
+      return;
+    }
+    if (importedComponentId !== currentComponentId) {
+      componentIdRemaps.set(importedComponentId, currentComponentId);
+      const importedSeparatorIndex = importedComponentId.indexOf(":");
+      const currentSeparatorIndex = currentComponentId.indexOf(":");
+      if (importedSeparatorIndex > 0 && currentSeparatorIndex > 0) {
+        const importedBaseId = importedComponentId.slice(
+          0,
+          importedSeparatorIndex,
+        );
+        const currentBaseId = currentComponentId.slice(
+          0,
+          currentSeparatorIndex,
+        );
+        if (importedBaseId !== currentBaseId) {
+          componentIdRemaps.set(importedBaseId, currentBaseId);
+        }
+      }
+    }
+    if (
+      provisioned.sourceId &&
+      provisioned.sourceId.trim().length > 0 &&
+      input.sourceId !== provisioned.sourceId
+    ) {
+      input.sourceId = provisioned.sourceId;
+    }
+  });
   const createdPropsRigInputs: PropsRigInputCreatedDiagnostic[] = [];
 
   (options.provisionedPropsRigInputs ?? []).forEach((provisioned) => {
@@ -730,6 +809,7 @@ export function rehydrateRigDataFromGraph(
     normalizeImportedBindingSummaries(vizij.bindings, {
       components: options.components,
       standardInputs: standardInputsById,
+      componentIdRemaps,
     });
   diagnostics.createdPropsRigInputs.push(...createdPropsRigInputs);
 
