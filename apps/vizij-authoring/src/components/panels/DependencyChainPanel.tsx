@@ -7,13 +7,104 @@ import ReactFlow, {
     Position,
     MiniMap,
     ReactFlowProvider,
-    useReactFlow
+    useReactFlow,
+    Handle
 } from "reactflow";
 import "reactflow/dist/style.css";
 import dagre from "dagre";
 import { useBindingAuthoringStore } from "../../state/bindingAuthoringStore";
 import { usePoseRigStore } from "../../poseRig/store";
 import type { PoseGroupInspectorSelection } from "../../types/poseGroupInspector";
+import type { NodeProps } from "reactflow";
+
+function SmartNodeLabel({ label }: { label: string }) {
+    if (!label) return null;
+
+    const hasSlashes = label.includes("/");
+    const hasDots = label.includes(".");
+
+    if (hasSlashes || hasDots) {
+        const sep = hasSlashes ? "/" : ".";
+        const parts = label.split(sep);
+
+        if (parts.length > 2) {
+            return (
+                <div className="flex items-center w-full min-w-0 text-xs font-medium text-neutral-100" title={label}>
+                    <span className="opacity-50 shrink-0 truncate max-w-[50px]">{parts[0]}{sep}</span>
+                    <span className="opacity-50 shrink-0">..{sep}</span>
+                    <span className="truncate min-w-0">{parts[parts.length - 1]}</span>
+                </div>
+            );
+        } else if (parts.length === 2) {
+            return (
+                <div className="flex items-center w-full min-w-0 text-xs font-medium text-neutral-100" title={label}>
+                    <span className="opacity-50 shrink-0 truncate max-w-[60px]">{parts[0]}{sep}</span>
+                    <span className="truncate min-w-0">{parts[1]}</span>
+                </div>
+            );
+        }
+    }
+
+    if (label.length > 22) {
+        const first = label.slice(0, 10);
+        const last = label.slice(-10);
+        return <span className="truncate block w-full text-xs font-medium text-neutral-100" title={label}>{`${first}...${last}`}</span>;
+    }
+
+    return <span className="truncate block w-full text-xs font-medium text-neutral-100" title={label}>{label}</span>;
+}
+
+function DependencyNode({ data, selected, sourcePosition, targetPosition }: NodeProps) {
+    let bgGradient = "from-neutral-800 to-neutral-900";
+    let borderClass = "border-neutral-700/50";
+    let selectedBorder = "border-blue-500 shadow-blue-500/25";
+    let indicatorColor = "bg-neutral-500";
+    let typeLabel = data.typeLabel || "Node";
+
+    if (data.nodeType === "pose") {
+        bgGradient = "from-emerald-900/60 to-neutral-900";
+        borderClass = "border-emerald-700/50";
+        selectedBorder = "border-emerald-400 shadow-emerald-400/25";
+        indicatorColor = "bg-emerald-500";
+    } else if (data.nodeType === "group") {
+        bgGradient = "from-amber-900/60 to-neutral-900";
+        borderClass = "border-amber-700/50";
+        selectedBorder = "border-amber-400 shadow-amber-400/25";
+        indicatorColor = "bg-amber-500";
+    } else if (data.nodeType === "input") {
+        bgGradient = "from-sky-900/60 to-neutral-900";
+        borderClass = "border-sky-700/50";
+        selectedBorder = "border-sky-400 shadow-sky-400/25";
+        indicatorColor = "bg-sky-500";
+    }
+
+    return (
+        <div className={`relative rounded-md border min-w-[140px] shadow-sm transition-colors ${bgGradient} ${selected ? selectedBorder : borderClass}`}>
+            <Handle type="target" position={targetPosition || Position.Left} style={{ background: '#777', border: 'none', width: 6, height: 6 }} />
+
+            <div className="flex flex-col px-2 py-1.5">
+                <div className="flex items-center justify-between gap-3 mb-1">
+                    <div className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${indicatorColor}`} />
+                        <span className="text-[10px] font-semibold tracking-wider text-neutral-300 uppercase">{typeLabel}</span>
+                    </div>
+                    {data.value !== undefined && (
+                        <span className="text-[11px] font-mono text-emerald-300 bg-black/40 px-1 rounded">
+                            {data.value.toFixed(2)}
+                        </span>
+                    )}
+                </div>
+                <div className="w-full max-w-[140px]">
+                    <SmartNodeLabel label={data.label} />
+                </div>
+            </div>
+
+            <Handle type="source" position={sourcePosition || Position.Right} style={{ background: '#777', border: 'none', width: 6, height: 6 }} />
+        </div>
+    );
+}
+
+const nodeTypes = { dependencyNode: DependencyNode };
 
 function DependencyChainContent({
     onNodeClick,
@@ -83,14 +174,14 @@ function DependencyChainContent({
             const sourcePosition = layoutDir === "LR" ? Position.Right : Position.Bottom;
             const targetPosition = layoutDir === "LR" ? Position.Left : Position.Top;
 
-            let label = `${input.label || input.id}\nval: ${val.toFixed(2)}`;
-            let background = "#1e1e1e";
-            let border = "1px solid #444";
+            let label = input.label || input.id;
+            let nodeType = "input";
+            let typeLabel = "Driver";
 
             if (isPoseWeight) {
-                background = "#1e3a2a"; // Green pose theme
-                border = "1px solid #10b981";
-                label = `[Pose] ${poseDef?.name || poseId || input.label}\nweight: ${val.toFixed(2)}`;
+                nodeType = "pose";
+                typeLabel = "Pose";
+                label = poseDef?.name || poseId || input.label || "Unknown Pose";
             }
 
             newNodes.push({
@@ -98,19 +189,9 @@ function DependencyChainContent({
                 position: { x: 0, y: 0 },
                 sourcePosition,
                 targetPosition,
-                data: { label },
-                type: "default",
+                data: { label, value: val, nodeType, typeLabel },
+                type: "dependencyNode",
                 selected: selectedNodeId === input.id,
-                style: {
-                    background,
-                    color: "#eee",
-                    border,
-                    borderRadius: "8px",
-                    padding: "10px",
-                    fontSize: "12px",
-                    textAlign: "center" as const,
-                    cursor: "pointer",
-                }
             });
 
             // Standard input binding edges (what drives THIS node)
@@ -170,19 +251,9 @@ function DependencyChainContent({
                         position: { x: 0, y: 0 },
                         sourcePosition,
                         targetPosition,
-                        data: { label: `[Group]\n${groupId}` },
-                        type: "default",
+                        data: { label: groupId, nodeType: "group", typeLabel: "Group" },
+                        type: "dependencyNode",
                         selected: selectedNodeId === groupNodeId,
-                        style: {
-                            background: "#3a2a1e",
-                            color: "#eee",
-                            border: "1px solid #f59e0b",
-                            borderRadius: "8px",
-                            padding: "10px",
-                            fontSize: "12px",
-                            textAlign: "center" as const,
-                            cursor: "pointer",
-                        }
                     });
                 }
                 newEdges.push({
@@ -262,10 +333,10 @@ function DependencyChainContent({
         const dagreGraph = new dagre.graphlib.Graph();
         dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-        dagreGraph.setGraph({ rankdir: layoutDir, nodesep: 50, ranksep: 200 });
+        dagreGraph.setGraph({ rankdir: layoutDir, nodesep: 25, ranksep: 100 });
 
         finalNodes.forEach((node) => {
-            dagreGraph.setNode(node.id, { width: 150, height: 60 });
+            dagreGraph.setNode(node.id, { width: 140, height: 45 });
         });
 
         finalEdges.forEach((edge) => {
@@ -410,6 +481,7 @@ function DependencyChainContent({
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
+                    nodeTypes={nodeTypes}
                     fitView
                     onNodeClick={handleNodeClick}
                     onPaneClick={handlePaneClick}
@@ -420,8 +492,8 @@ function DependencyChainContent({
                     <Background color="#444" gap={16} />
                     <Controls />
                     <MiniMap
-                        nodeStrokeColor="#555"
-                        nodeColor="#222"
+                        nodeStrokeColor="#777"
+                        nodeColor="#ccc"
                         maskColor="rgba(0,0,0,0.4)"
                         style={minimapStyle}
                         pannable
