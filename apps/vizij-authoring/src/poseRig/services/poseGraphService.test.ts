@@ -486,6 +486,26 @@ describe("PoseGraphService", () => {
     expect(warnings.length).toBeGreaterThan(0);
   });
 
+  it("accepts neutral-only pose graphs as empty pose libraries", () => {
+    const config: any = {
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0.15 },
+      poses: [],
+    };
+    const inputs: StandardRigInput[] = [createInput("smile", "/face/smile")];
+    const { spec } = PoseGraphService.buildSpec(config, inputs, {
+      blendMode: "average",
+    });
+
+    expect(PoseGraphService.validate(spec, inputs)).toEqual([]);
+    expect(PoseGraphService.parse(spec, inputs)).toMatchObject({
+      neutralInputs: { smile: 0.15 },
+      poses: [],
+      warnings: [],
+    });
+  });
+
   it("reports no warnings for parsed spec", () => {
     const config: any = {
       faceId: "robot",

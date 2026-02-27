@@ -114,7 +114,11 @@ export function parsePoseGraphSpec(
     node.id.startsWith("pose_record_"),
   );
   if (poseConstants.length === 0) {
-    throw new Error("Pose graph does not contain any pose constant nodes.");
+    return {
+      neutralInputs,
+      poses: [],
+      warnings,
+    };
   }
 
   const now = new Date().toISOString();
