@@ -25,6 +25,7 @@ import {
   applyLockedRuntimeOutputWrite,
   buildLockedRuntimeOutputIndex,
 } from "./runtimeOutputLocks";
+import type { FacePresetAssetOption } from "./facePresetAssets";
 
 type RuntimeRenderableSelectionType =
   | "group"
@@ -311,6 +312,8 @@ export interface ViewerProps {
   onImportClick: () => void;
   onLoadQuori: () => void;
   onLoadHugo: () => void;
+  presetLoadOptions?: readonly FacePresetAssetOption[];
+  onLoadPresetAsset?: (preset: FacePresetAssetOption) => void;
 }
 
 export function Viewer({
@@ -325,6 +328,8 @@ export function Viewer({
   onImportClick,
   onLoadQuori,
   onLoadHugo,
+  presetLoadOptions,
+  onLoadPresetAsset,
 }: ViewerProps) {
   const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
@@ -484,16 +489,42 @@ export function Viewer({
                 scene.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex w-full max-w-3xl flex-col items-center gap-3">
               <Button onClick={onImportClick} size="md">
                 Import File
               </Button>
-              <Button variant="secondary" onClick={onLoadQuori} size="md">
-                Load Quori
-              </Button>
-              <Button variant="secondary" onClick={onLoadHugo} size="md">
-                Load Hugo
-              </Button>
+              {presetLoadOptions &&
+              presetLoadOptions.length > 0 &&
+              onLoadPresetAsset ? (
+                <div className="grid w-full grid-cols-3 gap-2">
+                  {presetLoadOptions.map((preset) => (
+                    <Button
+                      key={preset.id}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full justify-center text-[11px]"
+                      disabled={!preset.available}
+                      onClick={() => onLoadPresetAsset(preset)}
+                      title={
+                        preset.available
+                          ? `Load ${preset.filename}`
+                          : `${preset.label} asset not available`
+                      }
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <Button variant="secondary" onClick={onLoadQuori} size="md">
+                    Load Quori
+                  </Button>
+                  <Button variant="secondary" onClick={onLoadHugo} size="md">
+                    Load Hugo
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}

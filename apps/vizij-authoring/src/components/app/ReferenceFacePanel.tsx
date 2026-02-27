@@ -3,6 +3,10 @@ import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { Button } from "../ui";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
+import {
+  FACE_PRESET_GRID_OPTIONS,
+  type FacePresetAssetOption,
+} from "./facePresetAssets";
 
 export interface ReferenceFacePanelProps {
   splitVertical: boolean;
@@ -33,6 +37,29 @@ export function ReferenceFacePanel({
       referenceFace.setFile(file);
       // Reset input value to allow re-selecting the same file
       event.target.value = "";
+    },
+    [referenceFace],
+  );
+
+  const handleLoadPresetAsset = useCallback(
+    async (preset: FacePresetAssetOption) => {
+      if (!preset.available) {
+        return;
+      }
+      try {
+        const res = await fetch(preset.url);
+        if (!res.ok) {
+          throw new Error(`Failed to load ${preset.filename}`);
+        }
+        const blob = await res.blob();
+        const file = new File([blob], preset.filename, {
+          type: "model/gltf-binary",
+        });
+        referenceFace.setFile(file);
+      } catch (error) {
+        console.error(error);
+        alert(`Could not load ${preset.label} asset.`);
+      }
     },
     [referenceFace],
   );
@@ -90,7 +117,7 @@ export function ReferenceFacePanel({
         {!referenceFace.file && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {/* We use pointer-events-none on container and auto on button so it floats above the placeholder */}
-            <div className="pointer-events-auto flex flex-col items-center gap-3">
+            <div className="pointer-events-auto flex w-full max-w-[560px] flex-col items-center gap-3 px-4">
               <Button
                 variant="primary"
                 onClick={handleLoadClick}
@@ -98,49 +125,24 @@ export function ReferenceFacePanel({
               >
                 Load Custom Reference Face
               </Button>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/assets/Hugo_Latest_Rigged.glb");
-                      if (!res.ok) throw new Error("Failed to load Hugo");
-                      const blob = await res.blob();
-                      const file = new File([blob], "Hugo_Latest_Rigged.glb", {
-                        type: "model/gltf-binary",
-                      });
-                      referenceFace.setFile(file);
-                    } catch (e) {
-                      console.error(e);
-                      alert("Could not load Hugo asset.");
+              <div className="grid w-full grid-cols-3 gap-2">
+                {FACE_PRESET_GRID_OPTIONS.map((preset) => (
+                  <Button
+                    key={preset.id}
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 px-2 text-[11px]"
+                    disabled={!preset.available}
+                    onClick={() => void handleLoadPresetAsset(preset)}
+                    title={
+                      preset.available
+                        ? `Load ${preset.filename}`
+                        : `${preset.label} asset not available`
                     }
-                  }}
-                >
-                  Load Hugo
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-zinc-600 shadow-lg cursor-pointer"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(
-                        "/assets/Quori_Latest_Rigged.glb",
-                      );
-                      if (!res.ok) throw new Error("Failed to load Quori");
-                      const blob = await res.blob();
-                      const file = new File([blob], "Quori_Latest_Rigged.glb", {
-                        type: "model/gltf-binary",
-                      });
-                      referenceFace.setFile(file);
-                    } catch (e) {
-                      console.error(e);
-                      alert("Could not load Quori asset.");
-                    }
-                  }}
-                >
-                  Load Quori
-                </Button>
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
               </div>
             </div>
           </div>

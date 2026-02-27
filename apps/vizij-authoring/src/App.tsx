@@ -18,6 +18,10 @@ import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
 import { OrientationConfirmationDialog } from "./components/app/OrientationConfirmationDialog";
+import {
+  FACE_PRESET_GRID_OPTIONS,
+  type FacePresetAssetOption,
+} from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
@@ -253,18 +257,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const handleLoadQuori = useCallback(() => {
-    handleLoadAssetFromUrl(
-      "/assets/Quori_Latest_Rigged.glb",
-      "Quori_Latest_Rigged.glb",
-    );
+    handleLoadAssetFromUrl("/assets/Quori_Legacy.glb", "Quori_Legacy.glb");
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadHugo = useCallback(() => {
-    handleLoadAssetFromUrl(
-      "/assets/Hugo_Latest_Rigged.glb",
-      "Hugo_Latest_Rigged.glb",
-    );
+    handleLoadAssetFromUrl("/assets/Hugo_Legacy.glb", "Hugo_Legacy.glb");
   }, [handleLoadAssetFromUrl]);
+
+  const handleLoadPresetAsset = useCallback(
+    (preset: FacePresetAssetOption) => {
+      if (!preset.available) {
+        return;
+      }
+      handleLoadAssetFromUrl(preset.url, preset.filename);
+    },
+    [handleLoadAssetFromUrl],
+  );
 
   const referenceFaceContextValue = useReferenceFaceState();
   const sharedVariableSyncEnabled =
@@ -1101,6 +1109,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 onImportClick={handleImportClick}
                 onLoadQuori={handleLoadQuori}
                 onLoadHugo={handleLoadHugo}
+                presetLoadOptions={FACE_PRESET_GRID_OPTIONS}
+                onLoadPresetAsset={handleLoadPresetAsset}
               />
             </div>
           </ResizablePanel>
@@ -1149,6 +1159,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             onImportClick={handleImportClick}
             onLoadQuori={handleLoadQuori}
             onLoadHugo={handleLoadHugo}
+            presetLoadOptions={FACE_PRESET_GRID_OPTIONS}
+            onLoadPresetAsset={handleLoadPresetAsset}
           />
         </div>
       )}
