@@ -197,15 +197,38 @@ function resolveBundleContractViolationMessage(
   if (!contractAudits.length) {
     return null;
   }
-  const mismatchEntry = contractAudits.find(
-    (entry) => entry.status !== "match",
-  );
+  const resolveBlockingDiffCount = (
+    entry: (typeof contractAudits)[number],
+  ): number | null => {
+    if (entry.status !== "diff") {
+      return null;
+    }
+    if (!entry.diff) {
+      return entry.diffCount;
+    }
+    const runtimeDiffCount = entry.diff.entries.filter(
+      (diffEntry) => diffEntry.category !== "metadata",
+    ).length;
+    return runtimeDiffCount;
+  };
+  const mismatchEntry = contractAudits.find((entry) => {
+    if (entry.status === "match") {
+      return false;
+    }
+    if (entry.status !== "diff") {
+      return true;
+    }
+    const blockingDiffCount = resolveBlockingDiffCount(entry);
+    return blockingDiffCount === null || blockingDiffCount > 0;
+  });
   if (mismatchEntry) {
     if (mismatchEntry.status === "missing-ir") {
       return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" is missing IR metadata required for runtime compatibility checks.`;
     }
     if (mismatchEntry.status === "diff") {
-      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${mismatchEntry.diffCount} diff${mismatchEntry.diffCount === 1 ? "" : "s"}).`;
+      const blockingDiffCount =
+        resolveBlockingDiffCount(mismatchEntry) ?? mismatchEntry.diffCount;
+      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${blockingDiffCount} diff${blockingDiffCount === 1 ? "" : "s"}).`;
     }
     return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" failed runtime compatibility checks (${mismatchEntry.error ?? "unknown error"}).`;
   }

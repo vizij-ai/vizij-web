@@ -897,6 +897,56 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("ignores metadata-only bundle audit diffs when checking runtime contract", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    mockedAuditBundleGraphs.mockResolvedValue([
+      {
+        id: "face",
+        kind: "rig",
+        status: "diff",
+        faceId: "face",
+        diffCount: 1,
+        diffLimitReached: false,
+        issues: [],
+        outputs: [],
+        diff: {
+          entries: [
+            {
+              id: "mismatch:1:spec.metadata.vizij.pipelineV1.byInputId.input_a",
+              kind: "mismatch",
+              path: "spec.metadata.vizij.pipelineV1.byInputId.input_a",
+              category: "metadata",
+              importedValue: { clamp: { enabled: true } },
+              rebuiltValue: undefined,
+            },
+          ],
+          limitReached: false,
+        },
+      } as Awaited<ReturnType<typeof auditBundleGraphs>>[number],
+    ]);
+
+    const options = createOptions();
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).not.toHaveBeenCalledWith(
+      expect.stringContaining("does not match compiled IR"),
+    );
+    hook.unmount();
+  });
+
   it("blocks export when bundle audit finds unmapped output targets", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
