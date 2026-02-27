@@ -8,11 +8,16 @@ import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
+import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
+import { InputValueBridge } from "../../motiongraph/components/InputValueBridge";
+import { MotionGraphValueSampler } from "../../motiongraph/components/MotionGraphValueSampler";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import {
   useBindingAuthoring,
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
+import { useWorkspaceStore } from "../../state/workspaceStore";
 import { isPoseControlInputPath } from "../../poseRig/utils";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
@@ -324,6 +329,10 @@ export function Viewer({
   const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
   const runtimeError = useGraphRuntime((state) => state.graphError);
+  const motionGraphVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraph.isVisible,
+  );
+  const plotActive = useEditorStore((state) => state.plotActive);
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
@@ -434,6 +443,11 @@ export function Viewer({
             ) : null}
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
+            <InputValueBridge active={motionGraphVisible} />
+            <MotionGraphDriverBridge active={motionGraphVisible} />
+            <MotionGraphValueSampler
+              active={motionGraphVisible && plotActive}
+            />
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay onResetInputs={handleResetInputs} />
             <div className="h-full w-full">

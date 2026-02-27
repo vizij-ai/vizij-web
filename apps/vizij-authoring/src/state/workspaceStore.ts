@@ -17,6 +17,7 @@ interface WorkspaceState {
     debug: PanelState;
     // Bottom
     animation: PanelState;
+    motiongraph: PanelState;
     // Center Top
     toolbar: PanelState;
     referenceFace: PanelState;
@@ -38,6 +39,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     inspector: { isVisible: true, order: 0 },
     debug: { isVisible: false, order: 1 },
     animation: { isVisible: false, order: 0 },
+    motiongraph: { isVisible: false, order: 1 },
     toolbar: { isVisible: true, order: 0 },
     referenceFace: { isVisible: false, order: 0 },
     materials: { isVisible: true, order: 3 },

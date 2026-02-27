@@ -23,13 +23,16 @@ import type {
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
-import { InspectorContent } from "./InspectorContent";
+import MgNodeInspector from "../../motiongraph/components/MgNodeInspector";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
+import { useWorkspaceStore } from "../../state/workspaceStore";
 import {
   buildPoseGroupCompositionPreview,
   buildPoseStageCompositionPreview,
   type PoseGroupCompositionChannel,
   type PoseStageCompositionChannel,
 } from "./poseCompositionPreview";
+import { InspectorContent } from "./InspectorContent";
 
 interface InspectorPanelProps {
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
@@ -161,6 +164,12 @@ export function InspectorPanel({
   const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
   const selectedMaterialId = useBindingAuthoring(
     (state) => state.selectedMaterialId,
+  );
+  const motionGraphVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraph.isVisible,
+  );
+  const motionGraphSelectedNodeId = useEditorStore(
+    (state) => state.selectedNodeId,
   );
   const selectionStack = useSelectionStore((state) => state.selectionStack);
   const selectedSceneId = selectionStack[0]?.id ?? null;
@@ -761,6 +770,10 @@ export function InspectorPanel({
   );
   const isDedicatedInspectorMode =
     isPoseGroupInspectorMode || isBlendStageInspectorMode;
+  const showMotionGraphInspector =
+    motionGraphVisible &&
+    motionGraphSelectedNodeId !== null &&
+    !isDedicatedInspectorMode;
 
   return (
     <Panel
@@ -769,19 +782,27 @@ export function InspectorPanel({
           ? "Pose Group Inspector"
           : isBlendStageInspectorMode
             ? "Blend Stage Inspector"
-            : "Inspector"
+            : showMotionGraphInspector
+              ? "MotionGraph Inspector"
+              : "Inspector"
       }
       description={
         isDedicatedInspectorMode
           ? "Author composition and inspect live output behavior."
-          : "View and edit selected object properties."
+          : showMotionGraphInspector
+            ? "Inspect and edit the selected MotionGraph node."
+            : "View and edit selected object properties."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
     >
       <div className="flex flex-col h-full min-h-0">
         {!isDedicatedInspectorMode && (
-          <div className="flex-1 min-h-0">
-            <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {showMotionGraphInspector ? (
+              <MgNodeInspector />
+            ) : (
+              <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
+            )}
           </div>
         )}
         {isPoseGroupInspectorMode && selectedPoseGroup && (

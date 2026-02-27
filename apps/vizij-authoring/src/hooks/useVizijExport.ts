@@ -102,6 +102,7 @@ interface UseVizijExportOptions {
   fallbackExportBody?: unknown;
   alertDialog: (message: string) => Promise<void> | void;
   poseRig: PoseRigExportState;
+  getMotionGraphSpec?: () => { nodes: unknown[]; edges: unknown[] } | null;
 }
 
 interface VizijExportHandlers {
@@ -249,6 +250,7 @@ export function useVizijExport(
     fallbackExportBody,
     alertDialog,
     poseRig,
+    getMotionGraphSpec,
   } = options;
 
   const exportGraph = useCallback(() => {
@@ -435,7 +437,7 @@ export function useVizijExport(
         }
       }
 
-      const bundle = buildVizijBundle({
+      let bundle = buildVizijBundle({
         includeVizijBundle,
         includeImportedAnimations,
         faceId: exportFaceId,
@@ -453,6 +455,12 @@ export function useVizijExport(
         pipelineConfigByInputId,
         poseGraphSpecForExport,
       });
+      if (bundle && getMotionGraphSpec) {
+        const motionGraphSpec = getMotionGraphSpec();
+        if (motionGraphSpec && motionGraphSpec.nodes.length > 0) {
+          bundle = mergeMotionGraphIntoBundle(bundle, motionGraphSpec);
+        }
+      }
 
       if (bundle?.graphs?.length) {
         const rigGraph = bundle.graphs.find((graph) => graph.kind === "rig");
@@ -531,6 +539,7 @@ export function useVizijExport(
     featureLabelOverrides,
     fallbackExportBody,
     getExportableBodies,
+    getMotionGraphSpec,
     includeImportedAnimations,
     includeVizijBundle,
     inputBindings,
@@ -757,6 +766,32 @@ function clonePoseIrForBundle(
     unknown
   >;
   cloned.faceId = faceId;
+  return cloned;
+}
+
+function mergeMotionGraphIntoBundle(
+  bundle: VizijBundleExtension,
+  spec: { nodes: unknown[]; edges: unknown[] },
+): VizijBundleExtension {
+  const cloned = structuredClone(bundle);
+  if (!cloned.graphs) {
+    cloned.graphs = [];
+  }
+  cloned.graphs = cloned.graphs.filter(
+    (graph) => graph.kind !== "motiongraph" && graph.id !== "motiongraph",
+  );
+  cloned.graphs.push({
+    id: "motiongraph",
+    kind: "motiongraph",
+    label: "motiongraph",
+    spec: spec as Record<string, unknown>,
+    metadata: {
+      exportedAt: new Date().toISOString(),
+      source: "vizij-motiongraph",
+      nodeCount: spec.nodes.length,
+      edgeCount: spec.edges.length,
+    },
+  });
   return cloned;
 }
 

@@ -47,6 +47,9 @@ export function AppMenuBar({
   const animationPanelVisible = useWorkspaceStore(
     (state) => state.panels.animation.isVisible,
   );
+  const motionGraphPanelVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraph.isVisible,
+  );
   const referenceFacePanelVisible = useWorkspaceStore(
     (state) => state.panels.referenceFace.isVisible,
   );
@@ -125,6 +128,12 @@ export function AppMenuBar({
           onCheckedChange={() => togglePanel("animation")}
         >
           Timeline
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={motionGraphPanelVisible}
+          onCheckedChange={() => togglePanel("motiongraph")}
+        >
+          MotionGraph
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={referenceFacePanelVisible}

@@ -26,10 +26,36 @@ interface UseBundleSynchronizerOptions {
     importedFaceId: string | null;
   } | void>;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
+  importMotionGraph?: (spec: Record<string, unknown> | null) => void;
   onPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
+
+function stableJsonFingerprint(value: unknown): string | null {
+  const seen = new WeakSet<object>();
+  try {
+    return JSON.stringify(value, (_key, currentValue) => {
+      if (currentValue === null || typeof currentValue !== "object") {
+        return currentValue;
+      }
+      if (seen.has(currentValue)) {
+        return "[Circular]";
+      }
+      seen.add(currentValue);
+      if (Array.isArray(currentValue)) {
+        return currentValue;
+      }
+      const sorted: Record<string, unknown> = {};
+      for (const key of Object.keys(currentValue).sort()) {
+        sorted[key] = (currentValue as Record<string, unknown>)[key];
+      }
+      return sorted;
+    });
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Synchronises the loaded Vizij bundle with the authoring state by
@@ -44,11 +70,13 @@ export function useBundleSynchronizer({
   skipDiscrepancyCheck,
   importGraphSpec,
   importPoseConfigFromData,
+  importMotionGraph,
   onPhaseChange,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
   const importedRigFingerprintsRef = useRef<Set<string>>(new Set());
   const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
+  const importedMotionGraphFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const objectIdentityMapRef = useRef<WeakMap<object, number>>(new WeakMap());
@@ -88,6 +116,7 @@ export function useBundleSynchronizer({
       if (!rootId) {
         importedRigFingerprintsRef.current.clear();
         importedPoseFingerprintsRef.current.clear();
+        importedMotionGraphFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
         importedFaceIdByFingerprintRef.current.clear();
@@ -97,6 +126,7 @@ export function useBundleSynchronizer({
       if (!loadedBundle) {
         importedRigFingerprintsRef.current.clear();
         importedPoseFingerprintsRef.current.clear();
+        importedMotionGraphFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
         importedFaceIdByFingerprintRef.current.clear();
@@ -299,6 +329,40 @@ export function useBundleSynchronizer({
       const poseComplete =
         !loadedBundle.poses?.config ||
         importedPoseFingerprintsRef.current.has(fingerprint);
+
+      const motionGraphEntry = bundleGraphs?.find(
+        (entry) => entry.kind?.toLowerCase?.() === "motiongraph",
+      );
+      const motionGraphSpec = motionGraphEntry?.spec;
+      const motionGraphSignature =
+        motionGraphSpec === undefined
+          ? "__none__"
+          : (stableJsonFingerprint(motionGraphSpec) ??
+            getObjectIdentity(motionGraphSpec));
+      const motionGraphFingerprint = [fingerprint, motionGraphSignature].join(
+        "::motiongraph::",
+      );
+      if (
+        importMotionGraph &&
+        !importedMotionGraphFingerprintsRef.current.has(motionGraphFingerprint)
+      ) {
+        try {
+          importMotionGraph(
+            motionGraphSpec
+              ? (motionGraphSpec as Record<string, unknown>)
+              : null,
+          );
+          importedMotionGraphFingerprintsRef.current.add(
+            motionGraphFingerprint,
+          );
+        } catch (error) {
+          console.warn(
+            "[vizij-authoring] Failed to import motion graph from bundle.",
+            error,
+          );
+        }
+      }
+
       if (rigComplete && poseComplete) {
         emitPhase({
           stepId: "bundle-sync",
@@ -315,6 +379,7 @@ export function useBundleSynchronizer({
   }, [
     faceIdRef,
     importGraphSpec,
+    importMotionGraph,
     importPoseConfigFromData,
     loadedBundle,
     onPhaseChange,

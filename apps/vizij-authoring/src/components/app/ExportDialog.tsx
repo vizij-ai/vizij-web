@@ -16,6 +16,9 @@ import {
   useAuthoringUiActions,
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
+import { buildGraphSpecForExport } from "../../motiongraph/utils/buildGraphSpec";
+import { OUTPUT_TARGET_TYPE } from "../../motiongraph/components/OutputTargetNode";
 import { cn } from "../../utils/cn";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
@@ -113,6 +116,13 @@ export function ExportDialog({
     },
     [setPoseIrFileName],
   );
+  const getMotionGraphSpec = useCallback(() => {
+    const { nodes, edges } = useEditorStore.getState();
+    if (!nodes.some((node) => node.type !== OUTPUT_TARGET_TYPE)) {
+      return null;
+    }
+    return buildGraphSpecForExport(nodes, edges);
+  }, []);
 
   const {
     exportGraph,
@@ -163,6 +173,7 @@ export function ExportDialog({
       blendMode: poseRig.blendMode,
       crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
+    getMotionGraphSpec,
   });
 
   const bundleSummary = useMemo<VizijBundleSummary>(() => {

@@ -12,7 +12,7 @@ import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
-import { AnimationPanel } from "./components/panels/AnimationPanel";
+import { BottomPanelContainer } from "./components/panels/BottomPanelContainer";
 import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
@@ -22,6 +22,9 @@ import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
+import { RegistryProvider } from "./motiongraph/contexts/RegistryProvider";
+import { useEditorStore } from "./motiongraph/store/useEditorStore";
+import { specToEditorState } from "./motiongraph/utils/specToEditorState";
 import { AppWizards } from "./components/app/AppWizards";
 import {
   RigControllerProvider,
@@ -173,10 +176,12 @@ export default function App() {
         onLoadPhaseChange={updateFaceLoadPhase}
       >
         <AuthoringUiProvider>
-          <AppContent
-            loader={assetLoader}
-            onFaceLoadPhaseChange={updateFaceLoadPhase}
-          />
+          <RegistryProvider>
+            <AppContent
+              loader={assetLoader}
+              onFaceLoadPhaseChange={updateFaceLoadPhase}
+            />
+          </RegistryProvider>
         </AuthoringUiProvider>
       </PoseRigProvider>
     </RigControllerProvider>
@@ -377,8 +382,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const rigInputPaths = useMemo(
+    () =>
+      standardInputs
+        .map((input) => (faceId ? `rig/${faceId}${input.path}` : input.path))
+        .filter((path) => path.length > 0),
+    [faceId, standardInputs],
+  );
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
+  );
+  const importMotionGraph = useCallback(
+    (spec: Record<string, unknown> | null) => {
+      const store = useEditorStore.getState();
+      if (!spec) {
+        store.clear();
+        return;
+      }
+      const result = specToEditorState(spec);
+      if (result.nodes.length === 0) {
+        store.clear();
+        return;
+      }
+      store.hydrate(
+        result.nodes,
+        result.edges,
+        result.enabledOutputs,
+        result.enabledInputs,
+        result.customInputPaths,
+      );
+    },
+    [],
   );
 
   useBundleSynchronizer({
@@ -389,6 +423,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
+    importMotionGraph,
     onPhaseChange: onFaceLoadPhaseChange,
   });
 
@@ -490,6 +525,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const animationPanelVisible = useWorkspaceStore(
     (state) => state.panels.animation.isVisible,
+  );
+  const motionGraphPanelVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraph.isVisible,
   );
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
@@ -1148,8 +1186,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
           }
           viewport={viewerContent}
-          bottomVisible={animationPanelVisible}
-          bottomPanel={<AnimationPanel />}
+          bottomVisible={animationPanelVisible || motionGraphPanelVisible}
+          bottomPanel={
+            <BottomPanelContainer
+              showTimeline={animationPanelVisible}
+              showMotionGraph={motionGraphPanelVisible}
+              rigInputPaths={rigInputPaths}
+            />
+          }
           // Right
           rightTopVisible={inspectorPanelVisible}
           rightTopPanel={
