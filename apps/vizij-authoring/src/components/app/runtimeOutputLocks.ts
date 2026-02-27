@@ -22,6 +22,10 @@ export interface LockedRuntimeOutputIndex {
   >;
 }
 
+export interface ApplyLockedRuntimeOutputWriteOptions {
+  fallbackCurrentValue?: RawValue;
+}
+
 function canonicalComponent(component: LockableComponent): CanonicalComponent {
   if (component === "x" || component === "r") {
     return "x";
@@ -138,6 +142,7 @@ function resolveCanonicalComponentValue(
 export function applyLockedRuntimeOutputWrite(
   write: RuntimeOutputWrite,
   index: LockedRuntimeOutputIndex,
+  options?: ApplyLockedRuntimeOutputWriteOptions,
 ): RuntimeOutputWrite | null {
   if (index.lockedScalarTargetIds.has(write.id)) {
     return null;
@@ -171,7 +176,8 @@ export function applyLockedRuntimeOutputWrite(
     return null;
   }
 
-  const currentValue = write.currentValue ?? undefined;
+  const currentValue =
+    write.currentValue ?? options?.fallbackCurrentValue ?? undefined;
   if (!isRawObject(currentValue)) {
     // Without a prior vector value to preserve the locked components from,
     // safest behavior is to block this write.

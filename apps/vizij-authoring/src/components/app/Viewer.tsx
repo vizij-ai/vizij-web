@@ -336,6 +336,7 @@ export function Viewer({
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
+  const runtimeAnimatables = useVizijStore((state) => state.animatables);
   const lockedInspectorTargetIds = useBindingAuthoring(
     (state) => state.lockedInspectorTargetIds,
   );
@@ -347,14 +348,25 @@ export function Viewer({
     [lockedInspectorTargetIds],
   );
   const lockedRuntimeOutputIndexRef = useRef(lockedRuntimeOutputIndex);
+  const runtimeAnimatablesRef = useRef(runtimeAnimatables);
 
   useEffect(() => {
     lockedRuntimeOutputIndexRef.current = lockedRuntimeOutputIndex;
   }, [lockedRuntimeOutputIndex]);
+  useEffect(() => {
+    runtimeAnimatablesRef.current = runtimeAnimatables;
+  }, [runtimeAnimatables]);
 
   const transformOutputWrite = useCallback(
     (write: RuntimeOutputWrite) =>
-      applyLockedRuntimeOutputWrite(write, lockedRuntimeOutputIndexRef.current),
+      applyLockedRuntimeOutputWrite(
+        write,
+        lockedRuntimeOutputIndexRef.current,
+        {
+          fallbackCurrentValue:
+            runtimeAnimatablesRef.current[write.id]?.default,
+        },
+      ),
     [],
   );
 

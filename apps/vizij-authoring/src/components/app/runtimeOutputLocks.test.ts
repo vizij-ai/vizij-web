@@ -74,6 +74,30 @@ describe("applyLockedRuntimeOutputWrite", () => {
     });
   });
 
+  it("uses fallback current value to preserve locked components when runtime current value is missing", () => {
+    const index = buildLockedRuntimeOutputIndex(
+      new Set(["mouth_translation:y", "mouth_translation:z"]),
+    );
+
+    const result = applyLockedRuntimeOutputWrite(
+      makeWrite("mouth_translation", { x: 10, y: 20, z: 30 }),
+      index,
+      {
+        fallbackCurrentValue: { x: 1, y: 2, z: 3 },
+      },
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe("mouth_translation");
+    expect(result?.value).toEqual({
+      x: 10,
+      y: 2,
+      z: 3,
+      g: 2,
+      b: 3,
+    });
+  });
+
   it("drops vector writes when every present component is locked", () => {
     const index = buildLockedRuntimeOutputIndex(
       new Set([
