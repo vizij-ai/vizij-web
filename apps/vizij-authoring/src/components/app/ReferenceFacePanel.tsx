@@ -22,6 +22,10 @@ export function ReferenceFacePanel({
     fileInputRef.current?.click();
   }, []);
 
+  const handleUnloadClick = useCallback(() => {
+    referenceFace.setFile(null);
+  }, [referenceFace]);
+
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -58,6 +62,29 @@ export function ReferenceFacePanel({
           splitVertical={splitVertical}
           onToggleSplit={onToggleSplit}
         />
+
+        {referenceFace.file && (
+          <div className="absolute top-3 right-3 z-20 pointer-events-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[11px] h-7 px-2"
+              onClick={handleLoadClick}
+              title="Load a different reference face"
+            >
+              Swap
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[11px] h-7 px-2 text-amber-300 hover:text-amber-200"
+              onClick={handleUnloadClick}
+              title="Unload reference face"
+            >
+              Unload
+            </Button>
+          </div>
+        )}
 
         {/* Overlay Load Button if no file */}
         {!referenceFace.file && (

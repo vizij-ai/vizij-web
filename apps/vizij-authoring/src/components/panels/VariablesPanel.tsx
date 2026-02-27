@@ -1439,6 +1439,21 @@ function areStringListsEqual(left: string[], right: string[]): boolean {
   return left.every((value, index) => value === right[index]);
 }
 
+function areStringSetsEqual(
+  left: ReadonlySet<string>,
+  right: ReadonlySet<string>,
+): boolean {
+  if (left.size !== right.size) {
+    return false;
+  }
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) {
@@ -1561,6 +1576,10 @@ interface TreeRowWrapperProps {
     type: "pose" | "rig" | "pose-group" | "input";
     id: string;
   } | null;
+  selectedReferenceRigIds?: ReadonlySet<string>;
+  selectedReferencePoseIds?: ReadonlySet<string>;
+  onToggleReferenceRigSelection?: (inputId: string) => void;
+  onToggleReferencePoseSelection?: (poseId: string) => void;
   searchQuery: string;
 }
 
@@ -1573,6 +1592,10 @@ function TreeRowWrapper({
   onSelect,
   onInputValueChange,
   selection,
+  selectedReferenceRigIds,
+  selectedReferencePoseIds,
+  onToggleReferenceRigSelection,
+  onToggleReferencePoseSelection,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
@@ -1582,7 +1605,19 @@ function TreeRowWrapper({
     (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
   const poseNodeData =
     node.type === "pose" ? (node.data as PoseNodeData | undefined) : undefined;
+  const rigNodeData =
+    node.type === "rig" ? (node.data as RigNodeData | undefined) : undefined;
   const isReferencePoseNode = poseNodeData?.source === "reference";
+  const isReferenceRigNode = rigNodeData?.source === "reference";
+  const referencePoseId = isReferencePoseNode ? poseNodeData?.pose.id : null;
+  const referenceRigInputId = isReferenceRigNode ? rigNodeData?.input.id : null;
+  const isBulkSelected =
+    (referencePoseId
+      ? selectedReferencePoseIds?.has(referencePoseId)
+      : false) ||
+    (referenceRigInputId
+      ? selectedReferenceRigIds?.has(referenceRigInputId)
+      : false);
 
   // Check selection
   const isSelected =
@@ -1600,6 +1635,7 @@ function TreeRowWrapper({
       (isPoseGroupFolder &&
         selection.type === "pose-group" &&
         node.id === selection.id));
+  const rowIsSelected = Boolean(isSelected || isBulkSelected);
   const folderDeletionSummary =
     node.type === "folder" && !isPoseGroupFolder
       ? collectFolderRigDeletionSummary(node)
@@ -1643,7 +1679,7 @@ function TreeRowWrapper({
         label={node.label}
         hasChildren={true}
         isExpanded={true}
-        isSelected={!!isSelected}
+        isSelected={rowIsSelected}
         onToggle={() => {}}
         onSelect={inputData.selectable ? () => onSelect?.(node) : undefined}
         highlightQuery={searchQuery}
@@ -1702,7 +1738,7 @@ function TreeRowWrapper({
       label={node.label}
       hasChildren={hasChildren}
       isExpanded={isExpanded}
-      isSelected={!!isSelected}
+      isSelected={rowIsSelected}
       onToggle={() => onToggle(node.id)}
       onSelect={
         !hasChildren || isPoseGroupFolder ? () => onSelect?.(node) : undefined
@@ -1765,6 +1801,23 @@ function TreeRowWrapper({
           )}
           {node.type === "pose" && isReferencePoseNode && (
             <>
+              <label
+                className="flex items-center gap-1 text-[9px] text-cyan-200"
+                onClick={(event) => event.stopPropagation()}
+                title="Select pose for bulk copy"
+              >
+                <input
+                  type="checkbox"
+                  checked={referencePoseId ? isBulkSelected : false}
+                  onChange={() => {
+                    if (!referencePoseId) {
+                      return;
+                    }
+                    onToggleReferencePoseSelection?.(referencePoseId);
+                  }}
+                />
+                Bulk
+              </label>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1850,18 +1903,37 @@ function TreeRowWrapper({
             )}
           {node.type === "rig" &&
             (node.data as RigNodeData | undefined)?.source === "reference" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "copy-to-main");
-                }}
-                title="Copy driver to main face"
-              >
-                <Copy size={10} />
-              </Button>
+              <>
+                <label
+                  className="flex items-center gap-1 text-[9px] text-cyan-200"
+                  onClick={(event) => event.stopPropagation()}
+                  title="Select driver for bulk copy"
+                >
+                  <input
+                    type="checkbox"
+                    checked={referenceRigInputId ? isBulkSelected : false}
+                    onChange={() => {
+                      if (!referenceRigInputId) {
+                        return;
+                      }
+                      onToggleReferenceRigSelection?.(referenceRigInputId);
+                    }}
+                  />
+                  Bulk
+                </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0 hover:text-accent"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction?.(node, "copy-to-main");
+                  }}
+                  title="Copy driver to main face"
+                >
+                  <Copy size={10} />
+                </Button>
+              </>
             )}
           {node.type === "rig" &&
             (node.data as RigNodeData | undefined)?.source !== "reference" && (
@@ -1958,6 +2030,10 @@ function TreeRowWrapper({
                 onSelect={onSelect}
                 onInputValueChange={onInputValueChange}
                 selection={selection}
+                selectedReferenceRigIds={selectedReferenceRigIds}
+                selectedReferencePoseIds={selectedReferencePoseIds}
+                onToggleReferenceRigSelection={onToggleReferenceRigSelection}
+                onToggleReferencePoseSelection={onToggleReferencePoseSelection}
                 searchQuery={searchQuery}
               />
             ))}
@@ -2379,10 +2455,21 @@ export function VariablesPanel({
     useState<VariableCopyModalState | null>(null);
   const [variableCopyBlockingMessages, setVariableCopyBlockingMessages] =
     useState<string[]>([]);
+  const [selectedReferenceRigIds, setSelectedReferenceRigIds] = useState<
+    Set<string>
+  >(new Set());
+  const [pendingVariableCopyQueueIds, setPendingVariableCopyQueueIds] =
+    useState<string[]>([]);
   const [poseCopyModal, setPoseCopyModal] = useState<PoseCopyModalState | null>(
     null,
   );
   const [poseCopyBlockingMessages, setPoseCopyBlockingMessages] = useState<
+    string[]
+  >([]);
+  const [selectedReferencePoseIds, setSelectedReferencePoseIds] = useState<
+    Set<string>
+  >(new Set());
+  const [pendingPoseCopyQueueIds, setPendingPoseCopyQueueIds] = useState<
     string[]
   >([]);
 
@@ -2493,6 +2580,14 @@ export function VariablesPanel({
       }),
     [referenceFace.referenceCatalog.poses],
   );
+  const referenceRigEntryByInputId = useMemo(
+    () => new Map(referenceRigEntries.map((entry) => [entry.input.id, entry])),
+    [referenceRigEntries],
+  );
+  const referencePoseById = useMemo(
+    () => new Map(referencePoseEntries.map((pose) => [pose.id, pose])),
+    [referencePoseEntries],
+  );
   const referenceRuntimeInputsByPath = useMemo(() => {
     const map = new Map<string, StandardRigInput[]>();
     referenceFace.standardInputs.forEach((input) => {
@@ -2506,6 +2601,78 @@ export function VariablesPanel({
     () => buildReferenceRuntimeLookupTokenMap(referenceFace.standardInputs),
     [referenceFace.standardInputs],
   );
+  const toggleReferenceRigSelection = useCallback((inputId: string) => {
+    setSelectedReferenceRigIds((current) => {
+      const next = new Set(current);
+      if (next.has(inputId)) {
+        next.delete(inputId);
+      } else {
+        next.add(inputId);
+      }
+      return next;
+    });
+  }, []);
+  const toggleReferencePoseSelection = useCallback((poseId: string) => {
+    setSelectedReferencePoseIds((current) => {
+      const next = new Set(current);
+      if (next.has(poseId)) {
+        next.delete(poseId);
+      } else {
+        next.add(poseId);
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (referenceFace.file) {
+      return;
+    }
+    setSelectedReferenceRigIds((current) =>
+      current.size > 0 ? new Set() : current,
+    );
+    setSelectedReferencePoseIds((current) =>
+      current.size > 0 ? new Set() : current,
+    );
+    setPendingVariableCopyQueueIds((current) =>
+      current.length > 0 ? [] : current,
+    );
+    setPendingPoseCopyQueueIds((current) =>
+      current.length > 0 ? [] : current,
+    );
+    setVariableCopyModal((current) => (current ? null : current));
+    setPoseCopyModal((current) => (current ? null : current));
+  }, [referenceFace.file]);
+
+  useEffect(() => {
+    const validInputIds = new Set(
+      referenceRigEntries.map((entry) => entry.input.id),
+    );
+    setSelectedReferenceRigIds((current) => {
+      const next = new Set(
+        Array.from(current).filter((inputId) => validInputIds.has(inputId)),
+      );
+      return areStringSetsEqual(current, next) ? current : next;
+    });
+    setPendingVariableCopyQueueIds((current) => {
+      const filtered = current.filter((inputId) => validInputIds.has(inputId));
+      return filtered.length === current.length ? current : filtered;
+    });
+  }, [referenceRigEntries]);
+
+  useEffect(() => {
+    const validPoseIds = new Set(referencePoseEntries.map((pose) => pose.id));
+    setSelectedReferencePoseIds((current) => {
+      const next = new Set(
+        Array.from(current).filter((poseId) => validPoseIds.has(poseId)),
+      );
+      return areStringSetsEqual(current, next) ? current : next;
+    });
+    setPendingPoseCopyQueueIds((current) => {
+      const filtered = current.filter((poseId) => validPoseIds.has(poseId));
+      return filtered.length === current.length ? current : filtered;
+    });
+  }, [referencePoseEntries]);
 
   const resolvedSelectedRigId = useMemo(() => {
     if (!selectedRigId) {
@@ -2757,13 +2924,13 @@ export function VariablesPanel({
     resolveSharedSyncConflict(conflict.path, winner);
   };
 
-  const openVariableCopyModalForEntry = useCallback(
+  const prepareVariableCopyModalState = useCallback(
     (
       referenceEntry: RigNodeData,
       launchSource: VariableCopyModalState["launchSource"],
-    ) => {
+    ): VariableCopyModalState | null => {
       if (referenceEntry.source !== "reference") {
-        return;
+        return null;
       }
       const tryBuildProposal = (
         sourceCatalog: ReferenceCatalog,
@@ -2804,17 +2971,14 @@ export function VariablesPanel({
         }
       }
       if (!proposal) {
-        return;
+        return null;
       }
-      setVariableCopyBlockingMessages([]);
-      setVariableCopyModal(
-        createVariableCopyModalState({
-          sourceReferenceEntry: referenceEntry,
-          proposal,
-          destinationCatalog: mainFaceCopyTargetReferenceCatalog,
-          launchSource,
-        }),
-      );
+      return createVariableCopyModalState({
+        sourceReferenceEntry: referenceEntry,
+        proposal,
+        destinationCatalog: mainFaceCopyTargetReferenceCatalog,
+        launchSource,
+      });
     },
     [
       mainFaceCopyTargetReferenceCatalog,
@@ -2823,249 +2987,346 @@ export function VariablesPanel({
     ],
   );
 
+  const openVariableCopyModalForEntry = useCallback(
+    (
+      referenceEntry: RigNodeData,
+      launchSource: VariableCopyModalState["launchSource"],
+    ) => {
+      const modalState = prepareVariableCopyModalState(
+        referenceEntry,
+        launchSource,
+      );
+      if (!modalState) {
+        return;
+      }
+      setPendingVariableCopyQueueIds([]);
+      setVariableCopyBlockingMessages([]);
+      setVariableCopyModal(modalState);
+    },
+    [prepareVariableCopyModalState],
+  );
+
   const closeVariableCopyModal = useCallback(() => {
+    setPendingVariableCopyQueueIds([]);
     setVariableCopyModal(null);
     setVariableCopyBlockingMessages([]);
   }, []);
+
+  const commitVariableCopyModal = useCallback(
+    (
+      modalState: VariableCopyModalState,
+      options?: { selectAfterCommit?: boolean },
+    ):
+      | { ok: true; destinationInputId: string }
+      | { ok: false; blockingMessages: string[] } => {
+      const sourceInput = modalState.sourceReferenceEntry.input;
+      const blockingMessages: string[] = [];
+      const destinationInputIdRaw = modalState.destinationInputId.trim();
+      let existingDestinationInput: StandardRigInput | null = null;
+      let normalizedNewDestinationPath: string | null = null;
+
+      if (modalState.destinationMode === "existing") {
+        if (!destinationInputIdRaw) {
+          blockingMessages.push(
+            "Destination unresolved: select an existing destination input or create a new one.",
+          );
+        } else {
+          existingDestinationInput =
+            standardInputsById.get(destinationInputIdRaw) ?? null;
+          if (!existingDestinationInput) {
+            blockingMessages.push(
+              "Destination unresolved: selected destination input is unavailable.",
+            );
+          } else if (
+            !isPrimaryVariableDestinationInput(existingDestinationInput)
+          ) {
+            blockingMessages.push(
+              "Destination unresolved: selected destination cannot be used as the primary variable target.",
+            );
+          }
+        }
+      } else {
+        const normalized = normalizeStandardRigInputPath(
+          modalState.newDestinationPath,
+        );
+        if (!normalized) {
+          blockingMessages.push(
+            "Destination unresolved: provide a valid destination path for the new input.",
+          );
+        } else if (standardInputsByPath.has(normalized)) {
+          blockingMessages.push(
+            "Destination unresolved: destination path already exists. Pick Existing or change the new path.",
+          );
+        } else {
+          normalizedNewDestinationPath = normalized;
+        }
+      }
+
+      const mergedMin = resolveVariableCopyDecisionValue({
+        decision: modalState.valueMerge.min,
+        sourceValue: sourceInput.range.min,
+        destinationValue: existingDestinationInput?.range.min ?? null,
+        fieldLabel: "minimum",
+        errors: blockingMessages,
+      });
+      const mergedMax = resolveVariableCopyDecisionValue({
+        decision: modalState.valueMerge.max,
+        sourceValue: sourceInput.range.max,
+        destinationValue: existingDestinationInput?.range.max ?? null,
+        fieldLabel: "maximum",
+        errors: blockingMessages,
+      });
+      const mergedDefaultValue = resolveVariableCopyDecisionValue({
+        decision: modalState.valueMerge.defaultValue,
+        sourceValue: sourceInput.defaultValue,
+        destinationValue: existingDestinationInput?.defaultValue ?? null,
+        fieldLabel: "default",
+        errors: blockingMessages,
+      });
+      if (mergedMin > mergedMax) {
+        blockingMessages.push(
+          "Invalid custom values: minimum cannot be greater than maximum.",
+        );
+      }
+
+      const pendingAppliedRows: Array<{
+        rowId: string;
+        relationship: "parent" | "child";
+        mappedInputId: string;
+        scale: number;
+        offset: number;
+      }> = [];
+      const collectAppliedRows = (
+        rows: readonly VariableLinkMappingRow[],
+        drafts: Record<string, VariableCopyLinkRowDraft>,
+        relationship: "parent" | "child",
+        relationshipLabel: string,
+      ) => {
+        rows.forEach((row) => {
+          const draft = drafts[row.rowId];
+          if (!draft?.apply) {
+            return;
+          }
+          const mappedInputId = draft.destinationInputId.trim();
+          if (
+            !mappedInputId ||
+            !modalState.destinationCatalog.inputsById.has(mappedInputId)
+          ) {
+            blockingMessages.push(
+              `Applied row unresolved: ${relationshipLabel} "${row.sourceLabel}".`,
+            );
+            return;
+          }
+          const scale = resolveVariableCopyDecisionValue({
+            decision: draft.scale,
+            sourceValue: row.sourceScale,
+            destinationValue: row.destinationScale,
+            fieldLabel: `${relationshipLabel} scale`,
+            errors: blockingMessages,
+          });
+          const offset = resolveVariableCopyDecisionValue({
+            decision: draft.offset,
+            sourceValue: row.sourceOffset,
+            destinationValue: row.destinationOffset,
+            fieldLabel: `${relationshipLabel} offset`,
+            errors: blockingMessages,
+          });
+          pendingAppliedRows.push({
+            rowId: row.rowId,
+            relationship,
+            mappedInputId,
+            scale,
+            offset,
+          });
+        });
+      };
+
+      collectAppliedRows(
+        modalState.proposal.parentRows,
+        modalState.parentRowDrafts,
+        "parent",
+        "parent mapping",
+      );
+      collectAppliedRows(
+        modalState.proposal.childRows,
+        modalState.childRowDrafts,
+        "child",
+        "child mapping",
+      );
+
+      if (blockingMessages.length > 0) {
+        return {
+          ok: false,
+          blockingMessages,
+        };
+      }
+
+      let destinationInputId = destinationInputIdRaw;
+      let createdDestinationInput: StandardRigInput | null = null;
+      if (modalState.destinationMode === "new") {
+        const created = handleCreateCustomStandardInput(
+          normalizedNewDestinationPath!,
+        );
+        if (!created) {
+          return {
+            ok: false,
+            blockingMessages: [
+              "Destination unresolved: failed to create destination input.",
+            ],
+          };
+        }
+        destinationInputId = created.id;
+        createdDestinationInput = created;
+      }
+
+      try {
+        handleUpdateStandardInput(destinationInputId, {
+          ...(modalState.destinationMode === "new"
+            ? {
+                label:
+                  modalState.newDestinationLabel.trim() || sourceInput.label,
+                sourceId: sourceInput.sourceId ?? null,
+              }
+            : {}),
+          defaultValue: mergedDefaultValue,
+          range: {
+            min: mergedMin,
+            max: mergedMax,
+          },
+        });
+
+        const linkPlans: VariableCopyCommitLinkPlan[] = pendingAppliedRows.map(
+          (row) => ({
+            rowId: row.rowId,
+            relationship: row.relationship,
+            parentInputId:
+              row.relationship === "parent"
+                ? row.mappedInputId
+                : destinationInputId,
+            childInputId:
+              row.relationship === "parent"
+                ? destinationInputId
+                : row.mappedInputId,
+            scale: row.scale,
+            offset: row.offset,
+          }),
+        );
+
+        linkPlans.forEach((plan) => {
+          handleLinkChildInput(plan.parentInputId, plan.childInputId);
+        });
+
+        if (linkPlans.length > 0) {
+          const linkPlanInputLookup = new Map<string, StandardRigInput>(
+            standardInputsById,
+          );
+          if (createdDestinationInput) {
+            linkPlanInputLookup.set(
+              createdDestinationInput.id,
+              createdDestinationInput,
+            );
+          }
+          applyInputBindingPatch((bindings) => {
+            return applyVariableCopyLinkPlansToInputBindings({
+              bindings,
+              linkPlans,
+              standardInputsById: linkPlanInputLookup,
+            });
+          });
+        }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        return {
+          ok: false,
+          blockingMessages: [`Variable copy failed. ${detail}`],
+        };
+      }
+
+      if (options?.selectAfterCommit ?? true) {
+        onSelectRig?.(destinationInputId);
+        onSelectPoseGroup?.(null);
+        onSelectBlendStage?.(null);
+      }
+
+      return {
+        ok: true,
+        destinationInputId,
+      };
+    },
+    [
+      applyInputBindingPatch,
+      handleCreateCustomStandardInput,
+      handleLinkChildInput,
+      handleUpdateStandardInput,
+      onSelectBlendStage,
+      onSelectPoseGroup,
+      onSelectRig,
+      standardInputsById,
+      standardInputsByPath,
+    ],
+  );
 
   const handleConfirmVariableCopyModal = useCallback(() => {
     if (!variableCopyModal) {
       return;
     }
-    const sourceInput = variableCopyModal.sourceReferenceEntry.input;
-    const blockingMessages: string[] = [];
-    const destinationInputIdRaw = variableCopyModal.destinationInputId.trim();
-    let existingDestinationInput: StandardRigInput | null = null;
-    let normalizedNewDestinationPath: string | null = null;
-
-    if (variableCopyModal.destinationMode === "existing") {
-      if (!destinationInputIdRaw) {
-        blockingMessages.push(
-          "Destination unresolved: select an existing destination input or create a new one.",
-        );
-      } else {
-        existingDestinationInput =
-          standardInputsById.get(destinationInputIdRaw) ?? null;
-        if (!existingDestinationInput) {
-          blockingMessages.push(
-            "Destination unresolved: selected destination input is unavailable.",
-          );
-        } else if (
-          !isPrimaryVariableDestinationInput(existingDestinationInput)
-        ) {
-          blockingMessages.push(
-            "Destination unresolved: selected destination cannot be used as the primary variable target.",
-          );
-        }
-      }
-    } else {
-      const normalized = normalizeStandardRigInputPath(
-        variableCopyModal.newDestinationPath,
-      );
-      if (!normalized) {
-        blockingMessages.push(
-          "Destination unresolved: provide a valid destination path for the new input.",
-        );
-      } else if (standardInputsByPath.has(normalized)) {
-        blockingMessages.push(
-          "Destination unresolved: destination path already exists. Pick Existing or change the new path.",
-        );
-      } else {
-        normalizedNewDestinationPath = normalized;
-      }
-    }
-
-    const mergedMin = resolveVariableCopyDecisionValue({
-      decision: variableCopyModal.valueMerge.min,
-      sourceValue: sourceInput.range.min,
-      destinationValue: existingDestinationInput?.range.min ?? null,
-      fieldLabel: "minimum",
-      errors: blockingMessages,
+    const hasQueuedEntries = pendingVariableCopyQueueIds.length > 0;
+    const result = commitVariableCopyModal(variableCopyModal, {
+      selectAfterCommit: !hasQueuedEntries,
     });
-    const mergedMax = resolveVariableCopyDecisionValue({
-      decision: variableCopyModal.valueMerge.max,
-      sourceValue: sourceInput.range.max,
-      destinationValue: existingDestinationInput?.range.max ?? null,
-      fieldLabel: "maximum",
-      errors: blockingMessages,
-    });
-    const mergedDefaultValue = resolveVariableCopyDecisionValue({
-      decision: variableCopyModal.valueMerge.defaultValue,
-      sourceValue: sourceInput.defaultValue,
-      destinationValue: existingDestinationInput?.defaultValue ?? null,
-      fieldLabel: "default",
-      errors: blockingMessages,
-    });
-    if (mergedMin > mergedMax) {
-      blockingMessages.push(
-        "Invalid custom values: minimum cannot be greater than maximum.",
-      );
-    }
-
-    const pendingAppliedRows: Array<{
-      rowId: string;
-      relationship: "parent" | "child";
-      mappedInputId: string;
-      scale: number;
-      offset: number;
-    }> = [];
-    const collectAppliedRows = (
-      rows: readonly VariableLinkMappingRow[],
-      drafts: Record<string, VariableCopyLinkRowDraft>,
-      relationship: "parent" | "child",
-      relationshipLabel: string,
-    ) => {
-      rows.forEach((row) => {
-        const draft = drafts[row.rowId];
-        if (!draft?.apply) {
-          return;
-        }
-        const mappedInputId = draft.destinationInputId.trim();
-        if (
-          !mappedInputId ||
-          !variableCopyModal.destinationCatalog.inputsById.has(mappedInputId)
-        ) {
-          blockingMessages.push(
-            `Applied row unresolved: ${relationshipLabel} "${row.sourceLabel}".`,
-          );
-          return;
-        }
-        const scale = resolveVariableCopyDecisionValue({
-          decision: draft.scale,
-          sourceValue: row.sourceScale,
-          destinationValue: row.destinationScale,
-          fieldLabel: `${relationshipLabel} scale`,
-          errors: blockingMessages,
-        });
-        const offset = resolveVariableCopyDecisionValue({
-          decision: draft.offset,
-          sourceValue: row.sourceOffset,
-          destinationValue: row.destinationOffset,
-          fieldLabel: `${relationshipLabel} offset`,
-          errors: blockingMessages,
-        });
-        pendingAppliedRows.push({
-          rowId: row.rowId,
-          relationship,
-          mappedInputId,
-          scale,
-          offset,
-        });
-      });
-    };
-
-    collectAppliedRows(
-      variableCopyModal.proposal.parentRows,
-      variableCopyModal.parentRowDrafts,
-      "parent",
-      "parent mapping",
-    );
-    collectAppliedRows(
-      variableCopyModal.proposal.childRows,
-      variableCopyModal.childRowDrafts,
-      "child",
-      "child mapping",
-    );
-
-    if (blockingMessages.length > 0) {
-      setVariableCopyBlockingMessages(blockingMessages);
+    if (!result.ok) {
+      setVariableCopyBlockingMessages(result.blockingMessages);
       return;
     }
-
-    let destinationInputId = destinationInputIdRaw;
-    let createdDestinationInput: StandardRigInput | null = null;
-    if (variableCopyModal.destinationMode === "new") {
-      const created = handleCreateCustomStandardInput(
-        normalizedNewDestinationPath!,
-      );
-      if (!created) {
-        setVariableCopyBlockingMessages([
-          "Destination unresolved: failed to create destination input.",
-        ]);
-        return;
-      }
-      destinationInputId = created.id;
-      createdDestinationInput = created;
-    }
-
-    handleUpdateStandardInput(destinationInputId, {
-      ...(variableCopyModal.destinationMode === "new"
-        ? {
-            label:
-              variableCopyModal.newDestinationLabel.trim() || sourceInput.label,
-            sourceId: sourceInput.sourceId ?? null,
-          }
-        : {}),
-      defaultValue: mergedDefaultValue,
-      range: {
-        min: mergedMin,
-        max: mergedMax,
-      },
-    });
-
-    const linkPlans: VariableCopyCommitLinkPlan[] = pendingAppliedRows.map(
-      (row) => ({
-        rowId: row.rowId,
-        relationship: row.relationship,
-        parentInputId:
-          row.relationship === "parent"
-            ? row.mappedInputId
-            : destinationInputId,
-        childInputId:
-          row.relationship === "parent"
-            ? destinationInputId
-            : row.mappedInputId,
-        scale: row.scale,
-        offset: row.offset,
-      }),
-    );
-
-    linkPlans.forEach((plan) => {
-      handleLinkChildInput(plan.parentInputId, plan.childInputId);
-    });
-
-    if (linkPlans.length > 0) {
-      const linkPlanInputLookup = new Map<string, StandardRigInput>(
-        standardInputsById,
-      );
-      if (createdDestinationInput) {
-        linkPlanInputLookup.set(
-          createdDestinationInput.id,
-          createdDestinationInput,
-        );
-      }
-      applyInputBindingPatch((bindings) => {
-        return applyVariableCopyLinkPlansToInputBindings({
-          bindings,
-          linkPlans,
-          standardInputsById: linkPlanInputLookup,
-        });
-      });
-    }
-
     setVariableCopyBlockingMessages([]);
     setVariableCopyModal(null);
-    onSelectRig?.(destinationInputId);
-    onSelectPoseGroup?.(null);
-    onSelectBlendStage?.(null);
+    if (hasQueuedEntries) {
+      return;
+    }
+  }, [commitVariableCopyModal, pendingVariableCopyQueueIds, variableCopyModal]);
+
+  useEffect(() => {
+    if (variableCopyModal || pendingVariableCopyQueueIds.length === 0) {
+      return;
+    }
+    const [nextInputId, ...remainingQueue] = pendingVariableCopyQueueIds;
+    if (!nextInputId) {
+      setPendingVariableCopyQueueIds([]);
+      return;
+    }
+    const entry = referenceRigEntryByInputId.get(nextInputId);
+    if (!entry) {
+      setPendingVariableCopyQueueIds(remainingQueue);
+      return;
+    }
+    const modalState = prepareVariableCopyModalState(entry, "toolbar");
+    if (!modalState) {
+      setPendingVariableCopyQueueIds(remainingQueue);
+      return;
+    }
+    const autoCommitResult = commitVariableCopyModal(modalState, {
+      selectAfterCommit: false,
+    });
+    if (autoCommitResult.ok) {
+      setPendingVariableCopyQueueIds(remainingQueue);
+      return;
+    }
+    setVariableCopyBlockingMessages([]);
+    setVariableCopyModal(modalState);
+    setPendingVariableCopyQueueIds(remainingQueue);
   }, [
-    applyInputBindingPatch,
-    handleCreateCustomStandardInput,
-    handleLinkChildInput,
-    handleUpdateStandardInput,
-    onSelectBlendStage,
-    onSelectPoseGroup,
-    onSelectRig,
-    standardInputsById,
-    standardInputsByPath,
+    commitVariableCopyModal,
+    pendingVariableCopyQueueIds,
+    prepareVariableCopyModalState,
+    referenceRigEntryByInputId,
     variableCopyModal,
   ]);
 
-  const openPoseCopyModalForPose = useCallback(
+  const preparePoseCopyModalState = useCallback(
     (
       sourcePose: ReferencePoseDefinition,
       launchSource: PoseCopyModalState["launchSource"],
-    ) => {
+    ): PoseCopyModalState | null => {
       let proposal: PoseCopyProposal;
       try {
         proposal = buildPoseCopyProposal({
@@ -3075,49 +3336,64 @@ export function VariablesPanel({
           destinationPoseName: sourcePose.name,
         });
       } catch {
-        return;
+        return null;
       }
-      setPoseCopyBlockingMessages([]);
-      setPoseCopyModal(
-        createPoseCopyModalState({
-          sourcePose,
-          proposal,
-          destinationCatalog: mainFaceCopyTargetReferenceCatalog,
-          launchSource,
-        }),
-      );
+      return createPoseCopyModalState({
+        sourcePose,
+        proposal,
+        destinationCatalog: mainFaceCopyTargetReferenceCatalog,
+        launchSource,
+      });
     },
     [mainFaceCopyTargetReferenceCatalog, referenceFace.referenceCatalog],
   );
 
+  const openPoseCopyModalForPose = useCallback(
+    (
+      sourcePose: ReferencePoseDefinition,
+      launchSource: PoseCopyModalState["launchSource"],
+    ) => {
+      const modalState = preparePoseCopyModalState(sourcePose, launchSource);
+      if (!modalState) {
+        return;
+      }
+      setPendingPoseCopyQueueIds([]);
+      setPoseCopyBlockingMessages([]);
+      setPoseCopyModal(modalState);
+    },
+    [preparePoseCopyModalState],
+  );
+
   const closePoseCopyModal = useCallback(() => {
+    setPendingPoseCopyQueueIds([]);
     setPoseCopyModal(null);
     setPoseCopyBlockingMessages([]);
   }, []);
 
-  const handleConfirmPoseCopyModal = useCallback(() => {
-    if (!poseCopyModal) {
-      return;
-    }
-    const blockingMessages: string[] = [];
-    const destinationPoseName = poseCopyModal.destinationPoseName.trim();
-    if (!destinationPoseName) {
-      blockingMessages.push("Destination pose name is required.");
-    }
+  const commitPoseCopyModal = useCallback(
+    (
+      modalState: PoseCopyModalState,
+      options?: { selectAfterCommit?: boolean },
+    ):
+      | { ok: true; createdPoseId: string }
+      | { ok: false; blockingMessages: string[] } => {
+      const blockingMessages: string[] = [];
+      const destinationPoseName = modalState.destinationPoseName.trim();
+      if (!destinationPoseName) {
+        blockingMessages.push("Destination pose name is required.");
+      }
 
-    const targetRowsWithDrafts = poseCopyModal.proposal.targetRows.map(
-      (row) => {
+      const targetRowsWithDrafts = modalState.proposal.targetRows.map((row) => {
         const draft =
-          poseCopyModal.targetRowDrafts[row.rowId] ??
+          modalState.targetRowDrafts[row.rowId] ??
           createPoseCopyTargetRowDraft(
             row,
-            poseCopyModal.destinationCatalog.inputs,
+            modalState.destinationCatalog.inputs,
           );
         const destinationInputId = draft.destinationInputId.trim();
         const destinationInput = destinationInputId
-          ? (poseCopyModal.destinationCatalog.inputsById.get(
-              destinationInputId,
-            ) ?? null)
+          ? (modalState.destinationCatalog.inputsById.get(destinationInputId) ??
+            null)
           : null;
         const nextStatus = destinationInput ? "resolved" : "unmapped";
         const nextRationale = destinationInput
@@ -3149,106 +3425,173 @@ export function VariablesPanel({
           } as PoseTargetMappingRow,
           value,
         };
-      },
-    );
-
-    const draftedProposal: PoseCopyProposal = {
-      ...poseCopyModal.proposal,
-      destinationPoseName,
-      targetRows: targetRowsWithDrafts.map((entry) => entry.row),
-      unresolvedRows: targetRowsWithDrafts
-        .map((entry) => entry.row)
-        .filter((row) => isUnresolvedMappingStatus(row.status)),
-    };
-    const preflight = validatePoseCopyProposalPreflight(draftedProposal);
-    if (!preflight.ok) {
-      const rowById = new Map(
-        draftedProposal.targetRows.map((row) => [row.rowId, row]),
-      );
-      preflight.blockingErrors.forEach((error) => {
-        const row = rowById.get(error.rowId);
-        const rowLabel = row
-          ? (row.sourcePath ?? row.sourceInputId)
-          : error.rowId;
-        blockingMessages.push(
-          `Blocking unresolved mapping: ${rowLabel} (${error.status}).`,
-        );
       });
-    }
 
-    if (blockingMessages.length > 0) {
-      setPoseCopyBlockingMessages(blockingMessages);
+      const draftedProposal: PoseCopyProposal = {
+        ...modalState.proposal,
+        destinationPoseName,
+        targetRows: targetRowsWithDrafts.map((entry) => entry.row),
+        unresolvedRows: targetRowsWithDrafts
+          .map((entry) => entry.row)
+          .filter((row) => isUnresolvedMappingStatus(row.status)),
+      };
+      const preflight = validatePoseCopyProposalPreflight(draftedProposal);
+      if (!preflight.ok) {
+        const rowById = new Map(
+          draftedProposal.targetRows.map((row) => [row.rowId, row]),
+        );
+        preflight.blockingErrors.forEach((error) => {
+          const row = rowById.get(error.rowId);
+          const rowLabel = row
+            ? (row.sourcePath ?? row.sourceInputId)
+            : error.rowId;
+          blockingMessages.push(
+            `Blocking unresolved mapping: ${rowLabel} (${error.status}).`,
+          );
+        });
+      }
+
+      if (blockingMessages.length > 0) {
+        return {
+          ok: false,
+          blockingMessages,
+        };
+      }
+
+      const previousSelectedPoseId = selectedPoseId;
+      const createdPoseId = resolveDeterministicPoseId({
+        existingIds: poses.map((pose) => pose.id),
+        name: destinationPoseName,
+        reservedIds: ["__pose_rig_neutral__"],
+      });
+
+      try {
+        createPose(destinationPoseName);
+        updatePoseGroup(createdPoseId, null);
+        targetRowsWithDrafts.forEach((entry) => {
+          if (!entry.row.destinationInputId) {
+            return;
+          }
+          updatePoseValue(
+            createdPoseId,
+            entry.row.destinationInputId,
+            entry.value,
+          );
+        });
+      } catch (error) {
+        let rollbackFailed = false;
+        try {
+          deletePose(createdPoseId);
+        } catch {
+          rollbackFailed = true;
+        }
+        if (previousSelectedPoseId) {
+          if (onSelectPose) {
+            onSelectPose(previousSelectedPoseId);
+          } else {
+            selectPose(previousSelectedPoseId);
+          }
+        } else if (onSelectPose) {
+          onSelectPose("__pose_rig_neutral__");
+        } else {
+          selectPose("__pose_rig_neutral__");
+        }
+        const detail = error instanceof Error ? error.message : String(error);
+        return {
+          ok: false,
+          blockingMessages: [
+            rollbackFailed
+              ? `Pose copy failed and rollback was incomplete. ${detail}`
+              : `Pose copy failed. Changes were rolled back. ${detail}`,
+          ],
+        };
+      }
+
+      if (options?.selectAfterCommit ?? true) {
+        onSelectRig?.(null);
+        onSelectPoseGroup?.(null);
+        onSelectBlendStage?.(null);
+        if (onSelectPose) {
+          onSelectPose(createdPoseId);
+        } else {
+          selectPose(createdPoseId);
+        }
+      }
+
+      return {
+        ok: true,
+        createdPoseId,
+      };
+    },
+    [
+      createPose,
+      deletePose,
+      onSelectBlendStage,
+      onSelectPose,
+      onSelectPoseGroup,
+      onSelectRig,
+      poses,
+      selectPose,
+      selectedPoseId,
+      updatePoseGroup,
+      updatePoseValue,
+    ],
+  );
+
+  const handleConfirmPoseCopyModal = useCallback(() => {
+    if (!poseCopyModal) {
       return;
     }
-
-    const previousSelectedPoseId = selectedPoseId;
-    const createdPoseId = resolveDeterministicPoseId({
-      existingIds: poses.map((pose) => pose.id),
-      name: destinationPoseName,
-      reservedIds: ["__pose_rig_neutral__"],
+    const hasQueuedEntries = pendingPoseCopyQueueIds.length > 0;
+    const result = commitPoseCopyModal(poseCopyModal, {
+      selectAfterCommit: !hasQueuedEntries,
     });
-
-    try {
-      createPose(destinationPoseName);
-      updatePoseGroup(createdPoseId, null);
-      targetRowsWithDrafts.forEach((entry) => {
-        if (!entry.row.destinationInputId) {
-          return;
-        }
-        updatePoseValue(
-          createdPoseId,
-          entry.row.destinationInputId,
-          entry.value,
-        );
-      });
-      setPoseCopyBlockingMessages([]);
-      setPoseCopyModal(null);
-      onSelectRig?.(null);
-      onSelectPoseGroup?.(null);
-      onSelectBlendStage?.(null);
-      if (onSelectPose) {
-        onSelectPose(createdPoseId);
-      } else {
-        selectPose(createdPoseId);
-      }
-    } catch (error) {
-      let rollbackFailed = false;
-      try {
-        deletePose(createdPoseId);
-      } catch {
-        rollbackFailed = true;
-      }
-      if (previousSelectedPoseId) {
-        if (onSelectPose) {
-          onSelectPose(previousSelectedPoseId);
-        } else {
-          selectPose(previousSelectedPoseId);
-        }
-      } else if (onSelectPose) {
-        onSelectPose("__pose_rig_neutral__");
-      } else {
-        selectPose("__pose_rig_neutral__");
-      }
-      const detail = error instanceof Error ? error.message : String(error);
-      setPoseCopyBlockingMessages([
-        rollbackFailed
-          ? `Pose copy failed and rollback was incomplete. ${detail}`
-          : `Pose copy failed. Changes were rolled back. ${detail}`,
-      ]);
+    if (!result.ok) {
+      setPoseCopyBlockingMessages(result.blockingMessages);
+      return;
     }
+    setPoseCopyBlockingMessages([]);
+    setPoseCopyModal(null);
+    if (hasQueuedEntries) {
+      return;
+    }
+  }, [commitPoseCopyModal, pendingPoseCopyQueueIds, poseCopyModal]);
+
+  useEffect(() => {
+    if (poseCopyModal || pendingPoseCopyQueueIds.length === 0) {
+      return;
+    }
+    const [nextPoseId, ...remainingQueue] = pendingPoseCopyQueueIds;
+    if (!nextPoseId) {
+      setPendingPoseCopyQueueIds([]);
+      return;
+    }
+    const sourcePose = referencePoseById.get(nextPoseId);
+    if (!sourcePose) {
+      setPendingPoseCopyQueueIds(remainingQueue);
+      return;
+    }
+    const modalState = preparePoseCopyModalState(sourcePose, "toolbar");
+    if (!modalState) {
+      setPendingPoseCopyQueueIds(remainingQueue);
+      return;
+    }
+    const autoCommitResult = commitPoseCopyModal(modalState, {
+      selectAfterCommit: false,
+    });
+    if (autoCommitResult.ok) {
+      setPendingPoseCopyQueueIds(remainingQueue);
+      return;
+    }
+    setPoseCopyBlockingMessages([]);
+    setPoseCopyModal(modalState);
+    setPendingPoseCopyQueueIds(remainingQueue);
   }, [
-    createPose,
-    deletePose,
-    onSelectBlendStage,
-    onSelectPose,
-    onSelectPoseGroup,
-    onSelectRig,
+    commitPoseCopyModal,
+    pendingPoseCopyQueueIds,
     poseCopyModal,
-    poses,
-    selectPose,
-    selectedPoseId,
-    updatePoseGroup,
-    updatePoseValue,
+    preparePoseCopyModalState,
+    referencePoseById,
   ]);
 
   // Build Drivers tree
@@ -3999,23 +4342,47 @@ export function VariablesPanel({
     duplicatePose(selectedPoseId);
   };
 
-  const handleCopyReferenceToMain = () => {
-    const firstUncopiedReference = referenceRigEntries.find(
-      (entry) => !entry.linkedMainInputId,
+  const handleCopyReferenceToMain = useCallback(() => {
+    const sourceIds =
+      selectedReferenceRigIds.size > 0
+        ? Array.from(selectedReferenceRigIds)
+        : (() => {
+            const firstUncopiedReference = referenceRigEntries.find(
+              (entry) => !entry.linkedMainInputId,
+            );
+            return firstUncopiedReference
+              ? [firstUncopiedReference.input.id]
+              : [];
+          })();
+    if (sourceIds.length === 0) {
+      return;
+    }
+    setPendingVariableCopyQueueIds(sourceIds);
+    setSelectedReferenceRigIds((current) =>
+      current.size > 0 ? new Set() : current,
     );
-    if (!firstUncopiedReference) {
-      return;
-    }
-    openVariableCopyModalForEntry(firstUncopiedReference, "toolbar");
-  };
+    setVariableCopyBlockingMessages([]);
+    setVariableCopyModal(null);
+  }, [referenceRigEntries, selectedReferenceRigIds]);
 
-  const handleCopyReferencePoseToMain = () => {
-    const firstReferencePose = referencePoseEntries[0];
-    if (!firstReferencePose) {
+  const handleCopyReferencePoseToMain = useCallback(() => {
+    const sourceIds =
+      selectedReferencePoseIds.size > 0
+        ? Array.from(selectedReferencePoseIds)
+        : (() => {
+            const firstReferencePose = referencePoseEntries[0];
+            return firstReferencePose ? [firstReferencePose.id] : [];
+          })();
+    if (sourceIds.length === 0) {
       return;
     }
-    openPoseCopyModalForPose(firstReferencePose, "toolbar");
-  };
+    setPendingPoseCopyQueueIds(sourceIds);
+    setSelectedReferencePoseIds((current) =>
+      current.size > 0 ? new Set() : current,
+    );
+    setPoseCopyBlockingMessages([]);
+    setPoseCopyModal(null);
+  }, [referencePoseEntries, selectedReferencePoseIds]);
 
   const handleCreatePoseGroup = () => {
     const value = window.prompt("Create pose group", "");
@@ -4275,6 +4642,12 @@ export function VariablesPanel({
     (entry) => !entry.linkedMainInputId,
   ).length;
   const referencePoseCopyCount = referencePoseEntries.length;
+  const selectedReferenceRigCopyCount = selectedReferenceRigIds.size;
+  const selectedReferencePoseCopyCount = selectedReferencePoseIds.size;
+  const canCopyReferenceDrivers =
+    selectedReferenceRigCopyCount > 0 || uncopiedReferenceCount > 0;
+  const canCopyReferencePoses =
+    selectedReferencePoseCopyCount > 0 || referencePoseCopyCount > 0;
 
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -4701,11 +5074,17 @@ export function VariablesPanel({
                           size="sm"
                           className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
                           onClick={handleCopyReferencePoseToMain}
-                          disabled={referencePoseCopyCount === 0}
-                          title="Copy a reference pose to the main face"
+                          disabled={!canCopyReferencePoses}
+                          title={
+                            selectedReferencePoseCopyCount > 0
+                              ? "Copy selected reference poses to the main face"
+                              : "Copy a reference pose to the main face"
+                          }
                         >
                           <Copy size={11} />
-                          Copy Ref Pose ({referencePoseCopyCount})
+                          {selectedReferencePoseCopyCount > 0
+                            ? `Copy Ref Pose (${selectedReferencePoseCopyCount})`
+                            : `Copy Ref Pose (${referencePoseCopyCount})`}
                         </Button>
                       )}
                     </>
@@ -4716,11 +5095,17 @@ export function VariablesPanel({
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
                       onClick={handleCopyReferenceToMain}
-                      disabled={uncopiedReferenceCount === 0}
-                      title="Copy reference-only drivers to main face"
+                      disabled={!canCopyReferenceDrivers}
+                      title={
+                        selectedReferenceRigCopyCount > 0
+                          ? "Copy selected reference drivers to main face"
+                          : "Copy reference-only drivers to main face"
+                      }
                     >
                       <Copy size={11} />
-                      Copy Ref ({uncopiedReferenceCount})
+                      {selectedReferenceRigCopyCount > 0
+                        ? `Copy Ref (${selectedReferenceRigCopyCount})`
+                        : `Copy Ref (${uncopiedReferenceCount})`}
                     </Button>
                   )}
                   {isPoseGroups && (
@@ -5389,6 +5774,14 @@ export function VariablesPanel({
                           onSelect={handleSelect}
                           onInputValueChange={activeInputValueChange}
                           selection={activeSelection}
+                          selectedReferenceRigIds={selectedReferenceRigIds}
+                          selectedReferencePoseIds={selectedReferencePoseIds}
+                          onToggleReferenceRigSelection={
+                            toggleReferenceRigSelection
+                          }
+                          onToggleReferencePoseSelection={
+                            toggleReferencePoseSelection
+                          }
                           searchQuery={searchQuery}
                         />
                       ))

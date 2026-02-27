@@ -240,6 +240,12 @@ export function useReferenceFaceState(
   // Reset binding info when file is cleared
   useEffect(() => {
     if (!file) {
+      setIsLoading((previous) => (previous ? false : previous));
+      setIsLoaded((previous) => (previous ? false : previous));
+      setStandardInputs((previous) => (previous.length > 0 ? [] : previous));
+      setStandardInputsById((previous) =>
+        previous.size > 0 ? new Map() : previous,
+      );
       setInputIdsWithBindings((previous) =>
         previous.size > 0 ? new Set() : previous,
       );
@@ -247,6 +253,10 @@ export function useReferenceFaceState(
       setReferenceCatalog((previous) =>
         isReferenceCatalogEmpty(previous) ? previous : EMPTY_REFERENCE_CATALOG,
       );
+      setInputValues((previous) =>
+        Object.keys(previous).length > 0 ? {} : previous,
+      );
+      animateValueRef.current = undefined;
     }
   }, [file]);
 
