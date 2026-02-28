@@ -272,6 +272,8 @@ export interface PoseWeightPathInfo {
 export const POSE_WEIGHT_INPUT_PATH_PREFIX = "/poses/";
 export const POSE_WEIGHT_INPUT_SOURCE_PREFIX = "pose-weight:";
 export const POSE_CONTROL_INPUT_PATH_PREFIX = "/pose/control/";
+export const POSE_GROUP_OUTPUT_PATH_PREFIX = "/pose/groups/";
+export const POSE_STAGE_OUTPUT_PATH_PREFIX = "/pose/stages/";
 
 function normalizePoseWeightPathSegment(
   value: string | null | undefined,
@@ -321,6 +323,25 @@ export function isPoseControlInputPath(
   }
   const normalized = normalizeStandardRigInputPath(path);
   return normalized.startsWith(POSE_CONTROL_INPUT_PATH_PREFIX);
+}
+
+export function isPoseOutputInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  const isGroupOutput =
+    normalized.startsWith(POSE_GROUP_OUTPUT_PATH_PREFIX) &&
+    normalized.endsWith(".output");
+  if (isGroupOutput) {
+    return true;
+  }
+  return (
+    normalized.startsWith(POSE_STAGE_OUTPUT_PATH_PREFIX) &&
+    normalized.endsWith(".output")
+  );
 }
 
 export function parsePoseControlInputIdFromPath(

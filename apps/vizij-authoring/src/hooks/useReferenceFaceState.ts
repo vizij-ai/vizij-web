@@ -4,6 +4,10 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import type { VizijBundleExtension } from "@vizij/render";
+import {
+  isPoseControlInputPath,
+  isPoseOutputInputPath,
+} from "../poseRig/utils";
 import { extractReferenceCatalog } from "../referenceFace/referenceCatalog";
 import type {
   ReferenceCatalog,
@@ -404,6 +408,12 @@ export function useReferenceFaceState(
   const handleResetAllInputValues = useCallback(() => {
     const resetValues: Record<string, number> = {};
     for (const input of standardInputs) {
+      if (
+        isPoseControlInputPath(input.path) ||
+        isPoseOutputInputPath(input.path)
+      ) {
+        continue;
+      }
       resetValues[input.id] = input.defaultValue;
       animateValueRef.current?.(input.path, input.defaultValue);
     }

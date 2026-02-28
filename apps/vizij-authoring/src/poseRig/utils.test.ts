@@ -6,6 +6,7 @@ import {
   buildRigInputPath,
   buildPoseWeightPathMap,
   isPoseControlInputPath,
+  isPoseOutputInputPath,
   isPoseWeightInputPath,
   parsePoseControlInputIdFromPath,
   parsePoseWeightInputSourceId,
@@ -121,6 +122,15 @@ describe("pose control input helpers", () => {
       parsePoseControlInputIdFromPath("rig/face/pose/control/jaw_open"),
     ).toBe("jaw_open");
     expect(parsePoseControlInputIdFromPath("/propsrig/jaw/open")).toBeNull();
+  });
+
+  it("detects derived pose output paths", () => {
+    expect(isPoseOutputInputPath("/pose/groups/eyes.output")).toBe(true);
+    expect(isPoseOutputInputPath("rig/face/pose/stages/base.output")).toBe(
+      true,
+    );
+    expect(isPoseOutputInputPath("/poses/pose_smile.weight")).toBe(false);
+    expect(isPoseOutputInputPath("/pose/control/jaw_open")).toBe(false);
   });
 });
 

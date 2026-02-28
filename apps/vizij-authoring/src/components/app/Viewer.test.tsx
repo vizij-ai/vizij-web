@@ -413,7 +413,7 @@ describe("Viewer", () => {
     });
 
     const resetButton = container.querySelector(
-      'button[title="Reset graph inputs to their default values"]',
+      'button[title="Reset main-face inputs to their default values"]',
     );
     expect(resetButton).toBeTruthy();
     fireEvent.click(resetButton as HTMLButtonElement);
@@ -482,7 +482,7 @@ describe("Viewer", () => {
     });
 
     const resetButton = container.querySelector(
-      'button[title="Reset graph inputs to their default values"]',
+      'button[title="Reset main-face inputs to their default values"]',
     );
     expect(resetButton).toBeTruthy();
     fireEvent.click(resetButton as HTMLButtonElement);

@@ -441,6 +441,119 @@ describe("VariablesPanel", () => {
     expect(bindingState.handleInputValueChange).not.toHaveBeenCalled();
   });
 
+  it("excludes derived reference pose outputs from driver controls", () => {
+    const referenceDriver = makeInput("ref_brow", "/standard/brow/up", {
+      label: "Ref Brow Up",
+    });
+    const referenceGroupOutput = makeInput(
+      "ref_pose_group_output",
+      "/pose/groups/eyes.output",
+      {
+        label: "Ref Group Output",
+      },
+    );
+    referenceFaceState.standardInputs = [referenceDriver, referenceGroupOutput];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceDriver.id, referenceDriver],
+      [referenceGroupOutput.id, referenceGroupOutput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      referenceDriver,
+      referenceGroupOutput,
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.click(within(view.container).getByText("Auto (0)"));
+    fireEvent.click(within(view.container).getByText("Preset (0)"));
+    fireEvent.click(within(view.container).getByText("Custom (0)"));
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "brow" },
+      },
+    );
+
+    expect(screen.getByText("standard/brow/up")).toBeTruthy();
+    expect(screen.queryByText("pose/groups/eyes.output")).toBeNull();
+  });
+
+  it("applies min/default/max actions to shared drivers on both faces", () => {
+    const mainShared = makeInput("main_jaw", "/standard/jaw/open", {
+      label: "Main Jaw Open",
+      defaultValue: 0.35,
+      range: { min: -0.15, max: 0.8 },
+    });
+    const referenceShared = makeInput("ref_jaw", "/standard/jaw/open", {
+      label: "Ref Jaw Open",
+      defaultValue: 0.6,
+      range: { min: -0.25, max: 1 },
+    });
+
+    bindingState.managedStandardInputs = [
+      {
+        input: mainShared,
+        source: "custom",
+      },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      ["/standard/jaw/open", mainShared],
+    ]);
+    bindingState.standardInputsById = new Map([[mainShared.id, mainShared]]);
+    referenceFaceState.standardInputs = [referenceShared];
+    referenceFaceState.standardInputsById = new Map([
+      [referenceShared.id, referenceShared],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      referenceShared,
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.click(within(view.container).getByText("Custom (1)"));
+    fireEvent.click(within(view.container).getByText("Reference (1)"));
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/jaw/open" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Set current value to min"));
+    fireEvent.click(screen.getByTitle("Set current value to default"));
+    fireEvent.click(screen.getByTitle("Set current value to max"));
+
+    expect(bindingState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      mainShared.id,
+      mainShared.range.min,
+    );
+    expect(bindingState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      mainShared.id,
+      mainShared.defaultValue,
+    );
+    expect(bindingState.handleInputValueChange).toHaveBeenNthCalledWith(
+      3,
+      mainShared.id,
+      mainShared.range.max,
+    );
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      referenceShared.id,
+      mainShared.range.min,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      referenceShared.id,
+      mainShared.defaultValue,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      3,
+      referenceShared.id,
+      mainShared.range.max,
+    );
+  });
+
   it("opens the variable copy modal from row copy action", () => {
     const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
       label: "Brow Up",
@@ -1378,6 +1491,84 @@ describe("VariablesPanel", () => {
       referenceInput.id,
       referenceInput.defaultValue,
     );
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("routes reference pose play and reset through canonical pose-weight inputs when available", () => {
+    const smileWeightInput = makeInput(
+      "ref_pose_smile_weight",
+      "/poses/ref_pose_smile.weight",
+      {
+        sourceId: "pose-weight:ref_pose_smile",
+        defaultValue: 0.25,
+        range: { min: 0, max: 1 },
+      },
+    );
+    const frownWeightInput = makeInput(
+      "ref_pose_frown_weight",
+      "/poses/ref_pose_frown.weight",
+      {
+        sourceId: "pose-weight:ref_pose_frown",
+        defaultValue: 0.1,
+        range: { min: 0, max: 1 },
+      },
+    );
+    referenceFaceState.standardInputs = [smileWeightInput, frownWeightInput];
+    referenceFaceState.standardInputsById = new Map([
+      [smileWeightInput.id, smileWeightInput],
+      [frownWeightInput.id, frownWeightInput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [smileWeightInput, frownWeightInput],
+      [],
+      [
+        {
+          id: "ref_pose_frown",
+          name: "Ref Frown Pose",
+          targets: [{ inputId: "legacy_missing_frown_target", value: 0.42 }],
+        },
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile Pose",
+          targets: [{ inputId: "legacy_missing_smile_target", value: 0.76 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      frownWeightInput.id,
+      0,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      smileWeightInput.id,
+      1,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      3,
+      smileWeightInput.id,
+      smileWeightInput.defaultValue,
+    );
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).not.toHaveBeenCalled();
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 

@@ -18,7 +18,10 @@ import {
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { useWorkspaceStore } from "../../state/workspaceStore";
-import { isPoseControlInputPath } from "../../poseRig/utils";
+import {
+  isPoseControlInputPath,
+  isPoseOutputInputPath,
+} from "../../poseRig/utils";
 import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
@@ -462,7 +465,10 @@ export function Viewer({
   const resetInputEntries = useMemo(() => {
     const updates: Record<string, number> = {};
     managedStandardInputs.forEach((entry) => {
-      if (isPoseControlInputPath(entry.input.path)) {
+      if (
+        isPoseControlInputPath(entry.input.path) ||
+        isPoseOutputInputPath(entry.input.path)
+      ) {
         return;
       }
       const inputId = entry.input.id?.trim();
@@ -556,7 +562,11 @@ export function Viewer({
               active={motionGraphVisible && plotActive}
             />
             <RuntimeStatusDebug />
-            <RuntimeFaceControlsOverlay onResetInputs={handleResetInputs} />
+            <RuntimeFaceControlsOverlay
+              onResetInputs={handleResetInputs}
+              resetButtonLabel="Reset Main Inputs"
+              resetButtonTitle="Reset main-face inputs to their default values"
+            />
             <div className="h-full w-full">
               <VizijRuntimeFace
                 className="h-full w-full"

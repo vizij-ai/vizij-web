@@ -41,7 +41,6 @@ import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
@@ -53,6 +52,7 @@ import type {
 } from "../../poseRig/types";
 import {
   isPoseControlInputPath,
+  isPoseOutputInputPath,
   parsePoseWeightInputSourceId,
   resolveDeterministicPoseId,
 } from "../../poseRig/utils";
@@ -77,10 +77,6 @@ import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
-import type {
-  SharedVariableConflict,
-  SharedVariableSyncPolicy,
-} from "../../hooks/useSharedVariableSync";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -2569,14 +2565,6 @@ export function VariablesPanel({
     [applyStandardInputBatch, poseWeightInputIdByPoseId, poses],
   );
   const referenceFace = useReferenceFace();
-  const {
-    policy: sharedSyncPolicy,
-    setPolicy: setSharedSyncPolicy,
-    conflicts: sharedSyncConflicts,
-    resolveConflict: resolveSharedSyncConflict,
-    dismissConflict: dismissSharedSyncConflict,
-    outOfSyncCount: sharedOutOfSyncCount,
-  } = useSharedVariableSyncContext();
   const pendingPoseSelectionRef = useRef(false);
   const allSurfaces = useMemo(
     () => availableSurfaces ?? DEFAULT_SURFACES,
@@ -2649,6 +2637,7 @@ export function VariablesPanel({
         mainInputs: managedStandardInputs
           .filter((entry) => Boolean(entry.input.path?.trim()))
           .filter((entry) => !isPoseControlInputPath(entry.input.path))
+          .filter((entry) => !isPoseOutputInputPath(entry.input.path))
           .map((entry) => entry.input),
         inputBindings: inputBindings as Record<
           string,
@@ -2667,7 +2656,8 @@ export function VariablesPanel({
       buildMainFaceReferenceCatalog({
         mainInputs: referenceFace.standardInputs
           .filter((entry) => Boolean(entry.path?.trim()))
-          .filter((entry) => !isPoseControlInputPath(entry.path)),
+          .filter((entry) => !isPoseControlInputPath(entry.path))
+          .filter((entry) => !isPoseOutputInputPath(entry.path)),
         inputBindings: Object.fromEntries(
           referenceFace.standardInputs.map((input) => [
             input.id,
@@ -2686,6 +2676,8 @@ export function VariablesPanel({
     });
     return referenceFace.standardInputs
       .filter((entry) => Boolean(entry.path?.trim()))
+      .filter((entry) => !isPoseControlInputPath(entry.path))
+      .filter((entry) => !isPoseOutputInputPath(entry.path))
       .filter((entry) => !isPropsRigStandardInputPath(entry.path))
       .map((entry) => {
         const normalizedPath = normalizeStandardRigInputPath(entry.path);
@@ -2743,6 +2735,17 @@ export function VariablesPanel({
       }),
     [referenceFace.referenceCatalog.poses],
   );
+  const referencePoseWeightInputIdByPoseId = useMemo(() => {
+    const map = new Map<string, string>();
+    referenceFace.standardInputs.forEach((input) => {
+      const poseId = parsePoseWeightInputSourceId(input.sourceId);
+      if (!poseId || map.has(poseId)) {
+        return;
+      }
+      map.set(poseId, input.id);
+    });
+    return map;
+  }, [referenceFace.standardInputs]);
   const referenceRigEntryByInputId = useMemo(
     () => new Map(referenceRigEntries.map((entry) => [entry.input.id, entry])),
     [referenceRigEntries],
@@ -2763,6 +2766,107 @@ export function VariablesPanel({
   const referenceRuntimeInputsByLookupToken = useMemo(
     () => buildReferenceRuntimeLookupTokenMap(referenceFace.standardInputs),
     [referenceFace.standardInputs],
+  );
+  const applyReferenceRigValue = useCallback(
+    (rigData: RigNodeData, nextValue: number, action: string) => {
+      const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
+        targetInputId: rigData.input.id,
+        referenceCatalog: referenceFace.referenceCatalog,
+        runtimeInputsById: referenceFace.standardInputsById,
+        runtimeInputsByPath: referenceRuntimeInputsByPath,
+        runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
+      });
+      if (runtimeInput) {
+        referenceFace.handleInputValueChange(runtimeInput.id, nextValue);
+        return;
+      }
+      if (rigData.input.path) {
+        referenceFace.handleInputPathValueChange(rigData.input.path, nextValue);
+        return;
+      }
+      console.warn(
+        `[VariablesPanel] Unable to resolve reference input "${rigData.input.id}" for driver action "${action}".`,
+      );
+    },
+    [
+      referenceFace,
+      referenceRuntimeInputsByLookupToken,
+      referenceRuntimeInputsByPath,
+    ],
+  );
+  const applyRigValueBySource = useCallback(
+    (rigData: RigNodeData, nextValue: number, action: string) => {
+      if (rigData.source === "reference") {
+        applyReferenceRigValue(rigData, nextValue, action);
+        return;
+      }
+      if (rigData.source === "shared") {
+        activeInputValueChange(rigData.input.id, nextValue);
+        const linkedReferenceInputId = rigData.linkedReferenceInputId?.trim();
+        if (
+          linkedReferenceInputId &&
+          referenceFace.standardInputsById.has(linkedReferenceInputId)
+        ) {
+          referenceFace.handleInputValueChange(
+            linkedReferenceInputId,
+            nextValue,
+          );
+          return;
+        }
+        const normalizedSharedPath = normalizeStandardRigInputPath(
+          rigData.input.path,
+        );
+        const pathMatches =
+          referenceRuntimeInputsByPath.get(normalizedSharedPath) ?? [];
+        if (pathMatches.length === 1) {
+          referenceFace.handleInputValueChange(pathMatches[0]!.id, nextValue);
+          return;
+        }
+        if (normalizedSharedPath && normalizedSharedPath !== "/custom/input") {
+          referenceFace.handleInputPathValueChange(
+            normalizedSharedPath,
+            nextValue,
+          );
+          return;
+        }
+        console.warn(
+          `[VariablesPanel] Unable to resolve shared reference target for "${rigData.input.id}" during driver action "${action}".`,
+        );
+        return;
+      }
+      activeInputValueChange(rigData.input.id, nextValue);
+    },
+    [
+      activeInputValueChange,
+      applyReferenceRigValue,
+      referenceFace,
+      referenceRuntimeInputsByPath,
+    ],
+  );
+  const setReferencePoseWeightSolo = useCallback(
+    (poseId: string) => {
+      const updates: Array<{ inputId: string; value: number }> = [];
+      let foundAny = false;
+      referencePoseEntries.forEach((pose) => {
+        const weightInputId = referencePoseWeightInputIdByPoseId.get(pose.id);
+        if (!weightInputId) {
+          return;
+        }
+        updates.push({
+          inputId: weightInputId,
+          value: pose.id === poseId ? 1 : 0,
+        });
+        foundAny = true;
+      });
+      if (!foundAny) {
+        return false;
+      }
+      updates.forEach((update) => {
+        referenceFace.handleInputValueChange(update.inputId, update.value);
+      });
+      return true;
+    },
+    [referenceFace, referencePoseEntries, referencePoseWeightInputIdByPoseId],
   );
   const toggleReferenceRigSelection = useCallback((inputId: string) => {
     setSelectedReferenceRigIds((current) => {
@@ -2906,6 +3010,7 @@ export function VariablesPanel({
     () =>
       managedStandardInputs
         .filter((entry) => !isPoseControlInputPath(entry.input.path))
+        .filter((entry) => !isPoseOutputInputPath(entry.input.path))
         .filter((entry) => {
           if (!isPropsRigStandardInputPath(entry.input.path)) {
             return true;
@@ -3075,17 +3180,6 @@ export function VariablesPanel({
     counts.shared = sharedRigEntries.length;
     return counts;
   }, [mainFaceRigEntries, referenceRigEntries.length, sharedRigEntries.length]);
-
-  const applySharedSyncPolicy = (nextPolicy: SharedVariableSyncPolicy) => {
-    setSharedSyncPolicy(nextPolicy);
-  };
-
-  const resolveConflict = (
-    conflict: SharedVariableConflict,
-    winner: "main" | "reference",
-  ) => {
-    resolveSharedSyncConflict(conflict.path, winner);
-  };
 
   const prepareVariableCopyModalState = useCallback(
     (
@@ -4191,6 +4285,9 @@ export function VariablesPanel({
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
+        if (setReferencePoseWeightSolo(referencePose.id)) {
+          return;
+        }
         if (referencePose.targets.length === 0) {
           console.warn(
             `[VariablesPanel] Reference pose "${referencePose.name}" has no targets to apply.`,
@@ -4244,6 +4341,18 @@ export function VariablesPanel({
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
+        const poseWeightInputId = referencePoseWeightInputIdByPoseId.get(
+          referencePose.id,
+        );
+        if (poseWeightInputId) {
+          const poseWeightInput =
+            referenceFace.standardInputsById.get(poseWeightInputId);
+          referenceFace.handleInputValueChange(
+            poseWeightInputId,
+            poseWeightInput?.defaultValue ?? 0,
+          );
+          return;
+        }
         if (referencePose.targets.length === 0) {
           console.warn(
             `[VariablesPanel] Reference pose "${referencePose.name}" has no targets to reset.`,
@@ -4349,29 +4458,7 @@ export function VariablesPanel({
       const defaultValue = rigData.input.defaultValue ?? 0;
       const nextValue =
         action === "set-min" ? min : action === "set-max" ? max : defaultValue;
-      if (rigData.source === "reference") {
-        const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
-          targetInputId: rigData.input.id,
-          referenceCatalog: referenceFace.referenceCatalog,
-          runtimeInputsById: referenceFace.standardInputsById,
-          runtimeInputsByPath: referenceRuntimeInputsByPath,
-          runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
-        });
-        if (runtimeInput) {
-          referenceFace.handleInputValueChange(runtimeInput.id, nextValue);
-        } else if (rigData.input.path) {
-          referenceFace.handleInputPathValueChange(
-            rigData.input.path,
-            nextValue,
-          );
-        } else {
-          console.warn(
-            `[VariablesPanel] Unable to resolve reference input "${rigData.input.id}" for driver action "${action}".`,
-          );
-        }
-      } else {
-        activeInputValueChange(rigData.input.id, nextValue);
-      }
+      applyRigValueBySource(rigData, nextValue, action);
       return;
     }
     if (node.type === "rig" && action === "copy-to-main") {
@@ -5665,34 +5752,11 @@ export function VariablesPanel({
                       {referenceFace.file && (
                         <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
                           <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
-                            Shared Sync
+                            Control Scope
                           </span>
-                          {(
-                            [
-                              ["off", "Off"],
-                              ["bidirectional", "Both"],
-                              ["main-to-reference", "Main→Ref"],
-                              ["reference-to-main", "Ref→Main"],
-                            ] as Array<[SharedVariableSyncPolicy, string]>
-                          ).map(([mode, label]) => {
-                            const isActive = sharedSyncPolicy === mode;
-                            return (
-                              <button
-                                key={mode}
-                                type="button"
-                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                                  isActive
-                                    ? "border-accent/50 bg-accent/10 text-accent"
-                                    : "border-border-default text-text-muted hover:text-text-primary"
-                                }`}
-                                onClick={() => applySharedSyncPolicy(mode)}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                          <span className="text-[10px] text-text-muted font-mono ml-1">
-                            Drift {sharedOutOfSyncCount}
+                          <span className="text-[10px] text-text-muted">
+                            Main controls only Main Face, Reference controls
+                            only Reference Face, and Shared controls both.
                           </span>
                         </div>
                       )}
@@ -5741,67 +5805,6 @@ export function VariablesPanel({
                           );
                         })}
                     </div>
-
-                    {referenceFace.file && sharedSyncConflicts.length > 0 && (
-                      <div className="mx-1 mb-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-2 flex flex-col gap-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] uppercase tracking-wider font-bold text-amber-200">
-                            Shared Sync Conflicts ({sharedSyncConflicts.length})
-                          </span>
-                          <span className="text-[10px] text-amber-100/80">
-                            Different edits detected across faces
-                          </span>
-                        </div>
-                        {sharedSyncConflicts.slice(0, 4).map((conflict) => (
-                          <div
-                            key={`${conflict.path}:${conflict.detectedAt}`}
-                            className="rounded border border-amber-500/30 bg-bg-panel/40 p-2 flex flex-col gap-1"
-                          >
-                            <div className="text-[10px] font-mono text-amber-100 truncate">
-                              {conflict.path}
-                            </div>
-                            <div className="text-[10px] text-text-muted">
-                              {conflict.firstSource}{" "}
-                              {conflict.firstValue.toFixed(3)} →{" "}
-                              {conflict.secondSource}{" "}
-                              {conflict.secondValue.toFixed(3)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() =>
-                                  resolveConflict(conflict, "main")
-                                }
-                              >
-                                Keep Main
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() =>
-                                  resolveConflict(conflict, "reference")
-                                }
-                              >
-                                Keep Ref
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-[10px] ml-auto"
-                                onClick={() =>
-                                  dismissSharedSyncConflict(conflict.path)
-                                }
-                              >
-                                Dismiss
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </>
                 )}
                 <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">

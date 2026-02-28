@@ -1,5 +1,5 @@
 import React from "react";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
 
@@ -35,7 +35,21 @@ vi.mock("./RuntimeFaceFrame", () => ({
 }));
 
 vi.mock("./RuntimeFaceControlsOverlay", () => ({
-  RuntimeFaceControlsOverlay: () => <div data-testid="runtime-overlay" />,
+  RuntimeFaceControlsOverlay: ({
+    onResetInputs,
+    resetButtonLabel,
+  }: {
+    onResetInputs?: () => void;
+    resetButtonLabel?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="runtime-overlay-reset"
+      onClick={onResetInputs}
+    >
+      {resetButtonLabel ?? "Reset Inputs"}
+    </button>
+  ),
 }));
 
 vi.mock("../ui", () => ({
@@ -53,6 +67,16 @@ describe("ReferenceFaceRuntime", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedAssetBundles.length = 0;
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn(() => "blob:mock-url"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      value: vi.fn(),
+      configurable: true,
+      writable: true,
+    });
   });
 
   it("creates object URLs from effects and revokes superseded URLs", async () => {
@@ -122,5 +146,134 @@ describe("ReferenceFaceRuntime", () => {
         writable: true,
       });
     }
+  });
+
+  it("resets reference inputs by id and reports reset values through onStandardInputChange", async () => {
+    const setInput = vi.fn();
+    const onStandardInputChange = vi.fn();
+    const onStandardInputsReady = vi.fn();
+    const defaultMockRuntime = mockUseVizijRuntime();
+    mockUseVizijRuntime.mockReturnValue({
+      ...defaultMockRuntime,
+      ready: true,
+      loading: false,
+      setInput,
+      faceId: "face",
+      namespace: "refface",
+      inputConstraints: {
+        "refface/standard/eyes/blink": {
+          min: 0,
+          max: 1,
+          defaultValue: 0,
+        },
+        "refface/standard/eyes/squint": {
+          min: 0,
+          max: 1,
+          defaultValue: 0.25,
+        },
+      },
+    } as any);
+
+    const file = new File(["ref"], "ref.glb", { type: "model/gltf-binary" });
+    render(
+      <ReferenceFaceRuntime
+        file={file}
+        active
+        onStandardInputsReady={onStandardInputsReady}
+        onStandardInputChange={onStandardInputChange}
+      />,
+    );
+
+    let inputs: Array<{
+      id: string;
+      path: string;
+      defaultValue: number;
+    }> = [];
+    await waitFor(() => {
+      expect(onStandardInputsReady).toHaveBeenCalled();
+      const lastCall = onStandardInputsReady.mock.calls.at(-1);
+      inputs = (lastCall?.[0] as typeof inputs | undefined) ?? [];
+      expect(inputs.length).toBe(2);
+    });
+
+    fireEvent.click(screen.getAllByTestId("runtime-overlay-reset").at(-1)!);
+
+    await waitFor(() => {
+      expect(onStandardInputChange).toHaveBeenCalledTimes(2);
+    });
+    inputs.forEach((input) => {
+      expect(onStandardInputChange).toHaveBeenCalledWith(
+        input.id,
+        input.defaultValue,
+      );
+      expect(setInput).toHaveBeenCalledWith(`rig/face${input.path}`, {
+        float: input.defaultValue,
+      });
+    });
+  });
+
+  it("does not force override enabled paths when resetting reference inputs", async () => {
+    const setInput = vi.fn();
+    const onStandardInputsReady = vi.fn();
+    const defaultMockRuntime = mockUseVizijRuntime();
+    mockUseVizijRuntime.mockReturnValue({
+      ...defaultMockRuntime,
+      ready: true,
+      loading: false,
+      setInput,
+      faceId: "face",
+      namespace: "refface",
+      assetBundle: {
+        rig: {
+          spec: {
+            nodes: [
+              {
+                type: "input",
+                params: { path: "rig/face/override/blink/enabled" },
+              },
+              {
+                type: "input",
+                params: { path: "rig/face/override/blink/value" },
+              },
+            ],
+          },
+        },
+        bundle: null,
+      },
+      inputConstraints: {
+        "refface/blink": {
+          min: 0,
+          max: 1,
+          defaultValue: 0,
+        },
+      },
+    } as any);
+
+    const file = new File(["ref"], "ref.glb", { type: "model/gltf-binary" });
+    render(
+      <ReferenceFaceRuntime
+        file={file}
+        active
+        onStandardInputsReady={onStandardInputsReady}
+      />,
+    );
+
+    await waitFor(() => {
+      const lastCall = onStandardInputsReady.mock.calls.at(-1);
+      const inputs = (lastCall?.[0] as Array<{ id: string }> | undefined) ?? [];
+      expect(inputs.some((input) => input.id === "blink")).toBe(true);
+    });
+
+    fireEvent.click(screen.getAllByTestId("runtime-overlay-reset").at(-1)!);
+
+    await waitFor(() => {
+      expect(setInput).toHaveBeenCalledWith("rig/face/override/blink/value", {
+        float: 0,
+      });
+    });
+    expect(setInput).not.toHaveBeenCalledWith(
+      "rig/face/override/blink/enabled",
+      expect.anything(),
+    );
   });
 });

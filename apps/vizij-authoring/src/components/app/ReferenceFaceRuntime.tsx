@@ -16,7 +16,10 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { isPoseControlInputPath } from "../../poseRig/utils";
+import {
+  isPoseControlInputPath,
+  isPoseOutputInputPath,
+} from "../../poseRig/utils";
 import { Button } from "../ui";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
@@ -297,31 +300,35 @@ function ReferenceFaceBridge({
     (inputPath: string, value: number) => {
       const normalizedInputPath = normalizeStandardRigInputPath(inputPath);
       const input = standardInputsByPathRef.current.get(normalizedInputPath);
-      const overrideRoute = input
-        ? overrideRoutesByInputIdRef.current.get(input.id)
-        : undefined;
-
-      if (overrideRoute?.enabledPath) {
-        setInputRef.current(overrideRoute.enabledPath, { float: 1 });
-      }
-      if (overrideRoute?.valuePath) {
-        setInputRef.current(overrideRoute.valuePath, { float: value });
-      } else {
-        const pathSuffix =
-          normalizedInputPath && normalizedInputPath !== "/custom/input"
-            ? normalizedInputPath
-            : inputPath;
-        const currentFaceId = faceIdRef.current;
-        const rigPath = currentFaceId
-          ? `rig/${currentFaceId}${pathSuffix}`
-          : `rig/face${pathSuffix}`;
-
-        setInputRef.current(rigPath, { float: value });
+      if (input) {
+        const overrideRoute = overrideRoutesByInputIdRef.current.get(input.id);
+        if (overrideRoute?.enabledPath) {
+          setInputRef.current(overrideRoute.enabledPath, { float: 1 });
+        }
+        if (overrideRoute?.valuePath) {
+          setInputRef.current(overrideRoute.valuePath, { float: value });
+        } else {
+          const currentFaceId = faceIdRef.current;
+          const rigPath = currentFaceId
+            ? `rig/${currentFaceId}${normalizedInputPath}`
+            : `rig/face${normalizedInputPath}`;
+          setInputRef.current(rigPath, { float: value });
+        }
+        if (onStandardInputChangeRef.current) {
+          onStandardInputChangeRef.current(input.id, value);
+        }
+        return;
       }
 
-      if (input && onStandardInputChangeRef.current) {
-        onStandardInputChangeRef.current(input.id, value);
-      }
+      const pathSuffix =
+        normalizedInputPath && normalizedInputPath !== "/custom/input"
+          ? normalizedInputPath
+          : inputPath;
+      const currentFaceId = faceIdRef.current;
+      const rigPath = currentFaceId
+        ? `rig/${currentFaceId}${pathSuffix}`
+        : `rig/face${pathSuffix}`;
+      setInputRef.current(rigPath, { float: value });
     },
     [],
   );
@@ -369,7 +376,9 @@ function ReferenceFaceBridge({
     () =>
       standardInputs.filter(
         (input) =>
-          !isPoseControlInputPath(input.path) && input.id.trim().length > 0,
+          !isPoseControlInputPath(input.path) &&
+          !isPoseOutputInputPath(input.path) &&
+          input.id.trim().length > 0,
       ),
     [standardInputs],
   );
@@ -379,9 +388,22 @@ function ReferenceFaceBridge({
       const resetValue = Number.isFinite(input.defaultValue)
         ? input.defaultValue
         : 0;
-      stageStandardInputPath(input.path, resetValue);
+      const overrideRoute = overrideRoutesByInputIdRef.current.get(input.id);
+      if (overrideRoute?.valuePath) {
+        setInputRef.current(overrideRoute.valuePath, { float: resetValue });
+      } else {
+        const normalizedPath = normalizeStandardRigInputPath(input.path);
+        const currentFaceId = faceIdRef.current;
+        const rigPath = currentFaceId
+          ? `rig/${currentFaceId}${normalizedPath}`
+          : `rig/face${normalizedPath}`;
+        setInputRef.current(rigPath, { float: resetValue });
+      }
+      if (onStandardInputChangeRef.current) {
+        onStandardInputChangeRef.current(input.id, resetValue);
+      }
     });
-  }, [resettableStandardInputs, stageStandardInputPath]);
+  }, [resettableStandardInputs]);
 
   return (
     <div className="h-full w-full bg-bg-panel overflow-hidden">
@@ -393,6 +415,8 @@ function ReferenceFaceBridge({
             onResetInputs={handleResetInputs}
             onToggleSplit={onToggleSplit}
             splitVertical={splitVertical}
+            resetButtonLabel="Reset Reference Inputs"
+            resetButtonTitle="Reset reference-face inputs to their default values"
           />
         }
       />

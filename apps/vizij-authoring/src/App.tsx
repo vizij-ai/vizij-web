@@ -766,6 +766,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     onMainInputValueChange: mainFaceHandleInputValueChange,
     onReferenceInputValueChange:
       referenceFaceContextValue.handleInputValueChange,
+    initialPolicy: "off",
   });
 
   // Reference Face Import
