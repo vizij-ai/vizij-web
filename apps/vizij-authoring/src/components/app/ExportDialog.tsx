@@ -20,10 +20,25 @@ import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { buildGraphSpecForExport } from "../../motiongraph/utils/buildGraphSpec";
 import { OUTPUT_TARGET_TYPE } from "../../motiongraph/components/OutputTargetNode";
 import { cn } from "../../utils/cn";
+import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
 import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
+
+interface RuntimeExportBodies {
+  rootFilteredBodies: unknown[];
+  anyBodies: unknown[];
+  runtimeRootId: string | null;
+}
+
+function normalizeRootId(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 interface PoseRigIrCapabilities {
   poseIrDraft?: unknown | null;
@@ -42,6 +57,7 @@ interface ExportDialogProps {
   loadedBundle: VizijBundleExtension | null;
   canExport: boolean;
   onImportPoseGraph: (file: File) => Promise<void>;
+  runtimeExportBodies?: RuntimeExportBodies;
 }
 
 export function ExportDialog({
@@ -53,6 +69,7 @@ export function ExportDialog({
   loadedBundle,
   canExport,
   onImportPoseGraph,
+  runtimeExportBodies,
 }: ExportDialogProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
@@ -91,8 +108,47 @@ export function ExportDialog({
     handleGraphFileNameChange,
     handleExportFileNameChange,
   } = useAuthoringFileNames({ faceId });
+  const runtimeWorld = useVizijStore((state) => state.world);
   const getExportableBodies = useVizijStore(
     (state) => state.getExportableBodies,
+  );
+  const normalizedRootId = useMemo(() => normalizeRootId(rootId), [rootId]);
+  const runtimeSnapshotRootId = useMemo(
+    () => normalizeRootId(runtimeExportBodies?.runtimeRootId ?? null),
+    [runtimeExportBodies?.runtimeRootId],
+  );
+  const canUseRuntimeSnapshot =
+    Boolean(normalizedRootId) &&
+    runtimeSnapshotRootId === normalizedRootId &&
+    Boolean(runtimeExportBodies);
+  const getExportableBodiesForExport = useCallback(
+    (filterIds?: string[]) => {
+      if (canUseRuntimeSnapshot && filterIds && filterIds.length > 0) {
+        if (
+          runtimeExportBodies &&
+          runtimeExportBodies.rootFilteredBodies.length
+        ) {
+          return runtimeExportBodies.rootFilteredBodies;
+        }
+      } else if (
+        canUseRuntimeSnapshot &&
+        runtimeExportBodies &&
+        runtimeExportBodies.anyBodies.length > 0
+      ) {
+        return runtimeExportBodies.anyBodies;
+      }
+      const fromStore = getExportableBodies(filterIds);
+      if (fromStore.length > 0) {
+        return fromStore;
+      }
+      return resolveExportBodiesFromWorld(runtimeWorld, filterIds);
+    },
+    [
+      canUseRuntimeSnapshot,
+      getExportableBodies,
+      runtimeExportBodies,
+      runtimeWorld,
+    ],
   );
 
   const uiState = useAuthoringUiState();
@@ -156,7 +212,7 @@ export function ExportDialog({
     featureLabelOverrides,
     collectAnimatableExportState,
     setStoreState,
-    getExportableBodies,
+    getExportableBodies: getExportableBodiesForExport,
     fallbackExportBody: exportSceneRoot,
     alertDialog: showAlert,
     poseRig: {

@@ -15,6 +15,27 @@ import { Viewer } from "./Viewer";
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const setGraphBundleSpy = vi.fn();
+const setVizijStoreSpy = vi.fn();
+
+vi.mock("@vizij/render", () => ({
+  useVizijStore: <T,>(
+    selector: (state: {
+      animatables: Record<string, { default?: number }>;
+      elementSelection: Array<{
+        id: string;
+        type?: string;
+        namespace?: string;
+      }>;
+      world: Record<string, { type?: string }>;
+    }) => T,
+  ): T =>
+    selector({
+      animatables: {},
+      elementSelection: [],
+      world: {},
+    }),
+  useVizijStoreSetter: () => setVizijStoreSpy,
+}));
 
 vi.mock("@vizij/runtime-react", () => ({
   VizijRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
@@ -75,6 +96,7 @@ describe("Viewer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setVizijStoreSpy.mockReset();
   });
 
   it("shows empty scene state when no rootId", () => {

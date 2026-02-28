@@ -10,6 +10,11 @@ interface AppWizardsProps {
   onCloseExportDialog: () => void;
   rootId: string | null;
   exportSceneRoot: unknown;
+  runtimeExportBodies?: {
+    rootFilteredBodies: unknown[];
+    anyBodies: unknown[];
+    runtimeRootId: string | null;
+  };
   sourceName: string | null;
   loadedBundle: any;
   canExport: boolean;
@@ -24,6 +29,7 @@ export function AppWizards({
   onCloseExportDialog,
   rootId,
   exportSceneRoot,
+  runtimeExportBodies,
   sourceName,
   loadedBundle,
   canExport,
@@ -61,9 +67,10 @@ export function AppWizards({
       <ExportDialog
         open={showExportDialog}
         onClose={onCloseExportDialog}
-        rootId={rootId ?? ""}
+        rootId={rootId}
         exportSceneRoot={exportSceneRoot}
-        sourceName={sourceName ?? ""}
+        runtimeExportBodies={runtimeExportBodies}
+        sourceName={sourceName}
         loadedBundle={loadedBundle}
         canExport={canExport}
         onImportPoseGraph={handleImportPoseGraphFile}

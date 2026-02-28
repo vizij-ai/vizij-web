@@ -19,6 +19,7 @@ import {
 } from "../../state/RigControllerProvider";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 import { isPoseControlInputPath } from "../../poseRig/utils";
+import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import {
@@ -172,6 +173,85 @@ function RuntimeInputBridge() {
   return null;
 }
 
+export interface RuntimeExportBodiesSnapshot {
+  rootFilteredBodies: unknown[];
+  anyBodies: unknown[];
+  runtimeRootId: string | null;
+}
+
+interface RuntimeExportBodyBridgeProps {
+  targetRootId: string | null;
+  onRuntimeExportBodiesChange?: (snapshot: RuntimeExportBodiesSnapshot) => void;
+}
+
+function RuntimeExportBodyBridge({
+  targetRootId,
+  onRuntimeExportBodiesChange,
+}: RuntimeExportBodyBridgeProps) {
+  const { rootId: runtimeRootId } = useVizijRuntime();
+  const world = useVizijStore((state) => state.world);
+  const getExportableBodies = useVizijStore(
+    (state) => state.getExportableBodies,
+  );
+  const rootFilteredFromStore = useMemo(
+    () => getExportableBodies(targetRootId ? [targetRootId] : undefined),
+    [getExportableBodies, targetRootId, world],
+  );
+  const anyFromStore = useMemo(
+    () => getExportableBodies(),
+    [getExportableBodies, world],
+  );
+  const rootFilteredBodies = useMemo(
+    () =>
+      rootFilteredFromStore.length > 0
+        ? rootFilteredFromStore
+        : resolveExportBodiesFromWorld(
+            world as Record<string, unknown>,
+            targetRootId ? [targetRootId] : undefined,
+          ),
+    [rootFilteredFromStore, targetRootId, world],
+  );
+  const anyBodies = useMemo(
+    () =>
+      anyFromStore.length > 0
+        ? anyFromStore
+        : resolveExportBodiesFromWorld(world as Record<string, unknown>),
+    [anyFromStore, world],
+  );
+
+  useEffect(() => {
+    if (!onRuntimeExportBodiesChange) {
+      return;
+    }
+    onRuntimeExportBodiesChange({
+      rootFilteredBodies,
+      anyBodies,
+      runtimeRootId: runtimeRootId ?? null,
+    });
+  }, [
+    anyBodies,
+    onRuntimeExportBodiesChange,
+    rootFilteredBodies,
+    runtimeRootId,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (!onRuntimeExportBodiesChange) {
+        return;
+      }
+      onRuntimeExportBodiesChange({
+        rootFilteredBodies: [],
+        anyBodies: [],
+        runtimeRootId: null,
+      });
+    },
+    [onRuntimeExportBodiesChange],
+  );
+
+  return null;
+}
+
 interface RuntimeInputCatalogBridgeProps {
   onRuntimeInputsReady: (
     inputs: StandardRigInput[],
@@ -182,11 +262,13 @@ interface RuntimeInputCatalogBridgeProps {
 function RuntimeInputCatalogBridge({
   onRuntimeInputsReady,
 }: RuntimeInputCatalogBridgeProps) {
-  const { ready, inputConstraints } = useVizijRuntime();
+  const { ready, inputConstraints, namespace } = useVizijRuntime();
   const { inputs, byId } = useMemo(
     () =>
-      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null),
-    [inputConstraints, ready],
+      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null, {
+        namespace,
+      }),
+    [inputConstraints, namespace, ready],
   );
   const lastSignatureRef = useRef<string | null>(null);
 
@@ -314,6 +396,7 @@ export interface ViewerProps {
   onLoadHugo: () => void;
   presetLoadOptions?: readonly FacePresetAssetOption[];
   onLoadPresetAsset?: (preset: FacePresetAssetOption) => void;
+  onRuntimeExportBodiesChange?: (snapshot: RuntimeExportBodiesSnapshot) => void;
 }
 
 export function Viewer({
@@ -330,6 +413,7 @@ export function Viewer({
   onLoadHugo,
   presetLoadOptions,
   onLoadPresetAsset,
+  onRuntimeExportBodiesChange,
 }: ViewerProps) {
   const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
@@ -456,6 +540,12 @@ export function Viewer({
             {onRuntimeInputsReady ? (
               <RuntimeInputCatalogBridge
                 onRuntimeInputsReady={onRuntimeInputsReady}
+              />
+            ) : null}
+            {onRuntimeExportBodiesChange ? (
+              <RuntimeExportBodyBridge
+                targetRootId={rootId}
+                onRuntimeExportBodiesChange={onRuntimeExportBodiesChange}
               />
             ) : null}
             <RuntimeInputBridge />

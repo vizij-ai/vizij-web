@@ -13,7 +13,10 @@ import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
 import { BottomPanelContainer } from "./components/panels/BottomPanelContainer";
-import { Viewer } from "./components/app/Viewer";
+import {
+  Viewer,
+  type RuntimeExportBodiesSnapshot,
+} from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
@@ -61,6 +64,13 @@ import {
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
+  return {
+    rootFilteredBodies: [],
+    anyBodies: [],
+    runtimeRootId: null,
+  };
+}
 const QUARTER_TURN_RADIANS = Math.PI / 2;
 const UNKNOWN_FACE_LOAD_STEP_WEIGHT = 6;
 const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
@@ -220,6 +230,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [runtimeExportBodies, setRuntimeExportBodies] =
+    useState<RuntimeExportBodiesSnapshot>(
+      createEmptyRuntimeExportBodiesSnapshot,
+    );
   const [selectedPoseGroup, setSelectedPoseGroup] =
     useState<PoseGroupInspectorSelection | null>(null);
   const [selectedBlendStage, setSelectedBlendStage] =
@@ -323,6 +337,35 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
+  const handleRuntimeExportBodiesChange = useCallback(
+    (next: RuntimeExportBodiesSnapshot) => {
+      setRuntimeExportBodies((previous) => {
+        const sameRootFiltered =
+          previous.rootFilteredBodies.length ===
+            next.rootFilteredBodies.length &&
+          previous.rootFilteredBodies.every(
+            (body, index) => body === next.rootFilteredBodies[index],
+          );
+        const sameAny =
+          previous.anyBodies.length === next.anyBodies.length &&
+          previous.anyBodies.every(
+            (body, index) => body === next.anyBodies[index],
+          );
+        if (
+          previous.runtimeRootId === next.runtimeRootId &&
+          sameRootFiltered &&
+          sameAny
+        ) {
+          return previous;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+  useEffect(() => {
+    setRuntimeExportBodies(createEmptyRuntimeExportBodiesSnapshot());
+  }, [rootId]);
 
   const canExport = Boolean(rootId) && !isLoading;
 
@@ -1104,6 +1147,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
+                onRuntimeExportBodiesChange={handleRuntimeExportBodiesChange}
                 onClearSelection={handleClearSelectionWithInspectorSync}
                 showSelectionGlow={showSelectionGlow}
                 onImportClick={handleImportClick}
@@ -1154,6 +1198,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}
+            onRuntimeExportBodiesChange={handleRuntimeExportBodiesChange}
             onClearSelection={handleClearSelectionWithInspectorSync}
             showSelectionGlow={showSelectionGlow}
             onImportClick={handleImportClick}
@@ -1268,6 +1313,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         onCloseExportDialog={() => setShowExportDialog(false)}
         rootId={rootId}
         exportSceneRoot={exportSceneRoot}
+        runtimeExportBodies={runtimeExportBodies}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
         canExport={canExport}
