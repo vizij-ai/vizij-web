@@ -54,6 +54,7 @@ type GltfNodeLike = {
   translation?: unknown;
   rotation?: unknown;
   scale?: unknown;
+  extensions?: unknown;
 };
 
 type GltfSceneLike = {
@@ -131,6 +132,15 @@ function isPassThroughWrapperNode(
     node.mesh !== undefined ||
     node.camera !== undefined ||
     node.skin !== undefined
+  ) {
+    return false;
+  }
+  // Preserve wrapper nodes that carry metadata extensions. Unwrapping these
+  // can orphan the canonical Vizij root node from `scene.nodes`.
+  if (
+    node.extensions &&
+    typeof node.extensions === "object" &&
+    Object.keys(node.extensions as Record<string, unknown>).length > 0
   ) {
     return false;
   }

@@ -47,3 +47,30 @@ test("extracts VIZIJ bundle metadata from example GLB", () => {
     "should include pose definitions",
   );
 });
+
+test("prefers root-level parser extension over node and scene extensions", () => {
+  const rootGroup = new Group();
+  const parserJson = {
+    extensions: {
+      VIZIJ_bundle: { version: 1, metadata: { source: "root" } },
+    },
+    nodes: [
+      {
+        extensions: {
+          VIZIJ_bundle: { version: 1, metadata: { source: "node" } },
+        },
+      },
+    ],
+    scenes: [
+      {
+        extensions: {
+          VIZIJ_bundle: { version: 1, metadata: { source: "scene" } },
+        },
+      },
+    ],
+  };
+
+  const bundle = extractVizijBundle(rootGroup, parserJson);
+  assert.ok(bundle, "bundle should be found");
+  assert.equal(bundle.metadata?.source, "root");
+});

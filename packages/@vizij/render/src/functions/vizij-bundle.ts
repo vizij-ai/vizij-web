@@ -55,6 +55,17 @@ function searchParserJsonForBundle(
     return null;
   }
 
+  const rootExtensions =
+    parserJson && typeof parserJson === "object"
+      ? (parserJson as any).extensions
+      : null;
+  if (rootExtensions && typeof rootExtensions === "object") {
+    const match = readExtensionValue(rootExtensions as Record<string, unknown>);
+    if (match) {
+      return cloneBundle(match.value) as VizijBundleExtension;
+    }
+  }
+
   const nodes = Array.isArray(parserJson.nodes) ? parserJson.nodes : [];
   for (const node of nodes) {
     const extensions =

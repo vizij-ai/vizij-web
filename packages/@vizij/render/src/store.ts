@@ -17,6 +17,7 @@ import type {
   VizijStoreSetter,
 } from "./store-types";
 import { createAnimatable } from "./functions/create-animatable";
+import { selectExportableGroupEntries } from "./functions/exportable-bodies";
 import type { RenderableFeature } from "./types/renderable-feature";
 import type { StaticFeature, GroupFeature, Selection } from "./types";
 
@@ -113,21 +114,30 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   },
   getExportableBodies: (filterIds?: string[]) => {
     const worldData = get().world as World;
-    return Object.values(worldData)
-      .filter(
-        (entry) =>
-          entry.type === "group" &&
-          entry.rootBounds &&
-          (!filterIds || filterIds.includes(entry.id)),
-      )
-      .flatMap((entry) => {
-        const groupEntry = entry as World[string] & {
-          refs?: Record<string, { current?: Group | null }>;
-        };
-        const refs = Object.values(groupEntry.refs ?? {});
-        const resolved = refs.find((ref) => ref?.current)?.current ?? null;
-        return resolved ? [resolved] : [];
-      });
+    const candidateGroups = selectExportableGroupEntries(
+      worldData as Record<
+        string,
+        {
+          id: string;
+          type: string;
+          parent?: string | null;
+          root?: boolean;
+          rootBounds?: unknown;
+        }
+      >,
+      filterIds,
+    );
+    return candidateGroups.flatMap((entry) => {
+      const refs = Object.values(
+        (
+          entry as {
+            refs?: Record<string, { current?: Group | null }>;
+          }
+        ).refs ?? {},
+      );
+      const resolved = refs.find((ref) => ref?.current)?.current ?? null;
+      return resolved ? [resolved] : [];
+    });
   },
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => {
     set(
