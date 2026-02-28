@@ -22,6 +22,7 @@ export interface FacePresetAssetOption {
   filename: string;
   url: string;
   available: boolean;
+  referenceCompatible: boolean;
 }
 
 const FACE_PRESET_ROWS: readonly FacePresetRow[] = [
@@ -49,6 +50,13 @@ const AVAILABLE_PRESET_FILENAMES = new Set<string>([
   "Hugo_Legacy.glb",
 ]);
 
+// Reference-face runtime requires embedded VIZIJ bundle metadata.
+const REFERENCE_COMPATIBLE_PRESET_FILENAMES = new Set<string>([
+  "Quori_Current.glb",
+  "Quori_Legacy.glb",
+  "Hugo_Legacy.glb",
+]);
+
 export const FACE_PRESET_GRID_OPTIONS: readonly FacePresetAssetOption[] =
   FACE_PRESET_ROWS.flatMap((row) =>
     FACE_PRESET_COLUMNS.map((column) => {
@@ -63,6 +71,8 @@ export const FACE_PRESET_GRID_OPTIONS: readonly FacePresetAssetOption[] =
         filename,
         url: `/assets/${filename}`,
         available: AVAILABLE_PRESET_FILENAMES.has(filename),
+        referenceCompatible:
+          REFERENCE_COMPATIBLE_PRESET_FILENAMES.has(filename),
       };
     }),
   );

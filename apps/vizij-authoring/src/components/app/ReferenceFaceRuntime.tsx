@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
   useVizijRuntime,
 } from "@vizij/runtime-react";
 import type { VizijBundleExtension } from "@vizij/render";
-import { type StandardRigInput } from "@vizij/utils";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import { isPoseControlInputPath } from "../../poseRig/utils";
 import { Button } from "../ui";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
@@ -49,25 +59,83 @@ const FACE_ASSET_GLB_BASE = {
   // Note: rootBounds intentionally omitted to let each loaded face define its own bounds
 };
 
-function createBundleConfig(file: File): {
-  bundle: VizijAssetBundle;
-  glbUrl: string;
-} {
-  const glbUrl = URL.createObjectURL(file);
+interface ReferenceOverrideInputRoute {
+  valuePath: string | null;
+  enabledPath: string | null;
+}
+
+function normalizeGraphInputPath(path: string): string {
+  return path.trim().replace(/^\/+/, "");
+}
+
+function buildOverrideRoutesByInputId(
+  graphSpec: unknown,
+): Map<string, ReferenceOverrideInputRoute> {
+  const map = new Map<string, ReferenceOverrideInputRoute>();
+  const specRecord =
+    graphSpec && typeof graphSpec === "object"
+      ? (graphSpec as { nodes?: unknown })
+      : null;
+  const nodes = Array.isArray(specRecord?.nodes) ? specRecord.nodes : [];
+
+  nodes.forEach((nodeEntry) => {
+    const node =
+      nodeEntry && typeof nodeEntry === "object"
+        ? (nodeEntry as {
+            type?: unknown;
+            params?: { path?: unknown };
+          })
+        : null;
+    if (!node || node.type !== "input") {
+      return;
+    }
+
+    const rawPath = node.params?.path;
+    if (typeof rawPath !== "string") {
+      return;
+    }
+    const graphPath = normalizeGraphInputPath(rawPath);
+    const match = graphPath.match(
+      /^rig\/[^/]+\/override\/([^/]+)\/(enabled|value)$/,
+    );
+    if (!match) {
+      return;
+    }
+
+    const inputId = (match[1] ?? "").trim();
+    const field = match[2] === "enabled" ? "enabledPath" : "valuePath";
+    if (!inputId) {
+      return;
+    }
+    const existing = map.get(inputId) ?? {
+      valuePath: null,
+      enabledPath: null,
+    };
+    existing[field] = graphPath;
+    map.set(inputId, existing);
+  });
+
+  return map;
+}
+
+function createBundleConfig(glbUrl: string): VizijAssetBundle {
   return {
-    bundle: {
-      namespace: "refface",
-      glb: {
-        ...FACE_ASSET_GLB_BASE,
-        src: glbUrl,
-      },
-      pose: {
-        stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-      },
+    namespace: "refface",
+    glb: {
+      ...FACE_ASSET_GLB_BASE,
+      src: glbUrl,
     },
-    glbUrl,
+    pose: {
+      stageNeutralFilter: (_id, path) => !path.includes("/color/"),
+    },
   };
 }
+
+type ReferenceFaceBundleConfig = {
+  file: File;
+  bundle: VizijAssetBundle;
+  glbUrl: string;
+};
 
 export function ReferenceFaceRuntime({
   namespace: _namespace = "refface",
@@ -85,25 +153,35 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
-  const bundleConfig = useMemo(() => {
-    if (!file) return null;
-    return createBundleConfig(file);
+  const [bundleConfig, setBundleConfig] =
+    useState<ReferenceFaceBundleConfig | null>(null);
+  useEffect(() => {
+    if (!file) {
+      setBundleConfig(null);
+      return;
+    }
+
+    const glbUrl = URL.createObjectURL(file);
+    setBundleConfig({
+      file,
+      bundle: createBundleConfig(glbUrl),
+      glbUrl,
+    });
+
+    return () => {
+      URL.revokeObjectURL(glbUrl);
+    };
   }, [file]);
 
-  useEffect(() => {
-    return () => {
-      if (bundleConfig?.glbUrl) {
-        URL.revokeObjectURL(bundleConfig.glbUrl);
-      }
-    };
-  }, [bundleConfig]);
+  const activeBundleConfig =
+    file && bundleConfig?.file === file ? bundleConfig : null;
 
   if (!active) {
     return <>{fallback}</>;
   }
 
   // Show placeholder when no file is loaded
-  if (!bundleConfig) {
+  if (!activeBundleConfig) {
     return (
       <ReferenceFacePlaceholder
         splitVertical={splitVertical}
@@ -116,7 +194,7 @@ export function ReferenceFaceRuntime({
   const shouldDriveVisible = driveOrchestrator && visible;
   return (
     <VizijRuntimeProvider
-      assetBundle={bundleConfig.bundle}
+      assetBundle={activeBundleConfig.bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
       orchestratorScope="shared"
@@ -167,8 +245,15 @@ function ReferenceFaceBridge({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceBridgeProps) {
-  const { ready, loading, setInput, inputConstraints, faceId, assetBundle } =
-    useVizijRuntime();
+  const {
+    ready,
+    loading,
+    setInput,
+    inputConstraints,
+    faceId,
+    assetBundle,
+    namespace,
+  } = useVizijRuntime();
   const setInputRef = useRef(setInput);
   const faceIdRef = useRef(faceId);
   const onStandardInputChangeRef = useRef(onStandardInputChange);
@@ -187,8 +272,10 @@ function ReferenceFaceBridge({
     byPath: standardInputsByPath,
   } = useMemo(
     () =>
-      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null),
-    [inputConstraints, ready],
+      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null, {
+        namespace,
+      }),
+    [inputConstraints, namespace, ready],
   );
 
   // Keep a ref of standardInputsByPath for use in callbacks
@@ -197,16 +284,41 @@ function ReferenceFaceBridge({
     standardInputsByPathRef.current = standardInputsByPath;
   }, [standardInputsByPath]);
 
+  const overrideRoutesByInputId = useMemo(
+    () => buildOverrideRoutesByInputId(assetBundle.rig?.spec),
+    [assetBundle.rig?.spec],
+  );
+  const overrideRoutesByInputIdRef = useRef(overrideRoutesByInputId);
+  useEffect(() => {
+    overrideRoutesByInputIdRef.current = overrideRoutesByInputId;
+  }, [overrideRoutesByInputId]);
+
   const stageStandardInputPath = useCallback(
     (inputPath: string, value: number) => {
-      const currentFaceId = faceIdRef.current;
-      const rigPath = currentFaceId
-        ? `rig/${currentFaceId}${inputPath}`
-        : `rig/face${inputPath}`;
+      const normalizedInputPath = normalizeStandardRigInputPath(inputPath);
+      const input = standardInputsByPathRef.current.get(normalizedInputPath);
+      const overrideRoute = input
+        ? overrideRoutesByInputIdRef.current.get(input.id)
+        : undefined;
 
-      setInputRef.current(rigPath, { float: value });
+      if (overrideRoute?.enabledPath) {
+        setInputRef.current(overrideRoute.enabledPath, { float: 1 });
+      }
+      if (overrideRoute?.valuePath) {
+        setInputRef.current(overrideRoute.valuePath, { float: value });
+      } else {
+        const pathSuffix =
+          normalizedInputPath && normalizedInputPath !== "/custom/input"
+            ? normalizedInputPath
+            : inputPath;
+        const currentFaceId = faceIdRef.current;
+        const rigPath = currentFaceId
+          ? `rig/${currentFaceId}${pathSuffix}`
+          : `rig/face${pathSuffix}`;
 
-      const input = standardInputsByPathRef.current.get(inputPath);
+        setInputRef.current(rigPath, { float: value });
+      }
+
       if (input && onStandardInputChangeRef.current) {
         onStandardInputChangeRef.current(input.id, value);
       }

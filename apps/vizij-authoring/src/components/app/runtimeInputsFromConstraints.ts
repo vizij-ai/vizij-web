@@ -16,8 +16,29 @@ export interface RuntimeInputCatalog {
   byPath: Map<string, StandardRigInput>;
 }
 
+export interface BuildRuntimeInputCatalogOptions {
+  namespace?: string;
+}
+
+function stripRuntimeNamespacePrefix(path: string, namespace?: string): string {
+  const trimmed = path.trim();
+  if (!trimmed || !namespace) {
+    return trimmed;
+  }
+  const namespacePrefix = `${namespace}/`;
+  if (trimmed.startsWith(namespacePrefix)) {
+    return trimmed.slice(namespacePrefix.length);
+  }
+  const debugPrefix = `debug/${namespacePrefix}`;
+  if (trimmed.startsWith(debugPrefix)) {
+    return trimmed.slice(debugPrefix.length);
+  }
+  return trimmed;
+}
+
 export function buildRuntimeInputCatalogFromConstraints(
   inputConstraints: Record<string, RuntimeInputConstraint> | null | undefined,
+  options: BuildRuntimeInputCatalogOptions = {},
 ): RuntimeInputCatalog {
   if (!inputConstraints) {
     return {
@@ -35,7 +56,11 @@ export function buildRuntimeInputCatalogFromConstraints(
       continue;
     }
 
-    const normalizedPath = normalizeStandardRigInputPath(fullPath);
+    const canonicalPath = stripRuntimeNamespacePrefix(
+      fullPath,
+      options.namespace,
+    );
+    const normalizedPath = normalizeStandardRigInputPath(canonicalPath);
     if (!normalizedPath || normalizedPath === "/custom/input") {
       continue;
     }

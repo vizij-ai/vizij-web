@@ -388,6 +388,27 @@ function normalizeLookupLabel(label: string | null | undefined): string {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function stripReferenceInputTokenPrefix(
+  value: string | null | undefined,
+): string | null {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith("input_")) {
+    const stripped = trimmed.slice("input_".length).trim();
+    return stripped.length > 0 ? stripped : null;
+  }
+  if (trimmed.startsWith("input/")) {
+    const stripped = trimmed.slice("input/".length).trim();
+    return stripped.length > 0 ? stripped : null;
+  }
+  return null;
+}
+
 function normalizeComboboxPathQuery(value: string): string {
   return value.toLowerCase().replace(/\s+/g, "");
 }
@@ -483,9 +504,55 @@ function extractBindingPipelineLinks(
   });
 }
 
+function extractPipelineParentLinksFromConfig(params: {
+  childInputId: string;
+  config: Record<string, unknown> | null;
+}): ReferenceCatalogPipelineLink[] {
+  if (!params.config) {
+    return [];
+  }
+  const parentRecords = Array.isArray(params.config.parents)
+    ? params.config.parents
+    : null;
+  if (!parentRecords) {
+    return [];
+  }
+  const links: ReferenceCatalogPipelineLink[] = [];
+  parentRecords.forEach((rawParent) => {
+    const parentRecord = asRecord(rawParent);
+    if (!parentRecord) {
+      return;
+    }
+    const parentInputId =
+      typeof parentRecord.inputId === "string"
+        ? parentRecord.inputId.trim()
+        : "";
+    if (!parentInputId) {
+      return;
+    }
+    const candidateLinkId =
+      typeof parentRecord.linkId === "string" ? parentRecord.linkId.trim() : "";
+    const linkId =
+      candidateLinkId ||
+      buildRigPipelineV1LinkId(parentInputId, params.childInputId);
+    links.push({
+      linkId,
+      parentInputId,
+      childInputId: params.childInputId,
+      scale: isFiniteNumber(parentRecord.scale) ? parentRecord.scale : 1,
+      offset: isFiniteNumber(parentRecord.offset) ? parentRecord.offset : 0,
+      enabled:
+        typeof parentRecord.enabled === "boolean" ? parentRecord.enabled : true,
+      source: "by-input-parent",
+    });
+  });
+  return links;
+}
+
 function buildMainFaceReferenceCatalog(params: {
   mainInputs: readonly StandardRigInput[];
   inputBindings: Record<string, BindingInputLike | undefined>;
+  pipelineConfigByInputId?: Record<string, Record<string, unknown>>;
 }): ReferenceCatalog {
   const baseInputs = params.mainInputs
     .filter((input) => Boolean(input.path?.trim()))
@@ -531,6 +598,37 @@ function buildMainFaceReferenceCatalog(params: {
       });
     });
   });
+
+  Object.entries(params.pipelineConfigByInputId ?? {}).forEach(
+    ([childInputId, rawConfig]) => {
+      if (!baseInputsById.has(childInputId)) {
+        return;
+      }
+      extractPipelineParentLinksFromConfig({
+        childInputId,
+        config: asRecord(rawConfig),
+      }).forEach((link) => {
+        if (
+          !baseInputsById.has(link.parentInputId) ||
+          !baseInputsById.has(link.childInputId)
+        ) {
+          return;
+        }
+        const pairKey = makePairKey(link.parentInputId, link.childInputId);
+        const existing = linksByPair.get(pairKey);
+        if (!existing) {
+          linksByPair.set(pairKey, link);
+          return;
+        }
+        if (existing.source === "pipeline-link") {
+          linksByPair.set(pairKey, {
+            ...existing,
+            source: "merged",
+          });
+        }
+      });
+    },
+  );
 
   Object.entries(params.inputBindings).forEach(([childInputId, binding]) => {
     if (!baseInputsById.has(childInputId)) {
@@ -1067,13 +1165,35 @@ function resolveReferenceCatalogInputForTarget(params: {
   if (byId) {
     return byId;
   }
-  const normalizedTargetPath = normalizeCatalogPath(params.targetInputId);
-  if (!normalizedTargetPath) {
-    return null;
+  const strippedTargetInputId = stripReferenceInputTokenPrefix(
+    params.targetInputId,
+  );
+  if (strippedTargetInputId) {
+    const strippedById = params.referenceCatalog.inputsById.get(
+      strippedTargetInputId,
+    );
+    if (strippedById) {
+      return strippedById;
+    }
   }
-  const byPath = params.referenceCatalog.inputsByPath.get(normalizedTargetPath);
-  if (byPath && byPath.length > 0) {
-    return byPath[0] ?? null;
+  const normalizedTargetPath = normalizeCatalogPath(params.targetInputId);
+  if (normalizedTargetPath) {
+    const byPath =
+      params.referenceCatalog.inputsByPath.get(normalizedTargetPath);
+    if (byPath && byPath.length > 0) {
+      return byPath[0] ?? null;
+    }
+  }
+  if (strippedTargetInputId) {
+    const normalizedStrippedPath = normalizeCatalogPath(strippedTargetInputId);
+    if (normalizedStrippedPath) {
+      const strippedByPath = params.referenceCatalog.inputsByPath.get(
+        normalizedStrippedPath,
+      );
+      if (strippedByPath && strippedByPath.length > 0) {
+        return strippedByPath[0] ?? null;
+      }
+    }
   }
   return null;
 }
@@ -1103,12 +1223,17 @@ function buildReferenceRuntimeLookupTokenMap(
       ? normalizedPath.slice(1)
       : normalizedPath;
     const canonicalPathToken = normalizedPathWithoutLeading.replace(/\//g, "_");
+    const idToken = normalizeLookupLabel(input.id);
+    const pathToken = normalizeLookupLabel(normalizedPathWithoutLeading);
     const tokens = new Set<string>([
-      normalizeLookupLabel(input.id),
+      idToken,
       normalizeLookupLabel(input.path),
       normalizeLookupLabel(normalizedPath),
-      normalizeLookupLabel(normalizedPathWithoutLeading),
+      pathToken,
       normalizeLookupLabel(canonicalPathToken),
+      normalizeLookupLabel(`input_${input.id}`),
+      normalizeLookupLabel(`input_${canonicalPathToken}`),
+      normalizeLookupLabel(`input_${normalizedPathWithoutLeading}`),
     ]);
     tokens.forEach((token) => {
       addRuntimeInputLookupToken(map, token, input);
@@ -1139,9 +1264,20 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
   runtimeInputsByPath: ReadonlyMap<string, StandardRigInput[]>;
   runtimeInputsByLookupToken: ReadonlyMap<string, StandardRigInput[]>;
 }): StandardRigInput | null {
+  const strippedTargetInputId = stripReferenceInputTokenPrefix(
+    params.targetInputId,
+  );
   const directMatch = params.runtimeInputsById.get(params.targetInputId);
   if (directMatch) {
     return directMatch;
+  }
+  if (strippedTargetInputId) {
+    const strippedDirectMatch = params.runtimeInputsById.get(
+      strippedTargetInputId,
+    );
+    if (strippedDirectMatch) {
+      return strippedDirectMatch;
+    }
   }
   const directPathCandidates =
     params.runtimeInputsByPath.get(
@@ -1150,12 +1286,30 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
   if (directPathCandidates.length > 0) {
     return directPathCandidates[0] ?? null;
   }
+  if (strippedTargetInputId) {
+    const strippedPathCandidates =
+      params.runtimeInputsByPath.get(
+        normalizeStandardRigInputPath(strippedTargetInputId),
+      ) ?? [];
+    if (strippedPathCandidates.length > 0) {
+      return strippedPathCandidates[0] ?? null;
+    }
+  }
   const directTokenMatch = resolveUniqueRuntimeInputByLookupToken({
     value: params.targetInputId,
     runtimeInputsByLookupToken: params.runtimeInputsByLookupToken,
   });
   if (directTokenMatch) {
     return directTokenMatch;
+  }
+  if (strippedTargetInputId) {
+    const strippedTokenMatch = resolveUniqueRuntimeInputByLookupToken({
+      value: strippedTargetInputId,
+      runtimeInputsByLookupToken: params.runtimeInputsByLookupToken,
+    });
+    if (strippedTokenMatch) {
+      return strippedTokenMatch;
+    }
   }
   const catalogInput = resolveReferenceCatalogInputForTarget({
     targetInputId: params.targetInputId,
@@ -1168,19 +1322,18 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
     params.runtimeInputsByPath.get(
       normalizeStandardRigInputPath(catalogInput.path),
     ) ?? [];
-  if (candidates.length === 0) {
-    return null;
-  }
   if (candidates.length === 1) {
     return candidates[0] ?? null;
   }
-  const normalizedCatalogLabel = normalizeLookupLabel(catalogInput.label);
-  const byLabel = candidates.find(
-    (candidate) =>
-      normalizeLookupLabel(candidate.label) === normalizedCatalogLabel,
-  );
-  if (byLabel) {
-    return byLabel;
+  if (candidates.length > 1) {
+    const normalizedCatalogLabel = normalizeLookupLabel(catalogInput.label);
+    const byLabel = candidates.find(
+      (candidate) =>
+        normalizeLookupLabel(candidate.label) === normalizedCatalogLabel,
+    );
+    if (byLabel) {
+      return byLabel;
+    }
   }
   const byCatalogIdToken = resolveUniqueRuntimeInputByLookupToken({
     value: catalogInput.id,
@@ -1195,6 +1348,9 @@ function resolveReferenceRuntimeInputForCatalogTarget(params: {
   });
   if (byCatalogPathToken) {
     return byCatalogPathToken;
+  }
+  if (candidates.length === 0) {
+    return null;
   }
   return candidates[0] ?? null;
 }
@@ -2347,6 +2503,9 @@ export function VariablesPanel({
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
   );
+  const pipelineConfigByInputId = useBindingAuthoring(
+    (state) => state.pipelineConfigByInputId,
+  );
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
@@ -2495,8 +2654,12 @@ export function VariablesPanel({
           string,
           BindingInputLike | undefined
         >,
+        pipelineConfigByInputId: pipelineConfigByInputId as Record<
+          string,
+          Record<string, unknown>
+        >,
       }),
-    [inputBindings, managedStandardInputs],
+    [inputBindings, managedStandardInputs, pipelineConfigByInputId],
   );
 
   const referenceFaceRuntimeCatalog = useMemo(
@@ -4187,7 +4350,25 @@ export function VariablesPanel({
       const nextValue =
         action === "set-min" ? min : action === "set-max" ? max : defaultValue;
       if (rigData.source === "reference") {
-        referenceFace.handleInputValueChange(rigData.input.id, nextValue);
+        const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
+          targetInputId: rigData.input.id,
+          referenceCatalog: referenceFace.referenceCatalog,
+          runtimeInputsById: referenceFace.standardInputsById,
+          runtimeInputsByPath: referenceRuntimeInputsByPath,
+          runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
+        });
+        if (runtimeInput) {
+          referenceFace.handleInputValueChange(runtimeInput.id, nextValue);
+        } else if (rigData.input.path) {
+          referenceFace.handleInputPathValueChange(
+            rigData.input.path,
+            nextValue,
+          );
+        } else {
+          console.warn(
+            `[VariablesPanel] Unable to resolve reference input "${rigData.input.id}" for driver action "${action}".`,
+          );
+        }
       } else {
         activeInputValueChange(rigData.input.id, nextValue);
       }

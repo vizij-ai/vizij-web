@@ -50,10 +50,24 @@ interface VizijGraphMetadataInput {
   range: { min: number; max: number };
 }
 
+interface VizijPipelineV1LinkConfig {
+  linkId?: string;
+  parentInputId?: string;
+  childInputId?: string;
+  scale?: number;
+  offset?: number;
+  enabled?: boolean;
+}
+
+interface VizijPipelineV1Metadata {
+  links?: Record<string, VizijPipelineV1LinkConfig>;
+}
+
 interface VizijGraphMetadata {
   faceId: string;
   inputs: VizijGraphMetadataInput[];
   bindings: GraphBindingSummary[];
+  pipelineV1?: VizijPipelineV1Metadata;
   machineReport?: Record<string, unknown>;
   irGraph?: IrGraph;
 }
@@ -172,6 +186,167 @@ function createNormalizationDiagnostics(): ImportNormalizationDiagnostics {
     animatableRetargets: [],
     animatableFallbacks: [],
   };
+}
+
+function normalizeStringValue(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeFiniteValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeBooleanValue(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function buildInputPairKey(
+  parentInputId: string,
+  childInputId: string,
+): string {
+  return `${parentInputId}::${childInputId}`;
+}
+
+function synthesizeInputBindingSummariesFromPipelineLinks(params: {
+  summaries: readonly GraphBindingSummary[];
+  pipelineV1: VizijPipelineV1Metadata | undefined;
+  knownInputIds: ReadonlySet<string>;
+}): GraphBindingSummary[] {
+  const links = params.pipelineV1?.links;
+  if (!links || Object.keys(links).length === 0) {
+    return [...params.summaries];
+  }
+
+  const existingPairs = new Set<string>();
+  params.summaries.forEach((summary) => {
+    const targetId = summary.targetId?.trim();
+    const inputId = summary.inputId?.trim();
+    if (
+      !targetId ||
+      !inputId ||
+      inputId === SELF_BINDING_ID ||
+      !params.knownInputIds.has(targetId)
+    ) {
+      return;
+    }
+    existingPairs.add(buildInputPairKey(inputId, targetId));
+  });
+
+  const pendingByChild = new Map<
+    string,
+    Array<{
+      linkId: string;
+      parentInputId: string;
+      childInputId: string;
+      scale: number | null;
+      offset: number | null;
+      enabled: boolean | null;
+    }>
+  >();
+
+  Object.entries(links).forEach(([rawLinkId, rawConfig]) => {
+    if (!rawConfig || typeof rawConfig !== "object") {
+      return;
+    }
+    const record = rawConfig as Record<string, unknown>;
+    const parentInputId = normalizeStringValue(record.parentInputId);
+    const childInputId = normalizeStringValue(record.childInputId);
+    if (!parentInputId || !childInputId) {
+      return;
+    }
+    if (
+      !params.knownInputIds.has(parentInputId) ||
+      !params.knownInputIds.has(childInputId)
+    ) {
+      return;
+    }
+
+    const pairKey = buildInputPairKey(parentInputId, childInputId);
+    if (existingPairs.has(pairKey)) {
+      return;
+    }
+    existingPairs.add(pairKey);
+
+    const linkId =
+      normalizeStringValue(record.linkId) ??
+      normalizeStringValue(rawLinkId) ??
+      `link/${encodeURIComponent(parentInputId)}->${encodeURIComponent(childInputId)}`;
+    const entry = {
+      linkId,
+      parentInputId,
+      childInputId,
+      scale: normalizeFiniteValue(record.scale),
+      offset: normalizeFiniteValue(record.offset),
+      enabled: normalizeBooleanValue(record.enabled),
+    };
+    const current = pendingByChild.get(childInputId);
+    if (current) {
+      current.push(entry);
+    } else {
+      pendingByChild.set(childInputId, [entry]);
+    }
+  });
+
+  if (pendingByChild.size === 0) {
+    return [...params.summaries];
+  }
+
+  const nextSummaries = [...params.summaries];
+  pendingByChild.forEach((entries, childInputId) => {
+    const sortedEntries = [...entries].sort((left, right) => {
+      const byParent = left.parentInputId.localeCompare(right.parentInputId);
+      if (byParent !== 0) {
+        return byParent;
+      }
+      return left.linkId.localeCompare(right.linkId);
+    });
+    const expression = sortedEntries
+      .map((_, index) => `s${(index + 1).toString(10)}`)
+      .join(" + ");
+    const linkMetadata: Record<string, Record<string, unknown>> = {};
+    sortedEntries.forEach((entry) => {
+      linkMetadata[entry.linkId] = {
+        linkId: entry.linkId,
+        parentInputId: entry.parentInputId,
+        childInputId: entry.childInputId,
+        ...(entry.scale !== null ? { scale: entry.scale } : {}),
+        ...(entry.offset !== null ? { offset: entry.offset } : {}),
+        ...(entry.enabled !== null ? { enabled: entry.enabled } : {}),
+      };
+    });
+
+    sortedEntries.forEach((entry, index) => {
+      const slotId = `s${(index + 1).toString(10)}`;
+      nextSummaries.push({
+        targetId: childInputId,
+        animatableId: childInputId,
+        component: undefined,
+        slotId,
+        slotAlias: slotId,
+        inputId: entry.parentInputId,
+        expression,
+        valueType: "scalar",
+        nodeId: `import_pipeline_link_${entry.linkId}`,
+        expressionNodeId: `import_pipeline_expr_${childInputId}`,
+        metadata:
+          index === 0
+            ? ({
+                vizij: {
+                  pipelineV1: {
+                    links: linkMetadata,
+                  },
+                },
+              } as RigBindingMetadata)
+            : undefined,
+      });
+    });
+  });
+
+  return nextSummaries;
 }
 
 function resolveUniqueImportedInputId(
@@ -805,8 +980,14 @@ export function rehydrateRigDataFromGraph(
     }
   });
 
+  const importSummaries = synthesizeInputBindingSummariesFromPipelineLinks({
+    summaries: vizij.bindings,
+    pipelineV1: vizij.pipelineV1,
+    knownInputIds: new Set(standardInputsById.keys()),
+  });
+
   const { summaries: normalizedSummaries, diagnostics } =
-    normalizeImportedBindingSummaries(vizij.bindings, {
+    normalizeImportedBindingSummaries(importSummaries, {
       components: options.components,
       standardInputs: standardInputsById,
       componentIdRemaps,

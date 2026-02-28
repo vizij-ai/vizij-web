@@ -64,10 +64,23 @@ type TraversableBody = {
   traverse: (callback: (object: Record<string, any>) => void) => void;
 };
 
+type ExportBodySource = "mounted-root" | "mounted-any" | "fallback" | "none";
+
 function isTraversableBody(value: unknown): value is TraversableBody {
   return (
     Boolean(value) && typeof (value as TraversableBody).traverse === "function"
   );
+}
+
+function countRobotDataNodes(body: TraversableBody): number {
+  let count = 0;
+  body.traverse((object) => {
+    const robotData = object?.userData?.gltfExtensions?.RobotData;
+    if (robotData && typeof robotData === "object") {
+      count += 1;
+    }
+  });
+  return count;
 }
 
 interface UseVizijExportOptions {
@@ -144,32 +157,240 @@ function withPoseConfigFaceId(
   };
 }
 
+function normalizeStringValue(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeFiniteValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function normalizeBooleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 function resolvePipelineMetadataForExport(
   pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined,
   pipelineConfigByInputId: PipelineConfigByInputId | null | undefined,
+  availableInputIds: ReadonlySet<string>,
 ): VizijPipelineMetadataV1 | null {
+  const hasAvailableInputIds = availableInputIds.size > 0;
   const hasConfigMap =
     Boolean(pipelineConfigByInputId) &&
     Object.keys(pipelineConfigByInputId ?? {}).length > 0;
-  if (pipelineMetadataV1 && typeof pipelineMetadataV1 === "object") {
-    const next = cloneSerializable(
-      pipelineMetadataV1,
-    ) as VizijPipelineMetadataV1;
-    if (hasConfigMap) {
-      next.byInputId = cloneSerializable(
-        pipelineConfigByInputId as PipelineConfigByInputId,
-      ) as PipelineConfigByInputId;
-    }
-    return next;
-  }
-  if (!hasConfigMap) {
+  const hasMetadataBase =
+    Boolean(pipelineMetadataV1) &&
+    typeof pipelineMetadataV1 === "object" &&
+    !Array.isArray(pipelineMetadataV1);
+  if (!hasMetadataBase && !hasConfigMap) {
     return null;
   }
-  return {
-    byInputId: cloneSerializable(
-      pipelineConfigByInputId as PipelineConfigByInputId,
-    ) as PipelineConfigByInputId,
-  };
+
+  const base = hasMetadataBase
+    ? (cloneSerializable(pipelineMetadataV1) as VizijPipelineMetadataV1)
+    : ({} as VizijPipelineMetadataV1);
+  const nextByInputId: PipelineConfigByInputId = {};
+  const seededByConfigInputIds = new Set<string>();
+  const synthesizedLinkParentInputIds = new Set<string>();
+  const rawByInputId = hasConfigMap
+    ? (pipelineConfigByInputId as PipelineConfigByInputId)
+    : ((base.byInputId ?? {}) as PipelineConfigByInputId);
+
+  Object.entries(rawByInputId).forEach(([rawInputId, rawConfig]) => {
+    if (
+      !rawConfig ||
+      typeof rawConfig !== "object" ||
+      Array.isArray(rawConfig)
+    ) {
+      return;
+    }
+    const configRecord = rawConfig as Record<string, unknown>;
+    const inputId =
+      normalizeStringValue(rawInputId) ??
+      normalizeStringValue(configRecord.inputId);
+    if (!inputId) {
+      return;
+    }
+    if (hasAvailableInputIds && !availableInputIds.has(inputId)) {
+      return;
+    }
+    nextByInputId[inputId] = {
+      ...configRecord,
+      inputId,
+    };
+    seededByConfigInputIds.add(inputId);
+  });
+
+  const nextLinks: Record<string, Record<string, unknown>> = {};
+  const parentsByChild = new Map<string, Array<Record<string, unknown>>>();
+  const childrenByParent = new Map<string, Set<string>>();
+  const rawLinks =
+    base.links && typeof base.links === "object" && !Array.isArray(base.links)
+      ? (base.links as Record<string, unknown>)
+      : {};
+
+  Object.entries(rawLinks).forEach(([rawLinkId, rawLink]) => {
+    if (!rawLink || typeof rawLink !== "object" || Array.isArray(rawLink)) {
+      return;
+    }
+    const linkRecord = rawLink as Record<string, unknown>;
+    const parentInputId = normalizeStringValue(linkRecord.parentInputId);
+    const childInputId = normalizeStringValue(linkRecord.childInputId);
+    if (!parentInputId || !childInputId) {
+      return;
+    }
+    if (
+      hasAvailableInputIds &&
+      (!availableInputIds.has(parentInputId) ||
+        !availableInputIds.has(childInputId))
+    ) {
+      return;
+    }
+    const linkId =
+      normalizeStringValue(linkRecord.linkId) ??
+      normalizeStringValue(rawLinkId) ??
+      `link/${encodeURIComponent(parentInputId)}->${encodeURIComponent(childInputId)}`;
+    const scale = normalizeFiniteValue(linkRecord.scale);
+    const offset = normalizeFiniteValue(linkRecord.offset);
+    const enabled = normalizeBooleanValue(linkRecord.enabled);
+    const normalizedLink: Record<string, unknown> = {
+      ...linkRecord,
+      linkId,
+      parentInputId,
+      childInputId,
+      ...(scale !== undefined ? { scale } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+      ...(enabled !== undefined ? { enabled } : {}),
+    };
+    nextLinks[linkId] = normalizedLink;
+
+    const parentEntry: Record<string, unknown> = {
+      linkId,
+      inputId: parentInputId,
+      ...(scale !== undefined ? { scale } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+      ...(enabled !== undefined ? { enabled } : {}),
+    };
+    const existingParents = parentsByChild.get(childInputId) ?? [];
+    existingParents.push(parentEntry);
+    parentsByChild.set(childInputId, existingParents);
+
+    const existingChildren = childrenByParent.get(parentInputId) ?? new Set();
+    existingChildren.add(childInputId);
+    childrenByParent.set(parentInputId, existingChildren);
+  });
+
+  parentsByChild.forEach((parents, childInputId) => {
+    if (!nextByInputId[childInputId]) {
+      nextByInputId[childInputId] = { inputId: childInputId };
+    }
+    const dedupedParents = new Map<string, Record<string, unknown>>();
+    parents.forEach((parent) => {
+      const parentInputId = normalizeStringValue(parent.inputId);
+      const linkId = normalizeStringValue(parent.linkId);
+      if (!parentInputId || !linkId) {
+        return;
+      }
+      const key = `${parentInputId}::${linkId}`;
+      dedupedParents.set(key, parent);
+    });
+    nextByInputId[childInputId].parents = Array.from(dedupedParents.values())
+      .sort((left, right) => {
+        const leftParent = normalizeStringValue(left.inputId) ?? "";
+        const rightParent = normalizeStringValue(right.inputId) ?? "";
+        if (leftParent !== rightParent) {
+          return leftParent.localeCompare(rightParent);
+        }
+        const leftLinkId = normalizeStringValue(left.linkId) ?? "";
+        const rightLinkId = normalizeStringValue(right.linkId) ?? "";
+        return leftLinkId.localeCompare(rightLinkId);
+      })
+      .map((parent) => ({ ...parent }));
+  });
+
+  childrenByParent.forEach((children, parentInputId) => {
+    if (!nextByInputId[parentInputId]) {
+      nextByInputId[parentInputId] = { inputId: parentInputId };
+      synthesizedLinkParentInputIds.add(parentInputId);
+    }
+    nextByInputId[parentInputId].children = Array.from(children).sort((a, b) =>
+      a.localeCompare(b),
+    );
+  });
+
+  Object.keys(nextByInputId).forEach((inputId) => {
+    const entry = nextByInputId[inputId];
+    if (!entry) {
+      return;
+    }
+    if (!Array.isArray(entry.parents)) {
+      entry.parents = [];
+    }
+    if (!Array.isArray(entry.children)) {
+      entry.children = [];
+    }
+    const directInput = asRecord(entry.directInput);
+    const poseSource = asRecord(entry.poseSource);
+    const poseTargets = Array.isArray(poseSource?.targetIds)
+      ? poseSource.targetIds
+      : [];
+    const isPropsRigInput = /^propsrig_/i.test(inputId);
+    const shouldRepairDeadRelayDriver =
+      !isPropsRigInput &&
+      (childrenByParent.has(inputId) ||
+        (Array.isArray(entry.children) && entry.children.length > 0)) &&
+      Array.isArray(entry.parents) &&
+      entry.parents.length === 0 &&
+      directInput?.enabled === false &&
+      poseTargets.length === 0;
+    if (
+      synthesizedLinkParentInputIds.has(inputId) &&
+      !seededByConfigInputIds.has(inputId) &&
+      directInput?.enabled === undefined
+    ) {
+      entry.directInput = {
+        ...(directInput ?? {}),
+        enabled: true,
+      };
+      return;
+    }
+    if (shouldRepairDeadRelayDriver) {
+      entry.directInput = {
+        ...(directInput ?? {}),
+        enabled: true,
+      };
+    }
+  });
+
+  if (Object.keys(nextByInputId).length > 0) {
+    base.byInputId = cloneSerializable(
+      nextByInputId,
+    ) as PipelineConfigByInputId;
+  } else {
+    delete base.byInputId;
+  }
+  if (Object.keys(nextLinks).length > 0) {
+    base.links = cloneSerializable(
+      nextLinks,
+    ) as VizijPipelineMetadataV1["links"];
+  } else {
+    delete base.links;
+  }
+
+  return Object.keys(base).length > 0 ? base : null;
 }
 
 function isPoseRigIrFile(value: unknown): value is PoseRigIrFile {
@@ -302,7 +523,15 @@ export function useVizijExport(
     const pipelineMetadataForExport = resolvePipelineMetadataForExport(
       pipelineMetadataV1,
       pipelineConfigByInputId,
+      new Set(standardInputsById.keys()),
     );
+    const pipelineConfigByInputIdForExport =
+      pipelineMetadataForExport &&
+      typeof pipelineMetadataForExport.byInputId === "object" &&
+      pipelineMetadataForExport.byInputId !== null &&
+      !Array.isArray(pipelineMetadataForExport.byInputId)
+        ? (pipelineMetadataForExport.byInputId as PipelineConfigByInputId)
+        : pipelineConfigByInputId;
 
     const graphResult = buildRigGraphSpec(
       withPipelineConfigBuildOptions(
@@ -315,7 +544,7 @@ export function useVizijExport(
           inputBindings,
           inputMetadata: standardInputMetadataById,
         },
-        pipelineConfigByInputId,
+        pipelineConfigByInputIdForExport,
         pipelineMetadataForExport,
       ),
     );
@@ -400,30 +629,89 @@ export function useVizijExport(
             isTraversableBody(body),
         );
 
-      let exportableBodies = resolveExportableBodies(
-        rootId ? [rootId] : undefined,
-      );
-      if (!exportableBodies.length && rootId) {
-        exportableBodies = resolveExportableBodies();
-      }
+      let maxRootCandidateCount = 0;
+      let maxAnyCandidateCount = 0;
+      let selectionAttempts = 0;
+      let exportBodySource: ExportBodySource = "none";
+      const resolveMountedCandidates = () => {
+        const rootCandidates = resolveExportableBodies(
+          rootId ? [rootId] : undefined,
+        );
+        const anyCandidates = rootId
+          ? resolveExportableBodies()
+          : rootCandidates;
+        if (rootCandidates.length > maxRootCandidateCount) {
+          maxRootCandidateCount = rootCandidates.length;
+        }
+        if (anyCandidates.length > maxAnyCandidateCount) {
+          maxAnyCandidateCount = anyCandidates.length;
+        }
+        return { rootCandidates, anyCandidates };
+      };
+
+      const resolveExportBody = (): Array<
+        Parameters<typeof exportScene>[0] & TraversableBody
+      > => {
+        const { rootCandidates, anyCandidates } = resolveMountedCandidates();
+        if (rootCandidates.length > 0) {
+          exportBodySource = "mounted-root";
+          return rootCandidates;
+        }
+        if (anyCandidates.length > 0) {
+          exportBodySource = "mounted-any";
+          return anyCandidates;
+        }
+        exportBodySource = "none";
+        return [];
+      };
+
+      let exportableBodies = resolveExportBody();
       for (
         let attempt = 0;
         attempt < 12 && !exportableBodies.length;
         attempt += 1
       ) {
         await waitForNextFrame();
-        exportableBodies = resolveExportableBodies(
-          rootId ? [rootId] : undefined,
-        );
-        if (!exportableBodies.length && rootId) {
-          exportableBodies = resolveExportableBodies();
-        }
+        selectionAttempts = attempt + 1;
+        exportableBodies = resolveExportBody();
       }
+      let usingFallbackExportBody = false;
       if (!exportableBodies.length && isTraversableBody(fallbackExportBody)) {
-        exportableBodies = [
-          fallbackExportBody as Parameters<typeof exportScene>[0] &
-            TraversableBody,
-        ];
+        exportableBodies = [fallbackExportBody];
+        usingFallbackExportBody = true;
+        exportBodySource = "fallback";
+      }
+
+      const selectedRobotDataNodeCount =
+        exportableBodies.length > 0
+          ? countRobotDataNodes(exportableBodies[0] as TraversableBody)
+          : null;
+      logVizijExportDebug("export-glb:body-selection", {
+        rootId,
+        source: exportBodySource,
+        attempts: selectionAttempts,
+        maxRootCandidateCount,
+        maxAnyCandidateCount,
+        selectedRobotDataNodeCount,
+      });
+
+      if (
+        includeVizijBundle &&
+        usingFallbackExportBody &&
+        exportableBodies.length > 0 &&
+        selectedRobotDataNodeCount === 0
+      ) {
+        const rootHint = rootId?.trim()
+          ? ` for rootId=${rootId}`
+          : " for the active face root";
+        await alertDialog(
+          `Bundled export is using fallback scene${rootHint} because no mounted runtime refs were found (max mounted-root candidates=${maxRootCandidateCount.toString(
+            10,
+          )}, mounted-any candidates=${maxAnyCandidateCount.toString(
+            10,
+          )}). Fallback scene has no RobotData nodes, so bundled export is blocked.`,
+        );
+        return;
       }
       if (!exportableBodies.length) {
         await alertDialog("Load a Vizij asset before exporting.");
@@ -942,7 +1230,15 @@ function buildVizijBundle(
   const pipelineMetadataForExport = resolvePipelineMetadataForExport(
     pipelineMetadataV1,
     pipelineConfigByInputId,
+    new Set(standardInputsById.keys()),
   );
+  const pipelineConfigByInputIdForExport =
+    pipelineMetadataForExport &&
+    typeof pipelineMetadataForExport.byInputId === "object" &&
+    pipelineMetadataForExport.byInputId !== null &&
+    !Array.isArray(pipelineMetadataForExport.byInputId)
+      ? (pipelineMetadataForExport.byInputId as PipelineConfigByInputId)
+      : pipelineConfigByInputId;
 
   const exportTimestamp = new Date().toISOString();
   const rigGraphResult = buildRigGraphSpec(
@@ -956,7 +1252,7 @@ function buildVizijBundle(
         inputBindings,
         inputMetadata,
       },
-      pipelineConfigByInputId,
+      pipelineConfigByInputIdForExport,
       pipelineMetadataForExport,
     ),
   );

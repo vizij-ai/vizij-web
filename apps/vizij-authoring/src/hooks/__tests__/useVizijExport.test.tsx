@@ -404,6 +404,105 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("normalizes export pipeline metadata so links and byInputId stay internally consistent", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const parentInput: StandardRigInput = {
+      id: "blink",
+      path: "/controls/eyes/blink",
+      label: "Blink",
+      group: "controls",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+    const childInput: StandardRigInput = {
+      id: "propsrig_ltlid_lidcurve_value",
+      path: "/propsrig/ltlid/lidcurve/value",
+      label: "Left Lid Curve",
+      group: "eyes",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    const options = createOptions({
+      standardInputsById: new Map([
+        [parentInput.id, parentInput],
+        [childInput.id, childInput],
+      ]),
+      pipelineMetadataV1: {
+        links: {
+          "link/blink->propsrig_ltlid_lidcurve_value": {
+            parentInputId: "blink",
+            childInputId: "propsrig_ltlid_lidcurve_value",
+            scale: 1,
+            offset: 0.1,
+            enabled: true,
+          },
+        },
+      },
+      pipelineConfigByInputId: {
+        propsrig_ltlid_lidcurve_value: {
+          clamp: { enabled: true },
+          parents: [],
+        },
+        blink: {
+          inputId: "blink",
+          parents: [],
+          children: ["propsrig_ltlid_lidcurve_value"],
+          directInput: { enabled: false },
+          poseSource: { targetIds: [] },
+        },
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedBuildRigGraphSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pipelineV1: expect.objectContaining({
+          byInputId: expect.objectContaining({
+            propsrig_ltlid_lidcurve_value: expect.objectContaining({
+              inputId: "propsrig_ltlid_lidcurve_value",
+              parents: [
+                expect.objectContaining({
+                  inputId: "blink",
+                  linkId: "link/blink->propsrig_ltlid_lidcurve_value",
+                }),
+              ],
+            }),
+            blink: expect.objectContaining({
+              inputId: "blink",
+              children: ["propsrig_ltlid_lidcurve_value"],
+              directInput: expect.objectContaining({
+                enabled: true,
+              }),
+            }),
+          }),
+          links: expect.objectContaining({
+            "link/blink->propsrig_ltlid_lidcurve_value":
+              expect.objectContaining({
+                parentInputId: "blink",
+                childInputId: "propsrig_ltlid_lidcurve_value",
+                linkId: "link/blink->propsrig_ltlid_lidcurve_value",
+              }),
+          }),
+        }),
+      }),
+    );
+    hook.unmount();
+  });
+
   it("skips null exportable bodies and exports with the first valid body", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
@@ -430,7 +529,7 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
-  it("uses fallback export body when store export bodies are unavailable", async () => {
+  it("uses fallback export body when store export bodies are unavailable for raw GLB export", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
@@ -443,6 +542,7 @@ describe("useVizijExport", () => {
 
     const fallbackBody = { traverse: vi.fn() };
     const options = createOptions({
+      includeVizijBundle: false,
       getExportableBodies: () => [],
       fallbackExportBody: fallbackBody,
     });
@@ -454,6 +554,40 @@ describe("useVizijExport", () => {
 
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
     expect(mockedExportScene.mock.calls[0]?.[0]).toBe(fallbackBody);
+    hook.unmount();
+  });
+
+  it("blocks bundled export when fallback body lacks RobotData", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const fallbackBody = { traverse: vi.fn() };
+    const alertDialog = vi.fn();
+    const options = createOptions({
+      getExportableBodies: () => [],
+      fallbackExportBody: fallbackBody,
+      alertDialog,
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).not.toHaveBeenCalled();
+    expect(alertDialog).toHaveBeenCalledTimes(1);
+    const alertMessage = vi.mocked(alertDialog).mock.calls[0]?.[0];
+    expect(typeof alertMessage).toBe("string");
+    expect(alertMessage).toContain("Bundled export is using fallback scene");
+    expect(alertMessage).toContain("no mounted runtime refs were found");
+    expect(alertMessage).toContain("Fallback scene has no RobotData nodes");
     hook.unmount();
   });
 

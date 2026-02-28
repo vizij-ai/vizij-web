@@ -43,7 +43,7 @@ export function ReferenceFacePanel({
 
   const handleLoadPresetAsset = useCallback(
     async (preset: FacePresetAssetOption) => {
-      if (!preset.available) {
+      if (!preset.available || !preset.referenceCompatible) {
         return;
       }
       try {
@@ -126,23 +126,29 @@ export function ReferenceFacePanel({
                 Load Custom Reference Face
               </Button>
               <div className="grid w-full grid-cols-3 gap-2">
-                {FACE_PRESET_GRID_OPTIONS.map((preset) => (
-                  <Button
-                    key={preset.id}
-                    size="sm"
-                    variant="secondary"
-                    className="h-7 px-2 text-[11px]"
-                    disabled={!preset.available}
-                    onClick={() => void handleLoadPresetAsset(preset)}
-                    title={
-                      preset.available
-                        ? `Load ${preset.filename}`
-                        : `${preset.label} asset not available`
-                    }
-                  >
-                    {preset.label}
-                  </Button>
-                ))}
+                {FACE_PRESET_GRID_OPTIONS.map((preset) => {
+                  const canLoadAsReference =
+                    preset.available && preset.referenceCompatible;
+                  return (
+                    <Button
+                      key={preset.id}
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 px-2 text-[11px]"
+                      disabled={!canLoadAsReference}
+                      onClick={() => void handleLoadPresetAsset(preset)}
+                      title={
+                        canLoadAsReference
+                          ? `Load ${preset.filename}`
+                          : !preset.available
+                            ? `${preset.label} asset not available`
+                            : `${preset.label} is not reference-compatible`
+                      }
+                    >
+                      {preset.label}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           </div>

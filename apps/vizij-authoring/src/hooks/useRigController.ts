@@ -486,6 +486,7 @@ function sanitizePipelineConfigAndLinksForAvailableInputs(params: {
     (config) => Array.isArray(asRecord(config)?.parents),
   );
   const normalizedLinksById: Record<string, Record<string, unknown>> = {};
+  const linkParentInputIds = new Set<string>();
   Object.entries(params.linksById).forEach(([rawLinkId, rawConfig]) => {
     const linkRecord = asRecord(rawConfig);
     if (!linkRecord) {
@@ -522,6 +523,48 @@ function sanitizePipelineConfigAndLinksForAvailableInputs(params: {
       linkId: resolvedLinkId,
       parentInputId,
       childInputId,
+    };
+    linkParentInputIds.add(parentInputId);
+  });
+
+  Object.entries(normalizedByInputId).forEach(([inputId, config]) => {
+    const configRecord = asRecord(config);
+    if (!configRecord) {
+      return;
+    }
+    const parents = Array.isArray(configRecord.parents)
+      ? configRecord.parents
+      : [];
+    const children = Array.isArray(configRecord.children)
+      ? configRecord.children
+      : [];
+    const hasLinkedChildren =
+      children.length > 0 || linkParentInputIds.has(inputId);
+    const directInput = asRecord(configRecord.directInput);
+    const hasExplicitDirectInput =
+      directInput && typeof directInput.enabled === "boolean";
+    const poseSource = asRecord(configRecord.poseSource);
+    const poseTargets = Array.isArray(poseSource?.targetIds)
+      ? poseSource.targetIds
+      : [];
+    const isPropsRigInput = /^propsrig_/i.test(inputId);
+    const shouldRepairDeadRelayDriver =
+      !isPropsRigInput &&
+      hasLinkedChildren &&
+      parents.length === 0 &&
+      directInput?.enabled === false &&
+      poseTargets.length === 0;
+    if (!hasLinkedChildren || parents.length > 0 || hasExplicitDirectInput) {
+      if (!shouldRepairDeadRelayDriver) {
+        return;
+      }
+    }
+    normalizedByInputId[inputId] = {
+      ...configRecord,
+      directInput: {
+        ...(directInput ?? {}),
+        enabled: true,
+      },
     };
   });
 

@@ -167,6 +167,7 @@ const bindingState = {
   lockedInspectorTargetIds: new Set<string>(),
   standardInputsByPath: new Map<string, StandardRigInput>(),
   standardInputsById: new Map<string, StandardRigInput>(),
+  pipelineConfigByInputId: {} as Record<string, Record<string, unknown>>,
   inputValues: {} as Record<string, number>,
   bindings: {} as Record<string, unknown>,
   inputBindings: {} as Record<string, unknown>,
@@ -269,6 +270,7 @@ describe("VariablesPanel", () => {
     bindingState.lockedInspectorTargetIds = new Set();
     bindingState.standardInputsByPath = new Map();
     bindingState.standardInputsById = new Map();
+    bindingState.pipelineConfigByInputId = {};
     bindingState.inputValues = {};
     bindingState.bindings = {};
     bindingState.inputBindings = {};
@@ -1057,6 +1059,90 @@ describe("VariablesPanel", () => {
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
   });
 
+  it("uses pipeline config parent links to resolve destination child mappings", () => {
+    const source = makeInput("ref_blink", "/standard/eyes/blink", {
+      label: "Blink",
+    });
+    const sourcePropsChild = makeInput(
+      "ref_props_child",
+      "/propsrig/left_eye/lid_lower",
+      {
+        label: "Ref Child Prop",
+        parentBinding: {
+          inputId: source.id,
+          slots: [
+            {
+              id: "slot_parent",
+              alias: "parent",
+              inputId: source.id,
+            },
+          ],
+          expression: "parent",
+        },
+      },
+    );
+    const destinationSource = makeInput("main_blink", "/standard/eyes/blink", {
+      label: "Main Blink",
+    });
+    const destinationPropsChild = makeInput(
+      "main_props_child",
+      "/propsrig/left_eye/lid_lower",
+      {
+        label: "Main Child Prop",
+      },
+    );
+
+    referenceFaceState.standardInputs = [source, sourcePropsChild];
+    referenceFaceState.standardInputsById = new Map([
+      [source.id, source],
+      [sourcePropsChild.id, sourcePropsChild],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      source,
+      sourcePropsChild,
+    ]);
+
+    bindingState.managedStandardInputs = [
+      { input: destinationSource, source: "custom" },
+      { input: destinationPropsChild, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [destinationSource.id, destinationSource],
+      [destinationPropsChild.id, destinationPropsChild],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [destinationSource.path, destinationSource],
+      [destinationPropsChild.path, destinationPropsChild],
+    ]);
+    bindingState.inputBindings = {};
+    bindingState.pipelineConfigByInputId = {
+      [destinationPropsChild.id]: {
+        inputId: destinationPropsChild.id,
+        parents: [
+          {
+            linkId: `${destinationSource.id}->${destinationPropsChild.id}`,
+            inputId: destinationSource.id,
+          },
+        ],
+      },
+    };
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/eyes/blink" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle("Copy driver to main face"),
+    );
+
+    expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
+    expect(screen.getByText(/Use current scale \(1.000\)/)).toBeTruthy();
+    expect(screen.getByText(/Use current offset \(0.000\)/)).toBeTruthy();
+  });
+
   it("defaults mapping rows to apply and auto-maps unique fuzzy destination matches", () => {
     const source = makeInput("ref_source", "/standard/eyes/blink", {
       label: "Blink",
@@ -1353,6 +1439,62 @@ describe("VariablesPanel", () => {
       expect.any(Number),
     );
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("plays and resets reference poses when target keys use input_ id prefix", () => {
+    const runtimeInput = makeInput(
+      "propsrig_background_color_b",
+      "/propsrig/background/color/b",
+      {
+        label: "Background Color B",
+        defaultValue: 0.15,
+        range: { min: 0, max: 1 },
+      },
+    );
+    referenceFaceState.standardInputs = [runtimeInput];
+    referenceFaceState.standardInputsById = new Map([
+      [runtimeInput.id, runtimeInput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [runtimeInput],
+      [],
+      [
+        {
+          id: "ref_pose_bg_prefixed",
+          name: "Ref BG Prefixed",
+          targets: [
+            { inputId: "input_propsrig_background_color_b", value: 0.61 },
+          ],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref BG Prefixed" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Apply Pose"));
+    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      1,
+      runtimeInput.id,
+      0.61,
+    );
+    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+      2,
+      runtimeInput.id,
+      runtimeInput.defaultValue,
+    );
   });
 
   it("plays and resets reference poses via path fallback when runtime inputs are missing", () => {

@@ -64,6 +64,19 @@ function makeSpec(options: {
   faceId: string;
   inputs: Array<ReturnType<typeof makeInput>>;
   bindings: GraphBindingSummary[];
+  pipelineV1?: {
+    links?: Record<
+      string,
+      {
+        linkId?: string;
+        parentInputId?: string;
+        childInputId?: string;
+        scale?: number;
+        offset?: number;
+        enabled?: boolean;
+      }
+    >;
+  };
 }): GraphSpec {
   return {
     metadata: {
@@ -71,6 +84,7 @@ function makeSpec(options: {
         faceId: options.faceId,
         inputs: options.inputs,
         bindings: options.bindings,
+        ...(options.pipelineV1 ? { pipelineV1: options.pipelineV1 } : {}),
       },
     },
     nodes: [],
@@ -573,5 +587,63 @@ describe("rehydrateRigDataFromGraph", () => {
       bindingDefinitions(once.inputBindings),
     );
     expect(twice.standardInputs).toEqual(once.standardInputs);
+  });
+
+  it("rehydrates input parent-child links from pipeline metadata when binding summaries omit input targets", () => {
+    const spec = makeSpec({
+      faceId: "legacy_face",
+      inputs: [
+        makeInput({
+          id: "blink",
+          path: "/rig/control/eyes/blink",
+          group: "custom",
+        }),
+        makeInput({
+          id: "propsrig_ltlid_lidcurve_value",
+          path: "/propsrig/ltlid/lidcurve/value",
+          group: "eyes",
+        }),
+        makeInput({
+          id: "propsrig_jaw_open",
+          path: "/propsrig/mouth/open",
+          group: "mouth",
+          sourceId: "component:face:mouth:anim_jaw_open:component_jaw_open",
+        }),
+      ],
+      bindings: [
+        makeBindingSummary({
+          targetId: JAW_COMPONENT_ID,
+          inputId: "propsrig_jaw_open",
+        }),
+      ],
+      pipelineV1: {
+        links: {
+          "link/blink->propsrig_ltlid_lidcurve_value": {
+            linkId: "link/blink->propsrig_ltlid_lidcurve_value",
+            parentInputId: "blink",
+            childInputId: "propsrig_ltlid_lidcurve_value",
+            scale: 1,
+            offset: 0,
+            enabled: true,
+          },
+        },
+      },
+    });
+
+    const result = rehydrateRigDataFromGraph(spec, {
+      faceId: "robot",
+      animatables: {},
+      components: [makeComponent()],
+    });
+
+    expect(result.inputBindings.propsrig_ltlid_lidcurve_value?.inputId).toBe(
+      "blink",
+    );
+    const blink = result.standardInputs.find((input) => input.id === "blink");
+    expect(blink?.derivedChildren).toContain("propsrig_ltlid_lidcurve_value");
+    const child = result.standardInputs.find(
+      (input) => input.id === "propsrig_ltlid_lidcurve_value",
+    );
+    expect(child?.parentBinding?.inputId).toBe("blink");
   });
 });
