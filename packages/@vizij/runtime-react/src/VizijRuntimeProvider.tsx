@@ -100,6 +100,7 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 };
 
 const DEFAULT_DURATION = 0.35;
+const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 const DEV_MODE =
   (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env
     ?.NODE_ENV !== "production";
@@ -1071,6 +1072,7 @@ function VizijRuntimeProviderInner({
   const registeredGraphsRef = useRef<string[]>([]);
   const registeredAnimationsRef = useRef<string[]>([]);
   const mergedGraphRef = useRef<string | null>(null);
+  const poseControlBridgeValuesRef = useRef<Map<string, number>>(new Map());
   const [inputConstraints, setInputConstraints] = useState<
     Record<string, { min?: number; max?: number; defaultValue?: number }>
   >({});
@@ -1399,6 +1401,7 @@ function VizijRuntimeProviderInner({
 
     const graphConfigs: GraphRegistrationConfig[] = [];
     rigInputMapRef.current = {};
+    poseControlBridgeValuesRef.current.clear();
 
     const rigAsset = assetBundle.rig;
     if (rigAsset) {
@@ -1603,6 +1606,7 @@ function VizijRuntimeProviderInner({
     const setWorldValues = store.getState().setValues;
     const namespaceValue = status.namespace;
     const currentValues = store.getState().values;
+    const rigInputPathMap = rigInputMapRef.current;
     const batched: Array<{ id: string; namespace: string; value: RawValue }> =
       [];
     const namespacedOutputs = namespacedOutputPathsRef.current;
@@ -1617,6 +1621,25 @@ function VizijRuntimeProviderInner({
         return;
       }
       const basePath = stripNamespace(path, namespaceValue);
+      const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
+        basePath,
+      );
+      if (poseControlMatch && typeof raw === "number" && Number.isFinite(raw)) {
+        const inputId = (poseControlMatch[1] ?? "").trim();
+        const mappedInputPath = inputId ? rigInputPathMap[inputId] : undefined;
+        if (mappedInputPath) {
+          const bridgeKey = `${namespaceValue}:${mappedInputPath}`;
+          const previousValue =
+            poseControlBridgeValuesRef.current.get(bridgeKey);
+          if (
+            previousValue === undefined ||
+            Math.abs(previousValue - raw) > POSE_CONTROL_BRIDGE_EPSILON
+          ) {
+            poseControlBridgeValuesRef.current.set(bridgeKey, raw);
+            setInput(mappedInputPath, { float: raw });
+          }
+        }
+      }
       const targetPath = baseOutputs.has(basePath) ? basePath : path;
       const currentValue = currentValues.get(
         getLookup(namespaceValue, targetPath),

@@ -51,6 +51,7 @@ import type {
   PoseRigConfigFile,
 } from "../../poseRig/types";
 import {
+  buildPoseWeightRelativePath,
   isPoseControlInputPath,
   isPoseOutputInputPath,
   parsePoseWeightInputSourceId,
@@ -2735,17 +2736,6 @@ export function VariablesPanel({
       }),
     [referenceFace.referenceCatalog.poses],
   );
-  const referencePoseWeightInputIdByPoseId = useMemo(() => {
-    const map = new Map<string, string>();
-    referenceFace.standardInputs.forEach((input) => {
-      const poseId = parsePoseWeightInputSourceId(input.sourceId);
-      if (!poseId || map.has(poseId)) {
-        return;
-      }
-      map.set(poseId, input.id);
-    });
-    return map;
-  }, [referenceFace.standardInputs]);
   const referenceRigEntryByInputId = useMemo(
     () => new Map(referenceRigEntries.map((entry) => [entry.input.id, entry])),
     [referenceRigEntries],
@@ -2767,8 +2757,49 @@ export function VariablesPanel({
     () => buildReferenceRuntimeLookupTokenMap(referenceFace.standardInputs),
     [referenceFace.standardInputs],
   );
+  const referenceRuntimeInputPathSet = useMemo(
+    () =>
+      new Set(
+        referenceFace.standardInputs
+          .map((input) => normalizeStandardRigInputPath(input.path))
+          .filter((path) => path !== "/custom/input"),
+      ),
+    [referenceFace.standardInputs],
+  );
+  const canStageReferencePath = useCallback(
+    (path: string) => {
+      const normalizedPath = normalizeStandardRigInputPath(path);
+      if (!normalizedPath || normalizedPath === "/custom/input") {
+        return false;
+      }
+      if (referenceRuntimeInputPathSet.has(normalizedPath)) {
+        return true;
+      }
+      return referenceFace.referenceCatalog.inputsByPath.has(
+        normalizeCatalogPath(normalizedPath),
+      );
+    },
+    [referenceFace.referenceCatalog.inputsByPath, referenceRuntimeInputPathSet],
+  );
+  const stageReferencePathValue = useCallback(
+    (path: string, value: number) => {
+      const normalizedPath = normalizeStandardRigInputPath(path);
+      if (!normalizedPath || normalizedPath === "/custom/input") {
+        return false;
+      }
+      if (!canStageReferencePath(normalizedPath)) {
+        return false;
+      }
+      referenceFace.handleInputPathValueChange(normalizedPath, value);
+      return true;
+    },
+    [canStageReferencePath, referenceFace],
+  );
   const applyReferenceRigValue = useCallback(
     (rigData: RigNodeData, nextValue: number, action: string) => {
+      if (stageReferencePathValue(rigData.input.path, nextValue)) {
+        return;
+      }
       const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
         targetInputId: rigData.input.id,
         referenceCatalog: referenceFace.referenceCatalog,
@@ -2778,10 +2809,6 @@ export function VariablesPanel({
       });
       if (runtimeInput) {
         referenceFace.handleInputValueChange(runtimeInput.id, nextValue);
-        return;
-      }
-      if (rigData.input.path) {
-        referenceFace.handleInputPathValueChange(rigData.input.path, nextValue);
         return;
       }
       console.warn(
@@ -2802,6 +2829,9 @@ export function VariablesPanel({
       }
       if (rigData.source === "shared") {
         activeInputValueChange(rigData.input.id, nextValue);
+        if (stageReferencePathValue(rigData.input.path, nextValue)) {
+          return;
+        }
         const linkedReferenceInputId = rigData.linkedReferenceInputId?.trim();
         if (
           linkedReferenceInputId &&
@@ -2841,32 +2871,23 @@ export function VariablesPanel({
       applyReferenceRigValue,
       referenceFace,
       referenceRuntimeInputsByPath,
+      stageReferencePathValue,
     ],
   );
   const setReferencePoseWeightSolo = useCallback(
     (poseId: string) => {
-      const updates: Array<{ inputId: string; value: number }> = [];
-      let foundAny = false;
-      referencePoseEntries.forEach((pose) => {
-        const weightInputId = referencePoseWeightInputIdByPoseId.get(pose.id);
-        if (!weightInputId) {
-          return;
-        }
-        updates.push({
-          inputId: weightInputId,
-          value: pose.id === poseId ? 1 : 0,
-        });
-        foundAny = true;
-      });
-      if (!foundAny) {
+      if (!referencePoseEntries.some((pose) => pose.id === poseId)) {
         return false;
       }
-      updates.forEach((update) => {
-        referenceFace.handleInputValueChange(update.inputId, update.value);
+      referencePoseEntries.forEach((pose) => {
+        referenceFace.handleInputPathValueChange(
+          buildPoseWeightRelativePath(pose.id),
+          pose.id === poseId ? 1 : 0,
+        );
       });
       return true;
     },
-    [referenceFace, referencePoseEntries, referencePoseWeightInputIdByPoseId],
+    [referenceFace, referencePoseEntries],
   );
   const toggleReferenceRigSelection = useCallback((inputId: string) => {
     setSelectedReferenceRigIds((current) => {
@@ -4285,45 +4306,9 @@ export function VariablesPanel({
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
-        if (setReferencePoseWeightSolo(referencePose.id)) {
-          return;
-        }
-        if (referencePose.targets.length === 0) {
+        if (!setReferencePoseWeightSolo(referencePose.id)) {
           console.warn(
-            `[VariablesPanel] Reference pose "${referencePose.name}" has no targets to apply.`,
-          );
-          return;
-        }
-        const unresolvedTargets: string[] = [];
-        referencePose.targets.forEach((target) => {
-          const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
-            targetInputId: target.inputId,
-            referenceCatalog: referenceFace.referenceCatalog,
-            runtimeInputsById: referenceFace.standardInputsById,
-            runtimeInputsByPath: referenceRuntimeInputsByPath,
-            runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
-          });
-          if (runtimeInput) {
-            referenceFace.handleInputValueChange(runtimeInput.id, target.value);
-            return;
-          }
-          const catalogInput = resolveReferenceCatalogInputForTarget({
-            targetInputId: target.inputId,
-            referenceCatalog: referenceFace.referenceCatalog,
-          });
-          const fallbackPath =
-            catalogInput?.path ??
-            (target.inputId.includes("/") ? target.inputId : null);
-          if (!fallbackPath) {
-            unresolvedTargets.push(target.inputId);
-            return;
-          }
-          referenceFace.handleInputPathValueChange(fallbackPath, target.value);
-        });
-        if (unresolvedTargets.length > 0) {
-          console.warn(
-            `[VariablesPanel] Unable to resolve ${unresolvedTargets.length.toString(10)} reference pose target(s) for "${referencePose.name}".`,
-            unresolvedTargets.slice(0, 25),
+            `[VariablesPanel] Unable to stage canonical pose-weight input for reference pose "${referencePose.name}".`,
           );
         }
         return;
@@ -4341,62 +4326,10 @@ export function VariablesPanel({
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
-        const poseWeightInputId = referencePoseWeightInputIdByPoseId.get(
-          referencePose.id,
+        referenceFace.handleInputPathValueChange(
+          buildPoseWeightRelativePath(referencePose.id),
+          0,
         );
-        if (poseWeightInputId) {
-          const poseWeightInput =
-            referenceFace.standardInputsById.get(poseWeightInputId);
-          referenceFace.handleInputValueChange(
-            poseWeightInputId,
-            poseWeightInput?.defaultValue ?? 0,
-          );
-          return;
-        }
-        if (referencePose.targets.length === 0) {
-          console.warn(
-            `[VariablesPanel] Reference pose "${referencePose.name}" has no targets to reset.`,
-          );
-          return;
-        }
-        const unresolvedTargets: string[] = [];
-        referencePose.targets.forEach((target) => {
-          const runtimeInput = resolveReferenceRuntimeInputForCatalogTarget({
-            targetInputId: target.inputId,
-            referenceCatalog: referenceFace.referenceCatalog,
-            runtimeInputsById: referenceFace.standardInputsById,
-            runtimeInputsByPath: referenceRuntimeInputsByPath,
-            runtimeInputsByLookupToken: referenceRuntimeInputsByLookupToken,
-          });
-          if (runtimeInput) {
-            referenceFace.handleInputValueChange(
-              runtimeInput.id,
-              runtimeInput.defaultValue,
-            );
-            return;
-          }
-          const catalogInput = resolveReferenceCatalogInputForTarget({
-            targetInputId: target.inputId,
-            referenceCatalog: referenceFace.referenceCatalog,
-          });
-          const fallbackPath =
-            catalogInput?.path ??
-            (target.inputId.includes("/") ? target.inputId : null);
-          if (!fallbackPath) {
-            unresolvedTargets.push(target.inputId);
-            return;
-          }
-          referenceFace.handleInputPathValueChange(
-            fallbackPath,
-            catalogInput?.defaultValue ?? 0,
-          );
-        });
-        if (unresolvedTargets.length > 0) {
-          console.warn(
-            `[VariablesPanel] Unable to resolve ${unresolvedTargets.length.toString(10)} reference pose reset target(s) for "${referencePose.name}".`,
-            unresolvedTargets.slice(0, 25),
-          );
-        }
         return;
       }
       if (poseNodeData.source !== "main") {

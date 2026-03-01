@@ -423,21 +423,20 @@ describe("VariablesPanel", () => {
     fireEvent.click(screen.getByTitle("Set current value to default"));
     fireEvent.click(screen.getByTitle("Set current value to max"));
 
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      1,
-      referenceOnly.id,
-      referenceOnly.range.min,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(1, referenceOnly.path, referenceOnly.range.min);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(
       2,
-      referenceOnly.id,
+      referenceOnly.path,
       referenceOnly.defaultValue,
     );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      3,
-      referenceOnly.id,
-      referenceOnly.range.max,
-    );
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(3, referenceOnly.path, referenceOnly.range.max);
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
     expect(bindingState.handleInputValueChange).not.toHaveBeenCalled();
   });
 
@@ -537,21 +536,16 @@ describe("VariablesPanel", () => {
       mainShared.range.max,
     );
 
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      1,
-      referenceShared.id,
-      mainShared.range.min,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      2,
-      referenceShared.id,
-      mainShared.defaultValue,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      3,
-      referenceShared.id,
-      mainShared.range.max,
-    );
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(1, referenceShared.path, mainShared.range.min);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(2, referenceShared.path, mainShared.defaultValue);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(3, referenceShared.path, mainShared.range.max);
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
   });
 
   it("opens the variable copy modal from row copy action", () => {
@@ -1481,16 +1475,13 @@ describe("VariablesPanel", () => {
     fireEvent.click(screen.getByTitle("Apply Pose"));
     fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
 
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      1,
-      referenceInput.id,
-      0.76,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      2,
-      referenceInput.id,
-      referenceInput.defaultValue,
-    );
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(1, "/poses/ref_pose_smile.weight", 1);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(2, "/poses/ref_pose_smile.weight", 0);
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
@@ -1551,111 +1542,53 @@ describe("VariablesPanel", () => {
     fireEvent.click(screen.getByTitle("Apply Pose"));
     fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
 
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      1,
-      frownWeightInput.id,
-      0,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      2,
-      smileWeightInput.id,
-      1,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      3,
-      smileWeightInput.id,
-      smileWeightInput.defaultValue,
-    );
     expect(
       referenceFaceState.handleInputPathValueChange,
-    ).not.toHaveBeenCalled();
+    ).toHaveBeenNthCalledWith(1, frownWeightInput.path, 0);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(2, smileWeightInput.path, 1);
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).toHaveBeenNthCalledWith(3, smileWeightInput.path, 0);
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
-  it("plays and resets reference poses when target keys are path-like and not catalog ids", () => {
-    const catalogInput = makeInput("legacy_smile", "/standard/mouth/smile", {
-      label: "Ref Smile Catalog",
-      defaultValue: 0.12,
-      range: { min: 0, max: 1 },
-    });
-    const runtimeInput = makeInput("runtime_smile", "/standard/mouth/smile", {
-      label: "Ref Smile Runtime",
-      defaultValue: 0.44,
-      range: { min: 0, max: 1 },
-    });
-    referenceFaceState.standardInputs = [runtimeInput];
-    referenceFaceState.standardInputsById = new Map([
-      [runtimeInput.id, runtimeInput],
-    ]);
-    referenceFaceState.referenceCatalog = makeReferenceCatalog(
-      [catalogInput],
-      [],
-      [
-        {
-          id: "ref_pose_smile_path_key",
-          name: "Ref Smile Path Key Pose",
-          targets: [{ inputId: "/standard/mouth/smile", value: 0.76 }],
-        },
-      ],
-    );
-
-    const view = render(
-      <VariablesPanel
-        availableSurfaces={["poses"]}
-        activeSurfaceOverride="poses"
-      />,
-    );
-    fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+  it("routes reference pose play through canonical pose-weight paths when runtime pose-weight ids are unavailable", () => {
+    const smileWeightCatalogInput = makeInput(
+      "poses_ref_pose_smile.weight",
+      "/poses/ref_pose_smile.weight",
       {
-        target: { value: "Ref Smile Path Key Pose" },
-      },
-    );
-
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
-
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      1,
-      runtimeInput.id,
-      0.76,
-    );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      2,
-      runtimeInput.id,
-      runtimeInput.defaultValue,
-    );
-    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalledWith(
-      "/standard/mouth/smile",
-      expect.any(Number),
-    );
-    expect(poseRigState.applyPose).not.toHaveBeenCalled();
-  });
-
-  it("plays and resets reference poses when target keys use input_ id prefix", () => {
-    const runtimeInput = makeInput(
-      "propsrig_background_color_b",
-      "/propsrig/background/color/b",
-      {
-        label: "Background Color B",
-        defaultValue: 0.15,
+        sourceId: "pose-weight:ref_pose_smile",
+        defaultValue: 0,
         range: { min: 0, max: 1 },
       },
     );
-    referenceFaceState.standardInputs = [runtimeInput];
-    referenceFaceState.standardInputsById = new Map([
-      [runtimeInput.id, runtimeInput],
-    ]);
+    const angryWeightCatalogInput = makeInput(
+      "poses_ref_pose_angry.weight",
+      "/poses/ref_pose_angry.weight",
+      {
+        sourceId: "pose-weight:ref_pose_angry",
+        defaultValue: 0,
+        range: { min: 0, max: 1 },
+      },
+    );
+    referenceFaceState.standardInputs = [];
+    referenceFaceState.standardInputsById = new Map();
     referenceFaceState.referenceCatalog = makeReferenceCatalog(
-      [runtimeInput],
+      [smileWeightCatalogInput, angryWeightCatalogInput],
       [],
       [
         {
-          id: "ref_pose_bg_prefixed",
-          name: "Ref BG Prefixed",
-          targets: [
-            { inputId: "input_propsrig_background_color_b", value: 0.61 },
-          ],
+          id: "ref_pose_angry",
+          name: "Ref Angry Pose",
+          targets: [{ inputId: "legacy_missing_lid_target", value: 0.42 }],
+        },
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile Pose",
+          targets: [{ inputId: "legacy_missing_smile_target", value: 0.76 }],
         },
       ],
     );
@@ -1669,41 +1602,69 @@ describe("VariablesPanel", () => {
     fireEvent.change(
       within(view.container).getByPlaceholderText("Search poses..."),
       {
-        target: { value: "Ref BG Prefixed" },
+        target: { value: "Ref Angry Pose" },
       },
     );
 
     fireEvent.click(screen.getByTitle("Apply Pose"));
     fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
 
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      angryWeightCatalogInput.path,
       1,
-      runtimeInput.id,
-      0.61,
     );
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenNthCalledWith(
-      2,
-      runtimeInput.id,
-      runtimeInput.defaultValue,
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      smileWeightCatalogInput.path,
+      0,
     );
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      angryWeightCatalogInput.path,
+      0,
+    );
+    expect(
+      referenceFaceState.handleInputPathValueChange,
+    ).not.toHaveBeenCalledWith("legacy_missing_lid_target", expect.any(Number));
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 
-  it("plays and resets reference poses via path fallback when runtime inputs are missing", () => {
-    const catalogInput = makeInput("legacy_smile", "/standard/mouth/smile", {
-      label: "Ref Smile Catalog",
-      defaultValue: 0.21,
-      range: { min: 0, max: 1 },
-    });
-    referenceFaceState.standardInputs = [];
-    referenceFaceState.standardInputsById = new Map();
+  it("uses canonical pose-weight staging even when target metadata points elsewhere", () => {
+    const runtimeLidInput = makeInput(
+      "runtime_lid_close",
+      "/standard/lid/close",
+      {
+        label: "Runtime Lid Close",
+        defaultValue: 0.12,
+        range: { min: 0, max: 1 },
+      },
+    );
+    const smileWeightInput = makeInput(
+      "ref_pose_smile_weight",
+      "/poses/ref_pose_smile.weight",
+      {
+        sourceId: "pose-weight:ref_pose_smile",
+        defaultValue: 0,
+        range: { min: 0, max: 1 },
+      },
+    );
+    referenceFaceState.standardInputs = [runtimeLidInput, smileWeightInput];
+    referenceFaceState.standardInputsById = new Map([
+      [runtimeLidInput.id, runtimeLidInput],
+      [smileWeightInput.id, smileWeightInput],
+    ]);
     referenceFaceState.referenceCatalog = makeReferenceCatalog(
-      [catalogInput],
+      [runtimeLidInput, smileWeightInput],
       [],
       [
         {
-          id: "ref_pose_smile_path_fallback",
-          name: "Ref Smile Path Fallback Pose",
-          targets: [{ inputId: catalogInput.id, value: 0.89 }],
+          id: "ref_pose_angry",
+          name: "Ref Angry Pose",
+          targets: [{ inputId: runtimeLidInput.id, value: 0.86 }],
+        },
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile Pose",
+          targets: [{ inputId: runtimeLidInput.id, value: 0.24 }],
         },
       ],
     );
@@ -1717,110 +1678,27 @@ describe("VariablesPanel", () => {
     fireEvent.change(
       within(view.container).getByPlaceholderText("Search poses..."),
       {
-        target: { value: "Ref Smile Path Fallback Pose" },
+        target: { value: "Ref Angry Pose" },
       },
     );
 
     fireEvent.click(screen.getByTitle("Apply Pose"));
     fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
 
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      "/poses/ref_pose_angry.weight",
+      1,
+    );
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      "/poses/ref_pose_smile.weight",
+      0,
+    );
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      "/poses/ref_pose_angry.weight",
+      0,
+    );
     expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
-    expect(
-      referenceFaceState.handleInputPathValueChange,
-    ).toHaveBeenNthCalledWith(1, catalogInput.path, 0.89);
-    expect(
-      referenceFaceState.handleInputPathValueChange,
-    ).toHaveBeenNthCalledWith(2, catalogInput.path, catalogInput.defaultValue);
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
-  });
-
-  it("plays reference poses with tokenized id matching when catalog entries are unavailable", () => {
-    const runtimeInput = makeInput("mouth_smile_value", "/mouth/smile/value", {
-      label: "Mouth Smile Runtime",
-      defaultValue: 0.11,
-      range: { min: 0, max: 1 },
-    });
-    referenceFaceState.standardInputs = [runtimeInput];
-    referenceFaceState.standardInputsById = new Map([
-      [runtimeInput.id, runtimeInput],
-    ]);
-    referenceFaceState.referenceCatalog = makeReferenceCatalog(
-      [],
-      [],
-      [
-        {
-          id: "ref_pose_tokenized",
-          name: "Ref Tokenized Pose",
-          targets: [{ inputId: "mouth-smile-value", value: 0.6 }],
-        },
-      ],
-    );
-
-    const view = render(
-      <VariablesPanel
-        availableSurfaces={["poses"]}
-        activeSurfaceOverride="poses"
-      />,
-    );
-    fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
-      {
-        target: { value: "Ref Tokenized Pose" },
-      },
-    );
-
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-
-    expect(referenceFaceState.handleInputValueChange).toHaveBeenCalledWith(
-      runtimeInput.id,
-      0.6,
-    );
-    expect(
-      referenceFaceState.handleInputPathValueChange,
-    ).not.toHaveBeenCalled();
-    expect(poseRigState.applyPose).not.toHaveBeenCalled();
-  });
-
-  it("warns when reference pose targets cannot be resolved", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    referenceFaceState.standardInputs = [];
-    referenceFaceState.standardInputsById = new Map();
-    referenceFaceState.referenceCatalog = makeReferenceCatalog(
-      [],
-      [],
-      [
-        {
-          id: "ref_pose_unresolved",
-          name: "Ref Unresolved Pose",
-          targets: [{ inputId: "missing_target_id", value: 0.5 }],
-        },
-      ],
-    );
-
-    const view = render(
-      <VariablesPanel
-        availableSurfaces={["poses"]}
-        activeSurfaceOverride="poses"
-      />,
-    );
-    fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
-      {
-        target: { value: "Ref Unresolved Pose" },
-      },
-    );
-
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-
-    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
-    expect(
-      referenceFaceState.handleInputPathValueChange,
-    ).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Unable to resolve 1 reference pose target"),
-      ["missing_target_id"],
-    );
-    warnSpy.mockRestore();
   });
 
   it("does not write when pose copy modal is cancelled", () => {

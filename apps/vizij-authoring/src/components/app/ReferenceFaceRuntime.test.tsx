@@ -206,7 +206,7 @@ describe("ReferenceFaceRuntime", () => {
         input.id,
         input.defaultValue,
       );
-      expect(setInput).toHaveBeenCalledWith(`rig/face${input.path}`, {
+      expect(setInput).toHaveBeenCalledWith(input.path.replace(/^\/+/, ""), {
         float: input.defaultValue,
       });
     });
@@ -273,6 +273,149 @@ describe("ReferenceFaceRuntime", () => {
     });
     expect(setInput).not.toHaveBeenCalledWith(
       "rig/face/override/blink/enabled",
+      expect.anything(),
+    );
+  });
+
+  it("stages pose-weight inputs directly and bypasses override routes", async () => {
+    const setInput = vi.fn();
+    const onAnimateValueReady = vi.fn();
+    const defaultMockRuntime = mockUseVizijRuntime();
+    mockUseVizijRuntime.mockReturnValue({
+      ...defaultMockRuntime,
+      ready: true,
+      loading: false,
+      setInput,
+      faceId: "face",
+      namespace: "refface",
+      assetBundle: {
+        rig: {
+          spec: {
+            nodes: [
+              {
+                type: "input",
+                params: {
+                  path: "rig/face/override/poses_pose_angry.weight/enabled",
+                },
+              },
+              {
+                type: "input",
+                params: {
+                  path: "rig/face/override/poses_pose_angry.weight/value",
+                },
+              },
+            ],
+          },
+        },
+        bundle: null,
+      },
+      inputConstraints: {
+        "refface/poses/pose_angry.weight": {
+          min: 0,
+          max: 1,
+          defaultValue: 0,
+        },
+      },
+    } as any);
+
+    const file = new File(["ref"], "ref.glb", { type: "model/gltf-binary" });
+    render(
+      <ReferenceFaceRuntime
+        file={file}
+        active
+        onAnimateValueReady={onAnimateValueReady}
+      />,
+    );
+
+    let animateValue: ((path: string, value: number) => void) | undefined;
+    await waitFor(() => {
+      const lastCall = onAnimateValueReady.mock.calls.at(-1);
+      animateValue = lastCall?.[0] as typeof animateValue;
+      expect(typeof animateValue).toBe("function");
+    });
+
+    animateValue?.("/poses/pose_angry.weight", 0);
+    animateValue?.("/poses/pose_angry.weight", 1);
+
+    await waitFor(() => {
+      expect(setInput).toHaveBeenCalledWith("poses/pose_angry.weight", {
+        float: 0,
+      });
+      expect(setInput).toHaveBeenCalledWith("poses/pose_angry.weight", {
+        float: 1,
+      });
+    });
+    expect(setInput).not.toHaveBeenCalledWith(
+      "rig/face/override/poses_pose_angry.weight/enabled",
+      expect.anything(),
+    );
+    expect(setInput).not.toHaveBeenCalledWith(
+      "rig/face/override/poses_pose_angry.weight/value",
+      expect.anything(),
+    );
+  });
+
+  it("uses rig paths from runtime constraints when canonical path staging is requested", async () => {
+    const setInput = vi.fn();
+    const onAnimateValueReady = vi.fn();
+    const defaultMockRuntime = mockUseVizijRuntime();
+    mockUseVizijRuntime.mockReturnValue({
+      ...defaultMockRuntime,
+      ready: true,
+      loading: false,
+      setInput,
+      faceId: "face",
+      namespace: "refface",
+      assetBundle: {
+        rig: {
+          spec: {
+            nodes: [],
+          },
+        },
+        bundle: null,
+      },
+      inputConstraints: {
+        "refface/rig/quori_latest/poses/pose_angry.weight": {
+          min: 0,
+          max: 1,
+          defaultValue: 0,
+        },
+        "refface/poses/pose_angry.weight": {
+          min: 0,
+          max: 1,
+          defaultValue: 0,
+        },
+      },
+    } as any);
+
+    const file = new File(["ref"], "ref.glb", { type: "model/gltf-binary" });
+    render(
+      <ReferenceFaceRuntime
+        file={file}
+        active
+        onAnimateValueReady={onAnimateValueReady}
+      />,
+    );
+
+    let animateValue: ((path: string, value: number) => void) | undefined;
+    await waitFor(() => {
+      const lastCall = onAnimateValueReady.mock.calls.at(-1);
+      animateValue = lastCall?.[0] as typeof animateValue;
+      expect(typeof animateValue).toBe("function");
+    });
+
+    animateValue?.("/poses/pose_angry.weight", 1);
+
+    await waitFor(() => {
+      expect(setInput).toHaveBeenCalledWith(
+        "rig/quori_latest/poses/pose_angry.weight",
+        {
+          float: 1,
+        },
+      );
+    });
+    expect(setInput).not.toHaveBeenCalledWith(
+      "rig/face/poses/pose_angry.weight",
       expect.anything(),
     );
   });
