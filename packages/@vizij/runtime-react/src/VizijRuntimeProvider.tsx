@@ -1069,6 +1069,7 @@ function VizijRuntimeProviderInner({
   const namespaceRef = useRef(namespace);
   const driveOrchestratorRef = useRef(driveOrchestrator);
   const rigInputMapRef = useRef<Record<string, string>>({});
+  const rigPoseControlInputIdsRef = useRef<Set<string>>(new Set());
   const registeredGraphsRef = useRef<string[]>([]);
   const registeredAnimationsRef = useRef<string[]>([]);
   const mergedGraphRef = useRef<string | null>(null);
@@ -1233,6 +1234,7 @@ function VizijRuntimeProviderInner({
     outputPathsRef.current = new Set();
     baseOutputPathsRef.current = new Set();
     namespacedOutputPathsRef.current = new Set();
+    rigPoseControlInputIdsRef.current = new Set();
   }, [listControllers, removeAnimation, removeGraph, pushError]);
 
   useEffect(() => {
@@ -1401,6 +1403,7 @@ function VizijRuntimeProviderInner({
 
     const graphConfigs: GraphRegistrationConfig[] = [];
     rigInputMapRef.current = {};
+    rigPoseControlInputIdsRef.current = new Set();
     poseControlBridgeValuesRef.current.clear();
 
     const rigAsset = assetBundle.rig;
@@ -1419,7 +1422,18 @@ function VizijRuntimeProviderInner({
         // Avoid logging here; browsers building DTS don't have `process` types.
         const rigOutputs = collectOutputPaths(rigSpec);
         const rigInputs = collectInputPaths(rigSpec);
+        const rigPoseControlInputIds = new Set<string>();
+        rigInputs.forEach((path) => {
+          const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
+            path.trim(),
+          );
+          const inputId = (poseControlMatch?.[1] ?? "").trim();
+          if (inputId.length > 0) {
+            rigPoseControlInputIds.add(inputId);
+          }
+        });
         rigInputMapRef.current = collectInputPathMap(rigSpec);
+        rigPoseControlInputIdsRef.current = rigPoseControlInputIds;
         recordOutputs(rigOutputs);
 
         const rigSubs = rigAsset.subscriptions ?? {
@@ -1607,6 +1621,7 @@ function VizijRuntimeProviderInner({
     const namespaceValue = status.namespace;
     const currentValues = store.getState().values;
     const rigInputPathMap = rigInputMapRef.current;
+    const rigPoseControlInputIds = rigPoseControlInputIdsRef.current;
     const batched: Array<{ id: string; namespace: string; value: RawValue }> =
       [];
     const namespacedOutputs = namespacedOutputPathsRef.current;
@@ -1626,7 +1641,15 @@ function VizijRuntimeProviderInner({
       );
       if (poseControlMatch && typeof raw === "number" && Number.isFinite(raw)) {
         const inputId = (poseControlMatch[1] ?? "").trim();
-        const mappedInputPath = inputId ? rigInputPathMap[inputId] : undefined;
+        // Bridge pose-control outputs only when the rig graph does not expose
+        // a native pose-control input for this channel. This keeps legacy
+        // bundles working without double-applying pose contributions.
+        const hasNativePoseControlInput =
+          inputId.length > 0 && rigPoseControlInputIds.has(inputId);
+        const mappedInputPath =
+          !hasNativePoseControlInput && inputId
+            ? rigInputPathMap[inputId]
+            : undefined;
         if (mappedInputPath) {
           const bridgeKey = `${namespaceValue}:${mappedInputPath}`;
           const previousValue =

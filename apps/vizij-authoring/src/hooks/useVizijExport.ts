@@ -34,6 +34,7 @@ import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
 import {
+  buildPoseComposeModeByInputId,
   withPipelineConfigBuildOptions,
   type PipelineConfigByInputId,
 } from "./rigController/rigGraphCompiler";
@@ -525,6 +526,7 @@ export function useVizijExport(
       pipelineConfigByInputId,
       new Set(standardInputsById.keys()),
     );
+    const poseConfigForCompose = resolvePoseConfigFromIr(poseRig);
     const pipelineConfigByInputIdForExport =
       pipelineMetadataForExport &&
       typeof pipelineMetadataForExport.byInputId === "object" &&
@@ -543,6 +545,8 @@ export function useVizijExport(
           inputsById: standardInputsById,
           inputBindings,
           inputMetadata: standardInputMetadataById,
+          inputComposeModesById:
+            buildPoseComposeModeByInputId(poseConfigForCompose),
         },
         pipelineConfigByInputIdForExport,
         pipelineMetadataForExport,
@@ -1227,6 +1231,10 @@ function buildVizijBundle(
   } = options;
   const exportFaceId = resolveExportFaceId(faceId);
   const exportFaceSlug = faceSlug(exportFaceId);
+  const poseConfigForCompose =
+    options.poseConfigForExport !== undefined
+      ? options.poseConfigForExport
+      : resolvePoseConfigFromIr(poseRig);
   const pipelineMetadataForExport = resolvePipelineMetadataForExport(
     pipelineMetadataV1,
     pipelineConfigByInputId,
@@ -1251,6 +1259,8 @@ function buildVizijBundle(
         inputsById: standardInputsById,
         inputBindings,
         inputMetadata,
+        inputComposeModesById:
+          buildPoseComposeModeByInputId(poseConfigForCompose),
       },
       pipelineConfigByInputIdForExport,
       pipelineMetadataForExport,

@@ -503,6 +503,61 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("includes pose compose targets in rig graph builds for GLB and graph exports", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          neutralInputs: {},
+          poses: [
+            {
+              id: "pose_smile",
+              name: "Smile",
+              values: { input_a: 0.6 },
+              createdAt: "2026-03-01T00:00:00.000Z",
+              updatedAt: "2026-03-01T00:00:00.000Z",
+            },
+          ],
+          groups: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+        blendMode: "average" as const,
+        crossGroupBlendMode: "additive" as const,
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    act(() => {
+      hook.result.current?.exportGraph();
+    });
+
+    const composeCall = expect.objectContaining({
+      inputComposeModesById: expect.objectContaining({
+        input_a: "add",
+      }),
+    });
+    expect(mockedBuildRigGraphSpec).toHaveBeenCalledWith(composeCall);
+    hook.unmount();
+  });
+
   it("skips null exportable bodies and exports with the first valid body", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
