@@ -41,6 +41,9 @@ export function AppMenuBar({
   const inputsPanelVisible = useWorkspaceStore(
     (state) => state.panels.inputs.isVisible,
   );
+  const motionGraphPaletteVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraphPalette.isVisible,
+  );
   const materialsPanelVisible = useWorkspaceStore(
     (state) => state.panels.materials.isVisible,
   );
@@ -119,6 +122,12 @@ export function AppMenuBar({
           onCheckedChange={() => togglePanel("materials")}
         >
           Pose Groups
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={motionGraphPaletteVisible}
+          onCheckedChange={() => togglePanel("motiongraphPalette")}
+        >
+          MotionGraph Palette
         </MenuCheckboxItem>
 
         <MenuSeparator />

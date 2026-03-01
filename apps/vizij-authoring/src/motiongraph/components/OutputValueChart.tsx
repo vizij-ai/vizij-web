@@ -308,7 +308,7 @@ export function OutputValueChart({ active }: OutputValueChartProps) {
                 className="w-2 h-2 rounded-full inline-block flex-shrink-0"
                 style={{ background: color }}
               />
-              <span className="text-[10px] text-neutral-500 font-mono truncate max-w-32">
+              <span className="text-[10px] text-text-muted font-mono truncate max-w-32">
                 {shortPath}
               </span>
             </div>

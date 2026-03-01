@@ -78,12 +78,12 @@ export default function MgNodeInspector() {
           <div className="text-xs text-emerald-400 mt-0.5">Output Target</div>
         </div>
         <div className="space-y-1.5">
-          <div className="text-xs text-neutral-500">
-            <span className="text-neutral-600">Path:</span>{" "}
+          <div className="text-xs text-text-muted">
+            <span className="text-text-muted">Path:</span>{" "}
             <span className="font-mono">{outputPath}</span>
           </div>
-          <div className="text-xs text-neutral-500">
-            <span className="text-neutral-600">Value type:</span>{" "}
+          <div className="text-xs text-text-muted">
+            <span className="text-text-muted">Value type:</span>{" "}
             <span className="flex items-center gap-1.5 inline-flex font-mono">
               <span
                 className="w-2 h-2 rounded-full inline-block"
@@ -100,8 +100,8 @@ export default function MgNodeInspector() {
             onClick={togglePlot}
             className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${
               plotActive
-                ? "bg-blue-600/20 text-blue-400 border border-blue-500/40"
-                : "bg-neutral-800 text-neutral-500 border border-neutral-700 hover:text-neutral-300"
+                ? "bg-accent/20 text-accent border border-accent/40"
+                : "bg-bg-input text-text-muted border border-border-default hover:text-text-secondary"
             }`}
           >
             <span
@@ -140,21 +140,23 @@ export default function MgNodeInspector() {
         </div>
         <div className="text-base font-semibold text-text-primary">{label}</div>
         {category && (
-          <div className="text-xs text-neutral-500 mt-0.5">{category}</div>
+          <div className="text-xs text-text-muted mt-0.5">{category}</div>
         )}
         {doc && (
-          <p className="text-sm text-neutral-400 mt-2 leading-relaxed">{doc}</p>
+          <p className="text-sm text-text-secondary mt-2 leading-relaxed">
+            {doc}
+          </p>
         )}
       </div>
 
       {/* Node ID & type */}
       <div className="space-y-1.5">
-        <div className="text-xs text-neutral-500">
-          <span className="text-neutral-600">ID:</span>{" "}
+        <div className="text-xs text-text-muted">
+          <span className="text-text-muted">ID:</span>{" "}
           <span className="font-mono">{selectedNode.id}</span>
         </div>
-        <div className="text-xs text-neutral-500">
-          <span className="text-neutral-600">Type:</span>{" "}
+        <div className="text-xs text-text-muted">
+          <span className="text-text-muted">Type:</span>{" "}
           <span className="font-mono">{typeId}</span>
         </div>
       </div>
@@ -162,7 +164,7 @@ export default function MgNodeInspector() {
       {/* Inputs */}
       {ports && ports.inputs.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
             Inputs
           </h4>
           <div className="space-y-1">
@@ -173,8 +175,8 @@ export default function MgNodeInspector() {
                   key={p.id}
                   className="flex items-center justify-between text-sm"
                 >
-                  <span className="text-neutral-300">{p.name}</span>
-                  <span className="flex items-center gap-1.5 text-xs text-neutral-600 font-mono">
+                  <span className="text-text-secondary">{p.name}</span>
+                  <span className="flex items-center gap-1.5 text-xs text-text-muted font-mono">
                     <span
                       className="w-2 h-2 rounded-full inline-block"
                       style={{
@@ -194,7 +196,7 @@ export default function MgNodeInspector() {
       {/* Outputs */}
       {ports && ports.outputs.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
             Outputs
           </h4>
           <div className="space-y-1">
@@ -205,8 +207,8 @@ export default function MgNodeInspector() {
                   key={p.id}
                   className="flex items-center justify-between text-sm"
                 >
-                  <span className="text-neutral-300">{p.name}</span>
-                  <span className="flex items-center gap-1.5 text-xs text-neutral-600 font-mono">
+                  <span className="text-text-secondary">{p.name}</span>
+                  <span className="flex items-center gap-1.5 text-xs text-text-muted font-mono">
                     <span
                       className="w-2 h-2 rounded-full inline-block"
                       style={{
@@ -226,7 +228,7 @@ export default function MgNodeInspector() {
       {/* Params */}
       {schema && schema.params.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
             Parameters
           </h4>
           <div className="space-y-2">
@@ -248,8 +250,8 @@ export default function MgNodeInspector() {
           onClick={togglePlot}
           className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${
             plotActive
-              ? "bg-blue-600/20 text-blue-400 border border-blue-500/40"
-              : "bg-neutral-800 text-neutral-500 border border-neutral-700 hover:text-neutral-300"
+              ? "bg-accent/20 text-accent border border-accent/40"
+              : "bg-bg-input text-text-muted border border-border-default hover:text-text-secondary"
           }`}
         >
           <span
@@ -309,11 +311,11 @@ function ParamInput({
     const checked = resolved === true || resolved === "true";
     return (
       <div className="flex items-center justify-between">
-        <span className="text-sm text-neutral-300">{param.name}</span>
+        <span className="text-sm text-text-secondary">{param.name}</span>
         <button
           onClick={() => onChange(!checked)}
           className={`w-8 h-4 rounded-full transition-colors relative ${
-            checked ? "bg-blue-600" : "bg-neutral-700"
+            checked ? "bg-accent" : "bg-bg-hover"
           }`}
         >
           <span
@@ -331,8 +333,8 @@ function ParamInput({
     return (
       <div className="space-y-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-neutral-300">{param.name}</span>
-          <span className="text-[10px] text-neutral-600 font-mono">
+          <span className="text-sm text-text-secondary">{param.name}</span>
+          <span className="text-[10px] text-text-muted font-mono">
             {param.type}
           </span>
         </div>
@@ -343,7 +345,7 @@ function ParamInput({
           min={param.min}
           max={param.max}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          className="w-full px-2 py-1 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-blue-500 focus:outline-none"
+          className="w-full px-2 py-1 text-sm bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
         />
       </div>
     );
@@ -354,8 +356,8 @@ function ParamInput({
     return (
       <div className="space-y-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-neutral-300">{param.name}</span>
-          <span className="text-[10px] text-neutral-600 font-mono">
+          <span className="text-sm text-text-secondary">{param.name}</span>
+          <span className="text-[10px] text-text-muted font-mono">
             {param.type}
           </span>
         </div>
@@ -366,7 +368,7 @@ function ParamInput({
           min={param.min}
           max={param.max}
           onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
-          className="w-full px-2 py-1 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-blue-500 focus:outline-none"
+          className="w-full px-2 py-1 text-sm bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
         />
       </div>
     );
@@ -377,8 +379,8 @@ function ParamInput({
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-neutral-300">{param.name}</span>
-        <span className="text-[10px] text-neutral-600 font-mono">
+        <span className="text-sm text-text-secondary">{param.name}</span>
+        <span className="text-[10px] text-text-muted font-mono">
           {param.type}
         </span>
       </div>
@@ -386,7 +388,7 @@ function ParamInput({
         type="text"
         value={str}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-blue-500 focus:outline-none"
+        className="w-full px-2 py-1 text-sm bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
       />
     </div>
   );

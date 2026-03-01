@@ -16,6 +16,10 @@ type EditorState = {
   customInputPaths: string[];
   plotActive: boolean;
   setSelected: (id: string | null) => void;
+  setEnabledOutputs: (paths: Iterable<string>) => void;
+  setEnabledInputs: (paths: Iterable<string>) => void;
+  pruneEnabledOutputs: (allowedPaths: ReadonlySet<string>) => void;
+  pruneEnabledInputs: (allowedPaths: ReadonlySet<string>) => void;
   setNodes: (
     updater: EditorNode[] | ((prev: EditorNode[]) => EditorNode[]),
   ) => void;
@@ -65,6 +69,44 @@ export const useEditorStore = create<EditorState>((set) => ({
   ...createEmptyEditorDataState(),
 
   setSelected: (id) => set({ selectedNodeId: id }),
+
+  setEnabledOutputs: (paths) => set({ enabledOutputs: new Set(paths) }),
+
+  setEnabledInputs: (paths) => set({ enabledInputs: new Set(paths) }),
+
+  pruneEnabledOutputs: (allowedPaths) =>
+    set((state) => {
+      if (state.enabledOutputs.size === 0) {
+        return state;
+      }
+      const next = new Set<string>();
+      state.enabledOutputs.forEach((path) => {
+        if (allowedPaths.has(path)) {
+          next.add(path);
+        }
+      });
+      if (next.size === state.enabledOutputs.size) {
+        return state;
+      }
+      return { enabledOutputs: next };
+    }),
+
+  pruneEnabledInputs: (allowedPaths) =>
+    set((state) => {
+      if (state.enabledInputs.size === 0) {
+        return state;
+      }
+      const next = new Set<string>();
+      state.enabledInputs.forEach((path) => {
+        if (allowedPaths.has(path)) {
+          next.add(path);
+        }
+      });
+      if (next.size === state.enabledInputs.size) {
+        return state;
+      }
+      return { enabledInputs: next };
+    }),
 
   setNodes: (updater) =>
     set((state) => ({

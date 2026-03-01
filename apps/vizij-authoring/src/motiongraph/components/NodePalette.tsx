@@ -92,24 +92,24 @@ export default function NodePalette() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-neutral-900 text-neutral-200">
+    <div className="h-full flex flex-col bg-bg-panel text-text-primary">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-neutral-700">
+      <div className="px-4 pt-4 pb-3 border-b border-border-default">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider">
+          <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
             Palette
           </h3>
           <div className="flex items-center gap-1.5">
             <button
               onClick={expandAll}
-              className="px-2 py-1 text-xs rounded bg-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700 transition-colors"
+              className="px-2 py-1 text-xs rounded border border-border-default bg-bg-panel text-text-muted hover:text-text-primary hover:border-border-hover transition-colors"
               title="Expand all categories"
             >
               Expand
             </button>
             <button
               onClick={collapseAll}
-              className="px-2 py-1 text-xs rounded bg-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700 transition-colors"
+              className="px-2 py-1 text-xs rounded border border-border-default bg-bg-panel text-text-muted hover:text-text-primary hover:border-border-hover transition-colors"
               title="Collapse all categories"
             >
               Collapse
@@ -120,18 +120,18 @@ export default function NodePalette() {
           placeholder="Search nodes..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full px-3 py-2 text-sm rounded bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-blue-500"
+          className="w-full px-3 py-2 text-sm rounded bg-bg-input border border-border-default text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-hover"
         />
       </div>
 
       {/* Status */}
       {loading && (
-        <p className="px-4 py-3 text-sm text-neutral-500">
+        <p className="px-4 py-3 text-sm text-text-muted">
           Loading node schemas...
         </p>
       )}
       {error && (
-        <p className="px-4 py-3 text-sm text-red-400">Error: {error}</p>
+        <p className="px-4 py-3 text-sm text-red-300">Error: {error}</p>
       )}
 
       {/* Categories */}
@@ -147,7 +147,7 @@ export default function NodePalette() {
           />
         ))}
         {!loading && filtered.length === 0 && (
-          <p className="text-sm text-neutral-500">No matching nodes</p>
+          <p className="text-sm text-text-muted">No matching nodes</p>
         )}
       </div>
     </div>
@@ -173,11 +173,11 @@ function CategorySection({
     <div>
       <button
         onClick={onToggle}
-        className="flex items-center gap-2 w-full text-left text-sm font-semibold text-neutral-400 hover:text-neutral-200 mb-2"
+        className="flex items-center gap-2 w-full text-left text-sm font-semibold text-text-secondary hover:text-text-primary mb-2"
       >
         <span className="text-xs">{collapsed ? "\u25B6" : "\u25BC"}</span>
         {title}
-        <span className="text-neutral-600 font-normal ml-auto text-xs">
+        <span className="text-text-muted font-normal ml-auto text-xs">
           {types.length}
         </span>
       </button>
@@ -188,15 +188,15 @@ function CategorySection({
               key={t.id}
               draggable
               onDragStart={(e) => onDragStart(e, t.id)}
-              className="px-3 py-2.5 rounded-md bg-neutral-800 border border-neutral-700 cursor-grab hover:border-blue-500 hover:bg-neutral-750 select-none active:cursor-grabbing"
+              className="px-3 py-2.5 rounded-md bg-bg-panel border border-border-default cursor-grab hover:border-border-hover hover:bg-bg-hover select-none active:cursor-grabbing"
               title={t.doc || `Drag to canvas: ${t.label}`}
               data-node-type={t.id}
             >
-              <span className="text-sm text-neutral-200 font-medium">
+              <span className="text-sm text-text-primary font-medium">
                 {t.label}
               </span>
               {t.doc && (
-                <p className="text-xs leading-relaxed text-neutral-500 mt-1 line-clamp-2">
+                <p className="text-xs leading-relaxed text-text-muted mt-1 line-clamp-2">
                   {t.doc}
                 </p>
               )}

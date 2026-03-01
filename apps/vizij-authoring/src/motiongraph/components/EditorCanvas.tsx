@@ -34,7 +34,11 @@ import { unwrapDefault } from "./MgNodeInspector";
 import OutputTargetNode, { OUTPUT_TARGET_TYPE } from "./OutputTargetNode";
 import InputSourceNode, { INPUT_SOURCE_TYPE } from "./InputSourceNode";
 
-export default function EditorCanvas() {
+interface EditorCanvasProps {
+  onSelectNode?: (id: string | null) => void;
+}
+
+export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const setNodes = useEditorStore((s) => s.setNodes);
@@ -289,14 +293,22 @@ export default function EditorCanvas() {
 
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
+      if (onSelectNode) {
+        onSelectNode(node.id);
+        return;
+      }
       setSelected(node.id);
     },
-    [setSelected],
+    [onSelectNode, setSelected],
   );
 
   const onPaneClick = useCallback(() => {
+    if (onSelectNode) {
+      onSelectNode(null);
+      return;
+    }
     setSelected(null);
-  }, [setSelected]);
+  }, [onSelectNode, setSelected]);
 
   const onEdgeDoubleClick = useCallback(
     (_event: React.MouseEvent, edge: Edge) => {
@@ -433,11 +445,15 @@ export default function EditorCanvas() {
             fitView
             onInit={onInit}
           >
-            <Background gap={20} size={1} color="#333" />
+            <Background gap={20} size={1} color="rgba(148, 163, 184, 0.24)" />
             <MiniMap
-              nodeColor="#475569"
-              maskColor="rgba(0,0,0,0.6)"
-              style={{ background: "#1e1e1e" }}
+              nodeColor="rgba(148, 163, 184, 0.78)"
+              maskColor="rgba(15, 23, 42, 0.55)"
+              style={{
+                background: "rgba(15, 23, 42, 0.45)",
+                border: "1px solid rgba(148, 163, 184, 0.3)",
+                borderRadius: 8,
+              }}
             />
             <Controls />
           </ReactFlow>
@@ -457,14 +473,14 @@ const PortLegend: FC = () => {
     <div className="absolute top-2 left-2 z-10">
       <button
         onClick={() => setOpen(!open)}
-        className="px-2 py-1 text-xs rounded bg-neutral-800/90 text-neutral-400 hover:text-neutral-200 border border-neutral-700 transition-colors"
+        className="px-2 py-1 text-xs rounded bg-bg-panel/90 text-text-muted hover:text-text-primary border border-border-default transition-colors"
         title="Toggle port legend"
       >
         {open ? "Hide Legend" : "Legend"}
       </button>
       {open && (
-        <div className="mt-1 p-3 rounded-lg bg-neutral-800/95 border border-neutral-700 space-y-2 min-w-40">
-          <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">
+        <div className="mt-1 p-3 rounded-lg bg-bg-panel/95 border border-border-default space-y-2 min-w-40 shadow-premium">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
             Port Types
           </div>
           {LEGEND_TYPES.map((entry) => (
@@ -476,19 +492,19 @@ const PortLegend: FC = () => {
                   border: `2px solid ${entry.color.border}`,
                 }}
               />
-              <span className="text-xs text-neutral-300">{entry.label}</span>
+              <span className="text-xs text-text-secondary">{entry.label}</span>
             </div>
           ))}
-          <div className="border-t border-neutral-700 pt-2 mt-2 space-y-2">
+          <div className="border-t border-border-default pt-2 mt-2 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full inline-block flex-shrink-0 border-2 border-blue-500" />
-              <span className="text-xs text-neutral-300">Selected node</span>
+              <span className="w-3 h-3 rounded-full inline-block flex-shrink-0 border-2 border-accent" />
+              <span className="text-xs text-text-secondary">Selected node</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] px-1 rounded-full bg-sky-400/20 text-sky-400 leading-tight">
+              <span className="text-[10px] px-1 rounded-full bg-accent/20 text-accent leading-tight">
                 opt
               </span>
-              <span className="text-xs text-neutral-300">Optional port</span>
+              <span className="text-xs text-text-secondary">Optional port</span>
             </div>
           </div>
         </div>

@@ -12,7 +12,7 @@ import { useWorkspaceStore } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
-import { BottomPanelContainer } from "./components/panels/BottomPanelContainer";
+import { AnimationPanel } from "./components/panels/AnimationPanel";
 import {
   Viewer,
   type RuntimeExportBodiesSnapshot,
@@ -32,6 +32,10 @@ import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
 import { RegistryProvider } from "./motiongraph/contexts/RegistryProvider";
 import { useEditorStore } from "./motiongraph/store/useEditorStore";
 import { specToEditorState } from "./motiongraph/utils/specToEditorState";
+import {
+  MotionGraphPanel,
+  MotionGraphPalettePanel,
+} from "./motiongraph/MotionGraphPanel";
 import { AppWizards } from "./components/app/AppWizards";
 import {
   RigControllerProvider,
@@ -464,13 +468,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     runtimeViewReady,
     runtimeWorld,
   ]);
-  const rigInputPaths = useMemo(
-    () =>
-      standardInputs
-        .map((input) => (faceId ? `rig/${faceId}${input.path}` : input.path))
-        .filter((path) => path.length > 0),
-    [faceId, standardInputs],
-  );
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
   );
@@ -614,6 +611,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const motionGraphPanelVisible = useWorkspaceStore(
     (state) => state.panels.motiongraph.isVisible,
   );
+  const motionGraphPalettePanelVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraphPalette.isVisible,
+  );
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
@@ -661,10 +661,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedRigId,
     selectedPoseId,
     selectedMaterialId,
+    selectedMotionGraphNodeId,
     handleSelectObject,
     handleSelectPose,
     handleSelectRig,
     handleSelectMaterial,
+    handleSelectMotionGraphNode,
     handleClearSelection,
   } = useUnifiedSelection();
   const selectedSceneId = selectedId;
@@ -715,6 +717,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         if (selectedMaterialId) {
           handleSelectMaterial(null);
         }
+        if (selectedMotionGraphNodeId) {
+          handleSelectMotionGraphNode(null);
+        }
         poseRig.selectPose("");
         setSelectedBlendStage(null);
       }
@@ -727,7 +732,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       poseRig,
       selectedId,
       selectedMaterialId,
+      selectedMotionGraphNodeId,
       selectedRigId,
+      handleSelectMotionGraphNode,
     ],
   );
   const handleSelectBlendStageWithInspectorSync = useCallback(
@@ -742,6 +749,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         if (selectedMaterialId) {
           handleSelectMaterial(null);
         }
+        if (selectedMotionGraphNodeId) {
+          handleSelectMotionGraphNode(null);
+        }
         poseRig.selectPose("");
         setSelectedPoseGroup(null);
       }
@@ -754,9 +764,32 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       poseRig,
       selectedId,
       selectedMaterialId,
+      selectedMotionGraphNodeId,
       selectedRigId,
+      handleSelectMotionGraphNode,
     ],
   );
+  const handleSelectMotionGraphNodeWithInspectorSync = useCallback(
+    (id: string | null) => {
+      if (id) {
+        clearPoseGraphInspectorSelection();
+      }
+      handleSelectMotionGraphNode(id);
+    },
+    [clearPoseGraphInspectorSelection, handleSelectMotionGraphNode],
+  );
+  useEffect(() => {
+    if (motionGraphPanelVisible) {
+      return;
+    }
+    if (selectedMotionGraphNodeId) {
+      handleSelectMotionGraphNode(null);
+    }
+  }, [
+    motionGraphPanelVisible,
+    selectedMotionGraphNodeId,
+    handleSelectMotionGraphNode,
+  ]);
 
   const sharedVariableSync = useSharedVariableSync({
     mainInputsById: mirrorableMainInputsById,
@@ -1221,6 +1254,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       />
     </div>
   );
+  const viewportContent = motionGraphPanelVisible ? (
+    <PanelGroup orientation="horizontal">
+      <ResizablePanel defaultSize={58} minSize={20}>
+        {viewerContent}
+      </ResizablePanel>
+      <PanelResizeHandle className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
+      <ResizablePanel defaultSize={42} minSize={20}>
+        <MotionGraphPanel
+          onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
+        />
+      </ResizablePanel>
+    </PanelGroup>
+  ) : (
+    viewerContent
+  );
 
   return (
     <ReferenceFaceProvider value={referenceFaceContextValue}>
@@ -1256,7 +1304,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             />
           }
           leftBottomVisible2={false}
-          leftBottomVisible3={false}
+          leftBottomVisible3={
+            motionGraphPanelVisible && motionGraphPalettePanelVisible
+          }
+          leftBottomPanel3={<MotionGraphPalettePanel />}
           leftMiddleVisible={inputControlsPanelVisible}
           leftMiddlePanel={
             <VariablesPanel
@@ -1268,8 +1319,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
-              panelDescription="Preview and adjust live rig and pose-weight inputs."
+              panelDescription="Preview and adjust live rig and pose-weight inputs plus MotionGraph I/O."
               onClosePanel={handleHideInputControlsPanel}
+              motionGraphActive={motionGraphPanelVisible}
+              runtimeFaceId={faceId}
+              onSelectMotionGraphNode={
+                handleSelectMotionGraphNodeWithInspectorSync
+              }
             />
           }
           leftBottomVisible={controlAuthoringPanelVisible}
@@ -1277,15 +1333,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           topPanel={
             <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
           }
-          viewport={viewerContent}
-          bottomVisible={animationPanelVisible || motionGraphPanelVisible}
-          bottomPanel={
-            <BottomPanelContainer
-              showTimeline={animationPanelVisible}
-              showMotionGraph={motionGraphPanelVisible}
-              rigInputPaths={rigInputPaths}
-            />
-          }
+          viewport={viewportContent}
+          bottomVisible={animationPanelVisible}
+          bottomPanel={<AnimationPanel />}
           // Right
           rightTopVisible={inspectorPanelVisible}
           rightTopPanel={

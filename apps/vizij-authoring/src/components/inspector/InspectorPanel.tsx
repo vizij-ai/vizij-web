@@ -6,10 +6,7 @@ import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
 import { EmptyState } from "../ui/EmptyState";
 import { usePoseRig } from "../../state/PoseRigProvider";
-import {
-  useBindingAuthoring,
-  useSelectionStore,
-} from "../../state/RigControllerProvider";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { cn } from "../../utils/cn";
 import type {
   PoseDefinition,
@@ -22,10 +19,9 @@ import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
+import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import MgNodeInspector from "../../motiongraph/components/MgNodeInspector";
-import { useEditorStore } from "../../motiongraph/store/useEditorStore";
-import { useWorkspaceStore } from "../../state/workspaceStore";
 import {
   buildPoseGroupCompositionPreview,
   buildPoseStageCompositionPreview,
@@ -161,18 +157,7 @@ export function InspectorPanel({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
-  const selectedRigId = useBindingAuthoring((state) => state.selectedRigId);
-  const selectedMaterialId = useBindingAuthoring(
-    (state) => state.selectedMaterialId,
-  );
-  const motionGraphVisible = useWorkspaceStore(
-    (state) => state.panels.motiongraph.isVisible,
-  );
-  const motionGraphSelectedNodeId = useEditorStore(
-    (state) => state.selectedNodeId,
-  );
-  const selectionStack = useSelectionStore((state) => state.selectionStack);
-  const selectedSceneId = selectionStack[0]?.id ?? null;
+  const { inspectorMode } = useUnifiedSelection();
 
   const poseLookup = useMemo(() => {
     const lookup = new Map<string, PoseDefinition>();
@@ -759,9 +744,7 @@ export function InspectorPanel({
     standardInputs,
   ]);
 
-  const hasCompetingInspectorSelection = Boolean(
-    selectedPoseId || selectedRigId || selectedMaterialId || selectedSceneId,
-  );
+  const hasCompetingInspectorSelection = inspectorMode !== "default";
   const isPoseGroupInspectorMode = Boolean(
     selectedPoseGroup && !hasCompetingInspectorSelection,
   );
@@ -771,9 +754,7 @@ export function InspectorPanel({
   const isDedicatedInspectorMode =
     isPoseGroupInspectorMode || isBlendStageInspectorMode;
   const showMotionGraphInspector =
-    motionGraphVisible &&
-    motionGraphSelectedNodeId !== null &&
-    !isDedicatedInspectorMode;
+    inspectorMode === "motiongraph" && !isDedicatedInspectorMode;
 
   return (
     <Panel

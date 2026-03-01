@@ -11,18 +11,17 @@ interface BottomPanelContainerProps {
 export function BottomPanelContainer({
   showTimeline,
   showMotionGraph,
-  rigInputPaths,
+  rigInputPaths: _rigInputPaths,
 }: BottomPanelContainerProps) {
   // If only one is visible, show it directly
   if (showTimeline && !showMotionGraph) return <AnimationPanel />;
-  if (showMotionGraph && !showTimeline)
-    return <MotionGraphPanel rigInputPaths={rigInputPaths} />;
+  if (showMotionGraph && !showTimeline) return <MotionGraphPanel />;
 
   // Both visible: use tabs
-  return <TabbedBottomPanel rigInputPaths={rigInputPaths} />;
+  return <TabbedBottomPanel />;
 }
 
-function TabbedBottomPanel({ rigInputPaths }: { rigInputPaths: string[] }) {
+function TabbedBottomPanel() {
   const [activeTab, setActiveTab] = useState<"timeline" | "motiongraph">(
     "motiongraph",
   );
@@ -44,11 +43,7 @@ function TabbedBottomPanel({ rigInputPaths }: { rigInputPaths: string[] }) {
         </TabButton>
       </div>
       <div className="flex-1 min-h-0">
-        {activeTab === "timeline" ? (
-          <AnimationPanel />
-        ) : (
-          <MotionGraphPanel rigInputPaths={rigInputPaths} />
-        )}
+        {activeTab === "timeline" ? <AnimationPanel /> : <MotionGraphPanel />}
       </div>
     </div>
   );

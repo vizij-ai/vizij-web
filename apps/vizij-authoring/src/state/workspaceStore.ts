@@ -12,6 +12,7 @@ interface WorkspaceState {
     variables: PanelState;
     poses: PanelState;
     inputs: PanelState;
+    motiongraphPalette: PanelState;
     // Right Sidebar
     inspector: PanelState;
     debug: PanelState;
@@ -36,6 +37,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     variables: { isVisible: true, order: 1 },
     poses: { isVisible: true, order: 4 },
     inputs: { isVisible: true, order: 5 },
+    motiongraphPalette: { isVisible: true, order: 6 },
     inspector: { isVisible: true, order: 0 },
     debug: { isVisible: false, order: 1 },
     animation: { isVisible: false, order: 0 },

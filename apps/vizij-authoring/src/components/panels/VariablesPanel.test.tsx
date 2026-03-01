@@ -13,6 +13,7 @@ import type {
   ReferenceCatalog,
   ReferencePoseDefinition,
 } from "../../referenceFace/types";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
@@ -285,6 +286,16 @@ describe("VariablesPanel", () => {
     bindingState.handleCloneStandardInputs.mockImplementation(
       () => new Map<string, string>(),
     );
+
+    useEditorStore.setState({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      enabledOutputs: new Set(),
+      enabledInputs: new Set(),
+      customInputPaths: [],
+      plotActive: false,
+    });
   });
 
   afterEach(() => {
@@ -3071,6 +3082,95 @@ describe("VariablesPanel", () => {
     );
 
     expect(onSelectPoseGroup).toHaveBeenCalledWith(null);
+  });
+
+  it("scopes motiongraph output eligibility to the visible Input Controls rows", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    const brow = makeInput("brow_up", "/face/brow/inner_up", {
+      label: "Brow Up",
+    });
+    bindingState.managedStandardInputs = [
+      { input: jaw, source: "custom" },
+      { input: brow, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [jaw.id, jaw],
+      [brow.id, brow],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [jaw.path, jaw],
+      [brow.path, brow],
+    ]);
+    bindingState.inputValues = {
+      [jaw.id]: 0.2,
+      [brow.id]: 0.4,
+    };
+    poseRigState.poseConfigDraft = {
+      version: 1,
+      faceId: null,
+      neutralInputs: {},
+      poses: [],
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          blendMode: "average",
+        },
+      ],
+      blendStages: [
+        {
+          id: "stage_a",
+          name: "Stage A",
+          mode: "add",
+          sources: [{ kind: "group", id: "emotion" }],
+        },
+      ],
+    };
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        motionGraphActive
+        runtimeFaceId="face"
+      />,
+    );
+
+    expect(
+      screen.getByText("MotionGraph Outputs").parentElement?.textContent,
+    ).toContain("0/4");
+
+    const outputsCard = screen
+      .getByText("MotionGraph Outputs")
+      .closest("div.rounded");
+    expect(outputsCard).not.toBeNull();
+    fireEvent.click(
+      within(outputsCard as HTMLElement).getByRole("checkbox", {
+        name: /Jaw Open/,
+      }),
+    );
+    const beforeSearchEnabledOutputs = new Set(
+      useEditorStore.getState().enabledOutputs,
+    );
+    expect(beforeSearchEnabledOutputs.size).toBe(1);
+
+    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+      target: { value: "stage output" },
+    });
+
+    expect(
+      screen.getAllByText("Stage Output · Stage A").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("Jaw Open")).toBeNull();
+    expect(
+      screen.getByText("MotionGraph Outputs").parentElement?.textContent,
+    ).toContain("0/1");
+    expect(useEditorStore.getState().enabledOutputs).toEqual(
+      beforeSearchEnabledOutputs,
+    );
   });
 
   it("clears stale blend-stage selection when the backing stage no longer exists", () => {

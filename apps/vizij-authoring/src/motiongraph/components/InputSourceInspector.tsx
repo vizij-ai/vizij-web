@@ -127,26 +127,26 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
         <div className="text-base font-semibold text-text-primary">
           {d.label ?? "Input Source"}
         </div>
-        <div className="text-xs text-sky-400 mt-0.5">Input Source</div>
+        <div className="text-xs text-accent mt-0.5">Input Source</div>
       </div>
 
       {/* Path */}
-      <div className="text-xs text-neutral-500">
-        <span className="text-neutral-600">Path:</span>{" "}
+      <div className="text-xs text-text-muted">
+        <span className="text-text-muted">Path:</span>{" "}
         <span className="font-mono">{d.inputPath}</span>
       </div>
 
       {/* ─── Configuration ────────────────────────────────────────── */}
       <div>
-        <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+        <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           Configuration
         </h4>
         <div className="space-y-2">
           {/* Value type */}
           <div className="space-y-0.5">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-neutral-300">Value type</span>
-              <span className="flex items-center gap-1.5 text-xs text-neutral-600 font-mono">
+              <span className="text-sm text-text-secondary">Value type</span>
+              <span className="flex items-center gap-1.5 text-xs text-text-muted font-mono">
                 <span
                   className="w-2 h-2 rounded-full inline-block"
                   style={{
@@ -162,7 +162,7 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
               onChange={(e) =>
                 handleValueTypeChange(e.target.value as InputValueType)
               }
-              className="w-full px-2 py-1 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-300 focus:outline-none focus:border-sky-500"
+              className="w-full px-2 py-1 text-xs rounded bg-bg-input border border-border-default text-text-secondary focus:outline-none focus:border-accent"
             >
               {VALUE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -175,7 +175,7 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
           {/* Default value */}
           {d.resolvedValueType !== "bool" && (
             <div className="space-y-0.5">
-              <span className="text-sm text-neutral-300">Default</span>
+              <span className="text-sm text-text-secondary">Default</span>
               <input
                 type="number"
                 value={d.resolvedDefault}
@@ -187,7 +187,7 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
                       : parseFloat(e.target.value) || 0;
                   updateData({ defaultValue: v });
                 }}
-                className="w-full px-2 py-1 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-sky-500 focus:outline-none"
+                className="w-full px-2 py-1 text-sm bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
               />
             </div>
           )}
@@ -196,7 +196,7 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
           {d.resolvedValueType !== "bool" && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-0.5">
-                <span className="text-sm text-neutral-300">Min</span>
+                <span className="text-sm text-text-secondary">Min</span>
                 <input
                   type="number"
                   value={d.resolvedMin}
@@ -208,11 +208,11 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
                         : parseFloat(e.target.value) || 0;
                     updateData({ min: v });
                   }}
-                  className="w-full px-2 py-1 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-sky-500 focus:outline-none"
+                  className="w-full px-2 py-1 text-sm bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
                 />
               </div>
               <div className="space-y-0.5">
-                <span className="text-sm text-neutral-300">Max</span>
+                <span className="text-sm text-text-secondary">Max</span>
                 <input
                   type="number"
                   value={d.resolvedMax}
@@ -224,7 +224,7 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
                         : parseFloat(e.target.value) || 0;
                     updateData({ max: v });
                   }}
-                  className="w-full px-2 py-1 text-sm bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-sky-500 focus:outline-none"
+                  className="w-full px-2 py-1 text-sm bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
                 />
               </div>
             </div>
@@ -234,7 +234,7 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
 
       {/* ─── Control ──────────────────────────────────────────────── */}
       <div>
-        <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+        <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           Control
         </h4>
 
@@ -246,8 +246,8 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
               onClick={() => handleModeChange(m.value)}
               className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
                 d.resolvedMode === m.value
-                  ? "bg-sky-600 text-white"
-                  : "bg-neutral-800 text-neutral-500 border border-neutral-700 hover:text-neutral-300"
+                  ? "bg-accent text-white"
+                  : "bg-bg-input text-text-muted border border-border-default hover:text-text-secondary"
               }`}
             >
               {m.label}
@@ -269,10 +269,10 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
         )}
 
         {/* Applied value indicator */}
-        <div className="mt-2 flex items-center justify-between text-[10px] text-neutral-600">
+        <div className="mt-2 flex items-center justify-between text-[10px] text-text-muted">
           <span>
             Applied:{" "}
-            <span className="font-mono text-neutral-400">
+            <span className="font-mono text-text-secondary">
               {d.resolvedApplied.toFixed(3)}
             </span>
           </span>
@@ -288,8 +288,8 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
           disabled={d.resolvedMode === "instant"}
           className={`w-full mt-2 px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
             d.resolvedMode === "instant"
-              ? "bg-neutral-800 text-neutral-600 cursor-not-allowed"
-              : "bg-sky-600 text-white hover:bg-sky-500 active:bg-sky-700"
+              ? "bg-bg-input text-text-muted cursor-not-allowed"
+              : "bg-accent text-white hover:bg-accent/90 active:bg-accent/80"
           }`}
         >
           Trigger
@@ -326,9 +326,9 @@ function SliderControl({
           min={min}
           max={max}
           onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          className="w-20 px-1.5 py-0.5 text-xs bg-neutral-800 border border-neutral-700 rounded text-neutral-200 font-mono focus:border-sky-500 focus:outline-none"
+          className="w-20 px-1.5 py-0.5 text-xs bg-bg-input border border-border-default rounded text-text-primary font-mono focus:border-accent focus:outline-none"
         />
-        <span className="text-[10px] text-neutral-600 font-mono">
+        <span className="text-[10px] text-text-muted font-mono">
           [{min}, {max}]
         </span>
       </div>
@@ -364,7 +364,7 @@ function BoolControl({
       <button
         onClick={() => onChange(isOn ? 0 : 1)}
         className={`w-10 h-5 rounded-full transition-colors relative ${
-          isOn ? "bg-sky-600" : "bg-neutral-700"
+          isOn ? "bg-accent" : "bg-bg-hover"
         }`}
       >
         <span
@@ -373,7 +373,7 @@ function BoolControl({
           }`}
         />
       </button>
-      <span className="text-xs text-neutral-400 font-mono">
+      <span className="text-xs text-text-secondary font-mono">
         {isOn ? "true" : "false"}
       </span>
     </div>

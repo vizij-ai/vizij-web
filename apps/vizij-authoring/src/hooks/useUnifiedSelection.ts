@@ -5,6 +5,7 @@ import {
   useSelectionStore,
 } from "../state/RigControllerProvider";
 import { usePoseRigStore } from "../poseRig/store";
+import { useEditorStore } from "../motiongraph/store/useEditorStore";
 import { DEFAULT_NAMESPACE } from "../utils/constants";
 
 /**
@@ -31,6 +32,12 @@ export function useUnifiedSelection() {
 
   const selectedPoseId = usePoseRigStore((state) => state.selectedPoseId);
   const selectPose = usePoseRigStore((state) => state.selectPose);
+  const selectedMotionGraphNodeId = useEditorStore(
+    (state) => state.selectedNodeId,
+  );
+  const setSelectedMotionGraphNodeId = useEditorStore(
+    (state) => state.setSelected,
+  );
 
   const selectObject = useCallback(
     (id: string, options?: { additive?: boolean }) => {
@@ -99,8 +106,15 @@ export function useUnifiedSelection() {
     if (selectedPoseId) return "pose";
     if (selectedRigId) return "rig";
     if (selectedMaterialId) return "material";
+    if (selectedMotionGraphNodeId) return "motiongraph";
     return "default";
-  }, [selectedId, selectedPoseId, selectedRigId, selectedMaterialId]);
+  }, [
+    selectedId,
+    selectedPoseId,
+    selectedRigId,
+    selectedMaterialId,
+    selectedMotionGraphNodeId,
+  ]);
 
   const handleSelectObject = useCallback(
     (id: string, options?: { additive?: boolean }) => {
@@ -118,6 +132,7 @@ export function useUnifiedSelection() {
       if (selectedPoseId) selectPose("");
       if (selectedRigId) handleSelectRig(null);
       if (selectedMaterialId) handleSelectMaterial(null);
+      if (selectedMotionGraphNodeId) setSelectedMotionGraphNodeId(null);
       selectObject(id, options);
     },
     [
@@ -126,9 +141,11 @@ export function useUnifiedSelection() {
       selectedPoseId,
       selectedRigId,
       selectedMaterialId,
+      selectedMotionGraphNodeId,
       selectPose,
       handleSelectRig,
       handleSelectMaterial,
+      setSelectedMotionGraphNodeId,
       selectObject,
     ],
   );
@@ -138,15 +155,18 @@ export function useUnifiedSelection() {
       if (selectedId) handleClearSelection();
       if (selectedRigId) handleSelectRig(null);
       if (selectedMaterialId) handleSelectMaterial(null);
+      if (selectedMotionGraphNodeId) setSelectedMotionGraphNodeId(null);
       selectPose(id);
     },
     [
       selectedId,
       selectedRigId,
       selectedMaterialId,
+      selectedMotionGraphNodeId,
       handleClearSelection,
       handleSelectRig,
       handleSelectMaterial,
+      setSelectedMotionGraphNodeId,
       selectPose,
     ],
   );
@@ -157,6 +177,7 @@ export function useUnifiedSelection() {
         if (selectedId) handleClearSelection();
         if (selectedPoseId) selectPose("");
         if (selectedMaterialId) handleSelectMaterial(null);
+        if (selectedMotionGraphNodeId) setSelectedMotionGraphNodeId(null);
       }
       handleSelectRig(id);
     },
@@ -164,10 +185,35 @@ export function useUnifiedSelection() {
       selectedId,
       selectedPoseId,
       selectedMaterialId,
+      selectedMotionGraphNodeId,
       handleClearSelection,
       selectPose,
       handleSelectRig,
       handleSelectMaterial,
+      setSelectedMotionGraphNodeId,
+    ],
+  );
+
+  const handleSelectMotionGraphNode = useCallback(
+    (id: string | null) => {
+      if (id) {
+        if (selectedId) handleClearSelection();
+        if (selectedPoseId) selectPose("");
+        if (selectedRigId) handleSelectRig(null);
+        if (selectedMaterialId) handleSelectMaterial(null);
+      }
+      setSelectedMotionGraphNodeId(id);
+    },
+    [
+      handleClearSelection,
+      handleSelectMaterial,
+      handleSelectRig,
+      selectPose,
+      selectedId,
+      selectedMaterialId,
+      selectedPoseId,
+      selectedRigId,
+      setSelectedMotionGraphNodeId,
     ],
   );
 
@@ -175,16 +221,19 @@ export function useUnifiedSelection() {
     selectedId,
     selectedPoseId,
     selectedRigId,
+    selectedMotionGraphNodeId,
     inspectorMode,
     handleSelectObject,
     handleSelectPose,
     handleSelectRig: handleSelectRigAction,
+    handleSelectMotionGraphNode,
     selectedMaterialId,
     handleSelectMaterial: (id: string | null) => {
       if (id) {
         if (selectedId) handleClearSelection();
         if (selectedPoseId) selectPose("");
         if (selectedRigId) handleSelectRig(null);
+        if (selectedMotionGraphNodeId) setSelectedMotionGraphNodeId(null);
       }
       handleSelectMaterial(id);
     },

@@ -41,9 +41,11 @@ import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
+import { alertDialog } from "../../utils/dialogs";
 import type {
   PoseBlendMode,
   PoseDefinition,
@@ -51,6 +53,7 @@ import type {
   PoseRigConfigFile,
 } from "../../poseRig/types";
 import {
+  buildRigInputPath,
   buildPoseWeightRelativePath,
   isPoseControlInputPath,
   isPoseOutputInputPath,
@@ -79,6 +82,14 @@ import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
+import {
+  buildInputCatalogTree,
+  buildVisibleInputCatalog,
+  getInputControlKindBadgeClass,
+  getInputControlKindLabel,
+  type InputCatalogRow,
+  type InputCatalogTreeNode,
+} from "./inputCatalog";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -106,38 +117,6 @@ interface PoseGroupSummary {
   source: "configured" | "auto";
   poseIds: string[];
 }
-
-interface InputListRow {
-  id: string;
-  label: string;
-  inputId: string;
-  source: RigNodeSource;
-  path: string;
-  value: number;
-  min: number;
-  max: number;
-  controlKind: "rig-input" | "pose-weight" | "group-output" | "stage-output";
-  provenance?: string;
-  editable: boolean;
-  selectable: boolean;
-}
-
-const INPUT_CONTROL_KIND_LABEL: Record<InputListRow["controlKind"], string> = {
-  "rig-input": "rig",
-  "pose-weight": "pose-weight",
-  "group-output": "group-output",
-  "stage-output": "stage-output",
-};
-
-const INPUT_CONTROL_KIND_BADGE_CLASS: Record<
-  InputListRow["controlKind"],
-  string
-> = {
-  "rig-input": "bg-slate-900/40 text-slate-200",
-  "pose-weight": "bg-violet-900/40 text-violet-200",
-  "group-output": "bg-teal-900/40 text-teal-200",
-  "stage-output": "bg-cyan-900/40 text-cyan-200",
-};
 
 function normalizePoseGroupPath(value: string | null | undefined): string {
   const trimmed = value?.trim();
@@ -285,7 +264,7 @@ type TreeNodeData =
   | PoseNodeData
   | RigNodeData
   | PoseGroupNodeData
-  | InputListRow;
+  | InputCatalogRow;
 
 interface TreeNode {
   id: string;
@@ -881,7 +860,7 @@ function insertRigNodeAtPath(params: {
 function insertInputNodeAtPath(params: {
   root: TreeNode;
   key: string;
-  row: InputListRow;
+  row: InputCatalogRow;
 }): void {
   const { root, key, row } = params;
   const pathParts = getPathParts(row.path);
@@ -1653,6 +1632,22 @@ function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
   };
 }
 
+function collectInputRowsFromTree(rootNode: TreeNode): InputCatalogRow[] {
+  const rows: InputCatalogRow[] = [];
+  const visit = (node: TreeNode) => {
+    if (node.type === "input") {
+      const row = node.data as InputCatalogRow | undefined;
+      if (row) {
+        rows.push(row);
+      }
+      return;
+    }
+    node.children.forEach((child) => visit(child));
+  };
+  rootNode.children.forEach((child) => visit(child));
+  return rows;
+}
+
 export function filterTreeForActiveSurface<T>({
   activeSurface,
   targetSurface,
@@ -1785,7 +1780,7 @@ function TreeRowWrapper({
         (node.data as RigNodeData)?.input?.id === selection.id) ||
       (node.type === "input" &&
         selection.type === "input" &&
-        (node.data as InputListRow)?.inputId === selection.id) ||
+        (node.data as InputCatalogRow)?.inputId === selection.id) ||
       (isPoseGroupFolder &&
         selection.type === "pose-group" &&
         node.id === selection.id));
@@ -1821,12 +1816,12 @@ function TreeRowWrapper({
     iconClass = "text-purple-300";
 
   if (node.type === "input") {
-    const inputData = node.data as InputListRow;
+    const inputData = node.data as InputCatalogRow;
     const value =
       typeof inputData.value === "number" && Number.isFinite(inputData.value)
         ? inputData.value
         : 0;
-    const controlKindLabel = INPUT_CONTROL_KIND_LABEL[inputData.controlKind];
+    const controlKindLabel = getInputControlKindLabel(inputData.controlKind);
     return (
       <TreeRow
         depth={depth}
@@ -1846,7 +1841,7 @@ function TreeRowWrapper({
             <span
               className={cn(
                 "text-[9px] uppercase tracking-wide px-1 rounded",
-                INPUT_CONTROL_KIND_BADGE_CLASS[inputData.controlKind],
+                getInputControlKindBadgeClass(inputData.controlKind),
               )}
             >
               {controlKindLabel}
@@ -2197,6 +2192,100 @@ function TreeRowWrapper({
   );
 }
 
+interface MotionGraphCatalogTreeProps {
+  nodes: InputCatalogTreeNode[];
+  enabledPaths: ReadonlySet<string>;
+  onTogglePath: (path: string) => void;
+  emptyLabel: string;
+}
+
+function MotionGraphCatalogTree({
+  nodes,
+  enabledPaths,
+  onTogglePath,
+  emptyLabel,
+}: MotionGraphCatalogTreeProps) {
+  if (nodes.length === 0) {
+    return <div className="text-[10px] text-text-muted">{emptyLabel}</div>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pr-1">
+      {nodes.map((node) => (
+        <MotionGraphCatalogNode
+          key={node.id}
+          node={node}
+          depth={0}
+          enabledPaths={enabledPaths}
+          onTogglePath={onTogglePath}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface MotionGraphCatalogNodeProps {
+  node: InputCatalogTreeNode;
+  depth: number;
+  enabledPaths: ReadonlySet<string>;
+  onTogglePath: (path: string) => void;
+}
+
+function MotionGraphCatalogNode({
+  node,
+  depth,
+  enabledPaths,
+  onTogglePath,
+}: MotionGraphCatalogNodeProps) {
+  if (node.row) {
+    const isEnabled = enabledPaths.has(node.path);
+    return (
+      <label
+        className="flex items-center justify-between gap-2 rounded px-1.5 py-1 hover:bg-bg-panel/50"
+        style={{ paddingLeft: `${depth * 10 + 6}px` }}
+      >
+        <span className="flex items-center gap-1.5 min-w-0">
+          <input
+            type="checkbox"
+            checked={isEnabled}
+            onChange={() => onTogglePath(node.path)}
+          />
+          <span className="text-[11px] text-text-primary truncate">
+            {node.row.label}
+          </span>
+        </span>
+        <span
+          className={cn(
+            "text-[9px] uppercase tracking-wide px-1 rounded",
+            getInputControlKindBadgeClass(node.row.controlKind),
+          )}
+        >
+          {getInputControlKindLabel(node.row.controlKind)}
+        </span>
+      </label>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div
+        className="text-[10px] uppercase tracking-wide text-text-muted px-1.5 py-0.5"
+        style={{ paddingLeft: `${depth * 10 + 6}px` }}
+      >
+        {node.label}
+      </div>
+      {node.children.map((child) => (
+        <MotionGraphCatalogNode
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          enabledPaths={enabledPaths}
+          onTogglePath={onTogglePath}
+        />
+      ))}
+    </div>
+  );
+}
+
 interface VariablesPanelProps {
   selectedRigId?: string | null;
   selectedPoseId?: string | null;
@@ -2214,6 +2303,9 @@ interface VariablesPanelProps {
   panelTitle?: string;
   panelDescription?: string;
   onClosePanel?: () => void;
+  motionGraphActive?: boolean;
+  runtimeFaceId?: string | null;
+  onSelectMotionGraphNode?: (id: string | null) => void;
 }
 
 export function VariablesPanel({
@@ -2233,6 +2325,9 @@ export function VariablesPanel({
   panelTitle = "Control Elements",
   panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
   onClosePanel,
+  motionGraphActive = false,
+  runtimeFaceId = null,
+  onSelectMotionGraphNode,
 }: VariablesPanelProps) {
   const {
     poses,
@@ -2534,6 +2629,20 @@ export function VariablesPanel({
     (state) => state.handleLinkChildInput,
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
+  const enabledMotionGraphInputs = useEditorStore(
+    (state) => state.enabledInputs,
+  );
+  const enabledMotionGraphOutputs = useEditorStore(
+    (state) => state.enabledOutputs,
+  );
+  const toggleMotionGraphInput = useEditorStore((state) => state.toggleInput);
+  const toggleMotionGraphOutput = useEditorStore((state) => state.toggleOutput);
+  const pruneEnabledMotionGraphInputs = useEditorStore(
+    (state) => state.pruneEnabledInputs,
+  );
+  const pruneEnabledMotionGraphOutputs = useEditorStore(
+    (state) => state.pruneEnabledOutputs,
+  );
   const poseWeightInputIdByPoseId = useMemo(() => {
     const map = new Map<string, string>();
     managedStandardInputs.forEach((entry) => {
@@ -3072,138 +3181,33 @@ export function VariablesPanel({
     [lockedInspectorTargetIds, managedStandardInputs],
   );
 
-  const managedInputRows = useMemo(
-    () =>
-      managedStandardInputs
-        .filter((entry) => !isPoseControlInputPath(entry.input.path))
-        .filter((entry) => !isPoseOutputInputPath(entry.input.path))
-        .filter((entry) => {
-          if (!isPropsRigStandardInputPath(entry.input.path)) {
-            return true;
-          }
-          const componentId = entry.metadata?.componentId?.trim();
-          if (componentId && lockedPropsRigComponentIds.has(componentId)) {
-            return false;
-          }
-          const elementId = entry.metadata?.elementId?.trim();
-          if (!elementId) {
-            return true;
-          }
-          return !fullyLockedFaceElementIds.has(elementId);
-        })
-        .map((entry) => {
-          const normalizedPath = normalizeStandardRigInputPath(
-            entry.input.path,
-          );
-          const min = entry.input.range?.min ?? 0;
-          const max = entry.input.range?.max ?? 1;
-          const value = inputValues[entry.input.id];
-          const poseWeightPoseId = parsePoseWeightInputSourceId(
-            entry.input.sourceId,
-          );
-          const controlKind: InputListRow["controlKind"] = poseWeightPoseId
-            ? "pose-weight"
-            : "rig-input";
-          return {
-            id: entry.input.id,
-            label: entry.input.label || entry.input.id,
-            inputId: entry.input.id,
-            source: resolveManagedSource(entry),
-            path: normalizedPath,
-            value: Number.isFinite(value)
-              ? value
-              : (entry.input.defaultValue ?? 0),
-            min,
-            max,
-            controlKind,
-            provenance: poseWeightPoseId
-              ? `pose:${poseNameById.get(poseWeightPoseId) ?? poseWeightPoseId}`
-              : undefined,
-            editable: true,
-            selectable: true,
-          } as const;
-        }),
-    [
-      fullyLockedFaceElementIds,
-      inputValues,
-      lockedPropsRigComponentIds,
-      managedStandardInputs,
-      poseNameById,
-    ],
-  );
-
-  const derivedPoseOutputRows = useMemo(() => {
-    const groupOutputRows = (poseConfigDraft?.poseGroups ?? []).map((group) => {
-      const groupId = group.id?.trim() || "group";
-      const path = normalizeStandardRigInputPath(
-        `/pose/groups/${groupId}.output`,
-      );
-      const blendMode =
-        group.blendMode === "additive" || group.blendMode === "average"
-          ? group.blendMode
-          : poseGroupBlendModeFallback;
-      const poseCount = poseCountByGroupId.get(groupId) ?? 0;
-      return {
-        id: `pose_group_output:${groupId}`,
-        label: `Group Output · ${poseGroupLabelById.get(groupId) ?? groupId}`,
-        inputId: `__pose_group_output__:${groupId}`,
-        source: "auto" as const,
-        path,
-        value: 0,
-        min: 0,
-        max: 1,
-        controlKind: "group-output" as const,
-        provenance: `group:${groupId}; mode:${blendMode}; poses:${poseCount}`,
-        editable: false,
-        selectable: false,
-      };
-    });
-
-    const stageOutputRows = (poseConfigDraft?.blendStages ?? []).map(
-      (stage) => {
-        const stageId = stage.id.trim();
-        const stageName = stage.name?.trim() || stageId;
-        const path = normalizeStandardRigInputPath(
-          `/pose/stages/${stageId}.output`,
-        );
-        const sourceSummary =
-          stage.sources
-            .map((source) => {
-              if (source.kind === "group") {
-                return `group:${poseGroupLabelById.get(source.id) ?? source.id}`;
-              }
-              return `stage:${source.id}`;
-            })
-            .join(", ") || "none";
-        return {
-          id: `pose_stage_output:${stageId}`,
-          label: `Stage Output · ${stageName}`,
-          inputId: `__pose_stage_output__:${stageId}`,
-          source: "auto" as const,
-          path,
-          value: 0,
-          min: 0,
-          max: 1,
-          controlKind: "stage-output" as const,
-          provenance: `stage:${stageId}; mode:${stage.mode}; sources:${sourceSummary}`,
-          editable: false,
-          selectable: false,
-        };
-      },
-    );
-
-    return [...groupOutputRows, ...stageOutputRows];
-  }, [
-    poseCountByGroupId,
-    poseConfigDraft?.blendStages,
-    poseConfigDraft?.poseGroups,
-    poseGroupBlendModeFallback,
-    poseGroupLabelById,
-  ]);
-
   const inputRows = useMemo(
-    () => [...managedInputRows, ...derivedPoseOutputRows],
-    [derivedPoseOutputRows, managedInputRows],
+    () =>
+      buildVisibleInputCatalog({
+        managedStandardInputs,
+        fullyLockedFaceElementIds,
+        lockedPropsRigComponentIds,
+        inputValues,
+        poseNameById,
+        poseGroups: poseConfigDraft?.poseGroups ?? [],
+        blendStages: poseConfigDraft?.blendStages ?? [],
+        poseGroupBlendModeFallback,
+        poseCountByGroupId,
+        poseGroupLabelById,
+        resolveManagedSource,
+      }),
+    [
+      managedStandardInputs,
+      fullyLockedFaceElementIds,
+      lockedPropsRigComponentIds,
+      inputValues,
+      poseNameById,
+      poseConfigDraft?.blendStages,
+      poseConfigDraft?.poseGroups,
+      poseGroupBlendModeFallback,
+      poseCountByGroupId,
+      poseGroupLabelById,
+    ],
   );
 
   const inputRootNode = useMemo(() => {
@@ -3230,6 +3234,150 @@ export function VariablesPanel({
     root.children = simplifiedChildren;
     return root;
   }, [inputRows]);
+  const runtimeFaceSegment = useMemo(() => {
+    const trimmed = runtimeFaceId?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : "face";
+  }, [runtimeFaceId]);
+  const motionGraphDisplayInputRoot = useMemo(
+    () =>
+      filterTreeForActiveSurface({
+        activeSurface,
+        targetSurface: "inputs",
+        rootNode: inputRootNode,
+        query: searchQuery,
+        filterTree: filterTreeBySearch,
+      }),
+    [activeSurface, inputRootNode, searchQuery],
+  );
+  const motionGraphEligibleInputRoot = inputRootNode;
+  const motionGraphDisplayOutputRows = useMemo(
+    () => collectInputRowsFromTree(motionGraphDisplayInputRoot),
+    [motionGraphDisplayInputRoot],
+  );
+  const motionGraphDisplayOutputRowsByPath = useMemo(() => {
+    const map = new Map<string, InputCatalogRow>();
+    motionGraphDisplayOutputRows.forEach((row) => {
+      const path = buildRigInputPath(runtimeFaceSegment, row.path);
+      map.set(path, {
+        ...row,
+        path,
+      });
+    });
+    return map;
+  }, [motionGraphDisplayOutputRows, runtimeFaceSegment]);
+  const motionGraphEligibleOutputRows = useMemo(
+    () => collectInputRowsFromTree(motionGraphEligibleInputRoot),
+    [motionGraphEligibleInputRoot],
+  );
+  const motionGraphEligibleOutputRowsByPath = useMemo(() => {
+    const map = new Map<string, InputCatalogRow>();
+    motionGraphEligibleOutputRows.forEach((row) => {
+      const path = buildRigInputPath(runtimeFaceSegment, row.path);
+      map.set(path, {
+        ...row,
+        path,
+      });
+    });
+    return map;
+  }, [motionGraphEligibleOutputRows, runtimeFaceSegment]);
+  const motionGraphDisplayInputRows = useMemo(
+    () =>
+      motionGraphDisplayOutputRows.filter(
+        (row) => row.editable && row.selectable,
+      ),
+    [motionGraphDisplayOutputRows],
+  );
+  const motionGraphDisplayInputRowsByPath = useMemo(() => {
+    const map = new Map<string, InputCatalogRow>();
+    motionGraphDisplayInputRows.forEach((row) => {
+      const path = buildRigInputPath(runtimeFaceSegment, row.path);
+      map.set(path, {
+        ...row,
+        path,
+      });
+    });
+    return map;
+  }, [motionGraphDisplayInputRows, runtimeFaceSegment]);
+  const motionGraphEligibleInputRows = useMemo(
+    () =>
+      motionGraphEligibleOutputRows.filter(
+        (row) => row.editable && row.selectable,
+      ),
+    [motionGraphEligibleOutputRows],
+  );
+  const motionGraphEligibleInputRowsByPath = useMemo(() => {
+    const map = new Map<string, InputCatalogRow>();
+    motionGraphEligibleInputRows.forEach((row) => {
+      const path = buildRigInputPath(runtimeFaceSegment, row.path);
+      map.set(path, {
+        ...row,
+        path,
+      });
+    });
+    return map;
+  }, [motionGraphEligibleInputRows, runtimeFaceSegment]);
+  const motionGraphInputTree = useMemo(
+    () =>
+      buildInputCatalogTree(
+        Array.from(motionGraphDisplayInputRowsByPath.values()),
+      ),
+    [motionGraphDisplayInputRowsByPath],
+  );
+  const motionGraphOutputTree = useMemo(
+    () =>
+      buildInputCatalogTree(
+        Array.from(motionGraphDisplayOutputRowsByPath.values()),
+      ),
+    [motionGraphDisplayOutputRowsByPath],
+  );
+  const motionGraphEligibleOutputPaths = useMemo(
+    () => new Set<string>(motionGraphEligibleOutputRowsByPath.keys()),
+    [motionGraphEligibleOutputRowsByPath],
+  );
+  const motionGraphEligibleInputPaths = useMemo(
+    () => new Set<string>(motionGraphEligibleInputRowsByPath.keys()),
+    [motionGraphEligibleInputRowsByPath],
+  );
+  const visibleEnabledMotionGraphInputsCount = useMemo(() => {
+    let count = 0;
+    enabledMotionGraphInputs.forEach((path) => {
+      if (motionGraphDisplayInputRowsByPath.has(path)) {
+        count += 1;
+      }
+    });
+    return count;
+  }, [enabledMotionGraphInputs, motionGraphDisplayInputRowsByPath]);
+  const visibleEnabledMotionGraphOutputsCount = useMemo(() => {
+    let count = 0;
+    enabledMotionGraphOutputs.forEach((path) => {
+      if (motionGraphDisplayOutputRowsByPath.has(path)) {
+        count += 1;
+      }
+    });
+    return count;
+  }, [enabledMotionGraphOutputs, motionGraphDisplayOutputRowsByPath]);
+
+  useEffect(() => {
+    if (!motionGraphActive) {
+      return;
+    }
+    pruneEnabledMotionGraphOutputs(motionGraphEligibleOutputPaths);
+  }, [
+    motionGraphActive,
+    motionGraphEligibleOutputPaths,
+    pruneEnabledMotionGraphOutputs,
+  ]);
+
+  useEffect(() => {
+    if (!motionGraphActive) {
+      return;
+    }
+    pruneEnabledMotionGraphInputs(motionGraphEligibleInputPaths);
+  }, [
+    motionGraphActive,
+    motionGraphEligibleInputPaths,
+    pruneEnabledMotionGraphInputs,
+  ]);
 
   const sourceCounts = useMemo(() => {
     const counts: Record<RigNodeSource, number> = {
@@ -4541,7 +4689,7 @@ export function VariablesPanel({
       openPoseGroupInspector(node);
       onSelectRig?.(null);
     } else if (node.type === "input") {
-      const inputData = node.data as InputListRow;
+      const inputData = node.data as InputCatalogRow;
       onSelectRig?.(inputData.inputId);
       onSelectPoseGroup?.(null);
       onSelectBlendStage?.(null);
@@ -4557,6 +4705,75 @@ export function VariablesPanel({
       onSelectBlendStage?.(null);
     }
   };
+  const handleCreateMotionGraphInputDriver = useCallback(() => {
+    if (!motionGraphActive) {
+      return;
+    }
+    const suggestedPath = createUniqueCustomVariablePath();
+    const nextPath = window.prompt(
+      "Create MotionGraph input driver path",
+      suggestedPath,
+    );
+    if (nextPath === null) {
+      return;
+    }
+    const trimmed = nextPath.trim();
+    if (!trimmed) {
+      alertDialog("Path cannot be empty.");
+      return;
+    }
+    const created = handleCreateCustomStandardInput(trimmed);
+    if (!created) {
+      return;
+    }
+    const graphPath = buildRigInputPath(runtimeFaceSegment, created.path);
+    if (!enabledMotionGraphInputs.has(graphPath)) {
+      toggleMotionGraphInput(graphPath);
+    }
+    onSelectMotionGraphNode?.(null);
+    onSelectRig?.(created.id);
+    onSelectPoseGroup?.(null);
+    onSelectBlendStage?.(null);
+  }, [
+    createUniqueCustomVariablePath,
+    enabledMotionGraphInputs,
+    handleCreateCustomStandardInput,
+    motionGraphActive,
+    onSelectBlendStage,
+    onSelectMotionGraphNode,
+    onSelectPoseGroup,
+    onSelectRig,
+    runtimeFaceSegment,
+    toggleMotionGraphInput,
+  ]);
+  const handleToggleMotionGraphInputPath = useCallback(
+    (path: string) => {
+      if (!motionGraphDisplayInputRowsByPath.has(path)) {
+        return;
+      }
+      toggleMotionGraphInput(path);
+      onSelectMotionGraphNode?.(null);
+    },
+    [
+      motionGraphDisplayInputRowsByPath,
+      onSelectMotionGraphNode,
+      toggleMotionGraphInput,
+    ],
+  );
+  const handleToggleMotionGraphOutputPath = useCallback(
+    (path: string) => {
+      if (!motionGraphDisplayOutputRowsByPath.has(path)) {
+        return;
+      }
+      toggleMotionGraphOutput(path);
+      onSelectMotionGraphNode?.(null);
+    },
+    [
+      motionGraphDisplayOutputRowsByPath,
+      onSelectMotionGraphNode,
+      toggleMotionGraphOutput,
+    ],
+  );
 
   const selectedMainVariableId = useMemo(() => {
     if (!effectiveSelectedRigId) {
@@ -5405,6 +5622,18 @@ export function VariablesPanel({
                       </Button>
                     </>
                   )}
+                  {isInputs && motionGraphActive && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleCreateMotionGraphInputDriver}
+                      title="Create a driver and enable it as a MotionGraph input source"
+                    >
+                      <Plus size={11} />
+                      New Graph Input Driver
+                    </Button>
+                  )}
                   {isPoseGroups && (
                     <span className="text-[10px] uppercase tracking-wider text-text-muted">
                       Compatibility blend
@@ -5453,6 +5682,44 @@ export function VariablesPanel({
                         </span>
                       </>
                     )}
+                  </div>
+                )}
+                {isInputs && motionGraphActive && (
+                  <div className="flex flex-col gap-2 px-1 mb-2">
+                    <div className="rounded border border-border-default/50 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                          MotionGraph Inputs
+                        </span>
+                        <span className="text-[10px] text-text-muted">
+                          {visibleEnabledMotionGraphInputsCount}/
+                          {motionGraphDisplayInputRowsByPath.size}
+                        </span>
+                      </div>
+                      <MotionGraphCatalogTree
+                        nodes={motionGraphInputTree}
+                        enabledPaths={enabledMotionGraphInputs}
+                        onTogglePath={handleToggleMotionGraphInputPath}
+                        emptyLabel="No visible editable drivers available."
+                      />
+                    </div>
+                    <div className="rounded border border-border-default/50 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                          MotionGraph Outputs
+                        </span>
+                        <span className="text-[10px] text-text-muted">
+                          {visibleEnabledMotionGraphOutputsCount}/
+                          {motionGraphDisplayOutputRowsByPath.size}
+                        </span>
+                      </div>
+                      <MotionGraphCatalogTree
+                        nodes={motionGraphOutputTree}
+                        enabledPaths={enabledMotionGraphOutputs}
+                        onTogglePath={handleToggleMotionGraphOutputPath}
+                        emptyLabel="No visible input controls available."
+                      />
+                    </div>
                   </div>
                 )}
                 {isPoseGroups && (
