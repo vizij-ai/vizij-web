@@ -4,13 +4,18 @@
 
 We investigated why `Quori_Current.glb` moves correctly as the **main face** but does **not** move when loaded as a **reference face** (driver min/max/default and pose play/reset do not visibly animate it).
 
-Current conclusion:
+Current conclusion (resolved path):
 
-1. `Quori_Current.glb` is missing `RobotData` on scene nodes.
-2. Missing `RobotData` forces aggressive-import fallback behavior that can break stable animatable identity binding for bundled graph outputs.
-3. The new export guard is correctly preventing broken bundled exports, but it is currently also exposing a likely export-body selection issue (falling back to `exportSceneRoot` even when the user perceives the face as "fully loaded/ready").
+1. The reference-face flow now works end-to-end for staged drivers and staged poses when exported assets include correct bundle metadata.
+2. The runtime guard remains intentionally in place to block known-bad bundled exports when fallback bodies lack `RobotData`.
+3. Export and staging behavior were corrected in both compiler/export wiring and authoring UI reset logic.
 
-The remaining likely bug is in **export body selection / ref availability timing**, not just in asset authoring steps.
+Status update (2026-03-01):
+
+- Export compiler now emits pose compose targets correctly so drivers can blend direct, parent, and pose contributions.
+- Runtime reference staging keeps pose-weight writes on canonical pose paths.
+- Reset behavior now consistently clears override-enabled flags and applies default values for drivers and poses.
+- Full repo validation after cleanup passed: `pnpm run validate:all` (`lint:all`, `typecheck:all`, `test:all`).
 
 ## Original Symptom
 

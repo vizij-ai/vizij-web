@@ -531,7 +531,7 @@ describe("useVizijExport", () => {
               updatedAt: "2026-03-01T00:00:00.000Z",
             },
           ],
-          groups: [],
+          poseGroups: [],
         },
         poseConfigFileName: "pose_config.json",
         importPoseConfig: vi.fn(),

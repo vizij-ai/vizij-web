@@ -73,6 +73,15 @@ function isTraversableBody(value: unknown): value is TraversableBody {
   );
 }
 
+function asExportableBody(
+  value: unknown,
+): (Parameters<typeof exportScene>[0] & TraversableBody) | null {
+  if (!isTraversableBody(value)) {
+    return null;
+  }
+  return value as Parameters<typeof exportScene>[0] & TraversableBody;
+}
+
 function countRobotDataNodes(body: TraversableBody): number {
   let count = 0;
   body.traverse((object) => {
@@ -628,10 +637,10 @@ export function useVizijExport(
       await waitForNextFrame();
 
       const resolveExportableBodies = (filterIds?: string[]) =>
-        getExportableBodies(filterIds).filter(
-          (body): body is Parameters<typeof exportScene>[0] & TraversableBody =>
-            isTraversableBody(body),
-        );
+        getExportableBodies(filterIds).flatMap((body) => {
+          const candidate = asExportableBody(body);
+          return candidate ? [candidate] : [];
+        });
 
       let maxRootCandidateCount = 0;
       let maxAnyCandidateCount = 0;
@@ -680,8 +689,9 @@ export function useVizijExport(
         exportableBodies = resolveExportBody();
       }
       let usingFallbackExportBody = false;
-      if (!exportableBodies.length && isTraversableBody(fallbackExportBody)) {
-        exportableBodies = [fallbackExportBody];
+      const fallbackCandidate = asExportableBody(fallbackExportBody);
+      if (!exportableBodies.length && fallbackCandidate) {
+        exportableBodies = [fallbackCandidate];
         usingFallbackExportBody = true;
         exportBodySource = "fallback";
       }
