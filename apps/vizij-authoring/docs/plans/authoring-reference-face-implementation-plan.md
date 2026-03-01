@@ -1,9 +1,9 @@
 # Reference Face Workflow Implementation Plan
 
-Last updated: 2026-02-26
-Status: `in-progress-implementation`
+Last updated: 2026-03-01
+Status: `implemented-v2`
 
-## Implementation Status Snapshot (2026-02-26)
+## Implementation Status Snapshot (2026-03-01)
 
 Completed milestone chunks:
 
@@ -11,17 +11,24 @@ Completed milestone chunks:
 2. `d3dbf62` - variable copy modal-first transactional flow (no blind writes).
 3. `5b2d1f5` - reference pose copy modal-first transactional flow (name + target values only).
 4. `acfac7d` - explicit panel context cues for main/reference/overlap across Variables, Poses, and Inputs surfaces.
+5. `e97c2726` / `ea46c67a` - reference runtime staging/reset routing hardening and pose-control bridge alignment.
+6. `7844943d` - export compose wiring + runtime-react guard for legacy pose-control bridge paths.
+7. `bc2e3fef` - reset normalization across drivers/poses with deterministic default application.
 
 Validation executed after milestone integration:
 
 1. `pnpm --filter vizij-authoring run validate` passed.
-2. Targeted suites for copy/mapping flows passed:
+2. `pnpm run validate:all` passed (`lint:all`, `typecheck:all`, `test:all`).
+3. Targeted suites for copy/mapping and reference runtime behavior passed:
    - `src/components/panels/VariablesPanel.test.tsx`
+   - `src/components/app/ReferenceFaceRuntime.test.tsx`
+   - `src/hooks/__tests__/useVizijExport.test.tsx`
    - `src/referenceFace/mapping.test.ts`
 
 Outstanding follow-up:
 
-1. Perf-gate instrumentation and threshold documentation remain open (Workstreams 0/1/6 perf-specific items).
+1. Dual-face perf-gate thresholds and benchmark publication remain open (Workstreams 0/1/6 perf-specific items).
+2. Session-level copy audit summary emission remains open.
 
 ## Objective
 
@@ -64,13 +71,20 @@ Current wiring is in place through:
 5. `src/hooks/useSharedVariableSync.ts`
 6. `src/state/SharedVariableSyncContext.tsx`
 
-### Major Gaps vs Requirements
+### Requirements Gap Status (2026-03-01)
 
-1. Variable copy path writes immediately from panel action; no review modal.
-2. Pose copy from reference to main is not implemented.
-3. Mapping confidence/unresolved blocking and manual override controls are incomplete for copy operations.
-4. Transaction semantics (`begin`/`commit`/`cancel`) do not exist for copy workflows.
-5. Dual-face panel context is partial (variables better surfaced than poses/input overlap views).
+Closed:
+
+1. Variable copy now uses modal review and writes only on `Confirm`.
+2. Pose copy from reference to main is implemented with modal review and unresolved-mapping blocking.
+3. Transaction semantics (`Cancel` zero-write, `Confirm` commit-only) are enforced for variable and pose copy.
+4. Dual-face panel context cues are explicit across Variables/Poses/Inputs.
+5. Reference runtime staging paths and reset semantics are normalized for driver + pose workflows.
+
+Open:
+
+1. Perf thresholds and benchmark artifact publication.
+2. Session-level copy audit log output.
 
 ### Known Performance Risks
 

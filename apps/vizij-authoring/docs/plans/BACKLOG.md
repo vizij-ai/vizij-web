@@ -1,6 +1,6 @@
 # Vizij Authoring Backlog (Active)
 
-Last updated: 2026-02-19
+Last updated: 2026-03-01
 
 Status legend: `[ ]` planned, `[~]` in progress, `[x]` done
 
@@ -13,6 +13,7 @@ This backlog is organized by semantic block, then by dependency order inside eac
 3. `F5.1` -> `F5.6` -> `F5.8`
 4. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
 5. Blocks `A0` through `E4` are complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
+6. Remaining reference-face follow-up is `R6.5`; `R6.1` through `R6.4` are complete.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -759,6 +760,142 @@ Completion notes (2026-02-19):
 5. Evidence reference:
    - `2026-02-19` — `apps/vizij-authoring/docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`
 
+## Block R — Reference-Face Workflow Reliability
+
+### [x] R6.1 Reference Path-First Staging for Drivers and Poses
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Reference actions must stage through deterministic runtime paths; id/token fallbacks alone are insufficient and can diverge from main-face behavior.
+
+Dependencies / blockers:
+
+- Depends on: `A0.4`, `A0.7`
+- Blocks: `R6.2`, `R6.4`
+
+Intent:
+
+- Make reference and shared panel actions stage through canonical/runtime-resolved paths first, with dedicated pose-weight routing.
+
+Acceptance checks:
+
+1. Reference-only driver actions stage to reference runtime by canonical path when available.
+2. Shared driver actions stage to main and reference deterministically.
+3. Pose-weight staging writes canonical pose-weight channels rather than override side-paths.
+
+Completion notes (2026-03-01):
+
+1. `VariablesPanel` now uses path-first staging for reference and shared driver actions.
+2. Reference pose play/reset paths now prefer canonical pose-weight paths (`/poses/<id>.weight`) with runtime/default-value reset behavior.
+3. Regression coverage updated in `src/components/panels/VariablesPanel.test.tsx`.
+
+### [x] R6.2 Runtime Pose-Control Bridge Compatibility (`direct_` Alias Path)
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Legacy assets may expose pose-control outputs keyed by base IDs while rig inputs are keyed as `direct_<id>`; without alias mapping, channels (notably brow) are dropped.
+
+Dependencies / blockers:
+
+- Depends on: `R6.1`
+- Blocks: `R6.3`
+
+Intent:
+
+- Keep runtime-react pose-control bridge tolerant to exact and `direct_`-prefixed input IDs.
+
+Acceptance checks:
+
+1. `rig/<face>/pose/control/<inputId>` resolves to active rig input path for exact key or `direct_` alias.
+2. Writes are deduped for stability and do not create feedback loops.
+
+Completion notes (2026-03-01):
+
+1. Runtime bridge now maps pose-control outputs into rig inputs with alias fallback for legacy/direct-prefixed channels.
+2. This restored reference brow responsiveness for Quori flows where direct-prefixed rig channels are present.
+
+### [x] R6.3 Export Compiler and Bundled Export Guardrails
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Exported bundles must preserve pose compose contracts and avoid creating known-bad fallback bundles.
+
+Dependencies / blockers:
+
+- Depends on: `A0.5`, `A0.6`, `R6.2`
+- Blocks: `R6.4`
+
+Intent:
+
+- Ensure export wiring includes pose compose targets and block fallback bundled exports when selected bodies lack `RobotData`.
+
+Acceptance checks:
+
+1. Rig graph build/export receives pose compose mode data for affected inputs.
+2. Bundled export blocks fallback-without-`RobotData` cases with actionable diagnostics.
+3. Mounted runtime body selection remains preferred over fallback.
+
+Completion notes (2026-03-01):
+
+1. `useVizijExport` now passes pose compose mode data into rig graph builds and hardens export body selection/typing.
+2. Bundled-export guard blocks known-invalid fallback scene exports lacking `RobotData`.
+3. Regression coverage is in `src/hooks/__tests__/useVizijExport.test.tsx`.
+
+### [x] R6.4 Reset Semantics Normalization Across Drivers and Poses
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Reset must clear staged state deterministically; stale override-enabled inputs can re-apply old values after reset.
+
+Dependencies / blockers:
+
+- Depends on: `R6.1`, `R6.3`
+- Blocks: `R6.5`
+
+Intent:
+
+- Normalize reset behavior so driver + pose defaults are consistently restored and override-enabled states are cleared.
+
+Acceptance checks:
+
+1. Reset clears override-enabled channels before applying defaults.
+2. Driver and pose reset values use deterministic defaults.
+3. Subsequent staging does not resurrect pre-reset state.
+
+Completion notes (2026-03-01):
+
+1. Reference runtime reset now clears override-enabled flags and reapplies defaults.
+2. Variables/poses reset logic now aligns with runtime/default values for both driver and pose controls.
+3. Regression coverage updated in:
+   - `src/components/app/ReferenceFaceRuntime.test.tsx`
+   - `src/components/panels/VariablesPanel.test.tsx`
+
+### [ ] R6.5 Dual-Face Perf Thresholds and Session Audit Trail
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Copy flow and runtime reliability are now stable; we still need explicit perf thresholds and session-level audit visibility for operational confidence.
+
+Dependencies / blockers:
+
+- Depends on: `R6.1`, `R6.2`, `R6.3`, `R6.4`
+- Blocks: reference-face workflow signoff
+
+Intent:
+
+- Publish measurable dual-face perf gates and emit structured copy-session summaries.
+
+Acceptance checks:
+
+1. Perf thresholds are documented with reproducible dual-face benchmark runs.
+2. Copy sessions emit auditable summary records (operation type, source, destination, unresolved count, final action).
+3. SOP and implementation-plan docs reflect the finalized thresholds and logging behavior.
+
 ## Block F — Import Migration Reliability Integration
 
 ### [ ] F5.1 Import Outcome-Class Contract
@@ -951,3 +1088,7 @@ Acceptance checks:
 - Pose IR diagnostics surfaced in authoring UI and bundle export metadata (`IR2`, `IR3`).
 - Pose "What I Drive" 3-row control redesign and pose duplication action.
 - `E4.3` Overlap bias/activity heuristic design pack delivered with scenario outputs, policy tradeoffs, and implementation scope.
+- `R6.1` Path-first reference/shared staging and canonical pose-weight reset routing.
+- `R6.2` Runtime pose-control bridge compatibility for direct-prefixed legacy channels.
+- `R6.3` Export compose wiring + bundled fallback guardrails for missing `RobotData`.
+- `R6.4` Reset/default normalization across reference drivers and poses.

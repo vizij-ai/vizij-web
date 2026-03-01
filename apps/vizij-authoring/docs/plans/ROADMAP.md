@@ -1,6 +1,6 @@
 # Vizij Authoring Roadmap
 
-Last updated: 2026-02-19
+Last updated: 2026-03-01
 
 This file defines execution order and stage gates. Implementation detail lives in `plans/BACKLOG.md`.
 
@@ -136,6 +136,29 @@ Current status:
 
 - `done`
 - Progress: `A0.4`, `A0.5`, `A0.6`, and `A0.7` are complete; execution details and validation log are captured in `plans/POSE_CONTROL_COMPOSITION_PLAN.md`.
+
+## Stage 4B — Reference-Face Runtime/Export Reliability
+
+Objective:
+
+- Ensure reference-face driver/pose staging, export bundle composition, and reset semantics are runtime-truthful and deterministic.
+
+Backlog scope:
+
+- `R6.1`, `R6.2`, `R6.3`, `R6.4`, `R6.5`
+
+Exit gate:
+
+1. Reference driver and pose controls stage to canonical/runtime-resolved paths without blind fallback writes.
+2. Runtime pose-control bridging preserves compatibility for legacy/direct-prefixed channels.
+3. Bundled export uses mounted runtime refs when available and blocks known-bad fallback exports lacking `RobotData`.
+4. Reset behavior applies deterministic defaults across drivers and poses and clears override-enabled state.
+5. Validation evidence is captured for targeted suites and full-repo `validate:all`.
+
+Current status:
+
+- `in_progress`
+- Progress: `R6.1` through `R6.4` are complete; `R6.5` (perf thresholds + session audit trail) remains open.
 
 ## Stage 5 — Import Migration Reliability
 

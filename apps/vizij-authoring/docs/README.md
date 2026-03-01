@@ -1,6 +1,6 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-02-26
+Last updated: 2026-03-01
 
 This folder is organized into active execution docs, active contracts, references, and archive history.
 
@@ -18,6 +18,8 @@ This folder is organized into active execution docs, active contracts, reference
    - Commit-sized execution plan and progress log for direct+pose channel composition alignment.
 6. `apps/vizij-authoring/docs/plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN.md`
    - Proposal + SOP + progress tracker for stage/group-scoped neutral authoring and inspector UX completion.
+7. `apps/vizij-authoring/docs/plans/authoring-reference-face-implementation-plan.md`
+   - Reference-face workflow implementation status, including copy-modal flow and runtime/export reliability hardening.
 
 ## Active Contracts
 

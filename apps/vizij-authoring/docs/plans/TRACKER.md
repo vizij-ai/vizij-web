@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-02-26
+Last updated: 2026-03-01
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
@@ -15,40 +15,46 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 7. Stage `4A` pose-control composition alignment is complete (`A0.4`-`A0.7`), including rig-side effective composition, per-channel compose-mode authoring, and Inputs-pane internal-path filtering/sync contracts.
 8. Import Migration Plan integration remains tracked as Block `F5.*` in `plans/BACKLOG.md` with dependency-ordered execution and quality-gate linkage (`QL0.*`, `QL2.*`).
 9. Pose Group + Stage Inspector sprint has started with commit-sized `S0`-`S7` execution tracking in `plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN.md` (scope: scoped neutral authoring + stage inspector + composition-output analysis).
+10. Reference-face reliability tranche `R6.1`-`R6.4` is complete (path-first staging, legacy pose-control bridge compatibility, export guardrails, and reset normalization); `R6.5` remains open for perf thresholds + session audit logging.
 
 ## Backlog Status Board
 
-| ID   | Status | Priority | Notes                                                                                                                                                                   |
-| ---- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A0.1 | done   | P0       | Canonical pose-weight paths, Inputs sync, and stale/duplicate cleanup landed with regression tests.                                                                     |
-| A0.2 | done   | P0       | Import now provisions propsrig targets before retargeting and emits created/rebound/fallback diagnostics.                                                               |
-| A0.3 | done   | P0       | MVP pose lifecycle smoke tests landed, including ghost-target guard coverage.                                                                                           |
-| A0.4 | done   | P0       | Pose graph outputs now target `rig/<face>/pose/control/<inputId>`; runtime/input-pane guardrails and regression tests are landed.                                       |
-| A0.5 | done   | P0       | Rig graph now computes `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)` for composed channels with additive default and average support.                  |
-| A0.6 | done   | P0       | Per-channel compose mode authoring (`add` default, `average`) is implemented across UI, config, IR projection, and compiler wiring.                                     |
-| A0.7 | done   | P0       | Inputs pane filters internal pose-control paths and regression contracts cover inspector/input sync + compose-mode routing into rig compile.                            |
-| B1.1 | done   | P1       | Store mutations now project through pose IR and export/runtime pose config resolves from IR projection.                                                                 |
-| B1.2 | done   | P1       | Neutral strategy is modeled in config/IR/store with deterministic compiler behavior and fallback diagnostics.                                                           |
-| B1.3 | done   | P1       | IR prunes synthetic ghost channel IDs and compiler guards authored-input/signal boundary contracts.                                                                     |
-| B1.4 | done   | P1       | Import feedback now uses unified structured diagnostics across config/IR/graph paths with actionable failures.                                                          |
-| C2.1 | done   | P1       | IR/config/compiler now support deterministic ordered blend stages with fallback compatibility and diagnostics.                                                          |
-| C2.2 | done   | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.                                                                   |
-| C2.3 | done   | P1       | Golden topology fixture suite landed with deterministic snapshot/hash checks + neutral fallback diagnostics.                                                            |
-| D3.1 | done   | P2       | Inspector chain defaults now abstract propsrig internals with explicit show/hide toggle for advanced access.                                                            |
-| D3.2 | done   | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 06:12Z`). |
-| D3.3 | done   | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                                                                                    |
-| D3.4 | done   | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
-| E4.1 | done   | P3       | Per-channel cross-group override map landed across config/IR contracts with deterministic normalization + diagnostics, including store-projection retention.            |
-| E4.2 | done   | P3       | Priority override mode landed with deterministic ordering/tie-break semantics, compiler topology realization, and explanatory diagnostics.                              |
-| E4.3 | done   | P3       | Design pack delivered in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md` with scenario outputs, policy tradeoffs, and follow-on implementation scope.            |
-| S0   | done   | P1       | Scoped-neutral sprint contract lock landed across docs (`UI_DESIGN.md`, `ARCHITECTURE.md`, explainer, docs index) with active plan/tracker linkage.                     |
-| S1   | done   | P1       | Scoped-neutral config/IR contracts landed for groups/stages (`inherit`, `pose-reference`, `direct-values`) with deterministic normalize/round-trip and diagnostics.     |
-| S2   | done   | P1       | Stage/group scoped-neutral store/hook APIs landed with projection-safe state retention and targeted regression coverage.                                                |
-| S3   | done   | P1       | Compiler now resolves scoped neutral precedence by context (`stage > group > global > default`) with scoped-neutral coverage diagnostics.                               |
-| S4   | done   | P2       | Stage selection + inspector routing foundation landed with stale-selection reconciliation and stage inspect entrypoint tests.                                           |
-| S5   | done   | P2       | Group inspector now authors scoped neutral sources and shows live composition-output analysis.                                                                          |
-| S6   | done   | P2       | Stage inspector now supports source/mode/neutral authoring with live stage composition-output analysis.                                                                 |
-| S7   | done   | P1       | Scoped-neutral regression matrix, validate/prep evidence, and sprint tracker closeout are complete.                                                                     |
+| ID   | Status  | Priority | Notes                                                                                                                                                                   |
+| ---- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A0.1 | done    | P0       | Canonical pose-weight paths, Inputs sync, and stale/duplicate cleanup landed with regression tests.                                                                     |
+| A0.2 | done    | P0       | Import now provisions propsrig targets before retargeting and emits created/rebound/fallback diagnostics.                                                               |
+| A0.3 | done    | P0       | MVP pose lifecycle smoke tests landed, including ghost-target guard coverage.                                                                                           |
+| A0.4 | done    | P0       | Pose graph outputs now target `rig/<face>/pose/control/<inputId>`; runtime/input-pane guardrails and regression tests are landed.                                       |
+| A0.5 | done    | P0       | Rig graph now computes `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)` for composed channels with additive default and average support.                  |
+| A0.6 | done    | P0       | Per-channel compose mode authoring (`add` default, `average`) is implemented across UI, config, IR projection, and compiler wiring.                                     |
+| A0.7 | done    | P0       | Inputs pane filters internal pose-control paths and regression contracts cover inspector/input sync + compose-mode routing into rig compile.                            |
+| B1.1 | done    | P1       | Store mutations now project through pose IR and export/runtime pose config resolves from IR projection.                                                                 |
+| B1.2 | done    | P1       | Neutral strategy is modeled in config/IR/store with deterministic compiler behavior and fallback diagnostics.                                                           |
+| B1.3 | done    | P1       | IR prunes synthetic ghost channel IDs and compiler guards authored-input/signal boundary contracts.                                                                     |
+| B1.4 | done    | P1       | Import feedback now uses unified structured diagnostics across config/IR/graph paths with actionable failures.                                                          |
+| C2.1 | done    | P1       | IR/config/compiler now support deterministic ordered blend stages with fallback compatibility and diagnostics.                                                          |
+| C2.2 | done    | P1       | Pose Groups surface now authors stage chains (create/reorder/edit sources/mode) with topology guards.                                                                   |
+| C2.3 | done    | P1       | Golden topology fixture suite landed with deterministic snapshot/hash checks + neutral fallback diagnostics.                                                            |
+| D3.1 | done    | P2       | Inspector chain defaults now abstract propsrig internals with explicit show/hide toggle for advanced access.                                                            |
+| D3.2 | done    | P2       | Inputs pane IA now separates editable pose-weight controls from derived group/stage outputs with provenance and read-only derived rows (validated `2026-02-19 06:12Z`). |
+| D3.3 | done    | P2       | Removed warning debt in `VariablesPanel`; lint now runs clean for `vizij-authoring`.                                                                                    |
+| D3.4 | done    | P2       | Dense Inputs-pane baseline landed via `perf:inputs-baseline`; baseline recorded on `2026-02-19 06:11Z` in `docs/perf/inputs-pane-baseline-2026-02-19.md`.               |
+| E4.1 | done    | P3       | Per-channel cross-group override map landed across config/IR contracts with deterministic normalization + diagnostics, including store-projection retention.            |
+| E4.2 | done    | P3       | Priority override mode landed with deterministic ordering/tie-break semantics, compiler topology realization, and explanatory diagnostics.                              |
+| E4.3 | done    | P3       | Design pack delivered in `docs/notes/pose-rig-overlap-heuristics-2026-02-19.md` with scenario outputs, policy tradeoffs, and follow-on implementation scope.            |
+| S0   | done    | P1       | Scoped-neutral sprint contract lock landed across docs (`UI_DESIGN.md`, `ARCHITECTURE.md`, explainer, docs index) with active plan/tracker linkage.                     |
+| S1   | done    | P1       | Scoped-neutral config/IR contracts landed for groups/stages (`inherit`, `pose-reference`, `direct-values`) with deterministic normalize/round-trip and diagnostics.     |
+| S2   | done    | P1       | Stage/group scoped-neutral store/hook APIs landed with projection-safe state retention and targeted regression coverage.                                                |
+| S3   | done    | P1       | Compiler now resolves scoped neutral precedence by context (`stage > group > global > default`) with scoped-neutral coverage diagnostics.                               |
+| S4   | done    | P2       | Stage selection + inspector routing foundation landed with stale-selection reconciliation and stage inspect entrypoint tests.                                           |
+| S5   | done    | P2       | Group inspector now authors scoped neutral sources and shows live composition-output analysis.                                                                          |
+| S6   | done    | P2       | Stage inspector now supports source/mode/neutral authoring with live stage composition-output analysis.                                                                 |
+| S7   | done    | P1       | Scoped-neutral regression matrix, validate/prep evidence, and sprint tracker closeout are complete.                                                                     |
+| R6.1 | done    | P0       | Reference/shared panel actions now stage by canonical/runtime paths first; pose-weight actions route through canonical pose channels.                                   |
+| R6.2 | done    | P0       | Runtime pose-control bridge supports exact and `direct_` alias resolution for legacy rig channels (including Quori brow channels).                                      |
+| R6.3 | done    | P0       | Export/compiler wiring now includes pose compose targets and blocks fallback bundled exports lacking `RobotData`.                                                       |
+| R6.4 | done    | P0       | Reset logic now clears override-enabled state and reapplies deterministic defaults across reference drivers + poses.                                                    |
+| R6.5 | planned | P1       | Publish dual-face perf thresholds and add structured copy-session audit summaries for workflow signoff.                                                                 |
 
 ## Import Migration Integration Board
 
@@ -69,19 +75,19 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (`typecheck` phase exit 0).
+  - `2026-03-01` — `pnpm run validate:all` -> pass (`typecheck:all` exit 0 across repo workspaces).
 
 ### Lint
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (`lint` phase exit 0; 0 warnings, 0 errors).
+  - `2026-03-01` — `pnpm run validate:all` -> pass (`lint:all` exit 0).
 
 ### Test
 
 - Status: `done`
 - Latest evidence:
-  - `2026-02-19 06:42Z` — `pnpm --filter vizij-authoring run validate` -> pass (`vitest` run; 67 passed files + 1 skipped perf file, 389 passed tests + 1 skipped perf test).
+  - `2026-03-01` — `pnpm run validate:all` -> pass (`test:all` exit 0).
 
 ## Active Risks and Mitigations
 
@@ -91,6 +97,8 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
    - Mitigation: execute `F5.1`-`F5.8` in order, with linked quality gates (`QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, `QL2.5`) and fixture-matrix CI coverage.
 3. Risk: Compose policy remains MVP-level (`add`/`average`) and may not cover future weighting/prioritization needs.
    - Mitigation: keep future-policy expansion tracked in roadmap horizon and gate rollout with deterministic topology/tests.
+4. Risk: Reference-face workflow now passes functional correctness checks, but dual-face perf gates and session-level audit summaries are not yet formalized.
+   - Mitigation: close `R6.5` with reproducible threshold docs and copy-session summary emission before declaring final workflow signoff.
 
 ## Recently Completed Highlights
 
@@ -116,5 +124,9 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 - `E4.1` per-channel override contracts across config/IR with deterministic normalization, invalid-entry diagnostics, and store-projection retention coverage.
 - `E4.2` priority per-channel compile semantics with deterministic ordering/tie-break behavior and explanatory diagnostics for resolution changes.
 - `E4.3` overlap bias/activity heuristic design pack with representative overlap scenarios and expected policy outputs (`docs/notes/pose-rig-overlap-heuristics-2026-02-19.md`).
+- `R6.1` path-first reference/shared staging and canonical pose-weight routing in Variables/Poses surfaces.
+- `R6.2` runtime-react pose-control bridge compatibility for legacy/direct-prefixed channels.
+- `R6.3` export/compiler hardening for pose compose wiring and fallback bundled-export guardrails.
+- `R6.4` reset/default normalization across reference drivers and poses.
 - `Q2.1` My Drivers UX overhaul.
 - Pose IR diagnostics plumbing (`IR2`) and export embedding (`IR3`).

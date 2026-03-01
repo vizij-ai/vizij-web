@@ -1,9 +1,9 @@
 # Reference Face Workflow SOP
 
-Last updated: 2026-02-26
-Status: `implemented-v1`
+Last updated: 2026-03-01
+Status: `implemented-v2`
 
-## Implementation Notes (2026-02-26)
+## Implementation Notes (2026-03-01)
 
 Shipped in `vizij-authoring`:
 
@@ -16,6 +16,10 @@ Shipped in `vizij-authoring`:
    - Variables: `Main Face`, `Shared`, `Reference Face`
    - Poses: `Main Face`, `Reference Face`
    - Inputs: `Main Face Inputs Only` with reference comparison guidance
+7. Reference staging now prefers canonical/runtime-resolved paths (reference-only and shared actions), including canonical pose-weight paths for pose actions.
+8. Reference reset now clears override-enabled state before applying defaults so old staged values do not reappear after reset.
+9. Bundled-export guardrails and pose-compose export wiring are aligned with reference playback expectations.
+10. Runtime pose-control bridge includes direct-prefixed alias compatibility for legacy channels (including brow paths in Quori assets).
 
 Still pending from this SOP:
 
