@@ -54,6 +54,7 @@ import {
   buildPoseWeightRelativePath,
   isPoseControlInputPath,
   isPoseOutputInputPath,
+  isPoseWeightInputPath,
   parsePoseWeightInputSourceId,
   resolveDeterministicPoseId,
 } from "../../poseRig/utils";
@@ -2889,6 +2890,50 @@ export function VariablesPanel({
     },
     [referenceFace, referencePoseEntries],
   );
+  const referencePoseWeightDefaultsByPoseId = useMemo(() => {
+    const byPoseId = new Map<string, number>();
+    referenceFace.standardInputs.forEach((input) => {
+      const poseId = parsePoseWeightInputSourceId(input.sourceId);
+      if (!poseId || byPoseId.has(poseId)) {
+        return;
+      }
+      byPoseId.set(
+        poseId,
+        Number.isFinite(input.defaultValue) ? input.defaultValue : 0,
+      );
+    });
+    return byPoseId;
+  }, [referenceFace.standardInputs]);
+  const referencePoseWeightDefaultsByPath = useMemo(() => {
+    const byPath = new Map<string, number>();
+    referenceFace.standardInputs.forEach((input) => {
+      const normalizedPath = normalizeStandardRigInputPath(input.path);
+      if (
+        !isPoseWeightInputPath(normalizedPath) ||
+        byPath.has(normalizedPath)
+      ) {
+        return;
+      }
+      byPath.set(
+        normalizedPath,
+        Number.isFinite(input.defaultValue) ? input.defaultValue : 0,
+      );
+    });
+    return byPath;
+  }, [referenceFace.standardInputs]);
+  const resolveReferencePoseWeightDefault = useCallback(
+    (poseId: string) => {
+      const byPoseId = referencePoseWeightDefaultsByPoseId.get(poseId);
+      if (byPoseId !== undefined) {
+        return byPoseId;
+      }
+      const byPath = referencePoseWeightDefaultsByPath.get(
+        buildPoseWeightRelativePath(poseId),
+      );
+      return byPath ?? 0;
+    },
+    [referencePoseWeightDefaultsByPath, referencePoseWeightDefaultsByPoseId],
+  );
   const toggleReferenceRigSelection = useCallback((inputId: string) => {
     setSelectedReferenceRigIds((current) => {
       const next = new Set(current);
@@ -4328,7 +4373,7 @@ export function VariablesPanel({
         const referencePose = poseNodeData.pose as ReferencePoseDefinition;
         referenceFace.handleInputPathValueChange(
           buildPoseWeightRelativePath(referencePose.id),
-          0,
+          resolveReferencePoseWeightDefault(referencePose.id),
         );
         return;
       }

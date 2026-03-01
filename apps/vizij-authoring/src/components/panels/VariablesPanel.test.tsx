@@ -1550,7 +1550,11 @@ describe("VariablesPanel", () => {
     ).toHaveBeenNthCalledWith(2, smileWeightInput.path, 1);
     expect(
       referenceFaceState.handleInputPathValueChange,
-    ).toHaveBeenNthCalledWith(3, smileWeightInput.path, 0);
+    ).toHaveBeenNthCalledWith(
+      3,
+      smileWeightInput.path,
+      smileWeightInput.defaultValue,
+    );
     expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
@@ -1625,6 +1629,55 @@ describe("VariablesPanel", () => {
     expect(
       referenceFaceState.handleInputPathValueChange,
     ).not.toHaveBeenCalledWith("legacy_missing_lid_target", expect.any(Number));
+    expect(poseRigState.applyPose).not.toHaveBeenCalled();
+  });
+
+  it("resets reference pose weights to runtime defaults when available", () => {
+    const smileWeightInput = makeInput(
+      "ref_pose_smile_weight",
+      "/poses/ref_pose_smile.weight",
+      {
+        sourceId: "pose-weight:ref_pose_smile",
+        defaultValue: 0.35,
+        range: { min: 0, max: 1 },
+      },
+    );
+    referenceFaceState.standardInputs = [smileWeightInput];
+    referenceFaceState.standardInputsById = new Map([
+      [smileWeightInput.id, smileWeightInput],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [smileWeightInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile Pose",
+          targets: [{ inputId: "legacy_missing_smile_target", value: 0.76 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile Pose" },
+      },
+    );
+
+    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+
+    expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
+      smileWeightInput.path,
+      0.35,
+    );
+    expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
   });
 

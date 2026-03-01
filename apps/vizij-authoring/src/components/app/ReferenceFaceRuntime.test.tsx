@@ -212,7 +212,7 @@ describe("ReferenceFaceRuntime", () => {
     });
   });
 
-  it("does not force override enabled paths when resetting reference inputs", async () => {
+  it("clears override enabled paths when resetting reference inputs", async () => {
     const setInput = vi.fn();
     const onStandardInputsReady = vi.fn();
     const defaultMockRuntime = mockUseVizijRuntime();
@@ -270,11 +270,10 @@ describe("ReferenceFaceRuntime", () => {
       expect(setInput).toHaveBeenCalledWith("rig/face/override/blink/value", {
         float: 0,
       });
+      expect(setInput).toHaveBeenCalledWith("rig/face/override/blink/enabled", {
+        float: 0,
+      });
     });
-    expect(setInput).not.toHaveBeenCalledWith(
-      "rig/face/override/blink/enabled",
-      expect.anything(),
-    );
   });
 
   it("stages pose-weight inputs directly and bypasses override routes", async () => {

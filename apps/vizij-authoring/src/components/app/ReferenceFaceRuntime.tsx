@@ -529,6 +529,11 @@ function ReferenceFaceBridge({
       const useOverrideRoute = Boolean(
         overrideRoute?.valuePath && !isPoseWeightInputPath(input.path),
       );
+      // Reset should return the channel to normal composed behavior, so clear
+      // direct override enable flags before writing the default value.
+      if (useOverrideRoute && overrideRoute?.enabledPath) {
+        setInputRef.current(overrideRoute.enabledPath, { float: 0 });
+      }
       if (useOverrideRoute && overrideRoute?.valuePath) {
         setInputRef.current(overrideRoute.valuePath, { float: resetValue });
       } else {
