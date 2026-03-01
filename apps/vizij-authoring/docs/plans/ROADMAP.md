@@ -9,6 +9,7 @@ This file defines execution order and stage gates. Implementation detail lives i
 1. Earlier stage gates must be met before opening the next stage unless explicitly waived in `plans/TRACKER.md`.
 2. Items inside a stage execute in backlog dependency order.
 3. `P0` release blockers cannot be deferred without an explicit waiver.
+4. Wave-based execution lanes may run in parallel when their dependency waivers and risk controls are explicitly recorded in `plans/TRACKER.md`.
 
 ## Stage 0 — MVP Correctness Stabilization
 
@@ -184,7 +185,93 @@ Current status:
 
 - `planned`
 
-## Future Architecture Horizon (Post-Stage 5)
+## Stage 6 — Animation + Orchestrator Unification (Wave-Based)
+
+Objective:
+
+- Eliminate split playback paths and make animation authoring/playback orchestrator-authoritative and exportable.
+
+Backlog scope:
+
+- `G7.1`, `G7.2`, `G7.3`, `G7.4`, `G7.5`, `G7.6`
+
+Execution model:
+
+- Wave-based phases captured in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md` (`Wave 0` through `Wave 5`).
+
+Exit gate:
+
+1. Playback authority is unified under orchestrator (`setInput` + `merged_writes` contract).
+2. Authored clip IR compiles deterministically and round-trips through export/import.
+3. Timeline preview, runtime playback, and exported behavior remain aligned.
+
+Current status:
+
+- `in_progress`
+- Progress: exploratory seam analysis and wave plan are complete; implementation starts at `Wave 0` contract lock + instrumentation.
+- Note: this stage is opened under explicit tracker waiver before full Stage 5 completion.
+
+## Stage 7 — Workspace Clarity + Pose Blend Visualization
+
+Objective:
+
+- Improve authoring clarity and density by consolidating motion graph panes into sidebar surfaces, reclaiming graph workspace, and improving pose-group/blend readability.
+
+Backlog scope:
+
+- `U8.1`, `U8.2`, `U8.3`, `U8.4`
+
+Exit gate:
+
+1. Motion graph panes are sidebar-native and graph canvas can use the reclaimed workspace area.
+2. Cross-pane visual language is consistent (labels, context chips, control hierarchy).
+3. Pose group and blend staging visuals are understandable in dense projects.
+
+Current status:
+
+- `planned`
+
+## Stage 8 — Sample Asset + Standard-Rig Finalization
+
+Objective:
+
+- Finalize canonical sample GLBs and standard-rig mappings for stable demo and regression baselines.
+
+Backlog scope:
+
+- `V9.1`, `V9.2`, `V9.3`
+
+Exit gate:
+
+1. Quori/Hugo/Toasty examples are finalized for import/playback/export smoke flows.
+2. Standard-rig coverage is defined and verified for those examples.
+3. Fixture-backed regression matrix exists for sample assets.
+
+Current status:
+
+- `planned`
+
+## Stage 9 — Speech + Viseme Runtime Extension (Amazon Polly Lane)
+
+Objective:
+
+- Add speech playback + viseme drive through orchestrator in a provider-based architecture.
+
+Backlog scope:
+
+- `P10.1`, `P10.2`, `P10.3`
+
+Exit gate:
+
+1. Polly adapter drives viseme channels through orchestrator input staging.
+2. Provider abstraction allows future non-Polly speech backends.
+3. Speech/viseme sync diagnostics and tests are in place.
+
+Current status:
+
+- `planned`
+
+## Future Architecture Horizon (Post-Stage 9)
 
 1. Evaluate monolithic graph refactor once pose-control composition and import contracts are stable.
 2. Expand channel composition policy beyond MVP (`add`/`average`) to include optional weights and priority-based blending.

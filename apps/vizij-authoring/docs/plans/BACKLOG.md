@@ -8,12 +8,17 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Critical Path (Current)
 
-1. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8`
-2. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
-3. `F5.1` -> `F5.6` -> `F5.8`
-4. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
-5. Blocks `A0` through `E4` are complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
-6. Remaining reference-face follow-up is `R6.5`; `R6.1` through `R6.4` are complete.
+1. `G7.1` -> `G7.2` -> `G7.3` -> `G7.4` -> `G7.5` (animation/orchestrator unification lane).
+2. `U8.1` -> `U8.2` -> `U8.3` -> `U8.4` (workspace clarity + visual consistency lane).
+3. `V9.1` -> `V9.2` -> `V9.3` (sample GLB + standard-rig finalization lane).
+4. `R6.5` can execute in parallel with `G7.*` once transport contracts are stable.
+5. `F5.1` -> `F5.2` -> `F5.4` -> `F5.5` -> `F5.7` -> `F5.8` (import reliability lane remains active risk control).
+6. `F5.1` -> `F5.3` -> `F5.7` -> `F5.8`
+7. `F5.1` -> `F5.6` -> `F5.8`
+8. `QL0.1`, `QL0.2`, `QL0.3`, `QL2.4`, and `QL2.5` execute in parallel as supporting gates for `F5.2`, `F5.3`, and `F5.8`.
+9. `P10.1` -> `P10.2` -> `P10.3` (speech + viseme lane) starts after `G7.4` baseline stability.
+10. Blocks `A0` through `E4` are complete foundations, including Stage `4A` (`A0.4`-`A0.7`) direct+pose composition alignment.
+11. `R6.1` through `R6.4` are complete; `R6.5` remains open.
 
 ## Block A — MVP Correctness and Release Blockers
 
@@ -895,6 +900,368 @@ Acceptance checks:
 1. Perf thresholds are documented with reproducible dual-face benchmark runs.
 2. Copy sessions emit auditable summary records (operation type, source, destination, unresolved count, final action).
 3. SOP and implementation-plan docs reflect the finalized thresholds and logging behavior.
+
+## Block G — Animation + Orchestrator Unification
+
+Wave sequencing for this block is tracked in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md`.
+
+### [ ] G7.1 Playback Authority Contract Lock
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Current animation playback is split between local timeline and runtime graph paths; this causes drift and brittle behavior.
+
+Dependencies / blockers:
+
+- Depends on: none
+- Blocks: `G7.2`, `G7.3`, `G7.4`, `G7.5`
+
+Intent:
+
+- Lock orchestrator-authoritative playback contract for authoring (`stage inputs -> step orchestrator -> apply merged writes`).
+
+Acceptance checks:
+
+1. Contract doc exists and is referenced by roadmap/tracker.
+2. Path normalization and namespacing boundaries are explicitly defined.
+3. Baseline playback observability metrics are captured.
+
+### [ ] G7.2 Transport Cutover to Orchestrator
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Local RAF timeline playback must not remain an alternate runtime path.
+
+Dependencies / blockers:
+
+- Depends on: `G7.1`
+- Blocks: `G7.3`, `G7.4`
+
+Intent:
+
+- Route play/pause/scrub/stop through orchestrator transport and remove local-authority playback path.
+
+Acceptance checks:
+
+1. Timeline preview output is generated through orchestrator frame stepping.
+2. Legacy local playback path is removed from active runtime flow.
+3. Playback controls are wired to runtime behavior (no no-op transport stubs).
+
+### [ ] G7.3 Clip IR + Compiler Integration
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Timeline edits must compile deterministically into runtime-playable animation sources.
+
+Dependencies / blockers:
+
+- Depends on: `G7.2`
+- Blocks: `G7.4`, `G7.5`
+
+Intent:
+
+- Add first-class `AnimationClipIR` and compile it into orchestrator-compatible animation source graphs/controllers.
+
+Acceptance checks:
+
+1. Clip/channel identity is deterministic.
+2. Compile outputs are snapshot-tested and deterministic.
+3. Interpolation mode metadata is honored in compile/runtime behavior.
+
+### [ ] G7.4 Bundle Export/Import Round-Trip for Authored Clips
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Authored animation must survive export/import without manual re-authoring.
+
+Dependencies / blockers:
+
+- Depends on: `G7.3`
+- Blocks: `G7.5`, `P10.1`
+
+Intent:
+
+- Serialize authored clip IR/spec into bundle animation payloads and hydrate them on import.
+
+Acceptance checks:
+
+1. Author -> export -> import preserves clip semantics.
+2. Bundle includes authored animation payload (not only inherited clips).
+3. Round-trip tests are green.
+
+### [ ] G7.5 Runtime Lifecycle Decoupling from Panel Visibility
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Runtime/orchestrator lifecycle should not mount/unmount with panel visibility toggles.
+
+Dependencies / blockers:
+
+- Depends on: `G7.2`
+- Blocks: stable graph-first workspace execution
+
+Intent:
+
+- Keep runtime graph registration/stepping active independent of motion graph panel visibility.
+
+Acceptance checks:
+
+1. Hiding motion graph pane does not tear down playback runtime.
+2. Runtime registration lifecycles are panel-independent.
+3. No regression in motion-graph editing workflows.
+
+### [ ] G7.6 Deterministic Timeline Editing Semantics
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Prototype randomness and hardcoded assumptions undermine deterministic authoring contracts.
+
+Dependencies / blockers:
+
+- Depends on: `G7.3`
+- Blocks: long-term animation tooling confidence
+
+Intent:
+
+- Remove nondeterministic ID/color behavior and hardcoded layout assumptions in timeline internals.
+
+Acceptance checks:
+
+1. Timeline-generated IDs are deterministic.
+2. Layout math avoids fixed geometry constants where possible.
+3. Regression tests cover deterministic edit behavior.
+
+## Block U — Workspace Clarity + Visual Consistency
+
+### [ ] U8.1 Motion Graph Panes as Sidebar Elements
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Graph editing needs more workspace and clearer panel containment.
+
+Dependencies / blockers:
+
+- Depends on: `G7.2`
+- Blocks: `U8.2`, `U8.3`
+
+Intent:
+
+- Move motion graph panes into sidebar panels and align their interaction model with existing authoring sidebars.
+
+Acceptance checks:
+
+1. Motion graph panes are sidebar-native.
+2. Panel interactions follow shared sidebar semantics.
+3. Graph workflows remain fully functional.
+
+### [ ] U8.2 Graph-First Workspace Reclaim
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Graph editing should be able to use the area currently occupied by reference-face viewport in graph mode.
+
+Dependencies / blockers:
+
+- Depends on: `U8.1`
+- Blocks: `U8.4`
+
+Intent:
+
+- Reconfigure workspace so graph canvas can expand into reclaimed viewport area when graph-focused mode is active.
+
+Acceptance checks:
+
+1. Graph canvas can occupy reclaimed workspace area.
+2. Reference-face workflows remain available in their own mode/context.
+3. Mode switching is explicit and stable.
+
+### [ ] U8.3 Cross-Pane Visual Consistency Pass
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Dense authoring workflows need consistent labels, hierarchy, and control affordances.
+
+Dependencies / blockers:
+
+- Depends on: `U8.1`
+- Blocks: `U8.4`
+
+Intent:
+
+- Apply a consistency pass across Variables, Poses, Inputs, Inspector, and Motion Graph sidebar surfaces.
+
+Acceptance checks:
+
+1. Context chips/labels are consistent across panes.
+2. Control hierarchy and affordances are consistent.
+3. Visual style tokens are applied uniformly.
+
+### [ ] U8.4 Pose Group + Blend Visualization Upgrade
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Pose-stage/group blending is powerful but still visually dense and hard to scan.
+
+Dependencies / blockers:
+
+- Depends on: `U8.2`, `U8.3`
+- Blocks: ergonomics signoff for dense pose projects
+
+Intent:
+
+- Improve grouping and visualization of pose groups, blend stages, and compose interactions.
+
+Acceptance checks:
+
+1. Group/stage relationships are visible without deep inspector traversal.
+2. Blend mode and source provenance are readable in collapsed and expanded views.
+3. Dense-pose usability regressions are reduced.
+
+## Block V — Sample GLB + Standard-Rig Finalization
+
+### [ ] V9.1 Finalize Canonical GLB Examples (Quori, Hugo, Toasty)
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Stable examples are required for regression confidence and demos.
+
+Dependencies / blockers:
+
+- Depends on: `G7.4`
+- Blocks: `V9.2`, `V9.3`
+
+Intent:
+
+- Finalize and version canonical sample bundles for Quori, Hugo, and Toasty.
+
+Acceptance checks:
+
+1. Canonical sample files are checked in with provenance notes.
+2. Samples pass import/playback/export smoke flows.
+3. Bundle metadata contracts are verified.
+
+### [ ] V9.2 Define and Validate Vizij Standard Rigs for Samples
+
+Priority and why this should still be done:
+
+- Level: `P0`
+- Why: Cross-face portability depends on standard-rig mapping quality.
+
+Dependencies / blockers:
+
+- Depends on: `V9.1`
+- Blocks: `V9.3`
+
+Intent:
+
+- Define target standard-rig coverage for Quori, Hugo, and Toasty and validate mapping completeness.
+
+Acceptance checks:
+
+1. Coverage matrix exists for each sample face.
+2. Missing/partial channels are explicitly documented.
+3. Standard-rig mappings pass compile/runtime smoke checks.
+
+### [ ] V9.3 Sample Fixture Matrix + CI Gates
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Sample reliability must be enforceable, not manual-only.
+
+Dependencies / blockers:
+
+- Depends on: `V9.2`
+- Blocks: sample-asset signoff
+
+Intent:
+
+- Add deterministic fixture/CI checks for Quori/Hugo/Toasty import/playback/export contracts.
+
+Acceptance checks:
+
+1. Fixture tests run in CI and gate regressions.
+2. Failures are actionable by sample + contract area.
+3. Docs reference fixture matrix as source of truth.
+
+## Block P — Speech + Viseme Extension (Amazon Polly)
+
+### [ ] P10.1 Speech Provider Abstraction + Polly Adapter
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Speech pipeline should be vendor-extensible and not hardwired into UI/runtime components.
+
+Dependencies / blockers:
+
+- Depends on: `G7.4`
+- Blocks: `P10.2`, `P10.3`
+
+Intent:
+
+- Define provider interface and implement Amazon Polly adapter behind that boundary.
+
+Acceptance checks:
+
+1. Provider API exists with Polly implementation.
+2. No direct Polly coupling in authoring UI components.
+3. Adapter-level tests cover request/response normalization.
+
+### [ ] P10.2 Viseme-to-Rig Mapping Through Orchestrator
+
+Priority and why this should still be done:
+
+- Level: `P1`
+- Why: Viseme playback must use the same orchestrator input path as authored animation/pose controls.
+
+Dependencies / blockers:
+
+- Depends on: `P10.1`
+- Blocks: `P10.3`
+
+Intent:
+
+- Map speech viseme events into standard rig/pose channels and stage through orchestrator transport.
+
+Acceptance checks:
+
+1. Speech playback drives expected viseme channels.
+2. Mapping is configurable per face/sample.
+3. Runtime contract tests verify path correctness.
+
+### [ ] P10.3 Speech/Viseme Sync Diagnostics + Quality Gates
+
+Priority and why this should still be done:
+
+- Level: `P2`
+- Why: Lip-sync quality needs observable timing diagnostics for iteration and regression control.
+
+Dependencies / blockers:
+
+- Depends on: `P10.2`
+- Blocks: speech-viseme production signoff
+
+Intent:
+
+- Add diagnostics for audio/viseme timing drift and define quality gates for acceptable sync.
+
+Acceptance checks:
+
+1. Timing diagnostics surface drift and late-event behavior.
+2. Quality gate thresholds are documented.
+3. Speech/viseme regression tests are green.
 
 ## Block F — Import Migration Reliability Integration
 

@@ -1,22 +1,25 @@
 # Vizij Authoring Goal
 
-Last updated: 2026-02-18
+Last updated: 2026-03-01
 Owner: Vizij Authoring
 
 ## Mission
 
-Make `vizij-authoring` the authoritative, runtime-truthful authoring surface for rig and pose workflows.
+Make `vizij-authoring` the authoritative, runtime-truthful authoring surface for rig, pose, and animation workflows.
 
 ## North Star Outcomes
 
 1. Authored rig + pose state compiles into deterministic runtime-valid graphs.
-2. Inspector workflows are complete enough that users can create/edit/delete and traverse chains without leaving context.
-3. Import/export flows are deterministic and migration-safe across legacy and current assets.
-4. The development branch stays continuously green (`typecheck`, `lint`, `test`).
+2. Authored animation playback runs through the same orchestrator/runtime path used for final output.
+3. Workspace layout and panel semantics stay clear and consistent for dense authoring sessions.
+4. Import/export flows are deterministic and migration-safe across legacy and current assets.
+5. Canonical sample assets (Quori, Hugo, Toasty) and Vizij standard-rig mappings are validated.
+6. The development branch stays continuously green (`typecheck`, `lint`, `test`).
+7. Speech/viseme integration is designed as a clean extension path (provider-based, orchestrator-integrated).
 
 ## Current Program Objective
 
-Restore and hold engineering baseline health before expanding new UX scope.
+Hold engineering baseline health while executing wave-based animation/orchestrator integration and workspace clarity priorities.
 
 Required gate:
 

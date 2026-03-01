@@ -20,6 +20,8 @@ This folder is organized into active execution docs, active contracts, reference
    - Proposal + SOP + progress tracker for stage/group-scoped neutral authoring and inspector UX completion.
 7. `apps/vizij-authoring/docs/plans/authoring-reference-face-implementation-plan.md`
    - Reference-face workflow implementation status, including copy-modal flow and runtime/export reliability hardening.
+8. `apps/vizij-authoring/docs/plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md`
+   - Wave-based plan for orchestrator-authoritative animation authoring/playback, round-trip export/import, workspace integration, and speech/viseme backlog.
 
 ## Active Contracts
 
