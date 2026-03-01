@@ -216,8 +216,6 @@ function LinkControlEditor({
         <NumberField
           size="sm"
           value={linkControl.offset}
-          min={-2}
-          max={2}
           step={0.01}
           commitMode="blur"
           allowScrub={false}
@@ -928,8 +926,6 @@ export function VariablePipelineStages({
                         <NumberField
                           size="sm"
                           value={child.linkControl.offset}
-                          min={-2}
-                          max={2}
                           step={0.01}
                           commitMode="blur"
                           allowScrub={false}

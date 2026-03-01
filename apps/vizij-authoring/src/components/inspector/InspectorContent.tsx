@@ -3490,7 +3490,7 @@ export function InspectorContent({
                   }),
                 onOffsetChange: (offset) =>
                   updatePipelineLink(entry.linkId, entry.inputId, input.id, {
-                    offset: clampToRange(offset, -2, 2),
+                    offset,
                   }),
               },
             }))}
@@ -3526,7 +3526,7 @@ export function InspectorContent({
                           }),
                         onOffsetChange: (offset: number) =>
                           updatePipelineLink(linkId, input.id, childInputId, {
-                            offset: clampToRange(offset, -2, 2),
+                            offset,
                           }),
                       },
                     };

@@ -258,10 +258,10 @@ describe("VariablePipelineStages", () => {
     fireEvent.blur(parentScaleField!);
     expect(parentScaleChange).toHaveBeenCalledWith(1.5);
 
-    fireEvent.change(parentOffsetField!, { target: { value: "0.4" } });
+    fireEvent.change(parentOffsetField!, { target: { value: "3.4" } });
     expect(parentOffsetChange).toHaveBeenCalledTimes(0);
     fireEvent.blur(parentOffsetField!);
-    expect(parentOffsetChange).toHaveBeenCalledWith(0.4);
+    expect(parentOffsetChange).toHaveBeenCalledWith(3.4);
 
     const childStage = openStage(view, "pipeline-stage-children", /children/i);
     fireEvent.click(
@@ -280,10 +280,10 @@ describe("VariablePipelineStages", () => {
     fireEvent.blur(childScaleField!);
     expect(childScaleChange).toHaveBeenCalledWith(2.25);
 
-    fireEvent.change(childOffsetField!, { target: { value: "-0.5" } });
+    fireEvent.change(childOffsetField!, { target: { value: "-3.5" } });
     expect(childOffsetChange).toHaveBeenCalledTimes(0);
     fireEvent.blur(childOffsetField!);
-    expect(childOffsetChange).toHaveBeenCalledWith(-0.5);
+    expect(childOffsetChange).toHaveBeenCalledWith(-3.5);
   });
 
   it("runs migrate action when migrate button is provided", () => {

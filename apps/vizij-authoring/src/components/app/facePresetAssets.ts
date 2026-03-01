@@ -47,13 +47,16 @@ const AVAILABLE_PRESET_FILENAMES = new Set<string>([
   "Quori_Current.glb",
   "Quori_Legacy.glb",
   "Hugo_Latest_Blender_Export.glb",
+  "Hugo_Current.glb",
   "Hugo_Legacy.glb",
+  "Toasty_Latest_Blender_Export.glb",
 ]);
 
 // Reference-face runtime requires embedded VIZIJ bundle metadata.
 const REFERENCE_COMPATIBLE_PRESET_FILENAMES = new Set<string>([
   "Quori_Current.glb",
   "Quori_Legacy.glb",
+  "Hugo_Current.glb",
   "Hugo_Legacy.glb",
 ]);
 
@@ -75,4 +78,10 @@ export const FACE_PRESET_GRID_OPTIONS: readonly FacePresetAssetOption[] =
           REFERENCE_COMPATIBLE_PRESET_FILENAMES.has(filename),
       };
     }),
+  );
+
+export const REFERENCE_FACE_PRESET_GRID_OPTIONS: readonly FacePresetAssetOption[] =
+  FACE_PRESET_GRID_OPTIONS.filter(
+    (preset) =>
+      preset.referenceCompatible && preset.variantId !== "blender-export",
   );
