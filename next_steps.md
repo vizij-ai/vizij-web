@@ -948,3 +948,38 @@ User reports brows still not behaving as expected across poses. Investigate Quor
 1. brow-target data in poses,
 2. pose-control -> rig-input mapping coverage for brow channels,
 3. conflicts between staged brow drivers and pose weights in reference mode.
+
+## Investigation Update (2026-03-01): Quori Basic Brow Behavior Across Poses
+
+### Scope
+
+Investigated `apps/vizij-authoring/public/assets/Quori_Current.glb` bundle wiring to explain why brows are weak/missing when staging reference poses like `Angry`.
+
+### Findings
+
+1. Pose data is present and non-trivial for brow channels.
+   - `poses.config.poses` contains brow targets for multiple poses (`Angry`, `Happy`, `Sad`, `Surprise`, etc.).
+   - Example (`pose_angry`):
+     - `brow_lbrow_inud_value = 1`
+     - `brow_lbrow_midud_value = 1`
+     - `brow_rbrow_midud_value = 1`
+
+2. Pose graph outputs brow controls on canonical pose-control paths:
+   - `rig/quori_latest/pose/control/brow_lbrow_inud_value`
+   - ... (8 brow outputs total)
+
+3. Rig graph input ids for the same brow channels are prefixed with `direct_`:
+   - `input_direct_brow_lbrow_inud_value` -> `rig/quori_latest/brow/lbrow_inud/value`
+   - plus corresponding `override_enabled_*` and `override_value_*` inputs.
+
+4. Current runtime bridge mapping is exact-id only (`pose/control/<id>` -> rig input map key `<id>`), so Quori brow channels are dropped.
+   - Pose-control outputs: `32`
+   - Exact matches: `19`
+   - Require `direct_` alias fallback: `12` (includes all 8 brow channels)
+   - Fully unresolved: `1` (`propsrig_rtlid_translation_z`, override-only input)
+
+### Conclusion
+
+This is primarily an asset naming-shape compatibility issue (legacy Quori bundle convention), not a missing brow pose dataset and not primarily UI staging conflict between brow rig and pose weights.
+
+The likely practical fix is to extend pose-control bridge resolution to attempt `direct_<poseControlId>` when exact key lookup misses.
