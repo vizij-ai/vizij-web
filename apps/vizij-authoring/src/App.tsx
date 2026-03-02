@@ -1301,6 +1301,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelTitle="Control Authoring"
               panelDescription="Author and organize variables, poses, and pose groups."
               onClosePanel={handleHideControlAuthoringPanel}
+              animationActive={animationPanelVisible}
             />
           }
           leftBottomVisible2={false}
@@ -1322,6 +1323,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation programming I/O."
               onClosePanel={handleHideInputControlsPanel}
               motionGraphActive={motionGraphPanelVisible}
+              animationActive={animationPanelVisible}
               runtimeFaceId={faceId}
               onSelectMotionGraphNode={
                 handleSelectMotionGraphNodeWithInspectorSync

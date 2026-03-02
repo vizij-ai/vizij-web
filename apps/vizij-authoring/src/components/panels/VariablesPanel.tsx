@@ -42,6 +42,7 @@ import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
+import { useAnimationStore } from "../../state/animationStore";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
@@ -1739,6 +1740,12 @@ interface TreeRowWrapperProps {
     onToggleInputPath: (path: string) => void;
     onToggleOutputPath: (path: string) => void;
   };
+  animationTrackContext?: {
+    active: boolean;
+    trackedInputIds: ReadonlySet<string>;
+    onAddTrack: (row: InputCatalogRow) => void;
+    onRemoveTrack: (inputId: string) => void;
+  };
   searchQuery: string;
 }
 
@@ -1758,6 +1765,7 @@ function TreeRowWrapper({
   timelineInputLockActive,
   timelineLockedInputIds,
   motionGraphContext,
+  animationTrackContext,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
@@ -1865,6 +1873,11 @@ function TreeRowWrapper({
     const motionGraphOutputEnabled =
       motionGraphContext && motionGraphPath
         ? motionGraphContext.enabledOutputPaths.has(motionGraphPath)
+        : false;
+    const canToggleAnimationTrack = inputData.editable && inputData.selectable;
+    const animationTrackEnabled =
+      canToggleAnimationTrack && animationTrackContext
+        ? animationTrackContext.trackedInputIds.has(inputData.inputId)
         : false;
     return (
       <TreeRow
@@ -1983,6 +1996,43 @@ function TreeRowWrapper({
                     : "Add PAP Output"}
                 </Button>
               ) : null}
+            </div>
+          ) : null}
+          {animationTrackContext?.active ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {canToggleAnimationTrack ? (
+                <Button
+                  variant={animationTrackEnabled ? "ghost" : "secondary"}
+                  size="sm"
+                  className={cn(
+                    "h-6 px-2 text-[10px] gap-1",
+                    animationTrackEnabled
+                      ? "text-emerald-200 hover:text-emerald-100"
+                      : undefined,
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (animationTrackEnabled) {
+                      animationTrackContext.onRemoveTrack(inputData.inputId);
+                      return;
+                    }
+                    animationTrackContext.onAddTrack(inputData);
+                  }}
+                  title={
+                    animationTrackEnabled
+                      ? "Remove from animation tracks"
+                      : "Add as animation track"
+                  }
+                >
+                  {animationTrackEnabled
+                    ? "Remove Animation Track"
+                    : "Add Animation Track"}
+                </Button>
+              ) : (
+                <span className="text-[10px] text-text-muted">
+                  Animation track unavailable (read-only control)
+                </span>
+              )}
             </div>
           ) : null}
           {inputData.provenance ? (
@@ -2308,6 +2358,7 @@ function TreeRowWrapper({
                 timelineInputLockActive={timelineInputLockActive}
                 timelineLockedInputIds={timelineLockedInputIds}
                 motionGraphContext={motionGraphContext}
+                animationTrackContext={animationTrackContext}
                 searchQuery={searchQuery}
               />
             ))}
@@ -2335,6 +2386,7 @@ interface VariablesPanelProps {
   panelDescription?: string;
   onClosePanel?: () => void;
   motionGraphActive?: boolean;
+  animationActive?: boolean;
   runtimeFaceId?: string | null;
   onSelectMotionGraphNode?: (id: string | null) => void;
 }
@@ -2357,6 +2409,7 @@ export function VariablesPanel({
   panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
   onClosePanel,
   motionGraphActive = false,
+  animationActive = false,
   runtimeFaceId = null,
   onSelectMotionGraphNode,
 }: VariablesPanelProps) {
@@ -2666,6 +2719,9 @@ export function VariablesPanel({
     (state) => state.handleLinkChildInput,
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
+  const animationTracks = useAnimationStore((state) => state.tracks);
+  const addAnimationTrack = useAnimationStore((state) => state.addTrack);
+  const removeAnimationTrack = useAnimationStore((state) => state.removeTrack);
   const enabledMotionGraphInputs = useEditorStore(
     (state) => state.enabledInputs,
   );
@@ -2679,6 +2735,18 @@ export function VariablesPanel({
   );
   const pruneEnabledMotionGraphOutputs = useEditorStore(
     (state) => state.pruneEnabledOutputs,
+  );
+  const animationTrackIdsByInputId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    animationTracks.forEach((track) => {
+      const existing = map.get(track.variableId) ?? [];
+      map.set(track.variableId, [...existing, track.id]);
+    });
+    return map;
+  }, [animationTracks]);
+  const trackedAnimationInputIds = useMemo(
+    () => new Set(animationTrackIdsByInputId.keys()),
+    [animationTrackIdsByInputId],
   );
   const poseWeightInputIdByPoseId = useMemo(() => {
     const map = new Map<string, string>();
@@ -3452,6 +3520,17 @@ export function VariablesPanel({
     });
     return count;
   }, [enabledMotionGraphOutputs, motionGraphDisplayOutputRowsByPath]);
+  const visibleTrackableAnimationInputCount =
+    motionGraphDisplayInputRows.length;
+  const visibleTrackedAnimationInputCount = useMemo(() => {
+    let count = 0;
+    motionGraphDisplayInputRows.forEach((row) => {
+      if (trackedAnimationInputIds.has(row.inputId)) {
+        count += 1;
+      }
+    });
+    return count;
+  }, [motionGraphDisplayInputRows, trackedAnimationInputIds]);
 
   useEffect(() => {
     if (!motionGraphActive) {
@@ -4783,6 +4862,35 @@ export function VariablesPanel({
       runtimeFaceSegment,
     ],
   );
+  const handleAddAnimationTrack = useCallback(
+    (row: InputCatalogRow) => {
+      addAnimationTrack(row.inputId, row.label, row.path);
+    },
+    [addAnimationTrack],
+  );
+  const handleRemoveAnimationTrack = useCallback(
+    (inputId: string) => {
+      const matchingTrackIds = animationTrackIdsByInputId.get(inputId) ?? [];
+      matchingTrackIds.forEach((trackId) => {
+        removeAnimationTrack(trackId);
+      });
+    },
+    [animationTrackIdsByInputId, removeAnimationTrack],
+  );
+  const animationTrackInputContext = useMemo(
+    () => ({
+      active: animationActive,
+      trackedInputIds: trackedAnimationInputIds,
+      onAddTrack: handleAddAnimationTrack,
+      onRemoveTrack: handleRemoveAnimationTrack,
+    }),
+    [
+      animationActive,
+      handleAddAnimationTrack,
+      handleRemoveAnimationTrack,
+      trackedAnimationInputIds,
+    ],
+  );
 
   const selectedMainVariableId = useMemo(() => {
     if (!effectiveSelectedRigId) {
@@ -5708,6 +5816,20 @@ export function VariablesPanel({
                     </span>
                   </div>
                 )}
+                {isInputs && animationActive && (
+                  <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                    <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                      Animation
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-100/90">
+                      Tracks {visibleTrackedAnimationInputCount}/
+                      {visibleTrackableAnimationInputCount}
+                    </span>
+                    <span className="text-[10px] text-text-muted">
+                      Use row actions below to add or remove tracks.
+                    </span>
+                  </div>
+                )}
                 {isPoseGroups && (
                   <div className="flex flex-col gap-2 px-1">
                     <div className="flex flex-wrap items-center gap-1">
@@ -6201,6 +6323,7 @@ export function VariablesPanel({
                           timelineInputLockActive={timelineInputLockActive}
                           timelineLockedInputIds={timelineLockedInputIds}
                           motionGraphContext={motionGraphInputContext}
+                          animationTrackContext={animationTrackInputContext}
                           searchQuery={searchQuery}
                         />
                       ))

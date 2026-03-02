@@ -14,6 +14,7 @@ import type {
   ReferencePoseDefinition,
 } from "../../referenceFace/types";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
+import { useAnimationStore } from "../../state/animationStore";
 import {
   VariablesPanel,
   filterTreeForActiveSurface,
@@ -296,6 +297,7 @@ describe("VariablesPanel", () => {
       customInputPaths: [],
       plotActive: false,
     });
+    useAnimationStore.getState().reset();
   });
 
   afterEach(() => {
@@ -3214,6 +3216,52 @@ describe("VariablesPanel", () => {
 
     expect(useEditorStore.getState().enabledInputs.size).toBe(0);
     expect(useEditorStore.getState().enabledOutputs.size).toBe(0);
+  });
+
+  it("adds and removes animation tracks from input rows", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [{ input: jaw, source: "custom" }];
+    bindingState.standardInputsById = new Map([[jaw.id, jaw]]);
+    bindingState.standardInputsByPath = new Map([[jaw.path, jaw]]);
+    bindingState.inputValues = {
+      [jaw.id]: 0.2,
+    };
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        animationActive
+      />,
+    );
+
+    const search = screen.getByPlaceholderText("Search inputs...");
+    fireEvent.change(search, {
+      target: { value: "jaw open" },
+    });
+
+    expect(screen.getByText("Tracks 0/1")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Animation Track" }),
+    );
+    expect(useAnimationStore.getState().tracks).toHaveLength(1);
+    expect(useAnimationStore.getState().tracks[0]?.variableId).toBe(jaw.id);
+    expect(screen.getByText("Tracks 1/1")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove Animation Track" }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Animation Track" }),
+    );
+    expect(useAnimationStore.getState().tracks).toHaveLength(0);
+    expect(screen.getByText("Tracks 0/1")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Add Animation Track" }),
+    ).toBeTruthy();
   });
 
   it("clears stale blend-stage selection when the backing stage no longer exists", () => {
