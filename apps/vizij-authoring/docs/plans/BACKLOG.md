@@ -905,7 +905,7 @@ Acceptance checks:
 
 Wave sequencing for this block is tracked in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md`.
 
-### [ ] G7.1 Playback Authority Contract Lock
+### [x] G7.1 Playback Authority Contract Lock
 
 Priority and why this should still be done:
 
@@ -927,7 +927,7 @@ Acceptance checks:
 2. Path normalization and namespacing boundaries are explicitly defined.
 3. Baseline playback observability metrics are captured.
 
-### [ ] G7.2 Transport Cutover to Orchestrator
+### [x] G7.2 Transport Cutover to Orchestrator
 
 Priority and why this should still be done:
 
@@ -949,7 +949,7 @@ Acceptance checks:
 2. Legacy local playback path is removed from active runtime flow.
 3. Playback controls are wired to runtime behavior (no no-op transport stubs).
 
-### [ ] G7.3 Clip IR + Compiler Integration
+### [x] G7.3 Clip IR + Compiler Integration
 
 Priority and why this should still be done:
 
@@ -971,7 +971,7 @@ Acceptance checks:
 2. Compile outputs are snapshot-tested and deterministic.
 3. Interpolation mode metadata is honored in compile/runtime behavior.
 
-### [ ] G7.4 Bundle Export/Import Round-Trip for Authored Clips
+### [x] G7.4 Bundle Export/Import Round-Trip for Authored Clips
 
 Priority and why this should still be done:
 
@@ -993,7 +993,7 @@ Acceptance checks:
 2. Bundle includes authored animation payload (not only inherited clips).
 3. Round-trip tests are green.
 
-### [ ] G7.5 Runtime Lifecycle Decoupling from Panel Visibility
+### [x] G7.5 Runtime Lifecycle Decoupling from Panel Visibility
 
 Priority and why this should still be done:
 
@@ -1015,7 +1015,7 @@ Acceptance checks:
 2. Runtime registration lifecycles are panel-independent.
 3. No regression in motion-graph editing workflows.
 
-### [ ] G7.6 Deterministic Timeline Editing Semantics
+### [x] G7.6 Deterministic Timeline Editing Semantics
 
 Priority and why this should still be done:
 

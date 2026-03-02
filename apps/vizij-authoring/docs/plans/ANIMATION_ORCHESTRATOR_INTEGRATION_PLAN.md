@@ -1,11 +1,19 @@
 # Animation + Orchestrator Integration Plan
 
-Last updated: 2026-03-01
-Status: `planned-wave-execution`
+Last updated: 2026-03-02
+Status: `g7-implemented`
 
 ## Objective
 
 Make animation authoring and playback in `vizij-authoring` runtime-truthful and non-hacky by using the orchestrator as the single playback authority.
+
+## G7 Delivery Status (2026-03-02)
+
+1. Runtime-authoritative timeline transport is landed (`play/pause/seek/stop/loop/speed/step`) and panel-local RAF playback authority is removed.
+2. Deterministic `AnimationClipIR` contracts + compiler path are landed with deterministic IDs/order and keyframe dedupe semantics.
+3. Runtime interpolation support for `linear`, `step`, and `cubic` (Hermite with tangent fallback) is landed in `@vizij/runtime-react`.
+4. Authored clip export/import round-trip through existing bundle `animations[]` is landed with canonical authored clip conflict hard-error behavior.
+5. Runtime transport lifecycle for authored timeline is decoupled from timeline panel visibility via an always-mounted runtime bridge.
 
 ## Why This Plan Exists
 

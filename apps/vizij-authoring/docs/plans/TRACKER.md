@@ -1,6 +1,6 @@
 # Vizij Authoring Tracker
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 
@@ -16,7 +16,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 8. Import Migration Plan integration remains tracked as Block `F5.*` in `plans/BACKLOG.md` with dependency-ordered execution and quality-gate linkage (`QL0.*`, `QL2.*`).
 9. Pose Group + Stage Inspector sprint has started with commit-sized `S0`-`S7` execution tracking in `plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN.md` (scope: scoped neutral authoring + stage inspector + composition-output analysis).
 10. Reference-face reliability tranche `R6.1`-`R6.4` is complete (path-first staging, legacy pose-control bridge compatibility, export guardrails, and reset normalization); `R6.5` remains open for perf thresholds + session audit logging.
-11. Animation/orchestrator unification lane (`G7.*`) is now the lead implementation priority, tracked by wave plan in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md`.
+11. Animation/orchestrator unification lane (`G7.*`) is implemented end-to-end on the authoring/runtime path (runtime-authoritative transport, deterministic IR/compiler, interpolation, and export/import round-trip).
 12. Workspace clarity lane (`U8.*`) is planned, including motion graph sidebar migration and graph-first workspace reclaim.
 13. Sample asset standardization lane (`V9.*`) is planned for Quori/Hugo/Toasty + Vizij standard-rig coverage.
 14. Speech/viseme extension lane (`P10.*`, Amazon Polly) is captured as the top post-core backlog lane.
@@ -60,12 +60,12 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | R6.3  | done    | P0       | Export/compiler wiring now includes pose compose targets and blocks fallback bundled exports lacking `RobotData`.                                                       |
 | R6.4  | done    | P0       | Reset logic now clears override-enabled state and reapplies deterministic defaults across reference drivers + poses.                                                    |
 | R6.5  | planned | P1       | Publish dual-face perf thresholds and add structured copy-session audit summaries for workflow signoff.                                                                 |
-| G7.1  | planned | P0       | Lock orchestrator-authoritative playback contract and baseline observability for animation authoring.                                                                   |
-| G7.2  | planned | P0       | Cut over timeline playback transport to orchestrator path and remove local-authority playback path.                                                                     |
-| G7.3  | planned | P0       | Add deterministic `AnimationClipIR` + compiler integration into orchestrator animation sources.                                                                         |
-| G7.4  | planned | P0       | Round-trip authored animation clips through bundle export/import.                                                                                                       |
-| G7.5  | planned | P1       | Decouple runtime graph lifecycle from panel visibility toggles.                                                                                                         |
-| G7.6  | planned | P1       | Remove nondeterministic timeline internals and hardcoded layout assumptions.                                                                                            |
+| G7.1  | done    | P0       | Contract lock landed with canonical authored clip identity/metadata and explicit runtime-authoritative transport behavior in authoring/runtime seams.                   |
+| G7.2  | done    | P0       | Timeline controls now route through runtime transport (`play/pause/seek/stop/loop/speed/step`) and local RAF authority is removed from the panel.                       |
+| G7.3  | done    | P0       | Deterministic `AnimationClipIR` compile path + runtime interpolation (`linear`/`step`/`cubic`) is implemented and validated with deterministic tests.                   |
+| G7.4  | done    | P0       | Authored clip round-trip through `animations[]` is landed with canonical-id replacement and hard-error conflict handling for non-authored canonical collisions.         |
+| G7.5  | done    | P1       | Runtime transport bridge is mounted in runtime viewer scope so timeline transport state/playback remains panel-visibility independent.                                  |
+| G7.6  | done    | P1       | Deterministic timeline IDs/order + deterministic compile snapshots are in place; lock semantics for tracked channels are enforced during active transport.              |
 | U8.1  | planned | P0       | Move motion graph panes into sidebar surfaces with consistent authoring-panel semantics.                                                                                |
 | U8.2  | planned | P0       | Reclaim graph workspace area where reference-face pane currently sits in graph-focused mode.                                                                            |
 | U8.3  | planned | P1       | Execute cross-pane visual consistency pass for dense authoring flows.                                                                                                   |
