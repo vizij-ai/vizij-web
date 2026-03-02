@@ -12,7 +12,7 @@
     "validate": "pnpm run lint && pnpm run typecheck && pnpm run test",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
-    "test": "vitest --run --passWithNoTests",
+    "test": "NODE_ENV=test vitest --run --passWithNoTests",
     "test:e2e": "playwright test --config=playwright.config.ts",
     "perf:inputs-baseline": "VIZIJ_CAPTURE_PERF=1 vitest --run src/components/panels/VariablesPanel.perf.test.tsx --reporter=verbose",
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",

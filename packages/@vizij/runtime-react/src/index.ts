@@ -1,6 +1,7 @@
 export { VizijRuntimeProvider } from "./VizijRuntimeProvider";
 export { VizijRuntimeFace } from "./VizijRuntimeFace";
 export { useVizijRuntime } from "./hooks/useVizijRuntime";
+export { useOptionalVizijRuntime } from "./hooks/useOptionalVizijRuntime";
 export { useVizijOutputs } from "./hooks/useVizijOutputs";
 export { useRigInput } from "./hooks/useRigInput";
 export { resolveRuntimeUpdatePlan } from "./updatePolicy";
