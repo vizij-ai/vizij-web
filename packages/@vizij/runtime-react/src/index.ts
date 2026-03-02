@@ -20,6 +20,7 @@ export type {
   VizijRuntimeStatus,
   AnimateValueOptions,
   PlayAnimationOptions,
+  AnimationPlaybackState,
   InputDriverFactory,
   InputDriverLifecycle,
   InputDriverContext,

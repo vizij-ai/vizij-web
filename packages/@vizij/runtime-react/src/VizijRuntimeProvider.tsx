@@ -43,6 +43,7 @@ import {
 } from "./updatePolicy";
 import type {
   AnimateValueOptions,
+  AnimationPlaybackState,
   InputDriverFactory,
   InputDriverLifecycle,
   PlayAnimationOptions,
@@ -64,6 +65,13 @@ import {
   collectInputPaths,
   collectOutputPaths,
 } from "./utils/graph";
+import {
+  advanceClipTime,
+  clampAnimationTime,
+  resolveClipDurationSeconds,
+  resolveTrackInputPath,
+  sampleClipAtTime,
+} from "./utils/clipPlayback";
 import { valueJSONToRaw } from "./utils/valueConversion";
 import type { VizijInputMetadata } from "./types";
 
@@ -85,7 +93,10 @@ type ClipPlaybackState = {
   duration: number;
   speed: number;
   weight: number;
-  resolve: () => void;
+  loop: boolean;
+  playing: boolean;
+  resolve: (() => void) | null;
+  completion: Promise<void> | null;
 };
 
 type LoopMode = "active" | "idle-visible" | "idle-hidden" | "stopped";
@@ -542,6 +553,7 @@ type ExtractedAnimationTrack = {
   component?: string;
   componentIndex?: number | string;
   valueSize?: number | string;
+  interpolation?: unknown;
   times?: unknown;
   values?: unknown;
 };
@@ -630,7 +642,22 @@ function convertExtractedAnimations(
         Number.isFinite(parsedValueSize) && parsedValueSize > 0
           ? parsedValueSize
           : 1;
-      if (values.length !== times.length * valueSize) {
+      const interpolationRaw =
+        typeof track.interpolation === "string"
+          ? track.interpolation.trim().toLowerCase()
+          : "linear";
+      const interpolation: AnimationTrackLike["interpolation"] =
+        interpolationRaw === "step"
+          ? "step"
+          : interpolationRaw === "cubic" || interpolationRaw === "cubicspline"
+            ? "cubic"
+            : "linear";
+      const isCubic = interpolation === "cubic";
+
+      const hasTripletTangents =
+        isCubic && values.length === times.length * valueSize * 3;
+      const hasFlatValues = values.length === times.length * valueSize;
+      if (!hasTripletTangents && !hasFlatValues) {
         return;
       }
 
@@ -643,12 +670,32 @@ function convertExtractedAnimations(
 
       const keyframes: AnimationKeyframeLike[] = [];
       times.forEach((time, index) => {
-        const base = index * valueSize + componentIndex;
-        const value = values[base];
+        const flatBase = index * valueSize + componentIndex;
+        const valueBase = hasTripletTangents
+          ? index * valueSize * 3 + valueSize + componentIndex
+          : flatBase;
+        const value = values[valueBase];
         if (!Number.isFinite(value)) {
           return;
         }
-        keyframes.push({ time, value });
+        const keyframe: AnimationKeyframeLike = {
+          time,
+          value,
+        };
+        if (hasTripletTangents) {
+          const inBase = index * valueSize * 3 + componentIndex;
+          const outBase =
+            index * valueSize * 3 + valueSize * 2 + componentIndex;
+          const inTangent = values[inBase];
+          const outTangent = values[outBase];
+          if (Number.isFinite(inTangent)) {
+            keyframe.inTangent = inTangent;
+          }
+          if (Number.isFinite(outTangent)) {
+            keyframe.outTangent = outTangent;
+          }
+        }
+        keyframes.push(keyframe);
       });
 
       if (keyframes.length === 0) {
@@ -658,6 +705,7 @@ function convertExtractedAnimations(
       convertedTracks.push({
         channel: channelId,
         keyframes,
+        interpolation,
       });
     });
 
@@ -852,6 +900,83 @@ function mergeAssetBundle(
   merged.bundle = resolvedBundle;
 
   return merged;
+}
+
+function buildAnimationBridgeGraphConfig(
+  animation: VizijAnimationAsset,
+  namespace: string,
+): GraphRegistrationConfig | null {
+  const rawTracks = Array.isArray(animation.clip?.tracks)
+    ? (animation.clip.tracks as AnimationTrackLike[])
+    : [];
+  if (rawTracks.length === 0) {
+    return null;
+  }
+
+  const channels = Array.from(
+    new Set(
+      rawTracks
+        .map((track) =>
+          typeof track.channel === "string"
+            ? track.channel.trim().replace(/^\/+/, "")
+            : "",
+        )
+        .filter((channel) => channel.length > 0),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+
+  if (channels.length === 0) {
+    return null;
+  }
+
+  const nodes: GraphNodeSpec[] = [];
+  const inputs: string[] = [];
+  const outputs: string[] = [];
+
+  channels.forEach((channel, index) => {
+    const inputNodeId = `anim_in_${index.toString().padStart(4, "0")}`;
+    const outputNodeId = `anim_out_${index.toString().padStart(4, "0")}`;
+    const animationPath = `animation/${animation.id}/${channel}`;
+    inputs.push(animationPath);
+    outputs.push(channel);
+    nodes.push({
+      id: inputNodeId,
+      type: "input",
+      params: {
+        path: animationPath,
+        value: { float: 0 },
+      },
+    } as GraphNodeSpec);
+    nodes.push({
+      id: outputNodeId,
+      type: "output",
+      params: {
+        path: channel,
+      },
+      inputs: {
+        in: inputNodeId,
+      },
+    } as GraphNodeSpec);
+  });
+
+  return {
+    id: namespaceControllerId(
+      `animation-bridge-${animation.id}`,
+      namespace,
+      "graph",
+    ),
+    spec: {
+      nodes,
+      edges: [],
+    },
+    subs: namespaceSubscriptions(
+      {
+        inputs,
+        outputs,
+      },
+      namespace,
+    ),
+  } satisfies GraphRegistrationConfig;
 }
 
 export function VizijRuntimeProvider({
@@ -1128,9 +1253,15 @@ function VizijRuntimeProviderInner({
   }, []);
 
   const hasActiveAnimations = useCallback(() => {
-    return (
-      animationTweensRef.current.size > 0 || clipPlaybackRef.current.size > 0
-    );
+    if (animationTweensRef.current.size > 0) {
+      return true;
+    }
+    for (const state of clipPlaybackRef.current.values()) {
+      if (state.playing) {
+        return true;
+      }
+    }
+    return false;
   }, []);
 
   const computeDesiredLoopMode = useCallback((): LoopMode => {
@@ -1477,6 +1608,24 @@ function VizijRuntimeProviderInner({
       }
     }
 
+    for (const animation of assetBundle.animations ?? []) {
+      const bridgeConfig = buildAnimationBridgeGraphConfig(
+        animation,
+        namespace,
+      );
+      if (!bridgeConfig) {
+        continue;
+      }
+      graphConfigs.push(bridgeConfig);
+      const bridgeOutputs =
+        bridgeConfig.subs && Array.isArray(bridgeConfig.subs.outputs)
+          ? bridgeConfig.subs.outputs.map((path) =>
+              stripNamespace(path, namespace),
+            )
+          : [];
+      recordOutputs(bridgeOutputs);
+    }
+
     outputPathsRef.current = namespacedOutputPaths;
     baseOutputPathsRef.current = baseOutputPaths;
     namespacedOutputPathsRef.current = namespacedOutputPaths;
@@ -1766,36 +1915,126 @@ function VizijRuntimeProviderInner({
     [setInput],
   );
 
-  const sampleTrack = useCallback(
-    (track: AnimationTrackLike, time: number): number => {
-      const keyframes = Array.isArray(track.keyframes) ? track.keyframes : [];
-      if (!keyframes.length) {
-        return 0;
+  const resolveClipById = useCallback(
+    (id: string): VizijAnimationAsset | undefined => {
+      return assetBundle.animations?.find((anim) => anim.id === id);
+    },
+    [assetBundle.animations],
+  );
+
+  const resolveClipPromise = useCallback((state: ClipPlaybackState) => {
+    state.resolve?.();
+    state.resolve = null;
+    state.completion = null;
+  }, []);
+
+  const ensureClipPromise = useCallback((state: ClipPlaybackState) => {
+    if (state.completion) {
+      return state.completion;
+    }
+    const completion = new Promise<void>((resolve) => {
+      state.resolve = resolve;
+    });
+    state.completion = completion;
+    return completion;
+  }, []);
+
+  const setAnimationInput = useCallback(
+    (path: string, value: number, options?: { immediate?: boolean }) => {
+      setInput(path, { float: value });
+      if (!options?.immediate) {
+        return;
       }
-      const first = keyframes[0];
-      if (!first) {
-        return 0;
+      const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
+      const staged = stagedInputsRef.current.get(namespacedPath);
+      if (staged) {
+        orchestratorSetInput(namespacedPath, staged.value, staged.shape);
+        stagedInputsRef.current.delete(namespacedPath);
+        return;
       }
-      if (time <= Number(first.time ?? 0)) {
-        return Number(first.value ?? 0);
-      }
-      for (let i = 0; i < keyframes.length - 1; i += 1) {
-        const current = keyframes[i] ?? {};
-        const next = keyframes[i + 1] ?? {};
-        const start = Number(current.time ?? 0);
-        const end = Number(next.time ?? start);
-        if (time >= start && time <= end) {
-          const range = end - start || 1;
-          const factor = (time - start) / range;
-          const currentValue = Number(current.value ?? 0);
-          const nextValue = Number(next.value ?? currentValue);
-          return currentValue + (nextValue - currentValue) * factor;
+      orchestratorSetInput(namespacedPath, { float: value });
+    },
+    [orchestratorSetInput, setInput],
+  );
+
+  const writeClipOutputs = useCallback(
+    (
+      clip: VizijAnimationAsset,
+      state: ClipPlaybackState,
+      options?: { immediate?: boolean },
+    ) => {
+      const samples = sampleClipAtTime(
+        clip.id,
+        clip.clip as AnimationClipLike,
+        state.time,
+        state.weight,
+      );
+      samples.forEach((sample) => {
+        setAnimationInput(sample.path, sample.value, options);
+      });
+    },
+    [setAnimationInput],
+  );
+
+  const clearClipOutputs = useCallback(
+    (clip: VizijAnimationAsset) => {
+      const clipData: AnimationClipLike = clip.clip;
+      const tracks = Array.isArray(clipData?.tracks)
+        ? (clipData.tracks as AnimationTrackLike[])
+        : [];
+      tracks.forEach((track) => {
+        const path = resolveTrackInputPath(clip.id, track);
+        if (!path) {
+          return;
         }
-      }
-      const last = keyframes[keyframes.length - 1];
-      return Number(last?.value ?? 0);
+        setInput(path, { float: 0 });
+      });
+    },
+    [setInput],
+  );
+
+  const createClipPlaybackState = useCallback(
+    (clip: VizijAnimationAsset): ClipPlaybackState => {
+      const duration = resolveClipDurationSeconds(
+        clip.clip as AnimationClipLike,
+      );
+      return {
+        id: clip.id,
+        time: 0,
+        duration,
+        speed: 1,
+        weight: Number.isFinite(clip.weight) ? Number(clip.weight) : 1,
+        loop: false,
+        playing: false,
+        resolve: null,
+        completion: null,
+      };
     },
     [],
+  );
+
+  const ensureClipPlaybackState = useCallback(
+    (
+      id: string,
+    ): { clip: VizijAnimationAsset; state: ClipPlaybackState } | null => {
+      const clip = resolveClipById(id);
+      if (!clip) {
+        return null;
+      }
+      const existing = clipPlaybackRef.current.get(id);
+      if (existing) {
+        existing.duration = resolveClipDurationSeconds(
+          clip.clip as AnimationClipLike,
+          existing.duration,
+        );
+        existing.time = clampAnimationTime(existing.time, existing.duration);
+        return { clip, state: existing };
+      }
+      const next = createClipPlaybackState(clip);
+      clipPlaybackRef.current.set(id, next);
+      return { clip, state: next };
+    },
+    [createClipPlaybackState, resolveClipById],
   );
 
   const advanceClipPlayback = useCallback(
@@ -1803,54 +2042,51 @@ function VizijRuntimeProviderInner({
       if (clipPlaybackRef.current.size === 0) {
         return;
       }
-      const map = clipPlaybackRef.current;
       const toDelete: string[] = [];
-      map.forEach((state, key) => {
-        state.time += dt * state.speed;
-        const clip = assetBundle.animations?.find(
-          (anim) => anim.id === state.id,
-        );
+      clipPlaybackRef.current.forEach((state, key) => {
+        const clip = resolveClipById(state.id);
         if (!clip) {
           toDelete.push(key);
-          state.resolve();
+          resolveClipPromise(state);
           return;
         }
-        const clipData: AnimationClipLike = clip.clip;
-        const duration = Number(clipData?.duration ?? state.duration);
-        state.duration =
-          Number.isFinite(duration) && duration > 0 ? duration : state.duration;
-        if (state.time >= state.duration) {
-          toDelete.push(key);
-          state.time = state.duration;
+
+        state.duration = resolveClipDurationSeconds(
+          clip.clip as AnimationClipLike,
+          state.duration,
+        );
+
+        const { time, completed } = advanceClipTime(
+          {
+            time: state.time,
+            duration: state.duration,
+            speed: state.speed,
+            loop: state.loop,
+            playing: state.playing,
+          },
+          dt,
+        );
+        state.time = clampAnimationTime(time, state.duration);
+
+        if (state.playing || completed) {
+          writeClipOutputs(clip, state);
         }
-        const tracks = Array.isArray(clipData?.tracks)
-          ? (clipData.tracks as AnimationTrackLike[])
-          : [];
-        tracks.forEach((track) => {
-          const value = sampleTrack(track, state.time) * state.weight;
-          const path = `animation/${clip.id}/${track.channel}`;
-          setInput(path, { float: value });
-        });
-        if (toDelete.includes(key)) {
-          state.resolve();
+
+        if (completed) {
+          toDelete.push(key);
+          resolveClipPromise(state);
         }
       });
+
       toDelete.forEach((key) => {
         clipPlaybackRef.current.delete(key);
-        const clip = assetBundle.animations?.find((anim) => anim.id === key);
+        const clip = resolveClipById(key);
         if (clip) {
-          const clipData: AnimationClipLike = clip.clip;
-          const tracks = Array.isArray(clipData?.tracks)
-            ? (clipData.tracks as AnimationTrackLike[])
-            : [];
-          tracks.forEach((track) => {
-            const path = `animation/${clip.id}/${track.channel}`;
-            setInput(path, { float: 0 });
-          });
+          clearClipOutputs(clip);
         }
       });
     },
-    [assetBundle.animations, sampleTrack, setInput],
+    [clearClipOutputs, resolveClipById, resolveClipPromise, writeClipOutputs],
   );
 
   const animateValue = useCallback(
@@ -1887,53 +2123,115 @@ function VizijRuntimeProviderInner({
 
   const playAnimation = useCallback(
     (id: string, options?: PlayAnimationOptions) => {
-      const clip = assetBundle.animations?.find((anim) => anim.id === id);
-      if (!clip) {
+      const ensured = ensureClipPlaybackState(id);
+      if (!ensured) {
         return Promise.reject(
           new Error(`Animation ${id} is not part of the current asset bundle.`),
         );
       }
-      if (clipPlaybackRef.current.has(id)) {
-        clipPlaybackRef.current.delete(id);
+      const { clip, state } = ensured;
+      const shouldResume = !state.playing && !options?.reset;
+      if (!shouldResume) {
+        resolveClipPromise(state);
+        state.time = 0;
       }
-      return new Promise<void>((resolve) => {
-        const speed = options?.speed ?? 1;
-        const weight = options?.weight ?? clip.weight ?? 1;
-        const clipData: AnimationClipLike = clip.clip;
-        clipPlaybackRef.current.set(id, {
-          id,
-          time: options?.reset ? 0 : 0,
-          duration: Number(clipData?.duration ?? 0),
-          speed: Number.isFinite(speed) && speed > 0 ? speed : 1,
-          weight,
-          resolve,
-        });
-        markActivity();
-      });
+      const speed = options?.speed ?? state.speed ?? 1;
+      const weight = options?.weight ?? state.weight ?? clip.weight ?? 1;
+      state.speed = Number.isFinite(speed) && speed > 0 ? speed : 1;
+      state.weight = Number.isFinite(weight) ? Number(weight) : 1;
+      state.duration = resolveClipDurationSeconds(
+        clip.clip as AnimationClipLike,
+        state.duration,
+      );
+      state.time = clampAnimationTime(state.time, state.duration);
+      state.playing = true;
+
+      const completion = ensureClipPromise(state);
+      clipPlaybackRef.current.set(id, state);
+      writeClipOutputs(clip, state);
+      markActivity();
+      return completion;
     },
-    [assetBundle.animations, markActivity],
+    [
+      ensureClipPlaybackState,
+      ensureClipPromise,
+      markActivity,
+      resolveClipPromise,
+      writeClipOutputs,
+    ],
+  );
+
+  const pauseAnimation = useCallback(
+    (id: string) => {
+      const state = clipPlaybackRef.current.get(id);
+      if (!state || !state.playing) {
+        return;
+      }
+      state.playing = false;
+      updateLoopMode();
+    },
+    [updateLoopMode],
+  );
+
+  const seekAnimation = useCallback(
+    (id: string, timeSeconds: number) => {
+      const ensured = ensureClipPlaybackState(id);
+      if (!ensured) {
+        return;
+      }
+      const { clip, state } = ensured;
+      state.time = clampAnimationTime(timeSeconds, state.duration);
+      clipPlaybackRef.current.set(id, state);
+      writeClipOutputs(clip, state, { immediate: true });
+    },
+    [ensureClipPlaybackState, writeClipOutputs],
+  );
+
+  const setAnimationLoop = useCallback(
+    (id: string, enabled: boolean) => {
+      const ensured = ensureClipPlaybackState(id);
+      if (!ensured) {
+        return;
+      }
+      ensured.state.loop = Boolean(enabled);
+      clipPlaybackRef.current.set(id, ensured.state);
+      updateLoopMode();
+    },
+    [ensureClipPlaybackState, updateLoopMode],
+  );
+
+  const getAnimationState = useCallback(
+    (id: string): AnimationPlaybackState | null => {
+      const state = clipPlaybackRef.current.get(id);
+      if (!state) {
+        return null;
+      }
+      return {
+        time: state.time,
+        duration: state.duration,
+        playing: state.playing,
+        loop: state.loop,
+        speed: state.speed,
+      };
+    },
+    [],
   );
 
   const stopAnimation = useCallback(
     (id: string) => {
-      const clip = assetBundle.animations?.find((anim) => anim.id === id);
+      const clip = resolveClipById(id);
       const state = clipPlaybackRef.current.get(id);
       if (state) {
         clipPlaybackRef.current.delete(id);
-        state.resolve();
+        state.playing = false;
+        resolveClipPromise(state);
       }
       if (clip) {
-        const clipData: AnimationClipLike = clip.clip;
-        const tracks = Array.isArray(clipData?.tracks)
-          ? (clipData.tracks as AnimationTrackLike[])
-          : [];
-        tracks.forEach((track) => {
-          const path = `animation/${clip.id}/${track.channel}`;
-          setInput(path, { float: 0 });
-        });
+        clearClipOutputs(clip);
       }
+      updateLoopMode();
     },
-    [assetBundle.animations, setInput],
+    [clearClipOutputs, resolveClipById, resolveClipPromise, updateLoopMode],
   );
 
   const registerInputDriver = useCallback(
@@ -2113,6 +2411,10 @@ function VizijRuntimeProviderInner({
         bundle,
         "pose",
       );
+      const hasAnimationsOverride = Object.prototype.hasOwnProperty.call(
+        bundle,
+        "animations",
+      );
       const nextAssetBundle: VizijAssetBundle = {
         ...effectiveAssetBundle,
       };
@@ -2131,6 +2433,12 @@ function VizijRuntimeProviderInner({
         } else {
           delete nextAssetBundle.pose;
         }
+      }
+
+      if (hasAnimationsOverride) {
+        nextAssetBundle.animations = Array.isArray(bundle.animations)
+          ? bundle.animations
+          : undefined;
       }
 
       const plan = resolveRuntimeUpdatePlan(
@@ -2172,6 +2480,10 @@ function VizijRuntimeProviderInner({
       cancelAnimation,
       registerInputDriver,
       playAnimation,
+      pauseAnimation,
+      seekAnimation,
+      setAnimationLoop,
+      getAnimationState,
       stopAnimation,
       step,
       advanceAnimations,
@@ -2188,6 +2500,10 @@ function VizijRuntimeProviderInner({
       cancelAnimation,
       registerInputDriver,
       playAnimation,
+      pauseAnimation,
+      seekAnimation,
+      setAnimationLoop,
+      getAnimationState,
       stopAnimation,
       step,
       advanceAnimations,

@@ -95,11 +95,16 @@ export type VizijInputMetadata = {
 export type AnimationKeyframeLike = {
   time?: number;
   value?: number;
+  inTangent?: number | null;
+  outTangent?: number | null;
+  [key: string]: unknown;
 };
 
 export type AnimationTrackLike = {
   channel: string;
   keyframes?: AnimationKeyframeLike[];
+  interpolation?: "linear" | "step" | "cubic" | string;
+  [key: string]: unknown;
 };
 
 export type AnimationClipLike = {
@@ -183,6 +188,14 @@ export type PlayAnimationOptions = {
   reset?: boolean;
 };
 
+export type AnimationPlaybackState = {
+  time: number;
+  duration: number;
+  playing: boolean;
+  loop: boolean;
+  speed: number;
+};
+
 export type InputDriverLifecycle = {
   start: () => void;
   stop: () => void;
@@ -219,10 +232,7 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   assetBundle: VizijAssetBundle;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   setGraphBundle: (
-    bundle: {
-      rig?: VizijGraphAsset;
-      pose?: VizijAssetBundle["pose"];
-    },
+    bundle: RuntimeGraphBundle,
     options?: { tier?: "auto" | "assets" | "graphs" },
   ) => void;
   setValue: (
@@ -242,6 +252,10 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
     factory: InputDriverFactory,
   ) => InputDriverLifecycle;
   playAnimation: (id: string, options?: PlayAnimationOptions) => Promise<void>;
+  pauseAnimation: (id: string) => void;
+  seekAnimation: (id: string, timeSeconds: number) => void;
+  setAnimationLoop: (id: string, enabled: boolean) => void;
+  getAnimationState: (id: string) => AnimationPlaybackState | null;
   stopAnimation: (id: string) => void;
   step: (dt: number, opts?: { forceRuntime?: boolean }) => void;
   advanceAnimations: (dt: number) => void;
@@ -280,4 +294,5 @@ export type RuntimeUpdatePlan = {
 export type RuntimeGraphBundle = {
   rig?: VizijGraphAsset;
   pose?: VizijAssetBundle["pose"];
+  animations?: VizijAnimationAsset[];
 };

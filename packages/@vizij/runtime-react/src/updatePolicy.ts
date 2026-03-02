@@ -49,6 +49,25 @@ function poseSignature(pose?: VizijAssetBundle["pose"]): string {
   return `${graphPart}:${configPart}`;
 }
 
+function animationsSignature(
+  animations?: VizijAssetBundle["animations"],
+): string {
+  if (!Array.isArray(animations) || animations.length === 0) {
+    return "";
+  }
+  return animations
+    .map((animation) => {
+      const id = animation.id ?? "";
+      const clipSignature = normalizeSpecPayload(animation.clip ?? null);
+      const setupSignature = normalizeSpecPayload(animation.setup ?? null);
+      const weightSignature =
+        animation.weight == null ? "" : String(animation.weight);
+      return `${id}:${clipSignature}:${setupSignature}:${weightSignature}`;
+    })
+    .sort()
+    .join("|");
+}
+
 export function resolveRuntimeUpdatePlan(
   previous: VizijAssetBundle | null,
   next: VizijAssetBundle,
@@ -71,6 +90,10 @@ export function resolveRuntimeUpdatePlan(
     previous.pose?.config !== next.pose?.config;
   const graphsChanged =
     rigChanged || poseChanged || rigReferenceChanged || poseReferenceChanged;
+  const animationsChanged =
+    animationsSignature(previous.animations) !==
+    animationsSignature(next.animations);
+  const controllersChanged = graphsChanged || animationsChanged;
 
   if (tier === "assets") {
     return { reloadAssets: true, reregisterGraphs: false };
@@ -80,13 +103,13 @@ export function resolveRuntimeUpdatePlan(
     if (glbChanged) {
       return { reloadAssets: true, reregisterGraphs: false };
     }
-    return { reloadAssets: false, reregisterGraphs: graphsChanged };
+    return { reloadAssets: false, reregisterGraphs: controllersChanged };
   }
 
   if (glbChanged) {
     return { reloadAssets: true, reregisterGraphs: false };
   }
-  if (graphsChanged) {
+  if (controllersChanged) {
     return { reloadAssets: false, reregisterGraphs: true };
   }
   return { reloadAssets: false, reregisterGraphs: false };

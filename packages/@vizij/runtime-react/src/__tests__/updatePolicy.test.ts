@@ -104,4 +104,50 @@ describe("resolveRuntimeUpdatePlan", () => {
     expect(plan.reloadAssets).toBe(false);
     expect(plan.reregisterGraphs).toBe(true);
   });
+
+  it("treats animation payload changes as graph re-registration in graphs mode", () => {
+    const prev = makeBundle({
+      animations: [
+        {
+          id: "authoring.timeline.main",
+          clip: {
+            id: "authoring.timeline.main",
+            duration: 1,
+            tracks: [
+              {
+                channel: "controls/jaw/open",
+                keyframes: [
+                  { time: 0, value: 0 },
+                  { time: 1, value: 1 },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const next = makeBundle({
+      animations: [
+        {
+          id: "authoring.timeline.main",
+          clip: {
+            id: "authoring.timeline.main",
+            duration: 2,
+            tracks: [
+              {
+                channel: "controls/jaw/open",
+                keyframes: [
+                  { time: 0, value: 0 },
+                  { time: 2, value: 1 },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(true);
+  });
 });
