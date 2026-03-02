@@ -473,9 +473,9 @@ describe("VariablesPanel", () => {
     ]);
 
     const view = render(<VariablesPanel />);
-    fireEvent.click(within(view.container).getByText("Auto (0)"));
-    fireEvent.click(within(view.container).getByText("Preset (0)"));
-    fireEvent.click(within(view.container).getByText("Custom (0)"));
+    fireEvent.click(within(view.container).getByText(/^Auto \(\d+\)$/));
+    fireEvent.click(within(view.container).getByText(/^Preset \(\d+\)$/));
+    fireEvent.click(within(view.container).getByText(/^Custom \(\d+\)$/));
     fireEvent.change(
       within(view.container).getByPlaceholderText("Search drivers..."),
       {
@@ -518,8 +518,10 @@ describe("VariablesPanel", () => {
     ]);
 
     const view = render(<VariablesPanel />);
-    fireEvent.click(within(view.container).getByText("Custom (1)"));
-    fireEvent.click(within(view.container).getByText("Reference (1)"));
+    fireEvent.click(within(view.container).getByText(/^Custom \(\d+\)$/));
+    fireEvent.click(
+      within(view.container).getByText(/^Reference Face \(\d+\)$/),
+    );
     fireEvent.change(
       within(view.container).getByPlaceholderText("Search drivers..."),
       {
@@ -907,12 +909,15 @@ describe("VariablesPanel", () => {
       .mockImplementationOnce(() => createdC);
 
     const view = render(<VariablesPanel />);
-    fireEvent.click(within(view.container).getByTitle(/Reference Face/));
-
-    const bulkCheckboxes = screen.getAllByRole("checkbox", { name: "Bulk" });
-    fireEvent.click(bulkCheckboxes[0]!);
-    fireEvent.click(bulkCheckboxes[1]!);
-    fireEvent.click(bulkCheckboxes[2]!);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/" },
+      },
+    );
+    screen
+      .getAllByRole("checkbox", { name: "Bulk" })
+      .forEach((checkbox) => fireEvent.click(checkbox));
 
     fireEvent.click(screen.getByRole("button", { name: "Copy Ref (3)" }));
     expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
@@ -996,10 +1001,15 @@ describe("VariablesPanel", () => {
     });
 
     const view = render(<VariablesPanel />);
-    fireEvent.click(within(view.container).getByTitle(/Reference Face/));
-    const bulkCheckboxes = screen.getAllByRole("checkbox", { name: "Bulk" });
-    fireEvent.click(bulkCheckboxes[0]!);
-    fireEvent.click(bulkCheckboxes[1]!);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/" },
+      },
+    );
+    screen
+      .getAllByRole("checkbox", { name: "Bulk" })
+      .forEach((checkbox) => fireEvent.click(checkbox));
     fireEvent.click(screen.getByRole("button", { name: "Copy Ref (2)" }));
 
     expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledTimes(
@@ -1072,16 +1082,15 @@ describe("VariablesPanel", () => {
       ];
     });
 
-    const view = render(
+    render(
       <VariablesPanel
         availableSurfaces={["poses"]}
         activeSurfaceOverride="poses"
       />,
     );
-    fireEvent.click(within(view.container).getByTitle("Reference Face"));
-    const bulkCheckboxes = screen.getAllByRole("checkbox", { name: "Bulk" });
-    fireEvent.click(bulkCheckboxes[0]!);
-    fireEvent.click(bulkCheckboxes[1]!);
+    screen
+      .getAllByRole("checkbox", { name: "Bulk" })
+      .forEach((checkbox) => fireEvent.click(checkbox));
     fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (2)" }));
 
     expect(screen.queryByText("Pose Copy Mapping")).toBeNull();
@@ -1794,7 +1803,6 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(within(view.container).getByTitle("Reference Face"));
     fireEvent.click(
       within(view.container).getByTitle("Copy pose to main face"),
     );
@@ -1859,7 +1867,6 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(within(view.container).getByTitle("Reference Face"));
     fireEvent.click(
       within(view.container).getByTitle("Copy pose to main face"),
     );
@@ -1920,7 +1927,6 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(within(view.container).getByTitle("Reference Face"));
     fireEvent.click(
       within(view.container).getByTitle("Copy pose to main face"),
     );
@@ -1968,7 +1974,6 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(within(view.container).getByTitle("Reference Face"));
     fireEvent.click(
       within(view.container).getByTitle("Copy pose to main face"),
     );
@@ -2025,7 +2030,6 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(within(view.container).getByTitle("Reference Face"));
     fireEvent.click(
       within(view.container).getByTitle("Copy pose to main face"),
     );

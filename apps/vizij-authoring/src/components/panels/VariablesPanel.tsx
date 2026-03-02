@@ -1762,14 +1762,20 @@ function TreeRowWrapper({
     node.type === "rig" ? (node.data as RigNodeData | undefined) : undefined;
   const isReferencePoseNode = poseNodeData?.source === "reference";
   const isReferenceRigNode = rigNodeData?.source === "reference";
+  const isSharedRigNode = rigNodeData?.source === "shared";
   const referencePoseId = isReferencePoseNode ? poseNodeData?.pose.id : null;
   const referenceRigInputId = isReferenceRigNode ? rigNodeData?.input.id : null;
+  const sharedRigReferenceInputId = isSharedRigNode
+    ? (rigNodeData?.linkedReferenceInputId ?? null)
+    : null;
+  const bulkReferenceRigSelectionId =
+    referenceRigInputId ?? sharedRigReferenceInputId;
   const isBulkSelected =
     (referencePoseId
       ? selectedReferencePoseIds?.has(referencePoseId)
       : false) ||
-    (referenceRigInputId
-      ? selectedReferenceRigIds?.has(referenceRigInputId)
+    (bulkReferenceRigSelectionId
+      ? selectedReferenceRigIds?.has(bulkReferenceRigSelectionId)
       : false);
 
   // Check selection
@@ -2067,25 +2073,33 @@ function TreeRowWrapper({
               </>
             )}
           {node.type === "rig" &&
-            (node.data as RigNodeData | undefined)?.source === "reference" && (
+            ((node.data as RigNodeData | undefined)?.source === "reference" ||
+              (node.data as RigNodeData | undefined)?.source === "shared") && (
               <>
-                <label
-                  className="flex items-center gap-1 text-[9px] text-cyan-200"
-                  onClick={(event) => event.stopPropagation()}
-                  title="Select driver for bulk copy"
-                >
-                  <input
-                    type="checkbox"
-                    checked={referenceRigInputId ? isBulkSelected : false}
-                    onChange={() => {
-                      if (!referenceRigInputId) {
-                        return;
+                {(node.data as RigNodeData | undefined)?.source !==
+                  undefined && (
+                  <label
+                    className="flex items-center gap-1 text-[9px] text-cyan-200"
+                    onClick={(event) => event.stopPropagation()}
+                    title="Select driver for bulk copy"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        bulkReferenceRigSelectionId ? isBulkSelected : false
                       }
-                      onToggleReferenceRigSelection?.(referenceRigInputId);
-                    }}
-                  />
-                  Bulk
-                </label>
+                      onChange={() => {
+                        if (!bulkReferenceRigSelectionId) {
+                          return;
+                        }
+                        onToggleReferenceRigSelection?.(
+                          bulkReferenceRigSelectionId,
+                        );
+                      }}
+                    />
+                    Bulk
+                  </label>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2804,6 +2818,9 @@ export function VariablesPanel({
   );
 
   const referenceRigEntries = useMemo(() => {
+    if (!referenceFace.file || !referenceFace.isLoaded) {
+      return [] as RigNodeData[];
+    }
     const mainByPath = new Map<string, StandardRigInput>();
     mainFaceRigEntries.forEach((entry) => {
       const normalized = normalizeStandardRigInputPath(entry.input.path);
@@ -2824,7 +2841,12 @@ export function VariablesPanel({
           linkedMainInputId: linkedMain?.id ?? null,
         };
       });
-  }, [mainFaceRigEntries, referenceFace.standardInputs]);
+  }, [
+    mainFaceRigEntries,
+    referenceFace.file,
+    referenceFace.isLoaded,
+    referenceFace.standardInputs,
+  ]);
 
   const sharedRigEntries = useMemo(() => {
     if (!referenceFace.file || !referenceFace.isLoaded) {
@@ -2877,6 +2899,71 @@ export function VariablesPanel({
   const referencePoseById = useMemo(
     () => new Map(referencePoseEntries.map((pose) => [pose.id, pose])),
     [referencePoseEntries],
+  );
+  const allVariableEntries = useMemo(() => {
+    const sharedPathSet = new Set<string>();
+    sharedRigEntries.forEach((entry) => {
+      const normalizedPath =
+        entry.normalizedPath ?? normalizeStandardRigInputPath(entry.input.path);
+      sharedPathSet.add(normalizedPath);
+    });
+
+    const entries: RigNodeData[] = [];
+    mainFaceRigEntries.forEach((entry) => {
+      const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
+      if (sharedPathSet.has(normalizedPath)) {
+        return;
+      }
+      entries.push(entry);
+    });
+    sharedRigEntries.forEach((entry) => {
+      entries.push(entry);
+    });
+    referenceRigEntries.forEach((entry) => {
+      const normalizedPath =
+        entry.normalizedPath ?? normalizeStandardRigInputPath(entry.input.path);
+      if (sharedPathSet.has(normalizedPath)) {
+        return;
+      }
+      entries.push(entry);
+    });
+
+    return entries.sort((left, right) => {
+      const byPath = normalizeStandardRigInputPath(
+        left.input.path,
+      ).localeCompare(normalizeStandardRigInputPath(right.input.path));
+      if (byPath !== 0) {
+        return byPath;
+      }
+      const byLabel = (left.input.label || left.input.id).localeCompare(
+        right.input.label || right.input.id,
+      );
+      if (byLabel !== 0) {
+        return byLabel;
+      }
+      return left.input.id.localeCompare(right.input.id);
+    });
+  }, [mainFaceRigEntries, referenceRigEntries, sharedRigEntries]);
+  const visibleVariableEntries = useMemo(
+    () =>
+      allVariableEntries.filter((entry) => {
+        if (
+          entry.source === "reference" &&
+          (!referenceFace.file || !referenceFace.isLoaded)
+        ) {
+          return false;
+        }
+        if (entry.source === "shared" && !referenceFace.isLoaded) {
+          return false;
+        }
+        return enabledSources.has(entry.source);
+      }),
+    [
+      allVariableEntries,
+      enabledSources,
+      referenceFace.file,
+      referenceFace.isLoaded,
+    ],
   );
   const referenceRuntimeInputsByPath = useMemo(() => {
     const map = new Map<string, StandardRigInput[]>();
@@ -3411,13 +3498,11 @@ export function VariablesPanel({
       reference: 0,
       shared: 0,
     };
-    mainFaceRigEntries.forEach((entry) => {
+    allVariableEntries.forEach((entry) => {
       counts[entry.source] += 1;
     });
-    counts.reference = referenceRigEntries.length;
-    counts.shared = sharedRigEntries.length;
     return counts;
-  }, [mainFaceRigEntries, referenceRigEntries.length, sharedRigEntries.length]);
+  }, [allVariableEntries]);
 
   const prepareVariableCopyModalState = useCallback(
     (
@@ -4098,98 +4183,14 @@ export function VariablesPanel({
       children: new Map(),
       showChildren: true,
     };
-
-    const hasReferenceFace = !!referenceFace.file;
-
-    // Shared drivers root (when both faces expose the same path-backed input)
-    if (
-      hasReferenceFace &&
-      enabledSources.has("shared") &&
-      referenceFace.isLoaded
-    ) {
-      const sharedRoot: TreeNode = {
-        id: "shared",
-        label: "Shared",
-        type: "folder",
-        children: new Map(),
-        showChildren: true,
-      };
-      sharedRigEntries.forEach((entry) => {
-        const key = `shared_${entry.input.id}`;
-        insertRigNodeAtPath({
-          root: sharedRoot,
-          key,
-          input: entry.input,
-          data: entry,
-        });
-      });
-      if (sharedRoot.children.size > 0) {
-        root.children.set("shared", sharedRoot);
-      }
-    }
-
-    // Helper to get the target root for main face items
-    let targetRoot = root;
-    if (hasReferenceFace) {
-      const mainFaceRoot: TreeNode = {
-        id: "main_face",
-        label: "Main Face",
-        type: "folder",
-        children: new Map(),
-        showChildren: true,
-      };
-      root.children.set("main_face", mainFaceRoot);
-      targetRoot = mainFaceRoot;
-    }
-
-    // 1. Process Poses (Main Face)
-    // 1. Process path-backed Rigs (Main Face)
-    mainFaceRigEntries.forEach((entry) => {
-      if (!enabledSources.has(entry.source)) {
-        return;
-      }
+    visibleVariableEntries.forEach((entry) => {
       insertRigNodeAtPath({
-        root: targetRoot,
-        key: `rig_${entry.input.id}`,
+        root,
+        key: `${entry.source}_${entry.input.id}`,
         input: entry.input,
         data: entry,
       });
     });
-
-    // --- Reference Face ---
-    if (hasReferenceFace) {
-      const refFaceRoot: TreeNode = {
-        id: "ref_face",
-        label: "Reference Face",
-        type: "folder",
-        children: new Map(),
-        showChildren: true,
-      };
-      root.children.set("ref_face", refFaceRoot);
-
-      if (referenceFace.isLoaded) {
-        // Add standard inputs from Reference Face
-        referenceRigEntries.forEach((entry) => {
-          if (!enabledSources.has("reference")) {
-            return;
-          }
-          insertRigNodeAtPath({
-            root: refFaceRoot,
-            key: `ref_${entry.input.id}`,
-            input: entry.input,
-            data: entry,
-          });
-        });
-      } else {
-        refFaceRoot.children.set("placeholder", {
-          id: "ref_placeholder",
-          label: referenceFace.isLoading ? "Loading..." : "Waiting for file...",
-          type: "folder",
-          children: new Map(),
-          showChildren: false,
-        });
-      }
-    }
 
     // Simplify tree structure (combine intermediate folders)
     const simplifiedChildren = new Map<string, TreeNode>();
@@ -4199,15 +4200,7 @@ export function VariablesPanel({
     root.children = simplifiedChildren;
 
     return root;
-  }, [
-    enabledSources,
-    mainFaceRigEntries,
-    sharedRigEntries,
-    referenceRigEntries,
-    referenceFace.isLoaded,
-    referenceFace.isLoading,
-    referenceFace.file,
-  ]);
+  }, [visibleVariableEntries]);
 
   // Build Poses tree
   const posesRootNode = useMemo(() => {
@@ -4219,29 +4212,13 @@ export function VariablesPanel({
       showChildren: true,
     };
 
-    const shouldSurfaceReferencePoses =
-      Boolean(referenceFace.file) &&
-      referenceFace.isLoaded &&
-      referencePoseEntries.length > 0;
-    let targetRoot: TreeNode = root;
-
-    if (shouldSurfaceReferencePoses) {
-      const mainFaceRoot: TreeNode = {
-        id: "main_pose_face",
-        label: "Main Face",
-        type: "folder",
-        children: new Map(),
-        showChildren: true,
-      };
-      root.children.set("main_pose_face", mainFaceRoot);
-      targetRoot = mainFaceRoot;
-    }
+    const shouldSurfaceReferencePoses = Boolean(referenceFace.file);
 
     poses.forEach((pose) => {
       const groupParts = pose.group
         ? pose.group.split("/").filter(Boolean)
         : [];
-      let current = targetRoot;
+      let current = root;
 
       const groupPathParts: string[] = [];
       for (const part of groupParts) {
@@ -4275,20 +4252,11 @@ export function VariablesPanel({
       });
     });
 
-    if (shouldSurfaceReferencePoses) {
-      const referenceFaceRoot: TreeNode = {
-        id: "reference_pose_face",
-        label: "Reference Face",
-        type: "folder",
-        children: new Map(),
-        showChildren: true,
-      };
-      root.children.set("reference_pose_face", referenceFaceRoot);
-
+    if (shouldSurfaceReferencePoses && referenceFace.isLoaded) {
       referencePoseEntries.forEach((pose) => {
         const poseKey = `reference_pose_${pose.id}`;
-        referenceFaceRoot.children.set(poseKey, {
-          id: `${referenceFaceRoot.id}/${poseKey}`,
+        root.children.set(poseKey, {
+          id: `${root.id}/${poseKey}`,
           label: pose.name,
           type: "pose",
           children: new Map(),
@@ -4615,6 +4583,16 @@ export function VariablesPanel({
       const rigData = node.data as RigNodeData;
       if (rigData.source === "reference") {
         openVariableCopyModalForEntry(rigData, "row-action");
+      } else if (
+        rigData.source === "shared" &&
+        rigData.linkedReferenceInputId
+      ) {
+        const referenceEntry = referenceRigEntryByInputId.get(
+          rigData.linkedReferenceInputId,
+        );
+        if (referenceEntry) {
+          openVariableCopyModalForEntry(referenceEntry, "row-action");
+        }
       }
       return;
     }
@@ -5002,10 +4980,7 @@ export function VariablesPanel({
     setStageEditMessage(null);
   };
 
-  const variableItemCount =
-    mainFaceRigEntries.length +
-    referenceRigEntries.length +
-    sharedRigEntries.length;
+  const variableItemCount = allVariableEntries.length;
   const poseItemCount = poses.length + referencePoseEntries.length;
   const poseGroupItemCount = poseGroups.length;
   const inputItemCount = inputRows.length;
@@ -6037,7 +6012,7 @@ export function VariablesPanel({
                           ...(referenceFace.file
                             ? ([["shared", "Shared"]] as const)
                             : []),
-                          ["reference", "Reference"],
+                          ["reference", "Reference Face"],
                         ] as Array<[RigNodeSource, string]>
                       )
                         .filter(([source]) =>
@@ -6052,6 +6027,7 @@ export function VariablesPanel({
                             <button
                               key={source}
                               type="button"
+                              title={label}
                               className={`text-[10px] px-2 py-1 rounded border transition-colors ${
                                 isActive
                                   ? "border-border-hover bg-bg-panel text-text-primary"
