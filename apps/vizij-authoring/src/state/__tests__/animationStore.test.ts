@@ -76,4 +76,19 @@ describe("animationStore deterministic behavior", () => {
     ]);
     expect(exported.tracks[0]?.keyframes[1]?.id).toBe("kf-000100");
   });
+
+  it("propagates track interpolation updates to keyframes", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 1, 1);
+
+    store.setTrackInterpolation("track-0001", "step");
+
+    const state = useAnimationStore.getState();
+    expect(state.tracks[0]?.interpolation).toBe("step");
+    expect(
+      state.tracks[0]?.keyframes.map((keyframe) => keyframe.interpolation),
+    ).toEqual(["step", "step"]);
+  });
 });

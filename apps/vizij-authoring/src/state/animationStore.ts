@@ -17,6 +17,24 @@ import {
 export type AnimationKeyframe = AnimationKeyframeIR;
 export type AnimationTrack = AnimationTrackIR;
 export type AnimationTransportPlaybackState = "playing" | "paused" | "stopped";
+export type AnimationRuntimePlaybackState = {
+  time: number;
+  duration: number;
+  playing: boolean;
+  loop: boolean;
+  speed: number;
+};
+export type AnimationRuntimeTransportAdapter = {
+  playAnimation: (
+    id: string,
+    options?: { weight?: number; speed?: number; reset?: boolean },
+  ) => Promise<void>;
+  pauseAnimation: (id: string) => void;
+  stopAnimation: (id: string) => void;
+  seekAnimation: (id: string, timeSeconds: number) => void;
+  setAnimationLoop: (id: string, enabled: boolean) => void;
+  getAnimationState: (id: string) => AnimationRuntimePlaybackState | null;
+};
 
 const MIN_DURATION_SECONDS = 0;
 const TIME_EPSILON = 1e-6;
@@ -201,6 +219,7 @@ interface AnimationState {
   playSpeed: number;
   transportActive: boolean;
   transportPlaybackState: AnimationTransportPlaybackState;
+  runtimeTransportAdapter: AnimationRuntimeTransportAdapter | null;
 
   // Selection
   selectedTrackId: string | null;
@@ -230,8 +249,15 @@ interface AnimationState {
       >
     >,
   ) => void;
+  setRuntimeTransportAdapter: (
+    adapter: AnimationRuntimeTransportAdapter | null,
+  ) => void;
 
-  addTrack: (variableId: string, label?: string) => void;
+  addTrack: (variableId: string, label?: string, channel?: string) => void;
+  setTrackInterpolation: (
+    trackId: string,
+    interpolation: AnimationTrack["interpolation"],
+  ) => void;
   removeTrack: (trackId: string) => void;
 
   addKeyframe: (trackId: string, time: number, value: number) => void;
@@ -264,6 +290,7 @@ const INITIAL_STATE: Pick<
   | "playSpeed"
   | "transportActive"
   | "transportPlaybackState"
+  | "runtimeTransportAdapter"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
@@ -277,6 +304,7 @@ const INITIAL_STATE: Pick<
   playSpeed: 1,
   transportActive: false,
   transportPlaybackState: "stopped",
+  runtimeTransportAdapter: null,
   selectedTrackId: null,
   selectedKeyframeId: null,
   nextTrackOrdinal: 1,
@@ -389,8 +417,14 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         transportPlaybackState: nextTransportPlaybackState,
       };
     }),
+  setRuntimeTransportAdapter: (runtimeTransportAdapter) =>
+    set((state) =>
+      state.runtimeTransportAdapter === runtimeTransportAdapter
+        ? state
+        : { runtimeTransportAdapter },
+    ),
 
-  addTrack: (variableId, label) =>
+  addTrack: (variableId, label, channel) =>
     set((state) => {
       // Prevent duplicates
       if (state.tracks.some((t) => t.variableId === variableId)) {
@@ -400,7 +434,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       const newTrack: AnimationTrack = {
         id: formatTrackId(state.nextTrackOrdinal),
         variableId,
-        channel: variableId,
+        channel: channel?.trim() || variableId,
         label: label || variableId,
         color: deterministicTrackColor(variableId),
         interpolation: "linear",
@@ -411,6 +445,26 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         nextTrackOrdinal: state.nextTrackOrdinal + 1,
       };
     }),
+  setTrackInterpolation: (trackId, interpolation) =>
+    set((state) => ({
+      tracks: state.tracks.map((track) => {
+        if (track.id !== trackId) {
+          return track;
+        }
+        return {
+          ...track,
+          interpolation,
+          keyframes: normalizeKeyframesForTrack(
+            track.keyframes.map((keyframe) => ({
+              ...keyframe,
+              interpolation,
+            })),
+            state.duration,
+            interpolation,
+          ),
+        };
+      }),
+    })),
 
   removeTrack: (trackId) =>
     set((state) => ({
@@ -567,7 +621,11 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     });
   },
 
-  reset: () => set({ ...INITIAL_STATE }),
+  reset: () =>
+    set((state) => ({
+      ...INITIAL_STATE,
+      runtimeTransportAdapter: state.runtimeTransportAdapter,
+    })),
 
   tick: (deltaTime) => {
     const state = get();

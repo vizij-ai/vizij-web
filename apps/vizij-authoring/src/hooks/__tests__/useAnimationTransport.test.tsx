@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../useAnimationTransport";
 
@@ -42,6 +42,7 @@ function renderTransportHook() {
 describe("useAnimationTransport", () => {
   beforeEach(() => {
     useAnimationStore.getState().reset();
+    useAnimationStore.getState().setRuntimeTransportAdapter(null);
   });
 
   it("remains safe when rendered outside VizijRuntimeProvider", () => {
@@ -66,6 +67,50 @@ describe("useAnimationTransport", () => {
     expect(state.currentTime).toBe(1.25);
     expect(state.transportActive).toBe(false);
     expect(state.transportPlaybackState).toBe("stopped");
+    hook.unmount();
+  });
+
+  it("drives playback through runtime adapter when provider context is unavailable", async () => {
+    const playAnimation = vi.fn().mockResolvedValue(undefined);
+    const pauseAnimation = vi.fn();
+    const stopAnimation = vi.fn();
+    const seekAnimation = vi.fn();
+    const setAnimationLoop = vi.fn();
+    const getAnimationState = vi.fn().mockReturnValue({
+      time: 0,
+      duration: 2,
+      playing: false,
+      loop: false,
+      speed: 1,
+    });
+
+    useAnimationStore.getState().setRuntimeTransportAdapter({
+      playAnimation,
+      pauseAnimation,
+      stopAnimation,
+      seekAnimation,
+      setAnimationLoop,
+      getAnimationState,
+    });
+    useAnimationStore.getState().addTrack("input_a", "Input A", "controls/a");
+    useAnimationStore.getState().setLoop(false);
+    useAnimationStore.getState().seek(0.4);
+
+    const hook = renderTransportHook();
+    expect(hook.result.active).toBe(true);
+
+    hook.result.play();
+    await Promise.resolve();
+
+    expect(setAnimationLoop).toHaveBeenCalledWith(
+      "authoring.timeline.main",
+      false,
+    );
+    expect(seekAnimation).toHaveBeenCalledWith("authoring.timeline.main", 0.4);
+    expect(playAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
+      reset: false,
+      speed: 1,
+    });
     hook.unmount();
   });
 });
