@@ -1729,6 +1729,8 @@ interface TreeRowWrapperProps {
   selectedReferencePoseIds?: ReadonlySet<string>;
   onToggleReferenceRigSelection?: (inputId: string) => void;
   onToggleReferencePoseSelection?: (poseId: string) => void;
+  timelineInputLockActive?: boolean;
+  timelineLockedInputIds?: ReadonlySet<string>;
   searchQuery: string;
 }
 
@@ -1745,6 +1747,8 @@ function TreeRowWrapper({
   selectedReferencePoseIds,
   onToggleReferenceRigSelection,
   onToggleReferencePoseSelection,
+  timelineInputLockActive,
+  timelineLockedInputIds,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
@@ -1817,6 +1821,12 @@ function TreeRowWrapper({
 
   if (node.type === "input") {
     const inputData = node.data as InputCatalogRow;
+    const inputLocked =
+      Boolean(timelineInputLockActive) &&
+      Boolean(
+        timelineLockedInputIds?.has(inputData.inputId) ||
+          timelineLockedInputIds?.has(inputData.path),
+      );
     const value =
       typeof inputData.value === "number" && Number.isFinite(inputData.value)
         ? inputData.value
@@ -1856,6 +1866,7 @@ function TreeRowWrapper({
               min={inputData.min}
               max={inputData.max}
               step={0.01}
+              disabled={inputLocked}
               onChange={(nextValue) => {
                 const normalizedValue = Array.isArray(nextValue)
                   ? nextValue[0]
@@ -1871,6 +1882,11 @@ function TreeRowWrapper({
               Derived control (read-only)
             </p>
           )}
+          {inputLocked ? (
+            <p className="text-[10px] text-amber-300">
+              Timeline transport is currently driving this input.
+            </p>
+          ) : null}
           {inputData.provenance ? (
             <p className="text-[10px] text-text-muted font-mono truncate">
               {inputData.provenance}
@@ -2183,6 +2199,8 @@ function TreeRowWrapper({
                 selectedReferencePoseIds={selectedReferencePoseIds}
                 onToggleReferenceRigSelection={onToggleReferenceRigSelection}
                 onToggleReferencePoseSelection={onToggleReferencePoseSelection}
+                timelineInputLockActive={timelineInputLockActive}
+                timelineLockedInputIds={timelineLockedInputIds}
                 searchQuery={searchQuery}
               />
             ))}
@@ -2604,6 +2622,12 @@ export function VariablesPanel({
   );
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
   const inputValues = useBindingAuthoring((state) => state.inputValues);
+  const timelineInputLockActive = useBindingAuthoring(
+    (state) => state.timelineInputLockActive,
+  );
+  const timelineLockedInputIds = useBindingAuthoring(
+    (state) => state.timelineLockedInputIds,
+  );
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -6211,6 +6235,8 @@ export function VariablesPanel({
                           onToggleReferencePoseSelection={
                             toggleReferencePoseSelection
                           }
+                          timelineInputLockActive={timelineInputLockActive}
+                          timelineLockedInputIds={timelineLockedInputIds}
                           searchQuery={searchQuery}
                         />
                       ))

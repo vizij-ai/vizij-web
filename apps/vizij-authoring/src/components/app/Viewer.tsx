@@ -18,6 +18,7 @@ import {
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { useWorkspaceStore } from "../../state/workspaceStore";
+import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
@@ -556,6 +557,7 @@ export function Viewer({
             ) : null}
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
+            <AnimationRuntimeBridge />
             <InputValueBridge active={motionGraphVisible} />
             <MotionGraphDriverBridge active={motionGraphVisible} />
             <MotionGraphValueSampler

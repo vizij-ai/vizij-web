@@ -2,7 +2,11 @@ import { useRef } from "react";
 import { useAnimationStore } from "../../state/animationStore";
 import { TrackRow } from "./TrackRow";
 
-export function TimelineEditor() {
+interface TimelineEditorProps {
+  onSeek?: (timeSeconds: number) => void;
+}
+
+export function TimelineEditor({ onSeek }: TimelineEditorProps) {
   const {
     tracks,
     duration,
@@ -16,6 +20,7 @@ export function TimelineEditor() {
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
+  const seekTo = onSeek ?? seek;
 
   const handleTimelineClick = (e: React.MouseEvent) => {
     // Only seek if clicking on the ruler area or empty space, not on interactive elements which stop propagation
@@ -39,7 +44,7 @@ export function TimelineEditor() {
     const clickX = x - headerWidth;
     const t = Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
 
-    seek(t);
+    seekTo(t);
   };
 
   // Double click to add keyframe
@@ -62,7 +67,7 @@ export function TimelineEditor() {
     addKeyframe(selectedTrackId, t, 0);
   };
 
-  const playheadLeftPct = (currentTime / duration) * 100;
+  const playheadLeftPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div

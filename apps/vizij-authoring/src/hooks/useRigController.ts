@@ -79,6 +79,7 @@ import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
 import type { SelectionStore } from "../state/selectionStore";
+import { useAnimationStore } from "../state/animationStore";
 import {
   assessLegacyBindingMigration,
   buildLegacyMigrationLinkUpserts,
@@ -742,6 +743,8 @@ export function useRigController(
   const viewerSelectionActiveRef = useRef(false);
   const [inputValues, setInputValues] = useState<StandardInputValues>({});
   const inputValuesRef = useRef<StandardInputValues>(inputValues);
+  const timelineLockedInputIdsRef = useRef<Set<string>>(new Set());
+  const timelineInputLockActiveRef = useRef(false);
   const updateInputValues = useCallback(
     (updater: (prev: StandardInputValues) => StandardInputValues) => {
       setInputValues((previous) => {
@@ -937,6 +940,50 @@ export function useRigController(
     cacheState.cache.set(normalized, resolved);
     return resolved;
   }, []);
+
+  useEffect(() => {
+    const syncTimelineLocks = () => {
+      const animationState = useAnimationStore.getState();
+      const nextLockedInputIds = new Set<string>();
+      if (animationState.transportActive) {
+        animationState.tracks.forEach((track) => {
+          const normalizedTrackId = track.variableId?.trim();
+          if (!normalizedTrackId) {
+            return;
+          }
+          nextLockedInputIds.add(normalizedTrackId);
+          nextLockedInputIds.add(resolveRuntimeInputId(normalizedTrackId));
+        });
+      }
+      timelineLockedInputIdsRef.current = nextLockedInputIds;
+      timelineInputLockActiveRef.current = animationState.transportActive;
+      bindingAuthoringStore.setState({
+        timelineInputLockActive: animationState.transportActive,
+        timelineLockedInputIds: nextLockedInputIds,
+      });
+    };
+    syncTimelineLocks();
+    const unsubscribe = useAnimationStore.subscribe(syncTimelineLocks);
+    return unsubscribe;
+  }, [bindingAuthoringStore, resolveRuntimeInputId]);
+
+  const isTimelineInputLocked = useCallback(
+    (inputId: string): boolean => {
+      if (!timelineInputLockActiveRef.current) {
+        return false;
+      }
+      const normalizedInputId = inputId.trim();
+      if (!normalizedInputId) {
+        return false;
+      }
+      const lockedIds = timelineLockedInputIdsRef.current;
+      if (lockedIds.has(normalizedInputId)) {
+        return true;
+      }
+      return lockedIds.has(resolveRuntimeInputId(normalizedInputId));
+    },
+    [resolveRuntimeInputId],
+  );
 
   const animatableComponents = useMemo(
     () => extractAnimatableComponents(animatables),
@@ -2399,8 +2446,16 @@ export function useRigController(
   );
 
   const handleInputValueChange = useCallback(
-    (inputId: string, value: number) => {
+    (
+      inputId: string,
+      value: number,
+      options?: { source?: "manual" | "timeline" },
+    ) => {
       const resolvedInputId = resolveRuntimeInputId(inputId);
+      const source = options?.source ?? "manual";
+      if (source === "manual" && isTimelineInputLocked(resolvedInputId)) {
+        return;
+      }
       if (Object.is(inputValuesRef.current[resolvedInputId], value)) {
         return;
       }
@@ -2412,7 +2467,12 @@ export function useRigController(
         setRuntimeInputStageQueueRevision((previous) => previous + 1);
       }
     },
-    [queueGraphInputValue, resolveRuntimeInputId, updateInputValues],
+    [
+      isTimelineInputLocked,
+      queueGraphInputValue,
+      resolveRuntimeInputId,
+      updateInputValues,
+    ],
   );
 
   const stageRuntimeGraphPathValue = useCallback(
@@ -2443,15 +2503,21 @@ export function useRigController(
   const applyStandardInputBatch = useCallback(
     (
       updates: Record<StandardInputId, number>,
-      options?: { replace?: boolean },
+      options?: { replace?: boolean; source?: "manual" | "timeline" },
     ) => {
       if (!updates || typeof updates !== "object") {
         return;
       }
-      // Relaxed check: allow all updates, similar to handleInputValueChange
-      const entries = Object.entries(updates) as Array<
+      const source = options?.source ?? "manual";
+      const candidateEntries = Object.entries(updates) as Array<
         [StandardInputId, number]
       >;
+      const entries =
+        source === "manual"
+          ? candidateEntries.filter(
+              ([inputId]) => !isTimelineInputLocked(inputId),
+            )
+          : candidateEntries;
 
       if (entries.length === 0) {
         return;
@@ -2459,6 +2525,16 @@ export function useRigController(
       updateInputValues((previous) => {
         if (options?.replace) {
           const next: StandardInputValues = {};
+          if (source === "manual" && timelineInputLockActiveRef.current) {
+            Object.entries(previous).forEach(([inputId, previousValue]) => {
+              if (!isTimelineInputLocked(inputId)) {
+                return;
+              }
+              if (typeof previousValue === "number") {
+                next[inputId] = previousValue;
+              }
+            });
+          }
           const entryIds = new Set<StandardInputId>();
           let changed = false;
           entries.forEach(([inputId, value]) => {
@@ -2503,7 +2579,12 @@ export function useRigController(
         setRuntimeInputStageQueueRevision((previous) => previous + 1);
       }
     },
-    [queueGraphInputValue, resolveRuntimeInputId, updateInputValues],
+    [
+      isTimelineInputLocked,
+      queueGraphInputValue,
+      resolveRuntimeInputId,
+      updateInputValues,
+    ],
   );
 
   const handleResetAllInputValues = useCallback(() => {
@@ -3017,6 +3098,8 @@ export function useRigController(
       pipelineMetadataV1: mergedPipelineMetadataV1,
       pipelineConfigByInputId,
       inputValues,
+      timelineInputLockActive: timelineInputLockActiveRef.current,
+      timelineLockedInputIds: timelineLockedInputIdsRef.current,
       bindings,
       inputBindings,
       animatableComponents,

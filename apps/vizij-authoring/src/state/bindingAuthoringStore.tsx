@@ -51,14 +51,20 @@ export interface BindingAuthoringState {
   pipelineMetadataV1: VizijPipelineMetadataV1 | null;
   pipelineConfigByInputId: VizijPipelineConfigMap;
   inputValues: StandardInputValues;
+  timelineInputLockActive: boolean;
+  timelineLockedInputIds: Set<string>;
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   animatableComponents: AnimComponent[];
-  handleInputValueChange: (inputId: string, value: number) => void;
+  handleInputValueChange: (
+    inputId: string,
+    value: number,
+    options?: { source?: "manual" | "timeline" },
+  ) => void;
   stageRuntimeGraphPathValue: (graphPath: string, value: number) => void;
   applyStandardInputBatch: (
     updates: Record<string, number>,
-    options?: { replace?: boolean },
+    options?: { replace?: boolean; source?: "manual" | "timeline" },
   ) => void;
   handleResetAllInputValues: () => void;
   handleClearCachedState: () => void;
@@ -201,6 +207,8 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   pipelineMetadataV1: null,
   pipelineConfigByInputId: {},
   inputValues: {},
+  timelineInputLockActive: false,
+  timelineLockedInputIds: new Set(),
   bindings: {},
   inputBindings: {},
   animatableComponents: [],
