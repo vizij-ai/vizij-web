@@ -323,7 +323,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
   pause: () =>
     set({
       isPlaying: false,
-      transportActive: true,
+      transportActive: false,
       transportPlaybackState: "paused",
     }),
   stop: () =>
@@ -336,8 +336,8 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
   seek: (time) =>
     set((state) => ({
       currentTime: clampTime(time, get().duration),
-      transportActive: true,
-      transportPlaybackState: state.isPlaying ? "playing" : "paused",
+      transportActive: state.isPlaying,
+      transportPlaybackState: state.isPlaying ? "playing" : "stopped",
     })),
   setDuration: (duration) =>
     set((state) => {

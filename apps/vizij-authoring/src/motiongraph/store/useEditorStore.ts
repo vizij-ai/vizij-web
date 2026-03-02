@@ -76,7 +76,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   pruneEnabledOutputs: (allowedPaths) =>
     set((state) => {
-      if (state.enabledOutputs.size === 0) {
+      if (state.enabledOutputs.size === 0 || allowedPaths.size === 0) {
         return state;
       }
       const next = new Set<string>();
@@ -93,7 +93,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   pruneEnabledInputs: (allowedPaths) =>
     set((state) => {
-      if (state.enabledInputs.size === 0) {
+      if (state.enabledInputs.size === 0 || allowedPaths.size === 0) {
         return state;
       }
       const next = new Set<string>();

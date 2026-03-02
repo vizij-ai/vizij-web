@@ -111,6 +111,9 @@ describe("useAnimationTransport", () => {
       reset: false,
       speed: 1,
     });
+    hook.result.pause();
+    expect(useAnimationStore.getState().transportActive).toBe(false);
+    expect(useAnimationStore.getState().isPlaying).toBe(false);
     hook.unmount();
   });
 });

@@ -341,6 +341,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
+  const [motionGraphSplitVertical, setMotionGraphSplitVertical] =
+    useState(true);
+  const lastMotionGraphImportRootIdRef = useRef<string | null>(null);
   const handleRuntimeExportBodiesChange = useCallback(
     (next: RuntimeExportBodiesSnapshot) => {
       setRuntimeExportBodies((previous) => {
@@ -474,13 +477,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const importMotionGraph = useCallback(
     (spec: Record<string, unknown> | null) => {
       const store = useEditorStore.getState();
-      if (!spec) {
+      const currentRootId = loader.rootId ?? null;
+      const rootChanged =
+        lastMotionGraphImportRootIdRef.current !== currentRootId;
+      const clearOnRootChange = () => {
+        if (!rootChanged) {
+          return;
+        }
         store.clear();
+        lastMotionGraphImportRootIdRef.current = currentRootId;
+      };
+      if (!spec) {
+        clearOnRootChange();
         return;
       }
       const result = specToEditorState(spec);
       if (result.nodes.length === 0) {
-        store.clear();
+        clearOnRootChange();
         return;
       }
       store.hydrate(
@@ -490,8 +503,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         result.enabledInputs,
         result.customInputPaths,
       );
+      lastMotionGraphImportRootIdRef.current = currentRootId;
     },
-    [],
+    [loader.rootId],
   );
 
   useBundleSynchronizer({
@@ -1262,14 +1276,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     </div>
   );
   const viewportContent = motionGraphPanelVisible ? (
-    <PanelGroup orientation="horizontal">
+    <PanelGroup
+      orientation={motionGraphSplitVertical ? "horizontal" : "vertical"}
+    >
       <ResizablePanel defaultSize={58} minSize={20}>
         {viewerContent}
       </ResizablePanel>
-      <PanelResizeHandle className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
+      <PanelResizeHandle
+        className={
+          motionGraphSplitVertical
+            ? "w-1 bg-border-default hover:bg-border-hover transition-colors"
+            : "h-1 bg-border-default hover:bg-border-hover transition-colors"
+        }
+      />
       <ResizablePanel defaultSize={42} minSize={20}>
         <MotionGraphPanel
           onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
+          splitVertical={motionGraphSplitVertical}
+          onToggleSplit={() => setMotionGraphSplitVertical((prev) => !prev)}
         />
       </ResizablePanel>
     </PanelGroup>

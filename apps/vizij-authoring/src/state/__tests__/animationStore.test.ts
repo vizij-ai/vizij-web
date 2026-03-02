@@ -91,4 +91,24 @@ describe("animationStore deterministic behavior", () => {
       state.tracks[0]?.keyframes.map((keyframe) => keyframe.interpolation),
     ).toEqual(["step", "step"]);
   });
+
+  it("only marks transport active while playback is running", () => {
+    const store = useAnimationStore.getState();
+
+    store.seek(1.25);
+    let state = useAnimationStore.getState();
+    expect(state.transportActive).toBe(false);
+    expect(state.transportPlaybackState).toBe("stopped");
+
+    store.play();
+    store.seek(2);
+    state = useAnimationStore.getState();
+    expect(state.transportActive).toBe(true);
+    expect(state.transportPlaybackState).toBe("playing");
+
+    store.pause();
+    state = useAnimationStore.getState();
+    expect(state.transportActive).toBe(false);
+    expect(state.transportPlaybackState).toBe("paused");
+  });
 });

@@ -944,8 +944,9 @@ export function useRigController(
   useEffect(() => {
     const syncTimelineLocks = () => {
       const animationState = useAnimationStore.getState();
+      const timelineDriving = animationState.isPlaying;
       const nextLockedInputIds = new Set<string>();
-      if (animationState.transportActive) {
+      if (timelineDriving) {
         animationState.tracks.forEach((track) => {
           const normalizedTrackId = track.variableId?.trim();
           if (!normalizedTrackId) {
@@ -956,9 +957,9 @@ export function useRigController(
         });
       }
       timelineLockedInputIdsRef.current = nextLockedInputIds;
-      timelineInputLockActiveRef.current = animationState.transportActive;
+      timelineInputLockActiveRef.current = timelineDriving;
       bindingAuthoringStore.setState({
-        timelineInputLockActive: animationState.transportActive,
+        timelineInputLockActive: timelineDriving,
         timelineLockedInputIds: nextLockedInputIds,
       });
     };
