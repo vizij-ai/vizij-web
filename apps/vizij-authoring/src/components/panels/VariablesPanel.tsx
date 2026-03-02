@@ -83,12 +83,10 @@ import type {
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
 import {
-  buildInputCatalogTree,
   buildVisibleInputCatalog,
   getInputControlKindBadgeClass,
   getInputControlKindLabel,
   type InputCatalogRow,
-  type InputCatalogTreeNode,
 } from "./inputCatalog";
 
 // ----------------------------------------------------------------------------
@@ -1731,6 +1729,16 @@ interface TreeRowWrapperProps {
   onToggleReferencePoseSelection?: (poseId: string) => void;
   timelineInputLockActive?: boolean;
   timelineLockedInputIds?: ReadonlySet<string>;
+  motionGraphContext?: {
+    active: boolean;
+    runtimeFaceSegment: string;
+    eligibleInputPaths: ReadonlySet<string>;
+    eligibleOutputPaths: ReadonlySet<string>;
+    enabledInputPaths: ReadonlySet<string>;
+    enabledOutputPaths: ReadonlySet<string>;
+    onToggleInputPath: (path: string) => void;
+    onToggleOutputPath: (path: string) => void;
+  };
   searchQuery: string;
 }
 
@@ -1749,6 +1757,7 @@ function TreeRowWrapper({
   onToggleReferencePoseSelection,
   timelineInputLockActive,
   timelineLockedInputIds,
+  motionGraphContext,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
@@ -1838,6 +1847,25 @@ function TreeRowWrapper({
         ? inputData.value
         : 0;
     const controlKindLabel = getInputControlKindLabel(inputData.controlKind);
+    const motionGraphPath = motionGraphContext
+      ? buildRigInputPath(motionGraphContext.runtimeFaceSegment, inputData.path)
+      : null;
+    const canToggleMotionGraphInput =
+      motionGraphContext && motionGraphContext.active && motionGraphPath
+        ? motionGraphContext.eligibleInputPaths.has(motionGraphPath)
+        : false;
+    const canToggleMotionGraphOutput =
+      motionGraphContext && motionGraphContext.active && motionGraphPath
+        ? motionGraphContext.eligibleOutputPaths.has(motionGraphPath)
+        : false;
+    const motionGraphInputEnabled =
+      motionGraphContext && motionGraphPath
+        ? motionGraphContext.enabledInputPaths.has(motionGraphPath)
+        : false;
+    const motionGraphOutputEnabled =
+      motionGraphContext && motionGraphPath
+        ? motionGraphContext.enabledOutputPaths.has(motionGraphPath)
+        : false;
     return (
       <TreeRow
         depth={depth}
@@ -1892,6 +1920,70 @@ function TreeRowWrapper({
             <p className="text-[10px] text-amber-300">
               Animation transport is currently driving this input.
             </p>
+          ) : null}
+          {motionGraphContext?.active ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {canToggleMotionGraphInput ? (
+                <Button
+                  variant={motionGraphInputEnabled ? "ghost" : "secondary"}
+                  size="sm"
+                  className={cn(
+                    "h-6 px-2 text-[10px] gap-1",
+                    motionGraphInputEnabled
+                      ? "text-cyan-200 hover:text-cyan-100"
+                      : undefined,
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!motionGraphPath) {
+                      return;
+                    }
+                    motionGraphContext.onToggleInputPath(motionGraphPath);
+                  }}
+                  title={
+                    motionGraphInputEnabled
+                      ? "Remove from procedural animation programming inputs"
+                      : "Add as procedural animation programming input"
+                  }
+                >
+                  {motionGraphInputEnabled
+                    ? "Remove PAP Input"
+                    : "Add PAP Input"}
+                </Button>
+              ) : (
+                <span className="text-[10px] text-text-muted">
+                  PAP input unavailable (read-only control)
+                </span>
+              )}
+              {canToggleMotionGraphOutput ? (
+                <Button
+                  variant={motionGraphOutputEnabled ? "ghost" : "secondary"}
+                  size="sm"
+                  className={cn(
+                    "h-6 px-2 text-[10px] gap-1",
+                    motionGraphOutputEnabled
+                      ? "text-cyan-200 hover:text-cyan-100"
+                      : undefined,
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!motionGraphPath) {
+                      return;
+                    }
+                    motionGraphContext.onToggleOutputPath(motionGraphPath);
+                  }}
+                  title={
+                    motionGraphOutputEnabled
+                      ? "Remove from procedural animation programming outputs"
+                      : "Add as procedural animation programming output"
+                  }
+                >
+                  {motionGraphOutputEnabled
+                    ? "Remove PAP Output"
+                    : "Add PAP Output"}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           {inputData.provenance ? (
             <p className="text-[10px] text-text-muted font-mono truncate">
@@ -2215,106 +2307,13 @@ function TreeRowWrapper({
                 onToggleReferencePoseSelection={onToggleReferencePoseSelection}
                 timelineInputLockActive={timelineInputLockActive}
                 timelineLockedInputIds={timelineLockedInputIds}
+                motionGraphContext={motionGraphContext}
                 searchQuery={searchQuery}
               />
             ))}
         </div>
       )}
     </TreeRow>
-  );
-}
-
-interface MotionGraphCatalogTreeProps {
-  nodes: InputCatalogTreeNode[];
-  enabledPaths: ReadonlySet<string>;
-  onTogglePath: (path: string) => void;
-  emptyLabel: string;
-}
-
-function MotionGraphCatalogTree({
-  nodes,
-  enabledPaths,
-  onTogglePath,
-  emptyLabel,
-}: MotionGraphCatalogTreeProps) {
-  if (nodes.length === 0) {
-    return <div className="text-[10px] text-text-muted">{emptyLabel}</div>;
-  }
-  return (
-    <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pr-1">
-      {nodes.map((node) => (
-        <MotionGraphCatalogNode
-          key={node.id}
-          node={node}
-          depth={0}
-          enabledPaths={enabledPaths}
-          onTogglePath={onTogglePath}
-        />
-      ))}
-    </div>
-  );
-}
-
-interface MotionGraphCatalogNodeProps {
-  node: InputCatalogTreeNode;
-  depth: number;
-  enabledPaths: ReadonlySet<string>;
-  onTogglePath: (path: string) => void;
-}
-
-function MotionGraphCatalogNode({
-  node,
-  depth,
-  enabledPaths,
-  onTogglePath,
-}: MotionGraphCatalogNodeProps) {
-  if (node.row) {
-    const isEnabled = enabledPaths.has(node.path);
-    return (
-      <label
-        className="flex items-center justify-between gap-2 rounded px-1.5 py-1 hover:bg-bg-panel/50"
-        style={{ paddingLeft: `${depth * 10 + 6}px` }}
-      >
-        <span className="flex items-center gap-1.5 min-w-0">
-          <input
-            type="checkbox"
-            checked={isEnabled}
-            onChange={() => onTogglePath(node.path)}
-          />
-          <span className="text-[11px] text-text-primary truncate">
-            {node.row.label}
-          </span>
-        </span>
-        <span
-          className={cn(
-            "text-[9px] uppercase tracking-wide px-1 rounded",
-            getInputControlKindBadgeClass(node.row.controlKind),
-          )}
-        >
-          {getInputControlKindLabel(node.row.controlKind)}
-        </span>
-      </label>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <div
-        className="text-[10px] uppercase tracking-wide text-text-muted px-1.5 py-0.5"
-        style={{ paddingLeft: `${depth * 10 + 6}px` }}
-      >
-        {node.label}
-      </div>
-      {node.children.map((child) => (
-        <MotionGraphCatalogNode
-          key={child.id}
-          node={child}
-          depth={depth + 1}
-          enabledPaths={enabledPaths}
-          onTogglePath={onTogglePath}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -3427,20 +3426,6 @@ export function VariablesPanel({
     });
     return map;
   }, [motionGraphEligibleInputRows, runtimeFaceSegment]);
-  const motionGraphInputTree = useMemo(
-    () =>
-      buildInputCatalogTree(
-        Array.from(motionGraphDisplayInputRowsByPath.values()),
-      ),
-    [motionGraphDisplayInputRowsByPath],
-  );
-  const motionGraphOutputTree = useMemo(
-    () =>
-      buildInputCatalogTree(
-        Array.from(motionGraphDisplayOutputRowsByPath.values()),
-      ),
-    [motionGraphDisplayOutputRowsByPath],
-  );
   const motionGraphEligibleOutputPaths = useMemo(
     () => new Set<string>(motionGraphEligibleOutputRowsByPath.keys()),
     [motionGraphEligibleOutputRowsByPath],
@@ -4776,6 +4761,28 @@ export function VariablesPanel({
       toggleMotionGraphOutput,
     ],
   );
+  const motionGraphInputContext = useMemo(
+    () => ({
+      active: motionGraphActive,
+      runtimeFaceSegment,
+      eligibleInputPaths: motionGraphEligibleInputPaths,
+      eligibleOutputPaths: motionGraphEligibleOutputPaths,
+      enabledInputPaths: enabledMotionGraphInputs,
+      enabledOutputPaths: enabledMotionGraphOutputs,
+      onToggleInputPath: handleToggleMotionGraphInputPath,
+      onToggleOutputPath: handleToggleMotionGraphOutputPath,
+    }),
+    [
+      enabledMotionGraphInputs,
+      enabledMotionGraphOutputs,
+      handleToggleMotionGraphInputPath,
+      handleToggleMotionGraphOutputPath,
+      motionGraphActive,
+      motionGraphEligibleInputPaths,
+      motionGraphEligibleOutputPaths,
+      runtimeFaceSegment,
+    ],
+  );
 
   const selectedMainVariableId = useMemo(() => {
     if (!effectiveSelectedRigId) {
@@ -5684,41 +5691,21 @@ export function VariablesPanel({
                   </div>
                 )}
                 {isInputs && motionGraphActive && (
-                  <div className="flex flex-col gap-2 px-1 mb-2">
-                    <div className="rounded border border-border-default/50 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                          Procedural Animation Inputs
-                        </span>
-                        <span className="text-[10px] text-text-muted">
-                          {visibleEnabledMotionGraphInputsCount}/
-                          {motionGraphDisplayInputRowsByPath.size}
-                        </span>
-                      </div>
-                      <MotionGraphCatalogTree
-                        nodes={motionGraphInputTree}
-                        enabledPaths={enabledMotionGraphInputs}
-                        onTogglePath={handleToggleMotionGraphInputPath}
-                        emptyLabel="No visible editable drivers available."
-                      />
-                    </div>
-                    <div className="rounded border border-border-default/50 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                          Procedural Animation Outputs
-                        </span>
-                        <span className="text-[10px] text-text-muted">
-                          {visibleEnabledMotionGraphOutputsCount}/
-                          {motionGraphDisplayOutputRowsByPath.size}
-                        </span>
-                      </div>
-                      <MotionGraphCatalogTree
-                        nodes={motionGraphOutputTree}
-                        enabledPaths={enabledMotionGraphOutputs}
-                        onTogglePath={handleToggleMotionGraphOutputPath}
-                        emptyLabel="No visible input controls available."
-                      />
-                    </div>
+                  <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                    <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                      Procedural Animation Programming
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
+                      Inputs {visibleEnabledMotionGraphInputsCount}/
+                      {motionGraphDisplayInputRowsByPath.size}
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
+                      Outputs {visibleEnabledMotionGraphOutputsCount}/
+                      {motionGraphDisplayOutputRowsByPath.size}
+                    </span>
+                    <span className="text-[10px] text-text-muted">
+                      Use row actions below to add or remove each input/output.
+                    </span>
                   </div>
                 )}
                 {isPoseGroups && (
@@ -6213,6 +6200,7 @@ export function VariablesPanel({
                           }
                           timelineInputLockActive={timelineInputLockActive}
                           timelineLockedInputIds={timelineLockedInputIds}
+                          motionGraphContext={motionGraphInputContext}
                           searchQuery={searchQuery}
                         />
                       ))

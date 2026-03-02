@@ -3143,26 +3143,21 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    expect(
-      screen.getByText("Procedural Animation Outputs").parentElement
-        ?.textContent,
-    ).toContain("0/4");
+    expect(screen.getByText("Outputs 0/4")).toBeTruthy();
 
-    const outputsCard = screen
-      .getByText("Procedural Animation Outputs")
-      .closest("div.rounded");
-    expect(outputsCard).not.toBeNull();
+    const search = screen.getByPlaceholderText("Search inputs...");
+    fireEvent.change(search, {
+      target: { value: "jaw open" },
+    });
     fireEvent.click(
-      within(outputsCard as HTMLElement).getByRole("checkbox", {
-        name: /Jaw Open/,
-      }),
+      screen.getAllByRole("button", { name: "Add PAP Output" })[0]!,
     );
     const beforeSearchEnabledOutputs = new Set(
       useEditorStore.getState().enabledOutputs,
     );
     expect(beforeSearchEnabledOutputs.size).toBe(1);
 
-    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+    fireEvent.change(search, {
       target: { value: "stage output" },
     });
 
@@ -3170,13 +3165,55 @@ describe("VariablesPanel", () => {
       screen.getAllByText("Stage Output · Stage A").length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText("Jaw Open")).toBeNull();
-    expect(
-      screen.getByText("Procedural Animation Outputs").parentElement
-        ?.textContent,
-    ).toContain("0/1");
+    expect(screen.getByText("Outputs 0/1")).toBeTruthy();
     expect(useEditorStore.getState().enabledOutputs).toEqual(
       beforeSearchEnabledOutputs,
     );
+  });
+
+  it("toggles procedural animation programming input/output from input rows", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [{ input: jaw, source: "custom" }];
+    bindingState.standardInputsById = new Map([[jaw.id, jaw]]);
+    bindingState.standardInputsByPath = new Map([[jaw.path, jaw]]);
+    bindingState.inputValues = {
+      [jaw.id]: 0.2,
+    };
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        motionGraphActive
+        runtimeFaceId="face"
+      />,
+    );
+
+    expect(useEditorStore.getState().enabledInputs.size).toBe(0);
+    expect(useEditorStore.getState().enabledOutputs.size).toBe(0);
+
+    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+      target: { value: "jaw open" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add PAP Input" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add PAP Output" }));
+
+    expect(useEditorStore.getState().enabledInputs.size).toBe(1);
+    expect(useEditorStore.getState().enabledOutputs.size).toBe(1);
+    expect(
+      screen.getByRole("button", { name: "Remove PAP Input" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove PAP Output" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove PAP Input" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove PAP Output" }));
+
+    expect(useEditorStore.getState().enabledInputs.size).toBe(0);
+    expect(useEditorStore.getState().enabledOutputs.size).toBe(0);
   });
 
   it("clears stale blend-stage selection when the backing stage no longer exists", () => {
