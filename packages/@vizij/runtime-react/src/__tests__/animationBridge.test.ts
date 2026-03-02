@@ -22,4 +22,24 @@ describe("resolveAnimationBridgeOutputPaths", () => {
       resolveAnimationBridgeOutputPaths("rig/toasty/controls/jaw/open", "hugo"),
     ).toEqual(["rig/hugo/controls/jaw/open", "rig/toasty/controls/jaw/open"]);
   });
+
+  it("routes simple channels through rig input map when face id is unavailable", () => {
+    expect(
+      resolveAnimationBridgeOutputPaths("blink", undefined, {
+        blink: "rig/quori_latest/blink",
+      }),
+    ).toEqual(["blink", "rig/quori_latest/blink"]);
+  });
+
+  it("uses rig input map mapping even when channel is not rig scoped", () => {
+    expect(
+      resolveAnimationBridgeOutputPaths("controls/eyes/blink", "face", {
+        "controls/eyes/blink": "rig/quori_latest/blink",
+      }),
+    ).toEqual([
+      "controls/eyes/blink",
+      "rig/face/controls/eyes/blink",
+      "rig/quori_latest/blink",
+    ]);
+  });
 });

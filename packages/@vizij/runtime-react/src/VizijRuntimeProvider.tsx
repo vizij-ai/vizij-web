@@ -114,9 +114,21 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 
 const DEFAULT_DURATION = 0.35;
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
-const DEV_MODE =
-  (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env
-    ?.NODE_ENV !== "production";
+const DEV_MODE = (() => {
+  const nodeEnv = (globalThis as { process?: { env?: { NODE_ENV?: string } } })
+    .process?.env?.NODE_ENV;
+  return typeof nodeEnv === "string" && nodeEnv === "development";
+})();
+
+function isRuntimeDebugEnabled(): boolean {
+  if (DEV_MODE) {
+    return true;
+  }
+  return Boolean(
+    (globalThis as { __VIZIJ_RUNTIME_DEBUG__?: boolean })
+      .__VIZIJ_RUNTIME_DEBUG__,
+  );
+}
 
 const EASINGS: Record<string, (t: number) => number> = {
   linear: (t: number) => t,
@@ -904,10 +916,145 @@ function mergeAssetBundle(
   return merged;
 }
 
+function normalizeStoredAnimationInterpolation(
+  interpolation: unknown,
+): "linear" | "step" | "cubic" {
+  const mode =
+    typeof interpolation === "string"
+      ? interpolation.trim().toLowerCase()
+      : "linear";
+  if (mode === "step") {
+    return "step";
+  }
+  if (mode === "cubic" || mode === "cubicspline") {
+    return "cubic";
+  }
+  return "linear";
+}
+
+function buildStoredAnimationTransitions(mode: "linear" | "step" | "cubic") {
+  if (mode === "cubic") {
+    return undefined;
+  }
+  if (mode === "step") {
+    return {
+      in: { x: 1, y: 1 },
+      out: { x: 1, y: 0 },
+    };
+  }
+  return {
+    in: { x: 1, y: 1 },
+    out: { x: 0, y: 0 },
+  };
+}
+
+function toStoredAnimationClip(
+  fallbackId: string,
+  clip: AnimationClipLike,
+): Record<string, unknown> {
+  const clipId =
+    typeof clip.id === "string" && clip.id.trim().length > 0
+      ? clip.id.trim()
+      : fallbackId;
+  const clipName =
+    typeof clip.name === "string" && clip.name.trim().length > 0
+      ? clip.name.trim()
+      : clipId;
+  const durationSeconds = resolveClipDurationSeconds(clip, 0);
+  const durationMs = Math.max(1, Math.round(durationSeconds * 1000));
+
+  const tracks = (Array.isArray(clip.tracks) ? clip.tracks : [])
+    .map((rawTrack, trackIndex) => {
+      const channel =
+        typeof rawTrack.channel === "string" ? rawTrack.channel.trim() : "";
+      if (!channel) {
+        return null;
+      }
+      const keyframes = (
+        Array.isArray(rawTrack.keyframes) ? rawTrack.keyframes : []
+      )
+        .map((keyframe) => {
+          const time = Number(keyframe.time);
+          const value = Number(keyframe.value);
+          const keyframeId = keyframe["id"];
+          const keyframeInterpolation = keyframe["interpolation"];
+          if (!Number.isFinite(time) || !Number.isFinite(value)) {
+            return null;
+          }
+          return {
+            id:
+              typeof keyframeId === "string" && keyframeId.trim().length > 0
+                ? keyframeId.trim()
+                : `${clipId}:track-${trackIndex.toString().padStart(4, "0")}:point-${time.toFixed(6)}`,
+            time,
+            value,
+            mode: normalizeStoredAnimationInterpolation(
+              keyframeInterpolation ?? rawTrack.interpolation,
+            ),
+          };
+        })
+        .filter(Boolean) as Array<{
+        id: string;
+        time: number;
+        value: number;
+        mode: "linear" | "step" | "cubic";
+      }>;
+
+      if (keyframes.length === 0) {
+        return null;
+      }
+
+      keyframes.sort((left, right) => {
+        if (left.time !== right.time) {
+          return left.time - right.time;
+        }
+        return left.id.localeCompare(right.id);
+      });
+
+      const rawTrackId = rawTrack["id"];
+      const rawTrackName = rawTrack["name"];
+      const trackId =
+        typeof rawTrackId === "string" && rawTrackId.trim().length > 0
+          ? rawTrackId.trim()
+          : `${clipId}:track-${trackIndex.toString().padStart(4, "0")}`;
+      const trackName =
+        typeof rawTrackName === "string" && rawTrackName.trim().length > 0
+          ? rawTrackName.trim()
+          : channel.replace(/^\/+/, "") || trackId;
+      const denominator = durationSeconds > 0 ? durationSeconds : 1;
+
+      return {
+        id: trackId,
+        name: trackName,
+        animatableId: channel,
+        points: keyframes.map((keyframe) => {
+          const stamp = Math.max(0, Math.min(1, keyframe.time / denominator));
+          const transitions = buildStoredAnimationTransitions(keyframe.mode);
+          return {
+            id: keyframe.id,
+            stamp,
+            value: keyframe.value,
+            ...(transitions ? { transitions } : {}),
+          };
+        }),
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    id: clipId,
+    name: clipName,
+    duration: durationMs,
+    groups: {},
+    tracks,
+  };
+}
+
 function buildAnimationBridgeGraphConfig(
   animation: VizijAnimationAsset,
   namespace: string,
   faceId?: string,
+  rigInputMap?: Record<string, string>,
 ): GraphRegistrationConfig | null {
   const rawTracks = Array.isArray(animation.clip?.tracks)
     ? (animation.clip.tracks as AnimationTrackLike[])
@@ -939,7 +1086,11 @@ function buildAnimationBridgeGraphConfig(
   channels.forEach((channel, index) => {
     const inputNodeId = `anim_in_${index.toString().padStart(4, "0")}`;
     const animationPath = `animation/${animation.id}/${channel}`;
-    const outputPaths = resolveAnimationBridgeOutputPaths(channel, faceId);
+    const outputPaths = resolveAnimationBridgeOutputPaths(
+      channel,
+      faceId,
+      rigInputMap,
+    );
     inputs.push(animationPath);
     nodes.push({
       id: inputNodeId,
@@ -967,16 +1118,23 @@ function buildAnimationBridgeGraphConfig(
     });
   });
 
+  const namespacedSpec = stripNulls(
+    namespaceGraphSpec(
+      {
+        nodes,
+        edges: [],
+      },
+      namespace,
+    ),
+  );
+
   return {
     id: namespaceControllerId(
       `animation-bridge-${animation.id}`,
       namespace,
       "graph",
     ),
-    spec: {
-      nodes,
-      edges: [],
-    },
+    spec: namespacedSpec,
     subs: namespaceSubscriptions(
       {
         inputs,
@@ -1096,6 +1254,8 @@ function VizijRuntimeProviderInner({
     useState<VizijAssetBundle | null>(null);
   const [graphUpdateToken, setGraphUpdateToken] = useState(0);
   const effectiveAssetBundle = assetBundleOverride ?? initialAssetBundle;
+  const latestEffectiveAssetBundleRef =
+    useRef<VizijAssetBundle>(effectiveAssetBundle);
   const [extractedBundle, setExtractedBundle] =
     useState<VizijBundleExtension | null>(() => {
       if (effectiveAssetBundle.bundle) {
@@ -1113,6 +1273,7 @@ function VizijRuntimeProviderInner({
     VizijAnimationAsset[]
   >([]);
   const previousBundleRef = useRef<VizijAssetBundle | null>(null);
+  const suppressNextBundlePlanRef = useRef(false);
   const pendingPlanRef = useRef<ReturnType<
     typeof resolveRuntimeUpdatePlan
   > | null>(null);
@@ -1145,6 +1306,15 @@ function VizijRuntimeProviderInner({
   );
 
   useEffect(() => {
+    latestEffectiveAssetBundleRef.current = effectiveAssetBundle;
+  }, [effectiveAssetBundle]);
+
+  useEffect(() => {
+    if (suppressNextBundlePlanRef.current) {
+      suppressNextBundlePlanRef.current = false;
+      previousBundleRef.current = effectiveAssetBundle;
+      return;
+    }
     const plan = resolveRuntimeUpdatePlan(
       previousBundleRef.current,
       effectiveAssetBundle,
@@ -1298,6 +1468,17 @@ function VizijRuntimeProviderInner({
     (path: string, value: ValueJSON, shape?: ShapeJSON) => {
       markActivity();
       const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
+      if (
+        isRuntimeDebugEnabled() &&
+        (namespacedPath.includes("animation/authoring.timeline.main") ||
+          namespacedPath.endsWith("/blink"))
+      ) {
+        console.log("[vizij-runtime] stage input", {
+          path,
+          namespacedPath,
+          value,
+        });
+      }
       stagedInputsRef.current.set(namespacedPath, { value, shape });
     },
     [markActivity],
@@ -1520,10 +1701,12 @@ function VizijRuntimeProviderInner({
   const registerControllers = useCallback(async () => {
     clearControllers();
 
-    if (DEV_MODE) {
+    if (isRuntimeDebugEnabled()) {
       console.log("[vizij-runtime] registerControllers", {
         hasRig: Boolean(assetBundle.rig),
         hasPose: Boolean(assetBundle.pose?.graph),
+        animationCount: assetBundle.animations?.length ?? 0,
+        animationIds: (assetBundle.animations ?? []).map((anim) => anim.id),
         namespace,
       });
     }
@@ -1573,6 +1756,19 @@ function VizijRuntimeProviderInner({
         });
         rigInputMapRef.current = collectInputPathMap(rigSpec);
         rigPoseControlInputIdsRef.current = rigPoseControlInputIds;
+        if (isRuntimeDebugEnabled()) {
+          const blinkKeys = Object.keys(rigInputMapRef.current).filter((key) =>
+            key.toLowerCase().includes("blink"),
+          );
+          const blinkMappings = blinkKeys
+            .slice(0, 20)
+            .map((key) => `${key} => ${rigInputMapRef.current[key] ?? "?"}`);
+          console.log("[vizij-runtime] rig input map sample", {
+            blink: rigInputMapRef.current["blink"] ?? null,
+            blinkKeys: blinkKeys.slice(0, 12),
+            blinkMappings: blinkMappings.join(" | "),
+          });
+        }
         recordOutputs(rigOutputs);
 
         const rigSubs = rigAsset.subscriptions ?? {
@@ -1621,6 +1817,7 @@ function VizijRuntimeProviderInner({
         animation,
         namespace,
         faceId ?? undefined,
+        rigInputMapRef.current,
       );
       if (!bridgeConfig) {
         continue;
@@ -1632,6 +1829,14 @@ function VizijRuntimeProviderInner({
               stripNamespace(path, namespace),
             )
           : [];
+      if (isRuntimeDebugEnabled()) {
+        console.log("[vizij-runtime] animation bridge config", {
+          animationId: animation.id,
+          bridgeInputs: bridgeConfig.subs?.inputs ?? [],
+          bridgeOutputs,
+          bridgeOutputsText: bridgeOutputs.join(" | "),
+        });
+      }
       recordOutputs(bridgeOutputs);
     }
 
@@ -1671,7 +1876,7 @@ function VizijRuntimeProviderInner({
     }
 
     registeredGraphsRef.current = graphIds;
-    if (DEV_MODE) {
+    if (isRuntimeDebugEnabled()) {
       console.log("[vizij-runtime] registered graph ids", graphIds);
     }
 
@@ -1680,16 +1885,25 @@ function VizijRuntimeProviderInner({
       try {
         const controllerId =
           namespaceControllerId(anim.id, namespace, "animation") ?? anim.id;
+        const animationPayload =
+          anim.setup?.animation ??
+          toStoredAnimationClip(anim.id, anim.clip as AnimationClipLike);
         const config: AnimationRegistrationConfig = {
           id: controllerId,
           setup: {
-            animation: anim.clip,
             ...(anim.setup ?? {}),
+            animation: animationPayload,
           } as AnimationRegistrationConfig["setup"],
         };
         const id = registerAnimation(config);
         animationIds.push(id);
       } catch (err: unknown) {
+        if (isRuntimeDebugEnabled()) {
+          console.warn("[vizij-runtime] failed animation registration", {
+            animationId: anim.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
         pushError({
           message: `Failed to register animation ${anim.id}`,
           cause: err,
@@ -1717,7 +1931,7 @@ function VizijRuntimeProviderInner({
     }
 
     const controllers = listControllers();
-    if (DEV_MODE) {
+    if (isRuntimeDebugEnabled()) {
       console.log("[vizij-runtime] controllers after register", {
         controllers,
         graphIds,
@@ -1772,6 +1986,16 @@ function VizijRuntimeProviderInner({
       return;
     }
     const writes = frame.merged_writes ?? [];
+    if (isRuntimeDebugEnabled() && writes.length > 0) {
+      const samplePaths = writes
+        .slice(0, 8)
+        .map((write) => normalisePath(write.path))
+        .join(" | ");
+      console.log("[vizij-runtime] frame write sample", {
+        count: writes.length,
+        samplePaths,
+      });
+    }
     if (!writes.length) {
       return;
     }
@@ -1786,14 +2010,28 @@ function VizijRuntimeProviderInner({
     const baseOutputs = baseOutputPathsRef.current;
     writes.forEach((write: WriteOp) => {
       const path = normalisePath(write.path);
-      if (!namespacedOutputs.has(path)) {
+      const basePath = stripNamespace(path, namespaceValue);
+      const isTrackedOutput =
+        namespacedOutputs.has(path) || baseOutputs.has(basePath);
+      if (
+        isRuntimeDebugEnabled() &&
+        (path.includes("animation/authoring.timeline.main") ||
+          path.toLowerCase().includes("blink"))
+      ) {
+        console.log("[vizij-runtime] frame write", {
+          path,
+          basePath,
+          value: write.value,
+          isTrackedOutput,
+        });
+      }
+      if (!isTrackedOutput) {
         return;
       }
       const raw = valueJSONToRaw(write.value);
       if (raw === undefined) {
         return;
       }
-      const basePath = stripNamespace(path, namespaceValue);
       const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
         basePath,
       );
@@ -2412,16 +2650,18 @@ function VizijRuntimeProviderInner({
 
   const setGraphBundle = useCallback(
     (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
-      const baseAssetBundle = previousBundleRef.current ?? effectiveAssetBundle;
+      const baseAssetBundle = latestEffectiveAssetBundleRef.current;
       const nextAssetBundle = applyRuntimeGraphBundle(baseAssetBundle, bundle);
 
       const plan = resolveRuntimeUpdatePlan(
-        previousBundleRef.current,
+        baseAssetBundle,
         nextAssetBundle,
         options?.tier ?? updateTierRef.current,
       );
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
+      latestEffectiveAssetBundleRef.current = nextAssetBundle;
+      suppressNextBundlePlanRef.current = true;
       setAssetBundleOverride(nextAssetBundle);
       if (plan.reregisterGraphs) {
         setGraphUpdateToken((prev) => prev + 1);
@@ -2439,7 +2679,7 @@ function VizijRuntimeProviderInner({
         }));
       }
     },
-    [effectiveAssetBundle, reportStatus],
+    [reportStatus],
   );
 
   const contextValue: VizijRuntimeContextValue = useMemo(

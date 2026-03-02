@@ -155,6 +155,14 @@ export function AnimationRuntimeBridge() {
     // animations from the runtime bundle.
     appliedAnimationSignatureRef.current = mergedAnimationSignature;
     if (setGraphBundle) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[timeline][animation-bridge] apply animations", {
+          currentAnimationSignature,
+          mergedAnimationSignature,
+          mergedAnimationIds: mergedAnimations.map((animation) => animation.id),
+          authoredTrackCount: authoredAnimation?.clip?.tracks?.length ?? 0,
+        });
+      }
       setGraphBundle(
         {
           animations: mergedAnimations,
