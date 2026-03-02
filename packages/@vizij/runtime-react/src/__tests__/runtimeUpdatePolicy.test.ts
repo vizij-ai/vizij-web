@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveRuntimeUpdatePlan } from "../updatePolicy";
+import {
+  applyRuntimeGraphBundle,
+  resolveRuntimeUpdatePlan,
+} from "../updatePolicy";
 
 const base = {
   namespace: "test",
@@ -18,5 +21,48 @@ describe("resolveRuntimeUpdatePlan", () => {
     const plan = resolveRuntimeUpdatePlan(base as any, next as any, "graphs");
     expect(plan.reloadAssets).toBe(false);
     expect(plan.reregisterGraphs).toBe(true);
+  });
+});
+
+describe("applyRuntimeGraphBundle", () => {
+  it("preserves existing rig/pose while applying animation override", () => {
+    const baseBundle = {
+      ...base,
+      pose: {
+        graph: { id: "pose", spec: { nodes: [{ id: "pose", type: "input" }] } },
+        config: { faceId: "hugo" },
+      },
+      animations: [{ id: "imported", clip: { tracks: [] } }],
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      animations: [{ id: "authoring.timeline.main", clip: { tracks: [] } }],
+    });
+
+    expect(next.rig).toEqual(baseBundle.rig);
+    expect(next.pose).toEqual(baseBundle.pose);
+    expect(next.animations).toEqual([
+      { id: "authoring.timeline.main", clip: { tracks: [] } },
+    ]);
+  });
+
+  it("applies partial overrides against the latest bundle state", () => {
+    const baseBundle = {
+      ...base,
+      rig: { id: "rig-v1", spec: { nodes: [{ id: "rig-1", type: "input" }] } },
+      animations: [{ id: "a", clip: { tracks: [] } }],
+    } as any;
+    const withAnimations = applyRuntimeGraphBundle(baseBundle, {
+      animations: [{ id: "b", clip: { tracks: [] } }],
+    });
+    const withRig = applyRuntimeGraphBundle(withAnimations, {
+      rig: { id: "rig-v2", spec: { nodes: [{ id: "rig-2", type: "input" }] } },
+    });
+
+    expect(withRig.animations).toEqual([{ id: "b", clip: { tracks: [] } }]);
+    expect(withRig.rig).toEqual({
+      id: "rig-v2",
+      spec: { nodes: [{ id: "rig-2", type: "input" }] },
+    });
   });
 });

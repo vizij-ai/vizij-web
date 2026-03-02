@@ -7,6 +7,45 @@ import type {
 
 export type { RuntimeUpdateTier, RuntimeUpdatePlan, RuntimeGraphBundle };
 
+export function applyRuntimeGraphBundle(
+  base: VizijAssetBundle,
+  bundle: RuntimeGraphBundle,
+): VizijAssetBundle {
+  const next: VizijAssetBundle = {
+    ...base,
+  };
+  const hasRigOverride = Object.prototype.hasOwnProperty.call(bundle, "rig");
+  const hasPoseOverride = Object.prototype.hasOwnProperty.call(bundle, "pose");
+  const hasAnimationsOverride = Object.prototype.hasOwnProperty.call(
+    bundle,
+    "animations",
+  );
+
+  if (hasRigOverride) {
+    if (bundle.rig) {
+      next.rig = bundle.rig;
+    } else {
+      delete next.rig;
+    }
+  }
+
+  if (hasPoseOverride) {
+    if (bundle.pose) {
+      next.pose = bundle.pose;
+    } else {
+      delete next.pose;
+    }
+  }
+
+  if (hasAnimationsOverride) {
+    next.animations = Array.isArray(bundle.animations)
+      ? bundle.animations
+      : undefined;
+  }
+
+  return next;
+}
+
 function normalizeSpecPayload(value: unknown): string {
   if (!value) {
     return "";

@@ -37,6 +37,7 @@ import { valueAsNumber } from "@vizij/value-json";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
 import {
+  applyRuntimeGraphBundle,
   resolveRuntimeUpdatePlan,
   type RuntimeGraphBundle,
   type RuntimeUpdateTier,
@@ -72,6 +73,7 @@ import {
   resolveTrackInputPath,
   sampleClipAtTime,
 } from "./utils/clipPlayback";
+import { resolveAnimationBridgeOutputPaths } from "./utils/animationBridge";
 import { valueJSONToRaw } from "./utils/valueConversion";
 import type { VizijInputMetadata } from "./types";
 
@@ -905,6 +907,7 @@ function mergeAssetBundle(
 function buildAnimationBridgeGraphConfig(
   animation: VizijAnimationAsset,
   namespace: string,
+  faceId?: string,
 ): GraphRegistrationConfig | null {
   const rawTracks = Array.isArray(animation.clip?.tracks)
     ? (animation.clip.tracks as AnimationTrackLike[])
@@ -935,10 +938,9 @@ function buildAnimationBridgeGraphConfig(
 
   channels.forEach((channel, index) => {
     const inputNodeId = `anim_in_${index.toString().padStart(4, "0")}`;
-    const outputNodeId = `anim_out_${index.toString().padStart(4, "0")}`;
     const animationPath = `animation/${animation.id}/${channel}`;
+    const outputPaths = resolveAnimationBridgeOutputPaths(channel, faceId);
     inputs.push(animationPath);
-    outputs.push(channel);
     nodes.push({
       id: inputNodeId,
       type: "input",
@@ -947,16 +949,22 @@ function buildAnimationBridgeGraphConfig(
         value: { float: 0 },
       },
     } as GraphNodeSpec);
-    nodes.push({
-      id: outputNodeId,
-      type: "output",
-      params: {
-        path: channel,
-      },
-      inputs: {
-        in: inputNodeId,
-      },
-    } as GraphNodeSpec);
+    outputPaths.forEach((outputPath, outputIndex) => {
+      const outputNodeId = `anim_out_${index
+        .toString()
+        .padStart(4, "0")}_${outputIndex.toString().padStart(2, "0")}`;
+      outputs.push(outputPath);
+      nodes.push({
+        id: outputNodeId,
+        type: "output",
+        params: {
+          path: outputPath,
+        },
+        inputs: {
+          in: inputNodeId,
+        },
+      } as GraphNodeSpec);
+    });
   });
 
   return {
@@ -1612,6 +1620,7 @@ function VizijRuntimeProviderInner({
       const bridgeConfig = buildAnimationBridgeGraphConfig(
         animation,
         namespace,
+        faceId ?? undefined,
       );
       if (!bridgeConfig) {
         continue;
@@ -2130,8 +2139,8 @@ function VizijRuntimeProviderInner({
         );
       }
       const { clip, state } = ensured;
-      const shouldResume = !state.playing && !options?.reset;
-      if (!shouldResume) {
+      const shouldReset = options?.reset === true;
+      if (shouldReset) {
         resolveClipPromise(state);
         state.time = 0;
       }
@@ -2403,43 +2412,8 @@ function VizijRuntimeProviderInner({
 
   const setGraphBundle = useCallback(
     (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
-      const hasRigOverride = Object.prototype.hasOwnProperty.call(
-        bundle,
-        "rig",
-      );
-      const hasPoseOverride = Object.prototype.hasOwnProperty.call(
-        bundle,
-        "pose",
-      );
-      const hasAnimationsOverride = Object.prototype.hasOwnProperty.call(
-        bundle,
-        "animations",
-      );
-      const nextAssetBundle: VizijAssetBundle = {
-        ...effectiveAssetBundle,
-      };
-
-      if (hasRigOverride) {
-        if (bundle.rig) {
-          nextAssetBundle.rig = bundle.rig;
-        } else {
-          delete nextAssetBundle.rig;
-        }
-      }
-
-      if (hasPoseOverride) {
-        if (bundle.pose) {
-          nextAssetBundle.pose = bundle.pose;
-        } else {
-          delete nextAssetBundle.pose;
-        }
-      }
-
-      if (hasAnimationsOverride) {
-        nextAssetBundle.animations = Array.isArray(bundle.animations)
-          ? bundle.animations
-          : undefined;
-      }
+      const baseAssetBundle = previousBundleRef.current ?? effectiveAssetBundle;
+      const nextAssetBundle = applyRuntimeGraphBundle(baseAssetBundle, bundle);
 
       const plan = resolveRuntimeUpdatePlan(
         previousBundleRef.current,
