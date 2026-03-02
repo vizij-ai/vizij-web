@@ -97,6 +97,11 @@ import {
 type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 type SurfaceTab = "variables" | "poses" | "pose-groups" | "inputs";
+type CenterAuthoringMode =
+  | "none"
+  | "animation"
+  | "procedural-animation-programming"
+  | "reference-face";
 type FilterableSurfaceTab = Exclude<SurfaceTab, "pose-groups">;
 const DEFAULT_SURFACES: SurfaceTab[] = [
   "variables",
@@ -2387,6 +2392,7 @@ interface VariablesPanelProps {
   onClosePanel?: () => void;
   motionGraphActive?: boolean;
   animationActive?: boolean;
+  centerAuthoringMode?: CenterAuthoringMode;
   runtimeFaceId?: string | null;
   onSelectMotionGraphNode?: (id: string | null) => void;
 }
@@ -2410,6 +2416,7 @@ export function VariablesPanel({
   onClosePanel,
   motionGraphActive = false,
   animationActive = false,
+  centerAuthoringMode,
   runtimeFaceId = null,
   onSelectMotionGraphNode,
 }: VariablesPanelProps) {
@@ -2790,6 +2797,16 @@ export function VariablesPanel({
     () => allSurfaces[0] ?? "variables",
   );
   const activeSurface = activeSurfaceOverride ?? activeSurfaceState;
+  const resolvedCenterAuthoringMode: CenterAuthoringMode =
+    centerAuthoringMode ??
+    (motionGraphActive
+      ? "procedural-animation-programming"
+      : animationActive
+        ? "animation"
+        : "none");
+  const proceduralAnimationProgrammingActive =
+    resolvedCenterAuthoringMode === "procedural-animation-programming";
+  const animationAuthoringActive = resolvedCenterAuthoringMode === "animation";
 
   useEffect(() => {
     if (activeSurfaceOverride) {
@@ -3533,23 +3550,23 @@ export function VariablesPanel({
   }, [motionGraphDisplayInputRows, trackedAnimationInputIds]);
 
   useEffect(() => {
-    if (!motionGraphActive) {
+    if (!proceduralAnimationProgrammingActive) {
       return;
     }
     pruneEnabledMotionGraphOutputs(motionGraphEligibleOutputPaths);
   }, [
-    motionGraphActive,
+    proceduralAnimationProgrammingActive,
     motionGraphEligibleOutputPaths,
     pruneEnabledMotionGraphOutputs,
   ]);
 
   useEffect(() => {
-    if (!motionGraphActive) {
+    if (!proceduralAnimationProgrammingActive) {
       return;
     }
     pruneEnabledMotionGraphInputs(motionGraphEligibleInputPaths);
   }, [
-    motionGraphActive,
+    proceduralAnimationProgrammingActive,
     motionGraphEligibleInputPaths,
     pruneEnabledMotionGraphInputs,
   ]);
@@ -4772,7 +4789,7 @@ export function VariablesPanel({
     }
   };
   const handleCreateMotionGraphInputDriver = useCallback(() => {
-    if (!motionGraphActive) {
+    if (!proceduralAnimationProgrammingActive) {
       return;
     }
     const suggestedPath = createUniqueCustomVariablePath();
@@ -4804,11 +4821,11 @@ export function VariablesPanel({
     createUniqueCustomVariablePath,
     enabledMotionGraphInputs,
     handleCreateCustomStandardInput,
-    motionGraphActive,
     onSelectBlendStage,
     onSelectMotionGraphNode,
     onSelectPoseGroup,
     onSelectRig,
+    proceduralAnimationProgrammingActive,
     runtimeFaceSegment,
     toggleMotionGraphInput,
   ]);
@@ -4842,7 +4859,7 @@ export function VariablesPanel({
   );
   const motionGraphInputContext = useMemo(
     () => ({
-      active: motionGraphActive,
+      active: proceduralAnimationProgrammingActive,
       runtimeFaceSegment,
       eligibleInputPaths: motionGraphEligibleInputPaths,
       eligibleOutputPaths: motionGraphEligibleOutputPaths,
@@ -4856,9 +4873,9 @@ export function VariablesPanel({
       enabledMotionGraphOutputs,
       handleToggleMotionGraphInputPath,
       handleToggleMotionGraphOutputPath,
-      motionGraphActive,
       motionGraphEligibleInputPaths,
       motionGraphEligibleOutputPaths,
+      proceduralAnimationProgrammingActive,
       runtimeFaceSegment,
     ],
   );
@@ -4879,13 +4896,13 @@ export function VariablesPanel({
   );
   const animationTrackInputContext = useMemo(
     () => ({
-      active: animationActive,
+      active: animationAuthoringActive,
       trackedInputIds: trackedAnimationInputIds,
       onAddTrack: handleAddAnimationTrack,
       onRemoveTrack: handleRemoveAnimationTrack,
     }),
     [
-      animationActive,
+      animationAuthoringActive,
       handleAddAnimationTrack,
       handleRemoveAnimationTrack,
       trackedAnimationInputIds,
@@ -5736,7 +5753,7 @@ export function VariablesPanel({
                       </Button>
                     </>
                   )}
-                  {isInputs && motionGraphActive && (
+                  {isInputs && proceduralAnimationProgrammingActive && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -5798,7 +5815,7 @@ export function VariablesPanel({
                     )}
                   </div>
                 )}
-                {isInputs && motionGraphActive && (
+                {isInputs && proceduralAnimationProgrammingActive && (
                   <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
                     <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
                       Procedural Animation Programming
@@ -5816,7 +5833,7 @@ export function VariablesPanel({
                     </span>
                   </div>
                 )}
-                {isInputs && animationActive && (
+                {isInputs && animationAuthoringActive && (
                   <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
                     <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
                       Animation

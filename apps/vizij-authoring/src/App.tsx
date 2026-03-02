@@ -623,6 +623,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const setWorkspacePanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
+  const centerAuthoringMode = motionGraphPanelVisible
+    ? "procedural-animation-programming"
+    : animationPanelVisible
+      ? "animation"
+      : referenceFacePanelVisible
+        ? "reference-face"
+        : "none";
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -1302,6 +1309,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelDescription="Author and organize variables, poses, and pose groups."
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
+              centerAuthoringMode={centerAuthoringMode}
             />
           }
           leftBottomVisible2={false}
@@ -1324,6 +1332,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onClosePanel={handleHideInputControlsPanel}
               motionGraphActive={motionGraphPanelVisible}
               animationActive={animationPanelVisible}
+              centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
               onSelectMotionGraphNode={
                 handleSelectMotionGraphNodeWithInspectorSync

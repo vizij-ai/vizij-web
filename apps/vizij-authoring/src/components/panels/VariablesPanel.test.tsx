@@ -3264,6 +3264,40 @@ describe("VariablesPanel", () => {
     ).toBeTruthy();
   });
 
+  it("honors center authoring mode when contextual actions overlap", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [{ input: jaw, source: "custom" }];
+    bindingState.standardInputsById = new Map([[jaw.id, jaw]]);
+    bindingState.standardInputsByPath = new Map([[jaw.path, jaw]]);
+    bindingState.inputValues = {
+      [jaw.id]: 0.2,
+    };
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        motionGraphActive
+        animationActive
+        centerAuthoringMode="animation"
+        runtimeFaceId="face"
+      />,
+    );
+
+    const search = screen.getByPlaceholderText("Search inputs...");
+    fireEvent.change(search, {
+      target: { value: "jaw open" },
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Add Animation Track" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add PAP Input" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add PAP Output" })).toBeNull();
+  });
+
   it("clears stale blend-stage selection when the backing stage no longer exists", () => {
     const onSelectBlendStage = vi.fn();
     const selectedBlendStage: BlendStageInspectorSelection = {
