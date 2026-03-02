@@ -3140,11 +3140,12 @@ describe("VariablesPanel", () => {
     );
 
     expect(
-      screen.getByText("MotionGraph Outputs").parentElement?.textContent,
+      screen.getByText("Procedural Animation Outputs").parentElement
+        ?.textContent,
     ).toContain("0/4");
 
     const outputsCard = screen
-      .getByText("MotionGraph Outputs")
+      .getByText("Procedural Animation Outputs")
       .closest("div.rounded");
     expect(outputsCard).not.toBeNull();
     fireEvent.click(
@@ -3166,7 +3167,8 @@ describe("VariablesPanel", () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByText("Jaw Open")).toBeNull();
     expect(
-      screen.getByText("MotionGraph Outputs").parentElement?.textContent,
+      screen.getByText("Procedural Animation Outputs").parentElement
+        ?.textContent,
     ).toContain("0/1");
     expect(useEditorStore.getState().enabledOutputs).toEqual(
       beforeSearchEnabledOutputs,

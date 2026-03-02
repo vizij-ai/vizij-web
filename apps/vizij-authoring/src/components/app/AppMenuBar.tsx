@@ -127,7 +127,7 @@ export function AppMenuBar({
           checked={motionGraphPaletteVisible}
           onCheckedChange={() => togglePanel("motiongraphPalette")}
         >
-          MotionGraph Palette
+          Procedural Animation Programming Palette
         </MenuCheckboxItem>
 
         <MenuSeparator />
@@ -136,13 +136,13 @@ export function AppMenuBar({
           checked={animationPanelVisible}
           onCheckedChange={() => togglePanel("animation")}
         >
-          Timeline
+          Animation
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={motionGraphPanelVisible}
           onCheckedChange={() => togglePanel("motiongraph")}
         >
-          MotionGraph
+          Procedural Animation Programming
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={referenceFacePanelVisible}

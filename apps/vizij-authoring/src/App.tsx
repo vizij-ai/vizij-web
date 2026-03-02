@@ -1319,7 +1319,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
-              panelDescription="Preview and adjust live rig and pose-weight inputs plus MotionGraph I/O."
+              panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation programming I/O."
               onClosePanel={handleHideInputControlsPanel}
               motionGraphActive={motionGraphPanelVisible}
               runtimeFaceId={faceId}

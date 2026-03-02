@@ -764,14 +764,14 @@ export function InspectorPanel({
           : isBlendStageInspectorMode
             ? "Blend Stage Inspector"
             : showMotionGraphInspector
-              ? "MotionGraph Inspector"
+              ? "Procedural Animation Programming Inspector"
               : "Inspector"
       }
       description={
         isDedicatedInspectorMode
           ? "Author composition and inspect live output behavior."
           : showMotionGraphInspector
-            ? "Inspect and edit the selected MotionGraph node."
+            ? "Inspect and edit the selected procedural animation programming node."
             : "View and edit selected object properties."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"

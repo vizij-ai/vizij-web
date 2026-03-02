@@ -33,13 +33,13 @@ function TabbedBottomPanel() {
           active={activeTab === "timeline"}
           onClick={() => setActiveTab("timeline")}
         >
-          Timeline
+          Animation
         </TabButton>
         <TabButton
           active={activeTab === "motiongraph"}
           onClick={() => setActiveTab("motiongraph")}
         >
-          MotionGraph
+          Procedural Animation Programming
         </TabButton>
       </div>
       <div className="flex-1 min-h-0">

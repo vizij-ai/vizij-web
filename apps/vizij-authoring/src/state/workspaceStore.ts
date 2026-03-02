@@ -31,8 +31,51 @@ interface WorkspaceState {
   ) => void;
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
-  panels: {
+export type WorkspacePanels = WorkspaceState["panels"];
+export type WorkspacePanelId = keyof WorkspacePanels;
+
+const EXCLUSIVE_CENTER_PANEL_IDS = [
+  "animation",
+  "motiongraph",
+  "referenceFace",
+] as const satisfies readonly WorkspacePanelId[];
+const EXCLUSIVE_CENTER_PANEL_ID_SET: ReadonlySet<WorkspacePanelId> = new Set(
+  EXCLUSIVE_CENTER_PANEL_IDS,
+);
+
+function isExclusiveCenterPanel(panelId: WorkspacePanelId): boolean {
+  return EXCLUSIVE_CENTER_PANEL_ID_SET.has(panelId);
+}
+
+function applyExclusiveCenterMode(params: {
+  panels: WorkspacePanels;
+  panelId: WorkspacePanelId;
+  isVisible: boolean;
+}): WorkspacePanels {
+  const { panels, panelId, isVisible } = params;
+  if (!isVisible || !isExclusiveCenterPanel(panelId)) {
+    return panels;
+  }
+
+  const nextPanels: WorkspacePanels = { ...panels };
+  EXCLUSIVE_CENTER_PANEL_IDS.forEach((exclusivePanelId) => {
+    if (exclusivePanelId === panelId) {
+      return;
+    }
+    const current = nextPanels[exclusivePanelId];
+    if (!current.isVisible) {
+      return;
+    }
+    nextPanels[exclusivePanelId] = {
+      ...current,
+      isVisible: false,
+    };
+  });
+  return nextPanels;
+}
+
+export function createInitialWorkspacePanels(): WorkspacePanels {
+  return {
     hierarchy: { isVisible: true, order: 2 },
     variables: { isVisible: true, order: 1 },
     poses: { isVisible: true, order: 4 },
@@ -45,25 +88,44 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     toolbar: { isVisible: true, order: 0 },
     referenceFace: { isVisible: false, order: 0 },
     materials: { isVisible: true, order: 3 },
-  },
+  };
+}
+
+export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+  panels: createInitialWorkspacePanels(),
   togglePanel: (panelId) =>
-    set((state) => ({
-      panels: {
+    set((state) => {
+      const nextVisibility = !state.panels[panelId].isVisible;
+      const nextPanels = {
         ...state.panels,
         [panelId]: {
           ...state.panels[panelId],
-          isVisible: !state.panels[panelId].isVisible,
+          isVisible: nextVisibility,
         },
-      },
-    })),
+      };
+      return {
+        panels: applyExclusiveCenterMode({
+          panels: nextPanels,
+          panelId,
+          isVisible: nextVisibility,
+        }),
+      };
+    }),
   setPanelVisibility: (panelId, isVisible) =>
-    set((state) => ({
-      panels: {
+    set((state) => {
+      const nextPanels = {
         ...state.panels,
         [panelId]: {
           ...state.panels[panelId],
           isVisible,
         },
-      },
-    })),
+      };
+      return {
+        panels: applyExclusiveCenterMode({
+          panels: nextPanels,
+          panelId,
+          isVisible,
+        }),
+      };
+    }),
 }));

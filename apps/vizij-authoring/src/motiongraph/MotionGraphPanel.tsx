@@ -10,8 +10,8 @@ interface MotionGraphPanelProps {
 export function MotionGraphPanel({ onSelectNode }: MotionGraphPanelProps) {
   return (
     <Panel
-      title="MotionGraph"
-      description="Author node-graph signal flows in the workspace canvas."
+      title="Procedural Animation Programming"
+      description="Author procedural animation signal flows in the workspace canvas."
       className="h-full min-h-0 border-none bg-transparent shadow-none p-0"
     >
       <div className="h-full min-h-0 rounded border border-border-default/60 bg-bg-panel/40 overflow-hidden">
@@ -24,8 +24,8 @@ export function MotionGraphPanel({ onSelectNode }: MotionGraphPanelProps) {
 export function MotionGraphPalettePanel() {
   return (
     <Panel
-      title="MotionGraph Palette"
-      description="Drag graph nodes into the center MotionGraph canvas."
+      title="Procedural Animation Programming Palette"
+      description="Drag graph nodes into the center procedural animation canvas."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
     >
       <div className="h-full min-h-0 rounded border border-border-default/60 bg-bg-panel/40 overflow-hidden">

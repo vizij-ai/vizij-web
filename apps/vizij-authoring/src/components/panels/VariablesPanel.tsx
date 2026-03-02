@@ -1884,7 +1884,7 @@ function TreeRowWrapper({
           )}
           {inputLocked ? (
             <p className="text-[10px] text-amber-300">
-              Timeline transport is currently driving this input.
+              Animation transport is currently driving this input.
             </p>
           ) : null}
           {inputData.provenance ? (
@@ -4735,7 +4735,7 @@ export function VariablesPanel({
     }
     const suggestedPath = createUniqueCustomVariablePath();
     const nextPath = window.prompt(
-      "Create MotionGraph input driver path",
+      "Create procedural animation programming input driver path",
       suggestedPath,
     );
     if (nextPath === null) {
@@ -5652,10 +5652,10 @@ export function VariablesPanel({
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
                       onClick={handleCreateMotionGraphInputDriver}
-                      title="Create a driver and enable it as a MotionGraph input source"
+                      title="Create a driver and enable it as a procedural animation programming input source"
                     >
                       <Plus size={11} />
-                      New Graph Input Driver
+                      New Procedural Input Driver
                     </Button>
                   )}
                   {isPoseGroups && (
@@ -5713,7 +5713,7 @@ export function VariablesPanel({
                     <div className="rounded border border-border-default/50 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                          MotionGraph Inputs
+                          Procedural Animation Inputs
                         </span>
                         <span className="text-[10px] text-text-muted">
                           {visibleEnabledMotionGraphInputsCount}/
@@ -5730,7 +5730,7 @@ export function VariablesPanel({
                     <div className="rounded border border-border-default/50 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                          MotionGraph Outputs
+                          Procedural Animation Outputs
                         </span>
                         <span className="text-[10px] text-text-muted">
                           {visibleEnabledMotionGraphOutputsCount}/

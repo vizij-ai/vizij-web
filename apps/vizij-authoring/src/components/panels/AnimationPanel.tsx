@@ -250,8 +250,8 @@ export function AnimationPanel() {
 
   return (
     <Panel
-      title="Timeline"
-      description="Author and preview clips through runtime transport."
+      title="Animation"
+      description="Author and preview animation clips through runtime transport."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
       badge={formatTime(currentTime)}
