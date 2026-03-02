@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type { PoseRigConfigFile } from "../poseRig/types";
+import type { AnimationClipIR } from "../types/animationClipIr";
+import { useAnimationStore } from "../state/animationStore";
+import {
+  bundleAnimationEntryToClipIr,
+  findAuthoredTimelineBundleAnimation,
+} from "../utils/animationClipCompiler";
 import { waitForNextFrame } from "../utils/frame";
 import { sanitizeFaceId } from "../utils/faceId";
 import { extractGraphFaceId, prepareSpecForImport } from "../utils/graphImport";
@@ -70,6 +76,36 @@ function stableJsonFingerprint(value: unknown): string | null {
   }
 }
 
+interface TimelineHydrationActions {
+  importClipIr: (clip: AnimationClipIR) => void;
+  reset: () => void;
+}
+
+export function hydrateAuthoredTimelineFromBundleAnimations(
+  animations: VizijBundleExtension["animations"] | null | undefined,
+  actions: TimelineHydrationActions,
+): boolean {
+  if (!Array.isArray(animations) || animations.length === 0) {
+    actions.reset();
+    return false;
+  }
+
+  const authoredEntry = findAuthoredTimelineBundleAnimation(animations);
+  if (!authoredEntry) {
+    actions.reset();
+    return false;
+  }
+
+  const clipIr = bundleAnimationEntryToClipIr(authoredEntry);
+  if (!clipIr) {
+    actions.reset();
+    return false;
+  }
+
+  actions.importClipIr(clipIr);
+  return true;
+}
+
 /**
  * Synchronises the loaded Vizij bundle with the authoring state by
  * auto-importing rig graphs and pose libraries whenever the source GLB
@@ -96,9 +132,11 @@ export function useBundleSynchronizer({
   const importedRigFingerprintsRef = useRef<Set<string>>(new Set());
   const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const importedMotionGraphFingerprintsRef = useRef<Set<string>>(new Set());
+  const importedAnimationFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const poseResetKeysRef = useRef<Set<string>>(new Set());
+  const animationResetKeysRef = useRef<Set<string>>(new Set());
   const objectIdentityMapRef = useRef<WeakMap<object, number>>(new WeakMap());
   const nextObjectIdentityRef = useRef(1);
   const importedFaceIdByFingerprintRef = useRef<Map<string, string | null>>(
@@ -137,9 +175,11 @@ export function useBundleSynchronizer({
         importedRigFingerprintsRef.current.clear();
         importedPoseFingerprintsRef.current.clear();
         importedMotionGraphFingerprintsRef.current.clear();
+        importedAnimationFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
         poseResetKeysRef.current.clear();
+        animationResetKeysRef.current.clear();
         importedFaceIdByFingerprintRef.current.clear();
         return;
       }
@@ -148,6 +188,7 @@ export function useBundleSynchronizer({
         importedRigFingerprintsRef.current.clear();
         importedPoseFingerprintsRef.current.clear();
         importedMotionGraphFingerprintsRef.current.clear();
+        importedAnimationFingerprintsRef.current.clear();
         inflightRigFingerprintsRef.current.clear();
         inflightPoseFingerprintsRef.current.clear();
         const poseResetKey = `no-bundle::${rootId}`;
@@ -159,6 +200,18 @@ export function useBundleSynchronizer({
             poseResetKey,
           });
           resetPoseState();
+        }
+        const animationResetKey = `no-bundle::${rootId}`;
+        if (!animationResetKeysRef.current.has(animationResetKey)) {
+          animationResetKeysRef.current.add(animationResetKey);
+          try {
+            useAnimationStore.getState().reset();
+          } catch (error) {
+            console.warn(
+              "[vizij-authoring] Failed to reset authored timeline animations with no loaded bundle.",
+              error,
+            );
+          }
         }
         importedFaceIdByFingerprintRef.current.clear();
 
@@ -183,6 +236,8 @@ export function useBundleSynchronizer({
         });
         return;
       }
+
+      animationResetKeysRef.current.delete(`no-bundle::${rootId}`);
 
       await waitForNextFrame();
 
@@ -223,11 +278,17 @@ export function useBundleSynchronizer({
             .join("|")
         : "none";
       const poseConfigSignature = getObjectIdentity(loadedBundle.poses?.config);
+      const animationsSignature =
+        loadedBundle.animations === undefined
+          ? "__none__"
+          : (stableJsonFingerprint(loadedBundle.animations) ??
+            getObjectIdentity(loadedBundle.animations));
       const fingerprint = [
         rootId,
         loadedBundle.version ?? "",
         graphsSignature,
         poseConfigSignature,
+        animationsSignature,
       ].join("::");
 
       emitPhase({
@@ -336,6 +397,20 @@ export function useBundleSynchronizer({
 
       const rigComplete =
         !rigEntry || importedRigFingerprintsRef.current.has(fingerprint);
+      const importAuthoredTimelineAnimation = () => {
+        const animationFingerprint = `${fingerprint}::animations`;
+        if (
+          importedAnimationFingerprintsRef.current.has(animationFingerprint)
+        ) {
+          return;
+        }
+        const animationStore = useAnimationStore.getState();
+        hydrateAuthoredTimelineFromBundleAnimations(loadedBundle.animations, {
+          importClipIr: animationStore.importClipIr,
+          reset: animationStore.reset,
+        });
+        importedAnimationFingerprintsRef.current.add(animationFingerprint);
+      };
       const poseResetKey = `no-pose-config::${fingerprint}`;
       if (!loadedBundle.poses?.config) {
         if (resetPoseState && !poseResetKeysRef.current.has(poseResetKey)) {
@@ -351,6 +426,14 @@ export function useBundleSynchronizer({
       }
 
       if (standardInputCount === 0) {
+        try {
+          importAuthoredTimelineAnimation();
+        } catch (error) {
+          console.warn(
+            "[vizij-authoring] Failed to import authored timeline animations from bundle.",
+            error,
+          );
+        }
         if (rigComplete) {
           emitPhase({
             stepId: "bundle-sync",
@@ -449,6 +532,15 @@ export function useBundleSynchronizer({
             error,
           );
         }
+      }
+
+      try {
+        importAuthoredTimelineAnimation();
+      } catch (error) {
+        console.warn(
+          "[vizij-authoring] Failed to import authored timeline animations from bundle.",
+          error,
+        );
       }
 
       if (rigComplete && poseComplete) {

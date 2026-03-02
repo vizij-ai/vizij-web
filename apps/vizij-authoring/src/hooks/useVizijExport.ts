@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import {
   exportScene,
+  type VizijBundleAnimationEntry,
   type VizijBundleExtension,
   type VizijPoseRigConfig,
   type VizijData,
@@ -25,14 +26,25 @@ import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
+import {
+  AUTHORED_TIMELINE_CLIP_ID,
+  AUTHORED_TIMELINE_CLIP_NAME,
+  AUTHORED_TIMELINE_METADATA_ORIGIN,
+  type AnimationClipIR,
+} from "../types/animationClipIr";
 import type {
   PoseDiagnostic,
   PoseRigConfigFile,
   PoseRigIrFile,
 } from "../poseRig/types";
+import { useAnimationStore } from "../state/animationStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
+import {
+  clipIrToBundleAnimationEntry,
+  findCanonicalAuthoredTimelineConflict,
+} from "../utils/animationClipCompiler";
 import {
   buildPoseComposeModeByInputId,
   withPipelineConfigBuildOptions,
@@ -815,25 +827,44 @@ export function useVizijExport(
         }
       }
 
-      let bundle = buildVizijBundle({
-        includeVizijBundle,
-        includeImportedAnimations,
-        faceId: exportFaceId,
-        sourceName,
-        loadedBundle,
-        poseRig,
-        animatablesForExport,
-        animatableComponents,
-        bindings,
-        inputBindings,
-        standardInputsById,
-        featureLabelOverrides,
-        inputMetadata: standardInputMetadataById,
-        pipelineMetadataV1,
-        pipelineConfigByInputId,
-        poseGraphSpecForExport,
-        poseConfigForExport,
-      });
+      const animationStore = useAnimationStore.getState();
+      const authoredAnimationClip: AnimationClipIR | null =
+        animationStore.tracks.length > 0
+          ? animationStore.exportClipIr({
+              id: AUTHORED_TIMELINE_CLIP_ID,
+              name: AUTHORED_TIMELINE_CLIP_NAME,
+            })
+          : null;
+
+      let bundle: VizijBundleExtension | null;
+      try {
+        bundle = buildVizijBundle({
+          includeVizijBundle,
+          includeImportedAnimations,
+          faceId: exportFaceId,
+          sourceName,
+          loadedBundle,
+          poseRig,
+          animatablesForExport,
+          animatableComponents,
+          bindings,
+          inputBindings,
+          standardInputsById,
+          featureLabelOverrides,
+          inputMetadata: standardInputMetadataById,
+          pipelineMetadataV1,
+          pipelineConfigByInputId,
+          poseGraphSpecForExport,
+          poseConfigForExport,
+          authoredAnimationClip,
+        });
+      } catch (error) {
+        await alertDialog(
+          error instanceof Error ? error.message : String(error),
+        );
+        return;
+      }
+
       if (bundle && getMotionGraphSpec) {
         const motionGraphSpec = getMotionGraphSpec();
         if (motionGraphSpec && motionGraphSpec.nodes.length > 0) {
@@ -1156,6 +1187,7 @@ export function useVizijExport(
 interface BuildVizijBundleOptions {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
+  authoredAnimationClip?: AnimationClipIR | null;
   faceId: string;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
@@ -1225,6 +1257,7 @@ function buildVizijBundle(
   }
   const {
     includeImportedAnimations,
+    authoredAnimationClip,
     faceId,
     sourceName,
     loadedBundle,
@@ -1354,12 +1387,45 @@ function buildVizijBundle(
     info: poseDiagnostics.filter((entry) => entry.severity === "info").length,
   };
 
-  const inheritedAnimations =
+  const inheritedAnimations: VizijBundleAnimationEntry[] =
     includeImportedAnimations && Array.isArray(loadedBundle?.animations)
       ? (cloneSerializable(
           loadedBundle.animations,
-        ) as VizijBundleExtension["animations"])
+        ) as VizijBundleAnimationEntry[])
       : [];
+  const authoredAnimationEntry = authoredAnimationClip
+    ? clipIrToBundleAnimationEntry(authoredAnimationClip, {
+        standardInputsById,
+      })
+    : null;
+
+  if (authoredAnimationEntry && includeImportedAnimations) {
+    const conflictingCanonicalEntry =
+      findCanonicalAuthoredTimelineConflict(inheritedAnimations);
+    if (conflictingCanonicalEntry) {
+      throw new Error(
+        `Export blocked: imported animation "${AUTHORED_TIMELINE_CLIP_ID}" is not marked as authored timeline metadata.origin="${AUTHORED_TIMELINE_METADATA_ORIGIN}". Rename the imported clip or disable imported animation inheritance.`,
+      );
+    }
+  }
+
+  const mergedAnimationsById = new Map<string, VizijBundleAnimationEntry>();
+  inheritedAnimations.forEach((entry) => {
+    if (
+      !entry ||
+      typeof entry.id !== "string" ||
+      entry.id.trim().length === 0
+    ) {
+      return;
+    }
+    mergedAnimationsById.set(entry.id, entry);
+  });
+  if (authoredAnimationEntry) {
+    mergedAnimationsById.set(authoredAnimationEntry.id, authoredAnimationEntry);
+  }
+  const mergedAnimations = Array.from(mergedAnimationsById.values()).sort(
+    (left, right) => left.id.localeCompare(right.id),
+  );
 
   const bundleMetadata: Record<string, unknown> = {
     faceId: exportFaceId,
@@ -1377,6 +1443,8 @@ function buildVizijBundle(
   if (!includeImportedAnimations) {
     bundleMetadata.inheritedAnimations = false;
   }
+  bundleMetadata.authoredAnimationClips = authoredAnimationEntry ? 1 : 0;
+  bundleMetadata.animationPayloadCount = mergedAnimations.length;
 
   return {
     version: 1,
@@ -1393,7 +1461,7 @@ function buildVizijBundle(
           },
         }
       : null,
-    animations: inheritedAnimations,
+    animations: mergedAnimations,
     metadata: bundleMetadata,
   };
 }

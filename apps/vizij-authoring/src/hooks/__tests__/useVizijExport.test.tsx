@@ -1,5 +1,6 @@
-import React, { act } from "react";
+import React from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { flushSync } from "react-dom";
 import {
   describe,
   expect,
@@ -22,10 +23,15 @@ import { downloadJsonFile } from "@vizij/authoring-shared";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import {
+  AUTHORED_TIMELINE_CLIP_ID,
+  AUTHORED_TIMELINE_METADATA_ORIGIN,
+} from "../../types/animationClipIr";
+import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
   POSE_IR_TARGETING_CONTRACT,
 } from "../../poseRig/types";
 import { auditBundleGraphs } from "../../utils/bundleAudit";
+import { useAnimationStore } from "../../state/animationStore";
 
 vi.mock("@vizij/render", () => ({
   exportScene: vi.fn(),
@@ -86,6 +92,10 @@ const mockedAuditBundleGraphs = vi.mocked(auditBundleGraphs);
 
 type HookResult = ReturnType<typeof useVizijExport>;
 
+function act<T>(callback: () => T): T {
+  return callback();
+}
+
 function renderHook(options: Parameters<typeof useVizijExport>[0]) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -98,15 +108,15 @@ function renderHook(options: Parameters<typeof useVizijExport>[0]) {
   }
 
   let root: Root;
-  act(() => {
+  flushSync(() => {
     root = createRoot(container);
-    root.render(<HookWrapper />);
+    root.render(React.createElement(HookWrapper));
   });
 
   return {
     result,
     unmount: () => {
-      act(() => {
+      flushSync(() => {
         root.unmount();
       });
       if (container.parentNode) {
@@ -208,6 +218,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   mockedAuditBundleGraphs.mockResolvedValue([]);
+  useAnimationStore.getState().reset();
 });
 
 afterEach(() => {
@@ -400,6 +411,137 @@ describe("useVizijExport", () => {
     };
     expect(rigGraphSpec.metadata?.vizij?.pipelineV1).toEqual(
       compiledPipelineMetadata,
+    );
+    hook.unmount();
+  });
+
+  it("merges authored timeline clip with inherited bundle animations by id", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const animationStore = useAnimationStore.getState();
+    animationStore.addTrack("input_a", "Input A");
+    animationStore.setDuration(2);
+    animationStore.addKeyframe("track-0001", 0, 0);
+    animationStore.addKeyframe("track-0001", 2, 0.8);
+
+    const options = createOptions({
+      includeImportedAnimations: true,
+      loadedBundle: {
+        version: 1,
+        animations: [
+          {
+            id: "z-existing",
+            clip: {
+              id: "z-existing",
+              duration: 1,
+              tracks: [],
+            },
+          },
+          {
+            id: AUTHORED_TIMELINE_CLIP_ID,
+            clip: {
+              id: AUTHORED_TIMELINE_CLIP_ID,
+              duration: 1,
+              tracks: [],
+              metadata: { origin: AUTHORED_TIMELINE_METADATA_ORIGIN },
+            },
+            metadata: { origin: AUTHORED_TIMELINE_METADATA_ORIGIN },
+          },
+        ],
+      } as any,
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    const exportPayload = mockedExportScene.mock.calls[0]?.[1] as {
+      bundle?: {
+        animations?: Array<{
+          id: string;
+          clip: {
+            duration: number;
+            tracks: Array<{
+              channel: string;
+              targetInputId?: string;
+            }>;
+          };
+        }>;
+        metadata?: Record<string, unknown>;
+      };
+    };
+    const bundleAnimations = exportPayload.bundle?.animations ?? [];
+    expect(bundleAnimations.map((entry) => entry.id)).toEqual([
+      AUTHORED_TIMELINE_CLIP_ID,
+      "z-existing",
+    ]);
+    const authoredEntry = bundleAnimations.find(
+      (entry) => entry.id === AUTHORED_TIMELINE_CLIP_ID,
+    );
+    expect(authoredEntry?.clip.duration).toBe(2);
+    expect(authoredEntry?.clip.tracks[0]).toMatchObject({
+      channel: "input_a",
+      targetInputId: "input_a",
+    });
+    expect(exportPayload.bundle?.metadata).toMatchObject({
+      authoredAnimationClips: 1,
+      animationPayloadCount: 2,
+    });
+    hook.unmount();
+  });
+
+  it("hard-errors when imported canonical authored clip id conflicts with non-authored metadata", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const animationStore = useAnimationStore.getState();
+    animationStore.addTrack("input_a", "Input A");
+    animationStore.addKeyframe("track-0001", 0, 0.5);
+
+    const options = createOptions({
+      includeImportedAnimations: true,
+      loadedBundle: {
+        version: 1,
+        animations: [
+          {
+            id: AUTHORED_TIMELINE_CLIP_ID,
+            clip: {
+              id: AUTHORED_TIMELINE_CLIP_ID,
+              duration: 1,
+              tracks: [],
+            },
+          },
+        ],
+      } as any,
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).not.toHaveBeenCalled();
+    expect(options.alertDialog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `imported animation "${AUTHORED_TIMELINE_CLIP_ID}" is not marked`,
+      ),
     );
     hook.unmount();
   });
