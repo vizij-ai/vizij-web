@@ -47,6 +47,30 @@ function selectionTypeFromRenderableType(
   return "shape";
 }
 
+function toDeterministicSignature(value: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(value, (_key, currentValue) => {
+    if (!currentValue || typeof currentValue !== "object") {
+      return currentValue;
+    }
+    if (seen.has(currentValue as object)) {
+      return "[Circular]";
+    }
+    seen.add(currentValue as object);
+    if (Array.isArray(currentValue)) {
+      return currentValue;
+    }
+    const record = currentValue as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    Object.keys(record)
+      .sort((left, right) => left.localeCompare(right))
+      .forEach((key) => {
+        sorted[key] = record[key];
+      });
+    return sorted;
+  });
+}
+
 interface RuntimeSelectionBridgeProps {
   selectedSceneId: string | null;
   onSelectScene: (id: string) => void;
@@ -304,28 +328,7 @@ function RuntimeGraphBridge() {
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
-  const lastGraphRefsRef = useRef<{
-    graphSpec: unknown;
-    poseGraphSpec: unknown;
-    poseConfig: unknown;
-  } | null>(null);
-
-  useEffect(() => {
-    const previous = lastGraphRefsRef.current;
-    if (
-      previous &&
-      previous.graphSpec === graphSpec &&
-      previous.poseGraphSpec === poseGraphSpec &&
-      previous.poseConfig === poseConfig
-    ) {
-      return;
-    }
-    lastGraphRefsRef.current = {
-      graphSpec,
-      poseGraphSpec,
-      poseConfig,
-    };
-
+  const payload = useMemo(() => {
     const shouldIncludePosePayload =
       Boolean(graphSpec) || Boolean(poseGraphSpec) || Boolean(poseConfig);
     const posePayload = shouldIncludePosePayload
@@ -336,10 +339,22 @@ function RuntimeGraphBridge() {
           config: poseConfig ?? undefined,
         }
       : undefined;
-    const payload = {
+    return {
       rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
       pose: posePayload,
     };
+  }, [graphSpec, poseConfig, poseGraphSpec]);
+  const payloadSignature = useMemo(
+    () => toDeterministicSignature(payload),
+    [payload],
+  );
+  const lastPayloadSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastPayloadSignatureRef.current === payloadSignature) {
+      return;
+    }
+    lastPayloadSignatureRef.current = payloadSignature;
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][graph-bridge]", {
         hasRig: Boolean(payload.rig),
@@ -348,7 +363,7 @@ function RuntimeGraphBridge() {
       });
     }
     setGraphBundle(payload, { tier: "graphs" });
-  }, [graphSpec, poseGraphSpec, poseConfig, setGraphBundle]);
+  }, [payload, payloadSignature, setGraphBundle]);
 
   return null;
 }

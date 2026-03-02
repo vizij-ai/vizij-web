@@ -68,7 +68,6 @@ export function AnimationRuntimeBridge() {
   const setRuntimeTransportAdapter = useAnimationStore(
     (state) => state.setRuntimeTransportAdapter,
   );
-  const duration = useAnimationStore((state) => state.duration);
   const currentTime = useAnimationStore((state) => state.currentTime);
   const transportActive = useAnimationStore((state) => state.transportActive);
   const authoredClip = useMemo(
@@ -79,7 +78,7 @@ export function AnimationRuntimeBridge() {
             name: AUTHORED_TIMELINE_CLIP_NAME,
           })
         : null,
-    [duration, exportClipIr, tracks],
+    [exportClipIr, tracks],
   );
 
   const authoredAnimation = useMemo<VizijAnimationAsset | null>(() => {
@@ -122,16 +121,38 @@ export function AnimationRuntimeBridge() {
     () => toDeterministicSignature(mergedAnimations),
     [mergedAnimations],
   );
+  const currentTimeRef = useRef(currentTime);
   const appliedAnimationSignatureRef = useRef<string | null>(null);
+  const lastCurrentAnimationSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
+  useEffect(() => {
+    if (
+      lastCurrentAnimationSignatureRef.current !== currentAnimationSignature
+    ) {
+      lastCurrentAnimationSignatureRef.current = currentAnimationSignature;
+      if (currentAnimationSignature !== mergedAnimationSignature) {
+        // Runtime drifted from the authored signature; allow one controlled
+        // retry for the current merged signature.
+        appliedAnimationSignatureRef.current = null;
+      }
+    }
+
     if (currentAnimationSignature === mergedAnimationSignature) {
       appliedAnimationSignatureRef.current = mergedAnimationSignature;
       return;
     }
+
     if (appliedAnimationSignatureRef.current === mergedAnimationSignature) {
       return;
     }
+
+    // Retry bundle application until runtime state converges to the merged
+    // signature. Another bridge update can race and temporarily drop
+    // animations from the runtime bundle.
     appliedAnimationSignatureRef.current = mergedAnimationSignature;
     if (setGraphBundle) {
       setGraphBundle(
@@ -142,11 +163,10 @@ export function AnimationRuntimeBridge() {
       );
     }
     if (transportActive && authoredAnimation && seekAnimation) {
-      seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTime);
+      seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTimeRef.current);
     }
   }, [
     authoredAnimation,
-    currentTime,
     currentAnimationSignature,
     mergedAnimationSignature,
     mergedAnimations,
