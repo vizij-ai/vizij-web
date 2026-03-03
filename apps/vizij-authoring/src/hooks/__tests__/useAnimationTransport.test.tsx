@@ -115,6 +115,10 @@ describe("useAnimationTransport", () => {
     expect(useAnimationStore.getState().transportActive).toBe(true);
     expect(useAnimationStore.getState().transportPlaybackState).toBe("paused");
     expect(useAnimationStore.getState().isPlaying).toBe(false);
+    hook.result.stop();
+    expect(stopAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
+      clearOutputs: false,
+    });
     hook.unmount();
   });
 });

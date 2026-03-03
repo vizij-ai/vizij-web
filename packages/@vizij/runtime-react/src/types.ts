@@ -188,6 +188,10 @@ export type PlayAnimationOptions = {
   reset?: boolean;
 };
 
+export type StopAnimationOptions = {
+  clearOutputs?: boolean;
+};
+
 export type AnimationPlaybackState = {
   time: number;
   duration: number;
@@ -256,7 +260,9 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   seekAnimation: (id: string, timeSeconds: number) => void;
   setAnimationLoop: (id: string, enabled: boolean) => void;
   getAnimationState: (id: string) => AnimationPlaybackState | null;
-  stopAnimation: (id: string) => void;
+  stopAnimation: (id: string, options?: StopAnimationOptions) => void;
+  setAnimationActive: (active: boolean) => void;
+  isAnimationActive: () => boolean;
   step: (dt: number, opts?: { forceRuntime?: boolean }) => void;
   advanceAnimations: (dt: number) => void;
   inputConstraints: Record<

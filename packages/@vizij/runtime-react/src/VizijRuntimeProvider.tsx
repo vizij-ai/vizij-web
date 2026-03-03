@@ -48,6 +48,7 @@ import type {
   InputDriverFactory,
   InputDriverLifecycle,
   PlayAnimationOptions,
+  StopAnimationOptions,
   RuntimeError,
   VizijAssetBundle,
   VizijAnimationAsset,
@@ -1384,6 +1385,7 @@ function VizijRuntimeProviderInner({
 
   const animationTweensRef = useRef<Map<string, AnimationState>>(new Map());
   const clipPlaybackRef = useRef<Map<string, ClipPlaybackState>>(new Map());
+  const animationSystemActiveRef = useRef(true);
   const stagedInputsRef = useRef<
     Map<string, { value: ValueJSON; shape?: ShapeJSON }>
   >(new Map());
@@ -1433,6 +1435,9 @@ function VizijRuntimeProviderInner({
   const hasActiveAnimations = useCallback(() => {
     if (animationTweensRef.current.size > 0) {
       return true;
+    }
+    if (!animationSystemActiveRef.current) {
+      return false;
     }
     for (const state of clipPlaybackRef.current.values()) {
       if (state.playing) {
@@ -2210,6 +2215,9 @@ function VizijRuntimeProviderInner({
       state: ClipPlaybackState,
       options?: { immediate?: boolean },
     ) => {
+      if (!animationSystemActiveRef.current) {
+        return;
+      }
       const samples = sampleClipAtTime(
         clip.id,
         clip.clip as AnimationClipLike,
@@ -2328,7 +2336,7 @@ function VizijRuntimeProviderInner({
       toDelete.forEach((key) => {
         clipPlaybackRef.current.delete(key);
         const clip = resolveClipById(key);
-        if (clip) {
+        if (clip && animationSystemActiveRef.current) {
           clearClipOutputs(clip);
         }
       });
@@ -2465,7 +2473,7 @@ function VizijRuntimeProviderInner({
   );
 
   const stopAnimation = useCallback(
-    (id: string) => {
+    (id: string, options?: StopAnimationOptions) => {
       const clip = resolveClipById(id);
       const state = clipPlaybackRef.current.get(id);
       if (state) {
@@ -2473,12 +2481,34 @@ function VizijRuntimeProviderInner({
         state.playing = false;
         resolveClipPromise(state);
       }
-      if (clip) {
+      if (clip && options?.clearOutputs !== false) {
         clearClipOutputs(clip);
       }
       updateLoopMode();
     },
     [clearClipOutputs, resolveClipById, resolveClipPromise, updateLoopMode],
+  );
+
+  const setAnimationActive = useCallback(
+    (active: boolean) => {
+      const next = Boolean(active);
+      if (animationSystemActiveRef.current === next) {
+        return;
+      }
+      animationSystemActiveRef.current = next;
+      if (!next) {
+        clipPlaybackRef.current.forEach((state) => {
+          state.playing = false;
+        });
+      }
+      updateLoopMode();
+    },
+    [updateLoopMode],
+  );
+
+  const isAnimationActive = useCallback(
+    () => animationSystemActiveRef.current,
+    [],
   );
 
   const registerInputDriver = useCallback(
@@ -2699,6 +2729,8 @@ function VizijRuntimeProviderInner({
       setAnimationLoop,
       getAnimationState,
       stopAnimation,
+      setAnimationActive,
+      isAnimationActive,
       step,
       advanceAnimations,
       inputConstraints,
@@ -2719,6 +2751,8 @@ function VizijRuntimeProviderInner({
       setAnimationLoop,
       getAnimationState,
       stopAnimation,
+      setAnimationActive,
+      isAnimationActive,
       step,
       advanceAnimations,
       inputConstraints,

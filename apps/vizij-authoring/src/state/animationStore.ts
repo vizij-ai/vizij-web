@@ -30,7 +30,7 @@ export type AnimationRuntimeTransportAdapter = {
     options?: { weight?: number; speed?: number; reset?: boolean },
   ) => Promise<void>;
   pauseAnimation: (id: string) => void;
-  stopAnimation: (id: string) => void;
+  stopAnimation: (id: string, options?: { clearOutputs?: boolean }) => void;
   seekAnimation: (id: string, timeSeconds: number) => void;
   setAnimationLoop: (id: string, enabled: boolean) => void;
   getAnimationState: (id: string) => AnimationRuntimePlaybackState | null;

@@ -194,6 +194,9 @@ export function AnimationRuntimeBridge({
     setTransportEnabled(active);
     if (!active) {
       setRuntimeTransportAdapter(null);
+      if (typeof runtime.setAnimationActive === "function") {
+        runtime.setAnimationActive(false);
+      }
       if (typeof runtime.pauseAnimation === "function") {
         runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
       }
@@ -203,8 +206,14 @@ export function AnimationRuntimeBridge({
         transportPlaybackState: "stopped",
       });
       return () => {
+        if (typeof runtime.setAnimationActive === "function") {
+          runtime.setAnimationActive(true);
+        }
         setTransportEnabled(true);
       };
+    }
+    if (typeof runtime.setAnimationActive === "function") {
+      runtime.setAnimationActive(true);
     }
     if (
       typeof runtime.playAnimation !== "function" ||
@@ -228,6 +237,9 @@ export function AnimationRuntimeBridge({
     setRuntimeTransportAdapter(adapter);
     return () => {
       setRuntimeTransportAdapter(null);
+      if (typeof runtime.setAnimationActive === "function") {
+        runtime.setAnimationActive(true);
+      }
       setTransportEnabled(true);
     };
   }, [
@@ -338,7 +350,9 @@ export function useAnimationTransport() {
       stop();
       return;
     }
-    runtimeTransport.stopAnimation(AUTHORED_TIMELINE_CLIP_ID);
+    runtimeTransport.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+      clearOutputs: false,
+    });
     stop();
   }, [canDrive, runtimeTransport, stop]);
 
