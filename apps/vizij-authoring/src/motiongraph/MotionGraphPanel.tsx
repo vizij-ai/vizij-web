@@ -1,3 +1,4 @@
+import { ArrowLeftRight, ArrowUpDown } from "lucide-react";
 import { Panel } from "../components/ui/Panel";
 import { Button } from "../components/ui/Button";
 import EditorCanvas from "./components/EditorCanvas";
@@ -17,9 +18,9 @@ export function MotionGraphPanel({
 }: MotionGraphPanelProps) {
   const actions = onToggleSplit ? (
     <Button
-      variant="ghost"
+      variant="subtle"
       size="sm"
-      className="h-8 px-3 text-sm font-mono text-text-muted hover:text-text-primary"
+      className="h-9 px-3 text-sm font-semibold text-text-primary border border-border-default/70 bg-bg-panel/80 hover:bg-bg-hover"
       onClick={onToggleSplit}
       title={
         splitVertical
@@ -27,7 +28,12 @@ export function MotionGraphPanel({
           : "Switch to vertical split"
       }
     >
-      {splitVertical ? "⬌" : "⬍"}
+      {splitVertical ? (
+        <ArrowLeftRight className="mr-1.5 h-4 w-4" />
+      ) : (
+        <ArrowUpDown className="mr-1.5 h-4 w-4" />
+      )}
+      {splitVertical ? "Horizontal Split" : "Vertical Split"}
     </Button>
   ) : null;
   return (

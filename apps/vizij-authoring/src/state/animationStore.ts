@@ -97,13 +97,20 @@ function formatKeyframeId(ordinal: number): string {
 function normalizeKeyframesForTrack(
   keyframes: ReadonlyArray<AnimationKeyframe>,
   duration: number,
-  interpolation: AnimationTrack["interpolation"],
 ): AnimationKeyframe[] {
+  const normalizeInterpolationOverride = (
+    value: unknown,
+  ): AnimationTrack["interpolation"] | undefined => {
+    if (value === "linear" || value === "step" || value === "cubic") {
+      return value;
+    }
+    return undefined;
+  };
   const sorted = keyframes
     .map((keyframe) => ({
       ...keyframe,
       time: clampTime(keyframe.time, duration),
-      interpolation: keyframe.interpolation ?? interpolation,
+      interpolation: normalizeInterpolationOverride(keyframe.interpolation),
     }))
     .sort((left, right) => {
       if (left.time !== right.time) {
@@ -198,7 +205,6 @@ function normalizeTracksForState(
         id: allocateKeyframeId(keyframe.id),
       })),
       duration,
-      interpolation,
     );
     return {
       ...track,
@@ -376,7 +382,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           keyframes: normalizeKeyframesForTrack(
             track.keyframes,
             normalizedDuration,
-            track.interpolation,
           ),
         })),
       };
@@ -485,12 +490,8 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           ...track,
           interpolation,
           keyframes: normalizeKeyframesForTrack(
-            track.keyframes.map((keyframe) => ({
-              ...keyframe,
-              interpolation,
-            })),
+            track.keyframes,
             state.duration,
-            interpolation,
           ),
         };
       }),
@@ -517,7 +518,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         id: formatKeyframeId(state.nextKeyframeOrdinal),
         time: clampedTime,
         value,
-        interpolation: track.interpolation,
+        interpolation: undefined,
       };
 
       const updatedTracks = state.tracks.map((t) => {
@@ -532,7 +533,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
               newKeyframe,
             ],
             state.duration,
-            t.interpolation,
           ),
         };
       });
@@ -612,7 +612,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
                 : keyframe,
             ),
             state.duration,
-            track.interpolation,
           );
           selectedTrackId = track.id;
           selectedKeyframeId = existingKeyframe.id;
@@ -622,13 +621,12 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           id: formatKeyframeId(nextKeyframeOrdinal),
           time: clampedTime,
           value: entry.value,
-          interpolation: track.interpolation,
+          interpolation: undefined,
         };
         nextKeyframeOrdinal += 1;
         track.keyframes = normalizeKeyframesForTrack(
           [...track.keyframes, newKeyframe],
           state.duration,
-          track.interpolation,
         );
         selectedTrackId = track.id;
         selectedKeyframeId = newKeyframe.id;
@@ -663,7 +661,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     set((state) => ({
       tracks: state.tracks.map((t) => {
         if (t.id !== trackId) return t;
-        const interpolation = t.interpolation;
         return {
           ...t,
           keyframes: normalizeKeyframesForTrack(
@@ -675,16 +672,18 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
                 typeof updates.time === "number"
                   ? clampTime(updates.time, state.duration)
                   : k.time;
+              const interpolationOverride =
+                Object.prototype.hasOwnProperty.call(updates, "interpolation")
+                  ? updates.interpolation
+                  : k.interpolation;
               return {
                 ...k,
                 ...updates,
                 time: nextTime,
-                interpolation:
-                  updates.interpolation ?? k.interpolation ?? interpolation,
+                interpolation: interpolationOverride,
               };
             }),
             state.duration,
-            interpolation,
           ),
         };
       }),

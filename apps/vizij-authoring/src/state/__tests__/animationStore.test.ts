@@ -77,19 +77,23 @@ describe("animationStore deterministic behavior", () => {
     expect(exported.tracks[0]?.keyframes[1]?.id).toBe("kf-000100");
   });
 
-  it("propagates track interpolation updates to keyframes", () => {
+  it("keeps track interpolation as default while preserving per-key overrides", () => {
     const store = useAnimationStore.getState();
     store.addTrack("input_a", "Input A");
     store.addKeyframe("track-0001", 0, 0);
     store.addKeyframe("track-0001", 1, 1);
+    const keyframeId = useAnimationStore.getState().tracks[0]?.keyframes[0]?.id;
+    expect(keyframeId).toBeDefined();
+    store.updateKeyframe("track-0001", keyframeId!, {
+      interpolation: "cubic",
+    });
 
     store.setTrackInterpolation("track-0001", "step");
 
     const state = useAnimationStore.getState();
     expect(state.tracks[0]?.interpolation).toBe("step");
-    expect(
-      state.tracks[0]?.keyframes.map((keyframe) => keyframe.interpolation),
-    ).toEqual(["step", "step"]);
+    expect(state.tracks[0]?.keyframes[0]?.interpolation).toBe("cubic");
+    expect(state.tracks[0]?.keyframes[1]?.interpolation).toBeUndefined();
   });
 
   it("upserts input keyframes by creating a track and updating same-time keys", () => {

@@ -3,7 +3,14 @@ import { DiscrepancyWizard } from "../discrepancy/DiscrepancyWizard";
 import { PoseGraphRemapWizard } from "../poseRig/PoseGraphRemapWizard";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import type { AnimationClipIR } from "../../types/animationClipIr";
 import { ExportDialog } from "./ExportDialog";
+
+interface AuthoredMotionGraphExportEntry {
+  id: string;
+  label: string;
+  spec: { nodes: unknown[]; edges: unknown[] };
+}
 
 interface AppWizardsProps {
   showExportDialog: boolean;
@@ -17,6 +24,8 @@ interface AppWizardsProps {
   };
   sourceName: string | null;
   loadedBundle: any;
+  authoredAnimationClips: AnimationClipIR[];
+  authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   canExport: boolean;
   handleImportPoseGraphFile: (file: File) => Promise<void>;
   poseGraphRemap: any;
@@ -32,6 +41,8 @@ export function AppWizards({
   runtimeExportBodies,
   sourceName,
   loadedBundle,
+  authoredAnimationClips,
+  authoredProceduralPrograms,
   canExport,
   handleImportPoseGraphFile,
   poseGraphRemap,
@@ -72,6 +83,8 @@ export function AppWizards({
         runtimeExportBodies={runtimeExportBodies}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
+        authoredAnimationClips={authoredAnimationClips}
+        authoredProceduralPrograms={authoredProceduralPrograms}
         canExport={canExport}
         onImportPoseGraph={handleImportPoseGraphFile}
       />

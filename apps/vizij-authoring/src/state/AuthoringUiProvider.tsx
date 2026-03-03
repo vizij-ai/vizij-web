@@ -9,6 +9,7 @@ export interface AuthoringUiState {
   activeRiggingTab: RiggingTab;
   skipDiscrepancyCheck: boolean;
   activeRuntimeSource: RuntimeAuthoringSource;
+  activeEditFocus: EditFocus;
 }
 
 export type AuthoringUiAction =
@@ -17,13 +18,19 @@ export type AuthoringUiAction =
   | { type: "set-include-animations"; payload: boolean }
   | { type: "set-rigging-tab"; payload: RiggingTab }
   | { type: "set-skip-discrepancy-check"; payload: boolean }
-  | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource };
+  | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource }
+  | { type: "set-edit-focus"; payload: EditFocus };
 
 export type RiggingTab = "rigging" | "face";
 export type RuntimeAuthoringSource =
   | "animation"
   | "procedural-animation-programming"
   | "none";
+export type EditFocus =
+  | "default"
+  | "animation"
+  | "procedural-animation-programming"
+  | "reference-face";
 
 const INITIAL_UI_STATE: AuthoringUiState = {
   activeWorkbench: "import-export",
@@ -32,6 +39,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
+  activeEditFocus: "default",
 };
 
 export function authoringUiReducer(
@@ -80,6 +88,11 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, activeRuntimeSource: action.payload };
+    case "set-edit-focus":
+      if (state.activeEditFocus === action.payload) {
+        return state;
+      }
+      return { ...state, activeEditFocus: action.payload };
     default:
       return state;
   }
@@ -102,6 +115,7 @@ export interface AuthoringUiActions {
   setRiggingTab: (value: RiggingTab) => void;
   setSkipDiscrepancyCheck: (value: boolean) => void;
   setActiveRuntimeSource: (value: RuntimeAuthoringSource) => void;
+  setEditFocus: (value: EditFocus) => void;
 }
 
 export function AuthoringUiProvider({
@@ -125,6 +139,8 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-skip-discrepancy-check", payload: value }),
       setActiveRuntimeSource: (value) =>
         dispatch({ type: "set-active-runtime-source", payload: value }),
+      setEditFocus: (value) =>
+        dispatch({ type: "set-edit-focus", payload: value }),
     }),
     [],
   );

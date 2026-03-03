@@ -16,11 +16,9 @@ import {
   useAuthoringUiActions,
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
-import { useEditorStore } from "../../motiongraph/store/useEditorStore";
-import { buildGraphSpecForExport } from "../../motiongraph/utils/buildGraphSpec";
-import { OUTPUT_TARGET_TYPE } from "../../motiongraph/components/OutputTargetNode";
 import { cn } from "../../utils/cn";
 import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
+import type { AnimationClipIR } from "../../types/animationClipIr";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
@@ -30,6 +28,12 @@ interface RuntimeExportBodies {
   rootFilteredBodies: unknown[];
   anyBodies: unknown[];
   runtimeRootId: string | null;
+}
+
+interface AuthoredMotionGraphExportEntry {
+  id: string;
+  label: string;
+  spec: { nodes: unknown[]; edges: unknown[] };
 }
 
 function normalizeRootId(value: string | null | undefined): string | null {
@@ -55,6 +59,8 @@ interface ExportDialogProps {
   exportSceneRoot: unknown;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
+  authoredAnimationClips: AnimationClipIR[];
+  authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   canExport: boolean;
   onImportPoseGraph: (file: File) => Promise<void>;
   runtimeExportBodies?: RuntimeExportBodies;
@@ -67,6 +73,8 @@ export function ExportDialog({
   exportSceneRoot,
   sourceName,
   loadedBundle,
+  authoredAnimationClips,
+  authoredProceduralPrograms,
   canExport,
   onImportPoseGraph,
   runtimeExportBodies,
@@ -172,14 +180,6 @@ export function ExportDialog({
     },
     [setPoseIrFileName],
   );
-  const getMotionGraphSpec = useCallback(() => {
-    const { nodes, edges } = useEditorStore.getState();
-    if (!nodes.some((node) => node.type !== OUTPUT_TARGET_TYPE)) {
-      return null;
-    }
-    return buildGraphSpecForExport(nodes, edges);
-  }, []);
-
   const {
     exportGraph,
     exportGlb,
@@ -200,6 +200,7 @@ export function ExportDialog({
     includeVizijBundle,
     includeImportedAnimations,
     loadedBundle,
+    authoredAnimationClips,
     animatableComponents,
     animatables,
     values,
@@ -229,7 +230,7 @@ export function ExportDialog({
       blendMode: poseRig.blendMode,
       crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
-    getMotionGraphSpec,
+    authoredMotionGraphs: authoredProceduralPrograms,
   });
 
   const bundleSummary = useMemo<VizijBundleSummary>(() => {

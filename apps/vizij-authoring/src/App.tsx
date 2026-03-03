@@ -8,7 +8,11 @@ import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
-import { useWorkspaceStore } from "./state/workspaceStore";
+import {
+  createInitialWorkspacePanels,
+  useWorkspaceStore,
+  type WorkspacePanelId,
+} from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import { VariablesPanel } from "./components/panels/VariablesPanel";
@@ -31,7 +35,12 @@ import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
 import { RegistryProvider } from "./motiongraph/contexts/RegistryProvider";
-import { useEditorStore } from "./motiongraph/store/useEditorStore";
+import {
+  useEditorStore,
+  type EditorEdge,
+  type EditorNode,
+} from "./motiongraph/store/useEditorStore";
+import { buildGraphSpecForExport } from "./motiongraph/utils/buildGraphSpec";
 import { specToEditorState } from "./motiongraph/utils/specToEditorState";
 import {
   MotionGraphPanel,
@@ -47,6 +56,7 @@ import {
   AuthoringUiProvider,
   useAuthoringUiActions,
   useAuthoringUiState,
+  type EditFocus,
   type RuntimeAuthoringSource,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
@@ -67,8 +77,22 @@ import {
   resolveRootSceneRotationInputs,
   type RotationAxis,
 } from "./components/app/importOrientation";
+import { useAnimationStore } from "./state/animationStore";
+import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
+import {
+  ANIMATION_CLIP_IR_SCHEMA_VERSION,
+  AUTHORED_TIMELINE_CLIP_ID,
+  AUTHORED_TIMELINE_CLIP_NAME,
+  type AnimationClipIR,
+} from "./types/animationClipIr";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
+const AUTHORED_ANIMATION_TARGET_PREFIX = "authored-animation:";
+const AUTHORED_PROCEDURAL_TARGET_PREFIX = "authored-procedural:";
+const BUNDLE_ANIMATION_TARGET_PREFIX = "bundle-animation:";
+const BUNDLE_PROCEDURAL_TARGET_PREFIX = "bundle-procedural:";
+const AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID = "authoring.motiongraph.main";
+const AUTHORED_PROCEDURAL_MAIN_PROGRAM_NAME = "Procedural Program";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
 function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
   return {
@@ -91,6 +115,179 @@ const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
   "pose-graph-bootstrap": 10,
   "runtime-stabilization": 10,
 });
+
+interface AuthoredAnimationTarget {
+  targetId: string;
+  clipId: string;
+  name: string;
+  clip: AnimationClipIR;
+}
+
+interface ProceduralProgramSnapshot {
+  nodes: EditorNode[];
+  edges: EditorEdge[];
+  enabledOutputs: string[];
+  enabledInputs: string[];
+  customInputPaths: string[];
+}
+
+interface AuthoredProceduralTarget {
+  targetId: string;
+  programId: string;
+  name: string;
+  snapshot: ProceduralProgramSnapshot;
+}
+
+interface AuthoredMotionGraphExportEntry {
+  id: string;
+  label: string;
+  spec: { nodes: unknown[]; edges: unknown[] };
+}
+
+function authoredAnimationTargetValue(clipId: string): string {
+  return `${AUTHORED_ANIMATION_TARGET_PREFIX}${clipId}`;
+}
+
+function parseAuthoredAnimationTargetValue(targetId: string): string | null {
+  if (!targetId.startsWith(AUTHORED_ANIMATION_TARGET_PREFIX)) {
+    return null;
+  }
+  const clipId = targetId.slice(AUTHORED_ANIMATION_TARGET_PREFIX.length).trim();
+  return clipId.length > 0 ? clipId : null;
+}
+
+function createEmptyAnimationClip(
+  clipId: string,
+  name: string,
+  duration = 10,
+): AnimationClipIR {
+  return {
+    schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
+    id: clipId,
+    name,
+    duration,
+    tracks: [],
+  };
+}
+
+function createAuthoredAnimationTarget(
+  clipId: string,
+  name: string,
+  duration = 10,
+): AuthoredAnimationTarget {
+  return {
+    targetId: authoredAnimationTargetValue(clipId),
+    clipId,
+    name,
+    clip: createEmptyAnimationClip(clipId, name, duration),
+  };
+}
+
+function nextAuthoredAnimationClipOrdinal(
+  targets: readonly AuthoredAnimationTarget[],
+): number {
+  const prefix = "authoring.timeline.clip.";
+  let maxOrdinal = 0;
+  targets.forEach((target) => {
+    if (!target.clipId.startsWith(prefix)) {
+      return;
+    }
+    const raw = target.clipId.slice(prefix.length);
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed > maxOrdinal) {
+      maxOrdinal = parsed;
+    }
+  });
+  return maxOrdinal + 1;
+}
+
+function authoredProceduralTargetValue(programId: string): string {
+  return `${AUTHORED_PROCEDURAL_TARGET_PREFIX}${programId}`;
+}
+
+function parseAuthoredProceduralTargetValue(targetId: string): string | null {
+  if (!targetId.startsWith(AUTHORED_PROCEDURAL_TARGET_PREFIX)) {
+    return null;
+  }
+  const programId = targetId
+    .slice(AUTHORED_PROCEDURAL_TARGET_PREFIX.length)
+    .trim();
+  return programId.length > 0 ? programId : null;
+}
+
+function createEmptyProceduralSnapshot(): ProceduralProgramSnapshot {
+  return {
+    nodes: [],
+    edges: [],
+    enabledOutputs: [],
+    enabledInputs: [],
+    customInputPaths: [],
+  };
+}
+
+function createAuthoredProceduralTarget(
+  programId: string,
+  name: string,
+): AuthoredProceduralTarget {
+  return {
+    targetId: authoredProceduralTargetValue(programId),
+    programId,
+    name,
+    snapshot: createEmptyProceduralSnapshot(),
+  };
+}
+
+function nextAuthoredProceduralProgramOrdinal(
+  targets: readonly AuthoredProceduralTarget[],
+): number {
+  const prefix = "authoring.motiongraph.program.";
+  let maxOrdinal = 0;
+  targets.forEach((target) => {
+    if (!target.programId.startsWith(prefix)) {
+      return;
+    }
+    const raw = target.programId.slice(prefix.length);
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed > maxOrdinal) {
+      maxOrdinal = parsed;
+    }
+  });
+  return maxOrdinal + 1;
+}
+
+function snapshotProceduralEditorState(): ProceduralProgramSnapshot {
+  const editorState = useEditorStore.getState();
+  return {
+    nodes: structuredClone(editorState.nodes),
+    edges: structuredClone(editorState.edges),
+    enabledOutputs: Array.from(editorState.enabledOutputs),
+    enabledInputs: Array.from(editorState.enabledInputs),
+    customInputPaths: [...editorState.customInputPaths],
+  };
+}
+
+function hydrateProceduralEditorState(
+  snapshot: ProceduralProgramSnapshot,
+): void {
+  const store = useEditorStore.getState();
+  store.hydrate(
+    structuredClone(snapshot.nodes),
+    structuredClone(snapshot.edges),
+    new Set(snapshot.enabledOutputs),
+    new Set(snapshot.enabledInputs),
+    [...snapshot.customInputPaths],
+  );
+}
+
+function buildProceduralExportSpec(snapshot: ProceduralProgramSnapshot): {
+  nodes: unknown[];
+  edges: unknown[];
+} {
+  return buildGraphSpecForExport(snapshot.nodes, snapshot.edges) as {
+    nodes: unknown[];
+    edges: unknown[];
+  };
+}
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
 type FaceLoadPhaseChange = Parameters<
@@ -185,6 +382,60 @@ function runtimeSourceOptionsForCenterMode(mode: CenterAuthoringMode): Array<{
     ];
   }
   return [{ value: "none", label: "None" }];
+}
+
+function applyEditFocusPanelDefaults(
+  focus: EditFocus,
+  setPanelVisibility: (panelId: WorkspacePanelId, isVisible: boolean) => void,
+): void {
+  const base = createInitialWorkspacePanels();
+  const nextVisibility: Record<WorkspacePanelId, boolean> = {
+    hierarchy: base.hierarchy.isVisible,
+    variables: base.variables.isVisible,
+    poses: base.poses.isVisible,
+    inputs: base.inputs.isVisible,
+    motiongraphPalette: base.motiongraphPalette.isVisible,
+    inspector: base.inspector.isVisible,
+    debug: base.debug.isVisible,
+    animation: base.animation.isVisible,
+    motiongraph: base.motiongraph.isVisible,
+    toolbar: base.toolbar.isVisible,
+    referenceFace: base.referenceFace.isVisible,
+    materials: base.materials.isVisible,
+  };
+
+  if (focus === "animation") {
+    nextVisibility.hierarchy = false;
+    nextVisibility.variables = false;
+    nextVisibility.poses = false;
+    nextVisibility.materials = false;
+    nextVisibility.inputs = true;
+    nextVisibility.motiongraphPalette = false;
+    nextVisibility.animation = true;
+    nextVisibility.motiongraph = false;
+    nextVisibility.referenceFace = false;
+  } else if (focus === "procedural-animation-programming") {
+    nextVisibility.hierarchy = false;
+    nextVisibility.variables = false;
+    nextVisibility.poses = false;
+    nextVisibility.materials = false;
+    nextVisibility.inputs = true;
+    nextVisibility.motiongraphPalette = true;
+    nextVisibility.animation = false;
+    nextVisibility.motiongraph = true;
+    nextVisibility.referenceFace = false;
+  } else if (focus === "reference-face") {
+    nextVisibility.animation = false;
+    nextVisibility.motiongraph = false;
+    nextVisibility.referenceFace = true;
+    nextVisibility.motiongraphPalette = false;
+  }
+
+  (Object.keys(nextVisibility) as WorkspacePanelId[]).forEach(
+    (panelId: WorkspacePanelId) => {
+      setPanelVisibility(panelId, nextVisibility[panelId]);
+    },
+  );
 }
 
 export default function App() {
@@ -385,6 +636,28 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
   const [motionGraphSplitVertical, setMotionGraphSplitVertical] =
     useState(true);
+  const [authoredAnimationTargets, setAuthoredAnimationTargets] = useState<
+    AuthoredAnimationTarget[]
+  >(() => [
+    createAuthoredAnimationTarget(
+      AUTHORED_TIMELINE_CLIP_ID,
+      AUTHORED_TIMELINE_CLIP_NAME,
+    ),
+  ]);
+  const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState(
+    () => authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
+  );
+  const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
+    AuthoredProceduralTarget[]
+  >(() => [
+    createAuthoredProceduralTarget(
+      AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
+      AUTHORED_PROCEDURAL_MAIN_PROGRAM_NAME,
+    ),
+  ]);
+  const [selectedProceduralTargetId, setSelectedProceduralTargetId] = useState(
+    () => authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
+  );
   const lastMotionGraphImportRootIdRef = useRef<string | null>(null);
   const handleRuntimeExportBodiesChange = useCallback(
     (next: RuntimeExportBodiesSnapshot) => {
@@ -439,10 +712,33 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
 
-  const { activeWorkbench, skipDiscrepancyCheck, activeRuntimeSource } =
-    uiState;
+  const {
+    activeWorkbench,
+    skipDiscrepancyCheck,
+    activeRuntimeSource,
+    activeEditFocus,
+  } = uiState;
 
   const poseRig = usePoseRig();
+  const importAnimationClipIr = useAnimationStore(
+    (state) => state.importClipIr,
+  );
+  const exportAnimationClipIr = useAnimationStore(
+    (state) => state.exportClipIr,
+  );
+  const animationTracks = useAnimationStore((state) => state.tracks);
+  const animationDuration = useAnimationStore((state) => state.duration);
+  const proceduralEditorNodes = useEditorStore((state) => state.nodes);
+  const proceduralEditorEdges = useEditorStore((state) => state.edges);
+  const proceduralEditorEnabledOutputs = useEditorStore(
+    (state) => state.enabledOutputs,
+  );
+  const proceduralEditorEnabledInputs = useEditorStore(
+    (state) => state.enabledInputs,
+  );
+  const proceduralEditorCustomInputPaths = useEditorStore(
+    (state) => state.customInputPaths,
+  );
 
   const { alert: showAlert } = useDialogQueue();
 
@@ -550,6 +846,466 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [loader.rootId],
   );
+
+  const bundleAnimationTargetOptions = useMemo(() => {
+    const entries = loadedBundle?.animations ?? [];
+    return entries.map((entry, index) => {
+      const clipName =
+        typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
+      const fallbackName =
+        entry.id?.trim() || `Imported Animation ${index + 1}`;
+      return {
+        value: `${BUNDLE_ANIMATION_TARGET_PREFIX}${index}`,
+        label: clipName || fallbackName,
+      };
+    });
+  }, [loadedBundle?.animations]);
+
+  const authoredAnimationTargetOptions = useMemo(
+    () =>
+      authoredAnimationTargets.map((target) => ({
+        value: target.targetId,
+        label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
+      })),
+    [authoredAnimationTargets],
+  );
+
+  const animationTargetOptions = useMemo(
+    () => [...authoredAnimationTargetOptions, ...bundleAnimationTargetOptions],
+    [authoredAnimationTargetOptions, bundleAnimationTargetOptions],
+  );
+
+  const bundleProceduralEntries = useMemo(
+    () =>
+      (loadedBundle?.graphs ?? []).filter(
+        (entry) => entry.kind?.toLowerCase?.() === "motiongraph",
+      ),
+    [loadedBundle?.graphs],
+  );
+
+  const bundleProceduralTargetOptions = useMemo(
+    () =>
+      bundleProceduralEntries.map((entry, index) => {
+        const metadataLabel =
+          typeof entry.label === "string" ? entry.label.trim() : "";
+        const metadataId = typeof entry.id === "string" ? entry.id.trim() : "";
+        const fallback = `Imported Program ${index + 1}`;
+        return {
+          value: `${BUNDLE_PROCEDURAL_TARGET_PREFIX}${index}`,
+          label: metadataLabel || metadataId || fallback,
+        };
+      }),
+    [bundleProceduralEntries],
+  );
+
+  const authoredProceduralTargetOptions = useMemo(
+    () =>
+      authoredProceduralTargets.map((target) => ({
+        value: target.targetId,
+        label: target.name.trim().length > 0 ? target.name : "Untitled Program",
+      })),
+    [authoredProceduralTargets],
+  );
+
+  const proceduralTargetOptions = useMemo(
+    () => [
+      ...authoredProceduralTargetOptions,
+      ...bundleProceduralTargetOptions,
+    ],
+    [authoredProceduralTargetOptions, bundleProceduralTargetOptions],
+  );
+
+  const saveAuthoredAnimationTarget = useCallback(
+    (targetId: string) => {
+      const clipId = parseAuthoredAnimationTargetValue(targetId);
+      if (!clipId) {
+        return;
+      }
+      setAuthoredAnimationTargets((previous) => {
+        const index = previous.findIndex(
+          (target) => target.targetId === targetId || target.clipId === clipId,
+        );
+        if (index < 0) {
+          return previous;
+        }
+        const target = previous[index]!;
+        const clip = exportAnimationClipIr({
+          id: target.clipId,
+          name: target.name,
+        });
+        const updatedTarget: AuthoredAnimationTarget = {
+          ...target,
+          clipId: clip.id,
+          targetId: authoredAnimationTargetValue(clip.id),
+          clip,
+        };
+        const next = [...previous];
+        next[index] = updatedTarget;
+        return next;
+      });
+    },
+    [exportAnimationClipIr],
+  );
+
+  const selectedAuthoredAnimationTarget = useMemo(
+    () =>
+      authoredAnimationTargets.find(
+        (target) => target.targetId === selectedAnimationTargetId,
+      ) ?? null,
+    [authoredAnimationTargets, selectedAnimationTargetId],
+  );
+  const selectedAuthoredProceduralTarget = useMemo(
+    () =>
+      authoredProceduralTargets.find(
+        (target) => target.targetId === selectedProceduralTargetId,
+      ) ?? null,
+    [authoredProceduralTargets, selectedProceduralTargetId],
+  );
+
+  const handleSelectAnimationTarget = useCallback(
+    (targetId: string) => {
+      if (targetId === selectedAnimationTargetId) {
+        return;
+      }
+      const currentAuthoredClipId = parseAuthoredAnimationTargetValue(
+        selectedAnimationTargetId,
+      );
+      if (currentAuthoredClipId) {
+        saveAuthoredAnimationTarget(selectedAnimationTargetId);
+      }
+      setSelectedAnimationTargetId(targetId);
+
+      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
+      if (authoredClipId) {
+        const target = authoredAnimationTargets.find(
+          (entry) =>
+            entry.targetId === targetId || entry.clipId === authoredClipId,
+        );
+        if (target) {
+          importAnimationClipIr(target.clip);
+        }
+        return;
+      }
+      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        return;
+      }
+      const rawIndex = targetId.slice(BUNDLE_ANIMATION_TARGET_PREFIX.length);
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return;
+      }
+      const entry = loadedBundle?.animations?.[index];
+      if (!entry) {
+        return;
+      }
+      const clip = bundleAnimationEntryToClipIr(entry, {
+        standardInputsById: mainFaceInputsById,
+      });
+      if (clip) {
+        importAnimationClipIr(clip);
+      }
+    },
+    [
+      authoredAnimationTargets,
+      importAnimationClipIr,
+      loadedBundle?.animations,
+      mainFaceInputsById,
+      saveAuthoredAnimationTarget,
+      selectedAnimationTargetId,
+    ],
+  );
+
+  const handleCreateAnimationTarget = useCallback(() => {
+    const currentAuthoredClipId = parseAuthoredAnimationTargetValue(
+      selectedAnimationTargetId,
+    );
+    if (currentAuthoredClipId) {
+      saveAuthoredAnimationTarget(selectedAnimationTargetId);
+    }
+
+    const nextOrdinal = nextAuthoredAnimationClipOrdinal(
+      authoredAnimationTargets,
+    );
+    const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
+    const nextClipName = `Animation Clip ${nextOrdinal}`;
+    const nextTarget = createAuthoredAnimationTarget(
+      nextClipId,
+      nextClipName,
+      animationDuration,
+    );
+    setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
+    setSelectedAnimationTargetId(nextTarget.targetId);
+    importAnimationClipIr(nextTarget.clip);
+  }, [
+    animationDuration,
+    authoredAnimationTargets,
+    importAnimationClipIr,
+    saveAuthoredAnimationTarget,
+    selectedAnimationTargetId,
+  ]);
+
+  const handleRenameAnimationTarget = useCallback(
+    (nextName: string) => {
+      const authoredClipId = parseAuthoredAnimationTargetValue(
+        selectedAnimationTargetId,
+      );
+      if (!authoredClipId) {
+        return;
+      }
+      const normalizedName =
+        nextName.trim().length > 0 ? nextName.trim() : "Untitled Clip";
+      setAuthoredAnimationTargets((previous) =>
+        previous.map((target) =>
+          target.targetId === selectedAnimationTargetId
+            ? {
+                ...target,
+                name: normalizedName,
+                clip: {
+                  ...target.clip,
+                  name: normalizedName,
+                },
+              }
+            : target,
+        ),
+      );
+    },
+    [selectedAnimationTargetId],
+  );
+
+  const authoredAnimationClipsForExport = useMemo(() => {
+    const authoredClipId = parseAuthoredAnimationTargetValue(
+      selectedAnimationTargetId,
+    );
+    const liveActiveClip =
+      authoredClipId && selectedAuthoredAnimationTarget
+        ? exportAnimationClipIr({
+            id: selectedAuthoredAnimationTarget.clipId,
+            name: selectedAuthoredAnimationTarget.name,
+          })
+        : null;
+    return authoredAnimationTargets.map((target) => {
+      if (
+        liveActiveClip &&
+        target.targetId === selectedAuthoredAnimationTarget?.targetId
+      ) {
+        return liveActiveClip;
+      }
+      return target.clip;
+    });
+  }, [
+    animationDuration,
+    animationTracks,
+    authoredAnimationTargets,
+    exportAnimationClipIr,
+    selectedAnimationTargetId,
+    selectedAuthoredAnimationTarget,
+  ]);
+
+  const handleSelectProceduralTarget = useCallback(
+    (targetId: string) => {
+      if (targetId === selectedProceduralTargetId) {
+        return;
+      }
+      const currentAuthoredProgramId = parseAuthoredProceduralTargetValue(
+        selectedProceduralTargetId,
+      );
+      if (currentAuthoredProgramId) {
+        setAuthoredProceduralTargets((previous) => {
+          const index = previous.findIndex(
+            (target) =>
+              target.targetId === selectedProceduralTargetId ||
+              target.programId === currentAuthoredProgramId,
+          );
+          if (index < 0) {
+            return previous;
+          }
+          const next = [...previous];
+          next[index] = {
+            ...next[index]!,
+            snapshot: snapshotProceduralEditorState(),
+          };
+          return next;
+        });
+      }
+
+      setSelectedProceduralTargetId(targetId);
+      const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
+      if (authoredProgramId) {
+        const authoredTarget = authoredProceduralTargets.find(
+          (target) =>
+            target.targetId === targetId ||
+            target.programId === authoredProgramId,
+        );
+        if (authoredTarget) {
+          hydrateProceduralEditorState(authoredTarget.snapshot);
+        }
+        return;
+      }
+      if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        return;
+      }
+      const rawIndex = targetId.slice(BUNDLE_PROCEDURAL_TARGET_PREFIX.length);
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return;
+      }
+      const entry = bundleProceduralEntries[index];
+      if (!entry) {
+        return;
+      }
+      importMotionGraph(
+        entry.spec ? (entry.spec as Record<string, unknown>) : null,
+      );
+    },
+    [
+      authoredProceduralTargets,
+      bundleProceduralEntries,
+      importMotionGraph,
+      selectedProceduralTargetId,
+    ],
+  );
+
+  const handleCreateProceduralTarget = useCallback(() => {
+    const currentAuthoredProgramId = parseAuthoredProceduralTargetValue(
+      selectedProceduralTargetId,
+    );
+    if (currentAuthoredProgramId) {
+      setAuthoredProceduralTargets((previous) => {
+        const index = previous.findIndex(
+          (target) =>
+            target.targetId === selectedProceduralTargetId ||
+            target.programId === currentAuthoredProgramId,
+        );
+        if (index < 0) {
+          return previous;
+        }
+        const next = [...previous];
+        next[index] = {
+          ...next[index]!,
+          snapshot: snapshotProceduralEditorState(),
+        };
+        return next;
+      });
+    }
+
+    const nextOrdinal = nextAuthoredProceduralProgramOrdinal(
+      authoredProceduralTargets,
+    );
+    const nextProgramId = `authoring.motiongraph.program.${nextOrdinal}`;
+    const nextProgramName = `Procedural Program ${nextOrdinal}`;
+    const nextTarget = createAuthoredProceduralTarget(
+      nextProgramId,
+      nextProgramName,
+    );
+    setAuthoredProceduralTargets((previous) => [...previous, nextTarget]);
+    setSelectedProceduralTargetId(nextTarget.targetId);
+    hydrateProceduralEditorState(nextTarget.snapshot);
+  }, [authoredProceduralTargets, selectedProceduralTargetId]);
+
+  const handleRenameProceduralTarget = useCallback(
+    (nextName: string) => {
+      const authoredProgramId = parseAuthoredProceduralTargetValue(
+        selectedProceduralTargetId,
+      );
+      if (!authoredProgramId) {
+        return;
+      }
+      const normalizedName =
+        nextName.trim().length > 0 ? nextName.trim() : "Untitled Program";
+      setAuthoredProceduralTargets((previous) =>
+        previous.map((target) =>
+          target.targetId === selectedProceduralTargetId
+            ? {
+                ...target,
+                name: normalizedName,
+              }
+            : target,
+        ),
+      );
+    },
+    [selectedProceduralTargetId],
+  );
+
+  const authoredProceduralProgramsForExport = useMemo(() => {
+    const activeAuthoredProgramId = parseAuthoredProceduralTargetValue(
+      selectedProceduralTargetId,
+    );
+    const liveActiveSnapshot = activeAuthoredProgramId
+      ? {
+          nodes: structuredClone(proceduralEditorNodes),
+          edges: structuredClone(proceduralEditorEdges),
+          enabledOutputs: Array.from(proceduralEditorEnabledOutputs),
+          enabledInputs: Array.from(proceduralEditorEnabledInputs),
+          customInputPaths: [...proceduralEditorCustomInputPaths],
+        }
+      : null;
+    return authoredProceduralTargets
+      .map<AuthoredMotionGraphExportEntry | null>((target) => {
+        const snapshot =
+          liveActiveSnapshot &&
+          selectedAuthoredProceduralTarget &&
+          target.targetId === selectedAuthoredProceduralTarget.targetId
+            ? liveActiveSnapshot
+            : target.snapshot;
+        const spec = buildProceduralExportSpec(snapshot);
+        if (!Array.isArray(spec.nodes) || spec.nodes.length === 0) {
+          return null;
+        }
+        return {
+          id: target.programId,
+          label: target.name,
+          spec,
+        };
+      })
+      .filter(
+        (entry): entry is AuthoredMotionGraphExportEntry => entry !== null,
+      );
+  }, [
+    authoredProceduralTargets,
+    proceduralEditorCustomInputPaths,
+    proceduralEditorEdges,
+    proceduralEditorEnabledInputs,
+    proceduralEditorEnabledOutputs,
+    proceduralEditorNodes,
+    selectedAuthoredProceduralTarget,
+    selectedProceduralTargetId,
+  ]);
+
+  useEffect(() => {
+    if (
+      animationTargetOptions.some(
+        (option) => option.value === selectedAnimationTargetId,
+      )
+    ) {
+      return;
+    }
+    setSelectedAnimationTargetId(
+      authoredAnimationTargets[0]?.targetId ??
+        authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
+    );
+  }, [
+    animationTargetOptions,
+    authoredAnimationTargets,
+    selectedAnimationTargetId,
+  ]);
+
+  useEffect(() => {
+    if (
+      proceduralTargetOptions.some(
+        (option) => option.value === selectedProceduralTargetId,
+      )
+    ) {
+      return;
+    }
+    setSelectedProceduralTargetId(
+      authoredProceduralTargets[0]?.targetId ??
+        authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
+    );
+  }, [
+    authoredProceduralTargets,
+    proceduralTargetOptions,
+    selectedProceduralTargetId,
+  ]);
 
   useBundleSynchronizer({
     faceId,
@@ -680,6 +1436,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const setWorkspacePanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
+  useEffect(() => {
+    applyEditFocusPanelDefaults(activeEditFocus, setWorkspacePanelVisibility);
+  }, [activeEditFocus, setWorkspacePanelVisibility]);
   const centerAuthoringMode: CenterAuthoringMode = motionGraphPanelVisible
     ? "procedural-animation-programming"
     : animationPanelVisible
@@ -693,6 +1452,61 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () => runtimeSourceOptionsForCenterMode(centerAuthoringMode),
     [centerAuthoringMode],
   );
+  const runtimeTargetConfig = useMemo(() => {
+    if (centerAuthoringMode === "animation") {
+      const canRenameTarget = Boolean(
+        parseAuthoredAnimationTargetValue(selectedAnimationTargetId),
+      );
+      return {
+        targetLabel: "Animation Clip",
+        targetValue: selectedAnimationTargetId,
+        targetOptions: animationTargetOptions,
+        onTargetChange: handleSelectAnimationTarget,
+        targetName: canRenameTarget
+          ? selectedAuthoredAnimationTarget?.name
+          : undefined,
+        onTargetNameChange: canRenameTarget
+          ? handleRenameAnimationTarget
+          : undefined,
+        onCreateTarget: handleCreateAnimationTarget,
+        createTargetLabel: "New Clip",
+      };
+    }
+    if (centerAuthoringMode === "procedural-animation-programming") {
+      const canRenameTarget = Boolean(
+        parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
+      );
+      return {
+        targetLabel: "Procedural Program",
+        targetValue: selectedProceduralTargetId,
+        targetOptions: proceduralTargetOptions,
+        onTargetChange: handleSelectProceduralTarget,
+        targetName: canRenameTarget
+          ? selectedAuthoredProceduralTarget?.name
+          : undefined,
+        onTargetNameChange: canRenameTarget
+          ? handleRenameProceduralTarget
+          : undefined,
+        onCreateTarget: handleCreateProceduralTarget,
+        createTargetLabel: "New Program",
+      };
+    }
+    return null;
+  }, [
+    animationTargetOptions,
+    centerAuthoringMode,
+    handleCreateAnimationTarget,
+    handleCreateProceduralTarget,
+    handleRenameAnimationTarget,
+    handleRenameProceduralTarget,
+    handleSelectAnimationTarget,
+    handleSelectProceduralTarget,
+    proceduralTargetOptions,
+    selectedAuthoredAnimationTarget,
+    selectedAuthoredProceduralTarget,
+    selectedAnimationTargetId,
+    selectedProceduralTargetId,
+  ]);
   useEffect(() => {
     const previousCenterAuthoringMode = previousCenterAuthoringModeRef.current;
     if (previousCenterAuthoringMode === centerAuthoringMode) {
@@ -970,6 +1784,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onExport={() => setShowExportDialog(true)}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
+      activeEditFocus={activeEditFocus}
+      onSelectEditFocus={uiActions.setEditFocus}
     />
   );
 
@@ -1456,6 +2272,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               activeSource={activeRuntimeSource}
               options={runtimeSourceOptions}
               onChange={uiActions.setActiveRuntimeSource}
+              targetLabel={runtimeTargetConfig?.targetLabel}
+              targetValue={runtimeTargetConfig?.targetValue}
+              targetOptions={runtimeTargetConfig?.targetOptions}
+              onTargetChange={runtimeTargetConfig?.onTargetChange}
+              targetName={runtimeTargetConfig?.targetName}
+              onTargetNameChange={runtimeTargetConfig?.onTargetNameChange}
+              onCreateTarget={runtimeTargetConfig?.onCreateTarget}
+              createTargetLabel={runtimeTargetConfig?.createTargetLabel}
             />
           }
           viewport={viewportContent}
@@ -1492,6 +2316,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         runtimeExportBodies={runtimeExportBodies}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
+        authoredAnimationClips={authoredAnimationClipsForExport}
+        authoredProceduralPrograms={authoredProceduralProgramsForExport}
         canExport={canExport}
         handleImportPoseGraphFile={handleImportPoseGraphFile}
         poseGraphRemap={poseGraphRemap}

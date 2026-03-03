@@ -17,6 +17,7 @@ import {
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
+import { useAnimationStore } from "../../state/animationStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import {
@@ -455,6 +456,7 @@ export function Viewer({
   const applyStandardInputBatch = useBindingAuthoring(
     (state) => state.applyStandardInputBatch,
   );
+  const stopAnimationTimeline = useAnimationStore((state) => state.stop);
   const lockedRuntimeOutputIndex = useMemo(
     () => buildLockedRuntimeOutputIndex(lockedInspectorTargetIds),
     [lockedInspectorTargetIds],
@@ -507,7 +509,8 @@ export function Viewer({
       return;
     }
     applyStandardInputBatch(resetInputEntries);
-  }, [applyStandardInputBatch, resetInputEntries]);
+    stopAnimationTimeline();
+  }, [applyStandardInputBatch, resetInputEntries, stopAnimationTimeline]);
 
   useEffect(() => {
     if (rootId && bundle) {

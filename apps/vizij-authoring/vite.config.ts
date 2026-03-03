@@ -13,72 +13,90 @@ const threeEntry = require.resolve("three");
 const threePath = path.resolve(path.dirname(threeEntry), "..");
 const reactPath = path.resolve(__dirname, "node_modules/react");
 const reactDomPath = path.resolve(__dirname, "node_modules/react-dom");
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  assetsInclude: ["**/*.glb"],
-  resolve: {
-    dedupe: ["react", "react-dom", "three"],
-    alias: {
-      "@vizij/node-graph-authoring": path.resolve(
-        workspaceRoot,
-        "packages/@vizij/node-graph-authoring/src",
-      ),
-      "@vizij/node-graph-react": path.resolve(
-        workspaceRoot,
-        "packages/@vizij/node-graph-react/src",
-      ),
-      "@vizij/runtime-react": path.resolve(
-        workspaceRoot,
-        "packages/@vizij/runtime-react/src",
-      ),
-      "@vizij/render": path.resolve(
-        workspaceRoot,
-        "packages/@vizij/render/src",
-      ),
-      "@vizij/utils": path.resolve(workspaceRoot, "packages/@vizij/utils/src"),
-      "@vizij/authoring-shared": path.resolve(__dirname, "src/shared/index.ts"),
-      react: reactPath,
-      "react-dom": reactDomPath,
-      three: threePath,
+export default defineConfig(({ mode }) => {
+  const nodeEnv =
+    mode === "production"
+      ? "production"
+      : mode === "test"
+        ? "test"
+        : "development";
+
+  return {
+    plugins: [react(), tailwindcss()],
+    assetsInclude: ["**/*.glb"],
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(nodeEnv),
     },
-  },
-  server: {
-    fs: {
-      allow: ["../../../"],
+    resolve: {
+      dedupe: ["react", "react-dom", "three"],
+      alias: {
+        "@vizij/node-graph-authoring": path.resolve(
+          workspaceRoot,
+          "packages/@vizij/node-graph-authoring/src",
+        ),
+        "@vizij/node-graph-react": path.resolve(
+          workspaceRoot,
+          "packages/@vizij/node-graph-react/src",
+        ),
+        "@vizij/runtime-react": path.resolve(
+          workspaceRoot,
+          "packages/@vizij/runtime-react/src",
+        ),
+        "@vizij/render": path.resolve(
+          workspaceRoot,
+          "packages/@vizij/render/src",
+        ),
+        "@vizij/utils": path.resolve(
+          workspaceRoot,
+          "packages/@vizij/utils/src",
+        ),
+        "@vizij/authoring-shared": path.resolve(
+          __dirname,
+          "src/shared/index.ts",
+        ),
+        react: reactPath,
+        "react-dom": reactDomPath,
+        three: threePath,
+      },
     },
-    watch: {
-      ignored: [
-        "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
-        "!**/node_modules/@vizij/animation-react/**",
-        "!**/node_modules/@vizij/orchestrator-wasm/**",
-        "!**/node_modules/@vizij/orchestrator-react/**",
-        "!**/node_modules/@vizij/node-graph-wasm/**",
-        "!**/node_modules/@vizij/node-graph-react/**",
-        "!**/node_modules/@vizij/node-graph-authoring/**",
+    server: {
+      fs: {
+        allow: ["../../../"],
+      },
+      watch: {
+        ignored: [
+          "**/node_modules/**",
+          "!**/node_modules/@vizij/animation-wasm/**",
+          "!**/node_modules/@vizij/animation-react/**",
+          "!**/node_modules/@vizij/orchestrator-wasm/**",
+          "!**/node_modules/@vizij/orchestrator-react/**",
+          "!**/node_modules/@vizij/node-graph-wasm/**",
+          "!**/node_modules/@vizij/node-graph-react/**",
+          "!**/node_modules/@vizij/node-graph-authoring/**",
+        ],
+      },
+      headers: {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+      },
+    },
+    optimizeDeps: {
+      exclude: [
+        "@vizij/animation-wasm",
+        "@vizij/orchestrator-wasm",
+        "@vizij/node-graph-wasm",
       ],
+      include: [
+        "@vizij/animation-react",
+        "@vizij/orchestrator-react",
+        "@vizij/node-graph-react",
+      ],
+      force: true,
     },
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
+    test: {
+      pool: "threads",
+      environment: "jsdom",
+      setupFiles: ["./src/test/setupVitest.ts"],
     },
-  },
-  optimizeDeps: {
-    exclude: [
-      "@vizij/animation-wasm",
-      "@vizij/orchestrator-wasm",
-      "@vizij/node-graph-wasm",
-    ],
-    include: [
-      "@vizij/animation-react",
-      "@vizij/orchestrator-react",
-      "@vizij/node-graph-react",
-    ],
-    force: true,
-  },
-  test: {
-    pool: "threads",
-    environment: "jsdom",
-    setupFiles: ["./src/test/setupVitest.ts"],
-  },
+  };
 });

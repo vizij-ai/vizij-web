@@ -72,6 +72,39 @@ describe("compileAnimationClipIr", () => {
       },
     ]);
   });
+
+  it("treats track interpolation as default and keeps only per-key overrides", () => {
+    const clip: AnimationClipIR = {
+      schemaVersion: 1,
+      id: "clip-defaults",
+      duration: 2,
+      tracks: [
+        {
+          id: "track-1",
+          variableId: "input_a",
+          channel: "controls/a",
+          interpolation: "step",
+          keyframes: [
+            { id: "kf-1", time: 0, value: 0, interpolation: "step" },
+            { id: "kf-2", time: 1, value: 1, interpolation: "linear" },
+          ],
+        },
+      ],
+    };
+
+    const compiled = compileAnimationClipIr({ clip });
+    expect(compiled.tracks[0]?.interpolation).toBe("step");
+    expect(compiled.tracks[0]?.keyframes[0]?.interpolation).toBeUndefined();
+    expect(compiled.tracks[0]?.keyframes[1]?.interpolation).toBe("linear");
+
+    const bundleEntry = clipIrToBundleAnimationEntry(compiled);
+    expect(bundleEntry.clip?.tracks?.[0]?.keyframes?.[0]?.interpolation).toBe(
+      "step",
+    );
+    expect(bundleEntry.clip?.tracks?.[0]?.keyframes?.[1]?.interpolation).toBe(
+      "linear",
+    );
+  });
 });
 
 describe("bundle conversion", () => {

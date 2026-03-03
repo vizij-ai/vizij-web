@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useAnimationStore } from "../../state/animationStore";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
@@ -20,6 +21,9 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
+  const standardInputsById = useBindingAuthoring(
+    (state) => state.standardInputsById,
+  );
   const seekTo = onSeek ?? seek;
 
   const handleTimelineClick = (e: React.MouseEvent) => {
@@ -63,8 +67,13 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
     const clickX = x - headerWidth;
     const t = Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
 
-    // Default value 0, user can change it
-    addKeyframe(selectedTrackId, t, 0);
+    const selectedTrack = tracks.find((track) => track.id === selectedTrackId);
+    if (!selectedTrack) {
+      return;
+    }
+    const defaultValue =
+      standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0;
+    addKeyframe(selectedTrackId, t, defaultValue);
   };
 
   const playheadLeftPct = duration > 0 ? (currentTime / duration) * 100 : 0;

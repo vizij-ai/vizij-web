@@ -11,6 +11,7 @@ const baseState: AuthoringUiState = {
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
+  activeEditFocus: "default",
 };
 
 describe("authoringUiReducer", () => {
@@ -61,5 +62,13 @@ describe("authoringUiReducer", () => {
       payload: "animation",
     });
     expect(result.activeRuntimeSource).toBe("animation");
+  });
+
+  it("updates the active edit focus", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-edit-focus",
+      payload: "reference-face",
+    });
+    expect(result.activeEditFocus).toBe("reference-face");
   });
 });

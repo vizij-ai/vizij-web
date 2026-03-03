@@ -1,4 +1,7 @@
+import { Plus } from "lucide-react";
 import { Button } from "../ui/Button";
+import { Select } from "../ui/Select";
+import { Input } from "../ui/Input";
 import type { RuntimeAuthoringSource } from "../../state/AuthoringUiProvider";
 
 export type RuntimeSourceToolbarMode =
@@ -12,11 +15,24 @@ interface RuntimeSourceOption {
   label: string;
 }
 
+interface RuntimeTargetOption {
+  value: string;
+  label: string;
+}
+
 interface RuntimeSourceToolbarProps {
   mode: RuntimeSourceToolbarMode;
   activeSource: RuntimeAuthoringSource;
   options: RuntimeSourceOption[];
   onChange: (source: RuntimeAuthoringSource) => void;
+  targetLabel?: string;
+  targetValue?: string;
+  targetOptions?: RuntimeTargetOption[];
+  onTargetChange?: (value: string) => void;
+  targetName?: string;
+  onTargetNameChange?: (value: string) => void;
+  onCreateTarget?: () => void;
+  createTargetLabel?: string;
 }
 
 const modeMeta: Record<
@@ -54,9 +70,24 @@ export function RuntimeSourceToolbar({
   activeSource,
   options,
   onChange,
+  targetLabel,
+  targetValue,
+  targetOptions,
+  onTargetChange,
+  targetName,
+  onTargetNameChange,
+  onCreateTarget,
+  createTargetLabel,
 }: RuntimeSourceToolbarProps) {
   const modeDetails = modeMeta[mode];
   const isLive = activeSource !== "none";
+  const hasTargetSelector =
+    Boolean(targetLabel) &&
+    typeof targetValue === "string" &&
+    Boolean(targetOptions?.length) &&
+    typeof onTargetChange === "function";
+  const hasTargetNameEditor =
+    typeof targetName === "string" && typeof onTargetNameChange === "function";
 
   return (
     <div className="w-full select-none bg-bg-panel/70 px-3 py-2 backdrop-blur-sm">
@@ -86,28 +117,57 @@ export function RuntimeSourceToolbar({
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-1 rounded-lg border border-border-default bg-bg-app/80 p-1 shadow-inner">
-          {options.map((option) => {
-            const selected = option.value === activeSource;
-            return (
-              <Button
-                key={option.value}
-                variant={selected ? "secondary" : "ghost"}
-                size="sm"
-                className={`h-7 min-w-[88px] px-2 text-[11px] ${
-                  selected ? "shadow-sm border border-border-hover" : ""
-                }`}
-                onClick={() => onChange(option.value)}
-              >
-                <span
-                  className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${
-                    selected ? "bg-color-accent" : "bg-text-muted"
-                  }`}
+        <div className="flex items-center gap-2">
+          <div className="w-[180px]">
+            <Select
+              size="sm"
+              label="Runtime Source"
+              value={activeSource}
+              onChange={(value) => onChange(value as RuntimeAuthoringSource)}
+              options={options.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+          </div>
+          {hasTargetSelector ? (
+            <>
+              <div className="w-[220px]">
+                <Select
+                  size="sm"
+                  label={targetLabel}
+                  value={targetValue ?? ""}
+                  onChange={onTargetChange}
+                  options={(targetOptions ?? []).map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
                 />
-                <span className="truncate">{option.label}</span>
-              </Button>
-            );
-          })}
+              </div>
+              {onCreateTarget ? (
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  className="mt-5 h-8 px-2 text-[11px] whitespace-nowrap"
+                  onClick={onCreateTarget}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  {createTargetLabel ?? "Create New"}
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+          {hasTargetNameEditor ? (
+            <div className="w-[210px] mt-5">
+              <Input
+                size="sm"
+                value={targetName}
+                onChange={(event) => onTargetNameChange(event.target.value)}
+                placeholder="Clip name"
+                aria-label="Clip name"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

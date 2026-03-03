@@ -105,11 +105,8 @@ export function AnimationPanel() {
     playSpeed,
     tracks,
     addTrack,
-    setTrackInterpolation,
     removeTrack,
     selectedTrackId,
-    selectedKeyframeId,
-    updateKeyframe,
   } = useAnimationStore();
   const transport = useAnimationTransport();
 
@@ -206,16 +203,6 @@ export function AnimationPanel() {
     }
     removeTrack(selectedTrackId);
   };
-
-  const selectedTrack = selectedTrackId
-    ? (tracks.find((track) => track.id === selectedTrackId) ?? null)
-    : null;
-  const selectedKeyframe =
-    selectedTrack && selectedKeyframeId
-      ? (selectedTrack.keyframes.find(
-          (keyframe) => keyframe.id === selectedKeyframeId,
-        ) ?? null)
-      : null;
 
   const actions = (
     <div className="flex items-center gap-1">
@@ -335,6 +322,9 @@ export function AnimationPanel() {
         </div>
 
         <TimelineEditor onSeek={transport.seek} />
+        <div className="rounded-md border border-border-default/60 bg-bg-panel/40 px-2 py-1 text-[10px] text-text-muted">
+          Select a track or keyframe to edit it from the Inspector panel.
+        </div>
 
         <Modal
           open={showTrackSelector}
@@ -374,167 +364,6 @@ export function AnimationPanel() {
             </div>
           </div>
         </Modal>
-
-        {selectedTrack ? (
-          <div className="bg-zinc-900/80 border-t border-zinc-800 p-2 grid grid-cols-2 gap-4 backdrop-blur-sm">
-            <label className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
-                Curve
-              </span>
-              <select
-                className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:border-blue-500 outline-none"
-                value={selectedTrack.interpolation}
-                onChange={(event) =>
-                  setTrackInterpolation(
-                    selectedTrack.id,
-                    event.target.value as "linear" | "step" | "cubic",
-                  )
-                }
-              >
-                <option value="linear">Linear</option>
-                <option value="step">Step</option>
-                <option value="cubic">Cubic</option>
-              </select>
-            </label>
-            <div className="text-[10px] text-zinc-500 font-mono self-center">
-              {selectedTrack.channel}
-            </div>
-            {selectedKeyframe ? (
-              <>
-                <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
-                    Time
-                  </span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
-                    value={selectedKeyframe.time}
-                    onChange={(event) => {
-                      const nextValue = Number.parseFloat(event.target.value);
-                      if (!Number.isFinite(nextValue)) {
-                        return;
-                      }
-                      updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                        time: nextValue,
-                      });
-                    }}
-                  />
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
-                    Value
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
-                    value={selectedKeyframe.value}
-                    onChange={(event) => {
-                      const nextValue = Number.parseFloat(event.target.value);
-                      if (!Number.isFinite(nextValue)) {
-                        return;
-                      }
-                      updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                        value: nextValue,
-                      });
-                    }}
-                  />
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
-                    Mode
-                  </span>
-                  <select
-                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:border-blue-500 outline-none"
-                    value={
-                      selectedKeyframe.interpolation ??
-                      selectedTrack.interpolation
-                    }
-                    onChange={(event) =>
-                      updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                        interpolation: event.target.value as
-                          | "linear"
-                          | "step"
-                          | "cubic",
-                      })
-                    }
-                  >
-                    <option value="linear">Linear</option>
-                    <option value="step">Step</option>
-                    <option value="cubic">Cubic</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
-                    In Tan
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
-                    value={
-                      typeof selectedKeyframe.inTangent === "number"
-                        ? selectedKeyframe.inTangent
-                        : ""
-                    }
-                    onChange={(event) => {
-                      const nextRaw = event.target.value.trim();
-                      const nextValue = Number.parseFloat(nextRaw);
-                      if (nextRaw.length === 0) {
-                        updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                          inTangent: undefined,
-                        });
-                        return;
-                      }
-                      if (!Number.isFinite(nextValue)) {
-                        return;
-                      }
-                      updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                        inTangent: nextValue,
-                      });
-                    }}
-                  />
-                </label>
-                <label className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 w-12">
-                    Out Tan
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="flex-1 bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 font-mono focus:border-blue-500 outline-none"
-                    value={
-                      typeof selectedKeyframe.outTangent === "number"
-                        ? selectedKeyframe.outTangent
-                        : ""
-                    }
-                    onChange={(event) => {
-                      const nextRaw = event.target.value.trim();
-                      const nextValue = Number.parseFloat(nextRaw);
-                      if (nextRaw.length === 0) {
-                        updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                          outTangent: undefined,
-                        });
-                        return;
-                      }
-                      if (!Number.isFinite(nextValue)) {
-                        return;
-                      }
-                      updateKeyframe(selectedTrack.id, selectedKeyframe.id, {
-                        outTangent: nextValue,
-                      });
-                    }}
-                  />
-                </label>
-              </>
-            ) : (
-              <p className="col-span-2 text-xs text-zinc-500">
-                Select a keyframe to edit transition details.
-              </p>
-            )}
-          </div>
-        ) : null}
       </div>
     </Panel>
   );

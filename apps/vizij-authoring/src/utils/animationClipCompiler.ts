@@ -77,18 +77,28 @@ function normalizeKeyframes(
   keyframes: ReadonlyArray<AnimationKeyframeIR>,
   duration: number,
   trackId: string,
+  trackInterpolation: AnimationInterpolation,
 ): AnimationKeyframeIR[] {
   const normalizedDuration = Math.max(0, quantize(duration));
+  const normalizedTrackInterpolation =
+    normalizeInterpolation(trackInterpolation);
   const normalized = keyframes.map((keyframe, index) => {
     const id =
       typeof keyframe.id === "string" && keyframe.id.trim().length > 0
         ? keyframe.id.trim()
         : keyframeIdFallback(keyframe, trackId, index);
+    const normalizedInterpolation =
+      keyframe.interpolation === undefined || keyframe.interpolation === null
+        ? undefined
+        : normalizeInterpolation(keyframe.interpolation);
     return {
       id,
       time: clamp(quantize(keyframe.time), 0, normalizedDuration),
       value: quantize(keyframe.value),
-      interpolation: normalizeInterpolation(keyframe.interpolation),
+      interpolation:
+        normalizedInterpolation === normalizedTrackInterpolation
+          ? undefined
+          : normalizedInterpolation,
       inTangent:
         typeof keyframe.inTangent === "number"
           ? quantize(keyframe.inTangent)
@@ -156,7 +166,12 @@ export function compileAnimationClipIr({
           : `track-${index.toString().padStart(4, "0")}`;
       const channel = resolveTrackChannel(track, standardInputsById);
       const interpolation = normalizeInterpolation(track.interpolation);
-      const keyframes = normalizeKeyframes(track.keyframes, duration, id);
+      const keyframes = normalizeKeyframes(
+        track.keyframes,
+        duration,
+        id,
+        interpolation,
+      );
       return {
         ...track,
         id,
@@ -211,7 +226,7 @@ export function clipIrToBundleAnimationEntry(
           keyframes: track.keyframes.map((keyframe) => ({
             time: keyframe.time,
             value: keyframe.value,
-            interpolation: keyframe.interpolation,
+            interpolation: keyframe.interpolation ?? track.interpolation,
             inTangent:
               typeof keyframe.inTangent === "number"
                 ? keyframe.inTangent
@@ -292,9 +307,14 @@ export function bundleAnimationEntryToClipIr(
           .padStart(4, "0")}`,
         time: clamp(quantize(timeRaw), 0, duration),
         value: quantize(valueRaw),
-        interpolation: normalizeInterpolation(
-          record?.interpolation ?? rawTrack.interpolation,
-        ),
+        interpolation: (() => {
+          const normalizedKeyframeInterpolation = normalizeInterpolation(
+            record?.interpolation ?? rawTrack.interpolation,
+          );
+          return normalizedKeyframeInterpolation === interpolation
+            ? undefined
+            : normalizedKeyframeInterpolation;
+        })(),
         inTangent:
           typeof record?.inTangent === "number"
             ? quantize(record.inTangent)

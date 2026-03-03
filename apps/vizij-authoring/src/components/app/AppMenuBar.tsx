@@ -9,6 +9,7 @@ import {
 } from "../ui/MenuBar";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { useWorkspaceStore } from "../../state/workspaceStore";
+import type { EditFocus } from "../../state/AuthoringUiProvider";
 
 interface AppMenuBarProps {
   onNew: () => void;
@@ -18,6 +19,8 @@ interface AppMenuBarProps {
   onExport: () => void;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
+  activeEditFocus: EditFocus;
+  onSelectEditFocus: (focus: EditFocus) => void;
 }
 
 export function AppMenuBar({
@@ -28,6 +31,8 @@ export function AppMenuBar({
   onExport,
   showSelectionGlow,
   onToggleSelectionGlow,
+  activeEditFocus,
+  onSelectEditFocus,
 }: AppMenuBarProps) {
   const hierarchyPanelVisible = useWorkspaceStore(
     (state) => state.panels.hierarchy.isVisible,
@@ -47,22 +52,15 @@ export function AppMenuBar({
   const materialsPanelVisible = useWorkspaceStore(
     (state) => state.panels.materials.isVisible,
   );
-  const animationPanelVisible = useWorkspaceStore(
-    (state) => state.panels.animation.isVisible,
-  );
-  const motionGraphPanelVisible = useWorkspaceStore(
-    (state) => state.panels.motiongraph.isVisible,
-  );
-  const referenceFacePanelVisible = useWorkspaceStore(
-    (state) => state.panels.referenceFace.isVisible,
-  );
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
-  const togglePanel = useWorkspaceStore((state) => state.togglePanel);
+  const setPanelVisibility = useWorkspaceStore(
+    (state) => state.setPanelVisibility,
+  );
 
   return (
     <MenuBar>
@@ -88,6 +86,48 @@ export function AppMenuBar({
         <MenuItem onSelect={() => {}}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit">
+        <MenuLabel>Edit Focus</MenuLabel>
+        <MenuCheckboxItem
+          checked={activeEditFocus === "default"}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              onSelectEditFocus("default");
+            }
+          }}
+        >
+          Default
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={activeEditFocus === "animation"}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              onSelectEditFocus("animation");
+            }
+          }}
+        >
+          Animations
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={activeEditFocus === "procedural-animation-programming"}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              onSelectEditFocus("procedural-animation-programming");
+            }
+          }}
+        >
+          Procedural Animations
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={activeEditFocus === "reference-face"}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              onSelectEditFocus("reference-face");
+            }
+          }}
+        >
+          Reference Face
+        </MenuCheckboxItem>
+        <MenuSeparator />
         <MenuItem>Undo</MenuItem>
         <MenuItem>Redo</MenuItem>
       </Menu>
@@ -95,73 +135,62 @@ export function AppMenuBar({
         <MenuLabel>Left Panel</MenuLabel>
         <MenuCheckboxItem
           checked={hierarchyPanelVisible}
-          onCheckedChange={() => togglePanel("hierarchy")}
+          onCheckedChange={(checked) =>
+            setPanelVisibility("hierarchy", checked)
+          }
         >
           Hierarchy
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={variablesPanelVisible}
-          onCheckedChange={() => togglePanel("variables")}
+          onCheckedChange={(checked) =>
+            setPanelVisibility("variables", checked)
+          }
         >
           Drivers
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={posesPanelVisible}
-          onCheckedChange={() => togglePanel("poses")}
+          onCheckedChange={(checked) => setPanelVisibility("poses", checked)}
         >
           Poses
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={inputsPanelVisible}
-          onCheckedChange={() => togglePanel("inputs")}
+          onCheckedChange={(checked) => setPanelVisibility("inputs", checked)}
         >
           Inputs
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={materialsPanelVisible}
-          onCheckedChange={() => togglePanel("materials")}
+          onCheckedChange={(checked) =>
+            setPanelVisibility("materials", checked)
+          }
         >
           Pose Groups
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={motionGraphPaletteVisible}
-          onCheckedChange={() => togglePanel("motiongraphPalette")}
+          onCheckedChange={(checked) =>
+            setPanelVisibility("motiongraphPalette", checked)
+          }
         >
           Procedural Animation Programming Palette
-        </MenuCheckboxItem>
-
-        <MenuSeparator />
-        <MenuLabel>Center Panel</MenuLabel>
-        <MenuCheckboxItem
-          checked={animationPanelVisible}
-          onCheckedChange={() => togglePanel("animation")}
-        >
-          Animation
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
-          checked={motionGraphPanelVisible}
-          onCheckedChange={() => togglePanel("motiongraph")}
-        >
-          Procedural Animation Programming
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
-          checked={referenceFacePanelVisible}
-          onCheckedChange={() => togglePanel("referenceFace")}
-        >
-          Reference Face
         </MenuCheckboxItem>
 
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
         <MenuCheckboxItem
           checked={inspectorPanelVisible}
-          onCheckedChange={() => togglePanel("inspector")}
+          onCheckedChange={(checked) =>
+            setPanelVisibility("inspector", checked)
+          }
         >
           Inspector
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={debugPanelVisible}
-          onCheckedChange={() => togglePanel("debug")}
+          onCheckedChange={(checked) => setPanelVisibility("debug", checked)}
         >
           Debug
         </MenuCheckboxItem>

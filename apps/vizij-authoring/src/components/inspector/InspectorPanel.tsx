@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { RotateCcw, Activity } from "lucide-react";
+import { RotateCcw, Activity, Trash2 } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
@@ -22,6 +22,7 @@ import type {
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import MgNodeInspector from "../../motiongraph/components/MgNodeInspector";
+import { useAnimationStore } from "../../state/animationStore";
 import {
   buildPoseGroupCompositionPreview,
   buildPoseStageCompositionPreview,
@@ -96,6 +97,18 @@ function clampToInputRange(
   return Math.max(min, Math.min(max, value));
 }
 
+function resolveSliderStep(min: number, max: number): number {
+  if (!isFiniteNumber(min) || !isFiniteNumber(max)) {
+    return 0.01;
+  }
+  const span = Math.abs(max - min);
+  if (span <= 0) {
+    return 0.01;
+  }
+  const candidate = span / 200;
+  return Math.max(0.0001, Math.min(0.1, candidate));
+}
+
 function sortInputIds(
   inputIds: Iterable<string>,
   orderByInputId: Map<string, number>,
@@ -158,6 +171,27 @@ export function InspectorPanel({
     (state) => state.standardInputsById,
   );
   const { inspectorMode } = useUnifiedSelection();
+  const animationTracks = useAnimationStore((state) => state.tracks);
+  const selectedAnimationTrackId = useAnimationStore(
+    (state) => state.selectedTrackId,
+  );
+  const selectedAnimationKeyframeId = useAnimationStore(
+    (state) => state.selectedKeyframeId,
+  );
+  const setAnimationTrackInterpolation = useAnimationStore(
+    (state) => state.setTrackInterpolation,
+  );
+  const updateAnimationKeyframe = useAnimationStore(
+    (state) => state.updateKeyframe,
+  );
+  const removeAnimationTrack = useAnimationStore((state) => state.removeTrack);
+  const removeAnimationKeyframe = useAnimationStore(
+    (state) => state.removeKeyframe,
+  );
+  const selectAnimationTrack = useAnimationStore((state) => state.selectTrack);
+  const selectAnimationKeyframe = useAnimationStore(
+    (state) => state.selectKeyframe,
+  );
 
   const poseLookup = useMemo(() => {
     const lookup = new Map<string, PoseDefinition>();
@@ -744,6 +778,48 @@ export function InspectorPanel({
     standardInputs,
   ]);
 
+  const selectedAnimationTrack = useMemo(
+    () =>
+      selectedAnimationTrackId
+        ? (animationTracks.find(
+            (track) => track.id === selectedAnimationTrackId,
+          ) ?? null)
+        : null,
+    [animationTracks, selectedAnimationTrackId],
+  );
+  const selectedAnimationKeyframe = useMemo(() => {
+    if (!selectedAnimationTrack || !selectedAnimationKeyframeId) {
+      return null;
+    }
+    return (
+      selectedAnimationTrack.keyframes.find(
+        (keyframe) => keyframe.id === selectedAnimationKeyframeId,
+      ) ?? null
+    );
+  }, [selectedAnimationKeyframeId, selectedAnimationTrack]);
+  const selectedAnimationInput = useMemo(() => {
+    if (!selectedAnimationTrack) {
+      return undefined;
+    }
+    return standardInputsById.get(selectedAnimationTrack.variableId);
+  }, [selectedAnimationTrack, standardInputsById]);
+  const selectedAnimationValueRange = useMemo(() => {
+    const min = selectedAnimationInput?.range?.min;
+    const max = selectedAnimationInput?.range?.max;
+    if (isFiniteNumber(min) && isFiniteNumber(max) && max >= min) {
+      return { min, max };
+    }
+    return { min: -1, max: 1 };
+  }, [selectedAnimationInput]);
+  const selectedAnimationValueStep = useMemo(
+    () =>
+      resolveSliderStep(
+        selectedAnimationValueRange.min,
+        selectedAnimationValueRange.max,
+      ),
+    [selectedAnimationValueRange.max, selectedAnimationValueRange.min],
+  );
+
   const hasCompetingInspectorSelection = inspectorMode !== "default";
   const isPoseGroupInspectorMode = Boolean(
     selectedPoseGroup && !hasCompetingInspectorSelection,
@@ -755,6 +831,10 @@ export function InspectorPanel({
     isPoseGroupInspectorMode || isBlendStageInspectorMode;
   const showMotionGraphInspector =
     inspectorMode === "motiongraph" && !isDedicatedInspectorMode;
+  const showAnimationInspector =
+    !isDedicatedInspectorMode &&
+    !showMotionGraphInspector &&
+    Boolean(selectedAnimationTrack);
 
   return (
     <Panel
@@ -765,14 +845,18 @@ export function InspectorPanel({
             ? "Blend Stage Inspector"
             : showMotionGraphInspector
               ? "Procedural Animation Programming Inspector"
-              : "Inspector"
+              : showAnimationInspector
+                ? "Animation Inspector"
+                : "Inspector"
       }
       description={
         isDedicatedInspectorMode
           ? "Author composition and inspect live output behavior."
           : showMotionGraphInspector
             ? "Inspect and edit the selected procedural animation programming node."
-            : "View and edit selected object properties."
+            : showAnimationInspector
+              ? "Inspect and edit the selected animation track or keyframe."
+              : "View and edit selected object properties."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
     >
@@ -781,6 +865,181 @@ export function InspectorPanel({
           <div className="flex-1 min-h-0 overflow-y-auto">
             {showMotionGraphInspector ? (
               <MgNodeInspector />
+            ) : showAnimationInspector && selectedAnimationTrack ? (
+              <div className="flex flex-col gap-2 p-2">
+                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-text-primary truncate">
+                        {selectedAnimationTrack.label}
+                      </div>
+                      <div className="text-[10px] text-text-muted font-mono truncate">
+                        {selectedAnimationTrack.channel}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => {
+                          selectAnimationTrack(null);
+                          selectAnimationKeyframe(null);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] text-color-danger"
+                        onClick={() => {
+                          removeAnimationTrack(selectedAnimationTrack.id);
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" />
+                        Track
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                      Interp
+                    </span>
+                    <select
+                      className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                      value={selectedAnimationTrack.interpolation}
+                      onChange={(event) =>
+                        setAnimationTrackInterpolation(
+                          selectedAnimationTrack.id,
+                          event.target.value as "linear" | "step" | "cubic",
+                        )
+                      }
+                    >
+                      <option value="linear">Linear</option>
+                      <option value="step">Step</option>
+                      <option value="cubic">Cubic</option>
+                    </select>
+                  </div>
+                  <div className="text-[10px] text-text-muted font-mono">
+                    Keyframes: {selectedAnimationTrack.keyframes.length}
+                  </div>
+                </div>
+
+                {selectedAnimationKeyframe ? (
+                  <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Keyframe
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] text-color-danger"
+                        onClick={() =>
+                          removeAnimationKeyframe(
+                            selectedAnimationTrack.id,
+                            selectedAnimationKeyframe.id,
+                          )
+                        }
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" />
+                        Key
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                        Time
+                      </span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                        value={selectedAnimationKeyframe.time}
+                        onChange={(event) => {
+                          const nextValue = Number.parseFloat(
+                            event.target.value,
+                          );
+                          if (!Number.isFinite(nextValue)) {
+                            return;
+                          }
+                          updateAnimationKeyframe(
+                            selectedAnimationTrack.id,
+                            selectedAnimationKeyframe.id,
+                            {
+                              time: nextValue,
+                            },
+                          );
+                        }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                        Value
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Slider
+                          value={selectedAnimationKeyframe.value}
+                          min={selectedAnimationValueRange.min}
+                          max={selectedAnimationValueRange.max}
+                          step={selectedAnimationValueStep}
+                          fillMode="value"
+                          onChange={(nextValue) => {
+                            const numericValue =
+                              typeof nextValue === "number"
+                                ? nextValue
+                                : nextValue[0];
+                            if (!Number.isFinite(numericValue)) {
+                              return;
+                            }
+                            updateAnimationKeyframe(
+                              selectedAnimationTrack.id,
+                              selectedAnimationKeyframe.id,
+                              {
+                                value: clampToInputRange(
+                                  selectedAnimationInput,
+                                  numericValue,
+                                ),
+                              },
+                            );
+                          }}
+                        />
+                        <input
+                          type="number"
+                          step={selectedAnimationValueStep}
+                          min={selectedAnimationValueRange.min}
+                          max={selectedAnimationValueRange.max}
+                          className="h-7 w-[88px] rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                          value={selectedAnimationKeyframe.value}
+                          onChange={(event) => {
+                            const nextValue = Number.parseFloat(
+                              event.target.value,
+                            );
+                            if (!Number.isFinite(nextValue)) {
+                              return;
+                            }
+                            updateAnimationKeyframe(
+                              selectedAnimationTrack.id,
+                              selectedAnimationKeyframe.id,
+                              {
+                                value: clampToInputRange(
+                                  selectedAnimationInput,
+                                  nextValue,
+                                ),
+                              },
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 text-[10px] text-text-muted">
+                    Select a keyframe in the timeline to inspect timing and
+                    value controls.
+                  </div>
+                )}
+              </div>
             ) : (
               <InspectorContent hasReferenceFaceFile={hasReferenceFaceFile} />
             )}

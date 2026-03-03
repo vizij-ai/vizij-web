@@ -114,6 +114,7 @@ interface UseVizijExportOptions {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
   loadedBundle: VizijBundleExtension | null;
+  authoredAnimationClips?: AnimationClipIR[];
   animatableComponents: AnimatableComponent[];
   animatables: Record<string, AnimatableValue>;
   values: VizijData["values"];
@@ -134,7 +135,14 @@ interface UseVizijExportOptions {
   fallbackExportBody?: unknown;
   alertDialog: (message: string) => Promise<void> | void;
   poseRig: PoseRigExportState;
+  authoredMotionGraphs?: MotionGraphExportEntry[];
   getMotionGraphSpec?: () => { nodes: unknown[]; edges: unknown[] } | null;
+}
+
+interface MotionGraphExportEntry {
+  id: string;
+  label?: string;
+  spec: { nodes: unknown[]; edges: unknown[] };
 }
 
 interface VizijExportHandlers {
@@ -497,6 +505,7 @@ export function useVizijExport(
     includeVizijBundle,
     includeImportedAnimations,
     loadedBundle,
+    authoredAnimationClips,
     animatableComponents,
     animatables,
     values,
@@ -514,6 +523,7 @@ export function useVizijExport(
     fallbackExportBody,
     alertDialog,
     poseRig,
+    authoredMotionGraphs,
     getMotionGraphSpec,
   } = options;
 
@@ -828,13 +838,27 @@ export function useVizijExport(
       }
 
       const animationStore = useAnimationStore.getState();
-      const authoredAnimationClip: AnimationClipIR | null =
+      const fallbackAuthoredClip =
         animationStore.tracks.length > 0
           ? animationStore.exportClipIr({
               id: AUTHORED_TIMELINE_CLIP_ID,
               name: AUTHORED_TIMELINE_CLIP_NAME,
             })
           : null;
+      const authoredClipCandidates =
+        Array.isArray(authoredAnimationClips) &&
+        authoredAnimationClips.length > 0
+          ? authoredAnimationClips
+          : fallbackAuthoredClip
+            ? [fallbackAuthoredClip]
+            : [];
+      const normalizedAuthoredAnimationClips = authoredClipCandidates.filter(
+        (clip) =>
+          clip.tracks.some(
+            (track) =>
+              Array.isArray(track.keyframes) && track.keyframes.length > 0,
+          ),
+      );
 
       let bundle: VizijBundleExtension | null;
       try {
@@ -856,7 +880,7 @@ export function useVizijExport(
           pipelineConfigByInputId,
           poseGraphSpecForExport,
           poseConfigForExport,
-          authoredAnimationClip,
+          authoredAnimationClips: normalizedAuthoredAnimationClips,
         });
       } catch (error) {
         await alertDialog(
@@ -865,10 +889,33 @@ export function useVizijExport(
         return;
       }
 
-      if (bundle && getMotionGraphSpec) {
-        const motionGraphSpec = getMotionGraphSpec();
-        if (motionGraphSpec && motionGraphSpec.nodes.length > 0) {
-          bundle = mergeMotionGraphIntoBundle(bundle, motionGraphSpec);
+      if (bundle) {
+        const authoredMotionGraphEntries = (authoredMotionGraphs ?? []).filter(
+          (entry) =>
+            entry &&
+            typeof entry.id === "string" &&
+            entry.id.trim().length > 0 &&
+            entry.spec &&
+            Array.isArray(entry.spec.nodes) &&
+            Array.isArray(entry.spec.edges) &&
+            entry.spec.nodes.length > 0,
+        );
+        if (authoredMotionGraphEntries.length > 0) {
+          bundle = mergeMotionGraphsIntoBundle(
+            bundle,
+            authoredMotionGraphEntries,
+          );
+        } else if (getMotionGraphSpec) {
+          const motionGraphSpec = getMotionGraphSpec();
+          if (motionGraphSpec && motionGraphSpec.nodes.length > 0) {
+            bundle = mergeMotionGraphsIntoBundle(bundle, [
+              {
+                id: "motiongraph",
+                label: "motiongraph",
+                spec: motionGraphSpec,
+              },
+            ]);
+          }
         }
       }
 
@@ -967,6 +1014,7 @@ export function useVizijExport(
     alertDialog,
     animatableComponents,
     animatables,
+    authoredMotionGraphs,
     bindings,
     collectAnimatableExportState,
     exportFileName,
@@ -1187,7 +1235,7 @@ export function useVizijExport(
 interface BuildVizijBundleOptions {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
-  authoredAnimationClip?: AnimationClipIR | null;
+  authoredAnimationClips?: AnimationClipIR[];
   faceId: string;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
@@ -1223,28 +1271,28 @@ function clonePoseIrForBundle(
   return cloned;
 }
 
-function mergeMotionGraphIntoBundle(
+function mergeMotionGraphsIntoBundle(
   bundle: VizijBundleExtension,
-  spec: { nodes: unknown[]; edges: unknown[] },
+  motionGraphs: MotionGraphExportEntry[],
 ): VizijBundleExtension {
   const cloned = structuredClone(bundle);
   if (!cloned.graphs) {
     cloned.graphs = [];
   }
-  cloned.graphs = cloned.graphs.filter(
-    (graph) => graph.kind !== "motiongraph" && graph.id !== "motiongraph",
-  );
-  cloned.graphs.push({
-    id: "motiongraph",
-    kind: "motiongraph",
-    label: "motiongraph",
-    spec: spec as Record<string, unknown>,
-    metadata: {
-      exportedAt: new Date().toISOString(),
-      source: "vizij-motiongraph",
-      nodeCount: spec.nodes.length,
-      edgeCount: spec.edges.length,
-    },
+  cloned.graphs = cloned.graphs.filter((graph) => graph.kind !== "motiongraph");
+  motionGraphs.forEach((motionGraph) => {
+    cloned.graphs!.push({
+      id: motionGraph.id,
+      kind: "motiongraph",
+      label: motionGraph.label ?? motionGraph.id,
+      spec: motionGraph.spec as Record<string, unknown>,
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        source: "vizij-motiongraph",
+        nodeCount: motionGraph.spec.nodes.length,
+        edgeCount: motionGraph.spec.edges.length,
+      },
+    });
   });
   return cloned;
 }
@@ -1257,7 +1305,7 @@ function buildVizijBundle(
   }
   const {
     includeImportedAnimations,
-    authoredAnimationClip,
+    authoredAnimationClips,
     faceId,
     sourceName,
     loadedBundle,
@@ -1393,13 +1441,21 @@ function buildVizijBundle(
           loadedBundle.animations,
         ) as VizijBundleAnimationEntry[])
       : [];
-  const authoredAnimationEntry = authoredAnimationClip
-    ? clipIrToBundleAnimationEntry(authoredAnimationClip, {
+  const authoredAnimationEntries = (authoredAnimationClips ?? [])
+    .map((clip) =>
+      clipIrToBundleAnimationEntry(clip, {
         standardInputsById,
-      })
-    : null;
+      }),
+    )
+    .filter(
+      (entry) =>
+        Boolean(entry) &&
+        Boolean(entry.clip) &&
+        Array.isArray(entry.clip.tracks) &&
+        entry.clip.tracks.length > 0,
+    );
 
-  if (authoredAnimationEntry && includeImportedAnimations) {
+  if (authoredAnimationEntries.length > 0 && includeImportedAnimations) {
     const conflictingCanonicalEntry =
       findCanonicalAuthoredTimelineConflict(inheritedAnimations);
     if (conflictingCanonicalEntry) {
@@ -1420,9 +1476,9 @@ function buildVizijBundle(
     }
     mergedAnimationsById.set(entry.id, entry);
   });
-  if (authoredAnimationEntry) {
-    mergedAnimationsById.set(authoredAnimationEntry.id, authoredAnimationEntry);
-  }
+  authoredAnimationEntries.forEach((entry) => {
+    mergedAnimationsById.set(entry.id, entry);
+  });
   const mergedAnimations = Array.from(mergedAnimationsById.values()).sort(
     (left, right) => left.id.localeCompare(right.id),
   );
@@ -1443,7 +1499,7 @@ function buildVizijBundle(
   if (!includeImportedAnimations) {
     bundleMetadata.inheritedAnimations = false;
   }
-  bundleMetadata.authoredAnimationClips = authoredAnimationEntry ? 1 : 0;
+  bundleMetadata.authoredAnimationClips = authoredAnimationEntries.length;
   bundleMetadata.animationPayloadCount = mergedAnimations.length;
 
   return {
