@@ -112,7 +112,8 @@ describe("useAnimationTransport", () => {
       speed: 1,
     });
     hook.result.pause();
-    expect(useAnimationStore.getState().transportActive).toBe(false);
+    expect(useAnimationStore.getState().transportActive).toBe(true);
+    expect(useAnimationStore.getState().transportPlaybackState).toBe("paused");
     expect(useAnimationStore.getState().isPlaying).toBe(false);
     hook.unmount();
   });

@@ -2394,6 +2394,7 @@ interface VariablesPanelProps {
   animationActive?: boolean;
   centerAuthoringMode?: CenterAuthoringMode;
   runtimeFaceId?: string | null;
+  enableMotionGraphPruning?: boolean;
   onSelectMotionGraphNode?: (id: string | null) => void;
 }
 
@@ -2418,6 +2419,7 @@ export function VariablesPanel({
   animationActive = false,
   centerAuthoringMode,
   runtimeFaceId = null,
+  enableMotionGraphPruning = true,
   onSelectMotionGraphNode,
 }: VariablesPanelProps) {
   const {
@@ -3550,22 +3552,24 @@ export function VariablesPanel({
   }, [motionGraphDisplayInputRows, trackedAnimationInputIds]);
 
   useEffect(() => {
-    if (!proceduralAnimationProgrammingActive) {
+    if (!proceduralAnimationProgrammingActive || !enableMotionGraphPruning) {
       return;
     }
     pruneEnabledMotionGraphOutputs(motionGraphEligibleOutputPaths);
   }, [
+    enableMotionGraphPruning,
     proceduralAnimationProgrammingActive,
     motionGraphEligibleOutputPaths,
     pruneEnabledMotionGraphOutputs,
   ]);
 
   useEffect(() => {
-    if (!proceduralAnimationProgrammingActive) {
+    if (!proceduralAnimationProgrammingActive || !enableMotionGraphPruning) {
       return;
     }
     pruneEnabledMotionGraphInputs(motionGraphEligibleInputPaths);
   }, [
+    enableMotionGraphPruning,
     proceduralAnimationProgrammingActive,
     motionGraphEligibleInputPaths,
     pruneEnabledMotionGraphInputs,

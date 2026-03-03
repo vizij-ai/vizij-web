@@ -1334,6 +1334,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
+              runtimeFaceId={faceId}
+              enableMotionGraphPruning={false}
             />
           }
           leftBottomVisible2={false}
@@ -1358,6 +1360,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
+              enableMotionGraphPruning
               onSelectMotionGraphNode={
                 handleSelectMotionGraphNodeWithInspectorSync
               }

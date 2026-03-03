@@ -19,7 +19,7 @@ export function MotionGraphPanel({
     <Button
       variant="ghost"
       size="sm"
-      className="h-6 px-2 text-xs font-mono text-text-muted hover:text-text-primary"
+      className="h-8 px-3 text-sm font-mono text-text-muted hover:text-text-primary"
       onClick={onToggleSplit}
       title={
         splitVertical

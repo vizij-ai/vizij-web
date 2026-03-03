@@ -92,7 +92,7 @@ describe("animationStore deterministic behavior", () => {
     ).toEqual(["step", "step"]);
   });
 
-  it("only marks transport active while playback is running", () => {
+  it("keeps transport active while playback is paused", () => {
     const store = useAnimationStore.getState();
 
     store.seek(1.25);
@@ -108,7 +108,12 @@ describe("animationStore deterministic behavior", () => {
 
     store.pause();
     state = useAnimationStore.getState();
-    expect(state.transportActive).toBe(false);
+    expect(state.transportActive).toBe(true);
     expect(state.transportPlaybackState).toBe("paused");
+
+    store.stop();
+    state = useAnimationStore.getState();
+    expect(state.transportActive).toBe(false);
+    expect(state.transportPlaybackState).toBe("stopped");
   });
 });

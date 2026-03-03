@@ -227,7 +227,7 @@ export function AnimationRuntimeBridge() {
           isPlaying: playbackState.playing,
           loop: playbackState.loop,
           playSpeed: playbackState.speed,
-          transportActive: playbackState.playing,
+          transportActive: true,
           transportPlaybackState: playbackState.playing ? "playing" : "paused",
         });
       }
@@ -253,6 +253,8 @@ export function useAnimationTransport() {
   const {
     tracks,
     currentTime,
+    isPlaying,
+    transportPlaybackState,
     playSpeed,
     loop,
     play,
@@ -314,14 +316,25 @@ export function useAnimationTransport() {
         return;
       }
       runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, timeSeconds);
+      const nextPlaybackState = isPlaying
+        ? "playing"
+        : transportPlaybackState === "stopped"
+          ? "stopped"
+          : "paused";
       syncTransportState({
         currentTime: timeSeconds,
-        transportActive: false,
-        transportPlaybackState: "stopped",
-        isPlaying: false,
+        isPlaying,
+        transportActive: nextPlaybackState !== "stopped",
+        transportPlaybackState: nextPlaybackState,
       });
     },
-    [canDrive, runtimeTransport, syncTransportState],
+    [
+      canDrive,
+      isPlaying,
+      runtimeTransport,
+      syncTransportState,
+      transportPlaybackState,
+    ],
   );
 
   const setLoopTransport = useCallback(
@@ -380,8 +393,8 @@ export function useAnimationTransport() {
       syncTransportState({
         currentTime: nextTime,
         isPlaying: false,
-        transportActive: false,
-        transportPlaybackState: "stopped",
+        transportActive: true,
+        transportPlaybackState: "paused",
       });
     },
     [canDrive, currentTime, runtimeTransport, syncTransportState],
