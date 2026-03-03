@@ -18,7 +18,6 @@ import {
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { useAnimationStore } from "../../state/animationStore";
-import { useWorkspaceStore } from "../../state/workspaceStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import {
   isPoseControlInputPath,
@@ -426,7 +425,7 @@ export function Viewer({
   namespace: _namespace,
   bundle,
   animationSourceActive = true,
-  motionGraphSourceActive = true,
+  motionGraphSourceActive = false,
   selectedSceneId = null,
   onSelectScene,
   onRuntimeInputsReady,
@@ -442,9 +441,6 @@ export function Viewer({
   const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
   const runtimeError = useGraphRuntime((state) => state.graphError);
-  const motionGraphVisible = useWorkspaceStore(
-    (state) => state.panels.motiongraph.isVisible,
-  );
   const plotActive = useEditorStore((state) => state.plotActive);
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -580,16 +576,10 @@ export function Viewer({
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
             <AnimationRuntimeBridge active={animationSourceActive} />
-            <InputValueBridge
-              active={motionGraphVisible && motionGraphSourceActive}
-            />
-            <MotionGraphDriverBridge
-              active={motionGraphVisible && motionGraphSourceActive}
-            />
+            <InputValueBridge active={motionGraphSourceActive} />
+            <MotionGraphDriverBridge active={motionGraphSourceActive} />
             <MotionGraphValueSampler
-              active={
-                motionGraphVisible && motionGraphSourceActive && plotActive
-              }
+              active={motionGraphSourceActive && plotActive}
             />
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay

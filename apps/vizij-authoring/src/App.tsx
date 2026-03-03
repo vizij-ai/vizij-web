@@ -78,6 +78,7 @@ import {
   type RotationAxis,
 } from "./components/app/importOrientation";
 import { useAnimationStore } from "./state/animationStore";
+import { useAnimationTransport } from "./hooks/useAnimationTransport";
 import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
@@ -349,40 +350,17 @@ type CenterAuthoringMode =
   | "animation"
   | "reference-face"
   | "none";
-
-function defaultRuntimeSourceForCenterMode(
-  mode: CenterAuthoringMode,
-): RuntimeAuthoringSource {
-  if (mode === "animation") {
-    return "animation";
-  }
-  if (mode === "procedural-animation-programming") {
-    return "procedural-animation-programming";
-  }
-  return "none";
-}
-
-function runtimeSourceOptionsForCenterMode(mode: CenterAuthoringMode): Array<{
+const RUNTIME_SOURCE_OPTIONS: Array<{
   value: RuntimeAuthoringSource;
   label: string;
-}> {
-  if (mode === "animation") {
-    return [
-      { value: "animation", label: "Animation" },
-      { value: "none", label: "None" },
-    ];
-  }
-  if (mode === "procedural-animation-programming") {
-    return [
-      {
-        value: "procedural-animation-programming",
-        label: "Procedural Animation Programming",
-      },
-      { value: "none", label: "None" },
-    ];
-  }
-  return [{ value: "none", label: "None" }];
-}
+}> = [
+  { value: "none", label: "Default" },
+  { value: "animation", label: "Animation" },
+  {
+    value: "procedural-animation-programming",
+    label: "Procedural Animation Programming",
+  },
+];
 
 function applyEditFocusPanelDefaults(
   focus: EditFocus,
@@ -727,7 +705,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.exportClipIr,
   );
   const animationTracks = useAnimationStore((state) => state.tracks);
+  const animationPlaybackState = useAnimationStore(
+    (state) => state.transportPlaybackState,
+  );
+  const animationTransportEnabled = useAnimationStore(
+    (state) => state.transportEnabled,
+  );
   const animationDuration = useAnimationStore((state) => state.duration);
+  const {
+    active: animationTransportActive,
+    play: playAnimationTransport,
+    pause: pauseAnimationTransport,
+  } = useAnimationTransport();
   const proceduralEditorNodes = useEditorStore((state) => state.nodes);
   const proceduralEditorEdges = useEditorStore((state) => state.edges);
   const proceduralEditorEnabledOutputs = useEditorStore(
@@ -1446,14 +1435,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       : referenceFacePanelVisible
         ? "reference-face"
         : "none";
-  const previousCenterAuthoringModeRef =
-    useRef<CenterAuthoringMode>(centerAuthoringMode);
-  const runtimeSourceOptions = useMemo(
-    () => runtimeSourceOptionsForCenterMode(centerAuthoringMode),
-    [centerAuthoringMode],
-  );
+  const runtimeSourceOptions = RUNTIME_SOURCE_OPTIONS;
   const runtimeTargetConfig = useMemo(() => {
-    if (centerAuthoringMode === "animation") {
+    if (activeRuntimeSource === "animation") {
       const canRenameTarget = Boolean(
         parseAuthoredAnimationTargetValue(selectedAnimationTargetId),
       );
@@ -1472,7 +1456,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         createTargetLabel: "New Clip",
       };
     }
-    if (centerAuthoringMode === "procedural-animation-programming") {
+    if (activeRuntimeSource === "procedural-animation-programming") {
       const canRenameTarget = Boolean(
         parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
       );
@@ -1493,8 +1477,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     }
     return null;
   }, [
+    activeRuntimeSource,
     animationTargetOptions,
-    centerAuthoringMode,
     handleCreateAnimationTarget,
     handleCreateProceduralTarget,
     handleRenameAnimationTarget,
@@ -1507,31 +1491,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedAnimationTargetId,
     selectedProceduralTargetId,
   ]);
-  useEffect(() => {
-    const previousCenterAuthoringMode = previousCenterAuthoringModeRef.current;
-    if (previousCenterAuthoringMode === centerAuthoringMode) {
-      return;
+  const runtimePlaybackConfig = useMemo(() => {
+    if (activeRuntimeSource !== "animation") {
+      return null;
     }
-    previousCenterAuthoringModeRef.current = centerAuthoringMode;
-    uiActions.setActiveRuntimeSource(
-      defaultRuntimeSourceForCenterMode(centerAuthoringMode),
-    );
-  }, [centerAuthoringMode, uiActions]);
-  useEffect(() => {
-    const allowedSources = new Set(
-      runtimeSourceOptions.map((option) => option.value),
-    );
-    if (allowedSources.has(activeRuntimeSource)) {
-      return;
-    }
-    uiActions.setActiveRuntimeSource(
-      defaultRuntimeSourceForCenterMode(centerAuthoringMode),
-    );
+    const isPlaying = animationPlaybackState === "playing";
+    return {
+      playbackState: isPlaying ? ("playing" as const) : ("paused" as const),
+      playbackDisabled: !animationTransportActive || !animationTransportEnabled,
+      onPlay: playAnimationTransport,
+      onPause: pauseAnimationTransport,
+    };
   }, [
     activeRuntimeSource,
-    centerAuthoringMode,
-    runtimeSourceOptions,
-    uiActions,
+    animationTransportActive,
+    animationPlaybackState,
+    animationTransportEnabled,
+    pauseAnimationTransport,
+    playAnimationTransport,
   ]);
   const animationSourceActive = activeRuntimeSource === "animation";
   const motionGraphSourceActive =
@@ -2272,6 +2249,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               activeSource={activeRuntimeSource}
               options={runtimeSourceOptions}
               onChange={uiActions.setActiveRuntimeSource}
+              playbackState={runtimePlaybackConfig?.playbackState}
+              playbackDisabled={runtimePlaybackConfig?.playbackDisabled}
+              onPlay={runtimePlaybackConfig?.onPlay}
+              onPause={runtimePlaybackConfig?.onPause}
               targetLabel={runtimeTargetConfig?.targetLabel}
               targetValue={runtimeTargetConfig?.targetValue}
               targetOptions={runtimeTargetConfig?.targetOptions}
