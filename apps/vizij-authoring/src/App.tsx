@@ -46,6 +46,7 @@ import {
   AuthoringUiProvider,
   useAuthoringUiActions,
   useAuthoringUiState,
+  type RuntimeAuthoringSource,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
@@ -65,6 +66,7 @@ import {
   resolveRootSceneRotationInputs,
   type RotationAxis,
 } from "./components/app/importOrientation";
+import { Button } from "./components/ui/Button";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
@@ -143,6 +145,46 @@ function computeWeightedFaceLoadProgress(steps: FaceLoadStep[]): number {
     return 0;
   }
   return Math.max(0, Math.min(1, weightedProgress / totalWeight));
+}
+
+type CenterAuthoringMode =
+  | "procedural-animation-programming"
+  | "animation"
+  | "reference-face"
+  | "none";
+
+function defaultRuntimeSourceForCenterMode(
+  mode: CenterAuthoringMode,
+): RuntimeAuthoringSource {
+  if (mode === "animation") {
+    return "animation";
+  }
+  if (mode === "procedural-animation-programming") {
+    return "procedural-animation-programming";
+  }
+  return "none";
+}
+
+function runtimeSourceOptionsForCenterMode(mode: CenterAuthoringMode): Array<{
+  value: RuntimeAuthoringSource;
+  label: string;
+}> {
+  if (mode === "animation") {
+    return [
+      { value: "animation", label: "Animation" },
+      { value: "none", label: "None" },
+    ];
+  }
+  if (mode === "procedural-animation-programming") {
+    return [
+      {
+        value: "procedural-animation-programming",
+        label: "Procedural Animation Programming",
+      },
+      { value: "none", label: "None" },
+    ];
+  }
+  return [{ value: "none", label: "None" }];
 }
 
 export default function App() {
@@ -397,7 +439,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
 
-  const { activeWorkbench, skipDiscrepancyCheck } = uiState;
+  const { activeWorkbench, skipDiscrepancyCheck, activeRuntimeSource } =
+    uiState;
 
   const poseRig = usePoseRig();
 
@@ -637,13 +680,48 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const setWorkspacePanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
-  const centerAuthoringMode = motionGraphPanelVisible
+  const centerAuthoringMode: CenterAuthoringMode = motionGraphPanelVisible
     ? "procedural-animation-programming"
     : animationPanelVisible
       ? "animation"
       : referenceFacePanelVisible
         ? "reference-face"
         : "none";
+  const previousCenterAuthoringModeRef =
+    useRef<CenterAuthoringMode>(centerAuthoringMode);
+  const runtimeSourceOptions = useMemo(
+    () => runtimeSourceOptionsForCenterMode(centerAuthoringMode),
+    [centerAuthoringMode],
+  );
+  useEffect(() => {
+    const previousCenterAuthoringMode = previousCenterAuthoringModeRef.current;
+    if (previousCenterAuthoringMode === centerAuthoringMode) {
+      return;
+    }
+    previousCenterAuthoringModeRef.current = centerAuthoringMode;
+    uiActions.setActiveRuntimeSource(
+      defaultRuntimeSourceForCenterMode(centerAuthoringMode),
+    );
+  }, [centerAuthoringMode, uiActions]);
+  useEffect(() => {
+    const allowedSources = new Set(
+      runtimeSourceOptions.map((option) => option.value),
+    );
+    if (allowedSources.has(activeRuntimeSource)) {
+      return;
+    }
+    uiActions.setActiveRuntimeSource(
+      defaultRuntimeSourceForCenterMode(centerAuthoringMode),
+    );
+  }, [
+    activeRuntimeSource,
+    centerAuthoringMode,
+    runtimeSourceOptions,
+    uiActions,
+  ]);
+  const animationSourceActive = activeRuntimeSource === "animation";
+  const motionGraphSourceActive =
+    activeRuntimeSource === "procedural-animation-programming";
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -1199,6 +1277,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 rootId={rootId}
                 namespace={DEFAULT_NAMESPACE}
                 bundle={rootId ? runtimeBundle : null}
+                animationSourceActive={animationSourceActive}
+                motionGraphSourceActive={motionGraphSourceActive}
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -1250,6 +1330,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             rootId={rootId}
             namespace={DEFAULT_NAMESPACE}
             bundle={rootId ? runtimeBundle : null}
+            animationSourceActive={animationSourceActive}
+            motionGraphSourceActive={motionGraphSourceActive}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -1369,7 +1451,30 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           leftBottomVisible={controlAuthoringPanelVisible}
           // Center
           topPanel={
-            <div className="h-full flex items-center px-4 gap-1 text-xs select-none bg-bg-panel/50 border-b border-border-default"></div>
+            <div className="h-full flex items-center justify-between px-4 gap-2 text-xs select-none bg-bg-panel/50 border-b border-border-default">
+              <span className="text-text-muted uppercase tracking-wide">
+                Active Runtime Source
+              </span>
+              <div className="flex items-center gap-1">
+                {runtimeSourceOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={
+                      activeRuntimeSource === option.value
+                        ? "secondary"
+                        : "ghost"
+                    }
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() =>
+                      uiActions.setActiveRuntimeSource(option.value)
+                    }
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
           }
           viewport={viewportContent}
           bottomVisible={animationPanelVisible}

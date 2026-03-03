@@ -8,6 +8,7 @@ export interface AuthoringUiState {
   includeImportedAnimations: boolean;
   activeRiggingTab: RiggingTab;
   skipDiscrepancyCheck: boolean;
+  activeRuntimeSource: RuntimeAuthoringSource;
 }
 
 export type AuthoringUiAction =
@@ -15,9 +16,14 @@ export type AuthoringUiAction =
   | { type: "set-include-bundle"; payload: boolean }
   | { type: "set-include-animations"; payload: boolean }
   | { type: "set-rigging-tab"; payload: RiggingTab }
-  | { type: "set-skip-discrepancy-check"; payload: boolean };
+  | { type: "set-skip-discrepancy-check"; payload: boolean }
+  | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource };
 
 export type RiggingTab = "rigging" | "face";
+export type RuntimeAuthoringSource =
+  | "animation"
+  | "procedural-animation-programming"
+  | "none";
 
 const INITIAL_UI_STATE: AuthoringUiState = {
   activeWorkbench: "import-export",
@@ -25,6 +31,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  activeRuntimeSource: "none",
 };
 
 export function authoringUiReducer(
@@ -68,6 +75,11 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, skipDiscrepancyCheck: action.payload };
+    case "set-active-runtime-source":
+      if (state.activeRuntimeSource === action.payload) {
+        return state;
+      }
+      return { ...state, activeRuntimeSource: action.payload };
     default:
       return state;
   }
@@ -89,6 +101,7 @@ export interface AuthoringUiActions {
   setIncludeImportedAnimations: (value: boolean) => void;
   setRiggingTab: (value: RiggingTab) => void;
   setSkipDiscrepancyCheck: (value: boolean) => void;
+  setActiveRuntimeSource: (value: RuntimeAuthoringSource) => void;
 }
 
 export function AuthoringUiProvider({
@@ -110,6 +123,8 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-rigging-tab", payload: value }),
       setSkipDiscrepancyCheck: (value) =>
         dispatch({ type: "set-skip-discrepancy-check", payload: value }),
+      setActiveRuntimeSource: (value) =>
+        dispatch({ type: "set-active-runtime-source", payload: value }),
     }),
     [],
   );

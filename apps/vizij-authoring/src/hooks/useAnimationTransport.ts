@@ -44,7 +44,11 @@ function isAuthoredTimelineAnimation(animation: VizijAnimationAsset): boolean {
   );
 }
 
-export function AnimationRuntimeBridge() {
+export function AnimationRuntimeBridge({
+  active = true,
+}: {
+  active?: boolean;
+}) {
   const runtime = useVizijRuntime();
   const assetBundleAnimations = runtime.assetBundle?.animations ?? [];
   const setGraphBundle =
@@ -67,6 +71,9 @@ export function AnimationRuntimeBridge() {
   );
   const setRuntimeTransportAdapter = useAnimationStore(
     (state) => state.setRuntimeTransportAdapter,
+  );
+  const setTransportEnabled = useAnimationStore(
+    (state) => state.setTransportEnabled,
   );
   const currentTime = useAnimationStore((state) => state.currentTime);
   const transportActive = useAnimationStore((state) => state.transportActive);
@@ -184,6 +191,21 @@ export function AnimationRuntimeBridge() {
   ]);
 
   useEffect(() => {
+    setTransportEnabled(active);
+    if (!active) {
+      setRuntimeTransportAdapter(null);
+      if (typeof runtime.pauseAnimation === "function") {
+        runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+      }
+      syncTransportState({
+        isPlaying: false,
+        transportActive: false,
+        transportPlaybackState: "stopped",
+      });
+      return () => {
+        setTransportEnabled(true);
+      };
+    }
     if (
       typeof runtime.playAnimation !== "function" ||
       typeof runtime.pauseAnimation !== "function" ||
@@ -206,10 +228,25 @@ export function AnimationRuntimeBridge() {
     setRuntimeTransportAdapter(adapter);
     return () => {
       setRuntimeTransportAdapter(null);
+      setTransportEnabled(true);
     };
-  }, [runtime, setRuntimeTransportAdapter]);
+  }, [
+    active,
+    runtime,
+    setRuntimeTransportAdapter,
+    setTransportEnabled,
+    syncTransportState,
+  ]);
 
   useEffect(() => {
+    if (!active) {
+      syncTransportState({
+        isPlaying: false,
+        transportActive: false,
+        transportPlaybackState: "stopped",
+      });
+      return;
+    }
     let frameHandle = 0;
     const tick = () => {
       const playbackState = getAnimationState?.(AUTHORED_TIMELINE_CLIP_ID);
@@ -240,7 +277,7 @@ export function AnimationRuntimeBridge() {
         cancelAnimationFrame(frameHandle);
       }
     };
-  }, [getAnimationState, syncTransportState]);
+  }, [active, getAnimationState, syncTransportState]);
 
   return null;
 }
@@ -250,6 +287,7 @@ export function useAnimationTransport() {
   const runtimeTransportAdapter = useAnimationStore(
     (state) => state.runtimeTransportAdapter,
   );
+  const transportEnabled = useAnimationStore((state) => state.transportEnabled);
   const {
     tracks,
     currentTime,
@@ -267,7 +305,7 @@ export function useAnimationTransport() {
 
   const runtimeTransport = runtime ?? runtimeTransportAdapter;
   const hasTracks = tracks.length > 0;
-  const canDrive = Boolean(runtimeTransport) && hasTracks;
+  const canDrive = transportEnabled && Boolean(runtimeTransport) && hasTracks;
 
   const playTransport = useCallback(() => {
     if (!canDrive || !runtimeTransport) {

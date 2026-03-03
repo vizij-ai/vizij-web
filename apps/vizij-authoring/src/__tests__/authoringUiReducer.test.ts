@@ -10,6 +10,7 @@ const baseState: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  activeRuntimeSource: "none",
 };
 
 describe("authoringUiReducer", () => {
@@ -52,5 +53,13 @@ describe("authoringUiReducer", () => {
       payload: true,
     });
     expect(result.includeImportedAnimations).toBe(true);
+  });
+
+  it("updates the active runtime source", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-active-runtime-source",
+      payload: "animation",
+    });
+    expect(result.activeRuntimeSource).toBe("animation");
   });
 });

@@ -218,6 +218,7 @@ interface AnimationState {
   loop: boolean;
   playSpeed: number;
   transportActive: boolean;
+  transportEnabled: boolean;
   transportPlaybackState: AnimationTransportPlaybackState;
   runtimeTransportAdapter: AnimationRuntimeTransportAdapter | null;
 
@@ -252,6 +253,7 @@ interface AnimationState {
   setRuntimeTransportAdapter: (
     adapter: AnimationRuntimeTransportAdapter | null,
   ) => void;
+  setTransportEnabled: (enabled: boolean) => void;
 
   addTrack: (variableId: string, label?: string, channel?: string) => void;
   setTrackInterpolation: (
@@ -289,6 +291,7 @@ const INITIAL_STATE: Pick<
   | "loop"
   | "playSpeed"
   | "transportActive"
+  | "transportEnabled"
   | "transportPlaybackState"
   | "runtimeTransportAdapter"
   | "selectedTrackId"
@@ -303,6 +306,7 @@ const INITIAL_STATE: Pick<
   loop: true,
   playSpeed: 1,
   transportActive: false,
+  transportEnabled: true,
   transportPlaybackState: "stopped",
   runtimeTransportAdapter: null,
   selectedTrackId: null,
@@ -427,6 +431,12 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       state.runtimeTransportAdapter === runtimeTransportAdapter
         ? state
         : { runtimeTransportAdapter },
+    ),
+  setTransportEnabled: (transportEnabled) =>
+    set((state) =>
+      state.transportEnabled === transportEnabled
+        ? state
+        : { transportEnabled },
     ),
 
   addTrack: (variableId, label, channel) =>

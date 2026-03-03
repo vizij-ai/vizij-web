@@ -402,6 +402,8 @@ export interface ViewerProps {
   rootId: string | null;
   namespace: string;
   bundle: VizijAssetBundle | null;
+  animationSourceActive?: boolean;
+  motionGraphSourceActive?: boolean;
   selectedSceneId?: string | null;
   onSelectScene?: (id: string) => void;
   onRuntimeInputsReady?: (
@@ -422,6 +424,8 @@ export function Viewer({
   rootId,
   namespace: _namespace,
   bundle,
+  animationSourceActive = true,
+  motionGraphSourceActive = true,
   selectedSceneId = null,
   onSelectScene,
   onRuntimeInputsReady,
@@ -572,11 +576,17 @@ export function Viewer({
             ) : null}
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
-            <AnimationRuntimeBridge />
-            <InputValueBridge active={motionGraphVisible} />
-            <MotionGraphDriverBridge active={motionGraphVisible} />
+            <AnimationRuntimeBridge active={animationSourceActive} />
+            <InputValueBridge
+              active={motionGraphVisible && motionGraphSourceActive}
+            />
+            <MotionGraphDriverBridge
+              active={motionGraphVisible && motionGraphSourceActive}
+            />
             <MotionGraphValueSampler
-              active={motionGraphVisible && plotActive}
+              active={
+                motionGraphVisible && motionGraphSourceActive && plotActive
+              }
             />
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay
