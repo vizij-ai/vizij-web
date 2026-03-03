@@ -117,8 +117,47 @@ describe("useAnimationTransport", () => {
     expect(useAnimationStore.getState().isPlaying).toBe(false);
     hook.result.stop();
     expect(stopAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
-      clearOutputs: false,
+      clearOutputs: true,
     });
+    hook.unmount();
+  });
+
+  it("does not write runtime outputs when seeking while transport is stopped", () => {
+    const playAnimation = vi.fn().mockResolvedValue(undefined);
+    const pauseAnimation = vi.fn();
+    const stopAnimation = vi.fn();
+    const seekAnimation = vi.fn();
+    const setAnimationLoop = vi.fn();
+    const getAnimationState = vi.fn().mockReturnValue({
+      time: 0,
+      duration: 2,
+      playing: false,
+      loop: false,
+      speed: 1,
+    });
+
+    useAnimationStore.getState().setRuntimeTransportAdapter({
+      playAnimation,
+      pauseAnimation,
+      stopAnimation,
+      seekAnimation,
+      setAnimationLoop,
+      getAnimationState,
+    });
+    useAnimationStore.getState().addTrack("input_a", "Input A", "controls/a");
+
+    const hook = renderTransportHook();
+
+    hook.result.stop();
+    seekAnimation.mockClear();
+
+    hook.result.seek(0.75);
+
+    expect(seekAnimation).not.toHaveBeenCalled();
+    const state = useAnimationStore.getState();
+    expect(state.currentTime).toBe(0.75);
+    expect(state.transportActive).toBe(false);
+    expect(state.transportPlaybackState).toBe("stopped");
     hook.unmount();
   });
 });

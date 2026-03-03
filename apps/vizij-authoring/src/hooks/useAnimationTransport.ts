@@ -44,6 +44,10 @@ function isAuthoredTimelineAnimation(animation: VizijAnimationAsset): boolean {
   );
 }
 
+function normalizeAnimationInputPath(path: string | undefined): string {
+  return (path ?? "").trim().replace(/^\/+/, "");
+}
+
 export function AnimationRuntimeBridge({
   active = true,
 }: {
@@ -89,7 +93,7 @@ export function AnimationRuntimeBridge({
   );
 
   const authoredAnimation = useMemo<VizijAnimationAsset | null>(() => {
-    if (!authoredClip) {
+    if (!active || !authoredClip) {
       return null;
     }
     const bundleEntry = clipIrToBundleAnimationEntry(authoredClip, {
@@ -99,7 +103,22 @@ export function AnimationRuntimeBridge({
       id: bundleEntry.id,
       clip: bundleEntry.clip,
     };
-  }, [authoredClip, standardInputsById]);
+  }, [active, authoredClip, standardInputsById]);
+  const authoredOutputPaths = useMemo(() => {
+    if (!authoredClip) {
+      return [];
+    }
+    const paths = new Set<string>();
+    authoredClip.tracks.forEach((track) => {
+      const resolvedPath =
+        normalizeAnimationInputPath(track.channel) ||
+        normalizeAnimationInputPath(track.variableId);
+      if (resolvedPath.length > 0) {
+        paths.add(resolvedPath);
+      }
+    });
+    return Array.from(paths);
+  }, [authoredClip]);
 
   const mergedAnimations = useMemo(() => {
     const inherited = assetBundleAnimations.filter(
@@ -129,6 +148,7 @@ export function AnimationRuntimeBridge({
     [mergedAnimations],
   );
   const currentTimeRef = useRef(currentTime);
+  const wasActiveRef = useRef(active);
   const appliedAnimationSignatureRef = useRef<string | null>(null);
   const lastCurrentAnimationSignatureRef = useRef<string | null>(null);
 
@@ -191,14 +211,27 @@ export function AnimationRuntimeBridge({
   ]);
 
   useEffect(() => {
+    const wasActive = wasActiveRef.current;
+    wasActiveRef.current = active;
     setTransportEnabled(active);
     if (!active) {
       setRuntimeTransportAdapter(null);
+      if (wasActive) {
+        if (typeof runtime.stopAnimation === "function") {
+          runtime.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+            clearOutputs: true,
+          });
+        } else if (typeof runtime.pauseAnimation === "function") {
+          runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+        }
+        if (typeof runtime.setInput === "function") {
+          authoredOutputPaths.forEach((path) => {
+            runtime.setInput(path, { float: 0 });
+          });
+        }
+      }
       if (typeof runtime.setAnimationActive === "function") {
         runtime.setAnimationActive(false);
-      }
-      if (typeof runtime.pauseAnimation === "function") {
-        runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
       }
       syncTransportState({
         isPlaying: false,
@@ -244,6 +277,7 @@ export function AnimationRuntimeBridge({
     };
   }, [
     active,
+    authoredOutputPaths,
     runtime,
     setRuntimeTransportAdapter,
     setTransportEnabled,
@@ -351,7 +385,7 @@ export function useAnimationTransport() {
       return;
     }
     runtimeTransport.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-      clearOutputs: false,
+      clearOutputs: true,
     });
     stop();
   }, [canDrive, runtimeTransport, stop]);
@@ -367,16 +401,25 @@ export function useAnimationTransport() {
         });
         return;
       }
-      runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, timeSeconds);
       const nextPlaybackState = isPlaying
         ? "playing"
         : transportPlaybackState === "stopped"
           ? "stopped"
           : "paused";
+      if (nextPlaybackState === "stopped") {
+        syncTransportState({
+          currentTime: timeSeconds,
+          isPlaying: false,
+          transportActive: false,
+          transportPlaybackState: "stopped",
+        });
+        return;
+      }
+      runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, timeSeconds);
       syncTransportState({
         currentTime: timeSeconds,
         isPlaying,
-        transportActive: nextPlaybackState !== "stopped",
+        transportActive: true,
         transportPlaybackState: nextPlaybackState,
       });
     },

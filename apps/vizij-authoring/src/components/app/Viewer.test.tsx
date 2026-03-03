@@ -10,12 +10,18 @@ import {
   BindingAuthoringStoreProvider,
   createBindingAuthoringStore,
 } from "../../state/bindingAuthoringStore";
+import { useAnimationStore } from "../../state/animationStore";
+import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
 import { Viewer } from "./Viewer";
 
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const setGraphBundleSpy = vi.fn();
 const setVizijStoreSpy = vi.fn();
+const stopAnimationSpy = vi.fn();
+const setAnimationActiveSpy = vi.fn();
+const pauseAnimationSpy = vi.fn();
+const getAnimationStateSpy = vi.fn().mockReturnValue(null);
 
 vi.mock("@vizij/render", () => ({
   useVizijStore: <T,>(
@@ -54,6 +60,10 @@ vi.mock("@vizij/runtime-react", () => ({
     controllers: { graphs: [] },
     outputPaths: [],
     setGraphBundle: setGraphBundleSpy,
+    stopAnimation: stopAnimationSpy,
+    setAnimationActive: setAnimationActiveSpy,
+    pauseAnimation: pauseAnimationSpy,
+    getAnimationState: getAnimationStateSpy,
   }),
 }));
 type ViewerProps = React.ComponentProps<typeof Viewer>;
@@ -97,6 +107,11 @@ describe("Viewer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setVizijStoreSpy.mockReset();
+    stopAnimationSpy.mockReset();
+    setAnimationActiveSpy.mockReset();
+    pauseAnimationSpy.mockReset();
+    getAnimationStateSpy.mockClear();
+    useAnimationStore.getState().reset();
   });
 
   it("shows empty scene state when no rootId", () => {
@@ -220,6 +235,108 @@ describe("Viewer", () => {
       },
       { tier: "graphs" },
     );
+  });
+
+  it("does not inject authored timeline animations when animation source is inactive", () => {
+    useAnimationStore
+      .getState()
+      .addTrack("input_a", "Input A", "controls/input_a");
+
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const { rerender } = render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive={false}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(stopAnimationSpy).toHaveBeenCalledWith(AUTHORED_TIMELINE_CLIP_ID, {
+      clearOutputs: true,
+    });
+    expect(setAnimationActiveSpy).toHaveBeenCalledWith(false);
+  });
+
+  it("injects authored timeline animation bundle when animation source is active", () => {
+    useAnimationStore
+      .getState()
+      .addTrack("input_a", "Input A", "controls/input_a");
+
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    const animationBundleCalls = setGraphBundleSpy.mock.calls.filter(
+      ([payload]) =>
+        payload &&
+        typeof payload === "object" &&
+        Array.isArray((payload as { animations?: unknown }).animations),
+    );
+    expect(animationBundleCalls.length).toBeGreaterThan(0);
+    expect(
+      animationBundleCalls.some(([payload]) =>
+        (payload as { animations: Array<{ id: string }> }).animations.some(
+          (animation) => animation.id === AUTHORED_TIMELINE_CLIP_ID,
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("emits add/update/remove graph bundle transitions", () => {

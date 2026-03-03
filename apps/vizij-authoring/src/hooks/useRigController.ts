@@ -944,7 +944,9 @@ export function useRigController(
   useEffect(() => {
     const syncTimelineLocks = () => {
       const animationState = useAnimationStore.getState();
-      const timelineDriving = animationState.transportActive;
+      const timelineDriving =
+        animationState.transportEnabled &&
+        animationState.transportPlaybackState !== "stopped";
       const nextLockedInputIds = new Set<string>();
       if (timelineDriving) {
         animationState.tracks.forEach((track) => {
