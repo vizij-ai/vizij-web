@@ -190,7 +190,7 @@ export function AppMenuBar({
             setPanelVisibility("motiongraphPalette", checked)
           }
         >
-          Procedural Animation Palette
+          Procedural Animation
         </MenuCheckboxItem>
 
         <MenuSeparator />

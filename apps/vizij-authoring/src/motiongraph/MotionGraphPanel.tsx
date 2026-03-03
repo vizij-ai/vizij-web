@@ -53,7 +53,7 @@ export function MotionGraphPanel({
 export function MotionGraphPalettePanel() {
   return (
     <Panel
-      title="Procedural Animation Palette"
+      title="Procedural Animation"
       description="Drag graph nodes into the procedural animation canvas."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
     >
