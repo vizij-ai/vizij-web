@@ -52,11 +52,11 @@ const likelySnap = snapEnv || vscodeSnapEnv || parentIsSnap;
 
 if (likelySnap) {
   const lines = [
-    "\n[dev:vizij-ws-app] Snap-based environment detected (often VS Code Snap).",
+    "\n[dev:vizij-standalone] Snap-based environment detected (often VS Code Snap).",
     "This can cause Tauri to fail with:",
     "  /snap/core20/.../libpthread.so.0: undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE",
     "Fix: run from a non-snap terminal (e.g., apt-installed gnome-terminal) and re-run:",
-    "  pnpm run dev:vizij-ws-app",
+    "  pnpm run dev:vizij-standalone",
     "",
   ];
   console.error(lines.join("\n"));

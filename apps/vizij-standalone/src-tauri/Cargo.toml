@@ -1,18 +1,20 @@
 [package]
-name = "vizij-ws"
+name = "vizij-standalone"
 version = "0.1.0"
 description = "A Tauri App with WebSocket control"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "vizij_ws_lib"
+name = "vizij_standalone_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+arora-connection = { path = "../../../packages/arora-connection" }
+arora-websocket = { path = "../../../packages/arora-websocket" }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"

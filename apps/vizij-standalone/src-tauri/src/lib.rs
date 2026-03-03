@@ -5,22 +5,29 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
 
+use std::collections::HashMap;
+
+mod connection;
+mod connection_manager;
 mod ws_server;
-use ws_server::{NodeInfo, WsServerState};
+
+use connection::{CancellationToken, SlotInfo, Value};
+use connection_manager::ConnectionManager;
+use ws_server::WsServer;
 
 /// Application state
 struct AppState {
-    ws_state: Arc<Mutex<WsServerState>>,
-    ws_cancel_token: Mutex<Option<CancellationToken>>,
+    connection_manager: Arc<ConnectionManager>,
+    cancel_token: Mutex<Option<CancellationToken>>,
     port: u16,
+    web_port: Option<u16>,
     glb_source: Option<String>,
 }
 
 /// CLI structure with optional subcommands
 #[derive(Parser, Debug, Clone)]
-#[command(author, version, about = "Vizij WebSocket-controlled avatar renderer", long_about = None)]
+#[command(author, version, about = "Vizij standalone avatar renderer", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -28,6 +35,10 @@ struct Cli {
     /// WebSocket server port
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
+
+    /// Disable web-based remote control panel (served on the same port as the WebSocket server)
+    #[arg(long, default_value_t = false)]
+    no_web_control: bool,
 
     /// GLB file path or URL to load on startup
     #[arg(short, long)]
@@ -93,7 +104,10 @@ fn list_displays() {
         let pos = monitor.position();
         let scale = monitor.scale_factor();
         let name = monitor.name().unwrap_or_else(|| "Unknown".to_string());
-        let is_primary = primary.as_ref().map(|p| p.name() == monitor.name()).unwrap_or(false);
+        let is_primary = primary
+            .as_ref()
+            .map(|p| p.name() == monitor.name())
+            .unwrap_or(false);
 
         println!(
             "  Display {}: {}{}",
@@ -126,7 +140,7 @@ fn warn_if_snap_env() {
     }
 }
 
-/// Start the WebSocket server
+/// Start connection servers
 #[tauri::command]
 async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
@@ -135,9 +149,9 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
 
     // Check if already running
     {
-        let cancel_token = state.ws_cancel_token.lock().await;
+        let cancel_token = state.cancel_token.lock().await;
         if cancel_token.is_some() {
-            return Err("WebSocket server is already running".to_string());
+            return Err("Connection servers are already running".to_string());
         }
     }
 
@@ -146,45 +160,51 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     }
 
     let cancel_token = CancellationToken::new();
-    let child_token = cancel_token.child_token();
 
     // Store the cancel token
     {
-        let mut token_guard = state.ws_cancel_token.lock().await;
-        *token_guard = Some(cancel_token);
+        let mut token_guard = state.cancel_token.lock().await;
+        *token_guard = Some(cancel_token.clone());
     }
 
-    let ws_state = state.ws_state.clone();
+    let manager = state.connection_manager.clone();
     let app_handle_clone = app_handle.clone();
 
-    // Spawn the server task
+    // Setup Tauri event handlers for all connections
+    manager.setup_all(app_handle.clone()).await;
+
+    // Spawn all connection servers
+    let handles = manager.run_all(cancel_token);
+
+    // Monitor and emit stopped event when all connections finish
     tokio::spawn(async move {
-        if let Err(e) = ws_server::run_server(port, app_handle_clone.clone(), ws_state, child_token).await {
-            log::error!("WebSocket server error: {}", e);
+        for handle in handles {
+            let _ = handle.await;
         }
-        // Emit server stopped event
         let _ = app_handle_clone.emit("ws:stopped", ());
     });
 
     // Emit server started event with port
-    app_handle.emit("ws:started", port).map_err(|e| e.to_string())?;
+    app_handle
+        .emit("ws:started", port)
+        .map_err(|e| e.to_string())?;
 
-    info!("WebSocket server started on port {}", port);
+    info!("Connection servers started (WS port: {})", port);
     Ok(())
 }
 
-/// Stop the WebSocket server
+/// Stop connection servers
 #[tauri::command]
 async fn stop_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
 
-    let mut cancel_token = state.ws_cancel_token.lock().await;
+    let mut cancel_token = state.cancel_token.lock().await;
     if let Some(token) = cancel_token.take() {
         token.cancel();
-        info!("WebSocket server stop requested");
+        info!("Connection servers stop requested");
         Ok(())
     } else {
-        Err("WebSocket server is not running".to_string())
+        Err("Connection servers are not running".to_string())
     }
 }
 
@@ -195,33 +215,13 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
     state.port
 }
 
-/// Get available tracks (placeholder)
+/// Set available slots (called by frontend when model loads)
 #[tauri::command]
-async fn get_tracks(app_handle: tauri::AppHandle) -> Vec<String> {
+async fn set_slots(app_handle: tauri::AppHandle, slots: Vec<SlotInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    let tracks = ws_state.tracks.read().await.clone();
-    tracks
-}
-
-/// Set available tracks (for external integration)
-#[tauri::command]
-async fn set_tracks(app_handle: tauri::AppHandle, tracks: Vec<String>) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    *ws_state.tracks.write().await = tracks;
-    info!("Tracks updated");
-    Ok(())
-}
-
-/// Set available nodes (called by frontend when model loads)
-#[tauri::command]
-async fn set_nodes(app_handle: tauri::AppHandle, nodes: Vec<NodeInfo>) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    let ws_state = state.ws_state.lock().await;
-    let count = nodes.len();
-    *ws_state.nodes.write().await = nodes;
-    info!("Nodes updated: {} available", count);
+    let count = slots.len();
+    state.connection_manager.set_slots(slots).await;
+    info!("Slots updated: {} available", count);
     Ok(())
 }
 
@@ -232,12 +232,11 @@ async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
     state.glb_source.clone()
 }
 
-/// Check if the WebSocket server is running
+/// Check if any connection server is running
 #[tauri::command]
 async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
     let state = app_handle.state::<AppState>();
-    let cancel_token = state.ws_cancel_token.lock().await;
-    cancel_token.is_some()
+    state.connection_manager.is_any_running().await
 }
 
 /// Read a local GLB file and return as base64
@@ -247,6 +246,21 @@ async fn read_glb_file(path: String) -> Result<String, String> {
         .await
         .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
     Ok(STANDARD.encode(&contents))
+}
+
+/// Respond to a GetSlotValues request from the connection.
+/// Called by the frontend after receiving a "get-slot-values-request" event.
+#[tauri::command]
+fn respond_slot_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
+    let state = app_handle.state::<AppState>();
+    state.connection_manager.respond_slot_values(values);
+}
+
+/// Get the web control port (None if web control is disabled)
+#[tauri::command]
+async fn get_web_port(app_handle: tauri::AppHandle) -> Option<u16> {
+    let state = app_handle.state::<AppState>();
+    state.web_port
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -289,15 +303,29 @@ pub fn run() {
                 }
             });
 
-            // Set up the application state
+            // Set up connection manager with all connection interfaces
+            let serve_web_control = !cli.no_web_control;
+            let mut manager = ConnectionManager::new();
+            manager.add_connection(Arc::new(WsServer::new(port, serve_web_control)));
+
+            let web_port = if serve_web_control {
+                Some(port)
+            } else {
+                None
+            };
+
             app.manage(AppState {
-                ws_state: Arc::new(Mutex::new(WsServerState::default())),
-                ws_cancel_token: Mutex::new(None),
+                connection_manager: Arc::new(manager),
+                cancel_token: Mutex::new(None),
                 port,
+                web_port,
                 glb_source: glb_source.clone(),
             });
 
-            info!("Vizij WS App initialized with port {}", port);
+            info!("Vizij Standalone App initialized with WS port {}", port);
+            if serve_web_control {
+                info!("Web control panel will be available at http://<ip>:{}", port);
+            }
             if let Some(ref src) = glb_source {
                 info!("GLB source: {}", src);
             }
@@ -339,7 +367,10 @@ pub fn run() {
                         )) {
                             log::error!("Failed to set window size: {}", e);
                         } else {
-                            info!("Window size set to monitor resolution: {}x{}", size.width, size.height);
+                            info!(
+                                "Window size set to monitor resolution: {}x{}",
+                                size.width, size.height
+                            );
                         }
                     }
 
@@ -364,7 +395,8 @@ pub fn run() {
                         let monitor_pos = monitor.position();
                         let monitor_size = monitor.size();
                         let x = monitor_pos.x + (monitor_size.width as i32 - cli.width as i32) / 2;
-                        let y = monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
+                        let y =
+                            monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
                         if let Err(e) = window.set_position(tauri::Position::Physical(
                             tauri::PhysicalPosition::new(x, y),
                         )) {
@@ -401,11 +433,11 @@ pub fn run() {
             stop_ws_server,
             is_ws_running,
             get_port,
-            get_tracks,
-            set_tracks,
-            set_nodes,
+            get_web_port,
+            set_slots,
             get_glb_source,
             read_glb_file,
+            respond_slot_values,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

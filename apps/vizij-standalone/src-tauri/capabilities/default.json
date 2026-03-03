@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for vizij-ws app",
+  "description": "Default capabilities for vizij-standalone app",
   "windows": ["main"],
   "permissions": [
     "core:default",

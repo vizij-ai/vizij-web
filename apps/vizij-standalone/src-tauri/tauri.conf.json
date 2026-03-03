@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Vizij WS",
+  "productName": "Vizij Standalone",
   "version": "0.1.0",
-  "identifier": "com.vizij.ws.app",
+  "identifier": "com.vizij.standalone",
   "build": {
-    "beforeDevCommand": "npm run vite",
+    "beforeDevCommand": "pnpm run vite",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "Vizij WS",
+        "title": "Vizij Standalone",
         "width": 800,
         "height": 600
       }
