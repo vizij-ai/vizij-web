@@ -3264,6 +3264,115 @@ describe("VariablesPanel", () => {
     ).toBeTruthy();
   });
 
+  it("writes input slider edits as animation keyframes at the current timeline time", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [{ input: jaw, source: "custom" }];
+    bindingState.standardInputsById = new Map([[jaw.id, jaw]]);
+    bindingState.standardInputsByPath = new Map([[jaw.path, jaw]]);
+    bindingState.inputValues = {
+      [jaw.id]: 0.2,
+    };
+    useAnimationStore.getState().seek(1.25);
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        animationActive
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+      target: { value: "jaw open" },
+    });
+    fireEvent.change(screen.getByRole("slider"), {
+      target: { value: "0.6" },
+    });
+
+    const animationState = useAnimationStore.getState();
+    expect(animationState.tracks).toHaveLength(1);
+    expect(animationState.tracks[0]?.variableId).toBe("jaw_open");
+    expect(animationState.tracks[0]?.keyframes).toHaveLength(1);
+    expect(animationState.tracks[0]?.keyframes[0]?.time).toBe(1.25);
+    expect(animationState.tracks[0]?.keyframes[0]?.value).toBe(0.6);
+    expect(bindingState.handleInputValueChange).toHaveBeenCalledWith(
+      "jaw_open",
+      0.6,
+    );
+  });
+
+  it("adds all pose channels as animation tracks at the current timeline time", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    const brow = makeInput("brow_raise", "/face/brow/raise", {
+      label: "Brow Raise",
+    });
+    bindingState.managedStandardInputs = [
+      { input: jaw, source: "custom" },
+      { input: brow, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [jaw.id, jaw],
+      [brow.id, brow],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [jaw.path, jaw],
+      [brow.path, brow],
+    ]);
+    bindingState.inputValues = {
+      [jaw.id]: 0,
+      [brow.id]: 0,
+    };
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        values: {
+          jaw_open: 0.7,
+          brow_raise: 0.35,
+        },
+        createdAt: "now",
+        updatedAt: "now",
+      },
+    ];
+    useAnimationStore.getState().seek(2.5);
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        animationActive
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle(
+        "Add pose channels as animation tracks at current time",
+      ),
+    );
+
+    const animationState = useAnimationStore.getState();
+    expect(animationState.tracks).toHaveLength(2);
+    const trackById = new Map(
+      animationState.tracks.map((track) => [track.variableId, track]),
+    );
+    expect(trackById.get("jaw_open")?.keyframes[0]).toMatchObject({
+      time: 2.5,
+      value: 0.7,
+    });
+    expect(trackById.get("brow_raise")?.keyframes[0]).toMatchObject({
+      time: 2.5,
+      value: 0.35,
+    });
+    expect(bindingState.applyStandardInputBatch).toHaveBeenCalledWith({
+      jaw_open: 0.7,
+      brow_raise: 0.35,
+    });
+  });
+
   it("honors center authoring mode when contextual actions overlap", () => {
     const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
       label: "Jaw Open",

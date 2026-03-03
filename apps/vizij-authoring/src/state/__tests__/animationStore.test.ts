@@ -92,6 +92,43 @@ describe("animationStore deterministic behavior", () => {
     ).toEqual(["step", "step"]);
   });
 
+  it("upserts input keyframes by creating a track and updating same-time keys", () => {
+    const store = useAnimationStore.getState();
+
+    store.upsertInputKeyframe(
+      {
+        inputId: "jaw_open",
+        value: 0.2,
+        label: "Jaw Open",
+        channel: "face/mouth/jaw_open",
+      },
+      0.5,
+    );
+
+    let state = useAnimationStore.getState();
+    expect(state.tracks).toHaveLength(1);
+    expect(state.tracks[0]?.variableId).toBe("jaw_open");
+    expect(state.tracks[0]?.keyframes).toHaveLength(1);
+    expect(state.tracks[0]?.keyframes[0]?.value).toBe(0.2);
+    const initialKeyframeId = state.tracks[0]?.keyframes[0]?.id;
+
+    store.upsertInputKeyframe(
+      {
+        inputId: "jaw_open",
+        value: 0.8,
+        label: "Jaw Open",
+        channel: "face/mouth/jaw_open",
+      },
+      0.5,
+    );
+
+    state = useAnimationStore.getState();
+    expect(state.tracks).toHaveLength(1);
+    expect(state.tracks[0]?.keyframes).toHaveLength(1);
+    expect(state.tracks[0]?.keyframes[0]?.id).toBe(initialKeyframeId);
+    expect(state.tracks[0]?.keyframes[0]?.value).toBe(0.8);
+  });
+
   it("keeps transport active while playback is paused", () => {
     const store = useAnimationStore.getState();
 

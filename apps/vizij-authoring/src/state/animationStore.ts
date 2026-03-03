@@ -36,6 +36,13 @@ export type AnimationRuntimeTransportAdapter = {
   getAnimationState: (id: string) => AnimationRuntimePlaybackState | null;
 };
 
+export interface AnimationInputKeyframeEntry {
+  inputId: string;
+  value: number;
+  label?: string;
+  channel?: string;
+}
+
 const MIN_DURATION_SECONDS = 0;
 const TIME_EPSILON = 1e-6;
 const TRACK_ID_PREFIX = "track-";
@@ -263,6 +270,14 @@ interface AnimationState {
   removeTrack: (trackId: string) => void;
 
   addKeyframe: (trackId: string, time: number, value: number) => void;
+  upsertInputKeyframe: (
+    entry: AnimationInputKeyframeEntry,
+    time: number,
+  ) => void;
+  upsertInputKeyframes: (
+    entries: AnimationInputKeyframeEntry[],
+    time: number,
+  ) => void;
   removeKeyframe: (trackId: string, keyframeId: string) => void;
   updateKeyframe: (
     trackId: string,
@@ -527,6 +542,105 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         selectedTrackId: trackId,
         selectedKeyframeId: newKeyframe.id,
         nextKeyframeOrdinal: state.nextKeyframeOrdinal + 1,
+      };
+    }),
+
+  upsertInputKeyframe: (entry, time) => {
+    get().upsertInputKeyframes([entry], time);
+  },
+
+  upsertInputKeyframes: (entries, time) =>
+    set((state) => {
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return state;
+      }
+      const clampedTime = clampTime(time, state.duration);
+      const dedupedEntries = new Map<string, AnimationInputKeyframeEntry>();
+      entries.forEach((entry) => {
+        const inputId = entry.inputId.trim();
+        if (!inputId || !Number.isFinite(entry.value)) {
+          return;
+        }
+        dedupedEntries.set(inputId, {
+          ...entry,
+          inputId,
+        });
+      });
+      if (dedupedEntries.size === 0) {
+        return state;
+      }
+
+      let nextTrackOrdinal = state.nextTrackOrdinal;
+      let nextKeyframeOrdinal = state.nextKeyframeOrdinal;
+      let selectedTrackId = state.selectedTrackId;
+      let selectedKeyframeId = state.selectedKeyframeId;
+      const nextTracks = state.tracks.map((track) => ({
+        ...track,
+        keyframes: [...track.keyframes],
+      }));
+
+      dedupedEntries.forEach((entry) => {
+        const existingTrackIndex = nextTracks.findIndex(
+          (track) => track.variableId === entry.inputId,
+        );
+        const trackIndex =
+          existingTrackIndex >= 0
+            ? existingTrackIndex
+            : (() => {
+                const newTrack: AnimationTrack = {
+                  id: formatTrackId(nextTrackOrdinal),
+                  variableId: entry.inputId,
+                  channel: entry.channel?.trim() || entry.inputId,
+                  label: entry.label || entry.inputId,
+                  color: deterministicTrackColor(entry.inputId),
+                  interpolation: "linear",
+                  keyframes: [],
+                };
+                nextTrackOrdinal += 1;
+                nextTracks.push(newTrack);
+                return nextTracks.length - 1;
+              })();
+        const track = nextTracks[trackIndex]!;
+        const existingKeyframe = track.keyframes.find((keyframe) =>
+          isSameTime(keyframe.time, clampedTime),
+        );
+        if (existingKeyframe) {
+          track.keyframes = normalizeKeyframesForTrack(
+            track.keyframes.map((keyframe) =>
+              keyframe.id === existingKeyframe.id
+                ? { ...keyframe, value: entry.value }
+                : keyframe,
+            ),
+            state.duration,
+            track.interpolation,
+          );
+          selectedTrackId = track.id;
+          selectedKeyframeId = existingKeyframe.id;
+          return;
+        }
+        const newKeyframe: AnimationKeyframe = {
+          id: formatKeyframeId(nextKeyframeOrdinal),
+          time: clampedTime,
+          value: entry.value,
+          interpolation: track.interpolation,
+        };
+        nextKeyframeOrdinal += 1;
+        track.keyframes = normalizeKeyframesForTrack(
+          [...track.keyframes, newKeyframe],
+          state.duration,
+          track.interpolation,
+        );
+        selectedTrackId = track.id;
+        selectedKeyframeId = newKeyframe.id;
+      });
+
+      return {
+        ...state,
+        tracks: nextTracks,
+        nextTrackOrdinal,
+        nextKeyframeOrdinal,
+        selectedTrackId,
+        selectedKeyframeId,
       };
     }),
 

@@ -42,7 +42,10 @@ import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
-import { useAnimationStore } from "../../state/animationStore";
+import {
+  useAnimationStore,
+  type AnimationInputKeyframeEntry,
+} from "../../state/animationStore";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
@@ -2079,6 +2082,20 @@ function TreeRowWrapper({
               >
                 <Play size={10} fill="currentColor" />
               </Button>
+              {animationTrackContext?.active ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0 hover:text-accent text-emerald-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAction?.(node, "key-pose");
+                  }}
+                  title="Add pose channels as animation tracks at current time"
+                >
+                  <Plus size={10} />
+                </Button>
+              ) : null}
               <Button
                 variant="ghost"
                 size="sm"
@@ -2729,8 +2746,15 @@ export function VariablesPanel({
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
   const animationTracks = useAnimationStore((state) => state.tracks);
+  const animationCurrentTime = useAnimationStore((state) => state.currentTime);
   const addAnimationTrack = useAnimationStore((state) => state.addTrack);
   const removeAnimationTrack = useAnimationStore((state) => state.removeTrack);
+  const upsertAnimationInputKeyframe = useAnimationStore(
+    (state) => state.upsertInputKeyframe,
+  );
+  const upsertAnimationInputKeyframes = useAnimationStore(
+    (state) => state.upsertInputKeyframes,
+  );
   const enabledMotionGraphInputs = useEditorStore(
     (state) => state.enabledInputs,
   );
@@ -4592,6 +4616,14 @@ export function VariablesPanel({
       }
       return;
     }
+    if (node.type === "pose" && action === "key-pose") {
+      const poseNodeData = node.data as PoseNodeData;
+      if (poseNodeData.source !== "main") {
+        return;
+      }
+      keyPoseChannelsAtCurrentTime(poseNodeData.pose as PoseDefinition);
+      return;
+    }
     if (node.type === "pose" && action === "reset-pose") {
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source === "reference") {
@@ -4611,7 +4643,7 @@ export function VariablesPanel({
         return;
       }
       const poseWeightInput = standardInputsById.get(poseWeightInputId);
-      activeInputValueChange(
+      handlePanelInputValueChange(
         poseWeightInputId,
         poseWeightInput?.defaultValue ?? 0,
       );
@@ -4889,6 +4921,35 @@ export function VariablesPanel({
     },
     [addAnimationTrack],
   );
+  const keyframeInputAtCurrentTime = useCallback(
+    (inputId: string, value: number) => {
+      const input = standardInputsById.get(inputId);
+      upsertAnimationInputKeyframe(
+        {
+          inputId,
+          value,
+          label: input?.label ?? inputId,
+          channel: input?.path ?? inputId,
+        },
+        animationCurrentTime,
+      );
+    },
+    [animationCurrentTime, standardInputsById, upsertAnimationInputKeyframe],
+  );
+  const handlePanelInputValueChange = useCallback(
+    (inputId: string, value: number) => {
+      if (animationAuthoringActive && activeSurface === "inputs") {
+        keyframeInputAtCurrentTime(inputId, value);
+      }
+      activeInputValueChange(inputId, value);
+    },
+    [
+      activeInputValueChange,
+      activeSurface,
+      animationAuthoringActive,
+      keyframeInputAtCurrentTime,
+    ],
+  );
   const handleRemoveAnimationTrack = useCallback(
     (inputId: string) => {
       const matchingTrackIds = animationTrackIdsByInputId.get(inputId) ?? [];
@@ -4910,6 +4971,36 @@ export function VariablesPanel({
       handleAddAnimationTrack,
       handleRemoveAnimationTrack,
       trackedAnimationInputIds,
+    ],
+  );
+  const keyPoseChannelsAtCurrentTime = useCallback(
+    (pose: PoseDefinition) => {
+      const entries: AnimationInputKeyframeEntry[] = [];
+      const previewValues: Record<string, number> = {};
+      Object.entries(pose.values).forEach(([inputId, value]) => {
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        const input = standardInputsById.get(inputId);
+        entries.push({
+          inputId,
+          value,
+          label: input?.label ?? inputId,
+          channel: input?.path ?? inputId,
+        });
+        previewValues[inputId] = value;
+      });
+      if (entries.length === 0) {
+        return;
+      }
+      upsertAnimationInputKeyframes(entries, animationCurrentTime);
+      applyStandardInputBatch(previewValues);
+    },
+    [
+      animationCurrentTime,
+      applyStandardInputBatch,
+      standardInputsById,
+      upsertAnimationInputKeyframes,
     ],
   );
 
@@ -5847,7 +5938,8 @@ export function VariablesPanel({
                       {visibleTrackableAnimationInputCount}
                     </span>
                     <span className="text-[10px] text-text-muted">
-                      Use row actions below to add or remove tracks.
+                      Row actions add/remove tracks. Slider edits keyframe at
+                      the current animation time.
                     </span>
                   </div>
                 )}
@@ -6331,7 +6423,7 @@ export function VariablesPanel({
                           onToggle={handleToggle}
                           onAction={handleAction}
                           onSelect={handleSelect}
-                          onInputValueChange={activeInputValueChange}
+                          onInputValueChange={handlePanelInputValueChange}
                           selection={activeSelection}
                           selectedReferenceRigIds={selectedReferenceRigIds}
                           selectedReferencePoseIds={selectedReferencePoseIds}
