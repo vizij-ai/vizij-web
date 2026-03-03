@@ -38,7 +38,7 @@ export function MotionGraphPanel({
   ) : null;
   return (
     <Panel
-      title="Procedural Animation Programming"
+      title="Procedural Animation"
       description="Author procedural animation signal flows in the workspace canvas."
       className="h-full min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
@@ -53,8 +53,8 @@ export function MotionGraphPanel({
 export function MotionGraphPalettePanel() {
   return (
     <Panel
-      title="Procedural Animation Programming Palette"
-      description="Drag graph nodes into the center procedural animation canvas."
+      title="Procedural Animation Palette"
+      description="Drag graph nodes into the procedural animation canvas."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
     >
       <div className="h-full min-h-0 rounded border border-border-default/60 bg-bg-panel/40 overflow-hidden">

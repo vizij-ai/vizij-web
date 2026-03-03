@@ -52,6 +52,9 @@ export function AppMenuBar({
   const materialsPanelVisible = useWorkspaceStore(
     (state) => state.panels.materials.isVisible,
   );
+  const toolbarPanelVisible = useWorkspaceStore(
+    (state) => state.panels.toolbar.isVisible,
+  );
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
@@ -61,6 +64,8 @@ export function AppMenuBar({
   const setPanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
+  const controlAuthoringVisible =
+    variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
 
   return (
     <MenuBar>
@@ -142,18 +147,28 @@ export function AppMenuBar({
           Hierarchy
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          checked={controlAuthoringVisible}
+          onCheckedChange={(checked) => {
+            setPanelVisibility("variables", checked);
+            setPanelVisibility("poses", checked);
+            setPanelVisibility("materials", checked);
+          }}
+        >
+          Control Authoring
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
           checked={variablesPanelVisible}
           onCheckedChange={(checked) =>
             setPanelVisibility("variables", checked)
           }
         >
-          Drivers
+          <span className="pl-4">Drivers</span>
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={posesPanelVisible}
           onCheckedChange={(checked) => setPanelVisibility("poses", checked)}
         >
-          Poses
+          <span className="pl-4">Poses</span>
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={inputsPanelVisible}
@@ -167,7 +182,7 @@ export function AppMenuBar({
             setPanelVisibility("materials", checked)
           }
         >
-          Pose Groups
+          <span className="pl-4">Pose Groups</span>
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={motionGraphPaletteVisible}
@@ -175,11 +190,17 @@ export function AppMenuBar({
             setPanelVisibility("motiongraphPalette", checked)
           }
         >
-          Procedural Animation Programming Palette
+          Procedural Animation Palette
         </MenuCheckboxItem>
 
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
+        <MenuCheckboxItem
+          checked={toolbarPanelVisible}
+          onCheckedChange={(checked) => setPanelVisibility("toolbar", checked)}
+        >
+          Control
+        </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={inspectorPanelVisible}
           onCheckedChange={(checked) =>

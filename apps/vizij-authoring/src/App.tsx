@@ -358,7 +358,7 @@ const RUNTIME_SOURCE_OPTIONS: Array<{
   { value: "animation", label: "Animation" },
   {
     value: "procedural-animation-programming",
-    label: "Procedural Animation Programming",
+    label: "Procedural Animation",
   },
 ];
 
@@ -1428,6 +1428,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
+  const runtimeControlsPanelVisible = useWorkspaceStore(
+    (state) => state.panels.toolbar.isVisible,
+  );
   const setWorkspacePanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
@@ -2256,7 +2259,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
-              panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation programming I/O."
+              panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
               onClosePanel={handleHideInputControlsPanel}
               motionGraphActive={motionGraphPanelVisible}
               animationActive={animationPanelVisible}
@@ -2269,9 +2272,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             />
           }
           leftBottomVisible={controlAuthoringPanelVisible}
-          // Center
-          topPanel={
+          viewport={viewportContent}
+          bottomVisible={animationPanelVisible}
+          bottomPanel={<AnimationPanel />}
+          // Right
+          rightTopVisible={runtimeControlsPanelVisible}
+          rightTopPanel={
             <RuntimeSourceToolbar
+              layout="panel"
               mode={centerAuthoringMode}
               activeSource={activeRuntimeSource}
               options={runtimeSourceOptions}
@@ -2290,28 +2298,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               createTargetLabel={runtimeTargetConfig?.createTargetLabel}
             />
           }
-          viewport={viewportContent}
-          bottomVisible={animationPanelVisible}
-          bottomPanel={<AnimationPanel />}
-          // Right
-          rightTopVisible={inspectorPanelVisible}
-          rightTopPanel={
-            <InspectorPanel
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
-              selectedBlendStage={selectedBlendStage}
-              onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-              hasReferenceFaceFile={Boolean(referenceFaceContextValue.file)}
-            />
-          }
-          rightBottomVisible={debugPanelVisible}
+          rightBottomVisible={inspectorPanelVisible || debugPanelVisible}
           rightBottomPanel={
-            <DebugPanel
-              rootId={loader.rootId}
-              loadedBundle={loader.bundle}
-              updateBundle={loader.updateBundle}
-              isLoading={loader.isLoading}
-            />
+            <div
+              className={`h-full min-h-0 ${
+                inspectorPanelVisible && debugPanelVisible
+                  ? "grid grid-rows-2"
+                  : "flex flex-col"
+              }`}
+            >
+              {inspectorPanelVisible ? (
+                <div className="min-h-0 overflow-y-auto">
+                  <InspectorPanel
+                    selectedPoseGroup={selectedPoseGroup}
+                    onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
+                    selectedBlendStage={selectedBlendStage}
+                    onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
+                    hasReferenceFaceFile={Boolean(
+                      referenceFaceContextValue.file,
+                    )}
+                  />
+                </div>
+              ) : null}
+              {debugPanelVisible ? (
+                <div className="min-h-0 overflow-y-auto border-t border-border-default/70">
+                  <DebugPanel
+                    rootId={loader.rootId}
+                    loadedBundle={loader.bundle}
+                    updateBundle={loader.updateBundle}
+                    isLoading={loader.isLoading}
+                  />
+                </div>
+              ) : null}
+            </div>
           }
         />
       </SharedVariableSyncProvider>

@@ -25,6 +25,7 @@ interface RuntimeSourceToolbarProps {
   activeSource: RuntimeAuthoringSource;
   options: RuntimeSourceOption[];
   onChange: (source: RuntimeAuthoringSource) => void;
+  layout?: "bar" | "panel";
   playbackState?: "playing" | "paused";
   onPlay?: () => void;
   onPause?: () => void;
@@ -65,7 +66,7 @@ const sourceDescriptions: Record<RuntimeAuthoringSource, string> = {
   animation:
     "Timeline playback can drive authored inputs while preserving direct controls when stopped.",
   "procedural-animation-programming":
-    "Procedural Animation Programming graph bridges are allowed to publish input/output values.",
+    "Procedural animation graph bridges can publish input/output values.",
   none: "Default mode uses direct input control; no authored runtime source is actively driving values.",
 };
 
@@ -74,6 +75,7 @@ export function RuntimeSourceToolbar({
   activeSource,
   options,
   onChange,
+  layout = "bar",
   playbackState,
   onPlay,
   onPause,
@@ -100,6 +102,115 @@ export function RuntimeSourceToolbar({
     typeof onPlay === "function" &&
     typeof onPause === "function" &&
     (playbackState === "playing" || playbackState === "paused");
+  if (layout === "panel") {
+    return (
+      <div className="h-full min-h-0 p-3 space-y-3 bg-bg-panel/70 backdrop-blur-sm">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+              Runtime Source
+            </span>
+            <span
+              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${modeDetails.badgeClassName}`}
+            >
+              {modeDetails.label}
+            </span>
+            <span
+              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                isLive
+                  ? "bg-color-success-subtle text-color-success"
+                  : "bg-bg-secondary text-text-secondary"
+              }`}
+            >
+              {isLive ? "Live" : "Idle"}
+            </span>
+          </div>
+          <p className="text-[11px] text-text-secondary leading-relaxed">
+            {sourceDescriptions[activeSource]}
+          </p>
+        </div>
+
+        <Select
+          size="sm"
+          label="Runtime Source"
+          value={activeSource}
+          onChange={(value) => onChange(value as RuntimeAuthoringSource)}
+          options={options.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+        />
+
+        {hasPlaybackControls ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={playbackState === "playing" ? "primary" : "secondary"}
+              size="sm"
+              className="h-8 px-2 text-[11px]"
+              onClick={onPlay}
+              disabled={playbackDisabled}
+              title="Play runtime source"
+            >
+              <Play className="mr-1 h-3.5 w-3.5 fill-current" />
+              Play
+            </Button>
+            <Button
+              variant={playbackState === "paused" ? "primary" : "secondary"}
+              size="sm"
+              className="h-8 px-2 text-[11px]"
+              onClick={onPause}
+              disabled={playbackDisabled}
+              title="Pause runtime source"
+            >
+              <Pause className="mr-1 h-3.5 w-3.5 fill-current" />
+              Pause
+            </Button>
+          </div>
+        ) : null}
+
+        {hasTargetSelector ? (
+          <div className="space-y-2">
+            <Select
+              size="sm"
+              label={targetLabel}
+              value={targetValue ?? ""}
+              onChange={onTargetChange}
+              options={(targetOptions ?? []).map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
+            {onCreateTarget ? (
+              <Button
+                variant="subtle"
+                size="sm"
+                className="h-8 px-2 text-[11px] w-full justify-center"
+                onClick={onCreateTarget}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                {createTargetLabel ?? "Create New"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {hasTargetNameEditor ? (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-1">
+              Name
+            </label>
+            <Input
+              size="sm"
+              value={targetName}
+              onChange={(event) => onTargetNameChange(event.target.value)}
+              placeholder="Clip name"
+              aria-label="Clip name"
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full select-none bg-bg-panel/70 px-3 py-2 backdrop-blur-sm">
