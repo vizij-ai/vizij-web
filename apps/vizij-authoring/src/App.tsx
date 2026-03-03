@@ -21,6 +21,7 @@ import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
 import { OrientationConfirmationDialog } from "./components/app/OrientationConfirmationDialog";
+import { RuntimeSourceToolbar } from "./components/app/RuntimeSourceToolbar";
 import {
   FACE_PRESET_GRID_OPTIONS,
   type FacePresetAssetOption,
@@ -66,7 +67,6 @@ import {
   resolveRootSceneRotationInputs,
   type RotationAxis,
 } from "./components/app/importOrientation";
-import { Button } from "./components/ui/Button";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
@@ -1451,30 +1451,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           leftBottomVisible={controlAuthoringPanelVisible}
           // Center
           topPanel={
-            <div className="h-full flex items-center justify-between px-4 gap-2 text-xs select-none bg-bg-panel/50 border-b border-border-default">
-              <span className="text-text-muted uppercase tracking-wide">
-                Active Runtime Source
-              </span>
-              <div className="flex items-center gap-1">
-                {runtimeSourceOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    variant={
-                      activeRuntimeSource === option.value
-                        ? "secondary"
-                        : "ghost"
-                    }
-                    size="sm"
-                    className="h-6 px-2 text-[11px]"
-                    onClick={() =>
-                      uiActions.setActiveRuntimeSource(option.value)
-                    }
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <RuntimeSourceToolbar
+              mode={centerAuthoringMode}
+              activeSource={activeRuntimeSource}
+              options={runtimeSourceOptions}
+              onChange={uiActions.setActiveRuntimeSource}
+            />
           }
           viewport={viewportContent}
           bottomVisible={animationPanelVisible}
