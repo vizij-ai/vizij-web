@@ -1,0 +1,16 @@
+[package]
+name = "arora-connection"
+version = "0.1.0"
+edition = "2021"
+description = "Abstract connection trait and core types for the Arora protocol"
+
+[features]
+default = ["async"]
+async = ["tokio-util"]
+
+[dependencies]
+arora-schema = { git = "https://github.com/semio-ai/arora-types.git" }
+serde = { version = "1", features = ["derive"] }
+
+# Async support (optional but default)
+tokio-util = { version = "0.7", optional = true }

@@ -11,7 +11,7 @@ import {
 import { useWebSocketSync } from "./hooks/useWebSocketSync";
 
 const DEFAULT_PORT = 9000;
-const NAMESPACE = "vizij-ws";
+const NAMESPACE = "vizij-standalone";
 
 function App() {
   const [assetBundle, setAssetBundle] = useState<VizijAssetBundle | null>(null);
@@ -76,7 +76,7 @@ function App() {
         const file = new File([fileContents], fileName, { type: mimeType });
         await loadFromFile(file);
       } catch (err) {
-        console.error("[vizij-ws] Error reading file:", err);
+        console.error("[vizij-standalone] Error reading file:", err);
         setError(err instanceof Error ? err.message : String(err));
       }
     }
@@ -91,7 +91,7 @@ function App() {
       try {
         const source = await invoke<string | null>("get_glb_source");
         if (source) {
-          console.log("[vizij-ws] Loading from CLI source:", source);
+          console.log("[vizij-standalone] Loading from CLI source:", source);
           if (source.startsWith("http://") || source.startsWith("https://")) {
             await loadFromUrl(source);
           } else {
@@ -110,7 +110,7 @@ function App() {
           setLoading(false);
         }
       } catch (err) {
-        console.error("[vizij-ws] Error checking CLI source:", err);
+        console.error("[vizij-standalone] Error checking CLI source:", err);
         setLoading(false);
       }
     };
@@ -136,12 +136,12 @@ function App() {
         if (mounted) setWsConnected(running);
 
         if (!running) {
-          console.log("[vizij-ws] Starting WebSocket server...");
+          console.log("[vizij-standalone] Starting WebSocket server...");
           await invoke("start_ws_server");
           if (mounted) setWsConnected(true);
         }
       } catch (err) {
-        console.error("[vizij-ws] WebSocket server error:", err);
+        console.error("[vizij-standalone] WebSocket server error:", err);
         if (mounted) setWsConnected(false);
       }
     };
@@ -166,7 +166,7 @@ function App() {
   if (loading) {
     return (
       <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <h1 className="text-2xl font-bold">Vizij Standalone</h1>
         <p className="text-neutral-400">Loading...</p>
       </div>
     );
@@ -176,7 +176,7 @@ function App() {
   if (error) {
     return (
       <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <h1 className="text-2xl font-bold">Vizij Standalone</h1>
         <p className="text-red-400">Error: {error}</p>
         <button
           onClick={() => {
@@ -195,7 +195,7 @@ function App() {
   if (!assetBundle) {
     return (
       <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold">Vizij WS</h1>
+        <h1 className="text-2xl font-bold">Vizij Standalone</h1>
         <p className="text-neutral-400">No model loaded</p>
         <button
           onClick={handleOpenFile}
@@ -327,15 +327,15 @@ function AppContent({
       {/* Debug button */}
       <button
         onClick={() => {
-          console.log("[vizij-ws] Runtime:", runtime);
-          console.log("[vizij-ws] Namespace:", namespace);
-          console.log("[vizij-ws] Constraint count:", constraintCount);
+          console.log("[vizij-standalone] Runtime:", runtime);
+          console.log("[vizij-standalone] Namespace:", namespace);
+          console.log("[vizij-standalone] Constraint count:", constraintCount);
           console.log(
-            "[vizij-ws] Sample constraints:",
+            "[vizij-standalone] Sample constraints:",
             Object.keys(inputConstraints).slice(0, 20),
           );
           console.log(
-            "[vizij-ws] Output paths:",
+            "[vizij-standalone] Output paths:",
             runtime.outputPaths.slice(0, 20),
           );
         }}
