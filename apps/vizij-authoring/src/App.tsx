@@ -771,6 +771,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const papPlaybackState = useGraphRuntime((state) => state.graphPlaybackState);
+  const papPlaybackAvailable = useGraphRuntime(
+    (state) => state.graphPlaybackAvailable,
+  );
+  const playPapGraph = useGraphRuntime((state) => state.playGraph);
+  const pausePapGraph = useGraphRuntime((state) => state.pauseGraph);
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
@@ -1492,24 +1498,41 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedProceduralTargetId,
   ]);
   const runtimePlaybackConfig = useMemo(() => {
-    if (activeRuntimeSource !== "animation") {
-      return null;
+    if (activeRuntimeSource === "animation") {
+      const isPlaying = animationPlaybackState === "playing";
+      return {
+        playbackState: isPlaying ? ("playing" as const) : ("paused" as const),
+        playbackDisabled:
+          !animationTransportActive || !animationTransportEnabled,
+        onPlay: playAnimationTransport,
+        onPause: pauseAnimationTransport,
+      };
     }
-    const isPlaying = animationPlaybackState === "playing";
-    return {
-      playbackState: isPlaying ? ("playing" as const) : ("paused" as const),
-      playbackDisabled: !animationTransportActive || !animationTransportEnabled,
-      onPlay: playAnimationTransport,
-      onPause: pauseAnimationTransport,
-    };
+    if (activeRuntimeSource === "procedural-animation-programming") {
+      return {
+        playbackState:
+          papPlaybackState === "playing"
+            ? ("playing" as const)
+            : ("paused" as const),
+        playbackDisabled: !papPlaybackAvailable,
+        onPlay: playPapGraph,
+        onPause: pausePapGraph,
+      };
+    }
+    return null;
   }, [
     activeRuntimeSource,
     animationTransportActive,
     animationPlaybackState,
     animationTransportEnabled,
     pauseAnimationTransport,
+    pausePapGraph,
+    papPlaybackAvailable,
+    papPlaybackState,
     playAnimationTransport,
+    playPapGraph,
   ]);
+  const papPlaybackActive = papPlaybackState === "playing";
   const animationSourceActive = activeRuntimeSource === "animation";
   const motionGraphSourceActive =
     activeRuntimeSource === "procedural-animation-programming";
@@ -2071,7 +2094,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 namespace={DEFAULT_NAMESPACE}
                 bundle={rootId ? runtimeBundle : null}
                 animationSourceActive={animationSourceActive}
-                motionGraphSourceActive={motionGraphSourceActive}
+                motionGraphSourceActive={
+                  motionGraphSourceActive && papPlaybackActive
+                }
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -2124,7 +2149,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             namespace={DEFAULT_NAMESPACE}
             bundle={rootId ? runtimeBundle : null}
             animationSourceActive={animationSourceActive}
-            motionGraphSourceActive={motionGraphSourceActive}
+            motionGraphSourceActive={
+              motionGraphSourceActive && papPlaybackActive
+            }
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}

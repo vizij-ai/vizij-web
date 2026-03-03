@@ -632,14 +632,29 @@ export function useRigController(
   const [graphStatus, setGraphStatus] = useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
+  const [graphPlaybackState, setGraphPlaybackState] = useState<
+    "playing" | "paused"
+  >("playing");
+  const [graphTimeSeconds, setGraphTimeSeconds] = useState(0);
+  const [graphFrameRate, setGraphFrameRate] = useState(0);
   const [runtimeInputBridgeEpoch, setRuntimeInputBridgeEpoch] = useState(0);
   const [runtimeInputMapRevision, setRuntimeInputMapRevision] = useState(0);
   const [runtimeInputStageQueueRevision, setRuntimeInputStageQueueRevision] =
     useState(0);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [graphWarning, setGraphWarning] = useState<string | null>(null);
+  const [runtimeViewReadyForPlayback, setRuntimeViewReadyForPlayback] =
+    useState(() => graphRuntimeStore.getState().runtimeViewReady);
   const pendingFaceRenameRef = useRef<string | null>(null);
   const faceRenameTokenRef = useRef<string | null>(null);
+  const graphPlaybackStateRef = useRef<"playing" | "paused">(
+    graphPlaybackState,
+  );
+  const graphPlaybackFrameRef = useRef<number | null>(null);
+  const graphPlaybackStepTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const graphPlaybackLastFrameTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     graphRuntimeStore.setState({ graphStatus });
@@ -651,6 +666,19 @@ export function useRigController(
   useEffect(() => {
     graphRuntimeStore.setState({ graphWarning });
   }, [graphRuntimeStore, graphWarning]);
+  useEffect(() => {
+    graphPlaybackStateRef.current = graphPlaybackState;
+  }, [graphPlaybackState]);
+  useEffect(
+    () =>
+      graphRuntimeStore.subscribe(() => {
+        const nextReady = graphRuntimeStore.getState().runtimeViewReady;
+        setRuntimeViewReadyForPlayback((previous) =>
+          previous === nextReady ? previous : nextReady,
+        );
+      }),
+    [graphRuntimeStore],
+  );
 
   useEffect(
     () =>
@@ -2233,14 +2261,95 @@ export function useRigController(
     }
   }, [graphError, graphStatus]);
 
-  const graphTimeSeconds = 0;
-  const graphPlaybackState = "paused" as const;
-  const graphPlaybackAvailable = false;
-  const graphFrameRate = 0;
-  const playGraph = () => {};
-  const pauseGraph = () => {};
-  const stopGraph = () => {};
-  const stepGraph = () => {};
+  const graphPlaybackAvailable = Boolean(rootId) && runtimeViewReadyForPlayback;
+  const cancelGraphPlaybackLoop = useCallback(() => {
+    if (graphPlaybackFrameRef.current !== null) {
+      cancelAnimationFrame(graphPlaybackFrameRef.current);
+      graphPlaybackFrameRef.current = null;
+    }
+    graphPlaybackLastFrameTimeRef.current = null;
+  }, []);
+  const playGraph = useCallback(() => {
+    if (!graphPlaybackAvailable) {
+      return;
+    }
+    setGraphPlaybackState("playing");
+  }, [graphPlaybackAvailable]);
+  const pauseGraph = useCallback(() => {
+    setGraphPlaybackState("paused");
+  }, []);
+  const stopGraph = useCallback(() => {
+    setGraphPlaybackState("paused");
+    setGraphTimeSeconds(0);
+    setGraphFrameRate(0);
+  }, []);
+  const stepGraph = useCallback(() => {
+    if (!graphPlaybackAvailable) {
+      return;
+    }
+    if (graphPlaybackStepTimeoutRef.current !== null) {
+      clearTimeout(graphPlaybackStepTimeoutRef.current);
+      graphPlaybackStepTimeoutRef.current = null;
+    }
+    setGraphTimeSeconds((previous) => previous + 1 / 60);
+    setGraphFrameRate((previous) => (previous === 0 ? 60 : previous));
+    setGraphPlaybackState("playing");
+    graphPlaybackStepTimeoutRef.current = setTimeout(() => {
+      graphPlaybackStepTimeoutRef.current = null;
+      setGraphPlaybackState("paused");
+    }, 48);
+  }, [graphPlaybackAvailable]);
+  const setGraphPlaybackStateAction = useCallback(
+    (state: "playing" | "paused") => {
+      setGraphPlaybackState(state);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (graphPlaybackState !== "playing" || !graphPlaybackAvailable) {
+      cancelGraphPlaybackLoop();
+      setGraphFrameRate(0);
+      return;
+    }
+    const tick = (timestamp: number) => {
+      if (graphPlaybackStateRef.current !== "playing") {
+        graphPlaybackFrameRef.current = null;
+        return;
+      }
+      const previousTimestamp =
+        graphPlaybackLastFrameTimeRef.current ?? timestamp;
+      graphPlaybackLastFrameTimeRef.current = timestamp;
+      const deltaSeconds = Math.max((timestamp - previousTimestamp) / 1000, 0);
+      if (deltaSeconds > 0) {
+        setGraphTimeSeconds((previous) => previous + deltaSeconds);
+        const instantaneous = Math.min(240, 1 / deltaSeconds);
+        if (Number.isFinite(instantaneous)) {
+          setGraphFrameRate((previous) =>
+            previous === 0
+              ? instantaneous
+              : previous * 0.85 + instantaneous * 0.15,
+          );
+        }
+      }
+      graphPlaybackFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    graphPlaybackLastFrameTimeRef.current = performance.now();
+    graphPlaybackFrameRef.current = requestAnimationFrame(tick);
+    return cancelGraphPlaybackLoop;
+  }, [cancelGraphPlaybackLoop, graphPlaybackAvailable, graphPlaybackState]);
+
+  useEffect(
+    () => () => {
+      cancelGraphPlaybackLoop();
+      if (graphPlaybackStepTimeoutRef.current !== null) {
+        clearTimeout(graphPlaybackStepTimeoutRef.current);
+        graphPlaybackStepTimeoutRef.current = null;
+      }
+    },
+    [cancelGraphPlaybackLoop],
+  );
 
   useEffect(() => {
     graphRuntimeStore.setState({
@@ -2252,6 +2361,7 @@ export function useRigController(
       pauseGraph,
       stopGraph,
       stepGraph,
+      setGraphPlaybackState: setGraphPlaybackStateAction,
     });
   }, [
     graphFrameRate,
@@ -2261,6 +2371,7 @@ export function useRigController(
     graphTimeSeconds,
     pauseGraph,
     playGraph,
+    setGraphPlaybackStateAction,
     stepGraph,
     stopGraph,
   ]);
