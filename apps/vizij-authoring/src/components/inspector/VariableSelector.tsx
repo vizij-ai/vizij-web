@@ -4,7 +4,7 @@ import { SELF_BINDING_ID } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { cn } from "../../utils/cn";
-import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
+import { Button, PanelSearch, TreeRow } from "../ui";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 
 // ----------------------------------------------------------------------------
@@ -12,7 +12,7 @@ import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 // ----------------------------------------------------------------------------
 
 export type VariableSelection =
-  | { type: "variable"; id: string }
+  | { type: "variable"; id: string; ids?: string[] }
   | {
       type: "property";
       objectId: string;
@@ -27,10 +27,8 @@ export type VariableSelection =
 interface VariableSelectorProps {
   onSelect: (selection: VariableSelection) => void;
   onCancel?: () => void;
-  defaultTab?: "variables" | "scene";
 }
 
-type SelectorTab = "variables" | "scene";
 type ListMode = "variables" | "properties";
 type GroupKind = "group" | "path" | "unassigned";
 
@@ -470,48 +468,45 @@ function buildFacetOptions(
 export function VariableSelector({
   onSelect,
   onCancel,
-  defaultTab = "variables",
 }: VariableSelectorProps) {
-  const [activeTab, setActiveTab] = useState<SelectorTab>(defaultTab);
+  const [activeMode, setActiveMode] = useState<ListMode>("variables");
   const [search, setSearch] = useState("");
-
-  const tabs = [
-    { id: "variables", label: "Drivers" },
-    { id: "scene", label: "Properties" },
-  ] as const;
 
   return (
     <div className="flex flex-col h-[80vh] max-h-[980px] w-full bg-bg-app text-text-primary overflow-hidden rounded-xl border border-border-default shadow-2xl">
       <div className="p-3 border-b border-border-default flex flex-col gap-3 bg-bg-panel/50 backdrop-blur-md">
-        <Tabs
-          items={tabs}
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as SelectorTab)}
-          renderPanel={() => null}
-          size="sm"
-          variant="pill"
-          panelClassName="hidden"
-          className="w-full"
-        />
-
         <PanelSearch
           value={search}
           onChange={setSearch}
           placeholder={
-            activeTab === "variables"
+            activeMode === "variables"
               ? "Search drivers..."
               : "Search properties..."
           }
           className="h-9"
         />
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant={activeMode === "variables" ? "secondary" : "ghost"}
+            className="h-6 px-2 text-[10px]"
+            onClick={() => setActiveMode("variables")}
+          >
+            Drivers
+          </Button>
+          <Button
+            size="sm"
+            variant={activeMode === "properties" ? "secondary" : "ghost"}
+            className="h-6 px-2 text-[10px]"
+            onClick={() => setActiveMode("properties")}
+          >
+            Properties
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar bg-bg-input/20">
-        <InputList
-          mode={activeTab === "variables" ? "variables" : "properties"}
-          search={search}
-          onSelect={onSelect}
-        />
+        <InputList mode={activeMode} search={search} onSelect={onSelect} />
       </div>
 
       {onCancel && (
@@ -703,6 +698,9 @@ function InputList({
     useState<Set<string>>(new Set());
   const [selectedPropertyLeafFilters, setSelectedPropertyLeafFilters] =
     useState<Set<string>>(new Set());
+  const [selectedVariableInputIds, setSelectedVariableInputIds] = useState<
+    Set<string>
+  >(new Set());
   const [selectedPropertyTargetIds, setSelectedPropertyTargetIds] = useState<
     Set<string>
   >(new Set());
@@ -714,6 +712,30 @@ function InputList({
     () => propertyFacetData.leafOptions.filter((option) => option.count > 0),
     [propertyFacetData.leafOptions],
   );
+  const allDriverInputIds = useMemo(
+    () =>
+      new Set(
+        managedStandardInputs
+          .filter((entry) => !isPropsRigStandardInputPath(entry.input.path))
+          .map((entry) => entry.input.id),
+      ),
+    [managedStandardInputs],
+  );
+
+  useEffect(() => {
+    setSelectedVariableInputIds((current) => {
+      const next = new Set<string>();
+      current.forEach((inputId) => {
+        if (allDriverInputIds.has(inputId)) {
+          next.add(inputId);
+        }
+      });
+      if (next.size === current.size) {
+        return current;
+      }
+      return next;
+    });
+  }, [allDriverInputIds]);
 
   useEffect(() => {
     setSelectedPropertyTargetIds((current) => {
@@ -1008,6 +1030,33 @@ function InputList({
     );
   }, [filteredPropertyTargetIds, selectedPropertyTargetIds]);
 
+  const filteredVariableRows = useMemo(
+    () =>
+      mode === "variables"
+        ? groups.flatMap((group) => group.rows).filter((row) => !row.disabled)
+        : [],
+    [groups, mode],
+  );
+
+  const filteredVariableInputIds = useMemo(
+    () =>
+      filteredVariableRows
+        .map((row) => row.id)
+        .filter((id, index, allIds) => allIds.indexOf(id) === index),
+    [filteredVariableRows],
+  );
+
+  const selectedVariableCount = useMemo(() => {
+    if (selectedVariableInputIds.size === 0) {
+      return 0;
+    }
+    return filteredVariableInputIds.reduce(
+      (count, inputId) =>
+        selectedVariableInputIds.has(inputId) ? count + 1 : count,
+      0,
+    );
+  }, [filteredVariableInputIds, selectedVariableInputIds]);
+
   const groupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -1070,6 +1119,18 @@ function InputList({
     setSelectedPropertyLeafFilters(new Set());
   };
 
+  const toggleVariableSelection = (inputId: string) => {
+    setSelectedVariableInputIds((current) => {
+      const next = new Set(current);
+      if (next.has(inputId)) {
+        next.delete(inputId);
+      } else {
+        next.add(inputId);
+      }
+      return next;
+    });
+  };
+
   const togglePropertySelection = (targetId: string) => {
     setSelectedPropertyTargetIds((current) => {
       const next = new Set(current);
@@ -1079,6 +1140,35 @@ function InputList({
         next.add(targetId);
       }
       return next;
+    });
+  };
+
+  const selectFilteredDrivers = () => {
+    setSelectedVariableInputIds(new Set(filteredVariableInputIds));
+  };
+
+  const clearSelectedDrivers = () => {
+    setSelectedVariableInputIds(new Set());
+  };
+
+  const handleAddSelectedDrivers = () => {
+    if (selectedVariableInputIds.size === 0) {
+      return;
+    }
+    const ordered = filteredVariableInputIds.filter((inputId) =>
+      selectedVariableInputIds.has(inputId),
+    );
+    if (ordered.length === 0) {
+      return;
+    }
+    if (ordered.length === 1) {
+      onSelect({ type: "variable", id: ordered[0]! });
+      return;
+    }
+    onSelect({
+      type: "variable",
+      id: ordered[0]!,
+      ids: ordered,
     });
   };
 
@@ -1138,6 +1228,16 @@ function InputList({
     });
   };
 
+  const handleAddSingleDriver = (row: SelectorRow) => {
+    if (row.disabled) {
+      return;
+    }
+    onSelect({
+      type: "variable",
+      id: row.id,
+    });
+  };
+
   const handleAddSingleProperty = (row: SelectorRow) => {
     if (!row.targetId || row.disabled) {
       return;
@@ -1156,99 +1256,135 @@ function InputList({
 
   return (
     <div className="flex flex-col p-2 gap-0.5 pb-4">
-      {mode === "properties" && (
-        <div className="sticky top-0 z-20 mb-2 rounded-lg border border-border-default bg-bg-panel/80 backdrop-blur-md p-2 flex flex-col gap-2">
-          <div className="flex items-start gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
-              Type
-            </span>
-            <div className="flex flex-wrap gap-1 flex-1">
-              {visiblePropertyTypeOptions.map((option) => {
-                const selected = selectedPropertyTypeFilters.has(option.key);
-                return (
-                  <button
-                    key={`type-${option.key}`}
-                    type="button"
-                    className={cn(
-                      "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
-                      selected
-                        ? "border-accent/50 bg-accent/20 text-text-primary"
-                        : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
-                    )}
-                    aria-pressed={selected}
-                    onClick={() =>
-                      toggleFacetFilter(
-                        option.key,
-                        setSelectedPropertyTypeFilters,
-                      )
-                    }
-                  >
-                    <span>{option.label}</span>
-                    <span className="font-mono text-[9px]">{option.count}</span>
-                  </button>
-                );
-              })}
+      <div className="sticky top-0 z-20 mb-2 rounded-lg border border-border-default bg-bg-panel/80 backdrop-blur-md p-2 flex flex-col gap-2">
+        {mode === "properties" ? (
+          <>
+            <div className="flex items-start gap-2">
+              <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+                Type
+              </span>
+              <div className="flex flex-wrap gap-1 flex-1">
+                {visiblePropertyTypeOptions.map((option) => {
+                  const selected = selectedPropertyTypeFilters.has(option.key);
+                  return (
+                    <button
+                      key={`type-${option.key}`}
+                      type="button"
+                      className={cn(
+                        "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                        selected
+                          ? "border-accent/50 bg-accent/20 text-text-primary"
+                          : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                      )}
+                      aria-pressed={selected}
+                      onClick={() =>
+                        toggleFacetFilter(
+                          option.key,
+                          setSelectedPropertyTypeFilters,
+                        )
+                      }
+                    >
+                      <span>{option.label}</span>
+                      <span className="font-mono text-[9px]">
+                        {option.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-start gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
-              Leaf
-            </span>
-            <div className="flex flex-wrap gap-1 flex-1">
-              {visiblePropertyLeafOptions.map((option) => {
-                const selected = selectedPropertyLeafFilters.has(option.key);
-                return (
-                  <button
-                    key={`leaf-${option.key}`}
-                    type="button"
-                    className={cn(
-                      "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
-                      selected
-                        ? "border-emerald-500/50 bg-emerald-500/15 text-text-primary"
-                        : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
-                    )}
-                    aria-pressed={selected}
-                    onClick={() =>
-                      toggleFacetFilter(
-                        option.key,
-                        setSelectedPropertyLeafFilters,
-                      )
-                    }
-                  >
-                    <span>{option.label}</span>
-                    <span className="font-mono text-[9px]">{option.count}</span>
-                  </button>
-                );
-              })}
+            <div className="flex items-start gap-2">
+              <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+                Leaf
+              </span>
+              <div className="flex flex-wrap gap-1 flex-1">
+                {visiblePropertyLeafOptions.map((option) => {
+                  const selected = selectedPropertyLeafFilters.has(option.key);
+                  return (
+                    <button
+                      key={`leaf-${option.key}`}
+                      type="button"
+                      className={cn(
+                        "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                        selected
+                          ? "border-emerald-500/50 bg-emerald-500/15 text-text-primary"
+                          : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                      )}
+                      aria-pressed={selected}
+                      onClick={() =>
+                        toggleFacetFilter(
+                          option.key,
+                          setSelectedPropertyLeafFilters,
+                        )
+                      }
+                    >
+                      <span>{option.label}</span>
+                      <span className="font-mono text-[9px]">
+                        {option.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-default/60">
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-default/60">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[10px]"
+                onClick={clearPropertyFilters}
+                disabled={!hasActivePropertyFilters}
+              >
+                Clear Filters
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[10px]"
+                onClick={selectFilteredProperties}
+                disabled={filteredPropertyTargetIds.length === 0}
+              >
+                Select Filtered ({filteredPropertyTargetIds.length})
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[10px]"
+                onClick={clearSelectedProperties}
+                disabled={selectedPropertyCount === 0}
+              >
+                Clear Selected
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                className="h-6 px-2 text-[10px]"
+                onClick={handleAddSelectedProperties}
+                disabled={selectedPropertyCount === 0}
+              >
+                Add Selected ({selectedPropertyCount})
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1.5">
             <Button
               size="sm"
               variant="ghost"
               className="h-6 px-2 text-[10px]"
-              onClick={clearPropertyFilters}
-              disabled={!hasActivePropertyFilters}
+              onClick={selectFilteredDrivers}
+              disabled={filteredVariableInputIds.length === 0}
             >
-              Clear Filters
+              Select Filtered ({filteredVariableInputIds.length})
             </Button>
             <Button
               size="sm"
               variant="ghost"
               className="h-6 px-2 text-[10px]"
-              onClick={selectFilteredProperties}
-              disabled={filteredPropertyTargetIds.length === 0}
-            >
-              Select Filtered ({filteredPropertyTargetIds.length})
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={clearSelectedProperties}
-              disabled={selectedPropertyCount === 0}
+              onClick={clearSelectedDrivers}
+              disabled={selectedVariableCount === 0}
             >
               Clear Selected
             </Button>
@@ -1256,14 +1392,14 @@ function InputList({
               size="sm"
               variant="primary"
               className="h-6 px-2 text-[10px]"
-              onClick={handleAddSelectedProperties}
-              disabled={selectedPropertyCount === 0}
+              onClick={handleAddSelectedDrivers}
+              disabled={selectedVariableCount === 0}
             >
-              Add All ({selectedPropertyCount})
+              Add Selected ({selectedVariableCount})
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {groups.length === 0 ? (
         <div className="p-8 text-center text-xs text-text-muted italic flex flex-col gap-1">
@@ -1307,10 +1443,15 @@ function InputList({
             >
               <div className="flex flex-col">
                 {group.rows.map((row) => {
+                  const isVariableSelected =
+                    mode === "variables" &&
+                    selectedVariableInputIds.has(row.id);
                   const isPropertySelected =
                     mode === "properties" &&
                     !!row.targetId &&
                     selectedPropertyTargetIds.has(row.targetId);
+                  const rowIsSelected =
+                    isVariableSelected || isPropertySelected;
 
                   return (
                     <TreeRow
@@ -1318,7 +1459,7 @@ function InputList({
                       depth={1}
                       label={row.label}
                       hasChildren={false}
-                      isSelected={isPropertySelected}
+                      isSelected={rowIsSelected}
                       disabled={row.disabled}
                       disabledReason={row.disabledReason ?? undefined}
                       onToggle={() => undefined}
@@ -1327,7 +1468,7 @@ function InputList({
                           return;
                         }
                         if (mode === "variables") {
-                          onSelect({ type: "variable", id: row.id });
+                          toggleVariableSelection(row.id);
                           return;
                         }
                         if (!row.targetId) {
@@ -1353,12 +1494,11 @@ function InputList({
                               Locked
                             </span>
                           ) : null}
-                          {mode === "properties" && row.targetId ? (
+                          {mode === "variables" ||
+                          (mode === "properties" && row.targetId) ? (
                             <Button
                               size="sm"
-                              variant={
-                                isPropertySelected ? "secondary" : "ghost"
-                              }
+                              variant={rowIsSelected ? "secondary" : "ghost"}
                               className="h-5 px-1.5 text-[9px]"
                               disabled={row.disabled}
                               onClick={(event) => {
@@ -1366,10 +1506,35 @@ function InputList({
                                 if (row.disabled) {
                                   return;
                                 }
+                                if (mode === "variables") {
+                                  toggleVariableSelection(row.id);
+                                  return;
+                                }
+                                if (!row.targetId) {
+                                  return;
+                                }
                                 togglePropertySelection(row.targetId!);
                               }}
                             >
-                              {isPropertySelected ? "Selected" : "Select"}
+                              {rowIsSelected ? "Selected" : "Select"}
+                            </Button>
+                          ) : null}
+
+                          {mode === "variables" ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 px-1.5 text-[9px]"
+                              disabled={row.disabled}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (row.disabled) {
+                                  return;
+                                }
+                                handleAddSingleDriver(row);
+                              }}
+                            >
+                              Add
                             </Button>
                           ) : null}
 

@@ -2484,28 +2484,14 @@ describe("VariablesPanel", () => {
 
     fireEvent.change(search, { target: { value: "Pose Weight Smile" } });
     expect(scoped.getByTitle("Pose Weight Smile")).toBeTruthy();
-    expect(scoped.getByText("pose-weight")).toBeTruthy();
-    expect(scoped.getByText("pose:Smile")).toBeTruthy();
 
     fireEvent.change(search, { target: { value: "Group Output · emotion" } });
-    expect(scoped.getByTitle("Group Output · emotion")).toBeTruthy();
-    expect(scoped.getByText("group-output")).toBeTruthy();
-    expect(
-      scoped.getByText("group:emotion; mode:average; poses:0"),
-    ).toBeTruthy();
-    expect(scoped.getByText("Derived control (read-only)")).toBeTruthy();
+    expect(scoped.queryByTitle("Group Output · emotion")).toBeNull();
+    expect(scoped.getByText("No results")).toBeTruthy();
 
     fireEvent.change(search, { target: { value: "Stage Output · Base" } });
     expect(scoped.getByTitle("Stage Output · Base")).toBeTruthy();
-    expect(scoped.getByText("stage-output")).toBeTruthy();
-    expect(
-      scoped.getByText("stage:stage_base; mode:add; sources:group:emotion"),
-    ).toBeTruthy();
     expect(scoped.getByText("Derived control (read-only)")).toBeTruthy();
-
-    fireEvent.change(search, { target: { value: "Group Output · emotion" } });
-    fireEvent.click(scoped.getByTitle("Group Output · emotion"));
-    expect(onSelectRig).not.toHaveBeenCalled();
 
     fireEvent.change(search, { target: { value: "Pose Weight Smile" } });
     fireEvent.click(scoped.getByTitle("Pose Weight Smile"));
@@ -3147,7 +3133,7 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Outputs 0/4")).toBeTruthy();
+    expect(screen.getByText("Outputs 0/3")).toBeTruthy();
 
     const search = screen.getByPlaceholderText("Search inputs...");
     fireEvent.change(search, {

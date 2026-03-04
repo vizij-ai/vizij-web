@@ -5,7 +5,7 @@ import { resolveSelectionTargetIds } from "./bindingSelection";
 export type RigDrivenSelectionResolution =
   | {
       kind: "variable";
-      childInputId: string;
+      childInputIds: string[];
     }
   | {
       kind: "self-variable";
@@ -24,12 +24,23 @@ export function resolveRigDrivenSelection(
   objects: SceneObjectNode[],
 ): RigDrivenSelectionResolution {
   if (selection.type === "variable") {
-    if (selection.id === selectedRigId) {
+    const selectedInputIds = Array.from(
+      new Set(
+        (selection.ids && selection.ids.length > 0
+          ? selection.ids
+          : [selection.id]
+        )
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0),
+      ),
+    );
+    const childInputIds = selectedInputIds.filter((id) => id !== selectedRigId);
+    if (childInputIds.length === 0) {
       return { kind: "self-variable" };
     }
     return {
       kind: "variable",
-      childInputId: selection.id,
+      childInputIds,
     };
   }
 

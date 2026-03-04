@@ -1808,7 +1808,11 @@ export function InspectorContent({
     const handleAddVariable = (selection: VariableSelection) => {
       setShowSelector(false);
       if (selection.type === "variable") {
-        addPoseInput(pose.id, selection.id);
+        const inputIds =
+          selection.ids && selection.ids.length > 0
+            ? selection.ids
+            : [selection.id];
+        inputIds.forEach((inputId) => addPoseInput(pose.id, inputId));
         return;
       }
       if (selection.type !== "property") {
@@ -2238,7 +2242,6 @@ export function InspectorContent({
           <VariableSelector
             onSelect={handleAddVariable}
             onCancel={() => setShowSelector(false)}
-            defaultTab="variables"
           />
         </Modal>
       </div>
@@ -2498,40 +2501,63 @@ export function InspectorContent({
         }
 
         if (resolvedSelection.kind === "variable") {
-          const resolvedChildInputId = resolveRigMetadataInputId(
-            resolvedSelection.childInputId,
-            standardInputsById,
-          );
-          if (
-            lockedPropsRigInputIds.has(resolvedSelection.childInputId) ||
-            lockedPropsRigInputIds.has(resolvedChildInputId)
-          ) {
-            alertDialog(
-              "Cannot add a child driver for a locked face property. Unlock it first in the Face Element inspector.",
+          let linkedCount = 0;
+          let skippedLocked = 0;
+          let skippedExisting = 0;
+          let lastLinkedInputId: string | null = null;
+
+          resolvedSelection.childInputIds.forEach((childInputId) => {
+            const resolvedChildInputId = resolveRigMetadataInputId(
+              childInputId,
+              standardInputsById,
             );
-            return;
-          }
-          const existingBinding = inputBindings[resolvedChildInputId];
-          const alreadyLinked = hasParentBindingInput(
-            existingBinding,
-            resolvedSelectedRigId,
-          );
-          if (alreadyLinked) {
-            alertDialog(
-              "This driver is already driven by the selected rig driver.",
+            if (
+              lockedPropsRigInputIds.has(childInputId) ||
+              lockedPropsRigInputIds.has(resolvedChildInputId)
+            ) {
+              skippedLocked += 1;
+              return;
+            }
+            const existingBinding = inputBindings[resolvedChildInputId];
+            const alreadyLinked = hasParentBindingInput(
+              existingBinding,
+              resolvedSelectedRigId,
             );
-            openRigInspector(resolvedSelection.childInputId);
-            return;
-          }
-          handleCreateParentDriverBinding(
-            resolvedChildInputId,
-            resolvedSelectedRigId,
-          );
-          applyPipelineMetadataPatchForInput(resolvedChildInputId, {
-            migrationStatus: "migrated",
-            migrationSource: "staged-link-authoring",
+            if (alreadyLinked) {
+              skippedExisting += 1;
+              return;
+            }
+            handleCreateParentDriverBinding(
+              resolvedChildInputId,
+              resolvedSelectedRigId,
+            );
+            applyPipelineMetadataPatchForInput(resolvedChildInputId, {
+              migrationStatus: "migrated",
+              migrationSource: "staged-link-authoring",
+            });
+            linkedCount += 1;
+            lastLinkedInputId = resolvedChildInputId;
           });
-          openRigInspector(resolvedChildInputId);
+
+          if (linkedCount === 0) {
+            if (skippedLocked > 0) {
+              alertDialog(
+                "Cannot add child drivers for locked face properties. Unlock them first in the Face Element inspector.",
+              );
+              return;
+            }
+            if (skippedExisting > 0) {
+              alertDialog(
+                "Selected drivers are already driven by the selected rig driver.",
+              );
+              return;
+            }
+            return;
+          }
+
+          if (lastLinkedInputId) {
+            openRigInspector(lastLinkedInputId);
+          }
           return;
         }
 
@@ -2687,23 +2713,35 @@ export function InspectorContent({
         }
 
         if (resolvedSelection.kind === "variable") {
-          const parentInputId = resolveRigMetadataInputId(
-            resolvedSelection.childInputId,
-            standardInputsById,
-          );
-          const existingBinding = inputBindings[resolvedSelectedRigId];
-          if (hasParentBindingInput(existingBinding, parentInputId)) {
-            alertDialog(
-              "This driver is already linked as a parent for the selected driver.",
+          let linkedCount = 0;
+          let skippedExisting = 0;
+
+          resolvedSelection.childInputIds.forEach((childInputId) => {
+            const parentInputId = resolveRigMetadataInputId(
+              childInputId,
+              standardInputsById,
             );
-            openRigInspector(parentInputId);
-            return;
-          }
-          handleCreateParentDriverBinding(resolvedSelectedRigId, parentInputId);
-          applyPipelineMetadataPatchForInput(resolvedSelectedRigId, {
-            migrationStatus: "migrated",
-            migrationSource: "staged-link-authoring",
+            const existingBinding = inputBindings[resolvedSelectedRigId];
+            if (hasParentBindingInput(existingBinding, parentInputId)) {
+              skippedExisting += 1;
+              return;
+            }
+            handleCreateParentDriverBinding(
+              resolvedSelectedRigId,
+              parentInputId,
+            );
+            applyPipelineMetadataPatchForInput(resolvedSelectedRigId, {
+              migrationStatus: "migrated",
+              migrationSource: "staged-link-authoring",
+            });
+            linkedCount += 1;
           });
+
+          if (linkedCount === 0 && skippedExisting > 0) {
+            alertDialog(
+              "Selected drivers are already linked as parents for the selected driver.",
+            );
+          }
           return;
         }
 
@@ -3716,7 +3754,6 @@ export function InspectorContent({
                   : handleAddRigDrivenVariable
               }
               onCancel={() => setShowSelector(false)}
-              defaultTab="variables"
             />
           </Modal>
         </div>

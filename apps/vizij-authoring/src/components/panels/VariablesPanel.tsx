@@ -97,12 +97,7 @@ import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
-import {
-  buildVisibleInputCatalog,
-  getInputControlKindBadgeClass,
-  getInputControlKindLabel,
-  type InputCatalogRow,
-} from "./inputCatalog";
+import { buildVisibleInputCatalog, type InputCatalogRow } from "./inputCatalog";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -824,6 +819,19 @@ const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
   shared: "bg-teal-900/40 text-teal-200",
 };
 
+const INPUT_FOLDER_LABEL_OVERRIDES: Record<string, string> = {
+  propsrig: "Face Element Properties",
+};
+
+function getInputFolderLabel(segment: string): string {
+  return INPUT_FOLDER_LABEL_OVERRIDES[segment.toLowerCase()] ?? segment;
+}
+
+function shouldHideInputRowPath(path: string): boolean {
+  const normalizedPath = normalizeStandardRigInputPath(path);
+  return normalizedPath.startsWith("/pose/groups/");
+}
+
 function getOrCreateChild(
   parent: TreeNode,
   key: string,
@@ -885,7 +893,7 @@ function insertInputNodeAtPath(params: {
   const folderParts = pathParts.slice(0, Math.max(pathParts.length - 1, 0));
   let current = root;
   folderParts.forEach((part) => {
-    current = getOrCreateChild(current, part, part);
+    current = getOrCreateChild(current, part, getInputFolderLabel(part));
   });
   current.children.set(key, {
     id: `${current.id}/${key}`,
@@ -1778,7 +1786,7 @@ function groupInputRowsByFolder(
       }
       const next: MutableGroupNode = {
         id: pathSegments.join("/"),
-        label: part,
+        label: getInputFolderLabel(part),
         rows: [],
         children: new Map(),
       };
@@ -1958,11 +1966,6 @@ function TreeRowWrapper({
         timelineLockedInputIds?.has(inputData.inputId) ||
           timelineLockedInputIds?.has(inputData.path),
       );
-    const value =
-      typeof inputData.value === "number" && Number.isFinite(inputData.value)
-        ? inputData.value
-        : 0;
-    const controlKindLabel = getInputControlKindLabel(inputData.controlKind);
     const motionGraphPath = motionGraphContext
       ? buildRigInputPath(motionGraphContext.runtimeFaceSegment, inputData.path)
       : null;
@@ -1988,168 +1991,112 @@ function TreeRowWrapper({
         ? animationTrackContext.trackedInputIds.has(inputData.inputId)
         : false;
     return (
-      <TreeRow
+      <FlatInputControlRow
+        row={inputData}
         depth={depth}
-        label={node.label}
-        hasChildren={true}
-        isExpanded={true}
-        isSelected={rowIsSelected}
-        onToggle={() => {}}
-        onSelect={inputData.selectable ? () => onSelect?.(node) : undefined}
-        highlightQuery={searchQuery}
-        icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
+        selected={rowIsSelected}
+        locked={inputLocked}
+        selectable={inputData.selectable}
+        onSelect={() => onSelect?.(node)}
+        onValueChange={(inputId, value) => onInputValueChange?.(inputId, value)}
+        lockedMessage="Animation transport is currently driving this input."
         actions={
           <div className="flex items-center gap-1">
-            <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30">
-              {inputData.source}
-            </span>
-            <span
-              className={cn(
-                "text-[9px] uppercase tracking-wide px-1 rounded",
-                getInputControlKindBadgeClass(inputData.controlKind),
-              )}
-            >
-              {controlKindLabel}
-            </span>
+            {motionGraphContext?.active && canToggleMotionGraphInput ? (
+              <Button
+                variant={motionGraphInputEnabled ? "ghost" : "secondary"}
+                size="sm"
+                className={cn(
+                  "h-6 px-2 text-[10px] gap-1",
+                  motionGraphInputEnabled
+                    ? "text-cyan-200 hover:text-cyan-100"
+                    : undefined,
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!motionGraphPath) {
+                    return;
+                  }
+                  motionGraphContext.onToggleInputPath(motionGraphPath);
+                }}
+                title={
+                  motionGraphInputEnabled
+                    ? "Remove from procedural animation programming inputs"
+                    : "Add as procedural animation programming input"
+                }
+                aria-label={
+                  motionGraphInputEnabled ? "Remove PAP Input" : "Add PAP Input"
+                }
+              >
+                {motionGraphInputEnabled ? "PAP In -" : "PAP In +"}
+              </Button>
+            ) : null}
+            {motionGraphContext?.active && canToggleMotionGraphOutput ? (
+              <Button
+                variant={motionGraphOutputEnabled ? "ghost" : "secondary"}
+                size="sm"
+                className={cn(
+                  "h-6 px-2 text-[10px] gap-1",
+                  motionGraphOutputEnabled
+                    ? "text-cyan-200 hover:text-cyan-100"
+                    : undefined,
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!motionGraphPath) {
+                    return;
+                  }
+                  motionGraphContext.onToggleOutputPath(motionGraphPath);
+                }}
+                title={
+                  motionGraphOutputEnabled
+                    ? "Remove from procedural animation programming outputs"
+                    : "Add as procedural animation programming output"
+                }
+                aria-label={
+                  motionGraphOutputEnabled
+                    ? "Remove PAP Output"
+                    : "Add PAP Output"
+                }
+              >
+                {motionGraphOutputEnabled ? "PAP Out -" : "PAP Out +"}
+              </Button>
+            ) : null}
+            {animationTrackContext?.active && canToggleAnimationTrack ? (
+              <Button
+                variant={animationTrackEnabled ? "ghost" : "secondary"}
+                size="sm"
+                className={cn(
+                  "h-6 px-2 text-[10px] gap-1",
+                  animationTrackEnabled
+                    ? "text-emerald-200 hover:text-emerald-100"
+                    : undefined,
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (animationTrackEnabled) {
+                    animationTrackContext.onRemoveTrack(inputData.inputId);
+                    return;
+                  }
+                  animationTrackContext.onAddTrack(inputData);
+                }}
+                title={
+                  animationTrackEnabled
+                    ? "Remove from animation tracks"
+                    : "Add as animation track"
+                }
+                aria-label={
+                  animationTrackEnabled
+                    ? "Remove Animation Track"
+                    : "Add Animation Track"
+                }
+              >
+                {animationTrackEnabled ? "Track -" : "Track +"}
+              </Button>
+            ) : null}
           </div>
         }
-      >
-        <div className="px-2 pb-2 flex flex-col gap-1">
-          {inputData.editable ? (
-            <Slider
-              value={value}
-              min={inputData.min}
-              max={inputData.max}
-              step={0.01}
-              disabled={inputLocked}
-              onChange={(nextValue) => {
-                const normalizedValue = Array.isArray(nextValue)
-                  ? nextValue[0]
-                  : nextValue;
-                if (!Number.isFinite(normalizedValue)) {
-                  return;
-                }
-                onInputValueChange?.(inputData.inputId, normalizedValue);
-              }}
-            />
-          ) : (
-            <p className="text-[10px] text-text-muted">
-              Derived control (read-only)
-            </p>
-          )}
-          {inputLocked ? (
-            <p className="text-[10px] text-amber-300">
-              Animation transport is currently driving this input.
-            </p>
-          ) : null}
-          {motionGraphContext?.active ? (
-            <div className="flex flex-wrap items-center gap-1">
-              {canToggleMotionGraphInput ? (
-                <Button
-                  variant={motionGraphInputEnabled ? "ghost" : "secondary"}
-                  size="sm"
-                  className={cn(
-                    "h-6 px-2 text-[10px] gap-1",
-                    motionGraphInputEnabled
-                      ? "text-cyan-200 hover:text-cyan-100"
-                      : undefined,
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!motionGraphPath) {
-                      return;
-                    }
-                    motionGraphContext.onToggleInputPath(motionGraphPath);
-                  }}
-                  title={
-                    motionGraphInputEnabled
-                      ? "Remove from procedural animation programming inputs"
-                      : "Add as procedural animation programming input"
-                  }
-                >
-                  {motionGraphInputEnabled
-                    ? "Remove PAP Input"
-                    : "Add PAP Input"}
-                </Button>
-              ) : (
-                <span className="text-[10px] text-text-muted">
-                  PAP input unavailable (read-only control)
-                </span>
-              )}
-              {canToggleMotionGraphOutput ? (
-                <Button
-                  variant={motionGraphOutputEnabled ? "ghost" : "secondary"}
-                  size="sm"
-                  className={cn(
-                    "h-6 px-2 text-[10px] gap-1",
-                    motionGraphOutputEnabled
-                      ? "text-cyan-200 hover:text-cyan-100"
-                      : undefined,
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!motionGraphPath) {
-                      return;
-                    }
-                    motionGraphContext.onToggleOutputPath(motionGraphPath);
-                  }}
-                  title={
-                    motionGraphOutputEnabled
-                      ? "Remove from procedural animation programming outputs"
-                      : "Add as procedural animation programming output"
-                  }
-                >
-                  {motionGraphOutputEnabled
-                    ? "Remove PAP Output"
-                    : "Add PAP Output"}
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-          {animationTrackContext?.active ? (
-            <div className="flex flex-wrap items-center gap-1">
-              {canToggleAnimationTrack ? (
-                <Button
-                  variant={animationTrackEnabled ? "ghost" : "secondary"}
-                  size="sm"
-                  className={cn(
-                    "h-6 px-2 text-[10px] gap-1",
-                    animationTrackEnabled
-                      ? "text-emerald-200 hover:text-emerald-100"
-                      : undefined,
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (animationTrackEnabled) {
-                      animationTrackContext.onRemoveTrack(inputData.inputId);
-                      return;
-                    }
-                    animationTrackContext.onAddTrack(inputData);
-                  }}
-                  title={
-                    animationTrackEnabled
-                      ? "Remove from animation tracks"
-                      : "Add as animation track"
-                  }
-                >
-                  {animationTrackEnabled
-                    ? "Remove Animation Track"
-                    : "Add Animation Track"}
-                </Button>
-              ) : (
-                <span className="text-[10px] text-text-muted">
-                  Animation track unavailable (read-only control)
-                </span>
-              )}
-            </div>
-          ) : null}
-          {inputData.provenance ? (
-            <p className="text-[10px] text-text-muted font-mono truncate">
-              {inputData.provenance}
-            </p>
-          ) : null}
-        </div>
-      </TreeRow>
+      />
     );
   }
 
@@ -2494,8 +2441,10 @@ interface FlatInputControlRowProps {
   row: InputCatalogRow;
   selected: boolean;
   locked: boolean;
+  depth?: number;
+  selectable?: boolean;
   lockedMessage?: string;
-  onSelect: (row: InputCatalogRow) => void;
+  onSelect: () => void;
   onValueChange: (inputId: string, value: number) => void;
   actions?: ReactNode;
 }
@@ -2504,6 +2453,8 @@ function FlatInputControlRow({
   row,
   selected,
   locked,
+  depth = 0,
+  selectable = true,
   lockedMessage,
   onSelect,
   onValueChange,
@@ -2511,48 +2462,46 @@ function FlatInputControlRow({
 }: FlatInputControlRowProps) {
   const value =
     typeof row.value === "number" && Number.isFinite(row.value) ? row.value : 0;
-  const controlKindLabel = getInputControlKindLabel(row.controlKind);
+  const paddingLeft = Math.max(0, depth) * 14;
 
   return (
     <div
       role="button"
-      tabIndex={0}
+      tabIndex={selectable ? 0 : -1}
+      style={{ marginLeft: `${paddingLeft}px` }}
+      title={row.label}
       className={cn(
-        "rounded border px-2 py-2 flex flex-col gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "rounded border px-2 py-1.5 flex flex-col gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         selected
           ? "border-accent/60 bg-accent/10"
-          : "border-border-default/50 bg-bg-panel/35 hover:border-border-default/70 hover:bg-bg-panel/45",
+          : "border-border-default/50 bg-bg-panel/35",
+        selectable ? "hover:border-border-default/70 hover:bg-bg-panel/45" : "",
       )}
-      onClick={() => onSelect(row)}
+      aria-disabled={!selectable}
+      onClick={() => {
+        if (!selectable) {
+          return;
+        }
+        onSelect();
+      }}
       onKeyDown={(event) => {
+        if (!selectable) {
+          return;
+        }
         if (event.key !== "Enter" && event.key !== " ") {
           return;
         }
         event.preventDefault();
-        onSelect(row);
+        onSelect();
       }}
     >
       <div className="flex items-center gap-1.5 min-w-0">
         <Sliders size={12} className="text-cyan-300 shrink-0" />
         <span className="text-xs text-text-primary truncate">{row.label}</span>
-        <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30 shrink-0">
-          {row.source}
-        </span>
-        <span
-          className={cn(
-            "text-[9px] uppercase tracking-wide px-1 rounded shrink-0",
-            getInputControlKindBadgeClass(row.controlKind),
-          )}
-        >
-          {controlKindLabel}
-        </span>
         <div className="ml-auto flex items-center gap-1 shrink-0">
           {actions}
         </div>
       </div>
-      <span className="text-[10px] text-text-muted font-mono truncate">
-        {row.path}
-      </span>
       {row.editable ? (
         <Slider
           value={value}
@@ -2579,11 +2528,6 @@ function FlatInputControlRow({
         <p className="text-[10px] text-amber-300">
           {lockedMessage ??
             "Animation transport is currently driving this input."}
-        </p>
-      ) : null}
-      {row.provenance ? (
-        <p className="text-[10px] text-text-muted font-mono truncate">
-          {row.provenance}
         </p>
       ) : null}
     </div>
@@ -3629,7 +3573,7 @@ export function VariablesPanel({
         poseCountByGroupId,
         poseGroupLabelById,
         resolveManagedSource,
-      }),
+      }).filter((row) => !shouldHideInputRowPath(row.path)),
     [
       managedStandardInputs,
       fullyLockedFaceElementIds,
@@ -6048,7 +5992,7 @@ export function VariablesPanel({
                             )
                           : null}
                         {group.rows.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 pt-1 pl-2">
+                          <div className="flex flex-col gap-1.5 pt-1">
                             {group.rows.map((row) => {
                               const path = buildRigInputPath(
                                 runtimeFaceSegment,
@@ -6068,8 +6012,11 @@ export function VariablesPanel({
                                     activeSelection?.type === "input" &&
                                     activeSelection.id === row.inputId
                                   }
+                                  depth={depth + 1}
                                   locked={isInputCatalogRowLocked(row)}
-                                  onSelect={handleSelectInputCatalogRow}
+                                  onSelect={() =>
+                                    handleSelectInputCatalogRow(row)
+                                  }
                                   onValueChange={handlePanelInputValueChange}
                                   actions={
                                     <div className="flex items-center gap-1">
@@ -6144,7 +6091,7 @@ export function VariablesPanel({
                             )
                           : null}
                         {group.rows.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 pt-1 pl-2">
+                          <div className="flex flex-col gap-1.5 pt-1">
                             {group.rows.map((row) => {
                               const trackInput = standardInputsById.get(
                                 row.inputId,
@@ -6163,8 +6110,11 @@ export function VariablesPanel({
                                     activeSelection?.type === "input" &&
                                     activeSelection.id === row.inputId
                                   }
+                                  depth={depth + 1}
                                   locked={isInputCatalogRowLocked(row)}
-                                  onSelect={handleSelectInputCatalogRow}
+                                  onSelect={() =>
+                                    handleSelectInputCatalogRow(row)
+                                  }
                                   onValueChange={handlePanelInputValueChange}
                                   actions={
                                     <div className="flex items-center gap-1">
@@ -6940,8 +6890,11 @@ export function VariablesPanel({
                                       activeSelection?.type === "input" &&
                                       activeSelection.id === row.inputId
                                     }
+                                    depth={0}
                                     locked={isInputCatalogRowLocked(row)}
-                                    onSelect={handleSelectInputCatalogRow}
+                                    onSelect={() =>
+                                      handleSelectInputCatalogRow(row)
+                                    }
                                     onValueChange={handlePanelInputValueChange}
                                     actions={
                                       <Button
@@ -6993,13 +6946,16 @@ export function VariablesPanel({
                                         activeSelection?.type === "input" &&
                                         activeSelection.id === row.inputId
                                       }
+                                      depth={0}
                                       locked={timelineLocked || graphLocked}
                                       lockedMessage={
                                         graphLocked && !timelineLocked
                                           ? "Procedural animation playback is currently driving this output."
                                           : undefined
                                       }
-                                      onSelect={handleSelectInputCatalogRow}
+                                      onSelect={() =>
+                                        handleSelectInputCatalogRow(row)
+                                      }
                                       onValueChange={
                                         handlePanelInputValueChange
                                       }
@@ -7087,8 +7043,11 @@ export function VariablesPanel({
                                         activeSelection?.type === "input" &&
                                         activeSelection.id === row.inputId
                                       }
+                                      depth={0}
                                       locked={isInputCatalogRowLocked(row)}
-                                      onSelect={handleSelectInputCatalogRow}
+                                      onSelect={() =>
+                                        handleSelectInputCatalogRow(row)
+                                      }
                                       onValueChange={
                                         handlePanelInputValueChange
                                       }

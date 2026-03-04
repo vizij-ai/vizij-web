@@ -44,6 +44,9 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   const setNodes = useEditorStore((s) => s.setNodes);
   const setEdges = useEditorStore((s) => s.setEdges);
   const setSelected = useEditorStore((s) => s.setSelected);
+  const setEnabledOutputs = useEditorStore((s) => s.setEnabledOutputs);
+  const setEnabledInputs = useEditorStore((s) => s.setEnabledInputs);
+  const removeCustomInputPath = useEditorStore((s) => s.removeCustomInputPath);
 
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -171,7 +174,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             type: OUTPUT_TARGET_TYPE,
             position: { x: startX, y: startY + i * 50 },
             selectable: true,
-            deletable: false,
+            deletable: true,
             data: {
               outputPath: path,
               label,
@@ -271,7 +274,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             type: INPUT_SOURCE_TYPE,
             position: { x: startX, y: startY + i * 50 },
             selectable: true,
-            deletable: false,
+            deletable: true,
             data: {
               inputPath: path,
               label,
@@ -398,13 +401,41 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
-      // Prevent deletion of output target and input source nodes (they are removed via panels)
-      const actuallyDeleted = deleted.filter(
-        (n) => n.type !== OUTPUT_TARGET_TYPE && n.type !== INPUT_SOURCE_TYPE,
-      );
-      if (actuallyDeleted.length === 0) return;
+      if (deleted.length === 0) {
+        return;
+      }
+      const deletedIds = new Set(deleted.map((n) => n.id));
 
-      const deletedIds = new Set(actuallyDeleted.map((n) => n.id));
+      const deletedOutputPaths = deleted
+        .filter((node) => node.type === OUTPUT_TARGET_TYPE)
+        .map((node) => (node.data as { outputPath?: string }).outputPath)
+        .filter((path): path is string => typeof path === "string");
+      if (deletedOutputPaths.length > 0) {
+        const nextEnabledOutputs = new Set(
+          useEditorStore.getState().enabledOutputs,
+        );
+        deletedOutputPaths.forEach((path) => nextEnabledOutputs.delete(path));
+        setEnabledOutputs(nextEnabledOutputs);
+      }
+
+      const deletedInputPaths = deleted
+        .filter((node) => node.type === INPUT_SOURCE_TYPE)
+        .map((node) => (node.data as { inputPath?: string }).inputPath)
+        .filter((path): path is string => typeof path === "string");
+      if (deletedInputPaths.length > 0) {
+        const { customInputPaths, enabledInputs: currentEnabledInputs } =
+          useEditorStore.getState();
+        const customInputPathSet = new Set(customInputPaths);
+        deletedInputPaths.forEach((path) => {
+          if (customInputPathSet.has(path)) {
+            removeCustomInputPath(path);
+          }
+        });
+        const nextEnabledInputs = new Set(currentEnabledInputs);
+        deletedInputPaths.forEach((path) => nextEnabledInputs.delete(path));
+        setEnabledInputs(nextEnabledInputs);
+      }
+
       // Remove edges connected to deleted nodes
       setEdges((prev) =>
         prev.filter(
@@ -417,7 +448,13 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
         setSelected(null);
       }
     },
-    [setEdges, setSelected],
+    [
+      removeCustomInputPath,
+      setEdges,
+      setEnabledInputs,
+      setEnabledOutputs,
+      setSelected,
+    ],
   );
 
   const onInit = useCallback((instance: ReactFlowInstance) => {

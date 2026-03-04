@@ -47,7 +47,7 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
 
     fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
       target: { value: "Jaw Open" },
@@ -77,7 +77,7 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
 
     fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
       target: { value: "mouth morph" },
@@ -121,7 +121,8 @@ describe("VariableSelector", () => {
     });
 
     const onSelect = vi.fn();
-    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+    render(<VariableSelector onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Properties" }));
 
     fireEvent.click(screen.getByText("Group · face"));
     expect(screen.getByText("Jaw X")).toBeTruthy();
@@ -132,7 +133,7 @@ describe("VariableSelector", () => {
     expect(screen.queryByRole("button", { name: /^Y\s*\d+/i })).toBeNull();
 
     fireEvent.click(screen.getByText("Jaw X"));
-    fireEvent.click(screen.getByRole("button", { name: "Add All (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Selected (1)" }));
 
     expect(onSelect).toHaveBeenLastCalledWith({
       type: "property",
@@ -177,7 +178,8 @@ describe("VariableSelector", () => {
     });
 
     const onSelect = vi.fn();
-    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+    render(<VariableSelector onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Properties" }));
 
     fireEvent.click(screen.getByText("Group · face"));
     expect(screen.getByText("Locked")).toBeTruthy();
@@ -250,7 +252,8 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="scene" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Properties" }));
 
     fireEvent.change(screen.getByPlaceholderText("Search properties..."), {
       target: { value: "eye" },
@@ -323,12 +326,13 @@ describe("VariableSelector", () => {
     });
 
     const onSelect = vi.fn();
-    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+    render(<VariableSelector onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Properties" }));
 
     fireEvent.click(screen.getByText("Group · face"));
     fireEvent.click(screen.getByText("Left Eye Translate X"));
     fireEvent.click(screen.getByText("Left Eye Rotate X"));
-    fireEvent.click(screen.getByRole("button", { name: "Add All (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Selected (2)" }));
 
     expect(onSelect).toHaveBeenLastCalledWith({
       type: "property",
@@ -351,7 +355,8 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="scene" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Properties" }));
 
     fireEvent.change(screen.getByPlaceholderText("Search properties..."), {
       target: { value: "notfound" },
