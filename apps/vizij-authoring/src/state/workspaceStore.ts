@@ -15,6 +15,7 @@ interface WorkspaceState {
     motiongraphPalette: PanelState;
     // Right Sidebar
     inspector: PanelState;
+    speech: PanelState;
     debug: PanelState;
     // Bottom
     animation: PanelState;
@@ -82,7 +83,8 @@ export function createInitialWorkspacePanels(): WorkspacePanels {
     inputs: { isVisible: true, order: 5 },
     motiongraphPalette: { isVisible: true, order: 6 },
     inspector: { isVisible: true, order: 0 },
-    debug: { isVisible: false, order: 1 },
+    speech: { isVisible: false, order: 1 },
+    debug: { isVisible: false, order: 2 },
     animation: { isVisible: false, order: 0 },
     motiongraph: { isVisible: false, order: 1 },
     toolbar: { isVisible: true, order: 0 },

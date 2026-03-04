@@ -674,6 +674,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
+  const speechPanelVisible = useWorkspaceStore(
+    (state) => state.panels.speech.isVisible,
+  );
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
@@ -1471,6 +1474,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
               hasReferenceFaceFile={Boolean(referenceFaceContextValue.file)}
             />
+          }
+          rightMiddleVisible={speechPanelVisible}
+          rightMiddlePanel={
+            <div className="p-4 text-text-secondary text-sm">
+              Speech configuration coming soon.
+            </div>
           }
           rightBottomVisible={debugPanelVisible}
           rightBottomPanel={

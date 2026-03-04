@@ -28,8 +28,10 @@ interface WorkspaceLayoutProps {
 
   // Right Sidebar
   rightTopPanel?: React.ReactNode;
+  rightMiddlePanel?: React.ReactNode;
   rightBottomPanel?: React.ReactNode;
   rightTopVisible?: boolean;
+  rightMiddleVisible?: boolean;
   rightBottomVisible?: boolean;
 }
 
@@ -50,8 +52,10 @@ export function WorkspaceLayout({
   bottomPanel,
   bottomVisible = true,
   rightTopPanel,
+  rightMiddlePanel,
   rightBottomPanel,
   rightTopVisible = true,
+  rightMiddleVisible = false,
   rightBottomVisible = false,
 }: WorkspaceLayoutProps) {
   const leftSidebarVisible =
@@ -80,7 +84,23 @@ export function WorkspaceLayout({
     }
     return acc;
   }, []);
-  const rightSidebarVisible = rightTopVisible || rightBottomVisible;
+  const rightSidebarVisible =
+    rightTopVisible || rightMiddleVisible || rightBottomVisible;
+  const rightSections = [
+    { id: "right-top", visible: rightTopVisible, panel: rightTopPanel },
+    {
+      id: "right-middle",
+      visible: rightMiddleVisible,
+      panel: rightMiddlePanel,
+    },
+    { id: "right-bottom", visible: rightBottomVisible, panel: rightBottomPanel },
+  ].reduce<Array<{ id: string; panel: React.ReactNode }>>((acc, section) => {
+    if (section.visible && section.panel) {
+      acc.push({ id: section.id, panel: section.panel });
+    }
+    return acc;
+  }, []);
+  const rightSectionCount = rightSections.length;
   const leftSectionCount = extendedLeftSections.length;
 
   return (
@@ -182,33 +202,28 @@ export function WorkspaceLayout({
                 id="right-sidebar"
               >
                 <Group orientation="vertical">
-                  {rightTopVisible && (
-                    <Panel
-                      defaultSize={rightBottomVisible ? 60 : 100}
-                      minSize={5}
-                      id="right-top"
-                    >
-                      <div className="h-full border-l border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
-                        {rightTopPanel}
-                      </div>
-                    </Panel>
-                  )}
-
-                  {rightTopVisible && rightBottomVisible && (
-                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
-                  )}
-
-                  {rightBottomVisible && (
-                    <Panel
-                      defaultSize={rightTopVisible ? 40 : 100}
-                      minSize={5}
-                      id="right-bottom"
-                    >
-                      <div className="h-full border-l border-border-default bg-bg-panel overflow-y-auto overflow-x-hidden">
-                        {rightBottomPanel}
-                      </div>
-                    </Panel>
-                  )}
+                  {rightSections.map((section, index) => {
+                    const size =
+                      rightSectionCount > 0
+                        ? 100 / rightSectionCount
+                        : 100;
+                    return (
+                      <React.Fragment key={section.id}>
+                        <Panel
+                          defaultSize={size}
+                          minSize={5}
+                          id={section.id}
+                        >
+                          <div className="h-full border-l border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
+                            {section.panel}
+                          </div>
+                        </Panel>
+                        {index + 1 < rightSections.length ? (
+                          <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
                 </Group>
               </Panel>
             </>
