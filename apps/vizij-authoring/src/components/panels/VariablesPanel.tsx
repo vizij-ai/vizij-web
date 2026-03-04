@@ -21,6 +21,7 @@ import {
   Sliders,
   Users,
   X,
+  Camera,
 } from "lucide-react";
 import {
   addBindingSlot,
@@ -2644,6 +2645,7 @@ export function VariablesPanel({
     selectPose,
     selectedPoseId: selectedPoseIdFromAuthoring,
     createPose,
+    createPoseFromSnapshot,
     duplicatePose,
     createPoseGroup,
     renamePoseGroup,
@@ -5363,6 +5365,11 @@ export function VariablesPanel({
     createPose();
   };
 
+  const handleCaptureCurrentPose = () => {
+    pendingPoseSelectionRef.current = true;
+    createPoseFromSnapshot();
+  };
+
   const handleDuplicateSelectedPose = () => {
     if (!selectedPoseId || selectedPoseId === "__pose_rig_neutral__") {
       return;
@@ -6264,6 +6271,16 @@ export function VariablesPanel({
                       >
                         <Activity size={11} className="text-purple-400" />
                         New Pose
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={handleCaptureCurrentPose}
+                        title="Capture current input values as a new pose (non-neutral channels only)"
+                      >
+                        <Camera size={11} />
+                        Capture Current
                       </Button>
                       <Button
                         variant="ghost"

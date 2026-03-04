@@ -718,6 +718,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     active: animationTransportActive,
     play: playAnimationTransport,
     pause: pauseAnimationTransport,
+    stop: stopAnimationTransport,
   } = useAnimationTransport();
   const proceduralEditorNodes = useEditorStore((state) => state.nodes);
   const proceduralEditorEdges = useEditorStore((state) => state.edges);
@@ -774,11 +775,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const faceId = useGraphRuntime((state) => state.faceId);
   const papPlaybackState = useGraphRuntime((state) => state.graphPlaybackState);
+  const papTimeSeconds = useGraphRuntime((state) => state.graphTimeSeconds);
   const papPlaybackAvailable = useGraphRuntime(
     (state) => state.graphPlaybackAvailable,
   );
   const playPapGraph = useGraphRuntime((state) => state.playGraph);
   const pausePapGraph = useGraphRuntime((state) => state.pauseGraph);
+  const stopPapGraph = useGraphRuntime((state) => state.stopGraph);
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
@@ -1516,27 +1519,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   ]);
   const runtimePlaybackConfig = useMemo(() => {
     if (activeRuntimeSource === "animation") {
-      const isPlaying = animationPlaybackState === "playing";
       return {
-        playbackState: isPlaying ? ("playing" as const) : ("paused" as const),
+        playbackState: animationPlaybackState,
         playbackDisabled:
           !animationTransportActive || !animationTransportEnabled,
         onPlay: playAnimationTransport,
         onPause: pauseAnimationTransport,
+        onStop: stopAnimationTransport,
       };
     }
     if (activeRuntimeSource === "procedural-animation-programming") {
+      const papTransportState =
+        papPlaybackState === "playing"
+          ? ("playing" as const)
+          : papTimeSeconds > 0
+            ? ("paused" as const)
+            : ("stopped" as const);
       return {
-        playbackState:
-          papPlaybackState === "playing"
-            ? ("playing" as const)
-            : ("paused" as const),
+        playbackState: papTransportState,
         playbackDisabled: !papPlaybackAvailable,
         onPlay: playPapGraph,
         onPause: pausePapGraph,
+        onStop: stopPapGraph,
       };
     }
-    return null;
+    return {
+      playbackState: "stopped" as const,
+      playbackDisabled: true,
+      onPlay: undefined,
+      onPause: undefined,
+      onStop: undefined,
+    };
   }, [
     activeRuntimeSource,
     animationTransportActive,
@@ -1546,8 +1559,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pausePapGraph,
     papPlaybackAvailable,
     papPlaybackState,
+    papTimeSeconds,
     playAnimationTransport,
     playPapGraph,
+    stopAnimationTransport,
+    stopPapGraph,
   ]);
   const papPlaybackActive = papPlaybackState === "playing";
   const animationSourceActive = activeRuntimeSource === "animation";
@@ -2305,10 +2321,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               activeSource={activeRuntimeSource}
               options={runtimeSourceOptions}
               onChange={uiActions.setActiveRuntimeSource}
-              playbackState={runtimePlaybackConfig?.playbackState}
-              playbackDisabled={runtimePlaybackConfig?.playbackDisabled}
-              onPlay={runtimePlaybackConfig?.onPlay}
-              onPause={runtimePlaybackConfig?.onPause}
+              playbackState={runtimePlaybackConfig.playbackState}
+              playbackDisabled={runtimePlaybackConfig.playbackDisabled}
+              onPlay={runtimePlaybackConfig.onPlay}
+              onPause={runtimePlaybackConfig.onPause}
+              onStop={runtimePlaybackConfig.onStop}
               targetLabel={runtimeTargetConfig?.targetLabel}
               targetValue={runtimeTargetConfig?.targetValue}
               targetOptions={runtimeTargetConfig?.targetOptions}

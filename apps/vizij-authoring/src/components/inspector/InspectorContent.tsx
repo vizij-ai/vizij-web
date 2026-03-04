@@ -586,6 +586,9 @@ export function InspectorContent({
   const inputValues = useBindingAuthoring((state) =>
     shouldSubscribeInputValues ? state.inputValues : EMPTY_INPUT_VALUES,
   );
+  const poseInputValues = useBindingAuthoring((state) =>
+    inspectorMode === "pose" ? state.inputValues : EMPTY_INPUT_VALUES,
+  );
   const pipelineMetadataV1 = useBindingAuthoring(
     (state) => state.pipelineMetadataV1,
   );
@@ -1855,6 +1858,25 @@ export function InspectorContent({
         allPoseVariablesExpanded ? new Set() : new Set(poseVariableIds),
       );
     };
+    const handleSetAllCurrentAsTargets = () => {
+      Object.entries(pose.values).forEach(([inputId, currentTargetValue]) => {
+        const base = poseVariableBaseById.get(inputId);
+        const currentDriverValue = poseInputValues[inputId];
+        const fallbackValue =
+          Number.isFinite(currentTargetValue) && currentTargetValue !== null
+            ? currentTargetValue
+            : (base?.neutralVal ?? 0);
+        const resolvedDriverValue =
+          typeof currentDriverValue === "number" &&
+          Number.isFinite(currentDriverValue)
+            ? currentDriverValue
+            : fallbackValue;
+        const nextTargetValue = base
+          ? clampToRange(resolvedDriverValue, base.min, base.max)
+          : resolvedDriverValue;
+        updatePoseValue(pose.id, inputId, nextTargetValue);
+      });
+    };
 
     return (
       <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
@@ -2007,6 +2029,16 @@ export function InspectorContent({
             onClick={handleToggleAllPoseVariables}
           >
             {allPoseVariablesExpanded ? "Collapse Channels" : "Expand Channels"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] whitespace-nowrap"
+            onClick={handleSetAllCurrentAsTargets}
+            disabled={Object.keys(pose.values).length === 0}
+            title="Use the current control driver values as targets for every driver in this pose"
+          >
+            Set Current as Target
           </Button>
         </div>
 
