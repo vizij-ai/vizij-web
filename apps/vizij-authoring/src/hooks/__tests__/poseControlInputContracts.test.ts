@@ -22,6 +22,16 @@ const rigGraphCompilerTs = readFileSync(
   "utf8",
 );
 
+const useRigGraphImportTs = readFileSync(
+  path.resolve(process.cwd(), "src/hooks/useRigGraphImport.ts"),
+  "utf8",
+);
+
+const useBundleSynchronizerTs = readFileSync(
+  path.resolve(process.cwd(), "src/hooks/useBundleSynchronizer.ts"),
+  "utf8",
+);
+
 const variablesPanelTsx = readFileSync(
   path.resolve(process.cwd(), "src/components/panels/VariablesPanel.tsx"),
   "utf8",
@@ -41,6 +51,16 @@ describe("pose control input guard contracts", () => {
   it("projects per-channel compose modes into rig graph compilation", () => {
     expect(rigGraphCompilerTs).toContain("buildPoseComposeModeByInputId");
     expect(rigGraphCompilerTs).toContain("inputComposeModesById");
+  });
+
+  it("keeps graph import rebuild aligned with export compose-mode projection", () => {
+    expect(useRigControllerTs).toContain(
+      "poseConfig: poseConfigSnapshot ?? null",
+    );
+    expect(useRigGraphImportTs).toContain("buildPoseComposeModeByInputId");
+    expect(useRigGraphImportTs).toContain("inputComposeModesById");
+    expect(useRigGraphImportTs).toContain("poseConfigHint");
+    expect(useBundleSynchronizerTs).toContain("poseConfigHint");
   });
 
   it("keeps managed-input fallback routing so pose weights remain stageable", () => {

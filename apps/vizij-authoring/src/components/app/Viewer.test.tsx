@@ -16,7 +16,23 @@ import { Viewer } from "./Viewer";
 
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
-const setGraphBundleSpy = vi.fn();
+const runtimeAssetBundleState: {
+  animations: Array<{ id: string; clip: { tracks: unknown[] } }>;
+} = {
+  animations: [],
+};
+const setGraphBundleSpy = vi.fn((payload: unknown) => {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    Object.prototype.hasOwnProperty.call(payload, "animations")
+  ) {
+    const animations = (payload as { animations?: unknown }).animations;
+    runtimeAssetBundleState.animations = Array.isArray(animations)
+      ? (animations as Array<{ id: string; clip: { tracks: unknown[] } }>)
+      : [];
+  }
+});
 const setVizijStoreSpy = vi.fn();
 const stopAnimationSpy = vi.fn();
 const setAnimationActiveSpy = vi.fn();
@@ -59,6 +75,7 @@ vi.mock("@vizij/runtime-react", () => ({
     error: null,
     controllers: { graphs: [] },
     outputPaths: [],
+    assetBundle: runtimeAssetBundleState,
     setGraphBundle: setGraphBundleSpy,
     stopAnimation: stopAnimationSpy,
     setAnimationActive: setAnimationActiveSpy,
@@ -106,6 +123,7 @@ describe("Viewer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    runtimeAssetBundleState.animations = [];
     setVizijStoreSpy.mockReset();
     stopAnimationSpy.mockReset();
     setAnimationActiveSpy.mockReset();
@@ -294,6 +312,105 @@ describe("Viewer", () => {
     expect(setAnimationActiveSpy).toHaveBeenCalledWith(false);
   });
 
+  it("removes inherited runtime animations while inactive and restores them when re-enabled", () => {
+    runtimeAssetBundleState.animations = [
+      {
+        id: "bundle.imported.blink",
+        clip: {
+          tracks: [
+            {
+              channel: "rig/face/standard/blink",
+              keyframes: [{ time: 0, value: 1 }],
+            },
+          ],
+        },
+      },
+    ];
+
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const { rerender } = render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive={false}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    const inactiveAnimationCalls = setGraphBundleSpy.mock.calls.filter(
+      ([payload]) =>
+        payload &&
+        typeof payload === "object" &&
+        Array.isArray((payload as { animations?: unknown }).animations),
+    );
+    expect(inactiveAnimationCalls.length).toBeGreaterThan(0);
+    expect(
+      inactiveAnimationCalls.some(([payload]) =>
+        (
+          payload as {
+            animations: Array<{ id: string; clip: { tracks: unknown[] } }>;
+          }
+        ).animations.some(
+          (animation) =>
+            animation.id === "bundle.imported.blink" &&
+            Array.isArray(animation.clip?.tracks) &&
+            animation.clip.tracks.length === 0,
+        ),
+      ),
+    ).toBe(true);
+
+    rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    const animationCalls = setGraphBundleSpy.mock.calls.filter(
+      ([payload]) =>
+        payload &&
+        typeof payload === "object" &&
+        Array.isArray((payload as { animations?: unknown }).animations),
+    );
+    expect(animationCalls.length).toBeGreaterThan(0);
+    expect(
+      animationCalls.some(([payload]) =>
+        (payload as { animations: Array<{ id: string }> }).animations.some(
+          (animation) => animation.id === "bundle.imported.blink",
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("injects authored timeline animation bundle when animation source is active", () => {
     useAnimationStore
       .getState()
@@ -368,7 +485,17 @@ describe("Viewer", () => {
       </GraphRuntimeStoreProvider>,
     );
 
-    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+    const graphBundleCalls = () =>
+      setGraphBundleSpy.mock.calls.filter(
+        ([payload]) =>
+          payload &&
+          typeof payload === "object" &&
+          !Object.prototype.hasOwnProperty.call(payload, "animations"),
+      );
+
+    const initialGraphCall =
+      graphBundleCalls()[graphBundleCalls().length - 1] ?? null;
+    expect(initialGraphCall).toEqual([
       {
         rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
         pose: {
@@ -377,8 +504,8 @@ describe("Viewer", () => {
         },
       },
       { tier: "graphs" },
-    );
-    expect(setGraphBundleSpy).toHaveBeenCalledTimes(1);
+    ]);
+    expect(graphBundleCalls().length).toBe(1);
 
     act(() => {
       store.setState({
@@ -387,7 +514,8 @@ describe("Viewer", () => {
       });
     });
 
-    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+    const secondGraphCall = graphBundleCalls()[graphBundleCalls().length - 1];
+    expect(secondGraphCall).toEqual([
       {
         rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
         pose: {
@@ -396,8 +524,8 @@ describe("Viewer", () => {
         },
       },
       { tier: "graphs" },
-    );
-    expect(setGraphBundleSpy).toHaveBeenCalledTimes(2);
+    ]);
+    expect(graphBundleCalls().length).toBe(2);
 
     act(() => {
       store.setState({
@@ -405,14 +533,15 @@ describe("Viewer", () => {
       });
     });
 
-    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+    const finalGraphCall = graphBundleCalls()[graphBundleCalls().length - 1];
+    expect(finalGraphCall).toEqual([
       {
         rig: undefined,
         pose: undefined,
       },
       { tier: "graphs" },
-    );
-    expect(setGraphBundleSpy).toHaveBeenCalledTimes(3);
+    ]);
+    expect(graphBundleCalls().length).toBe(3);
   });
 
   it("registers pose graph only when rig graph is absent", () => {

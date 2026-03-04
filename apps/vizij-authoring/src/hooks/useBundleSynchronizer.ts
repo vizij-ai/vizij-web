@@ -18,6 +18,7 @@ import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 export interface ImportGraphSpecOptions {
   skipDiscrepancyCheck?: boolean;
   faceIdHint?: string;
+  poseConfigHint?: PoseRigConfigFile | null;
 }
 
 interface UseBundleSynchronizerOptions {
@@ -42,6 +43,17 @@ interface UseBundleSynchronizerOptions {
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
+
+function asPoseRigConfigFile(value: unknown): PoseRigConfigFile | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const candidate = value as Partial<PoseRigConfigFile>;
+  if (candidate.version !== 1 || !Array.isArray(candidate.poses)) {
+    return null;
+  }
+  return candidate as PoseRigConfigFile;
+}
 
 function logBundleSyncDebug(
   event: string,
@@ -361,6 +373,7 @@ export function useBundleSynchronizer({
           const result = await importGraphSpecRef.current(normalisedSpec, {
             skipDiscrepancyCheck,
             faceIdHint: normalizedRigFaceId ?? undefined,
+            poseConfigHint: asPoseRigConfigFile(loadedBundle.poses?.config),
           });
           importedFaceIdFromRig = result?.importedFaceId ?? null;
           importedRigFingerprintsRef.current.add(fingerprint);

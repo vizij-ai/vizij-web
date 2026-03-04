@@ -10,6 +10,46 @@ export type GraphDiffCategory =
 
 export type GraphDiffKind = "missing" | "unexpected" | "mismatch";
 
+export type GraphDiffEntityType =
+  | "node"
+  | "edge"
+  | "input"
+  | "binding"
+  | "expression"
+  | "metadata"
+  | "other";
+
+export interface GraphDiffContext {
+  entityType: GraphDiffEntityType;
+  entityId?: string;
+  scopePath: string;
+  fieldPath: string;
+  fieldName: string;
+  importedType: string;
+  rebuiltType: string;
+  connection?: GraphDiffConnectionContext;
+}
+
+export interface GraphDiffConnectionEndpoint {
+  fromNodeId?: string;
+  fromNodeType?: string;
+  fromPort?: string;
+  toNodeId?: string;
+  toNodeType?: string;
+  toPort?: string;
+}
+
+export interface GraphDiffConnectionContext {
+  imported: GraphDiffConnectionEndpoint;
+  rebuilt: GraphDiffConnectionEndpoint;
+  sameNodePair: boolean;
+  slotOnlyChange: boolean;
+  commutativeTarget: boolean;
+  likelyNormalizationOnly: boolean;
+  likelySemanticRisk: boolean;
+  guidance: string;
+}
+
 export interface GraphDiffEntry {
   id: string;
   path: string;
@@ -17,6 +57,7 @@ export interface GraphDiffEntry {
   category: GraphDiffCategory;
   importedValue?: unknown;
   rebuiltValue?: unknown;
+  context?: GraphDiffContext;
 }
 
 export interface GraphDiffResult {

@@ -60,6 +60,16 @@ describe("canonicalizeGraphComparable", () => {
     const diff = diffGraphSpecs(importedComparable, rebuiltComparable);
     expect(diff.entries.length).toBeGreaterThan(0);
     expect(diff.entries.some((entry) => entry.kind === "mismatch")).toBe(true);
+    const mismatch = diff.entries.find((entry) => entry.kind === "mismatch");
+    expect(mismatch?.context).toMatchObject({
+      entityType: "node",
+      entityId: "n1",
+      scopePath: "spec.nodes[n1]",
+      fieldPath: "params.path",
+      fieldName: "path",
+      importedType: "string",
+      rebuiltType: "string",
+    });
   });
 
   it("preserves order for primitive arrays", () => {
@@ -71,6 +81,101 @@ describe("canonicalizeGraphComparable", () => {
     });
     const diff = diffGraphSpecs(importedComparable, rebuiltComparable);
     expect(diff.entries.length).toBeGreaterThan(0);
+  });
+
+  it("annotates edge slot swaps with endpoint context and risk guidance", () => {
+    const importedComparable = canonicalizeGraphComparable({
+      spec: {
+        nodes: [
+          { id: "a", type: "input" },
+          { id: "sub", type: "subtract" },
+        ],
+        edges: [
+          { from: { node_id: "a" }, to: { node_id: "sub", input: "lhs" } },
+        ],
+      },
+    });
+    const rebuiltComparable = canonicalizeGraphComparable({
+      spec: {
+        nodes: [
+          { id: "a", type: "input" },
+          { id: "sub", type: "subtract" },
+        ],
+        edges: [
+          { from: { node_id: "a" }, to: { node_id: "sub", input: "rhs" } },
+        ],
+      },
+    });
+    const diff = diffGraphSpecs(importedComparable, rebuiltComparable);
+    const mismatch = diff.entries.find(
+      (entry) =>
+        entry.kind === "mismatch" && entry.path.endsWith("edges[0].to.input"),
+    );
+    expect(mismatch?.context?.entityType).toBe("edge");
+    expect(mismatch?.context?.connection).toMatchObject({
+      sameNodePair: true,
+      slotOnlyChange: true,
+      commutativeTarget: false,
+      likelyNormalizationOnly: false,
+      likelySemanticRisk: true,
+      imported: {
+        fromNodeId: "a",
+        toNodeId: "sub",
+        toNodeType: "subtract",
+        toPort: "lhs",
+      },
+      rebuilt: {
+        fromNodeId: "a",
+        toNodeId: "sub",
+        toNodeType: "subtract",
+        toPort: "rhs",
+      },
+    });
+  });
+
+  it("resolves edge endpoint context when diff paths use synthetic spec prefix", () => {
+    const importedComparable = canonicalizeGraphComparable({
+      nodes: [
+        { id: "a", type: "input" },
+        { id: "sum", type: "add" },
+      ],
+      edges: [{ from: { node_id: "a" }, to: { node_id: "sum", input: "lhs" } }],
+    });
+    const rebuiltComparable = canonicalizeGraphComparable({
+      nodes: [
+        { id: "a", type: "input" },
+        { id: "sum", type: "add" },
+      ],
+      edges: [
+        {
+          from: { node_id: "a" },
+          to: { node_id: "sum", input: "operand_1" },
+        },
+      ],
+    });
+    const diff = diffGraphSpecs(importedComparable, rebuiltComparable);
+    const mismatch = diff.entries.find(
+      (entry) =>
+        entry.kind === "mismatch" && entry.path.endsWith("edges[0].to.input"),
+    );
+    expect(mismatch?.context?.connection).toMatchObject({
+      imported: {
+        fromNodeId: "a",
+        toNodeId: "sum",
+        toNodeType: "add",
+        toPort: "lhs",
+      },
+      rebuilt: {
+        fromNodeId: "a",
+        toNodeId: "sum",
+        toNodeType: "add",
+        toPort: "operand_1",
+      },
+      slotOnlyChange: true,
+      commutativeTarget: true,
+      likelyNormalizationOnly: true,
+      likelySemanticRisk: false,
+    });
   });
 });
 

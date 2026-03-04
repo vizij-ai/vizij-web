@@ -39,7 +39,11 @@ import {
 } from "../utils/graphImport";
 import { sanitizeFaceId } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
-import { withPipelineConfigBuildOptions } from "./rigController/rigGraphCompiler";
+import {
+  buildPoseComposeModeByInputId,
+  type PoseConfigSnapshot,
+  withPipelineConfigBuildOptions,
+} from "./rigController/rigGraphCompiler";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 
 interface UseRigGraphImportOptions {
@@ -61,6 +65,7 @@ interface UseRigGraphImportOptions {
   setPipelineMetadataV1: Dispatch<
     SetStateAction<VizijPipelineMetadataV1 | null>
   >;
+  poseConfig: PoseConfigSnapshot | null;
   setFaceId: Dispatch<SetStateAction<string>>;
   skipPersistRef: MutableRefObject<boolean>;
   persistedAutoInputsRef: MutableRefObject<
@@ -246,6 +251,7 @@ export function useRigGraphImport({
   setSelectedStandardInputSubgroups,
   setLockedInspectorTargetIds,
   setPipelineMetadataV1,
+  poseConfig,
   setFaceId,
   skipPersistRef,
   persistedAutoInputsRef,
@@ -269,9 +275,17 @@ export function useRigGraphImport({
   return useCallback(
     async (
       spec: GraphSpec,
-      options?: { skipDiscrepancyCheck?: boolean; faceIdHint?: string },
+      options?: {
+        skipDiscrepancyCheck?: boolean;
+        faceIdHint?: string;
+        poseConfigHint?: PoseConfigSnapshot | null;
+      },
     ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
       try {
+        const poseConfigForRebuild =
+          options?.poseConfigHint === undefined
+            ? poseConfig
+            : options.poseConfigHint;
         const requestedFaceId =
           options?.faceIdHint && options.faceIdHint.trim().length > 0
             ? sanitizeFaceId(options.faceIdHint)
@@ -419,6 +433,8 @@ export function useRigGraphImport({
                 ),
                 inputBindings: rehydrated.inputBindings,
                 inputMetadata: normalizedInputMetadata,
+                inputComposeModesById:
+                  buildPoseComposeModeByInputId(poseConfigForRebuild),
               },
               importedPipelineConfigByInputId,
               importedPipelineMetadataV1,
@@ -455,6 +471,9 @@ export function useRigGraphImport({
           importedSignatureHash: importedSignature.length,
           rebuiltSignatureHash: rebuiltSignature.length,
           missingBlueprintPaths,
+          composeModeHintCount: Object.keys(
+            buildPoseComposeModeByInputId(poseConfigForRebuild),
+          ).length,
         });
 
         if (rehydrated.legacyPropsRigInputPaths.length > 0) {
@@ -627,11 +646,26 @@ export function useRigGraphImport({
             debugLog("discrepancy review already open – awaiting resolution");
             discrepancyResult = await pendingReviewRef.current;
           } else if (!discrepancyResult) {
+            const edgeDiffEntries = diffResult.entries.filter(
+              (entry) => entry.context?.entityType === "edge",
+            );
+            const edgeLikelyNormalizationCount = edgeDiffEntries.filter(
+              (entry) => entry.context?.connection?.likelyNormalizationOnly,
+            ).length;
+            const edgeLikelyRiskCount = edgeDiffEntries.filter(
+              (entry) => entry.context?.connection?.likelySemanticRisk,
+            ).length;
             const mismatchReasons = [
               "Slot aliases, expressions, and defaults are normalised during import.",
               "Identifier sanitisation may regenerate component or input ids.",
               "Auto-generated standard inputs are reconstructed from rig metadata rather than the saved graph structure.",
+              "Recent node-graph compiler updates can reorder commutative operands during IR->GraphSpec compilation; edge rows now classify normalization-only versus semantic-risk slot changes.",
             ];
+            if (edgeDiffEntries.length > 0) {
+              mismatchReasons.push(
+                `Edge discrepancy summary: ${edgeDiffEntries.length} edge differences, ${edgeLikelyNormalizationCount} likely normalization-only, ${edgeLikelyRiskCount} potential semantic risks.`,
+              );
+            }
             if (missingBlueprintPaths.length > 0) {
               mismatchReasons.push(
                 `Auto-generated inputs missing from the imported metadata: ${missingBlueprintPaths
@@ -791,6 +825,7 @@ export function useRigGraphImport({
       setInputBindings,
       setLockedInspectorTargetIds,
       setPipelineMetadataV1,
+      poseConfig,
       setSelectedStandardInputRoots,
       setSelectedStandardInputSubgroups,
       setFaceId,

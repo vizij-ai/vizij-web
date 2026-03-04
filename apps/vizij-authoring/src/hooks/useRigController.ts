@@ -2893,6 +2893,7 @@ export function useRigController(
     skipPersistRef,
     persistedAutoInputsRef,
     lastLoadedFaceIdRef,
+    poseConfig: poseConfigSnapshot ?? null,
     openDiscrepancyReview,
     alertDialog,
     debugLog,

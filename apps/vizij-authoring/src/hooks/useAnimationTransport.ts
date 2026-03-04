@@ -48,12 +48,39 @@ function normalizeAnimationInputPath(path: string | undefined): string {
   return (path ?? "").trim().replace(/^\/+/, "");
 }
 
+function hasAnimationTracks(animation: VizijAnimationAsset): boolean {
+  const tracks = (animation.clip as { tracks?: unknown[] } | undefined)?.tracks;
+  return Array.isArray(tracks) && tracks.length > 0;
+}
+
+function muteAnimationClip(
+  animation: VizijAnimationAsset,
+): VizijAnimationAsset {
+  const sourceClip =
+    animation.clip && typeof animation.clip === "object"
+      ? (animation.clip as Record<string, unknown>)
+      : {};
+  const clipId =
+    typeof sourceClip.id === "string" && sourceClip.id.trim().length > 0
+      ? sourceClip.id
+      : animation.id;
+  return {
+    id: animation.id,
+    clip: {
+      ...sourceClip,
+      id: clipId,
+      tracks: [],
+    } as VizijAnimationAsset["clip"],
+  };
+}
+
 export function AnimationRuntimeBridge({
   active = true,
 }: {
   active?: boolean;
 }) {
   const runtime = useVizijRuntime();
+  const runtimeRootId = runtime.rootId ?? null;
   const assetBundleAnimations = runtime.assetBundle?.animations ?? [];
   const setGraphBundle =
     typeof runtime.setGraphBundle === "function"
@@ -120,16 +147,41 @@ export function AnimationRuntimeBridge({
     return Array.from(paths);
   }, [authoredClip]);
 
-  const mergedAnimations = useMemo(() => {
-    const inherited = assetBundleAnimations.filter(
-      (animation: VizijAnimationAsset) =>
-        !isAuthoredTimelineAnimation(animation),
-    );
-    const next = authoredAnimation
-      ? [...inherited, authoredAnimation]
-      : inherited;
-    return [...next].sort((left, right) => left.id.localeCompare(right.id));
-  }, [assetBundleAnimations, authoredAnimation]);
+  const inheritedAssetAnimations = useMemo(
+    () =>
+      assetBundleAnimations.filter(
+        (animation: VizijAnimationAsset) =>
+          !isAuthoredTimelineAnimation(animation),
+      ),
+    [assetBundleAnimations],
+  );
+  const playableInheritedAssetAnimations = useMemo(
+    () =>
+      inheritedAssetAnimations.filter((animation) =>
+        hasAnimationTracks(animation),
+      ),
+    [inheritedAssetAnimations],
+  );
+  const inheritedAssetAnimationSignature = useMemo(
+    () => toDeterministicSignature(playableInheritedAssetAnimations),
+    [playableInheritedAssetAnimations],
+  );
+  const cachedInheritedAnimationsRef = useRef<VizijAnimationAsset[]>([]);
+  const cachedInheritedRootIdRef = useRef<string | null>(runtimeRootId);
+
+  useEffect(() => {
+    if (cachedInheritedRootIdRef.current !== runtimeRootId) {
+      cachedInheritedRootIdRef.current = runtimeRootId;
+      cachedInheritedAnimationsRef.current = [];
+    }
+  }, [runtimeRootId]);
+
+  useEffect(() => {
+    if (playableInheritedAssetAnimations.length === 0) {
+      return;
+    }
+    cachedInheritedAnimationsRef.current = playableInheritedAssetAnimations;
+  }, [inheritedAssetAnimationSignature, playableInheritedAssetAnimations]);
 
   const currentAnimations = useMemo(
     () =>
@@ -138,6 +190,30 @@ export function AnimationRuntimeBridge({
       ),
     [assetBundleAnimations],
   );
+
+  const mergedAnimations = useMemo(() => {
+    if (!active) {
+      const toMute =
+        currentAnimations.length > 0
+          ? currentAnimations
+          : cachedInheritedAnimationsRef.current;
+      const muted = toMute.map((animation) => muteAnimationClip(animation));
+      return [...muted].sort((left, right) => left.id.localeCompare(right.id));
+    }
+    const inherited =
+      playableInheritedAssetAnimations.length > 0
+        ? playableInheritedAssetAnimations
+        : cachedInheritedAnimationsRef.current;
+    const next = authoredAnimation
+      ? [...inherited, authoredAnimation]
+      : inherited;
+    return [...next].sort((left, right) => left.id.localeCompare(right.id));
+  }, [
+    active,
+    authoredAnimation,
+    currentAnimations,
+    playableInheritedAssetAnimations,
+  ]);
 
   const currentAnimationSignature = useMemo(
     () => toDeterministicSignature(currentAnimations),

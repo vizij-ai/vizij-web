@@ -4,6 +4,8 @@ import type {
   DiscrepancyResolutionResult,
   DiscrepancyReviewState,
   GraphDiffCategory,
+  GraphDiffEntry,
+  GraphDiffEntityType,
   MissingInputResolution,
 } from "../../types/discrepancy";
 import { Modal } from "../ui/Modal";
@@ -18,7 +20,11 @@ const logDebug = (...args: unknown[]) => {
   console.debug("[discrepancy]", ...args);
 };
 
-function formatDiffValue(value: unknown): string {
+function formatDiffValue(
+  value: unknown,
+  options?: { expanded?: boolean },
+): string {
+  const expanded = options?.expanded ?? false;
   if (value === null) {
     return "null";
   }
@@ -26,19 +32,101 @@ function formatDiffValue(value: unknown): string {
     return "—";
   }
   if (typeof value === "string") {
-    return value.length > 80 ? `${value.slice(0, 77)}…` : value;
+    if (expanded) {
+      return value;
+    }
+    return value.length > 120 ? `${value.slice(0, 117)}…` : value;
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
   try {
-    const serialized = JSON.stringify(value);
-    return serialized.length > 120
-      ? `${serialized.slice(0, 117)}…`
-      : serialized;
+    const serialized = expanded
+      ? JSON.stringify(value, null, 2)
+      : JSON.stringify(value);
+    if (serialized.length <= 1200) {
+      return serialized;
+    }
+    return `${serialized.slice(0, 1197)}…`;
   } catch {
     return String(value);
   }
+}
+
+const ENTITY_LABELS: Record<GraphDiffEntityType, string> = {
+  node: "Node",
+  edge: "Edge",
+  input: "Input",
+  binding: "Binding",
+  expression: "Expression",
+  metadata: "Metadata",
+  other: "Graph",
+};
+
+function formatEntityContext(entry: GraphDiffEntry): string {
+  const context = entry.context;
+  if (!context) {
+    return "Graph";
+  }
+  const label = ENTITY_LABELS[context.entityType] ?? "Graph";
+  return context.entityId ? `${label} ${context.entityId}` : label;
+}
+
+function formatTypeTransition(entry: GraphDiffEntry): string {
+  const context = entry.context;
+  if (!context) {
+    return "unknown -> unknown";
+  }
+  return `${context.importedType} -> ${context.rebuiltType}`;
+}
+
+function describeDiffImpact(entry: GraphDiffEntry): string {
+  const edgeConnection = entry.context?.connection;
+  if (edgeConnection?.likelyNormalizationOnly) {
+    return "Edge slot changed on a commutative target node. Usually benign normalization, but verify if this node has custom semantics.";
+  }
+  if (edgeConnection?.likelySemanticRisk) {
+    return "Edge slot changed on a potentially non-commutative target node. This can change runtime output behavior.";
+  }
+  if (entry.kind === "missing") {
+    return "Imported structure is missing after rebuild; behavior may no longer be represented.";
+  }
+  if (entry.kind === "unexpected") {
+    return "Rebuild introduced structure that was not present in the imported graph.";
+  }
+  switch (entry.category) {
+    case "bindings":
+      return "Binding routing or weighting changed; output response can shift.";
+    case "expressions":
+      return "Expression math changed; driven values may evaluate differently.";
+    case "inputs":
+    case "values":
+      return "Input defaults/ranges changed; controls may feel different at runtime.";
+    case "identifiers":
+      return "Identifier drift can impact links, references, and migration behavior.";
+    case "metadata":
+      return "Metadata changed; tooling behavior or labels may differ.";
+    default:
+      return "Graph structure changed; data flow may differ from the imported source.";
+  }
+}
+
+function formatEdgeEndpoint(
+  entry: GraphDiffEntry,
+  side: "imported" | "rebuilt",
+) {
+  const connection = entry.context?.connection;
+  const endpoint = connection?.[side];
+  if (!endpoint) {
+    return "unknown";
+  }
+  const fromNode = endpoint.fromNodeId ?? "?";
+  const toNode = endpoint.toNodeId ?? "?";
+  const fromType = endpoint.fromNodeType ? ` (${endpoint.fromNodeType})` : "";
+  const toType = endpoint.toNodeType ? ` (${endpoint.toNodeType})` : "";
+  const fromPort = endpoint.fromPort ? `.${endpoint.fromPort}` : "";
+  const toPort = endpoint.toPort ? `.${endpoint.toPort}` : "";
+  return `${fromNode}${fromType}${fromPort} -> ${toNode}${toType}${toPort}`;
 }
 
 function normalizeDiffResolutions(
@@ -178,6 +266,23 @@ export function DiscrepancyWizard({
         entry.category === activeCategory,
     );
   }, [activeCategory, state.diff.entries]);
+
+  const edgeDiffSummary = useMemo(() => {
+    const edgeEntries = filteredDiffs.filter(
+      (entry) => entry.context?.entityType === "edge",
+    );
+    const likelyNormalization = edgeEntries.filter(
+      (entry) => entry.context?.connection?.likelyNormalizationOnly,
+    ).length;
+    const likelyRisk = edgeEntries.filter(
+      (entry) => entry.context?.connection?.likelySemanticRisk,
+    ).length;
+    return {
+      total: edgeEntries.length,
+      likelyNormalization,
+      likelyRisk,
+    };
+  }, [filteredDiffs]);
 
   const allDiffsResolved =
     state.diff.entries.length === 0 ||
@@ -520,6 +625,25 @@ export function DiscrepancyWizard({
                   ),
                 )}
               </div>
+              {edgeDiffSummary.total > 0 && (
+                <div className="rounded-lg border border-border-default bg-bg-secondary p-3 space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Edge Diff Triage
+                  </p>
+                  <p className="text-[11px] text-text-secondary">
+                    {edgeDiffSummary.total} edge-related differences in this
+                    view.
+                  </p>
+                  <p className="text-[11px] text-success">
+                    {edgeDiffSummary.likelyNormalization} look like commutative
+                    slot-order normalization.
+                  </p>
+                  <p className="text-[11px] text-warning">
+                    {edgeDiffSummary.likelyRisk} look like potential semantic
+                    changes (slot change on non-commutative or unknown target).
+                  </p>
+                </div>
+              )}
               {filteredDiffs.length === 0 ? (
                 <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
                   <p className="text-xs text-text-muted italic">
@@ -528,94 +652,200 @@ export function DiscrepancyWizard({
                 </div>
               ) : (
                 <div className="space-y-3 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
-                  {filteredDiffs.map((entry) => (
-                    <article
-                      key={entry.id}
-                      className="bg-bg-card rounded-xl border border-border-default p-4 space-y-4 hover:border-border-hover transition-colors"
-                    >
-                      <header className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-mono font-bold text-text-primary truncate max-w-md">
-                            {entry.path}
+                  {filteredDiffs.map((entry) => {
+                    const scopePath = entry.context?.scopePath ?? "spec";
+                    const fieldPath = entry.context?.fieldPath ?? entry.path;
+                    return (
+                      <article
+                        key={entry.id}
+                        className="bg-bg-card rounded-xl border border-border-default p-4 space-y-4 hover:border-border-hover transition-colors"
+                      >
+                        <header className="flex justify-between items-start gap-4">
+                          <div className="space-y-1 min-w-0">
+                            <p className="text-[11px] font-mono font-bold text-text-primary truncate">
+                              {entry.path}
+                            </p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-secondary">
+                              {CATEGORY_LABELS[entry.category]}
+                            </p>
+                          </div>
+                          <Chip
+                            tone={
+                              entry.kind === "unexpected"
+                                ? "success"
+                                : entry.kind === "missing"
+                                  ? "danger"
+                                  : "warning"
+                            }
+                          >
+                            {entry.kind}
+                          </Chip>
+                        </header>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="bg-bg-secondary rounded-lg border border-border-subtle p-2.5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-text-muted mb-1">
+                              Entity
+                            </p>
+                            <p className="text-[11px] font-mono text-text-secondary break-all">
+                              {formatEntityContext(entry)}
+                            </p>
+                          </div>
+                          <div className="bg-bg-secondary rounded-lg border border-border-subtle p-2.5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-text-muted mb-1">
+                              Scope
+                            </p>
+                            <p className="text-[11px] font-mono text-text-secondary break-all">
+                              {scopePath}
+                            </p>
+                          </div>
+                          <div className="bg-bg-secondary rounded-lg border border-border-subtle p-2.5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-text-muted mb-1">
+                              Field
+                            </p>
+                            <p className="text-[11px] font-mono text-text-secondary break-all">
+                              {fieldPath}
+                            </p>
+                          </div>
+                          <div className="bg-bg-secondary rounded-lg border border-border-subtle p-2.5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-text-muted mb-1">
+                              Type Change
+                            </p>
+                            <p className="text-[11px] font-mono text-text-secondary break-all">
+                              {formatTypeTransition(entry)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-warning-subtle bg-warning-subtle/30 p-2.5">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-warning mb-1">
+                            Runtime Impact
                           </p>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-text-secondary">
-                            {CATEGORY_LABELS[entry.category]}
+                          <p className="text-[11px] text-warning">
+                            {describeDiffImpact(entry)}
                           </p>
                         </div>
-                        <Chip
-                          tone={
-                            entry.kind === "unexpected"
-                              ? "success"
-                              : entry.kind === "missing"
-                                ? "danger"
-                                : "warning"
-                          }
-                        >
-                          {entry.kind}
-                        </Chip>
-                      </header>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle">
-                          <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted mb-2">
-                            Imported Value
-                          </span>
-                          <code className="text-[11px] text-text-secondary font-mono break-all">
-                            {formatDiffValue(entry.importedValue)}
-                          </code>
+                        {entry.context?.connection && (
+                          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-2.5 space-y-2">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-text-muted">
+                              Edge Connection Context
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div className="rounded-md border border-border-subtle bg-bg-panel p-2">
+                                <p className="text-[9px] uppercase tracking-widest text-text-muted mb-1">
+                                  Imported
+                                </p>
+                                <p className="text-[11px] font-mono text-text-secondary break-all">
+                                  {formatEdgeEndpoint(entry, "imported")}
+                                </p>
+                              </div>
+                              <div className="rounded-md border border-border-subtle bg-bg-panel p-2">
+                                <p className="text-[9px] uppercase tracking-widest text-text-muted mb-1">
+                                  Rebuilt
+                                </p>
+                                <p className="text-[11px] font-mono text-text-secondary break-all">
+                                  {formatEdgeEndpoint(entry, "rebuilt")}
+                                </p>
+                              </div>
+                            </div>
+                            <p
+                              className={cn(
+                                "text-[11px]",
+                                entry.context.connection.likelyNormalizationOnly
+                                  ? "text-success"
+                                  : entry.context.connection.likelySemanticRisk
+                                    ? "text-warning"
+                                    : "text-text-secondary",
+                              )}
+                            >
+                              {entry.context.connection.guidance}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle space-y-2">
+                            <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted">
+                              Imported Value
+                            </span>
+                            <code className="block text-[11px] text-text-secondary font-mono break-all">
+                              {formatDiffValue(entry.importedValue)}
+                            </code>
+                            <details className="text-[10px]">
+                              <summary className="cursor-pointer text-text-muted hover:text-text-secondary">
+                                Show full imported value
+                              </summary>
+                              <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-bg-panel p-2 text-[10px] text-text-secondary whitespace-pre-wrap break-words">
+                                {formatDiffValue(entry.importedValue, {
+                                  expanded: true,
+                                })}
+                              </pre>
+                            </details>
+                          </div>
+                          <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle space-y-2">
+                            <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted">
+                              Rebuilt Value
+                            </span>
+                            <code className="block text-[11px] text-accent font-mono break-all">
+                              {formatDiffValue(entry.rebuiltValue)}
+                            </code>
+                            <details className="text-[10px]">
+                              <summary className="cursor-pointer text-text-muted hover:text-text-secondary">
+                                Show full rebuilt value
+                              </summary>
+                              <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-bg-panel p-2 text-[10px] text-text-secondary whitespace-pre-wrap break-words">
+                                {formatDiffValue(entry.rebuiltValue, {
+                                  expanded: true,
+                                })}
+                              </pre>
+                            </details>
+                          </div>
                         </div>
-                        <div className="bg-bg-secondary rounded-lg p-3 border border-border-subtle">
-                          <span className="block text-[9px] font-black uppercase tracking-widest text-text-muted mb-2">
-                            Rebuilt Value
-                          </span>
-                          <code className="text-[11px] text-accent font-mono break-all">
-                            {formatDiffValue(entry.rebuiltValue)}
-                          </code>
+                        <div className="flex gap-4 pt-2 border-t border-border-default">
+                          <label className="flex items-center gap-2.5 cursor-pointer group">
+                            <input
+                              type="radio"
+                              name={`diff-${entry.id}`}
+                              className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
+                              value="use-rebuilt"
+                              checked={
+                                diffResolutions[entry.id] === "use-rebuilt"
+                              }
+                              onChange={() =>
+                                handleDiffResolutionChange(
+                                  entry.id,
+                                  "use-rebuilt",
+                                )
+                              }
+                            />
+                            <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
+                              Use rebuilt value
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2.5 cursor-pointer group">
+                            <input
+                              type="radio"
+                              name={`diff-${entry.id}`}
+                              className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
+                              value="needs-follow-up"
+                              checked={
+                                diffResolutions[entry.id] === "needs-follow-up"
+                              }
+                              onChange={() =>
+                                handleDiffResolutionChange(
+                                  entry.id,
+                                  "needs-follow-up",
+                                )
+                              }
+                            />
+                            <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
+                              Flag for follow-up
+                            </span>
+                          </label>
                         </div>
-                      </div>
-                      <div className="flex gap-4 pt-2 border-t border-border-default">
-                        <label className="flex items-center gap-2.5 cursor-pointer group">
-                          <input
-                            type="radio"
-                            name={`diff-${entry.id}`}
-                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
-                            value="use-rebuilt"
-                            checked={
-                              diffResolutions[entry.id] === "use-rebuilt"
-                            }
-                            onChange={() =>
-                              handleDiffResolutionChange(
-                                entry.id,
-                                "use-rebuilt",
-                              )
-                            }
-                          />
-                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
-                            Use rebuilt value
-                          </span>
-                        </label>
-                        <label className="flex items-center gap-2.5 cursor-pointer group">
-                          <input
-                            type="radio"
-                            name={`diff-${entry.id}`}
-                            className="w-3.5 h-3.5 bg-bg-input border-border-default text-accent focus:ring-accent/50"
-                            value="needs-follow-up"
-                            checked={
-                              diffResolutions[entry.id] === "needs-follow-up"
-                            }
-                            onChange={() =>
-                              handleDiffResolutionChange(
-                                entry.id,
-                                "needs-follow-up",
-                              )
-                            }
-                          />
-                          <span className="text-[11px] font-bold text-text-secondary group-hover:text-text-primary transition-colors">
-                            Flag for follow-up
-                          </span>
-                        </label>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </div>

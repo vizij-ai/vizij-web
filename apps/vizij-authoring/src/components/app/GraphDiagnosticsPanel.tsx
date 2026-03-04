@@ -10,9 +10,16 @@ import { Download, Search } from "lucide-react";
 import { downloadBlob } from "../../utils/download";
 import { alertDialog } from "../../utils/dialogs";
 import {
+  runRigRoundtripAudit,
+  type RigRoundtripAuditResult,
+} from "../../utils/rigRoundtripAudit";
+import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
+import { usePoseRig } from "../../state/PoseRigProvider";
+import type { PoseRigIrFile } from "../../poseRig/types";
+import { PoseIrService } from "../../poseRig/services/poseIrService";
 import {
   Button,
   Input,
@@ -38,16 +45,55 @@ interface IssueEntry {
 
 export function GraphDiagnosticsPanel() {
   const faceId = useGraphRuntime((state) => state.faceId);
+  const world = useGraphRuntime((state) => state.world);
+  const animatables = useGraphRuntime((state) => state.animatables);
+  const values = useGraphRuntime((state) => state.values);
   const graphInsights = useGraphRuntime((state) => state.graphInsights);
   const graphReport = useGraphRuntime((state) => state.graphMachineReport);
   const getGraphIr = useGraphRuntime((state) => state.getGraphIr);
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
+  const bindings = useBindingAuthoring((state) => state.bindings);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const animatableComponents = useBindingAuthoring(
+    (state) => state.animatableComponents,
+  );
+  const pipelineMetadataV1 = useBindingAuthoring(
+    (state) => state.pipelineMetadataV1,
+  );
+  const pipelineConfigByInputId = useBindingAuthoring(
+    (state) => state.pipelineConfigByInputId,
+  );
+  const featureLabelOverrides = useBindingAuthoring(
+    (state) => state.featureLabelOverrides,
+  );
+  const poseRig = usePoseRig();
+  const poseConfigForCompose = useMemo(() => {
+    const rawIr = (poseRig as { poseIrDraft?: unknown }).poseIrDraft;
+    if (
+      rawIr &&
+      typeof rawIr === "object" &&
+      (rawIr as { version?: unknown }).version === 1 &&
+      Array.isArray((rawIr as { poses?: unknown }).poses)
+    ) {
+      try {
+        return PoseIrService.toConfig(rawIr as PoseRigIrFile);
+      } catch {
+        // Fall back to draft config when IR conversion fails.
+      }
+    }
+    return poseRig.poseConfigDraft ?? null;
+  }, [poseRig.poseConfigDraft, poseRig.poseIrDraft]);
 
   const [issuePanelOpen, setIssuePanelOpen] = useState(false);
   const [issueFilter, setIssueFilter] = useState("");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [roundtripAudit, setRoundtripAudit] =
+    useState<RigRoundtripAuditResult | null>(null);
+  const [roundtripAuditStatus, setRoundtripAuditStatus] = useState<
+    "idle" | "running"
+  >("idle");
 
   const entriesById = useMemo(
     () =>
@@ -162,6 +208,39 @@ export function GraphDiagnosticsPanel() {
     );
   }, []);
 
+  const handleRunRoundtripAudit = useCallback(async () => {
+    setRoundtripAuditStatus("running");
+    const result = await runRigRoundtripAudit({
+      faceId,
+      world,
+      animatables,
+      values,
+      animatableComponents,
+      managedStandardInputs,
+      bindings,
+      inputBindings,
+      pipelineMetadataV1,
+      pipelineConfigByInputId,
+      featureLabelOverrides,
+      poseConfig: poseConfigForCompose,
+    });
+    setRoundtripAudit(result);
+    setRoundtripAuditStatus("idle");
+  }, [
+    animatableComponents,
+    animatables,
+    bindings,
+    faceId,
+    featureLabelOverrides,
+    inputBindings,
+    managedStandardInputs,
+    pipelineConfigByInputId,
+    pipelineMetadataV1,
+    poseConfigForCompose,
+    values,
+    world,
+  ]);
+
   return (
     <Card className="bg-bg-panel border border-border-default shadow-md">
       <CardHeader className="flex flex-row items-start justify-between pb-4 border-b border-border-default">
@@ -206,7 +285,20 @@ export function GraphDiagnosticsPanel() {
           >
             Download Report
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRunRoundtripAudit}
+            disabled={roundtripAuditStatus === "running"}
+            className="flex-1"
+          >
+            {roundtripAuditStatus === "running"
+              ? "Running Dry-Run…"
+              : "Run Export/Import Dry-Run"}
+          </Button>
         </div>
+
+        <RoundtripAuditPanel result={roundtripAudit} />
 
         {issueEntries.length > 0 ? (
           <div className="flex items-center justify-between gap-4 p-4 bg-bg-secondary/40 border border-border-subtle rounded-xl">
@@ -253,6 +345,159 @@ export function GraphDiagnosticsPanel() {
         onDownloadReport={handleDownloadMachineReport}
       />
     </Card>
+  );
+}
+
+interface RoundtripAuditPanelProps {
+  result: RigRoundtripAuditResult | null;
+}
+
+function RoundtripAuditPanel({ result }: RoundtripAuditPanelProps) {
+  if (!result) {
+    return (
+      <div className="rounded-xl border border-border-default bg-bg-secondary/20 p-4 space-y-1">
+        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+          Export/Import Dry-Run
+        </p>
+        <p className="text-xs text-text-muted">
+          Runs a non-destructive parity check: build export rig spec, simulate
+          bundle import prep (IR-driven), simulate import/rebuild, and diff all
+          stages without mutating loaded state.
+        </p>
+      </div>
+    );
+  }
+
+  const statusTone =
+    result.status === "match"
+      ? "text-green-400"
+      : result.status === "diff"
+        ? "text-amber-300"
+        : "text-red-400";
+  const importRebuildEntries = result.diff.entries.slice(0, 8);
+  const exportImportEntries = result.exportImportDiff.entries.slice(0, 8);
+  const previewEntries =
+    importRebuildEntries.length > 0
+      ? importRebuildEntries
+      : exportImportEntries;
+
+  return (
+    <div className="rounded-xl border border-border-default bg-bg-secondary/20 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+          Export/Import Dry-Run
+        </p>
+        <span className={cn("text-[11px] font-bold uppercase", statusTone)}>
+          {result.status}
+        </span>
+      </div>
+      {result.error ? (
+        <p className="text-xs text-red-400">{result.error}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <MetricTile
+              label="Exp->Imp Diffs"
+              value={result.exportImportDiff.entries.length}
+            />
+            <MetricTile
+              label="Imp->Rebuild"
+              value={result.diff.entries.length}
+            />
+            <MetricTile
+              label="Exp->Imp Edge"
+              value={result.exportImportEdgeDiffSummary.total}
+            />
+            <MetricTile
+              label="Imp->Rebuild Edge"
+              value={result.edgeDiffSummary.total}
+            />
+          </div>
+          <p className="text-[11px] text-text-muted">
+            Export to Import prep edge triage: likely normalization{" "}
+            <span className="text-text-secondary font-mono">
+              {result.exportImportEdgeDiffSummary.likelyNormalization}
+            </span>
+            {", "}likely risk{" "}
+            <span className="text-text-secondary font-mono">
+              {result.exportImportEdgeDiffSummary.likelySemanticRisk}
+            </span>
+            {" · "}Import prep to Rebuild edge triage: likely normalization{" "}
+            <span className="text-text-secondary font-mono">
+              {result.edgeDiffSummary.likelyNormalization}
+            </span>
+            {", "}likely risk{" "}
+            <span className="text-text-secondary font-mono">
+              {result.edgeDiffSummary.likelySemanticRisk}
+            </span>
+          </p>
+          <p className="text-[11px] text-text-muted">
+            Ignored generated node-id diffs (Exp to Imp / Imp to Rebuild):{" "}
+            <span className="text-text-secondary font-mono">
+              {result.exportImportIgnoredGeneratedNodeIdDiffs}
+            </span>
+            {" / "}
+            <span className="text-text-secondary font-mono">
+              {result.ignoredGeneratedNodeIdDiffs}
+            </span>
+            {" · "}Fatal compile issues:{" "}
+            <span className="text-text-secondary font-mono">
+              {result.fatalIssueCount}
+            </span>
+            {" · "}Issue targets:{" "}
+            <span className="text-text-secondary font-mono">
+              {result.issuesByTargetCount}
+            </span>
+          </p>
+          {previewEntries.length > 0 ? (
+            <ul className="space-y-1.5">
+              {previewEntries.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="text-[11px] text-text-secondary flex flex-col gap-0.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "font-bold uppercase",
+                        entry.kind === "missing"
+                          ? "text-red-300"
+                          : entry.kind === "unexpected"
+                            ? "text-green-300"
+                            : "text-amber-300",
+                      )}
+                    >
+                      {entry.kind}
+                    </span>
+                    <code className="text-accent break-all">{entry.path}</code>
+                  </div>
+                  {entry.context?.connection?.guidance ? (
+                    <p className="text-[10px] text-text-muted ml-[3.5rem]">
+                      {entry.context.connection.guidance}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[11px] text-green-400">
+              No roundtrip discrepancies detected.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function MetricTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-panel px-3 py-2">
+      <p className="text-[9px] uppercase tracking-widest text-text-muted font-black">
+        {label}
+      </p>
+      <p className="text-sm font-bold text-text-secondary">{value}</p>
+    </div>
   );
 }
 
