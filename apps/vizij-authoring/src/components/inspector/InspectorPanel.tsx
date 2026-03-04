@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { RotateCcw, Activity, Trash2 } from "lucide-react";
+import { RotateCcw, Activity, Trash2, X } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
@@ -37,6 +37,7 @@ interface InspectorPanelProps {
   selectedBlendStage?: BlendStageInspectorSelection | null;
   onSelectBlendStage?: (selection: BlendStageInspectorSelection | null) => void;
   hasReferenceFaceFile?: boolean;
+  onClosePanel?: () => void;
 }
 
 function clamp01(value: number): number {
@@ -139,6 +140,7 @@ export function InspectorPanel({
   selectedBlendStage = null,
   onSelectBlendStage,
   hasReferenceFaceFile = false,
+  onClosePanel,
 }: InspectorPanelProps) {
   const {
     poses,
@@ -797,6 +799,17 @@ export function InspectorPanel({
       ) ?? null
     );
   }, [selectedAnimationKeyframeId, selectedAnimationTrack]);
+  const selectedAnimationTrackKeyframes = useMemo(() => {
+    if (!selectedAnimationTrack) {
+      return [];
+    }
+    return [...selectedAnimationTrack.keyframes].sort((left, right) => {
+      if (left.time !== right.time) {
+        return left.time - right.time;
+      }
+      return left.id.localeCompare(right.id);
+    });
+  }, [selectedAnimationTrack]);
   const selectedAnimationInput = useMemo(() => {
     if (!selectedAnimationTrack) {
       return undefined;
@@ -859,6 +872,19 @@ export function InspectorPanel({
               : "View and edit selected object properties."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+      actions={
+        onClosePanel ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-text-secondary hover:text-text-primary"
+            onClick={onClosePanel}
+            title="Hide panel"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : null
+      }
     >
       <div className="flex flex-col h-full min-h-0">
         {!isDedicatedInspectorMode && (
@@ -924,6 +950,51 @@ export function InspectorPanel({
                   <div className="text-[10px] text-text-muted font-mono">
                     Keyframes: {selectedAnimationTrack.keyframes.length}
                   </div>
+                </div>
+                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                      Keyframes
+                    </span>
+                    <span className="text-[10px] text-text-muted font-mono">
+                      {selectedAnimationTrackKeyframes.length}
+                    </span>
+                  </div>
+                  {selectedAnimationTrackKeyframes.length === 0 ? (
+                    <p className="text-[10px] text-text-muted">
+                      No keyframes yet for this track.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {selectedAnimationTrackKeyframes.map((keyframe) => {
+                        const isActive =
+                          selectedAnimationKeyframeId === keyframe.id;
+                        return (
+                          <button
+                            key={keyframe.id}
+                            type="button"
+                            className={cn(
+                              "w-full rounded border px-2 py-1.5 text-left text-[10px] font-mono transition-colors",
+                              isActive
+                                ? "border-accent/70 bg-accent/15 text-text-primary"
+                                : "border-border-default/50 bg-bg-input/35 text-text-secondary hover:bg-bg-hover/70 hover:text-text-primary",
+                            )}
+                            onClick={() => selectAnimationKeyframe(keyframe.id)}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span>t={keyframe.time.toFixed(3)}s</span>
+                              <span>v={keyframe.value.toFixed(4)}</span>
+                            </div>
+                            <div className="mt-0.5 text-[9px] uppercase tracking-wider text-text-muted">
+                              {keyframe.interpolation
+                                ? `Interp: ${keyframe.interpolation}`
+                                : `Track: ${selectedAnimationTrack.interpolation}`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {selectedAnimationKeyframe ? (

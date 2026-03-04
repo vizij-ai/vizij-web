@@ -184,8 +184,8 @@ export function WorkspaceLayout({
                 <Group orientation="vertical">
                   {rightTopVisible && (
                     <Panel
-                      defaultSize={rightBottomVisible ? 60 : 100}
-                      minSize={5}
+                      defaultSize={rightBottomVisible ? 28 : 100}
+                      minSize={12}
                       id="right-top"
                     >
                       <div className="h-full border-l border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden animate-slide-in">
@@ -200,7 +200,7 @@ export function WorkspaceLayout({
 
                   {rightBottomVisible && (
                     <Panel
-                      defaultSize={rightTopVisible ? 40 : 100}
+                      defaultSize={rightTopVisible ? 72 : 100}
                       minSize={5}
                       id="right-bottom"
                     >

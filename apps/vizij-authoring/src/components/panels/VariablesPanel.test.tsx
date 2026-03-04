@@ -186,6 +186,7 @@ const bindingState = {
 const graphRuntimeState = {
   world: null,
   animatables: {},
+  graphPlaybackState: "paused" as "playing" | "paused",
   setStoreState: vi.fn(),
 };
 
@@ -297,6 +298,7 @@ describe("VariablesPanel", () => {
       customInputPaths: [],
       plotActive: false,
     });
+    graphRuntimeState.graphPlaybackState = "paused";
     useAnimationStore.getState().reset();
   });
 
@@ -3218,6 +3220,45 @@ describe("VariablesPanel", () => {
     expect(useEditorStore.getState().enabledOutputs.size).toBe(0);
   });
 
+  it("locks active procedural graph outputs while graph playback is running", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [{ input: jaw, source: "custom" }];
+    bindingState.standardInputsById = new Map([[jaw.id, jaw]]);
+    bindingState.standardInputsByPath = new Map([[jaw.path, jaw]]);
+    bindingState.inputValues = {
+      [jaw.id]: 0.2,
+    };
+    graphRuntimeState.graphPlaybackState = "playing";
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        motionGraphActive
+        runtimeFaceId="face"
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+      target: { value: "jaw open" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add PAP Output" }));
+
+    const outputRow = screen
+      .getByRole("button", { name: "Remove PAP Output" })
+      .closest('[role="button"]');
+    expect(outputRow).toBeTruthy();
+    const outputSlider = within(outputRow as HTMLElement).getByRole("slider");
+    expect(outputSlider).toHaveProperty("disabled", true);
+    expect(
+      screen.getByText(
+        "Procedural animation playback is currently driving this output.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("adds and removes animation tracks from input rows", () => {
     const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
       label: "Jaw Open",
@@ -3353,6 +3394,87 @@ describe("VariablesPanel", () => {
         "Add pose channels as animation tracks at current time",
       ),
     );
+
+    const animationState = useAnimationStore.getState();
+    expect(animationState.tracks).toHaveLength(2);
+    const trackById = new Map(
+      animationState.tracks.map((track) => [track.variableId, track]),
+    );
+    expect(trackById.get("jaw_open")?.keyframes[0]).toMatchObject({
+      time: 2.5,
+      value: 0.7,
+    });
+    expect(trackById.get("brow_raise")?.keyframes[0]).toMatchObject({
+      time: 2.5,
+      value: 0.35,
+    });
+    expect(bindingState.applyStandardInputBatch).toHaveBeenCalledWith({
+      jaw_open: 0.7,
+      brow_raise: 0.35,
+    });
+  });
+
+  it("adds pose target tracks from animation inputs when selecting a pose-weight row action", () => {
+    const jaw = makeInput("jaw_open", "/face/mouth/jaw_open", {
+      label: "Jaw Open",
+    });
+    const brow = makeInput("brow_raise", "/face/brow/raise", {
+      label: "Brow Raise",
+    });
+    const poseWeight = makeInput(
+      "pose_smile_weight",
+      "/poses/pose_smile.weight",
+      {
+        label: "Pose Weight Smile",
+        sourceId: "pose-weight:pose_smile",
+      },
+    );
+    bindingState.managedStandardInputs = [
+      { input: jaw, source: "custom" },
+      { input: brow, source: "custom" },
+      { input: poseWeight, source: "custom" },
+    ];
+    bindingState.standardInputsById = new Map([
+      [jaw.id, jaw],
+      [brow.id, brow],
+      [poseWeight.id, poseWeight],
+    ]);
+    bindingState.standardInputsByPath = new Map([
+      [jaw.path, jaw],
+      [brow.path, brow],
+      [poseWeight.path, poseWeight],
+    ]);
+    bindingState.inputValues = {
+      [jaw.id]: 0,
+      [brow.id]: 0,
+      [poseWeight.id]: 0,
+    };
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        values: {
+          jaw_open: 0.7,
+          brow_raise: 0.35,
+        },
+        createdAt: "now",
+        updatedAt: "now",
+      },
+    ];
+    useAnimationStore.getState().seek(2.5);
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        animationActive
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+      target: { value: "Pose Weight Smile" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Pose Targets" }));
 
     const animationState = useAnimationStore.getState();
     expect(animationState.tracks).toHaveLength(2);

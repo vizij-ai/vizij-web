@@ -91,6 +91,10 @@ export function AppMenuBar({
         <MenuItem onSelect={() => {}}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit">
+        <MenuItem>Undo</MenuItem>
+        <MenuItem>Redo</MenuItem>
+      </Menu>
+      <Menu label="Mode">
         <MenuLabel>Edit Focus</MenuLabel>
         <MenuCheckboxItem
           checked={activeEditFocus === "default"}
@@ -132,9 +136,6 @@ export function AppMenuBar({
         >
           Reference Face
         </MenuCheckboxItem>
-        <MenuSeparator />
-        <MenuItem>Undo</MenuItem>
-        <MenuItem>Redo</MenuItem>
       </Menu>
       <Menu label="View">
         <MenuLabel>Left Panel</MenuLabel>
@@ -171,18 +172,18 @@ export function AppMenuBar({
           <span className="pl-4">Poses</span>
         </MenuCheckboxItem>
         <MenuCheckboxItem
-          checked={inputsPanelVisible}
-          onCheckedChange={(checked) => setPanelVisibility("inputs", checked)}
-        >
-          Inputs
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
           checked={materialsPanelVisible}
           onCheckedChange={(checked) =>
             setPanelVisibility("materials", checked)
           }
         >
           <span className="pl-4">Pose Groups</span>
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={inputsPanelVisible}
+          onCheckedChange={(checked) => setPanelVisibility("inputs", checked)}
+        >
+          Inputs
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={motionGraphPaletteVisible}

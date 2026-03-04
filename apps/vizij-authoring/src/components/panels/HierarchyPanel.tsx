@@ -6,7 +6,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { Popover as BasePopover } from "@base-ui/react";
-import { Box, Folder, Lock, Plus, Search, Unlock } from "lucide-react";
+import { Box, Folder, Lock, Plus, Search, Unlock, X } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
@@ -27,6 +27,7 @@ interface HierarchyPanelProps {
   onToggleSelectionGlow: (enabled: boolean) => void;
   onSelectObject?: (id: string, options?: { additive?: boolean }) => void;
   referenceFaceFile: File | null;
+  onClosePanel?: () => void;
 }
 
 function collectTopLevelSelectionIds(
@@ -83,6 +84,7 @@ export function HierarchyPanel({
   onToggleSelectionGlow,
   onSelectObject,
   referenceFaceFile,
+  onClosePanel,
 }: HierarchyPanelProps) {
   const {
     objects,
@@ -575,6 +577,19 @@ export function HierarchyPanel({
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       title="Face Elements"
       description="Select objects via the tree or viewport to drive the inspector."
+      actions={
+        onClosePanel ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-text-secondary hover:text-text-primary"
+            onClick={onClosePanel}
+            title="Hide panel"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : null
+      }
     >
       <div className="flex flex-col h-full gap-1 p-1">
         {allowEditActions && selectedCount > 0 && (

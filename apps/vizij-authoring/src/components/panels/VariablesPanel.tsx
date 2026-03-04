@@ -1,4 +1,11 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from "react";
 import {
   Plus,
   Copy,
@@ -40,7 +47,10 @@ import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
 import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useGraphRuntime,
+} from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import {
   useAnimationStore,
@@ -1716,6 +1726,95 @@ export function resolveVisibleRootForActiveSurface<T>({
   });
 }
 
+function sortInputCatalogRows(rows: InputCatalogRow[]): InputCatalogRow[] {
+  return [...rows].sort((left, right) => {
+    const labelComparison = left.label.localeCompare(right.label);
+    if (labelComparison !== 0) {
+      return labelComparison;
+    }
+    return left.path.localeCompare(right.path);
+  });
+}
+
+interface GroupedInputRowsByFolder {
+  id: string;
+  label: string;
+  rows: InputCatalogRow[];
+  children: GroupedInputRowsByFolder[];
+}
+
+function groupInputRowsByFolder(
+  rows: InputCatalogRow[],
+): GroupedInputRowsByFolder[] {
+  interface MutableGroupNode {
+    id: string;
+    label: string;
+    rows: InputCatalogRow[];
+    children: Map<string, MutableGroupNode>;
+  }
+
+  const root: MutableGroupNode = {
+    id: "__root__",
+    label: "/",
+    rows: [],
+    children: new Map(),
+  };
+
+  rows.forEach((row) => {
+    const folderParts = getPathParts(row.path).slice(0, -1);
+    if (folderParts.length === 0) {
+      root.rows.push(row);
+      return;
+    }
+    const pathSegments: string[] = [];
+    let current = root;
+    folderParts.forEach((part) => {
+      pathSegments.push(part);
+      const existing = current.children.get(part);
+      if (existing) {
+        current = existing;
+        return;
+      }
+      const next: MutableGroupNode = {
+        id: pathSegments.join("/"),
+        label: part,
+        rows: [],
+        children: new Map(),
+      };
+      current.children.set(part, next);
+      current = next;
+    });
+    current.rows.push(row);
+  });
+
+  const finalize = (node: MutableGroupNode): GroupedInputRowsByFolder => ({
+    id: node.id,
+    label: node.label,
+    rows: sortInputCatalogRows(node.rows),
+    children: Array.from(node.children.values())
+      .map((child) => finalize(child))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+  });
+
+  const nestedGroups = Array.from(root.children.values())
+    .map((child) => finalize(child))
+    .sort((left, right) => left.label.localeCompare(right.label));
+
+  if (root.rows.length > 0) {
+    return [
+      {
+        id: root.id,
+        label: root.label,
+        rows: sortInputCatalogRows(root.rows),
+        children: [],
+      },
+      ...nestedGroups,
+    ];
+  }
+
+  return nestedGroups;
+}
+
 // ----------------------------------------------------------------------------
 // Components
 // ----------------------------------------------------------------------------
@@ -2390,6 +2489,106 @@ function TreeRowWrapper({
   );
 }
 
+interface FlatInputControlRowProps {
+  row: InputCatalogRow;
+  selected: boolean;
+  locked: boolean;
+  lockedMessage?: string;
+  onSelect: (row: InputCatalogRow) => void;
+  onValueChange: (inputId: string, value: number) => void;
+  actions?: ReactNode;
+}
+
+function FlatInputControlRow({
+  row,
+  selected,
+  locked,
+  lockedMessage,
+  onSelect,
+  onValueChange,
+  actions,
+}: FlatInputControlRowProps) {
+  const value =
+    typeof row.value === "number" && Number.isFinite(row.value) ? row.value : 0;
+  const controlKindLabel = getInputControlKindLabel(row.controlKind);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className={cn(
+        "rounded border px-2 py-2 flex flex-col gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        selected
+          ? "border-accent/60 bg-accent/10"
+          : "border-border-default/50 bg-bg-panel/35 hover:border-border-default/70 hover:bg-bg-panel/45",
+      )}
+      onClick={() => onSelect(row)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        onSelect(row);
+      }}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <Sliders size={12} className="text-cyan-300 shrink-0" />
+        <span className="text-xs text-text-primary truncate">{row.label}</span>
+        <span className="text-[9px] font-mono px-1 rounded text-text-muted bg-bg-panel/30 shrink-0">
+          {row.source}
+        </span>
+        <span
+          className={cn(
+            "text-[9px] uppercase tracking-wide px-1 rounded shrink-0",
+            getInputControlKindBadgeClass(row.controlKind),
+          )}
+        >
+          {controlKindLabel}
+        </span>
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          {actions}
+        </div>
+      </div>
+      <span className="text-[10px] text-text-muted font-mono truncate">
+        {row.path}
+      </span>
+      {row.editable ? (
+        <Slider
+          value={value}
+          min={row.min}
+          max={row.max}
+          step={0.01}
+          disabled={locked}
+          onChange={(nextValue) => {
+            const normalizedValue = Array.isArray(nextValue)
+              ? nextValue[0]
+              : nextValue;
+            if (!Number.isFinite(normalizedValue)) {
+              return;
+            }
+            onValueChange(row.inputId, normalizedValue);
+          }}
+        />
+      ) : (
+        <p className="text-[10px] text-text-muted">
+          Derived control (read-only)
+        </p>
+      )}
+      {locked ? (
+        <p className="text-[10px] text-amber-300">
+          {lockedMessage ??
+            "Animation transport is currently driving this input."}
+        </p>
+      ) : null}
+      {row.provenance ? (
+        <p className="text-[10px] text-text-muted font-mono truncate">
+          {row.provenance}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 interface VariablesPanelProps {
   selectedRigId?: string | null;
   selectedPoseId?: string | null;
@@ -2476,6 +2675,10 @@ export function VariablesPanel({
 
   const poseNameById = useMemo(
     () => new Map(poses.map((pose) => [pose.id, pose.name])),
+    [poses],
+  );
+  const poseById = useMemo(
+    () => new Map(poses.map((pose) => [pose.id, pose])),
     [poses],
   );
 
@@ -2720,6 +2923,9 @@ export function VariablesPanel({
   const timelineLockedInputIds = useBindingAuthoring(
     (state) => state.timelineLockedInputIds,
   );
+  const graphPlaybackState = useGraphRuntime(
+    (state) => state.graphPlaybackState,
+  );
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -2857,6 +3063,11 @@ export function VariablesPanel({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     new Set(["root"]),
   );
+  const [availablePapExpandedIds, setAvailablePapExpandedIds] = useState<
+    Set<string>
+  >(new Set());
+  const [availableAnimationExpandedIds, setAvailableAnimationExpandedIds] =
+    useState<Set<string>>(new Set());
   const [variableCopyModal, setVariableCopyModal] =
     useState<VariableCopyModalState | null>(null);
   const [variableCopyBlockingMessages, setVariableCopyBlockingMessages] =
@@ -3563,17 +3774,88 @@ export function VariablesPanel({
     });
     return count;
   }, [enabledMotionGraphOutputs, motionGraphDisplayOutputRowsByPath]);
+  const sortedMotionGraphDisplayInputRows = useMemo(
+    () => sortInputCatalogRows(motionGraphDisplayInputRows),
+    [motionGraphDisplayInputRows],
+  );
+  const sortedMotionGraphDisplayOutputRows = useMemo(
+    () => sortInputCatalogRows(motionGraphDisplayOutputRows),
+    [motionGraphDisplayOutputRows],
+  );
+  const visibleMotionGraphInputRows = useMemo(
+    () =>
+      sortedMotionGraphDisplayInputRows.filter((row) =>
+        enabledMotionGraphInputs.has(
+          buildRigInputPath(runtimeFaceSegment, row.path),
+        ),
+      ),
+    [
+      enabledMotionGraphInputs,
+      runtimeFaceSegment,
+      sortedMotionGraphDisplayInputRows,
+    ],
+  );
+  const visibleMotionGraphOutputRows = useMemo(
+    () =>
+      sortedMotionGraphDisplayOutputRows.filter((row) =>
+        enabledMotionGraphOutputs.has(
+          buildRigInputPath(runtimeFaceSegment, row.path),
+        ),
+      ),
+    [
+      enabledMotionGraphOutputs,
+      runtimeFaceSegment,
+      sortedMotionGraphDisplayOutputRows,
+    ],
+  );
+  const availableMotionGraphRows = useMemo(
+    () =>
+      sortedMotionGraphDisplayOutputRows.filter((row) => {
+        const path = buildRigInputPath(runtimeFaceSegment, row.path);
+        const inputEnabled = enabledMotionGraphInputs.has(path);
+        const outputEnabled = enabledMotionGraphOutputs.has(path);
+        return !inputEnabled || !outputEnabled;
+      }),
+    [
+      enabledMotionGraphInputs,
+      enabledMotionGraphOutputs,
+      runtimeFaceSegment,
+      sortedMotionGraphDisplayOutputRows,
+    ],
+  );
   const visibleTrackableAnimationInputCount =
-    motionGraphDisplayInputRows.length;
+    sortedMotionGraphDisplayInputRows.length;
   const visibleTrackedAnimationInputCount = useMemo(() => {
     let count = 0;
-    motionGraphDisplayInputRows.forEach((row) => {
+    sortedMotionGraphDisplayInputRows.forEach((row) => {
       if (trackedAnimationInputIds.has(row.inputId)) {
         count += 1;
       }
     });
     return count;
-  }, [motionGraphDisplayInputRows, trackedAnimationInputIds]);
+  }, [sortedMotionGraphDisplayInputRows, trackedAnimationInputIds]);
+  const visibleAnimationTrackRows = useMemo(
+    () =>
+      sortedMotionGraphDisplayInputRows.filter((row) =>
+        trackedAnimationInputIds.has(row.inputId),
+      ),
+    [sortedMotionGraphDisplayInputRows, trackedAnimationInputIds],
+  );
+  const availableAnimationTrackRows = useMemo(
+    () =>
+      sortedMotionGraphDisplayInputRows.filter(
+        (row) => !trackedAnimationInputIds.has(row.inputId),
+      ),
+    [sortedMotionGraphDisplayInputRows, trackedAnimationInputIds],
+  );
+  const availableMotionGraphRowsByFolder = useMemo(
+    () => groupInputRowsByFolder(availableMotionGraphRows),
+    [availableMotionGraphRows],
+  );
+  const availableAnimationTrackRowsByFolder = useMemo(
+    () => groupInputRowsByFolder(availableAnimationTrackRows),
+    [availableAnimationTrackRows],
+  );
 
   useEffect(() => {
     if (!proceduralAnimationProgrammingActive || !enableMotionGraphPruning) {
@@ -4460,6 +4742,28 @@ export function VariablesPanel({
     }
     setExpandedIds(newExpanded);
   };
+  const toggleAvailablePapFolder = useCallback((folderId: string) => {
+    setAvailablePapExpandedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }, []);
+  const toggleAvailableAnimationFolder = useCallback((folderId: string) => {
+    setAvailableAnimationExpandedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }, []);
 
   const openPoseGroupInspector = (node: TreeNode) => {
     const folderData = node.data as PoseGroupNodeData | undefined;
@@ -4814,6 +5118,25 @@ export function VariablesPanel({
       onSelectBlendStage?.(null);
     }
   };
+  const handleSelectInputCatalogRow = useCallback(
+    (row: InputCatalogRow) => {
+      onSelectRig?.(row.inputId);
+      onSelectPoseGroup?.(null);
+      onSelectBlendStage?.(null);
+    },
+    [onSelectBlendStage, onSelectPoseGroup, onSelectRig],
+  );
+  const isInputCatalogRowLocked = useCallback(
+    (row: InputCatalogRow) =>
+      Boolean(timelineInputLockActive) &&
+      Boolean(
+        timelineLockedInputIds?.has(row.inputId) ||
+          timelineLockedInputIds?.has(row.path),
+      ),
+    [timelineInputLockActive, timelineLockedInputIds],
+  );
+  const proceduralOutputPlaybackLocked =
+    proceduralAnimationProgrammingActive && graphPlaybackState === "playing";
 
   const handleCreateVariable = () => {
     const path = createUniqueCustomVariablePath();
@@ -4892,6 +5215,20 @@ export function VariablesPanel({
       onSelectMotionGraphNode,
       toggleMotionGraphOutput,
     ],
+  );
+  const handleEnableMotionGraphInputRow = useCallback(
+    (row: InputCatalogRow) => {
+      const path = buildRigInputPath(runtimeFaceSegment, row.path);
+      handleToggleMotionGraphInputPath(path);
+    },
+    [handleToggleMotionGraphInputPath, runtimeFaceSegment],
+  );
+  const handleEnableMotionGraphOutputRow = useCallback(
+    (row: InputCatalogRow) => {
+      const path = buildRigInputPath(runtimeFaceSegment, row.path);
+      handleToggleMotionGraphOutputPath(path);
+    },
+    [handleToggleMotionGraphOutputPath, runtimeFaceSegment],
   );
   const motionGraphInputContext = useMemo(
     () => ({
@@ -5675,6 +6012,196 @@ export function VariablesPanel({
             const showSurfaceContext =
               hasReferenceFace && (isVariables || isPoses || isInputs);
             const filteredSearch = searchQuery.trim().toLowerCase();
+            const renderProceduralAvailableGroups = (
+              groups: GroupedInputRowsByFolder[],
+              depth = 0,
+            ): ReactNode =>
+              groups.map((group) => {
+                const folderExpanded =
+                  filteredSearch.length > 0 ||
+                  availablePapExpandedIds.has(group.id);
+                const hasChildren =
+                  group.children.length > 0 || group.rows.length > 0;
+                return (
+                  <TreeRow
+                    key={`pap-available-folder:${group.id}`}
+                    depth={depth}
+                    label={group.label}
+                    hasChildren={hasChildren}
+                    isExpanded={folderExpanded}
+                    onToggle={() => toggleAvailablePapFolder(group.id)}
+                    icon={<Folder size={12} className="text-text-muted" />}
+                  >
+                    {folderExpanded ? (
+                      <>
+                        {group.children.length > 0
+                          ? renderProceduralAvailableGroups(
+                              group.children,
+                              depth + 1,
+                            )
+                          : null}
+                        {group.rows.length > 0 ? (
+                          <div className="flex flex-col gap-1.5 pt-1 pl-2">
+                            {group.rows.map((row) => {
+                              const path = buildRigInputPath(
+                                runtimeFaceSegment,
+                                row.path,
+                              );
+                              const canAddInput =
+                                motionGraphEligibleInputPaths.has(path) &&
+                                !enabledMotionGraphInputs.has(path);
+                              const canAddOutput =
+                                motionGraphEligibleOutputPaths.has(path) &&
+                                !enabledMotionGraphOutputs.has(path);
+                              return (
+                                <FlatInputControlRow
+                                  key={`pap-available:${row.inputId}:${row.path}`}
+                                  row={row}
+                                  selected={
+                                    activeSelection?.type === "input" &&
+                                    activeSelection.id === row.inputId
+                                  }
+                                  locked={isInputCatalogRowLocked(row)}
+                                  onSelect={handleSelectInputCatalogRow}
+                                  onValueChange={handlePanelInputValueChange}
+                                  actions={
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleEnableMotionGraphInputRow(row);
+                                        }}
+                                        disabled={!canAddInput}
+                                        title="Add PAP Input"
+                                        aria-label="Add PAP Input"
+                                      >
+                                        <Plus size={11} />
+                                        In
+                                      </Button>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleEnableMotionGraphOutputRow(row);
+                                        }}
+                                        disabled={!canAddOutput}
+                                        title="Add PAP Output"
+                                        aria-label="Add PAP Output"
+                                      >
+                                        <Plus size={11} />
+                                        Out
+                                      </Button>
+                                    </div>
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </TreeRow>
+                );
+              });
+            const renderAnimationAvailableGroups = (
+              groups: GroupedInputRowsByFolder[],
+              depth = 0,
+            ): ReactNode =>
+              groups.map((group) => {
+                const folderExpanded =
+                  filteredSearch.length > 0 ||
+                  availableAnimationExpandedIds.has(group.id);
+                const hasChildren =
+                  group.children.length > 0 || group.rows.length > 0;
+                return (
+                  <TreeRow
+                    key={`animation-available-folder:${group.id}`}
+                    depth={depth}
+                    label={group.label}
+                    hasChildren={hasChildren}
+                    isExpanded={folderExpanded}
+                    onToggle={() => toggleAvailableAnimationFolder(group.id)}
+                    icon={<Folder size={12} className="text-text-muted" />}
+                  >
+                    {folderExpanded ? (
+                      <>
+                        {group.children.length > 0
+                          ? renderAnimationAvailableGroups(
+                              group.children,
+                              depth + 1,
+                            )
+                          : null}
+                        {group.rows.length > 0 ? (
+                          <div className="flex flex-col gap-1.5 pt-1 pl-2">
+                            {group.rows.map((row) => {
+                              const trackInput = standardInputsById.get(
+                                row.inputId,
+                              );
+                              const poseId = parsePoseWeightInputSourceId(
+                                trackInput?.sourceId,
+                              );
+                              const pose = poseId
+                                ? poseById.get(poseId)
+                                : undefined;
+                              return (
+                                <FlatInputControlRow
+                                  key={`animation-available:${row.inputId}`}
+                                  row={row}
+                                  selected={
+                                    activeSelection?.type === "input" &&
+                                    activeSelection.id === row.inputId
+                                  }
+                                  locked={isInputCatalogRowLocked(row)}
+                                  onSelect={handleSelectInputCatalogRow}
+                                  onValueChange={handlePanelInputValueChange}
+                                  actions={
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-emerald-100"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleAddAnimationTrack(row);
+                                        }}
+                                        title="Add Animation Track"
+                                        aria-label="Add Animation Track"
+                                      >
+                                        <Plus size={11} />
+                                      </Button>
+                                      {pose ? (
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            keyPoseChannelsAtCurrentTime(pose);
+                                          }}
+                                          title="Add pose channels as animation tracks at current time"
+                                          aria-label="Add Pose Targets"
+                                        >
+                                          <Zap size={11} />
+                                          Targets
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  }
+                                />
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </TreeRow>
+                );
+              });
 
             return (
               <div className="flex flex-col h-full min-h-0 gap-1 p-2">
@@ -5924,7 +6451,8 @@ export function VariablesPanel({
                       {motionGraphDisplayOutputRowsByPath.size}
                     </span>
                     <span className="text-[10px] text-text-muted">
-                      Use row actions below to add or remove each input/output.
+                      Active and available lists below show exactly what is in
+                      the graph.
                     </span>
                   </div>
                 )}
@@ -5938,8 +6466,8 @@ export function VariablesPanel({
                       {visibleTrackableAnimationInputCount}
                     </span>
                     <span className="text-[10px] text-text-muted">
-                      Row actions add/remove tracks. Slider edits keyframe at
-                      the current animation time.
+                      Active tracks and available tracks are listed separately.
+                      Slider edits keyframe at the current animation time.
                     </span>
                   </div>
                 )}
@@ -6365,6 +6893,256 @@ export function VariablesPanel({
                         })}
                       </div>
                     )
+                  ) : isInputs &&
+                    (proceduralAnimationProgrammingActive ||
+                      animationAuthoringActive) ? (
+                    <div className="flex flex-col gap-3 px-1 pb-2">
+                      {proceduralAnimationProgrammingActive ? (
+                        <>
+                          <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                Active Graph Inputs
+                              </span>
+                              <span className="text-[10px] text-text-muted font-mono">
+                                {visibleMotionGraphInputRows.length}
+                              </span>
+                            </div>
+                            {visibleMotionGraphInputRows.length === 0 ? (
+                              <p className="text-[10px] text-text-muted">
+                                No inputs are currently enabled for the
+                                procedural graph.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {visibleMotionGraphInputRows.map((row) => (
+                                  <FlatInputControlRow
+                                    key={`pap-active-input:${row.inputId}`}
+                                    row={row}
+                                    selected={
+                                      activeSelection?.type === "input" &&
+                                      activeSelection.id === row.inputId
+                                    }
+                                    locked={isInputCatalogRowLocked(row)}
+                                    onSelect={handleSelectInputCatalogRow}
+                                    onValueChange={handlePanelInputValueChange}
+                                    actions={
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleEnableMotionGraphInputRow(row);
+                                        }}
+                                        title="Remove PAP Input"
+                                        aria-label="Remove PAP Input"
+                                      >
+                                        <X size={11} />
+                                      </Button>
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </section>
+
+                          <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                Active Graph Outputs
+                              </span>
+                              <span className="text-[10px] text-text-muted font-mono">
+                                {visibleMotionGraphOutputRows.length}
+                              </span>
+                            </div>
+                            {visibleMotionGraphOutputRows.length === 0 ? (
+                              <p className="text-[10px] text-text-muted">
+                                No outputs are currently enabled for the
+                                procedural graph.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {visibleMotionGraphOutputRows.map((row) => {
+                                  const timelineLocked =
+                                    isInputCatalogRowLocked(row);
+                                  const graphLocked =
+                                    proceduralOutputPlaybackLocked;
+                                  return (
+                                    <FlatInputControlRow
+                                      key={`pap-active-output:${row.inputId}:${row.path}`}
+                                      row={row}
+                                      selected={
+                                        activeSelection?.type === "input" &&
+                                        activeSelection.id === row.inputId
+                                      }
+                                      locked={timelineLocked || graphLocked}
+                                      lockedMessage={
+                                        graphLocked && !timelineLocked
+                                          ? "Procedural animation playback is currently driving this output."
+                                          : undefined
+                                      }
+                                      onSelect={handleSelectInputCatalogRow}
+                                      onValueChange={
+                                        handlePanelInputValueChange
+                                      }
+                                      actions={
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleEnableMotionGraphOutputRow(
+                                              row,
+                                            );
+                                          }}
+                                          title="Remove PAP Output"
+                                          aria-label="Remove PAP Output"
+                                        >
+                                          <X size={11} />
+                                        </Button>
+                                      }
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </section>
+
+                          <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                Available
+                              </span>
+                              <span className="text-[10px] text-text-muted font-mono">
+                                {availableMotionGraphRows.length}
+                              </span>
+                            </div>
+                            {availableMotionGraphRowsByFolder.length === 0 ? (
+                              <p className="text-[10px] text-text-muted">
+                                All visible rows are already active for both
+                                graph input and output.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {renderProceduralAvailableGroups(
+                                  availableMotionGraphRowsByFolder,
+                                )}
+                              </div>
+                            )}
+                          </section>
+                        </>
+                      ) : null}
+
+                      {animationAuthoringActive ? (
+                        <>
+                          <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                Active Tracks
+                              </span>
+                              <span className="text-[10px] text-text-muted font-mono">
+                                {visibleAnimationTrackRows.length}
+                              </span>
+                            </div>
+                            {visibleAnimationTrackRows.length === 0 ? (
+                              <p className="text-[10px] text-text-muted">
+                                No tracks are currently active.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {visibleAnimationTrackRows.map((row) => {
+                                  const trackInput = standardInputsById.get(
+                                    row.inputId,
+                                  );
+                                  const poseId = parsePoseWeightInputSourceId(
+                                    trackInput?.sourceId,
+                                  );
+                                  const pose = poseId
+                                    ? poseById.get(poseId)
+                                    : undefined;
+                                  return (
+                                    <FlatInputControlRow
+                                      key={`animation-active:${row.inputId}`}
+                                      row={row}
+                                      selected={
+                                        activeSelection?.type === "input" &&
+                                        activeSelection.id === row.inputId
+                                      }
+                                      locked={isInputCatalogRowLocked(row)}
+                                      onSelect={handleSelectInputCatalogRow}
+                                      onValueChange={
+                                        handlePanelInputValueChange
+                                      }
+                                      actions={
+                                        <div className="flex items-center gap-1">
+                                          {pose ? (
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                keyPoseChannelsAtCurrentTime(
+                                                  pose,
+                                                );
+                                              }}
+                                              title="Add pose channels as animation tracks at current time"
+                                              aria-label="Add Pose Targets"
+                                            >
+                                              <Zap size={11} />
+                                              Targets
+                                            </Button>
+                                          ) : null}
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleRemoveAnimationTrack(
+                                                row.inputId,
+                                              );
+                                            }}
+                                            title="Remove Animation Track"
+                                            aria-label="Remove Animation Track"
+                                          >
+                                            <X size={11} />
+                                          </Button>
+                                        </div>
+                                      }
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </section>
+                          <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                Available Tracks
+                              </span>
+                              <span className="text-[10px] text-text-muted font-mono">
+                                {availableAnimationTrackRows.length}
+                              </span>
+                            </div>
+                            {availableAnimationTrackRowsByFolder.length ===
+                            0 ? (
+                              <p className="text-[10px] text-text-muted">
+                                All visible inputs already have tracks.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1.5">
+                                {renderAnimationAvailableGroups(
+                                  availableAnimationTrackRowsByFolder,
+                                )}
+                              </div>
+                            )}
+                          </section>
+                        </>
+                      ) : null}
+                    </div>
                   ) : visibleRoot.children.size === 0 ? (
                     <EmptyState
                       icon={Search}

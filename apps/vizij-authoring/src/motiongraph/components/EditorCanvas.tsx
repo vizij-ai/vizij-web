@@ -47,6 +47,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
 
   const reactFlowWrapper = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+  const hasAutoFitOnOpenRef = useRef(false);
 
   const { nodesByType, getPortsForType } = useRegistry();
 
@@ -71,11 +72,42 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
     return types;
   }, [registryEntries, getPortsForType]);
 
+  const getVisibleFlowBounds = useCallback(() => {
+    if (!rfInstance || !reactFlowWrapper.current) {
+      return null;
+    }
+    const bounds = reactFlowWrapper.current.getBoundingClientRect();
+    const topLeft = rfInstance.screenToFlowPosition
+      ? rfInstance.screenToFlowPosition({
+          x: bounds.left,
+          y: bounds.top,
+        })
+      : rfInstance.project
+        ? rfInstance.project({ x: 0, y: 0 })
+        : { x: 0, y: 0 };
+    const bottomRight = rfInstance.screenToFlowPosition
+      ? rfInstance.screenToFlowPosition({
+          x: bounds.right,
+          y: bounds.bottom,
+        })
+      : rfInstance.project
+        ? rfInstance.project({ x: bounds.width, y: bounds.height })
+        : { x: bounds.width, y: bounds.height };
+    return {
+      minX: Math.min(topLeft.x, bottomRight.x),
+      maxX: Math.max(topLeft.x, bottomRight.x),
+      minY: Math.min(topLeft.y, bottomRight.y),
+      maxY: Math.max(topLeft.y, bottomRight.y),
+    };
+  }, [rfInstance]);
+
   // --- Sync output target nodes with enabledOutputs ---
 
   const enabledOutputs = useEditorStore((s) => s.enabledOutputs);
 
   useEffect(() => {
+    let addedOutputNodes = 0;
+    const viewportBounds = getVisibleFlowBounds();
     setNodes((prev) => {
       // Remove output target nodes that are no longer enabled
       const filtered = prev.filter(
@@ -96,10 +128,23 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       const newPaths = sortedPaths.filter((p) => !existingPaths.has(p));
 
       if (newPaths.length > 0) {
-        // Place new outputs to the right of all existing nodes, stacked vertically
+        // Place new outputs within the current view, preferring the right side.
         let startX = 600;
         let startY = 40;
-        if (filtered.length > 0) {
+        if (viewportBounds) {
+          const NODE_WIDTH_ESTIMATE = 230;
+          startX = viewportBounds.maxX - NODE_WIDTH_ESTIMATE - 24;
+          startY = viewportBounds.minY + 32;
+          const existingOutputs = filtered.filter(
+            (n) => n.type === OUTPUT_TARGET_TYPE,
+          );
+          if (existingOutputs.length > 0) {
+            startY = Math.min(
+              viewportBounds.maxY - 48,
+              Math.max(...existingOutputs.map((n) => n.position.y)) + 50,
+            );
+          }
+        } else if (filtered.length > 0) {
           const NODE_WIDTH_ESTIMATE = 250;
           startX =
             Math.max(...filtered.map((n) => n.position.x)) +
@@ -113,6 +158,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             startY = Math.max(...existingOutputs.map((n) => n.position.y)) + 50;
           }
         }
+        addedOutputNodes = newPaths.length;
 
         for (let i = 0; i < newPaths.length; i++) {
           const path = newPaths[i];
@@ -152,13 +198,24 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
           validTargetIds.has(e.target),
       ),
     );
-  }, [enabledOutputs, setNodes, setEdges]);
+    if (addedOutputNodes > 0 && rfInstance) {
+      requestAnimationFrame(() => {
+        void rfInstance.fitView({
+          padding: 0.2,
+          duration: 240,
+          includeHiddenNodes: true,
+        });
+      });
+    }
+  }, [enabledOutputs, getVisibleFlowBounds, rfInstance, setNodes, setEdges]);
 
   // --- Sync input source nodes with enabledInputs ---
 
   const enabledInputs = useEditorStore((s) => s.enabledInputs);
 
   useEffect(() => {
+    let addedInputNodes = 0;
+    const viewportBounds = getVisibleFlowBounds();
     setNodes((prev) => {
       // Remove input source nodes that are no longer enabled
       const filtered = prev.filter(
@@ -179,10 +236,22 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       const newPaths = sortedPaths.filter((p) => !existingPaths.has(p));
 
       if (newPaths.length > 0) {
-        // Place new inputs to the LEFT of all existing nodes, stacked vertically
+        // Place new inputs within the current view, preferring the left side.
         let startX = -200;
         let startY = 40;
-        if (filtered.length > 0) {
+        if (viewportBounds) {
+          startX = viewportBounds.minX + 24;
+          startY = viewportBounds.minY + 32;
+          const existingInputNodes = filtered.filter(
+            (n) => n.type === INPUT_SOURCE_TYPE,
+          );
+          if (existingInputNodes.length > 0) {
+            startY = Math.min(
+              viewportBounds.maxY - 48,
+              Math.max(...existingInputNodes.map((n) => n.position.y)) + 50,
+            );
+          }
+        } else if (filtered.length > 0) {
           startX = Math.min(...filtered.map((n) => n.position.x)) - 250;
           const existingInputNodes = filtered.filter(
             (n) => n.type === INPUT_SOURCE_TYPE,
@@ -192,6 +261,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
               Math.max(...existingInputNodes.map((n) => n.position.y)) + 50;
           }
         }
+        addedInputNodes = newPaths.length;
 
         for (let i = 0; i < newPaths.length; i++) {
           const path = newPaths[i];
@@ -228,7 +298,16 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
           validSourceIds.has(e.source),
       ),
     );
-  }, [enabledInputs, setNodes, setEdges]);
+    if (addedInputNodes > 0 && rfInstance) {
+      requestAnimationFrame(() => {
+        void rfInstance.fitView({
+          padding: 0.2,
+          duration: 240,
+          includeHiddenNodes: true,
+        });
+      });
+    }
+  }, [enabledInputs, getVisibleFlowBounds, rfInstance, setNodes, setEdges]);
 
   // --- React Flow callbacks ---
 
@@ -344,6 +423,20 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setRfInstance(instance);
   }, []);
+
+  useEffect(() => {
+    if (!rfInstance || hasAutoFitOnOpenRef.current || nodes.length === 0) {
+      return;
+    }
+    hasAutoFitOnOpenRef.current = true;
+    requestAnimationFrame(() => {
+      void rfInstance.fitView({
+        padding: 0.22,
+        duration: 260,
+        includeHiddenNodes: true,
+      });
+    });
+  }, [nodes.length, rfInstance]);
 
   // --- Drag and drop from palette ---
 

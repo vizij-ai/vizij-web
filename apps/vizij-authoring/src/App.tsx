@@ -613,7 +613,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
   const [motionGraphSplitVertical, setMotionGraphSplitVertical] =
-    useState(true);
+    useState(false);
   const [authoredAnimationTargets, setAuthoredAnimationTargets] = useState<
     AuthoredAnimationTarget[]
   >(() => [
@@ -1437,6 +1437,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   useEffect(() => {
     applyEditFocusPanelDefaults(activeEditFocus, setWorkspacePanelVisibility);
   }, [activeEditFocus, setWorkspacePanelVisibility]);
+  useEffect(() => {
+    if (activeEditFocus === "animation") {
+      uiActions.setActiveRuntimeSource("animation");
+      return;
+    }
+    if (activeEditFocus === "procedural-animation-programming") {
+      uiActions.setActiveRuntimeSource("procedural-animation-programming");
+    }
+  }, [activeEditFocus, uiActions]);
   const centerAuthoringMode: CenterAuthoringMode = motionGraphPanelVisible
     ? "procedural-animation-programming"
     : animationPanelVisible
@@ -1569,8 +1578,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setWorkspacePanelVisibility("poses", false);
     setWorkspacePanelVisibility("materials", false);
   }, [setWorkspacePanelVisibility]);
+  const handleHideHierarchyPanel = useCallback(() => {
+    setWorkspacePanelVisibility("hierarchy", false);
+  }, [setWorkspacePanelVisibility]);
   const handleHideInputControlsPanel = useCallback(() => {
     setWorkspacePanelVisibility("inputs", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideInspectorPanel = useCallback(() => {
+    setWorkspacePanelVisibility("inspector", false);
   }, [setWorkspacePanelVisibility]);
   const {
     selectedId,
@@ -2219,6 +2234,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onToggleSelectionGlow={setShowSelectionGlow}
               onSelectObject={handleSelectObjectWithInspectorSync}
               referenceFaceFile={referenceFaceContextValue.file}
+              onClosePanel={handleHideHierarchyPanel}
             />
           }
           leftBottomPanel={
@@ -2317,6 +2333,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     hasReferenceFaceFile={Boolean(
                       referenceFaceContextValue.file,
                     )}
+                    onClosePanel={handleHideInspectorPanel}
                   />
                 </div>
               ) : null}
