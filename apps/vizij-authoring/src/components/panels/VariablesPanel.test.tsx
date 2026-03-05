@@ -961,6 +961,39 @@ describe("VariablesPanel", () => {
     );
   });
 
+  it("allows bulk-selecting an entire driver folder for reference copy", () => {
+    const sourceA = makeInput("ref_folder_a", "/standard/folder/a", {
+      label: "Ref Folder A",
+    });
+    const sourceB = makeInput("ref_folder_b", "/standard/folder/b", {
+      label: "Ref Folder B",
+    });
+    referenceFaceState.standardInputs = [sourceA, sourceB];
+    referenceFaceState.standardInputsById = new Map([
+      [sourceA.id, sourceA],
+      [sourceB.id, sourceB],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      sourceA,
+      sourceB,
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/folder/" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle(
+        "Select all reference/shared drivers in this folder for bulk copy",
+      ),
+    );
+
+    expect(screen.getByRole("button", { name: "Copy Ref (2)" })).toBeTruthy();
+  });
+
   it("bulk copy processes the final selected driver against fresh state", () => {
     const sourceFirst = makeInput("ref_shared_first", "/standard/shared", {
       label: "Ref Shared First",
@@ -1455,10 +1488,128 @@ describe("VariablesPanel", () => {
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getAllByTitle("Copy pose to main face")[0]!,
     );
 
     expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+  });
+
+  it("groups reference poses by folder metadata and supports folder bulk-select", () => {
+    const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          group: "emotion/upper",
+          targets: [{ inputId: sourceInput.id, value: 0.7 }],
+        },
+        {
+          id: "ref_pose_frown",
+          name: "Ref Frown",
+          group: "emotion/upper",
+          targets: [{ inputId: sourceInput.id, value: 0.2 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle(
+        "Select all reference poses in this folder for bulk copy",
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy Ref Pose (2)" }),
+    ).toBeTruthy();
+  });
+
+  it("renders shared poses as a single row in the poses tree", () => {
+    poseRigState.poses = [
+      {
+        id: "pose_shared_smile",
+        name: "Shared Smile",
+        group: "emotion/upper",
+        values: {},
+        createdAt: "now",
+        updatedAt: "now",
+      },
+    ];
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [],
+      [],
+      [
+        {
+          id: "pose_shared_smile",
+          name: "Shared Smile",
+          group: "emotion/upper",
+          targets: [],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Shared Smile" },
+      },
+    );
+
+    expect(within(view.container).getAllByTitle("Shared Smile")).toHaveLength(
+      1,
+    );
+  });
+
+  it("selects reference poses for inspector routing", () => {
+    const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceInput.id, value: 0.7 }],
+        },
+      ],
+    );
+    const onSelectPose = vi.fn();
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        onSelectPose={onSelectPose}
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile" },
+      },
+    );
+
+    fireEvent.click(within(view.container).getByTitle("Ref Smile"));
+    expect(onSelectPose).toHaveBeenCalledWith("ref_pose_smile");
   });
 
   it("plays and resets reference poses on the reference face runtime", () => {
@@ -2021,6 +2172,11 @@ describe("VariablesPanel", () => {
           name: "Ref Smile",
           targets: [{ inputId: sourceSmile.id, value: 0.73 }],
         },
+        {
+          id: "ref_pose_smile_alt",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceSmile.id, value: 0.12 }],
+        },
       ],
     );
     bindingState.managedStandardInputs = [
@@ -2035,7 +2191,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getAllByTitle("Copy pose to main face")[0]!,
     );
     fireEvent.click(
       screen.getByRole("button", { name: /Use current pose value/i }),
@@ -2224,7 +2380,7 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(linkedMain.id);
   });
 
-  it("clears rig selection when selecting unlinked reference variable", () => {
+  it("selects the reference driver id when selecting an unlinked reference variable", () => {
     const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
       label: "Ref Brow Up",
     });
@@ -2246,7 +2402,7 @@ describe("VariablesPanel", () => {
       within(view.container).getAllByTitle("standard/brow/up")[0]!,
     );
 
-    expect(onSelectRig).toHaveBeenCalledWith(null);
+    expect(onSelectRig).toHaveBeenCalledWith(referenceOnly.id);
   });
 
   it("shows all standard and propsrig inputs on the Inputs surface", () => {

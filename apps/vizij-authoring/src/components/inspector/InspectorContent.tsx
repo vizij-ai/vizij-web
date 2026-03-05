@@ -4,12 +4,14 @@ import React, {
   useEffect,
   useMemo,
   useCallback,
+  type ReactNode,
 } from "react";
 import {
   Trash2,
   Plus,
   Copy,
   Info,
+  Activity,
   ChevronDown,
   ChevronRight,
   Sliders,
@@ -44,13 +46,17 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
+import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
-import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
+import {
+  buildPoseWeightRelativePath,
+  parsePoseWeightInputSourceId,
+} from "../../poseRig/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { RiggingPropertyRow } from "./RiggingPropertyRow";
@@ -310,6 +316,12 @@ function clampToRange(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+const SYNC_VALUE_EPSILON = 1e-4;
+
+function normalizePoseLookupToken(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 function normalizePoseMembershipPath(
   value: string | null | undefined,
 ): string | null {
@@ -548,6 +560,20 @@ export function InspectorContent({
   const [rigPathDraft, setRigPathDraft] = useState("");
   const [rigLifecycleMessage, setRigLifecycleMessage] =
     useState<RigLifecycleMessage | null>(null);
+  const [rigInspectorScope, setRigInspectorScope] = useState<
+    "main" | "reference"
+  >("main");
+  const [poseInspectorScope, setPoseInspectorScope] = useState<
+    "main" | "reference"
+  >("main");
+  const [sharedRigCombinedValue, setSharedRigCombinedValue] = useState(0);
+  const [sharedRigCombinedKey, setSharedRigCombinedKey] = useState<
+    string | null
+  >(null);
+  const [sharedPoseCombinedValue, setSharedPoseCombinedValue] = useState(0);
+  const [sharedPoseCombinedKey, setSharedPoseCombinedKey] = useState<
+    string | null
+  >(null);
 
   // Hooks
   const {
@@ -562,6 +588,7 @@ export function InspectorContent({
   } = useUnifiedSelection();
   const shouldSubscribeInputValues =
     inspectorMode === "rig" || inspectorMode === "material";
+  const referenceFace = useReferenceFace();
 
   const {
     getNode,
@@ -829,6 +856,34 @@ export function InspectorContent({
     });
     return map;
   }, [managedStandardInputs]);
+  const referencePoseWeightInputByPoseId = useMemo(() => {
+    const map = new Map<
+      string,
+      (typeof referenceFace.standardInputs)[number]
+    >();
+    referenceFace.standardInputs.forEach((input) => {
+      const poseId = parsePoseWeightInputSourceId(input.sourceId);
+      if (!poseId || map.has(poseId)) {
+        return;
+      }
+      map.set(poseId, input);
+    });
+    return map;
+  }, [referenceFace.standardInputs]);
+  const referencePoseWeightInputByPath = useMemo(() => {
+    const map = new Map<
+      string,
+      (typeof referenceFace.standardInputs)[number]
+    >();
+    referenceFace.standardInputs.forEach((input) => {
+      const normalizedPath = normalizeStandardRigInputPath(input.path);
+      if (!normalizedPath || map.has(normalizedPath)) {
+        return;
+      }
+      map.set(normalizedPath, input);
+    });
+    return map;
+  }, [referenceFace.standardInputs]);
 
   const pipelineLinksById = useMemo(() => {
     const linksContainer = asObject(pipelineMetadataV1?.links);
@@ -1142,17 +1197,279 @@ export function InspectorContent({
       ),
     [managedStandardInputs],
   );
+  const referenceRigInputById = useMemo(
+    () =>
+      new Map(
+        referenceFace.standardInputs.map((referenceInput) => [
+          referenceInput.id,
+          referenceInput,
+        ]),
+      ),
+    [referenceFace.standardInputs],
+  );
+  const referenceRigInputByPath = useMemo(() => {
+    const byPath = new Map<
+      string,
+      (typeof referenceFace.standardInputs)[number]
+    >();
+    referenceFace.standardInputs.forEach((referenceInput) => {
+      const normalizedPath = normalizeStandardRigInputPath(referenceInput.path);
+      if (!byPath.has(normalizedPath)) {
+        byPath.set(normalizedPath, referenceInput);
+      }
+    });
+    return byPath;
+  }, [referenceFace.standardInputs]);
 
   const poseById = useMemo(
     () => new Map(poses.map((pose) => [pose.id, pose])),
     [poses],
   );
+  const referencePoseById = useMemo(
+    () =>
+      new Map(
+        referenceFace.referenceCatalog.poses.map((pose) => [pose.id, pose]),
+      ),
+    [referenceFace.referenceCatalog.poses],
+  );
+  const referencePoseByLookupToken = useMemo(() => {
+    const byLookupToken = new Map<
+      string,
+      (typeof referenceFace.referenceCatalog.poses)[number] | null
+    >();
+    referenceFace.referenceCatalog.poses.forEach((pose) => {
+      const token = normalizePoseLookupToken(pose.name);
+      if (!token) {
+        return;
+      }
+      const existing = byLookupToken.get(token);
+      if (!existing) {
+        byLookupToken.set(token, pose);
+        return;
+      }
+      byLookupToken.set(token, null);
+    });
+    return byLookupToken;
+  }, [referenceFace.referenceCatalog.poses]);
   const selectedPose = useMemo(() => {
     if (!selectedPoseId) {
       return null;
     }
     return poseById.get(selectedPoseId) ?? null;
   }, [poseById, selectedPoseId]);
+  const selectedReferencePose = useMemo(() => {
+    if (!selectedPoseId || selectedPose) {
+      return null;
+    }
+    return referencePoseById.get(selectedPoseId) ?? null;
+  }, [referencePoseById, selectedPose, selectedPoseId]);
+  const selectedSharedReferencePose = useMemo(() => {
+    if (!selectedPose) {
+      return null;
+    }
+    const byId = referencePoseById.get(selectedPose.id);
+    if (byId) {
+      return byId;
+    }
+    const byName =
+      referencePoseByLookupToken.get(
+        normalizePoseLookupToken(selectedPose.name),
+      ) ?? null;
+    return byName;
+  }, [referencePoseById, referencePoseByLookupToken, selectedPose]);
+  const selectedReferenceRigInput = useMemo(() => {
+    if (inspectorMode !== "rig" || !selectedRigId || selectedManagedRigEntry) {
+      return null;
+    }
+    return referenceRigInputById.get(selectedRigId) ?? null;
+  }, [
+    inspectorMode,
+    referenceRigInputById,
+    selectedManagedRigEntry,
+    selectedRigId,
+  ]);
+  const selectedSharedReferenceRigInput = useMemo(() => {
+    if (!selectedManagedRigEntry) {
+      return null;
+    }
+    const normalizedPath = normalizeStandardRigInputPath(
+      selectedManagedRigEntry.input.path,
+    );
+    return referenceRigInputByPath.get(normalizedPath) ?? null;
+  }, [referenceRigInputByPath, selectedManagedRigEntry]);
+  const mainRigInputIdByPath = useMemo(() => {
+    const byPath = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
+      if (!byPath.has(normalizedPath)) {
+        byPath.set(normalizedPath, entry.input.id);
+      }
+    });
+    return byPath;
+  }, [managedStandardInputs]);
+
+  useEffect(() => {
+    if (inspectorMode !== "rig") {
+      setRigInspectorScope("main");
+      return;
+    }
+    if (selectedReferenceRigInput && !selectedManagedRigEntry) {
+      setRigInspectorScope("reference");
+      return;
+    }
+    setRigInspectorScope("main");
+  }, [inspectorMode, selectedManagedRigEntry, selectedReferenceRigInput]);
+  useEffect(() => {
+    if (inspectorMode !== "pose") {
+      setPoseInspectorScope("main");
+      return;
+    }
+    if (selectedReferencePose && !selectedPose) {
+      setPoseInspectorScope("reference");
+      return;
+    }
+    setPoseInspectorScope("main");
+  }, [inspectorMode, selectedPoseId, selectedReferencePose?.id]);
+  const setReferenceRigInputValue = useCallback(
+    (
+      input: (typeof referenceFace.standardInputs)[number],
+      nextValue: number,
+      range?: { min: number; max: number },
+    ) => {
+      const min =
+        range && Number.isFinite(range.min)
+          ? range.min
+          : Number.isFinite(input.range.min)
+            ? input.range.min
+            : -1;
+      const max =
+        range && Number.isFinite(range.max)
+          ? range.max
+          : Number.isFinite(input.range.max)
+            ? input.range.max
+            : 1;
+      const clampedValue = clampToRange(nextValue, min, max);
+      if (referenceFace.standardInputsById.has(input.id)) {
+        referenceFace.handleInputValueChange(input.id, clampedValue);
+        return;
+      }
+      referenceFace.handleInputPathValueChange(input.path, clampedValue);
+    },
+    [referenceFace],
+  );
+  const resolveReferenceRigInputValue = useCallback(
+    (input: (typeof referenceFace.standardInputs)[number]) =>
+      referenceFace.inputValues[input.id] ?? input.defaultValue,
+    [referenceFace.inputValues],
+  );
+  const setReferencePoseWeightValue = useCallback(
+    (poseId: string, nextValue: number) => {
+      referenceFace.handleInputPathValueChange(
+        buildPoseWeightRelativePath(poseId),
+        clamp01(nextValue),
+      );
+    },
+    [referenceFace],
+  );
+  const resolveReferencePoseWeightValue = useCallback(
+    (poseId: string) => {
+      const runtimeInput =
+        referencePoseWeightInputByPoseId.get(poseId) ??
+        referencePoseWeightInputByPath.get(
+          normalizeStandardRigInputPath(buildPoseWeightRelativePath(poseId)),
+        );
+      if (!runtimeInput) {
+        return 0;
+      }
+      const value =
+        referenceFace.inputValues[runtimeInput.id] ?? runtimeInput.defaultValue;
+      return clamp01(value);
+    },
+    [
+      referenceFace.inputValues,
+      referencePoseWeightInputByPath,
+      referencePoseWeightInputByPoseId,
+    ],
+  );
+  useEffect(() => {
+    if (
+      inspectorMode !== "rig" ||
+      !selectedManagedRigEntry ||
+      !selectedSharedReferenceRigInput
+    ) {
+      setSharedRigCombinedKey(null);
+      return;
+    }
+    const pairKey = `${selectedManagedRigEntry.input.id}::${selectedSharedReferenceRigInput.id}`;
+    if (sharedRigCombinedKey === pairKey) {
+      return;
+    }
+    const mainValue =
+      inputValues[selectedManagedRigEntry.input.id] ??
+      selectedManagedRigEntry.input.defaultValue;
+    const referenceValue = resolveReferenceRigInputValue(
+      selectedSharedReferenceRigInput,
+    );
+    const nextCombinedValue =
+      Math.abs(mainValue - referenceValue) <= SYNC_VALUE_EPSILON
+        ? mainValue
+        : mainValue;
+    setSharedRigCombinedValue(
+      clampToRange(
+        nextCombinedValue,
+        selectedManagedRigEntry.input.range.min,
+        selectedManagedRigEntry.input.range.max,
+      ),
+    );
+    setSharedRigCombinedKey(pairKey);
+  }, [
+    inputValues,
+    inspectorMode,
+    resolveReferenceRigInputValue,
+    selectedManagedRigEntry?.input.id,
+    selectedManagedRigEntry?.input.defaultValue,
+    selectedManagedRigEntry?.input.range.max,
+    selectedManagedRigEntry?.input.range.min,
+    selectedSharedReferenceRigInput?.id,
+    selectedManagedRigEntry,
+    selectedSharedReferenceRigInput,
+    sharedRigCombinedKey,
+  ]);
+  useEffect(() => {
+    if (
+      inspectorMode !== "pose" ||
+      !selectedPose ||
+      !selectedSharedReferencePose
+    ) {
+      setSharedPoseCombinedKey(null);
+      return;
+    }
+    const pairKey = `${selectedPose.id}::${selectedSharedReferencePose.id}`;
+    if (sharedPoseCombinedKey === pairKey) {
+      return;
+    }
+    const mainValue = selectedPoseWeightInputId
+      ? selectedPoseWeightValue
+      : blendAmount;
+    const referenceValue = resolveReferencePoseWeightValue(
+      selectedSharedReferencePose.id,
+    );
+    const nextCombinedValue =
+      Math.abs(mainValue - referenceValue) <= SYNC_VALUE_EPSILON
+        ? mainValue
+        : mainValue;
+    setSharedPoseCombinedValue(clamp01(nextCombinedValue));
+    setSharedPoseCombinedKey(pairKey);
+  }, [
+    blendAmount,
+    inspectorMode,
+    resolveReferencePoseWeightValue,
+    selectedPose?.id,
+    selectedPoseWeightInputId,
+    selectedPoseWeightValue,
+    selectedSharedReferencePose?.id,
+    sharedPoseCombinedKey,
+  ]);
   const poseBindingTargetByInputId = useMemo(() => {
     const mapping = new Map<
       string,
@@ -1430,22 +1747,43 @@ export function InspectorContent({
         view: "quick",
       };
     }
-    if (inspectorMode === "rig" && resolvedSelectedRigId) {
-      const rig = rigInputById.get(resolvedSelectedRigId);
-      return {
-        mode: "rig" as const,
-        id: resolvedSelectedRigId,
-        label: rig?.label || resolvedSelectedRigId,
-        view: "quick",
-      };
+    if (inspectorMode === "rig" && selectedRigId) {
+      if (resolvedSelectedRigId && selectedManagedRigEntry) {
+        const rig = rigInputById.get(resolvedSelectedRigId);
+        return {
+          mode: "rig" as const,
+          id: resolvedSelectedRigId,
+          label: rig?.label || resolvedSelectedRigId,
+          view: "quick",
+        };
+      }
+      if (selectedReferenceRigInput) {
+        return {
+          mode: "rig" as const,
+          id: selectedReferenceRigInput.id,
+          label:
+            selectedReferenceRigInput.label ||
+            selectedReferenceRigInput.path ||
+            selectedReferenceRigInput.id,
+          view: "quick",
+        };
+      }
     }
     if (inspectorMode === "pose" && selectedPoseId) {
-      const pose = poseById.get(selectedPoseId);
-      return {
-        mode: "pose" as const,
-        id: selectedPoseId,
-        label: pose?.name || selectedPoseId,
-      };
+      if (selectedPose) {
+        return {
+          mode: "pose" as const,
+          id: selectedPoseId,
+          label: selectedPose.name || selectedPoseId,
+        };
+      }
+      if (selectedReferencePose) {
+        return {
+          mode: "pose" as const,
+          id: selectedReferencePose.id,
+          label: selectedReferencePose.name || selectedReferencePose.id,
+        };
+      }
     }
     return null;
   }, [
@@ -1454,8 +1792,13 @@ export function InspectorContent({
     rigInputById,
     sceneNodeById,
     selectedId,
+    selectedPose,
     selectedPoseId,
+    selectedReferencePose,
+    selectedReferenceRigInput,
+    selectedRigId,
     resolvedSelectedRigId,
+    selectedManagedRigEntry,
   ]);
 
   useEffect(() => {
@@ -1701,6 +2044,498 @@ export function InspectorContent({
   ) => {
     openRigInspector(rigId);
   };
+  const resolveReferenceInputLabel = useCallback(
+    (inputId: string) => {
+      const runtimeInput = referenceFace.standardInputsById.get(inputId);
+      if (runtimeInput) {
+        return runtimeInput.label || runtimeInput.path || runtimeInput.id;
+      }
+      const catalogInput = referenceFace.getReferenceCatalogInput(inputId);
+      if (catalogInput) {
+        return catalogInput.label || catalogInput.path || catalogInput.id;
+      }
+      return inputId;
+    },
+    [referenceFace],
+  );
+
+  const renderRigScopeTabs = (showReferenceTab: boolean): ReactNode => {
+    if (!showReferenceTab) {
+      return null;
+    }
+    return (
+      <div className="mx-1 mt-1 mb-2 flex items-center gap-1 rounded border border-border-default/50 bg-bg-panel/35 p-1">
+        <Button
+          variant={rigInspectorScope === "main" ? "primary" : "subtle"}
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setRigInspectorScope("main")}
+        >
+          Main Face
+        </Button>
+        <Button
+          variant={rigInspectorScope === "reference" ? "primary" : "subtle"}
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setRigInspectorScope("reference")}
+        >
+          Reference Face
+        </Button>
+      </div>
+    );
+  };
+  const renderPoseScopeTabs = (showReferenceTab: boolean): ReactNode => {
+    if (!showReferenceTab) {
+      return null;
+    }
+    return (
+      <div className="mx-1 mt-1 mb-2 flex items-center gap-1 rounded border border-border-default/50 bg-bg-panel/35 p-1">
+        <Button
+          variant={poseInspectorScope === "main" ? "primary" : "subtle"}
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setPoseInspectorScope("main")}
+        >
+          Main Face
+        </Button>
+        <Button
+          variant={poseInspectorScope === "reference" ? "primary" : "subtle"}
+          size="sm"
+          className="h-6 px-2 text-[10px]"
+          onClick={() => setPoseInspectorScope("reference")}
+        >
+          Reference Face
+        </Button>
+      </div>
+    );
+  };
+
+  const renderReferenceRigInspector = (params: {
+    input: (typeof referenceFace.standardInputs)[number];
+    linkedMainRigInputId?: string | null;
+    showScopeTabs?: boolean;
+    sharedMainValue?: number | null;
+    sharedCombinedValue?: number;
+    onSharedCombinedValueChange?: (nextValue: number) => void;
+  }): ReactNode => {
+    const {
+      input,
+      linkedMainRigInputId = null,
+      showScopeTabs = false,
+      sharedMainValue = null,
+      sharedCombinedValue = 0,
+      onSharedCombinedValueChange,
+    } = params;
+    const currentValue = resolveReferenceRigInputValue(input);
+    const min = Number.isFinite(input.range.min) ? input.range.min : -1;
+    const max = Number.isFinite(input.range.max) ? input.range.max : 1;
+    const step = Math.max(0.0001, Math.min(0.1, Math.abs(max - min) / 200));
+    const catalogInput = referenceFace.getReferenceCatalogInput(input.id);
+    const rigValuesMatch =
+      sharedMainValue === null ||
+      Math.abs(sharedMainValue - currentValue) <= SYNC_VALUE_EPSILON;
+    const updateReferenceValue = (nextValue: number) => {
+      setReferenceRigInputValue(input, nextValue, { min, max });
+    };
+
+    return (
+      <div className="flex flex-col gap-1 p-1">
+        <InspectorHeader
+          name={input.label || input.path || input.id}
+          typeLabel="Reference Driver"
+          id={input.id}
+          onNameChange={() => undefined}
+        />
+        {renderChainPath()}
+        {renderAuthoringStatus()}
+        {renderRigScopeTabs(showScopeTabs)}
+        {showScopeTabs && onSharedCombinedValueChange ? (
+          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
+            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
+              Both Faces Value
+            </span>
+            <div className="flex items-center gap-2">
+              <Slider
+                value={sharedCombinedValue}
+                min={min}
+                max={max}
+                step={step}
+                fillMode="value"
+                className="flex-1"
+                onChange={(nextValue) =>
+                  onSharedCombinedValueChange(
+                    clampToRange(
+                      typeof nextValue === "number"
+                        ? nextValue
+                        : (nextValue[0] ?? 0),
+                      min,
+                      max,
+                    ),
+                  )
+                }
+              />
+              <NumberField
+                value={sharedCombinedValue}
+                min={min}
+                max={max}
+                step={step}
+                size="sm"
+                className="w-[108px]"
+                onChange={(nextValue) =>
+                  onSharedCombinedValueChange(clampToRange(nextValue, min, max))
+                }
+              />
+            </div>
+            {!rigValuesMatch ? (
+              <span className="text-[10px] text-amber-100">
+                Faces are currently controlled individually. Set this slider to
+                re-sync both.
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-3 p-2">
+          <div className="rounded border border-violet-500/35 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-100 font-mono truncate">
+            {input.path}
+          </div>
+          {linkedMainRigInputId ? (
+            <div className="flex items-center justify-between gap-2 rounded border border-border-default/55 bg-bg-panel/35 px-2 py-1.5">
+              <span className="text-[10px] text-text-secondary">
+                Linked main driver
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] font-mono"
+                onClick={() => openRigInspector(linkedMainRigInputId)}
+              >
+                {linkedMainRigInputId}
+              </Button>
+            </div>
+          ) : null}
+          <div className="rounded border border-border-default/60 bg-bg-panel/30 px-2 py-2 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                Current Value
+              </span>
+              <NumberField
+                value={currentValue}
+                min={min}
+                max={max}
+                step={step}
+                size="sm"
+                className="w-[108px]"
+                onChange={(nextValue) => updateReferenceValue(nextValue)}
+              />
+            </div>
+            <Slider
+              value={currentValue}
+              min={min}
+              max={max}
+              step={step}
+              fillMode="value"
+              onChange={(nextValue) =>
+                updateReferenceValue(
+                  typeof nextValue === "number"
+                    ? nextValue
+                    : (nextValue[0] ?? 0),
+                )
+              }
+            />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => updateReferenceValue(min)}
+              >
+                Min
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => updateReferenceValue(input.defaultValue)}
+              >
+                Def
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => updateReferenceValue(max)}
+              >
+                Max
+              </Button>
+            </div>
+          </div>
+          <div className="rounded border border-border-default/50 bg-bg-panel/20 px-2 py-2 flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">
+              Pipeline Links
+            </span>
+            <span className="text-[10px] text-text-secondary">
+              Parents: {catalogInput?.parents.length ?? 0}
+            </span>
+            {catalogInput?.parents.map((link) => (
+              <span
+                key={`reference-parent:${link.linkId}`}
+                className="text-[10px] font-mono text-text-muted truncate"
+                title={resolveReferenceInputLabel(link.parentInputId)}
+              >
+                Parent: {resolveReferenceInputLabel(link.parentInputId)}
+              </span>
+            ))}
+            <span className="text-[10px] text-text-secondary mt-1">
+              Children: {catalogInput?.children.length ?? 0}
+            </span>
+            {catalogInput?.children.map((link) => (
+              <span
+                key={`reference-child:${link.linkId}`}
+                className="text-[10px] font-mono text-text-muted truncate"
+                title={resolveReferenceInputLabel(link.childInputId)}
+              >
+                Child: {resolveReferenceInputLabel(link.childInputId)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  const renderReferencePoseInspector = (params: {
+    pose: (typeof referenceFace.referenceCatalog.poses)[number];
+    showScopeTabs?: boolean;
+    sharedMainWeightValue?: number | null;
+    sharedCombinedValue?: number;
+    onSharedCombinedValueChange?: (nextValue: number) => void;
+  }): ReactNode => {
+    const {
+      pose,
+      showScopeTabs = false,
+      sharedMainWeightValue = null,
+      sharedCombinedValue = 0,
+      onSharedCombinedValueChange,
+    } = params;
+    const poseWeightPath = buildPoseWeightRelativePath(pose.id);
+    const poseWeightInput =
+      referencePoseWeightInputByPoseId.get(pose.id) ?? null;
+    const poseWeightDefault = poseWeightInput?.defaultValue ?? 0;
+    const referencePoseWeightValue = resolveReferencePoseWeightValue(pose.id);
+    const poseWeightsMatch =
+      sharedMainWeightValue === null ||
+      Math.abs(sharedMainWeightValue - referencePoseWeightValue) <=
+        SYNC_VALUE_EPSILON;
+    const applyReferencePose = () => {
+      referenceFace.referenceCatalog.poses.forEach((referencePoseEntry) => {
+        referenceFace.handleInputPathValueChange(
+          buildPoseWeightRelativePath(referencePoseEntry.id),
+          referencePoseEntry.id === pose.id ? 1 : 0,
+        );
+      });
+    };
+    const resetReferencePose = () => {
+      referenceFace.handleInputPathValueChange(
+        poseWeightPath,
+        poseWeightDefault,
+      );
+    };
+
+    return (
+      <div className="flex flex-col gap-1 p-1">
+        <InspectorHeader
+          name={pose.name}
+          typeLabel="Reference Pose"
+          id={pose.id}
+          icon={Activity}
+          onNameChange={() => undefined}
+        />
+        {renderChainPath()}
+        {renderAuthoringStatus()}
+        {renderPoseScopeTabs(showScopeTabs)}
+        {showScopeTabs && onSharedCombinedValueChange ? (
+          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
+            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
+              Both Faces Weight
+            </span>
+            <div className="flex items-center gap-2">
+              <Slider
+                min={0}
+                max={1}
+                step={0.01}
+                value={sharedCombinedValue}
+                fillMode="value"
+                className="flex-1"
+                onChange={(nextValue) =>
+                  onSharedCombinedValueChange(
+                    clamp01(
+                      typeof nextValue === "number"
+                        ? nextValue
+                        : (nextValue[0] ?? 0),
+                    ),
+                  )
+                }
+              />
+              <NumberField
+                value={sharedCombinedValue}
+                min={0}
+                max={1}
+                step={0.01}
+                size="sm"
+                className="w-[92px]"
+                onChange={(nextValue) =>
+                  onSharedCombinedValueChange(clamp01(nextValue))
+                }
+              />
+            </div>
+            {!poseWeightsMatch ? (
+              <span className="text-[10px] text-amber-100">
+                Faces are currently controlled individually. Set this slider to
+                re-sync both.
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-3 p-2">
+          <RiggingPropertyRow
+            label="Reference Weight"
+            onScrub={(_, totalDelta) =>
+              setReferencePoseWeightValue(
+                pose.id,
+                clamp01(referencePoseWeightValue + totalDelta / 100),
+              )
+            }
+            renderMainInput={() => (
+              <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
+                <Slider
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={referencePoseWeightValue}
+                  fillMode="value"
+                  className="flex-1"
+                  onChange={(nextValue) =>
+                    setReferencePoseWeightValue(
+                      pose.id,
+                      clamp01(
+                        typeof nextValue === "number"
+                          ? nextValue
+                          : (nextValue[0] ?? 0),
+                      ),
+                    )
+                  }
+                />
+                <div className="inspector-numeric-control flex-shrink-0">
+                  <NumberField
+                    value={referencePoseWeightValue}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    size="sm"
+                    className="w-full"
+                    onChange={(nextValue) =>
+                      setReferencePoseWeightValue(pose.id, clamp01(nextValue))
+                    }
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
+                  title="Apply full reference pose weight"
+                  onClick={() => setReferencePoseWeightValue(pose.id, 1)}
+                >
+                  <Play size={12} fill="currentColor" />
+                </Button>
+              </div>
+            )}
+          />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={applyReferencePose}
+            >
+              <Play size={11} className="mr-1" />
+              Apply
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={resetReferencePose}
+            >
+              <RotateCcw size={11} className="mr-1" />
+              Reset
+            </Button>
+          </div>
+          <div className="rounded border border-violet-500/35 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-100 font-mono truncate">
+            Weight path: {poseWeightPath}
+          </div>
+          <div className="rounded border border-border-default/50 bg-bg-panel/20 px-2 py-2 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                Pose Targets
+              </span>
+              <span className="text-[10px] text-text-muted font-mono">
+                {pose.targets.length}
+              </span>
+            </div>
+            {pose.targets.length === 0 ? (
+              <span className="text-[10px] text-text-muted">
+                No target values found on this reference pose.
+              </span>
+            ) : (
+              pose.targets.map((target) => {
+                const runtimeInput =
+                  referenceFace.standardInputsById.get(target.inputId) ?? null;
+                const catalogInput = referenceFace.getReferenceCatalogInput(
+                  target.inputId,
+                );
+                const label =
+                  runtimeInput?.label ||
+                  catalogInput?.label ||
+                  catalogInput?.path ||
+                  target.inputId;
+                const liveValue = runtimeInput
+                  ? (referenceFace.inputValues[runtimeInput.id] ??
+                    runtimeInput.defaultValue)
+                  : target.value;
+                return (
+                  <div
+                    key={`reference-pose-target:${target.inputId}`}
+                    className="rounded border border-border-default/40 bg-bg-panel/30 px-2 py-1.5 flex items-center gap-2"
+                  >
+                    <span
+                      className="flex-1 text-[10px] text-text-secondary truncate"
+                      title={label}
+                    >
+                      {label}
+                    </span>
+                    <span className="text-[10px] font-mono text-text-muted">
+                      Pose {target.value.toFixed(3)}
+                    </span>
+                    <span className="text-[10px] font-mono text-text-primary">
+                      Live {liveValue.toFixed(3)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] font-mono"
+                      onClick={() => handleSelectRig(target.inputId)}
+                    >
+                      Inspect
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // 1. Scene Object Mode
   if (inspectorMode === "scene" && selectedId) {
@@ -1775,11 +2610,73 @@ export function InspectorContent({
         </div>
       );
     }
+    if (selectedReferenceRigInput) {
+      const linkedMainRigInputId =
+        mainRigInputIdByPath.get(
+          normalizeStandardRigInputPath(selectedReferenceRigInput.path),
+        ) ?? null;
+      return renderReferenceRigInspector({
+        input: selectedReferenceRigInput,
+        linkedMainRigInputId,
+      });
+    }
+  }
+
+  if (inspectorMode === "pose" && selectedReferencePose) {
+    return renderReferencePoseInspector({ pose: selectedReferencePose });
   }
 
   // 2. Pose Mode
   if (inspectorMode === "pose" && selectedPose) {
     const pose = selectedPose;
+    const showReferencePoseTab = Boolean(
+      selectedSharedReferencePose && hasReferenceFaceFile,
+    );
+    const mainPoseWeightValue = selectedPoseWeightInputId
+      ? selectedPoseWeightValue
+      : blendAmount;
+    if (
+      showReferencePoseTab &&
+      selectedSharedReferencePose &&
+      poseInspectorScope === "reference"
+    ) {
+      const handleSharedPoseWeightChange = (nextValue: number) => {
+        const clamped = clamp01(nextValue);
+        setSharedPoseCombinedValue(clamped);
+        if (selectedPoseWeightInputId) {
+          handleInputValueChange(selectedPoseWeightInputId, clamped);
+        } else {
+          setBlendAmount(clamped);
+        }
+        setReferencePoseWeightValue(selectedSharedReferencePose.id, clamped);
+      };
+      return renderReferencePoseInspector({
+        pose: selectedSharedReferencePose,
+        showScopeTabs: true,
+        sharedMainWeightValue: mainPoseWeightValue,
+        sharedCombinedValue: sharedPoseCombinedValue,
+        onSharedCombinedValueChange: handleSharedPoseWeightChange,
+      });
+    }
+    const handleSharedPoseWeightChange = (nextValue: number) => {
+      const clamped = clamp01(nextValue);
+      setSharedPoseCombinedValue(clamped);
+      if (selectedPoseWeightInputId) {
+        handleInputValueChange(selectedPoseWeightInputId, clamped);
+      } else {
+        setBlendAmount(clamped);
+      }
+      if (selectedSharedReferencePose) {
+        setReferencePoseWeightValue(selectedSharedReferencePose.id, clamped);
+      }
+    };
+    const referencePoseWeightValue = selectedSharedReferencePose
+      ? resolveReferencePoseWeightValue(selectedSharedReferencePose.id)
+      : null;
+    const poseWeightsMatch =
+      referencePoseWeightValue === null ||
+      Math.abs(mainPoseWeightValue - referencePoseWeightValue) <=
+        SYNC_VALUE_EPSILON;
     const configuredPoseGroups = (poseConfigDraft?.poseGroups ?? [])
       .map((group, index) => {
         const path = normalizePoseMembershipPath(
@@ -2059,6 +2956,48 @@ export function InspectorContent({
         </div>
         {renderChainPath()}
         {renderAuthoringStatus()}
+        {renderPoseScopeTabs(showReferencePoseTab)}
+        {showReferencePoseTab ? (
+          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
+            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
+              Both Faces Weight
+            </span>
+            <div className="flex items-center gap-2">
+              <Slider
+                min={0}
+                max={1}
+                step={0.01}
+                value={sharedPoseCombinedValue}
+                fillMode="value"
+                className="flex-1"
+                onChange={(nextValue) =>
+                  handleSharedPoseWeightChange(
+                    typeof nextValue === "number"
+                      ? nextValue
+                      : (nextValue[0] ?? 0),
+                  )
+                }
+              />
+              <NumberField
+                value={sharedPoseCombinedValue}
+                min={0}
+                max={1}
+                step={0.01}
+                size="sm"
+                className="w-[92px]"
+                onChange={(nextValue) =>
+                  handleSharedPoseWeightChange(nextValue)
+                }
+              />
+            </div>
+            {!poseWeightsMatch ? (
+              <span className="text-[10px] text-amber-100">
+                Faces are currently controlled individually. Set this slider to
+                re-sync both.
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <RiggingPropertyRow
           label="Contribution Strength"
           onScrub={(_, totalDelta) => {
@@ -2342,7 +3281,43 @@ export function InspectorContent({
     const rigInput = selectedManagedRigEntry;
     if (rigInput) {
       const input = rigInput.input;
+      const showReferenceRigTab = Boolean(
+        selectedSharedReferenceRigInput && hasReferenceFaceFile,
+      );
       const value = inputValues[input.id] ?? input.defaultValue ?? 0;
+      const referenceSharedValue =
+        showReferenceRigTab && selectedSharedReferenceRigInput
+          ? resolveReferenceRigInputValue(selectedSharedReferenceRigInput)
+          : null;
+      const handleSharedRigValueChange = (nextValue: number) => {
+        const clamped = clampToRange(
+          nextValue,
+          input.range.min,
+          input.range.max,
+        );
+        setSharedRigCombinedValue(clamped);
+        handleInputValueChange(input.id, clamped);
+        if (selectedSharedReferenceRigInput) {
+          setReferenceRigInputValue(selectedSharedReferenceRigInput, clamped, {
+            min: input.range.min,
+            max: input.range.max,
+          });
+        }
+      };
+      if (
+        showReferenceRigTab &&
+        selectedSharedReferenceRigInput &&
+        rigInspectorScope === "reference"
+      ) {
+        return renderReferenceRigInspector({
+          input: selectedSharedReferenceRigInput,
+          linkedMainRigInputId: input.id,
+          showScopeTabs: true,
+          sharedMainValue: value,
+          sharedCombinedValue: sharedRigCombinedValue,
+          onSharedCombinedValueChange: handleSharedRigValueChange,
+        });
+      }
       const activeFaceId =
         runtimeFaceId && runtimeFaceId.trim().length > 0
           ? runtimeFaceId
@@ -3520,6 +4495,61 @@ export function InspectorContent({
           />
           {renderChainPath()}
           {renderAuthoringStatus()}
+          {renderRigScopeTabs(showReferenceRigTab)}
+          {showReferenceRigTab ? (
+            <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
+              <span className="text-[10px] uppercase tracking-wider text-cyan-100">
+                Both Faces Value
+              </span>
+              <div className="flex items-center gap-2">
+                <Slider
+                  value={sharedRigCombinedValue}
+                  min={input.range.min}
+                  max={input.range.max}
+                  step={Math.max(
+                    0.0001,
+                    Math.min(
+                      0.1,
+                      Math.abs(input.range.max - input.range.min) / 200,
+                    ),
+                  )}
+                  fillMode="value"
+                  className="flex-1"
+                  onChange={(nextValue) =>
+                    handleSharedRigValueChange(
+                      typeof nextValue === "number"
+                        ? nextValue
+                        : (nextValue[0] ?? 0),
+                    )
+                  }
+                />
+                <NumberField
+                  value={sharedRigCombinedValue}
+                  min={input.range.min}
+                  max={input.range.max}
+                  step={Math.max(
+                    0.0001,
+                    Math.min(
+                      0.1,
+                      Math.abs(input.range.max - input.range.min) / 200,
+                    ),
+                  )}
+                  size="sm"
+                  className="w-[108px]"
+                  onChange={(nextValue) =>
+                    handleSharedRigValueChange(nextValue)
+                  }
+                />
+              </div>
+              {referenceSharedValue !== null &&
+              Math.abs(value - referenceSharedValue) > SYNC_VALUE_EPSILON ? (
+                <span className="text-[10px] text-amber-100">
+                  Faces are currently controlled individually. Set this slider
+                  to re-sync both.
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <CollapsibleGroup
             title="Driver Metadata"
             subtitle={`Default ${input.defaultValue.toFixed(3)} · Range ${input.range.min.toFixed(3)}..${input.range.max.toFixed(3)} · ${
@@ -3976,6 +5006,17 @@ export function InspectorContent({
         </div>
       );
     }
+  }
+
+  if (inspectorMode === "rig" && selectedReferenceRigInput) {
+    const linkedMainRigInputId =
+      mainRigInputIdByPath.get(
+        normalizeStandardRigInputPath(selectedReferenceRigInput.path),
+      ) ?? null;
+    return renderReferenceRigInspector({
+      input: selectedReferenceRigInput,
+      linkedMainRigInputId,
+    });
   }
 
   if (inspectorMode === "material" && selectedMaterialId) {

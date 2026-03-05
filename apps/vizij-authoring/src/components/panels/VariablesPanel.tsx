@@ -104,6 +104,7 @@ import { buildVisibleInputCatalog, type InputCatalogRow } from "./inputCatalog";
 
 type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
+type FaceOwnershipScope = "main" | "reference" | "shared" | "none";
 type SurfaceTab = "variables" | "poses" | "pose-groups" | "inputs";
 type CenterAuthoringMode =
   | "none"
@@ -130,12 +131,52 @@ interface PoseGroupSummary {
   poseIds: string[];
 }
 
+interface FaceOwnershipSummary {
+  hasMain: boolean;
+  hasReference: boolean;
+}
+
 function normalizePoseGroupPath(value: string | null | undefined): string {
   const trimmed = value?.trim();
   if (!trimmed) {
     return "";
   }
   return trimmed.replace(/^\/+|\/+$/g, "");
+}
+
+function resolveReferencePoseTreeGroupPath(
+  pose: ReferencePoseDefinition,
+): string | null {
+  const candidates: Array<string | null | undefined> = [
+    pose.group,
+    pose.groupId,
+    ...(pose.groupIds ?? []),
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizePoseGroupPath(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const normalizedName = normalizePoseGroupPath(pose.name);
+  if (!normalizedName.includes("/")) {
+    return null;
+  }
+  const parts = normalizedName.split("/").filter(Boolean);
+  if (parts.length <= 1) {
+    return null;
+  }
+  return parts.slice(0, -1).join("/");
+}
+
+function resolveReferencePoseTreeLabel(pose: ReferencePoseDefinition): string {
+  const normalizedName = normalizePoseGroupPath(pose.name);
+  if (!normalizedName.includes("/")) {
+    return pose.name;
+  }
+  const parts = normalizedName.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? pose.name;
 }
 
 function poseGroupDisplayLabel(path: string): string {
@@ -268,8 +309,9 @@ interface PoseGroupNodeData {
 }
 
 interface PoseNodeData {
-  source: "main" | "reference";
+  source: "main" | "reference" | "shared";
   pose: PoseDefinition | ReferencePoseDefinition;
+  linkedReferencePoseId?: string | null;
 }
 
 type TreeNodeData =
@@ -810,13 +852,69 @@ function collectLockedPropsRigComponentIds(
   return lockedComponentIds;
 }
 
-const SOURCE_BADGE_CLASS: Record<RigNodeSource, string> = {
-  auto: "bg-sky-900/40 text-sky-200",
-  preset: "bg-emerald-900/40 text-emerald-200",
-  custom: "bg-amber-900/40 text-amber-200",
-  reference: "bg-violet-900/40 text-violet-200",
-  shared: "bg-teal-900/40 text-teal-200",
-};
+const MAIN_FACE_SCOPE_ICON_CLASS = "text-yellow-300";
+const REFERENCE_FACE_SCOPE_ICON_CLASS = "text-violet-300";
+const NO_FACE_SCOPE_ICON_CLASS = "text-text-muted";
+
+function createFaceOwnershipSummary(
+  hasMain = false,
+  hasReference = false,
+): FaceOwnershipSummary {
+  return { hasMain, hasReference };
+}
+
+function mergeFaceOwnershipSummary(
+  left: FaceOwnershipSummary,
+  right: FaceOwnershipSummary,
+): FaceOwnershipSummary {
+  return {
+    hasMain: left.hasMain || right.hasMain,
+    hasReference: left.hasReference || right.hasReference,
+  };
+}
+
+function resolveFaceOwnershipScope(
+  summary: FaceOwnershipSummary,
+): FaceOwnershipScope {
+  if (summary.hasMain && summary.hasReference) {
+    return "shared";
+  }
+  if (summary.hasReference) {
+    return "reference";
+  }
+  if (summary.hasMain) {
+    return "main";
+  }
+  return "none";
+}
+
+function resolveRigSourceOwnership(
+  source: RigNodeSource,
+): FaceOwnershipSummary {
+  if (source === "reference") {
+    return createFaceOwnershipSummary(false, true);
+  }
+  if (source === "shared") {
+    return createFaceOwnershipSummary(true, true);
+  }
+  return createFaceOwnershipSummary(true, false);
+}
+
+function resolvePoseSourceOwnership(
+  source: PoseNodeData["source"],
+): FaceOwnershipSummary {
+  if (source === "reference") {
+    return createFaceOwnershipSummary(false, true);
+  }
+  if (source === "shared") {
+    return createFaceOwnershipSummary(true, true);
+  }
+  return createFaceOwnershipSummary(true, false);
+}
+
+function normalizePoseLookupToken(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 const INPUT_FOLDER_LABEL_OVERRIDES: Record<string, string> = {
   propsrig: "Face Element Properties",
@@ -1572,7 +1670,10 @@ function collectPoseIds(node: TreeNode): string[] {
   const visit = (candidate: TreeNode) => {
     if (candidate.type === "pose") {
       const poseData = candidate.data as PoseNodeData | undefined;
-      if (poseData?.source === "main" && poseData.pose.id) {
+      if (
+        (poseData?.source === "main" || poseData?.source === "shared") &&
+        poseData.pose.id
+      ) {
         ids.push(poseData.pose.id);
       }
       return;
@@ -1581,6 +1682,78 @@ function collectPoseIds(node: TreeNode): string[] {
   };
   visit(node);
   return ids;
+}
+
+function collectFolderReferenceRigSelectionIds(node: TreeNode): string[] {
+  const ids = new Set<string>();
+  const visit = (candidate: TreeNode) => {
+    if (candidate.type === "rig") {
+      const rigData = candidate.data as RigNodeData | undefined;
+      if (!rigData) {
+        return;
+      }
+      if (rigData.source === "reference") {
+        ids.add(rigData.input.id);
+        return;
+      }
+      const linkedReferenceInputId = rigData.linkedReferenceInputId?.trim();
+      if (rigData.source === "shared" && linkedReferenceInputId) {
+        ids.add(linkedReferenceInputId);
+      }
+      return;
+    }
+    candidate.children.forEach((child) => visit(child));
+  };
+  visit(node);
+  return Array.from(ids);
+}
+
+function collectFolderReferencePoseSelectionIds(node: TreeNode): string[] {
+  const ids = new Set<string>();
+  const visit = (candidate: TreeNode) => {
+    if (candidate.type === "pose") {
+      const poseData = candidate.data as PoseNodeData | undefined;
+      if (poseData?.source === "reference" && poseData.pose.id) {
+        ids.add(poseData.pose.id);
+        return;
+      }
+      if (
+        poseData?.source === "shared" &&
+        poseData.linkedReferencePoseId?.trim()
+      ) {
+        ids.add(poseData.linkedReferencePoseId.trim());
+      }
+      return;
+    }
+    candidate.children.forEach((child) => visit(child));
+  };
+  visit(node);
+  return Array.from(ids);
+}
+
+function collectNodeFaceOwnership(node: TreeNode): FaceOwnershipSummary {
+  if (node.type === "rig") {
+    const rigData = node.data as RigNodeData | undefined;
+    if (!rigData) {
+      return createFaceOwnershipSummary();
+    }
+    return resolveRigSourceOwnership(rigData.source);
+  }
+  if (node.type === "pose") {
+    const poseData = node.data as PoseNodeData | undefined;
+    if (!poseData) {
+      return createFaceOwnershipSummary();
+    }
+    return resolvePoseSourceOwnership(poseData.source);
+  }
+  let summary = createFaceOwnershipSummary();
+  node.children.forEach((child) => {
+    summary = mergeFaceOwnershipSummary(
+      summary,
+      collectNodeFaceOwnership(child),
+    );
+  });
+  return summary;
 }
 
 function arePoseIdListsEqual(left: string[], right: string[]): boolean {
@@ -1610,6 +1783,54 @@ function areStringSetsEqual(
     }
   }
   return true;
+}
+
+function OwnershipScopeIcon({
+  Icon,
+  scope,
+  size = 12,
+  strokeWidth = 2,
+  className,
+}: {
+  Icon: React.ComponentType<{
+    size?: number;
+    strokeWidth?: number;
+    className?: string;
+  }>;
+  scope: FaceOwnershipScope;
+  size?: number;
+  strokeWidth?: number;
+  className?: string;
+}): ReactNode {
+  if (scope === "shared") {
+    return (
+      <span className={cn("inline-flex items-center gap-0.5", className)}>
+        <Icon
+          size={size}
+          strokeWidth={strokeWidth}
+          className={MAIN_FACE_SCOPE_ICON_CLASS}
+        />
+        <Icon
+          size={size}
+          strokeWidth={strokeWidth}
+          className={REFERENCE_FACE_SCOPE_ICON_CLASS}
+        />
+      </span>
+    );
+  }
+  const iconClass =
+    scope === "main"
+      ? MAIN_FACE_SCOPE_ICON_CLASS
+      : scope === "reference"
+        ? REFERENCE_FACE_SCOPE_ICON_CLASS
+        : NO_FACE_SCOPE_ICON_CLASS;
+  return (
+    <Icon
+      size={size}
+      strokeWidth={strokeWidth}
+      className={cn(iconClass, className)}
+    />
+  );
 }
 
 function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
@@ -1863,6 +2084,14 @@ interface TreeRowWrapperProps {
   selectedReferencePoseIds?: ReadonlySet<string>;
   onToggleReferenceRigSelection?: (inputId: string) => void;
   onToggleReferencePoseSelection?: (poseId: string) => void;
+  onSetReferenceRigSelection?: (
+    inputIds: readonly string[],
+    selected: boolean,
+  ) => void;
+  onSetReferencePoseSelection?: (
+    poseIds: readonly string[],
+    selected: boolean,
+  ) => void;
   timelineInputLockActive?: boolean;
   timelineLockedInputIds?: ReadonlySet<string>;
   motionGraphContext?: {
@@ -1897,6 +2126,8 @@ function TreeRowWrapper({
   selectedReferencePoseIds,
   onToggleReferenceRigSelection,
   onToggleReferencePoseSelection,
+  onSetReferenceRigSelection,
+  onSetReferencePoseSelection,
   timelineInputLockActive,
   timelineLockedInputIds,
   motionGraphContext,
@@ -1913,9 +2144,14 @@ function TreeRowWrapper({
   const rigNodeData =
     node.type === "rig" ? (node.data as RigNodeData | undefined) : undefined;
   const isReferencePoseNode = poseNodeData?.source === "reference";
+  const isSharedPoseNode = poseNodeData?.source === "shared";
   const isReferenceRigNode = rigNodeData?.source === "reference";
   const isSharedRigNode = rigNodeData?.source === "shared";
-  const referencePoseId = isReferencePoseNode ? poseNodeData?.pose.id : null;
+  const referencePoseId = isReferencePoseNode
+    ? (poseNodeData?.pose.id ?? null)
+    : isSharedPoseNode
+      ? (poseNodeData?.linkedReferencePoseId ?? null)
+      : null;
   const referenceRigInputId = isReferenceRigNode ? rigNodeData?.input.id : null;
   const sharedRigReferenceInputId = isSharedRigNode
     ? (rigNodeData?.linkedReferenceInputId ?? null)
@@ -1935,8 +2171,7 @@ function TreeRowWrapper({
     selection &&
     ((node.type === "pose" &&
       selection.type === "pose" &&
-      poseNodeData?.source === "main" &&
-      poseNodeData.pose.id === selection.id) ||
+      poseNodeData?.pose.id === selection.id) ||
       (node.type === "rig" &&
         selection.type === "rig" &&
         (node.data as RigNodeData)?.input?.id === selection.id) ||
@@ -1947,6 +2182,32 @@ function TreeRowWrapper({
         selection.type === "pose-group" &&
         node.id === selection.id));
   const rowIsSelected = Boolean(isSelected || isBulkSelected);
+  const nodeOwnershipScope = useMemo(
+    () => resolveFaceOwnershipScope(collectNodeFaceOwnership(node)),
+    [node],
+  );
+  const folderReferenceRigSelectionIds = useMemo(
+    () =>
+      node.type === "folder" ? collectFolderReferenceRigSelectionIds(node) : [],
+    [node],
+  );
+  const folderReferencePoseSelectionIds = useMemo(
+    () =>
+      node.type === "folder"
+        ? collectFolderReferencePoseSelectionIds(node)
+        : [],
+    [node],
+  );
+  const folderAllReferenceRigSelected =
+    folderReferenceRigSelectionIds.length > 0 &&
+    folderReferenceRigSelectionIds.every((id) =>
+      selectedReferenceRigIds?.has(id),
+    );
+  const folderAllReferencePoseSelected =
+    folderReferencePoseSelectionIds.length > 0 &&
+    folderReferencePoseSelectionIds.every((id) =>
+      selectedReferencePoseIds?.has(id),
+    );
   const folderDeletionSummary =
     node.type === "folder" && !isPoseGroupFolder
       ? collectFolderRigDeletionSummary(node)
@@ -1964,18 +2225,6 @@ function TreeRowWrapper({
   if (node.type === "pose") Icon = Activity;
   else if (node.type === "rig") Icon = Zap;
   else if (node.type === "input") Icon = Sliders;
-
-  // Determine Icon Color
-  let iconClass = "text-text-muted";
-  if (node.type === "pose")
-    iconClass = isReferencePoseNode ? "text-cyan-300" : "text-purple-400";
-  else if (node.type === "rig") iconClass = "text-yellow-400";
-  else if (node.type === "input") iconClass = "text-cyan-300";
-  else if (
-    node.type === "folder" &&
-    (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
-  )
-    iconClass = "text-purple-300";
 
   if (node.type === "input") {
     const inputData = node.data as InputCatalogRow;
@@ -2131,11 +2380,30 @@ function TreeRowWrapper({
         !hasChildren || isPoseGroupFolder ? () => onSelect?.(node) : undefined
       }
       highlightQuery={searchQuery}
-      icon={<Icon size={12} strokeWidth={2} className={iconClass} />}
+      icon={<OwnershipScopeIcon Icon={Icon} scope={nodeOwnershipScope} />}
       actions={
         <>
           {node.type === "pose" && !isReferencePoseNode && (
             <>
+              {referencePoseId ? (
+                <label
+                  className="flex items-center gap-1 text-[9px] text-cyan-200"
+                  onClick={(event) => event.stopPropagation()}
+                  title="Select pose for bulk copy"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isBulkSelected}
+                    onChange={() => {
+                      if (!referencePoseId) {
+                        return;
+                      }
+                      onToggleReferencePoseSelection?.(referencePoseId);
+                    }}
+                  />
+                  Bulk
+                </label>
+              ) : null}
               <Button
                 variant="ghost"
                 size="sm"
@@ -2255,9 +2523,6 @@ function TreeRowWrapper({
               >
                 <Copy size={10} />
               </Button>
-              <span className="text-[9px] font-mono px-1 rounded bg-cyan-900/40 text-cyan-200">
-                reference
-              </span>
             </>
           )}
 
@@ -2375,6 +2640,46 @@ function TreeRowWrapper({
                 <Trash2 size={10} />
               </Button>
             )}
+          {node.type === "folder" &&
+            folderReferenceRigSelectionIds.length > 0 && (
+              <label
+                className="flex items-center gap-1 text-[9px] text-cyan-200"
+                onClick={(event) => event.stopPropagation()}
+                title="Select all reference/shared drivers in this folder for bulk copy"
+              >
+                <input
+                  type="checkbox"
+                  checked={folderAllReferenceRigSelected}
+                  onChange={() => {
+                    onSetReferenceRigSelection?.(
+                      folderReferenceRigSelectionIds,
+                      !folderAllReferenceRigSelected,
+                    );
+                  }}
+                />
+                Bulk Drv
+              </label>
+            )}
+          {node.type === "folder" &&
+            folderReferencePoseSelectionIds.length > 0 && (
+              <label
+                className="flex items-center gap-1 text-[9px] text-cyan-200"
+                onClick={(event) => event.stopPropagation()}
+                title="Select all reference poses in this folder for bulk copy"
+              >
+                <input
+                  type="checkbox"
+                  checked={folderAllReferencePoseSelected}
+                  onChange={() => {
+                    onSetReferencePoseSelection?.(
+                      folderReferencePoseSelectionIds,
+                      !folderAllReferencePoseSelected,
+                    );
+                  }}
+                />
+                Bulk Pose
+              </label>
+            )}
 
           {node.type === "folder" &&
             (node.data as PoseGroupNodeData | undefined)?.kind ===
@@ -2406,16 +2711,6 @@ function TreeRowWrapper({
               <Trash2 size={10} />
             </Button>
           ) : null}
-
-          {node.type === "rig" && node.data && (
-            <span
-              className={`text-[9px] font-mono px-1 rounded ${
-                SOURCE_BADGE_CLASS[(node.data as RigNodeData).source]
-              }`}
-            >
-              {(node.data as RigNodeData).source}
-            </span>
-          )}
         </>
       }
     >
@@ -2443,6 +2738,8 @@ function TreeRowWrapper({
                 selectedReferencePoseIds={selectedReferencePoseIds}
                 onToggleReferenceRigSelection={onToggleReferenceRigSelection}
                 onToggleReferencePoseSelection={onToggleReferencePoseSelection}
+                onSetReferenceRigSelection={onSetReferenceRigSelection}
+                onSetReferencePoseSelection={onSetReferencePoseSelection}
                 timelineInputLockActive={timelineInputLockActive}
                 timelineLockedInputIds={timelineLockedInputIds}
                 motionGraphContext={motionGraphContext}
@@ -3186,6 +3483,60 @@ export function VariablesPanel({
     () => new Map(referencePoseEntries.map((pose) => [pose.id, pose])),
     [referencePoseEntries],
   );
+  const referencePoseByLookupToken = useMemo(() => {
+    const byLookupToken = new Map<string, ReferencePoseDefinition | null>();
+    referencePoseEntries.forEach((pose) => {
+      const token = normalizePoseLookupToken(pose.name);
+      if (!token) {
+        return;
+      }
+      const existing = byLookupToken.get(token);
+      if (!existing) {
+        byLookupToken.set(token, pose);
+        return;
+      }
+      byLookupToken.set(token, null);
+    });
+    return byLookupToken;
+  }, [referencePoseEntries]);
+  const sharedPoseLinks = useMemo(() => {
+    const linkedReferencePoseIdByMainPoseId = new Map<string, string>();
+    const sharedReferencePoseIds = new Set<string>();
+    if (!referenceFace.file || !referenceFace.isLoaded) {
+      return {
+        linkedReferencePoseIdByMainPoseId,
+        sharedReferencePoseIds,
+      };
+    }
+    poses.forEach((mainPose) => {
+      const byId = referencePoseById.get(mainPose.id);
+      if (byId && !sharedReferencePoseIds.has(byId.id)) {
+        linkedReferencePoseIdByMainPoseId.set(mainPose.id, byId.id);
+        sharedReferencePoseIds.add(byId.id);
+        return;
+      }
+      const lookupToken = normalizePoseLookupToken(mainPose.name);
+      if (!lookupToken) {
+        return;
+      }
+      const byName = referencePoseByLookupToken.get(lookupToken) ?? null;
+      if (!byName || sharedReferencePoseIds.has(byName.id)) {
+        return;
+      }
+      linkedReferencePoseIdByMainPoseId.set(mainPose.id, byName.id);
+      sharedReferencePoseIds.add(byName.id);
+    });
+    return {
+      linkedReferencePoseIdByMainPoseId,
+      sharedReferencePoseIds,
+    };
+  }, [
+    poses,
+    referenceFace.file,
+    referenceFace.isLoaded,
+    referencePoseById,
+    referencePoseByLookupToken,
+  ]);
   const allVariableEntries = useMemo(() => {
     const sharedPathSet = new Set<string>();
     sharedRigEntries.forEach((entry) => {
@@ -3462,6 +3813,44 @@ export function VariablesPanel({
       return next;
     });
   }, []);
+  const setReferenceRigSelectionBatch = useCallback(
+    (inputIds: readonly string[], selected: boolean) => {
+      if (inputIds.length === 0) {
+        return;
+      }
+      setSelectedReferenceRigIds((current) => {
+        const next = new Set(current);
+        inputIds.forEach((inputId) => {
+          if (selected) {
+            next.add(inputId);
+          } else {
+            next.delete(inputId);
+          }
+        });
+        return areStringSetsEqual(current, next) ? current : next;
+      });
+    },
+    [],
+  );
+  const setReferencePoseSelectionBatch = useCallback(
+    (poseIds: readonly string[], selected: boolean) => {
+      if (poseIds.length === 0) {
+        return;
+      }
+      setSelectedReferencePoseIds((current) => {
+        const next = new Set(current);
+        poseIds.forEach((poseId) => {
+          if (selected) {
+            next.add(poseId);
+          } else {
+            next.delete(poseId);
+          }
+        });
+        return areStringSetsEqual(current, next) ? current : next;
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (referenceFace.file) {
@@ -4571,6 +4960,8 @@ export function VariablesPanel({
     const shouldSurfaceReferencePoses = Boolean(referenceFace.file);
 
     poses.forEach((pose) => {
+      const linkedReferencePoseId =
+        sharedPoseLinks.linkedReferencePoseIdByMainPoseId.get(pose.id) ?? null;
       const groupParts = pose.group
         ? pose.group.split("/").filter(Boolean)
         : [];
@@ -4602,18 +4993,30 @@ export function VariablesPanel({
         children: new Map(),
         showChildren: false,
         data: {
-          source: "main",
+          source: linkedReferencePoseId ? "shared" : "main",
           pose,
+          linkedReferencePoseId,
         } as PoseNodeData,
       });
     });
 
     if (shouldSurfaceReferencePoses && referenceFace.isLoaded) {
       referencePoseEntries.forEach((pose) => {
+        if (sharedPoseLinks.sharedReferencePoseIds.has(pose.id)) {
+          return;
+        }
+        const groupPath = resolveReferencePoseTreeGroupPath(pose);
+        const groupParts = groupPath
+          ? groupPath.split("/").filter(Boolean)
+          : [];
+        let current = root;
+        groupParts.forEach((part) => {
+          current = getOrCreateChild(current, part, part);
+        });
         const poseKey = `reference_pose_${pose.id}`;
-        root.children.set(poseKey, {
-          id: `${root.id}/${poseKey}`,
-          label: pose.name,
+        current.children.set(poseKey, {
+          id: `${current.id}/${poseKey}`,
+          label: resolveReferencePoseTreeLabel(pose),
           type: "pose",
           children: new Map(),
           showChildren: false,
@@ -4632,7 +5035,13 @@ export function VariablesPanel({
     root.children = simplifiedChildren;
 
     return root;
-  }, [poses, referenceFace.file, referenceFace.isLoaded, referencePoseEntries]);
+  }, [
+    poses,
+    referenceFace.file,
+    referenceFace.isLoaded,
+    referencePoseEntries,
+    sharedPoseLinks,
+  ]);
 
   const visibleRoot = useMemo(
     () =>
@@ -4876,18 +5285,21 @@ export function VariablesPanel({
         }
         return;
       }
-      if (poseNodeData.source !== "main") {
-        return;
-      }
       const poseData = poseNodeData.pose as PoseDefinition;
       if (!setPoseWeightSolo(poseData.id)) {
         applyPose(poseData.id);
+      }
+      if (
+        poseNodeData.source === "shared" &&
+        poseNodeData.linkedReferencePoseId?.trim()
+      ) {
+        setReferencePoseWeightSolo(poseNodeData.linkedReferencePoseId.trim());
       }
       return;
     }
     if (node.type === "pose" && action === "key-pose") {
       const poseNodeData = node.data as PoseNodeData;
-      if (poseNodeData.source !== "main") {
+      if (poseNodeData.source === "reference") {
         return;
       }
       keyPoseChannelsAtCurrentTime(poseNodeData.pose as PoseDefinition);
@@ -4903,9 +5315,6 @@ export function VariablesPanel({
         );
         return;
       }
-      if (poseNodeData.source !== "main") {
-        return;
-      }
       const poseData = poseNodeData.pose as PoseDefinition;
       const poseWeightInputId = poseWeightInputIdByPoseId.get(poseData.id);
       if (!poseWeightInputId) {
@@ -4916,11 +5325,21 @@ export function VariablesPanel({
         poseWeightInputId,
         poseWeightInput?.defaultValue ?? 0,
       );
+      if (
+        poseNodeData.source === "shared" &&
+        poseNodeData.linkedReferencePoseId?.trim()
+      ) {
+        const linkedReferencePoseId = poseNodeData.linkedReferencePoseId.trim();
+        referenceFace.handleInputPathValueChange(
+          buildPoseWeightRelativePath(linkedReferencePoseId),
+          resolveReferencePoseWeightDefault(linkedReferencePoseId),
+        );
+      }
       return;
     }
     if (node.type === "pose" && action === "duplicate-pose") {
       const poseNodeData = node.data as PoseNodeData;
-      if (poseNodeData.source !== "main") {
+      if (poseNodeData.source === "reference") {
         return;
       }
       const poseData = poseNodeData.pose as PoseDefinition;
@@ -4935,7 +5354,7 @@ export function VariablesPanel({
     }
     if (node.type === "pose" && action === "delete-pose") {
       const poseNodeData = node.data as PoseNodeData;
-      if (poseNodeData.source !== "main") {
+      if (poseNodeData.source === "reference") {
         return;
       }
       const poseData = poseNodeData.pose as PoseDefinition;
@@ -5044,10 +5463,7 @@ export function VariablesPanel({
   const handleSelect = (node: TreeNode) => {
     if (node.type === "pose") {
       const poseNodeData = node.data as PoseNodeData;
-      if (poseNodeData.source !== "main") {
-        return;
-      }
-      const poseData = poseNodeData.pose as PoseDefinition;
+      const poseData = poseNodeData.pose;
       onSelectPoseGroup?.(null);
       onSelectBlendStage?.(null);
       if (onSelectPose) {
@@ -5059,15 +5475,7 @@ export function VariablesPanel({
       onSelectRig?.(null);
     } else if (node.type === "rig") {
       const rigData = node.data as RigNodeData;
-      if (rigData.source === "reference") {
-        if (rigData.linkedMainInputId) {
-          onSelectRig?.(rigData.linkedMainInputId);
-        } else {
-          onSelectRig?.(null);
-        }
-      } else {
-        onSelectRig?.(rigData.input.id);
-      }
+      onSelectRig?.(rigData.input.id);
       onSelectPoseGroup?.(null);
       onSelectBlendStage?.(null);
     } else if (
@@ -5474,7 +5882,12 @@ export function VariablesPanel({
   };
 
   const variableItemCount = allVariableEntries.length;
-  const poseItemCount = poses.length + referencePoseEntries.length;
+  const poseItemCount =
+    poses.length +
+    (referenceFace.file && referenceFace.isLoaded
+      ? referencePoseEntries.length -
+        sharedPoseLinks.sharedReferencePoseIds.size
+      : 0);
   const poseGroupItemCount = poseGroups.length;
   const inputItemCount = inputRows.length;
   const poseGroupsForSurface = useMemo(() => {
@@ -6357,14 +6770,24 @@ export function VariablesPanel({
                         <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
                           Variables Context
                         </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
+                          <Zap size={10} />
                           Main Face
                         </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-teal-500/40 text-teal-200">
-                          Shared
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/40 text-cyan-200">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-violet-500/40 text-violet-200">
+                          <Zap size={10} />
                           Reference Face
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                          <Zap
+                            size={10}
+                            className={MAIN_FACE_SCOPE_ICON_CLASS}
+                          />
+                          <Zap
+                            size={10}
+                            className={REFERENCE_FACE_SCOPE_ICON_CLASS}
+                          />
+                          Shared
                         </span>
                       </>
                     ) : isPoses ? (
@@ -6372,10 +6795,12 @@ export function VariablesPanel({
                         <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
                           Poses Context
                         </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
+                          <Zap size={10} />
                           Main Face
                         </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/40 text-cyan-200">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-violet-500/40 text-violet-200">
+                          <Zap size={10} />
                           Reference Face
                         </span>
                       </>
@@ -7183,6 +7608,12 @@ export function VariablesPanel({
                           }
                           onToggleReferencePoseSelection={
                             toggleReferencePoseSelection
+                          }
+                          onSetReferenceRigSelection={
+                            setReferenceRigSelectionBatch
+                          }
+                          onSetReferencePoseSelection={
+                            setReferencePoseSelectionBatch
                           }
                           timelineInputLockActive={timelineInputLockActive}
                           timelineLockedInputIds={timelineLockedInputIds}

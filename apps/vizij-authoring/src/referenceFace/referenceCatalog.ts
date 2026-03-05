@@ -386,6 +386,17 @@ function extractPoseDefinitions(
     const pose = asRecord(rawPose);
     const id = asString(pose?.id) ?? `pose_${index + 1}`;
     const name = asString(pose?.name) ?? id;
+    const group = asString(pose?.groupPath) ?? asString(pose?.group);
+    const groupId = asString(pose?.groupId);
+    const groupIds = Array.isArray(pose?.groupIds)
+      ? Array.from(
+          new Set(
+            pose.groupIds
+              .map((value) => asString(value))
+              .filter((value): value is string => value !== null),
+          ),
+        )
+      : [];
     const values = asRecord(pose?.values);
     const targets =
       values === null
@@ -407,11 +418,21 @@ function extractPoseDefinitions(
             )
             .sort((left, right) => left.inputId.localeCompare(right.inputId));
 
-    return {
+    const nextPose: ReferencePoseDefinition = {
       id,
       name,
       targets,
     };
+    if (group) {
+      nextPose.group = group;
+    }
+    if (groupId) {
+      nextPose.groupId = groupId;
+    }
+    if (groupIds.length > 0) {
+      nextPose.groupIds = groupIds;
+    }
+    return nextPose;
   });
 
   return poses;

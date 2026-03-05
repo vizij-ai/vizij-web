@@ -22,6 +22,10 @@ describe("B2.2 pose weight synchronization contracts", () => {
     expect(inspectorContentTsx).toContain(
       "const activePoseWeight = usePoseWeightPreview",
     );
+    expect(inspectorContentTsx).toContain("referencePoseWeightInputByPath");
+    expect(inspectorContentTsx).toContain(
+      "normalizeStandardRigInputPath(buildPoseWeightRelativePath(poseId))",
+    );
   });
 
   it("routes pose-group inspector controls through canonical pose-weight inputs", () => {

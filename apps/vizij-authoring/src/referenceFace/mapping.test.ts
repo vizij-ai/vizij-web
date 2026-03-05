@@ -23,6 +23,9 @@ interface BundleInputFixture {
 interface BundlePoseFixture {
   id: string;
   name: string;
+  group?: string;
+  groupId?: string;
+  groupIds?: string[];
   values: Record<string, unknown>;
 }
 
@@ -220,6 +223,34 @@ describe("referenceFace catalog + mapping", () => {
         { inputId: "src_jaw", value: 0.5 },
         { inputId: "src_smile", value: 0.75 },
       ],
+    });
+  });
+
+  it("retains optional reference pose group metadata for foldering", () => {
+    const bundle = makeBundle({
+      inputs: [
+        { id: "src_smile", path: "/controls/mouth/smile", label: "Smile" },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          group: "emotion/upper",
+          groupId: "emotion_upper",
+          groupIds: ["emotion_upper", "emotion"],
+          values: { src_smile: 0.8 },
+        },
+      ],
+    });
+
+    const catalog = extractReferenceCatalog(bundle);
+    expect(catalog.posesById.get("pose_smile")).toEqual({
+      id: "pose_smile",
+      name: "Smile",
+      group: "emotion/upper",
+      groupId: "emotion_upper",
+      groupIds: ["emotion_upper", "emotion"],
+      targets: [{ inputId: "src_smile", value: 0.8 }],
     });
   });
 
