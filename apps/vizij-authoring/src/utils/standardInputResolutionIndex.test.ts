@@ -4,6 +4,10 @@ import {
   getStandardInputResolutionIndex,
   type StandardInputResolutionMetrics,
 } from "./standardInputResolutionIndex";
+import {
+  ensureStandardPathInput,
+  inferStandardSuggestion,
+} from "./standardInputPaths";
 
 function makeInput(
   id: string,
@@ -134,5 +138,27 @@ describe("standardInputResolutionIndex", () => {
     expect(second).toEqual([canonical.id, prefixed.id]);
     expect(metrics.canonicalResolutionCalls).toBe(2);
     expect(metrics.canonicalResolutionMisses).toBe(1);
+  });
+
+  it("normalizes rig paths to standard paths before resolution", () => {
+    expect(ensureStandardPathInput("rig/face/eyes/blink")).toBe(
+      "/standard/eyes/blink",
+    );
+    expect(ensureStandardPathInput("/standard/eyes/blink")).toBe(
+      "/standard/eyes/blink",
+    );
+  });
+
+  it("suggests matching standard inputs and falls back to normalized standard paths", () => {
+    const standardInputs = [
+      makeInput("eyes_blink", "/standard/eyes/blink", { group: "eyes" }),
+    ];
+
+    expect(
+      inferStandardSuggestion("rig/robot/eyes/blink", standardInputs),
+    ).toBe("/standard/eyes/blink");
+    expect(
+      inferStandardSuggestion("rig/robot/eyes/smile", standardInputs),
+    ).toBe("/standard/eyes/smile");
   });
 });
