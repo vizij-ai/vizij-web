@@ -20,6 +20,7 @@ function createBaseProps(): VariablePipelineStagesProps {
       {
         id: "parent:jaw",
         label: "Jaw Parent",
+        expressionVariable: "s1",
         kind: "variable" as const,
         onInspect: vi.fn(),
         directControl: {
@@ -230,6 +231,41 @@ describe("VariablePipelineStages", () => {
     );
   });
 
+  it("applies advanced parent formulas from collapsed editor", () => {
+    const props = createBaseProps();
+    const onParentFormulaChange = vi.fn();
+    props.parents = [
+      {
+        ...props.parents[0]!,
+        parentFormula: "s1 = parent * scale + offset",
+        parentFormulaDefault: "s1 = parent * scale + offset",
+        onParentFormulaChange,
+      },
+    ];
+    const view = render(<VariablePipelineStages {...props} />);
+    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+
+    fireEvent.click(
+      within(parentStage).getByRole("button", { name: /jaw parent/i }),
+    );
+    fireEvent.click(within(parentStage).getByText("Advanced Formula"));
+
+    fireEvent.change(
+      within(parentStage).getByTestId(
+        "pipeline-parent-formula-editor-parent:jaw",
+      ),
+      {
+        target: { value: "s1 = parent * scale + offset * 2" },
+      },
+    );
+    fireEvent.click(
+      within(parentStage).getByRole("button", { name: "Apply Formula" }),
+    );
+    expect(onParentFormulaChange).toHaveBeenCalledWith(
+      "s1 = parent * scale + offset * 2",
+    );
+  });
+
   it("commits parent and child link scale/offset changes on blur", () => {
     const props = createBaseProps();
     const parentScaleChange = props.parents[0]?.linkControl?.onScaleChange;
@@ -314,6 +350,19 @@ describe("VariablePipelineStages", () => {
     expect(
       within(parentStage).queryByTestId("pipeline-migrate-action"),
     ).toBeNull();
+  });
+
+  it("shows parent variable mapping with expanded contribution math", () => {
+    const props = createBaseProps();
+    const view = render(<VariablePipelineStages {...props} />);
+    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+
+    const mapping = within(parentStage).getByTestId(
+      "pipeline-parent-variable-mapping",
+    );
+    expect(within(mapping).getByText("Parent Variable Mapping")).toBeTruthy();
+    expect(within(mapping).getByText("s1 = parent * 1 + 0")).toBeTruthy();
+    expect(within(mapping).getByText("s1 = 0.4 * 1 + 0 = 0.4")).toBeTruthy();
   });
 
   it("renders slider controls for parent, direct, and override stages", () => {

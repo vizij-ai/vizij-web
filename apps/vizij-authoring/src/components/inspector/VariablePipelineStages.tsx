@@ -12,9 +12,13 @@ import {
 export interface PipelineStageLinkItem {
   id: string;
   label: string;
+  expressionVariable?: string;
+  parentFormula?: string;
+  parentFormulaDefault?: string;
   kind: "variable" | "property" | "propsrig";
   onInspect?: () => void;
   onUnlink?: () => void;
+  onParentFormulaChange?: (expression: string) => void;
   directControl?: {
     value: number;
     min: number;
@@ -173,17 +177,77 @@ function formatCompactNumber(value: number): string {
   return Number(value.toFixed(3)).toString();
 }
 
+function formatSignedCompactNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "+ 0";
+  }
+  const absValue = formatCompactNumber(Math.abs(value));
+  return value >= 0 ? `+ ${absValue}` : `- ${absValue}`;
+}
+
+function buildParentVariableFormula(
+  parent: Pick<
+    PipelineStageLinkItem,
+    "expressionVariable" | "linkControl" | "directControl" | "parentFormula"
+  >,
+): { symbolic: string; expanded: string | null } | null {
+  if (!parent.linkControl) {
+    return null;
+  }
+  const variable =
+    parent.expressionVariable && parent.expressionVariable.trim().length > 0
+      ? parent.expressionVariable.trim()
+      : "s1";
+  const scaleText = formatCompactNumber(parent.linkControl.scale);
+  const offsetText = formatSignedCompactNumber(parent.linkControl.offset);
+  const customFormula =
+    parent.parentFormula && parent.parentFormula.trim().length > 0
+      ? parent.parentFormula.trim()
+      : null;
+  const symbolic =
+    customFormula ?? `${variable} = parent * ${scaleText} ${offsetText}`;
+  if (customFormula) {
+    return { symbolic, expanded: null };
+  }
+  if (!parent.directControl) {
+    return { symbolic, expanded: null };
+  }
+  const parentValue = parent.directControl.value;
+  const expandedValue =
+    parentValue * parent.linkControl.scale + parent.linkControl.offset;
+  const expanded = `${variable} = ${formatCompactNumber(parentValue)} * ${scaleText} ${offsetText} = ${formatCompactNumber(expandedValue)}`;
+  return { symbolic, expanded };
+}
+
 function LinkControlEditor({
   linkControl,
   context,
+  expressionVariable,
+  sourceValue,
 }: {
   linkControl: NonNullable<PipelineStageLinkItem["linkControl"]>;
   context: "parent" | "child";
+  expressionVariable?: string;
+  sourceValue?: number;
 }) {
+  const variableToken =
+    expressionVariable && expressionVariable.trim().length > 0
+      ? expressionVariable.trim()
+      : "s1";
+  const scaleText = formatCompactNumber(linkControl.scale);
+  const offsetText = formatSignedCompactNumber(linkControl.offset);
   const formulaHint =
     context === "parent"
-      ? "Contribution = parent x scale + offset"
+      ? `${variableToken} = parent * scale + offset`
       : "Child input = this x scale + offset";
+  const expandedFormulaHint =
+    context === "parent" &&
+    typeof sourceValue === "number" &&
+    Number.isFinite(sourceValue)
+      ? `${variableToken} = ${formatCompactNumber(sourceValue)} * ${scaleText} ${offsetText} = ${formatCompactNumber(
+          sourceValue * linkControl.scale + linkControl.offset,
+        )}`
+      : null;
 
   return (
     <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
@@ -195,15 +259,20 @@ function LinkControlEditor({
           hint="Toggle this connection on/off."
           size="sm"
         />
-        <span className="text-[9px] text-text-muted">{formulaHint}</span>
+        <div className="flex flex-col items-end">
+          <span className="text-[9px] text-text-muted">{formulaHint}</span>
+          {expandedFormulaHint ? (
+            <span className="text-[9px] text-text-muted font-mono">
+              {expandedFormulaHint}
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="grid grid-cols-[58px_72px] items-center gap-2">
         <span className="text-[10px] text-text-secondary">Scale</span>
         <NumberField
           size="sm"
           value={linkControl.scale}
-          min={-3}
-          max={3}
           step={0.01}
           commitMode="blur"
           allowScrub={false}
@@ -295,9 +364,58 @@ export function VariablePipelineStages({
 }: VariablePipelineStagesProps) {
   const [parentExpressionDraft, setParentExpressionDraft] =
     React.useState(parentExpression);
+  const [parentFormulaDraftById, setParentFormulaDraftById] = React.useState<
+    Record<string, string>
+  >({});
+  const parentFormulaSourceByIdRef = React.useRef<Record<string, string>>({});
   React.useEffect(() => {
     setParentExpressionDraft(parentExpression);
   }, [parentExpression]);
+  React.useEffect(() => {
+    setParentFormulaDraftById((previous) => {
+      const next = { ...previous };
+      const nextSourceById: Record<string, string> = {};
+      const activeIds = new Set<string>();
+      let changed = false;
+
+      parents.forEach((parent) => {
+        if (!parent.onParentFormulaChange) {
+          return;
+        }
+        const formula =
+          parent.parentFormula && parent.parentFormula.trim().length > 0
+            ? parent.parentFormula
+            : (parent.parentFormulaDefault ?? "");
+        activeIds.add(parent.id);
+        nextSourceById[parent.id] = formula;
+        const previousSource = parentFormulaSourceByIdRef.current[parent.id];
+        const previousDraft = previous[parent.id];
+        if (previousDraft === undefined) {
+          next[parent.id] = formula;
+          changed = true;
+          return;
+        }
+        if (
+          previousSource !== undefined &&
+          formula !== previousSource &&
+          previousDraft === previousSource
+        ) {
+          next[parent.id] = formula;
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((id) => {
+        if (!activeIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+
+      parentFormulaSourceByIdRef.current = nextSourceById;
+      return changed ? next : previous;
+    });
+  }, [parents]);
   const parentExpressionDirty =
     parentExpressionDraft.trim() !== parentExpression.trim();
   const canEditParentExpression =
@@ -305,6 +423,23 @@ export function VariablePipelineStages({
   const sourceSectionClass = overrideEnabled
     ? "opacity-45 saturate-75 transition-opacity"
     : "";
+  const parentVariableMappings = React.useMemo(
+    () =>
+      parents
+        .map((parent) => ({
+          parent,
+          formula: buildParentVariableFormula(parent),
+        }))
+        .filter(
+          (
+            entry,
+          ): entry is {
+            parent: PipelineStageLinkItem;
+            formula: { symbolic: string; expanded: string | null };
+          } => entry.formula !== null,
+        ),
+    [parents],
+  );
 
   return (
     <div
@@ -438,58 +573,147 @@ export function VariablePipelineStages({
               {parentExpression.trim().length > 0 ? parentExpression : "n/a"}
             </code>
           )}
+          {parentVariableMappings.length > 0 ? (
+            <div
+              className="mt-2 rounded-md border border-border-default/60 bg-bg-panel/50 p-2 flex flex-col gap-1"
+              data-testid="pipeline-parent-variable-mapping"
+            >
+              <span className="text-[9px] uppercase tracking-wide text-text-muted">
+                Parent Variable Mapping
+              </span>
+              {parentVariableMappings.map(({ parent, formula }) => (
+                <div key={`mapping-${parent.id}`} className="flex flex-col">
+                  <code className="text-[10px] text-text-primary break-all">
+                    {formula.symbolic}
+                  </code>
+                  {formula.expanded ? (
+                    <code className="text-[9px] text-text-muted break-all">
+                      {formula.expanded}
+                    </code>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
         {parents.length > 0 ? (
           <div className="flex flex-col gap-2">
-            {parents.map((parent) => (
-              <CollapsibleRow
-                key={parent.id}
-                id={`pipeline-parent-${parent.id}`}
-                title={parent.label}
-                subtitle={
-                  parent.linkControl
-                    ? `${
-                        parent.linkControl.enabled ? "Enabled" : "Disabled"
-                      } · scale ${formatCompactNumber(
-                        parent.linkControl.scale,
-                      )} · offset ${formatCompactNumber(parent.linkControl.offset)}`
-                    : "No link controls configured"
-                }
-                defaultExpanded={false}
-                showSlider={false}
-                className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
-                actions={
-                  <>
-                    {parent.onInspect ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[10px] gap-1.5"
-                        onClick={parent.onInspect}
-                      >
-                        Inspect
-                        <ArrowRight size={11} aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                  </>
-                }
-                expandedContent={
-                  <div className="flex flex-col gap-1.5">
-                    {parent.linkControl ? (
-                      <LinkControlEditor
-                        linkControl={parent.linkControl}
-                        context="parent"
-                      />
-                    ) : null}
-                    {parent.directControl ? (
-                      <ParentDirectControlEditor
-                        directControl={parent.directControl}
-                      />
-                    ) : null}
-                  </div>
-                }
-              />
-            ))}
+            {parents.map((parent) => {
+              const parentFormula =
+                parent.parentFormula && parent.parentFormula.trim().length > 0
+                  ? parent.parentFormula
+                  : (parent.parentFormulaDefault ?? "");
+              const parentFormulaDraft =
+                parentFormulaDraftById[parent.id] ?? parentFormula;
+              const parentFormulaDirty =
+                parentFormulaDraft.trim() !== parentFormula.trim();
+              return (
+                <CollapsibleRow
+                  key={parent.id}
+                  id={`pipeline-parent-${parent.id}`}
+                  title={parent.label}
+                  subtitle={
+                    parent.linkControl
+                      ? `${parent.expressionVariable ? `${parent.expressionVariable} · ` : ""}${
+                          parent.linkControl.enabled ? "Enabled" : "Disabled"
+                        } · scale ${formatCompactNumber(
+                          parent.linkControl.scale,
+                        )} · offset ${formatCompactNumber(
+                          parent.linkControl.offset,
+                        )}`
+                      : "No link controls configured"
+                  }
+                  defaultExpanded={false}
+                  showSlider={false}
+                  className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
+                  actions={
+                    <>
+                      {parent.onInspect ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1.5"
+                          onClick={parent.onInspect}
+                        >
+                          Inspect
+                          <ArrowRight size={11} aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                  expandedContent={
+                    <div className="flex flex-col gap-1.5">
+                      {parent.linkControl ? (
+                        <LinkControlEditor
+                          linkControl={parent.linkControl}
+                          context="parent"
+                          expressionVariable={parent.expressionVariable}
+                          sourceValue={parent.directControl?.value}
+                        />
+                      ) : null}
+                      {parent.directControl ? (
+                        <ParentDirectControlEditor
+                          directControl={parent.directControl}
+                        />
+                      ) : null}
+                      {parent.onParentFormulaChange ? (
+                        <details className="rounded-md border border-border-default/50 bg-bg-input/20 px-2 py-1.5">
+                          <summary className="cursor-pointer text-[10px] font-semibold text-text-secondary">
+                            Advanced Formula
+                          </summary>
+                          <div className="mt-2 flex flex-col gap-1.5">
+                            <span className="text-[9px] text-text-muted">
+                              Edit this parent contribution formula directly.
+                            </span>
+                            <TextArea
+                              value={parentFormulaDraft}
+                              onChange={(event) =>
+                                setParentFormulaDraftById((previous) => ({
+                                  ...previous,
+                                  [parent.id]: event.target.value,
+                                }))
+                              }
+                              rows={2}
+                              className="min-h-[52px] text-[10px] leading-snug break-all bg-bg-panel/60 border-border-default/60"
+                              data-testid={`pipeline-parent-formula-editor-${parent.id}`}
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={() =>
+                                  parent.onParentFormulaChange?.(
+                                    parentFormulaDraft,
+                                  )
+                                }
+                                disabled={!parentFormulaDirty}
+                              >
+                                Apply Formula
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={() =>
+                                  setParentFormulaDraftById((previous) => ({
+                                    ...previous,
+                                    [parent.id]: parentFormula,
+                                  }))
+                                }
+                                disabled={!parentFormulaDirty}
+                              >
+                                Reset
+                              </Button>
+                            </div>
+                          </div>
+                        </details>
+                      ) : null}
+                    </div>
+                  }
+                />
+              );
+            })}
           </div>
         ) : (
           <span className="text-[10px] text-text-muted">
@@ -908,8 +1132,6 @@ export function VariablePipelineStages({
                         <NumberField
                           size="sm"
                           value={child.linkControl.scale}
-                          min={-3}
-                          max={3}
                           step={0.01}
                           commitMode="blur"
                           allowScrub={false}

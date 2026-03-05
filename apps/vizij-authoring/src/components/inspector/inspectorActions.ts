@@ -2,6 +2,8 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 import type { VariableSelection } from "./VariableSelector";
 import { resolveSelectionTargetIds } from "./bindingSelection";
 
+type RigDrivenSelectorSelection = Exclude<VariableSelection, { type: "mixed" }>;
+
 export type RigDrivenSelectionResolution =
   | {
       kind: "variable";
@@ -19,7 +21,7 @@ export type RigDrivenSelectionResolution =
     };
 
 export function resolveRigDrivenSelection(
-  selection: VariableSelection,
+  selection: RigDrivenSelectorSelection,
   selectedRigId: string,
   objects: SceneObjectNode[],
 ): RigDrivenSelectionResolution {

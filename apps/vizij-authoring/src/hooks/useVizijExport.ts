@@ -19,7 +19,11 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import { downloadJsonFile, ensureExtension } from "@vizij/authoring-shared";
-import { getLookup, cloneRawValue } from "@vizij/utils";
+import {
+  buildRigPipelineV1LinkId,
+  getLookup,
+  cloneRawValue,
+} from "@vizij/utils";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
@@ -296,6 +300,7 @@ function resolvePipelineMetadataForExport(
     const scale = normalizeFiniteValue(linkRecord.scale);
     const offset = normalizeFiniteValue(linkRecord.offset);
     const enabled = normalizeBooleanValue(linkRecord.enabled);
+    const expression = normalizeStringValue(linkRecord.expression);
     const normalizedLink: Record<string, unknown> = {
       ...linkRecord,
       linkId,
@@ -304,6 +309,7 @@ function resolvePipelineMetadataForExport(
       ...(scale !== undefined ? { scale } : {}),
       ...(offset !== undefined ? { offset } : {}),
       ...(enabled !== undefined ? { enabled } : {}),
+      ...(expression ? { expression } : {}),
     };
     nextLinks[linkId] = normalizedLink;
 
@@ -313,6 +319,7 @@ function resolvePipelineMetadataForExport(
       ...(scale !== undefined ? { scale } : {}),
       ...(offset !== undefined ? { offset } : {}),
       ...(enabled !== undefined ? { enabled } : {}),
+      ...(expression ? { expression } : {}),
     };
     const existingParents = parentsByChild.get(childInputId) ?? [];
     existingParents.push(parentEntry);
@@ -327,6 +334,28 @@ function resolvePipelineMetadataForExport(
     if (!nextByInputId[childInputId]) {
       nextByInputId[childInputId] = { inputId: childInputId };
     }
+    const existingParentEntries = Array.isArray(
+      nextByInputId[childInputId]?.parents,
+    )
+      ? nextByInputId[childInputId].parents
+      : [];
+    const existingParentsByKey = new Map<string, Record<string, unknown>>();
+    existingParentEntries.forEach((rawEntry) => {
+      const entry = asRecord(rawEntry);
+      if (!entry) {
+        return;
+      }
+      const parentInputId = normalizeStringValue(entry.inputId);
+      const linkId =
+        normalizeStringValue(entry.linkId) ??
+        (parentInputId
+          ? buildRigPipelineV1LinkId(parentInputId, childInputId)
+          : null);
+      if (!parentInputId || !linkId) {
+        return;
+      }
+      existingParentsByKey.set(`${parentInputId}::${linkId}`, entry);
+    });
     const dedupedParents = new Map<string, Record<string, unknown>>();
     parents.forEach((parent) => {
       const parentInputId = normalizeStringValue(parent.inputId);
@@ -338,6 +367,31 @@ function resolvePipelineMetadataForExport(
       dedupedParents.set(key, parent);
     });
     nextByInputId[childInputId].parents = Array.from(dedupedParents.values())
+      .map((parent): Record<string, unknown> => {
+        const parentInputId = normalizeStringValue(parent.inputId);
+        const linkId = normalizeStringValue(parent.linkId);
+        if (!parentInputId || !linkId) {
+          return { ...parent };
+        }
+        const existing =
+          existingParentsByKey.get(`${parentInputId}::${linkId}`) ?? null;
+        if (!existing) {
+          return { ...parent };
+        }
+        const alias = normalizeStringValue(existing.alias);
+        const existingExpression = normalizeStringValue(existing.expression);
+        const linkExpression = normalizeStringValue(parent.expression);
+        return {
+          ...existing,
+          ...parent,
+          ...(alias ? { alias } : {}),
+          ...(linkExpression
+            ? { expression: linkExpression }
+            : existingExpression
+              ? { expression: existingExpression }
+              : {}),
+        };
+      })
       .sort((left, right) => {
         const leftParent = normalizeStringValue(left.inputId) ?? "";
         const rightParent = normalizeStringValue(right.inputId) ?? "";

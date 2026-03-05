@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { AnimatableBinding } from "@vizij/node-graph-authoring";
 import {
   assessLegacyBindingMigration,
+  buildDefaultParentContributionFormula,
+  buildDefaultParentVariableFormula,
   buildLegacyMigrationLinkUpserts,
   buildParentContributionDisplayExpression,
   computePipelineDiagnostics,
+  mergePipelineMetadata,
   resolvePipelineStageSettings,
 } from "./pipelineStages";
 
@@ -113,6 +116,39 @@ describe("pipelineStages", () => {
     expect(expression).toContain('parent("Blink") * -2 + 0.25');
     expect(expression).toContain("baseline=0.25");
     expect(expression).not.toContain('parent("Disabled")');
+  });
+
+  it("builds default staged formula strings", () => {
+    expect(buildDefaultParentVariableFormula("P1")).toBe(
+      "P1 = parent * scale + offset",
+    );
+    expect(buildDefaultParentContributionFormula(["P1", "P2"])).toBe(
+      "parentContribution = normalizedAdditive([P1, P2], baseline=default)",
+    );
+  });
+
+  it("merges parent formulas into pipeline metadata", () => {
+    const merged = mergePipelineMetadata(undefined, {
+      parentBlendExpression: "parentContribution = P1 * 0.5 + default",
+      linkUpserts: {
+        "link/p1": {
+          parentInputId: "parent",
+          childInputId: "child",
+          expression: "P1 = parent * scale + offset * 2",
+        },
+      },
+    });
+
+    const pipeline = (merged.vizij as { pipelineV1?: unknown }).pipelineV1 as {
+      parentBlend?: { expression?: string };
+      links?: Record<string, { expression?: string }>;
+    };
+    expect(pipeline.parentBlend?.expression).toBe(
+      "parentContribution = P1 * 0.5 + default",
+    );
+    expect(pipeline.links?.["link/p1"]?.expression).toBe(
+      "P1 = parent * scale + offset * 2",
+    );
   });
 
   it("uses variable default as migrated parent-link offset", () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildRigPipelineV1ParentContributionExpression,
+  buildRigPipelineV1ParentExpression,
   buildRigPipelineV1DirectValuePath,
   buildRigPipelineV1OverrideEnabledPath,
   buildRigPipelineV1OverrideValuePath,
@@ -24,6 +26,17 @@ describe("pipeline-v1 path helpers", () => {
     );
     expect(buildRigPipelineV1OverrideValuePath("robot", TEST_INPUT.id)).toBe(
       "rig/robot/override/jaw_open/value",
+    );
+  });
+});
+
+describe("pipeline-v1 formula helpers", () => {
+  it("builds default parent and parent-contribution expressions", () => {
+    expect(buildRigPipelineV1ParentExpression("P1")).toBe(
+      "P1 = parent * scale + offset",
+    );
+    expect(buildRigPipelineV1ParentContributionExpression(["P1", "P2"])).toBe(
+      "parentContribution = normalizedAdditive([P1, P2], baseline=default)",
     );
   });
 });
@@ -116,10 +129,11 @@ describe("resolveRigPipelineV1InputConfig", () => {
     expect(resolved.parents).toHaveLength(2);
     expect(resolved.parents[0]).toMatchObject({
       inputId: "brow_raise",
-      alias: "p1",
+      alias: "P1",
       scale: -2,
       offset: 0.25,
       enabled: true,
+      expression: "P1 = parent * scale + offset",
     });
     expect(resolved.parents[1]).toMatchObject({
       inputId: "blink",
@@ -128,7 +142,11 @@ describe("resolveRigPipelineV1InputConfig", () => {
       scale: 0.75,
       offset: -0.2,
       enabled: true,
+      expression: "blinkParent = parent * scale + offset",
     });
+    expect(resolved.parentBlend.expression).toBe(
+      "parentContribution = normalizedAdditive([P1, blinkParent], baseline=default)",
+    );
     expect(resolved.poseSource.targetIds).toEqual(["pose_a", "pose_b"]);
     expect(resolved.directInput.enabled).toBe(true);
     expect(resolved.clamp.enabled).toBe(false);

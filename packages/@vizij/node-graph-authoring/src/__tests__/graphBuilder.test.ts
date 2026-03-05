@@ -689,6 +689,85 @@ describe("buildRigGraphSpec", () => {
     expect(parentOffsetNode?.input_defaults).toMatchObject({ operand_2: 0.25 });
   });
 
+  it("compiles custom staged parent and parent-contribution formulas", () => {
+    const { spec, issues } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            alias: "P1",
+            scale: 2,
+            offset: 0.1,
+            expression: "P1 = parent * scale + offset * 2",
+          },
+        ],
+        parentBlend: {
+          expression: "parentContribution = P1 * 0.5 + default",
+        },
+        directInput: {
+          enabled: true,
+        },
+      },
+    });
+
+    expect(issues.fatal).toEqual([]);
+
+    const stagedParentNode = spec.nodes.find((node) =>
+      node.id.startsWith("expr_staged_parent_input_offset_1_"),
+    );
+    expect(stagedParentNode?.type).toBeTruthy();
+    const stagedContributionNode = spec.nodes.find((node) =>
+      node.id.startsWith("expr_staged_parent_contribution_input_offset_"),
+    );
+    expect(stagedContributionNode?.type).toBeTruthy();
+
+    const sourceBlendInputs = (spec.edges ?? [])
+      .filter(
+        (edge) => edge.to?.node_id === "input_source_blend_input_offset_add",
+      )
+      .map((edge) => edge.from?.node_id ?? "");
+    expect(
+      sourceBlendInputs.some((nodeId) =>
+        nodeId.startsWith("expr_staged_parent_contribution_input_offset_"),
+      ),
+    ).toBe(true);
+
+    const vizijMetadata = (spec as Record<string, unknown>).metadata as {
+      vizij?: {
+        pipelineV1?: {
+          byInputId?: Record<string, { parentBlend?: { expression?: string } }>;
+        };
+      };
+    };
+    expect(
+      vizijMetadata?.vizij?.pipelineV1?.byInputId?.[INPUT_OFFSET.id]
+        ?.parentBlend?.expression,
+    ).toBe("parentContribution = P1 * 0.5 + default");
+  });
+
+  it("accepts normalizedAdditive typo variants in parent contribution formulas", () => {
+    const { issues } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            alias: "P1",
+          },
+        ],
+        parentBlend: {
+          expression:
+            "parentContribution = noramalizedAddative([P1], baseline=default)",
+        },
+      },
+    });
+
+    expect(issues.fatal).toEqual([]);
+  });
+
   it("supports staged override enabled defaults and override value defaults", () => {
     const { spec } = buildStagedInputGraph({
       input: INPUT_A,

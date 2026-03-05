@@ -13,6 +13,7 @@ export interface RigPipelineV1ParentEntry {
   scale?: number;
   offset?: number;
   enabled?: boolean;
+  expression?: string;
 }
 
 export interface RigPipelineV1ChildEntry {
@@ -23,6 +24,7 @@ export interface RigPipelineV1ChildEntry {
 export interface RigPipelineV1ParentBlendConfig {
   mode?: RigPipelineV1BlendMode;
   weights?: Record<string, number>;
+  expression?: string;
 }
 
 export interface RigPipelineV1PoseSourceConfig {
@@ -73,6 +75,7 @@ export interface RigPipelineV1LinkConfig {
   scale?: number;
   offset?: number;
   enabled?: boolean;
+  expression?: string;
 }
 
 export interface RigPipelineV1Metadata {
@@ -88,6 +91,7 @@ export interface RigPipelineV1ResolvedParentEntry {
   scale: number;
   offset: number;
   enabled: boolean;
+  expression: string;
 }
 
 export interface RigPipelineV1ResolvedChildEntry {
@@ -102,6 +106,7 @@ export interface RigPipelineV1ResolvedInputConfig {
   children: RigPipelineV1ResolvedChildEntry[];
   parentBlend: {
     mode: RigPipelineV1BlendMode;
+    expression: string;
   };
   poseSource: {
     targetIds: string[];
@@ -154,6 +159,14 @@ function normalizeFinite(value: number | undefined, fallback: number): number {
 }
 
 function normalizeStringValue(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeExpression(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -214,6 +227,22 @@ export function buildRigPipelineV1OverrideValuePath(
   return `rig/${faceId}/override/${inputId}/value`;
 }
 
+export function buildRigPipelineV1ParentExpression(alias: string): string {
+  const resolvedAlias = normalizeStringValue(alias) ?? "P1";
+  return `${resolvedAlias} = parent * scale + offset`;
+}
+
+export function buildRigPipelineV1ParentContributionExpression(
+  parentAliases: readonly string[],
+): string {
+  const aliases = parentAliases.map((alias) => normalizeStringValue(alias));
+  const resolvedAliases = aliases.filter(
+    (alias): alias is string => alias !== null,
+  );
+  const parentTerms = resolvedAliases.join(", ");
+  return `parentContribution = normalizedAdditive([${parentTerms}], baseline=default)`;
+}
+
 export function getRigPipelineV1InputConfig(
   pipelineV1: RigPipelineV1Metadata | null | undefined,
   inputId: string,
@@ -271,8 +300,8 @@ export function resolveRigPipelineV1InputConfig({
     }
     const alias =
       normalizeStringValue(entry.alias) ??
-      normalizeStringValue(`p${index + 1}`) ??
-      "p1";
+      normalizeStringValue(`P${index + 1}`) ??
+      "P1";
     const linkScale =
       typeof linkConfig?.scale === "number" && Number.isFinite(linkConfig.scale)
         ? linkConfig.scale
@@ -292,6 +321,10 @@ export function resolveRigPipelineV1InputConfig({
       scale: linkScale ?? normalizeFinite(entry.scale, 1),
       offset: linkOffset ?? normalizeFinite(entry.offset, 0),
       enabled: linkEnabled ?? normalizeBoolean(entry.enabled, true),
+      expression:
+        normalizeExpression(linkConfig?.expression) ??
+        normalizeExpression(entry.expression) ??
+        buildRigPipelineV1ParentExpression(alias),
     });
   });
   Object.entries(linkMap).forEach(([rawLinkId, rawLink]) => {
@@ -313,10 +346,13 @@ export function resolveRigPipelineV1InputConfig({
     parents.push({
       linkId,
       inputId: parentInputId,
-      alias: `p${parents.length + 1}`,
+      alias: `P${parents.length + 1}`,
       scale: normalizeFinite(link.scale, 1),
       offset: normalizeFinite(link.offset, 0),
       enabled: normalizeBoolean(link.enabled, true),
+      expression:
+        normalizeExpression(link.expression) ??
+        buildRigPipelineV1ParentExpression(`P${parents.length + 1}`),
     });
   });
 
@@ -373,6 +409,11 @@ export function resolveRigPipelineV1InputConfig({
   const parentBlendMode = isBlendMode(stagedConfig?.parentBlend?.mode)
     ? stagedConfig.parentBlend.mode
     : RIG_PIPELINE_V1_DEFAULT_BLEND_MODE;
+  const parentBlendExpression =
+    normalizeExpression(stagedConfig?.parentBlend?.expression) ??
+    buildRigPipelineV1ParentContributionExpression(
+      parents.filter((parent) => parent.enabled).map((parent) => parent.alias),
+    );
 
   const defaultValue = Number.isFinite(input.defaultValue)
     ? input.defaultValue
@@ -394,6 +435,7 @@ export function resolveRigPipelineV1InputConfig({
     children,
     parentBlend: {
       mode: parentBlendMode,
+      expression: parentBlendExpression,
     },
     poseSource: {
       targetIds: poseTargetIds,

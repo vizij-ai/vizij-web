@@ -262,6 +262,247 @@ function normalizeBooleanValue(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function mergePipelineParentsForInput(
+  inputId: string,
+  importedParentsRaw: unknown,
+  localParentsRaw: unknown,
+): Record<string, unknown>[] | undefined {
+  const importedParents = Array.isArray(importedParentsRaw)
+    ? importedParentsRaw
+    : [];
+  const localParents = Array.isArray(localParentsRaw) ? localParentsRaw : [];
+  if (importedParents.length === 0 && localParents.length === 0) {
+    return undefined;
+  }
+
+  const importedByKey = new Map<string, Record<string, unknown>>();
+  const importedWithoutKey: Record<string, unknown>[] = [];
+  importedParents.forEach((rawParent) => {
+    const parent = asRecord(rawParent);
+    if (!parent) {
+      return;
+    }
+    const parentInputId = normalizeStringValue(parent.inputId);
+    const linkId =
+      normalizeStringValue(parent.linkId) ??
+      (parentInputId ? buildRigPipelineV1LinkId(parentInputId, inputId) : null);
+    if (!parentInputId || !linkId) {
+      importedWithoutKey.push({ ...parent });
+      return;
+    }
+    importedByKey.set(`${parentInputId}::${linkId}`, { ...parent });
+  });
+
+  const consumedImportedKeys = new Set<string>();
+  const merged: Record<string, unknown>[] = [];
+  localParents.forEach((rawParent) => {
+    const parent = asRecord(rawParent);
+    if (!parent) {
+      return;
+    }
+    const parentInputId = normalizeStringValue(parent.inputId);
+    const linkId =
+      normalizeStringValue(parent.linkId) ??
+      (parentInputId ? buildRigPipelineV1LinkId(parentInputId, inputId) : null);
+    if (!parentInputId || !linkId) {
+      merged.push({ ...parent });
+      return;
+    }
+    const key = `${parentInputId}::${linkId}`;
+    const imported = importedByKey.get(key) ?? null;
+    if (imported) {
+      consumedImportedKeys.add(key);
+    }
+    const importedAlias = normalizeStringValue(imported?.alias);
+    const localAlias = normalizeStringValue(parent.alias);
+    const importedExpression = normalizeStringValue(imported?.expression);
+    const localExpression = normalizeStringValue(parent.expression);
+    merged.push({
+      ...(imported ?? {}),
+      ...parent,
+      ...(localAlias
+        ? { alias: localAlias }
+        : importedAlias
+          ? { alias: importedAlias }
+          : {}),
+      ...(localExpression
+        ? { expression: localExpression }
+        : importedExpression
+          ? { expression: importedExpression }
+          : {}),
+      inputId: parentInputId,
+      linkId,
+    });
+  });
+
+  importedByKey.forEach((parent, key) => {
+    if (consumedImportedKeys.has(key)) {
+      return;
+    }
+    merged.push({ ...parent });
+  });
+  importedWithoutKey.forEach((parent) => {
+    merged.push({ ...parent });
+  });
+
+  const dedupedByKey = new Map<string, Record<string, unknown>>();
+  const dedupedWithoutKey: Record<string, unknown>[] = [];
+  merged.forEach((parent) => {
+    const parentInputId = normalizeStringValue(parent.inputId);
+    const linkId = normalizeStringValue(parent.linkId);
+    if (!parentInputId || !linkId) {
+      dedupedWithoutKey.push(parent);
+      return;
+    }
+    dedupedByKey.set(`${parentInputId}::${linkId}`, parent);
+  });
+
+  const normalized = [
+    ...Array.from(dedupedByKey.values()).sort((left, right) => {
+      const leftInputId = normalizeStringValue(left.inputId) ?? "";
+      const rightInputId = normalizeStringValue(right.inputId) ?? "";
+      if (leftInputId !== rightInputId) {
+        return leftInputId.localeCompare(rightInputId);
+      }
+      const leftLinkId = normalizeStringValue(left.linkId) ?? "";
+      const rightLinkId = normalizeStringValue(right.linkId) ?? "";
+      return leftLinkId.localeCompare(rightLinkId);
+    }),
+    ...dedupedWithoutKey,
+  ];
+  return normalized;
+}
+
+function mergePipelineInputConfigRecord(
+  inputId: string,
+  importedConfigRaw: Record<string, unknown> | null,
+  localConfigRaw: Record<string, unknown>,
+): Record<string, unknown> {
+  const importedConfig = importedConfigRaw ?? {};
+  const merged: Record<string, unknown> = {
+    ...importedConfig,
+    ...localConfigRaw,
+    inputId,
+  };
+
+  const mergedParents = mergePipelineParentsForInput(
+    inputId,
+    importedConfig.parents,
+    localConfigRaw.parents,
+  );
+  if (mergedParents) {
+    merged.parents = mergedParents;
+  } else {
+    delete merged.parents;
+  }
+
+  const importedParentBlend = asRecord(importedConfig.parentBlend);
+  const localParentBlend = asRecord(localConfigRaw.parentBlend);
+  if (importedParentBlend || localParentBlend) {
+    merged.parentBlend = {
+      ...(importedParentBlend ?? {}),
+      ...(localParentBlend ?? {}),
+    };
+  }
+
+  const importedDirectInput = asRecord(importedConfig.directInput);
+  const localDirectInput = asRecord(localConfigRaw.directInput);
+  if (importedDirectInput || localDirectInput) {
+    merged.directInput = {
+      ...(importedDirectInput ?? {}),
+      ...(localDirectInput ?? {}),
+    };
+  }
+
+  const importedOverride = asRecord(importedConfig.override);
+  const localOverride = asRecord(localConfigRaw.override);
+  if (importedOverride || localOverride) {
+    merged.override = {
+      ...(importedOverride ?? {}),
+      ...(localOverride ?? {}),
+    };
+  }
+
+  const importedClamp = asRecord(importedConfig.clamp);
+  const localClamp = asRecord(localConfigRaw.clamp);
+  if (importedClamp || localClamp) {
+    merged.clamp = {
+      ...(importedClamp ?? {}),
+      ...(localClamp ?? {}),
+    };
+  }
+
+  return merged;
+}
+
+export function mergeImportedAndLocalPipelineConfigByInputId(
+  imported: Record<string, Record<string, unknown>>,
+  local: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>> {
+  if (Object.keys(local).length === 0) {
+    return imported;
+  }
+  const merged: Record<string, Record<string, unknown>> = {
+    ...imported,
+  };
+  Object.entries(local).forEach(([rawInputId, localConfigCandidate]) => {
+    const localConfig = asRecord(localConfigCandidate);
+    if (!localConfig) {
+      return;
+    }
+    const inputId =
+      normalizeStringValue(rawInputId) ??
+      normalizeStringValue(localConfig.inputId);
+    if (!inputId) {
+      return;
+    }
+    const importedConfig = asRecord(merged[inputId]);
+    merged[inputId] = mergePipelineInputConfigRecord(
+      inputId,
+      importedConfig,
+      localConfig,
+    );
+  });
+  return merged;
+}
+
+export function mergeImportedAndLocalPipelineLinksById(
+  imported: Record<string, Record<string, unknown>>,
+  local: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>> {
+  if (Object.keys(local).length === 0) {
+    return imported;
+  }
+  const merged: Record<string, Record<string, unknown>> = {
+    ...imported,
+  };
+  Object.entries(local).forEach(([rawLinkId, localLinkCandidate]) => {
+    const localLink = asRecord(localLinkCandidate);
+    if (!localLink) {
+      return;
+    }
+    const linkId =
+      normalizeStringValue(rawLinkId) ?? normalizeStringValue(localLink.linkId);
+    if (!linkId) {
+      return;
+    }
+    const importedLink = asRecord(merged[linkId]);
+    const importedExpression = normalizeStringValue(importedLink?.expression);
+    const localExpression = normalizeStringValue(localLink.expression);
+    merged[linkId] = {
+      ...(importedLink ?? {}),
+      ...localLink,
+      linkId,
+      ...(localExpression
+        ? { expression: localExpression }
+        : importedExpression
+          ? { expression: importedExpression }
+          : {}),
+    };
+  });
+  return merged;
+}
+
 interface DerivedPipelineEdits {
   byInputId: Record<string, RigPipelineV1InputConfig>;
   links: Record<string, RigPipelineV1LinkConfig>;
@@ -305,6 +546,7 @@ function derivePipelineConfigFromInputBindings(
         const scale = normalizeFiniteValue(linkConfig.scale);
         const offset = normalizeFiniteValue(linkConfig.offset);
         const enabled = normalizeBooleanValue(linkConfig.enabled);
+        const expression = normalizeStringValue(linkConfig.expression);
         if (scale !== undefined) {
           nextLink.scale = scale;
         }
@@ -313,6 +555,9 @@ function derivePipelineConfigFromInputBindings(
         }
         if (enabled !== undefined) {
           nextLink.enabled = enabled;
+        }
+        if (expression !== null) {
+          nextLink.expression = expression;
         }
         const isOwnerRecord = childInputId === inputId;
         const nextPriority = isOwnerRecord ? 2 : 1;
@@ -331,6 +576,12 @@ function derivePipelineConfigFromInputBindings(
 
     const migration = asRecord(pipeline.migration);
     const migrated = migration?.status === "migrated";
+    const parentBlend = asRecord(pipeline.parentBlend);
+    const parentBlendMode =
+      parentBlend?.mode === "normalized-additive"
+        ? "normalized-additive"
+        : null;
+    const parentBlendExpression = normalizeStringValue(parentBlend?.expression);
     const direct = asRecord(pipeline.directInput);
     const override = asRecord(pipeline.override);
     const clamp = asRecord(pipeline.clamp);
@@ -342,15 +593,25 @@ function derivePipelineConfigFromInputBindings(
         }
         const alias = slot.alias?.trim() || slot.id?.trim() || `s${index + 1}`;
         const linkId = buildRigPipelineV1LinkId(slot.inputId, inputId);
+        const linkExpression = normalizeStringValue(
+          asRecord(pipelineLinks?.[linkId])?.expression,
+        );
         return {
           linkId,
           inputId: slot.inputId,
           alias,
+          ...(linkExpression !== null ? { expression: linkExpression } : {}),
         };
       })
       .filter(
-        (entry): entry is { linkId: string; inputId: string; alias: string } =>
-          entry !== null,
+        (
+          entry,
+        ): entry is {
+          linkId: string;
+          inputId: string;
+          alias: string;
+          expression?: string;
+        } => entry !== null,
       );
 
     const directEnabled =
@@ -368,7 +629,11 @@ function derivePipelineConfigFromInputBindings(
       directEnabled !== undefined ||
       overrideEnabled !== undefined ||
       overrideValue !== undefined ||
-      clampEnabled !== undefined;
+      clampEnabled !== undefined ||
+      parentBlendExpression !== null ||
+      parentEntries.some((entry) =>
+        Boolean(normalizeStringValue(entry.expression)),
+      );
     if (!migrated && !hasStageControls) {
       return;
     }
@@ -378,6 +643,12 @@ function derivePipelineConfigFromInputBindings(
     };
     if (parentEntries.length > 0) {
       config.parents = parentEntries;
+    }
+    if (parentBlendMode || parentBlendExpression) {
+      config.parentBlend = {
+        ...(parentBlendMode ? { mode: parentBlendMode } : {}),
+        ...(parentBlendExpression ? { expression: parentBlendExpression } : {}),
+      };
     }
     if (directEnabled !== undefined) {
       config.directInput = {
@@ -1120,13 +1391,7 @@ export function useRigController(
     const localEdits = normalizeVizijPipelineConfigMap(
       derivedPipelineEdits.byInputId,
     );
-    if (Object.keys(localEdits).length === 0) {
-      return imported;
-    }
-    return {
-      ...imported,
-      ...localEdits,
-    };
+    return mergeImportedAndLocalPipelineConfigByInputId(imported, localEdits);
   }, [derivedPipelineEdits.byInputId, pipelineMetadataV1]);
 
   const mergedPipelineLinksById: Record<
@@ -1138,13 +1403,7 @@ export function useRigController(
     const localEdits = normalizeVizijPipelineLinkMap(
       derivedPipelineEdits.links,
     );
-    if (Object.keys(localEdits).length === 0) {
-      return imported;
-    }
-    return {
-      ...imported,
-      ...localEdits,
-    };
+    return mergeImportedAndLocalPipelineLinksById(imported, localEdits);
   }, [derivedPipelineEdits.links, pipelineMetadataV1]);
 
   const {

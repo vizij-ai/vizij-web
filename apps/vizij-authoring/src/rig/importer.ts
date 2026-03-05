@@ -57,6 +57,7 @@ interface VizijPipelineV1LinkConfig {
   scale?: number;
   offset?: number;
   enabled?: boolean;
+  expression?: string;
 }
 
 interface VizijPipelineV1Metadata {
@@ -245,6 +246,7 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
       scale: number | null;
       offset: number | null;
       enabled: boolean | null;
+      expression: string | null;
     }>
   >();
 
@@ -282,6 +284,7 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
       scale: normalizeFiniteValue(record.scale),
       offset: normalizeFiniteValue(record.offset),
       enabled: normalizeBooleanValue(record.enabled),
+      expression: normalizeStringValue(record.expression),
     };
     const current = pendingByChild.get(childInputId);
     if (current) {
@@ -316,6 +319,7 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
         ...(entry.scale !== null ? { scale: entry.scale } : {}),
         ...(entry.offset !== null ? { offset: entry.offset } : {}),
         ...(entry.enabled !== null ? { enabled: entry.enabled } : {}),
+        ...(entry.expression ? { expression: entry.expression } : {}),
       };
     });
 

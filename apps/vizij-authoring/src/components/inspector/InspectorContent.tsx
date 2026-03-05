@@ -86,7 +86,8 @@ import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
 import {
   assessLegacyBindingMigration,
   buildLegacyMigrationLinkUpserts,
-  buildParentContributionDisplayExpression,
+  buildDefaultParentContributionFormula,
+  buildDefaultParentVariableFormula,
   buildCompiledPipelineEquation,
   computePipelineDiagnostics,
   computePoseContribution,
@@ -227,6 +228,21 @@ function collectBindingInputIds(
     }
   });
   return Array.from(ids);
+}
+
+function resolveBindingSlotAlias(
+  slot: { alias?: string | null; id?: string | null },
+  index: number,
+): string {
+  const trimmedAlias = slot.alias?.trim();
+  if (trimmedAlias) {
+    return trimmedAlias;
+  }
+  const trimmedId = slot.id?.trim();
+  if (trimmedId) {
+    return trimmedId;
+  }
+  return index === 0 ? "s1" : `s${index + 1}`;
 }
 
 function collectLockableTargetIdsForNode(
@@ -825,6 +841,7 @@ export function InspectorContent({
           scale: number;
           offset: number;
           enabled: boolean;
+          expression: string | null;
         }
       >();
     }
@@ -836,6 +853,7 @@ export function InspectorContent({
         scale: number;
         offset: number;
         enabled: boolean;
+        expression: string | null;
       }
     >();
     Object.entries(linksContainer).forEach(([linkId, rawEntry]) => {
@@ -856,6 +874,47 @@ export function InspectorContent({
         scale: toFinite(entry.scale, 1),
         offset: toFinite(entry.offset, 0),
         enabled: toBoolean(entry.enabled, true),
+        expression:
+          typeof entry.expression === "string" && entry.expression.trim().length
+            ? entry.expression.trim()
+            : null,
+      });
+    });
+    return next;
+  }, [pipelineMetadataV1]);
+
+  const pipelineConfigByInputId = useMemo(() => {
+    const byInputContainer = asObject(pipelineMetadataV1?.byInputId);
+    if (!byInputContainer) {
+      return new Map<
+        string,
+        {
+          parentBlendExpression: string | null;
+        }
+      >();
+    }
+    const next = new Map<
+      string,
+      {
+        parentBlendExpression: string | null;
+      }
+    >();
+    Object.entries(byInputContainer).forEach(([rawInputId, rawEntry]) => {
+      const inputId =
+        typeof rawInputId === "string" && rawInputId.trim().length > 0
+          ? rawInputId
+          : null;
+      const entry = asObject(rawEntry);
+      if (!inputId || !entry) {
+        return;
+      }
+      const parentBlend = asObject(entry.parentBlend);
+      next.set(inputId, {
+        parentBlendExpression:
+          typeof parentBlend?.expression === "string" &&
+          parentBlend.expression.trim().length > 0
+            ? parentBlend.expression.trim()
+            : null,
       });
     });
     return next;
@@ -1807,6 +1866,36 @@ export function InspectorContent({
 
     const handleAddVariable = (selection: VariableSelection) => {
       setShowSelector(false);
+      if (selection.type === "mixed") {
+        const variableIds = Array.from(
+          new Set(
+            selection.variableIds
+              .map((id) => id.trim())
+              .filter((id) => id.length > 0),
+          ),
+        );
+        if (variableIds.length > 0) {
+          handleAddVariable({
+            type: "variable",
+            id: variableIds[0]!,
+            ids: variableIds,
+          });
+        }
+        if (
+          selection.propertyTargetIds.length > 0 ||
+          selection.propertyInputIds.length > 0
+        ) {
+          handleAddVariable({
+            type: "property",
+            objectId: "propsrig",
+            featureId: "propsrig",
+            label: selection.label,
+            inputIds: selection.propertyInputIds,
+            targetIds: selection.propertyTargetIds,
+          });
+        }
+        return;
+      }
       if (selection.type === "variable") {
         const inputIds =
           selection.ids && selection.ids.length > 0
@@ -2312,6 +2401,7 @@ export function InspectorContent({
             linkScale: linkConfig?.scale ?? 1,
             linkOffset: linkConfig?.offset ?? 0,
             linkEnabled: linkConfig?.enabled ?? true,
+            linkExpression: linkConfig?.expression ?? null,
           };
         });
       const sharedLink = linksByMainInputId.get(input.id) ?? null;
@@ -2489,6 +2579,36 @@ export function InspectorContent({
 
       const handleAddRigDrivenVariable = (selection: VariableSelection) => {
         setShowSelector(false);
+        if (selection.type === "mixed") {
+          const variableIds = Array.from(
+            new Set(
+              selection.variableIds
+                .map((id) => id.trim())
+                .filter((id) => id.length > 0),
+            ),
+          );
+          if (variableIds.length > 0) {
+            handleAddRigDrivenVariable({
+              type: "variable",
+              id: variableIds[0]!,
+              ids: variableIds,
+            });
+          }
+          if (
+            selection.propertyTargetIds.length > 0 ||
+            selection.propertyInputIds.length > 0
+          ) {
+            handleAddRigDrivenVariable({
+              type: "property",
+              objectId: "propsrig",
+              featureId: "propsrig",
+              label: selection.label,
+              inputIds: selection.propertyInputIds,
+              targetIds: selection.propertyTargetIds,
+            });
+          }
+          return;
+        }
         const resolvedSelection = resolveRigDrivenSelection(
           selection,
           resolvedSelectedRigId,
@@ -2701,6 +2821,36 @@ export function InspectorContent({
       };
       const handleAddRigParentVariable = (selection: VariableSelection) => {
         setShowSelector(false);
+        if (selection.type === "mixed") {
+          const variableIds = Array.from(
+            new Set(
+              selection.variableIds
+                .map((id) => id.trim())
+                .filter((id) => id.length > 0),
+            ),
+          );
+          if (variableIds.length > 0) {
+            handleAddRigParentVariable({
+              type: "variable",
+              id: variableIds[0]!,
+              ids: variableIds,
+            });
+          }
+          if (
+            selection.propertyTargetIds.length > 0 ||
+            selection.propertyInputIds.length > 0
+          ) {
+            handleAddRigParentVariable({
+              type: "property",
+              objectId: "propsrig",
+              featureId: "propsrig",
+              label: selection.label,
+              inputIds: selection.propertyInputIds,
+              targetIds: selection.propertyTargetIds,
+            });
+          }
+          return;
+        }
         const resolvedSelection = resolveRigDrivenSelection(
           selection,
           resolvedSelectedRigId,
@@ -2835,6 +2985,41 @@ export function InspectorContent({
           max,
         };
       };
+      const expressionVariableByInputId = (() => {
+        const aliasesByInputId = new Map<string, string>();
+        const usedAliases = new Set<string>();
+        (parentBinding?.slots ?? []).forEach((slot, index) => {
+          const rawInputId = slot.inputId?.trim() ?? "";
+          if (!rawInputId || rawInputId === SELF_BINDING_ID) {
+            return;
+          }
+          const resolvedInputId = resolveRigMetadataInputId(
+            rawInputId,
+            standardInputsById,
+          );
+          const alias = resolveBindingSlotAlias(slot, index);
+          const normalizedAlias = alias.toLowerCase();
+          if (aliasesByInputId.has(resolvedInputId)) {
+            return;
+          }
+          aliasesByInputId.set(resolvedInputId, alias);
+          usedAliases.add(normalizedAlias);
+        });
+        let fallbackAliasIndex = 1;
+        parentRigInputRefs.forEach((entry) => {
+          if (aliasesByInputId.has(entry.id)) {
+            return;
+          }
+          while (usedAliases.has(`s${fallbackAliasIndex}`)) {
+            fallbackAliasIndex += 1;
+          }
+          const fallbackAlias = `s${fallbackAliasIndex}`;
+          aliasesByInputId.set(entry.id, fallbackAlias);
+          usedAliases.add(fallbackAlias);
+          fallbackAliasIndex += 1;
+        });
+        return aliasesByInputId;
+      })();
       const parentRigChainItems: Array<{
         key: string;
         inputId: string;
@@ -2842,15 +3027,19 @@ export function InspectorContent({
         linkScale: number;
         linkOffset: number;
         linkEnabled: boolean;
+        linkExpression: string | null;
         parentDirectValue: number;
         parentDirectMin: number;
         parentDirectMax: number;
         label: string;
+        expressionVariable: string;
         kind: "variable" | "property" | "propsrig";
         onClick: () => void;
       }> = [];
       parentRigInputRefs.forEach((entry) => {
         const parentDirectControl = resolveParentDirectControl(entry.id);
+        const expressionVariable =
+          expressionVariableByInputId.get(entry.id) ?? "s1";
         if (!entry.isPropsRig) {
           parentRigChainItems.push({
             key: `variable:${entry.id}`,
@@ -2859,10 +3048,12 @@ export function InspectorContent({
             linkScale: entry.linkScale,
             linkOffset: entry.linkOffset,
             linkEnabled: entry.linkEnabled,
+            linkExpression: entry.linkExpression,
             parentDirectValue: parentDirectControl.value,
             parentDirectMin: parentDirectControl.min,
             parentDirectMax: parentDirectControl.max,
             label: entry.label,
+            expressionVariable,
             kind: "variable",
             onClick: () => openRigInspector(entry.id),
           });
@@ -2877,10 +3068,12 @@ export function InspectorContent({
             linkScale: entry.linkScale,
             linkOffset: entry.linkOffset,
             linkEnabled: entry.linkEnabled,
+            linkExpression: entry.linkExpression,
             parentDirectValue: parentDirectControl.value,
             parentDirectMin: parentDirectControl.min,
             parentDirectMax: parentDirectControl.max,
             label: targetLabelById.get(mappedTargetId) ?? entry.label,
+            expressionVariable,
             kind: "property",
             onClick: () => openBindingTargetInspector(mappedTargetId),
           });
@@ -2896,10 +3089,12 @@ export function InspectorContent({
           linkScale: entry.linkScale,
           linkOffset: entry.linkOffset,
           linkEnabled: entry.linkEnabled,
+          linkExpression: entry.linkExpression,
           parentDirectValue: parentDirectControl.value,
           parentDirectMin: parentDirectControl.min,
           parentDirectMax: parentDirectControl.max,
           label: entry.label,
+          expressionVariable,
           kind: "propsrig",
           onClick: () => openRigInspector(entry.id),
         });
@@ -3124,16 +3319,14 @@ export function InspectorContent({
       const parentExpressionTitle = isMigratedBinding
         ? "Parent Contribution Formula"
         : "Authored Parent Expression";
+      const stagedPipelineConfig = pipelineConfigByInputId.get(input.id);
+      const defaultParentContributionExpression =
+        buildDefaultParentContributionFormula(
+          parentRigChainItems.map((entry) => entry.expressionVariable),
+        );
       const displayedParentExpression = isMigratedBinding
-        ? buildParentContributionDisplayExpression({
-            baseline: input.defaultValue,
-            parents: parentRigChainItems.map((entry) => ({
-              label: entry.label,
-              scale: entry.linkScale,
-              offset: entry.linkOffset,
-              enabled: entry.linkEnabled,
-            })),
-          })
+        ? (stagedPipelineConfig?.parentBlendExpression ??
+          defaultParentContributionExpression)
         : (parentBinding?.expression ?? "");
 
       type PipelineMetadataPatch = {
@@ -3141,6 +3334,7 @@ export function InspectorContent({
         overrideEnabled?: boolean;
         overrideValue?: number;
         clampEnabled?: boolean;
+        parentBlendExpression?: string | null;
         linkUpserts?: Record<
           string,
           {
@@ -3149,6 +3343,7 @@ export function InspectorContent({
             scale?: number;
             offset?: number;
             enabled?: boolean;
+            expression?: string | null;
           }
         >;
         migrationStatus?: "migrated";
@@ -3230,6 +3425,15 @@ export function InspectorContent({
           clampEnabled: enabled,
         });
       };
+      const handlePipelineParentContributionExpressionChange = (
+        expression: string,
+      ) => {
+        const trimmedExpression = expression.trim();
+        applyPipelineMetadataPatch({
+          parentBlendExpression:
+            trimmedExpression.length > 0 ? trimmedExpression : null,
+        });
+      };
       const updatePipelineLink = (
         linkId: string,
         parentInputId: string,
@@ -3238,6 +3442,7 @@ export function InspectorContent({
           scale?: number;
           offset?: number;
           enabled?: boolean;
+          expression?: string | null;
         },
       ) => {
         // Link records are owned by child input to avoid conflicting duplicates.
@@ -3518,7 +3723,7 @@ export function InspectorContent({
             }
             onParentExpressionChange={
               isMigratedBinding
-                ? undefined
+                ? handlePipelineParentContributionExpressionChange
                 : (expression) =>
                     handleParentBindingExpressionChange(input.id, expression)
             }
@@ -3530,6 +3735,7 @@ export function InspectorContent({
             parents={parentRigChainItems.map((entry) => ({
               id: entry.key,
               label: entry.label,
+              expressionVariable: entry.expressionVariable,
               kind: entry.kind,
               onInspect: entry.onClick,
               directControl: {
@@ -3556,13 +3762,24 @@ export function InspectorContent({
                   }),
                 onScaleChange: (scale) =>
                   updatePipelineLink(entry.linkId, entry.inputId, input.id, {
-                    scale: clampToRange(scale, -3, 3),
+                    scale,
                   }),
                 onOffsetChange: (offset) =>
                   updatePipelineLink(entry.linkId, entry.inputId, input.id, {
                     offset,
                   }),
               },
+              parentFormula:
+                entry.linkExpression ??
+                buildDefaultParentVariableFormula(entry.expressionVariable),
+              parentFormulaDefault: buildDefaultParentVariableFormula(
+                entry.expressionVariable,
+              ),
+              onParentFormulaChange: (expression) =>
+                updatePipelineLink(entry.linkId, entry.inputId, input.id, {
+                  expression:
+                    expression.trim().length > 0 ? expression.trim() : null,
+                }),
             }))}
             children={drivenChainItems.map((entry) => ({
               id: entry.key,
@@ -3592,7 +3809,7 @@ export function InspectorContent({
                           }),
                         onScaleChange: (scale: number) =>
                           updatePipelineLink(linkId, input.id, childInputId, {
-                            scale: clampToRange(scale, -3, 3),
+                            scale,
                           }),
                         onOffsetChange: (offset: number) =>
                           updatePipelineLink(linkId, input.id, childInputId, {
