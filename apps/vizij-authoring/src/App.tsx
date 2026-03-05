@@ -51,6 +51,7 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
+import { SpeechPanel } from "./components/panels/SpeechPanel";
 import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
@@ -1476,11 +1477,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             />
           }
           rightMiddleVisible={speechPanelVisible}
-          rightMiddlePanel={
-            <div className="p-4 text-text-secondary text-sm">
-              Speech configuration coming soon.
-            </div>
-          }
+          rightMiddlePanel={<SpeechPanel />}
           rightBottomVisible={debugPanelVisible}
           rightBottomPanel={
             <DebugPanel

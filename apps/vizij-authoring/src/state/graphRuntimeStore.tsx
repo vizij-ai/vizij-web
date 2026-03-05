@@ -52,6 +52,11 @@ export interface GraphRuntimeState {
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;
   stageRuntimeInput?: (graphPath: string, value: number) => void;
+  animateRuntimeValue?: (
+    graphPath: string,
+    value: number,
+    duration: number,
+  ) => void;
   runtimeViewReady: boolean;
   runtimeViewLoading: boolean;
   runtimeViewRootId: string | null;
@@ -106,6 +111,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   setStoreState: (() => undefined) as unknown as VizijStoreSetter,
   setGraphPlaybackState: noop,
   stageRuntimeInput: undefined,
+  animateRuntimeValue: undefined,
   runtimeViewReady: false,
   runtimeViewLoading: false,
   runtimeViewRootId: null,
