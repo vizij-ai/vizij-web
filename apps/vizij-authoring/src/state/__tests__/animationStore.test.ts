@@ -133,6 +133,53 @@ describe("animationStore deterministic behavior", () => {
     expect(state.tracks[0]?.keyframes[0]?.value).toBe(0.8);
   });
 
+  it("upserts nearby-time keyframes within one 32fps frame instead of inserting duplicates", () => {
+    const store = useAnimationStore.getState();
+
+    store.upsertInputKeyframe(
+      {
+        inputId: "jaw_open",
+        value: 0.2,
+        label: "Jaw Open",
+        channel: "face/mouth/jaw_open",
+      },
+      1,
+    );
+
+    const initialState = useAnimationStore.getState();
+    const initialKeyframeId = initialState.tracks[0]?.keyframes[0]?.id;
+    expect(initialKeyframeId).toBeDefined();
+
+    store.upsertInputKeyframe(
+      {
+        inputId: "jaw_open",
+        value: 0.9,
+        label: "Jaw Open",
+        channel: "face/mouth/jaw_open",
+      },
+      1 + 0.02,
+    );
+
+    let state = useAnimationStore.getState();
+    expect(state.tracks).toHaveLength(1);
+    expect(state.tracks[0]?.keyframes).toHaveLength(1);
+    expect(state.tracks[0]?.keyframes[0]?.id).toBe(initialKeyframeId);
+    expect(state.tracks[0]?.keyframes[0]?.value).toBe(0.9);
+
+    store.upsertInputKeyframe(
+      {
+        inputId: "jaw_open",
+        value: 0.4,
+        label: "Jaw Open",
+        channel: "face/mouth/jaw_open",
+      },
+      1 + 0.04,
+    );
+
+    state = useAnimationStore.getState();
+    expect(state.tracks[0]?.keyframes).toHaveLength(2);
+  });
+
   it("keeps transport active while playback is paused", () => {
     const store = useAnimationStore.getState();
 

@@ -84,7 +84,6 @@ import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
-  AUTHORED_TIMELINE_CLIP_NAME,
   type AnimationClipIR,
 } from "./types/animationClipIr";
 
@@ -94,7 +93,8 @@ const AUTHORED_PROCEDURAL_TARGET_PREFIX = "authored-procedural:";
 const BUNDLE_ANIMATION_TARGET_PREFIX = "bundle-animation:";
 const BUNDLE_PROCEDURAL_TARGET_PREFIX = "bundle-procedural:";
 const AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID = "authoring.motiongraph.main";
-const AUTHORED_PROCEDURAL_MAIN_PROGRAM_NAME = "Procedural Program";
+const DEFAULT_NEW_ANIMATION_CLIP_NAME = "New Animation Clip";
+const DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME = "New Procedural Program";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
 function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
   return {
@@ -621,7 +621,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   >(() => [
     createAuthoredAnimationTarget(
       AUTHORED_TIMELINE_CLIP_ID,
-      AUTHORED_TIMELINE_CLIP_NAME,
+      DEFAULT_NEW_ANIMATION_CLIP_NAME,
     ),
   ]);
   const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState(
@@ -632,9 +632,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   >(() => [
     createAuthoredProceduralTarget(
       AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
-      AUTHORED_PROCEDURAL_MAIN_PROGRAM_NAME,
+      DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
     ),
   ]);
+  const [bundleAnimationNameOverrides, setBundleAnimationNameOverrides] =
+    useState<Record<string, string>>({});
+  const [
+    bundleAnimationDurationOverrides,
+    setBundleAnimationDurationOverrides,
+  ] = useState<Record<string, number>>({});
+  const [bundleProceduralNameOverrides, setBundleProceduralNameOverrides] =
+    useState<Record<string, string>>({});
+  const [hiddenBundleAnimationTargetIds, setHiddenBundleAnimationTargetIds] =
+    useState<Record<string, true>>({});
+  const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
+    useState<Record<string, true>>({});
   const [selectedProceduralTargetId, setSelectedProceduralTargetId] = useState(
     () => authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
   );
@@ -667,6 +679,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   useEffect(() => {
     setRuntimeExportBodies(createEmptyRuntimeExportBodiesSnapshot());
+  }, [rootId]);
+  useEffect(() => {
+    setBundleAnimationNameOverrides({});
+    setBundleAnimationDurationOverrides({});
+    setBundleProceduralNameOverrides({});
+    setHiddenBundleAnimationTargetIds({});
+    setHiddenBundleProceduralTargetIds({});
   }, [rootId]);
 
   const canExport = Boolean(rootId) && !isLoading;
@@ -714,6 +733,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.transportEnabled,
   );
   const animationDuration = useAnimationStore((state) => state.duration);
+  const setAnimationDuration = useAnimationStore((state) => state.setDuration);
   const {
     active: animationTransportActive,
     play: playAnimationTransport,
@@ -849,17 +869,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const bundleAnimationTargetOptions = useMemo(() => {
     const entries = loadedBundle?.animations ?? [];
-    return entries.map((entry, index) => {
-      const clipName =
-        typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
-      const fallbackName =
-        entry.id?.trim() || `Imported Animation ${index + 1}`;
-      return {
-        value: `${BUNDLE_ANIMATION_TARGET_PREFIX}${index}`,
-        label: clipName || fallbackName,
-      };
-    });
-  }, [loadedBundle?.animations]);
+    return entries
+      .map((entry, index) => {
+        const targetValue = `${BUNDLE_ANIMATION_TARGET_PREFIX}${index}`;
+        const clipName =
+          typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
+        const fallbackName =
+          entry.id?.trim() || `Imported Animation ${index + 1}`;
+        const baseLabel = clipName || fallbackName;
+        return {
+          value: targetValue,
+          label: bundleAnimationNameOverrides[targetValue] ?? baseLabel,
+        };
+      })
+      .filter((option) => !hiddenBundleAnimationTargetIds[option.value]);
+  }, [
+    bundleAnimationNameOverrides,
+    hiddenBundleAnimationTargetIds,
+    loadedBundle?.animations,
+  ]);
 
   const authoredAnimationTargetOptions = useMemo(
     () =>
@@ -885,17 +913,26 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const bundleProceduralTargetOptions = useMemo(
     () =>
-      bundleProceduralEntries.map((entry, index) => {
-        const metadataLabel =
-          typeof entry.label === "string" ? entry.label.trim() : "";
-        const metadataId = typeof entry.id === "string" ? entry.id.trim() : "";
-        const fallback = `Imported Program ${index + 1}`;
-        return {
-          value: `${BUNDLE_PROCEDURAL_TARGET_PREFIX}${index}`,
-          label: metadataLabel || metadataId || fallback,
-        };
-      }),
-    [bundleProceduralEntries],
+      bundleProceduralEntries
+        .map((entry, index) => {
+          const targetValue = `${BUNDLE_PROCEDURAL_TARGET_PREFIX}${index}`;
+          const metadataLabel =
+            typeof entry.label === "string" ? entry.label.trim() : "";
+          const metadataId =
+            typeof entry.id === "string" ? entry.id.trim() : "";
+          const baseLabel =
+            metadataLabel || metadataId || `Imported Program ${index + 1}`;
+          return {
+            value: targetValue,
+            label: bundleProceduralNameOverrides[targetValue] ?? baseLabel,
+          };
+        })
+        .filter((option) => !hiddenBundleProceduralTargetIds[option.value]),
+    [
+      bundleProceduralEntries,
+      bundleProceduralNameOverrides,
+      hiddenBundleProceduralTargetIds,
+    ],
   );
 
   const authoredProceduralTargetOptions = useMemo(
@@ -961,6 +998,59 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredProceduralTargets, selectedProceduralTargetId],
   );
+  const selectedBundleProceduralMetrics = useMemo(() => {
+    if (
+      !selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+    ) {
+      return null;
+    }
+    const rawIndex = selectedProceduralTargetId.slice(
+      BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+    );
+    const index = Number.parseInt(rawIndex, 10);
+    if (!Number.isFinite(index) || index < 0) {
+      return null;
+    }
+    const entry = bundleProceduralEntries[index];
+    if (!entry?.spec || typeof entry.spec !== "object") {
+      return null;
+    }
+    const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+    return {
+      nodes: parsed.nodes.length,
+      edges: parsed.edges.length,
+      inputs: parsed.enabledInputs.size,
+      outputs: parsed.enabledOutputs.size,
+    };
+  }, [bundleProceduralEntries, selectedProceduralTargetId]);
+  const selectedProceduralMetrics = useMemo(() => {
+    const isAuthored = Boolean(
+      parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
+    );
+    if (isAuthored) {
+      return {
+        nodes: proceduralEditorNodes.length,
+        edges: proceduralEditorEdges.length,
+        inputs: proceduralEditorEnabledInputs.size,
+        outputs: proceduralEditorEnabledOutputs.size,
+      };
+    }
+    return (
+      selectedBundleProceduralMetrics ?? {
+        nodes: proceduralEditorNodes.length,
+        edges: proceduralEditorEdges.length,
+        inputs: proceduralEditorEnabledInputs.size,
+        outputs: proceduralEditorEnabledOutputs.size,
+      }
+    );
+  }, [
+    proceduralEditorEdges.length,
+    proceduralEditorEnabledInputs.size,
+    proceduralEditorEnabledOutputs.size,
+    proceduralEditorNodes.length,
+    selectedBundleProceduralMetrics,
+    selectedProceduralTargetId,
+  ]);
 
   const handleSelectAnimationTarget = useCallback(
     (targetId: string) => {
@@ -1003,15 +1093,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       });
       if (clip) {
         importAnimationClipIr(clip);
+        const overriddenDuration = bundleAnimationDurationOverrides[targetId];
+        if (Number.isFinite(overriddenDuration)) {
+          setAnimationDuration(overriddenDuration);
+        }
       }
     },
     [
       authoredAnimationTargets,
+      bundleAnimationDurationOverrides,
       importAnimationClipIr,
       loadedBundle?.animations,
       mainFaceInputsById,
       saveAuthoredAnimationTarget,
       selectedAnimationTargetId,
+      setAnimationDuration,
     ],
   );
 
@@ -1046,14 +1142,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const handleRenameAnimationTarget = useCallback(
     (nextName: string) => {
+      const normalizedName =
+        nextName.trim().length > 0 ? nextName.trim() : "Untitled Clip";
       const authoredClipId = parseAuthoredAnimationTargetValue(
         selectedAnimationTargetId,
       );
       if (!authoredClipId) {
+        if (
+          selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+        ) {
+          setBundleAnimationNameOverrides((previous) => ({
+            ...previous,
+            [selectedAnimationTargetId]: normalizedName,
+          }));
+        }
         return;
       }
-      const normalizedName =
-        nextName.trim().length > 0 ? nextName.trim() : "Untitled Clip";
       setAuthoredAnimationTargets((previous) =>
         previous.map((target) =>
           target.targetId === selectedAnimationTargetId
@@ -1071,6 +1175,140 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [selectedAnimationTargetId],
   );
+
+  const handleUpdateSelectedAnimationDuration = useCallback(
+    (nextDuration: number) => {
+      if (!Number.isFinite(nextDuration)) {
+        return;
+      }
+      const normalizedDuration = Math.max(0, nextDuration);
+      setAnimationDuration(normalizedDuration);
+      const authoredClipId = parseAuthoredAnimationTargetValue(
+        selectedAnimationTargetId,
+      );
+      if (!authoredClipId) {
+        if (
+          selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+        ) {
+          setBundleAnimationDurationOverrides((previous) => ({
+            ...previous,
+            [selectedAnimationTargetId]: normalizedDuration,
+          }));
+        }
+        return;
+      }
+      setAuthoredAnimationTargets((previous) =>
+        previous.map((target) =>
+          target.targetId === selectedAnimationTargetId
+            ? {
+                ...target,
+                clip: {
+                  ...target.clip,
+                  duration: normalizedDuration,
+                },
+              }
+            : target,
+        ),
+      );
+    },
+    [selectedAnimationTargetId, setAnimationDuration],
+  );
+
+  const handleDeleteAnimationTarget = useCallback(() => {
+    const deletingTargetId = selectedAnimationTargetId;
+    const authoredClipId = parseAuthoredAnimationTargetValue(deletingTargetId);
+    const activeTarget = authoredAnimationTargets.find(
+      (target) => target.targetId === deletingTargetId,
+    );
+    const activeOptionLabel =
+      animationTargetOptions.find((option) => option.value === deletingTargetId)
+        ?.label ?? activeTarget?.name;
+    const targetLabel = activeTarget?.name?.trim() || "this clip";
+    if (
+      !window.confirm(
+        `Delete animation clip "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    let nextAuthoredTargets = authoredAnimationTargets;
+    if (authoredClipId) {
+      nextAuthoredTargets = authoredAnimationTargets.filter(
+        (target) => target.targetId !== deletingTargetId,
+      );
+    } else if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      setHiddenBundleAnimationTargetIds((previous) => ({
+        ...previous,
+        [deletingTargetId]: true,
+      }));
+    }
+
+    const remainingBundleTargets = bundleAnimationTargetOptions.filter(
+      (option) => option.value !== deletingTargetId,
+    );
+
+    if (
+      nextAuthoredTargets.length === 0 &&
+      remainingBundleTargets.length === 0
+    ) {
+      const fallbackTarget = createAuthoredAnimationTarget(
+        AUTHORED_TIMELINE_CLIP_ID,
+        DEFAULT_NEW_ANIMATION_CLIP_NAME,
+      );
+      setAuthoredAnimationTargets([fallbackTarget]);
+      setSelectedAnimationTargetId(fallbackTarget.targetId);
+      importAnimationClipIr(fallbackTarget.clip);
+      return;
+    }
+
+    setAuthoredAnimationTargets(nextAuthoredTargets);
+    const nextTargetId =
+      nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
+    setSelectedAnimationTargetId(nextTargetId);
+    const nextAuthoredTarget = nextAuthoredTargets.find(
+      (target) => target.targetId === nextTargetId,
+    );
+    if (nextAuthoredTarget) {
+      importAnimationClipIr(nextAuthoredTarget.clip);
+      return;
+    }
+    if (nextTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      const rawIndex = nextTargetId.slice(
+        BUNDLE_ANIMATION_TARGET_PREFIX.length,
+      );
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return;
+      }
+      const entry = loadedBundle?.animations?.[index];
+      if (!entry) {
+        return;
+      }
+      const clip = bundleAnimationEntryToClipIr(entry, {
+        standardInputsById: mainFaceInputsById,
+      });
+      if (!clip) {
+        return;
+      }
+      importAnimationClipIr(clip);
+      const overriddenDuration = bundleAnimationDurationOverrides[nextTargetId];
+      if (Number.isFinite(overriddenDuration)) {
+        setAnimationDuration(overriddenDuration);
+      }
+    }
+  }, [
+    animationTargetOptions,
+    authoredAnimationTargets,
+    bundleAnimationDurationOverrides,
+    bundleAnimationTargetOptions,
+    importAnimationClipIr,
+    loadedBundle?.animations,
+    mainFaceInputsById,
+    selectedAnimationTargetId,
+    setHiddenBundleAnimationTargetIds,
+    setAnimationDuration,
+  ]);
 
   const authoredAnimationClipsForExport = useMemo(() => {
     const authoredClipId = parseAuthoredAnimationTargetValue(
@@ -1204,14 +1442,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const handleRenameProceduralTarget = useCallback(
     (nextName: string) => {
+      const normalizedName =
+        nextName.trim().length > 0 ? nextName.trim() : "Untitled Program";
       const authoredProgramId = parseAuthoredProceduralTargetValue(
         selectedProceduralTargetId,
       );
       if (!authoredProgramId) {
+        if (
+          selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+        ) {
+          setBundleProceduralNameOverrides((previous) => ({
+            ...previous,
+            [selectedProceduralTargetId]: normalizedName,
+          }));
+        }
         return;
       }
-      const normalizedName =
-        nextName.trim().length > 0 ? nextName.trim() : "Untitled Program";
       setAuthoredProceduralTargets((previous) =>
         previous.map((target) =>
           target.targetId === selectedProceduralTargetId
@@ -1225,6 +1471,93 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [selectedProceduralTargetId],
   );
+
+  const handleDeleteProceduralTarget = useCallback(() => {
+    const deletingTargetId = selectedProceduralTargetId;
+    const authoredProgramId =
+      parseAuthoredProceduralTargetValue(deletingTargetId);
+    const activeTarget = authoredProceduralTargets.find(
+      (target) => target.targetId === deletingTargetId,
+    );
+    const activeOptionLabel =
+      proceduralTargetOptions.find(
+        (option) => option.value === deletingTargetId,
+      )?.label ?? activeTarget?.name;
+    const targetLabel = activeTarget?.name?.trim() || "this program";
+    if (
+      !window.confirm(
+        `Delete procedural program "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    let nextAuthoredTargets = authoredProceduralTargets;
+    if (authoredProgramId) {
+      nextAuthoredTargets = authoredProceduralTargets.filter(
+        (target) => target.targetId !== deletingTargetId,
+      );
+    } else if (deletingTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      setHiddenBundleProceduralTargetIds((previous) => ({
+        ...previous,
+        [deletingTargetId]: true,
+      }));
+    }
+
+    const remainingBundleTargets = bundleProceduralTargetOptions.filter(
+      (option) => option.value !== deletingTargetId,
+    );
+
+    if (
+      nextAuthoredTargets.length === 0 &&
+      remainingBundleTargets.length === 0
+    ) {
+      const fallbackTarget = createAuthoredProceduralTarget(
+        AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
+        DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
+      );
+      setAuthoredProceduralTargets([fallbackTarget]);
+      setSelectedProceduralTargetId(fallbackTarget.targetId);
+      hydrateProceduralEditorState(fallbackTarget.snapshot);
+      return;
+    }
+
+    setAuthoredProceduralTargets(nextAuthoredTargets);
+    const nextTargetId =
+      nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
+    setSelectedProceduralTargetId(nextTargetId);
+    const nextAuthoredTarget = nextAuthoredTargets.find(
+      (target) => target.targetId === nextTargetId,
+    );
+    if (nextAuthoredTarget) {
+      hydrateProceduralEditorState(nextAuthoredTarget.snapshot);
+      return;
+    }
+    if (nextTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      const rawIndex = nextTargetId.slice(
+        BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+      );
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return;
+      }
+      const entry = bundleProceduralEntries[index];
+      if (!entry) {
+        return;
+      }
+      importMotionGraph(
+        entry.spec ? (entry.spec as Record<string, unknown>) : null,
+      );
+    }
+  }, [
+    authoredProceduralTargets,
+    bundleProceduralEntries,
+    bundleProceduralTargetOptions,
+    importMotionGraph,
+    proceduralTargetOptions,
+    selectedProceduralTargetId,
+    setHiddenBundleProceduralTargetIds,
+  ]);
 
   const authoredProceduralProgramsForExport = useMemo(() => {
     const activeAuthoredProgramId = parseAuthoredProceduralTargetValue(
@@ -1464,39 +1797,62 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeSourceOptions = RUNTIME_SOURCE_OPTIONS;
   const runtimeTargetConfig = useMemo(() => {
     if (activeRuntimeSource === "animation") {
-      const canRenameTarget = Boolean(
-        parseAuthoredAnimationTargetValue(selectedAnimationTargetId),
-      );
+      const selectedTargetLabel =
+        animationTargetOptions.find(
+          (option) => option.value === selectedAnimationTargetId,
+        )?.label ?? selectedAnimationTargetId;
       return {
         targetLabel: "Animation Clip",
         targetValue: selectedAnimationTargetId,
         targetOptions: animationTargetOptions,
         onTargetChange: handleSelectAnimationTarget,
-        targetName: canRenameTarget
-          ? selectedAuthoredAnimationTarget?.name
-          : undefined,
-        onTargetNameChange: canRenameTarget
-          ? handleRenameAnimationTarget
-          : undefined,
+        targetTypeLabel: "Animation Clip",
+        targetName:
+          selectedAuthoredAnimationTarget?.name ?? selectedTargetLabel,
+        onTargetNameChange: handleRenameAnimationTarget,
+        targetNumericLabel: "Duration (seconds)",
+        targetNumericValue: animationDuration,
+        targetNumericStep: 0.1,
+        targetNumericMin: 0,
+        onTargetNumericValueChange: handleUpdateSelectedAnimationDuration,
+        targetStats: [
+          { label: "Tracks", value: animationTracks.length.toString() },
+          { label: "Duration", value: `${animationDuration.toFixed(2)}s` },
+        ],
+        onDeleteTarget: handleDeleteAnimationTarget,
+        deleteTargetLabel: "Delete Clip",
         onCreateTarget: handleCreateAnimationTarget,
         createTargetLabel: "New Clip",
       };
     }
     if (activeRuntimeSource === "procedural-animation-programming") {
-      const canRenameTarget = Boolean(
-        parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
-      );
+      const selectedTargetLabel =
+        proceduralTargetOptions.find(
+          (option) => option.value === selectedProceduralTargetId,
+        )?.label ?? selectedProceduralTargetId;
       return {
         targetLabel: "Procedural Program",
         targetValue: selectedProceduralTargetId,
         targetOptions: proceduralTargetOptions,
         onTargetChange: handleSelectProceduralTarget,
-        targetName: canRenameTarget
-          ? selectedAuthoredProceduralTarget?.name
-          : undefined,
-        onTargetNameChange: canRenameTarget
-          ? handleRenameProceduralTarget
-          : undefined,
+        targetTypeLabel: "Procedural Program",
+        targetName:
+          selectedAuthoredProceduralTarget?.name ?? selectedTargetLabel,
+        onTargetNameChange: handleRenameProceduralTarget,
+        targetStats: [
+          { label: "Nodes", value: selectedProceduralMetrics.nodes.toString() },
+          { label: "Edges", value: selectedProceduralMetrics.edges.toString() },
+          {
+            label: "Inputs",
+            value: selectedProceduralMetrics.inputs.toString(),
+          },
+          {
+            label: "Outputs",
+            value: selectedProceduralMetrics.outputs.toString(),
+          },
+        ],
+        onDeleteTarget: handleDeleteProceduralTarget,
+        deleteTargetLabel: "Delete Program",
         onCreateTarget: handleCreateProceduralTarget,
         createTargetLabel: "New Program",
       };
@@ -1504,14 +1860,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     return null;
   }, [
     activeRuntimeSource,
+    animationDuration,
+    animationTracks.length,
     animationTargetOptions,
     handleCreateAnimationTarget,
     handleCreateProceduralTarget,
+    handleDeleteAnimationTarget,
+    handleDeleteProceduralTarget,
     handleRenameAnimationTarget,
     handleRenameProceduralTarget,
     handleSelectAnimationTarget,
     handleSelectProceduralTarget,
+    handleUpdateSelectedAnimationDuration,
     proceduralTargetOptions,
+    selectedProceduralMetrics.edges,
+    selectedProceduralMetrics.inputs,
+    selectedProceduralMetrics.nodes,
+    selectedProceduralMetrics.outputs,
     selectedAuthoredAnimationTarget,
     selectedAuthoredProceduralTarget,
     selectedAnimationTargetId,
@@ -2330,8 +2695,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               targetValue={runtimeTargetConfig?.targetValue}
               targetOptions={runtimeTargetConfig?.targetOptions}
               onTargetChange={runtimeTargetConfig?.onTargetChange}
+              targetTypeLabel={runtimeTargetConfig?.targetTypeLabel}
               targetName={runtimeTargetConfig?.targetName}
               onTargetNameChange={runtimeTargetConfig?.onTargetNameChange}
+              targetStats={runtimeTargetConfig?.targetStats}
+              targetNumericLabel={runtimeTargetConfig?.targetNumericLabel}
+              targetNumericValue={runtimeTargetConfig?.targetNumericValue}
+              targetNumericStep={runtimeTargetConfig?.targetNumericStep}
+              targetNumericMin={runtimeTargetConfig?.targetNumericMin}
+              onTargetNumericValueChange={
+                runtimeTargetConfig?.onTargetNumericValueChange
+              }
+              onDeleteTarget={runtimeTargetConfig?.onDeleteTarget}
+              deleteTargetLabel={runtimeTargetConfig?.deleteTargetLabel}
               onCreateTarget={runtimeTargetConfig?.onCreateTarget}
               createTargetLabel={runtimeTargetConfig?.createTargetLabel}
             />

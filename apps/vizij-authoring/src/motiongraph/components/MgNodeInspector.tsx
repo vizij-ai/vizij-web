@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { Trash2 } from "lucide-react";
 import { useEditorStore } from "../store/useEditorStore";
 import { useRegistry, type ParamSpec } from "../contexts/RegistryProvider";
 import { getPortColor } from "../utils/portColors";
@@ -14,6 +15,11 @@ export default function MgNodeInspector() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
   const setNodes = useEditorStore((s) => s.setNodes);
+  const setEdges = useEditorStore((s) => s.setEdges);
+  const setEnabledOutputs = useEditorStore((s) => s.setEnabledOutputs);
+  const setEnabledInputs = useEditorStore((s) => s.setEnabledInputs);
+  const removeCustomInputPath = useEditorStore((s) => s.removeCustomInputPath);
+  const setSelected = useEditorStore((s) => s.setSelected);
   const plotActive = useEditorStore((s) => s.plotActive);
   const togglePlot = useEditorStore((s) => s.togglePlot);
   const { nodesByType, getPortsForType } = useRegistry();
@@ -42,6 +48,57 @@ export default function MgNodeInspector() {
     () => (selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null),
     [selectedNodeId, nodes],
   );
+
+  const deleteSelectedNode = useCallback(() => {
+    if (!selectedNodeId || !selectedNode) {
+      return;
+    }
+
+    if (selectedNode.type === OUTPUT_TARGET_TYPE) {
+      const outputPath = (selectedNode.data as { outputPath?: unknown })
+        .outputPath;
+      if (typeof outputPath === "string" && outputPath.length > 0) {
+        const nextEnabledOutputs = new Set(
+          useEditorStore.getState().enabledOutputs,
+        );
+        nextEnabledOutputs.delete(outputPath);
+        setEnabledOutputs(nextEnabledOutputs);
+      }
+    }
+
+    if (selectedNode.type === INPUT_SOURCE_TYPE) {
+      const inputPath = (selectedNode.data as { inputPath?: unknown })
+        .inputPath;
+      if (typeof inputPath === "string" && inputPath.length > 0) {
+        const { customInputPaths, enabledInputs } = useEditorStore.getState();
+        if (customInputPaths.includes(inputPath)) {
+          removeCustomInputPath(inputPath);
+        } else {
+          const nextEnabledInputs = new Set(enabledInputs);
+          nextEnabledInputs.delete(inputPath);
+          setEnabledInputs(nextEnabledInputs);
+        }
+      }
+    }
+
+    setNodes((prev) => prev.filter((node) => node.id !== selectedNodeId));
+    setEdges((prev) =>
+      prev.filter(
+        (edge) =>
+          edge.source !== selectedNodeId && edge.target !== selectedNodeId,
+      ),
+    );
+    setSelected(null);
+  }, [
+    removeCustomInputPath,
+    selectedNode,
+    selectedNodeId,
+    setEdges,
+    setEnabledInputs,
+    setEnabledOutputs,
+    setNodes,
+    setSelected,
+  ]);
 
   const schema = useMemo(() => {
     if (!selectedNode?.type) return null;
@@ -93,6 +150,15 @@ export default function MgNodeInspector() {
             </span>
           </div>
         </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 w-fit rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 hover:text-red-100 hover:bg-red-500/20"
+          onClick={deleteSelectedNode}
+          title="Remove this output node from the graph and output list"
+        >
+          <Trash2 className="h-3 w-3" />
+          Delete Node
+        </button>
 
         {/* Plot toggle + chart */}
         <div>
@@ -118,7 +184,12 @@ export default function MgNodeInspector() {
 
   // Special case: input source nodes
   if (selectedNode.type === INPUT_SOURCE_TYPE) {
-    return <InputSourceInspector node={selectedNode} />;
+    return (
+      <InputSourceInspector
+        node={selectedNode}
+        onDeleteNode={deleteSelectedNode}
+      />
+    );
   }
 
   const label =

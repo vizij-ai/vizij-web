@@ -60,7 +60,6 @@ import {
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
-import { alertDialog } from "../../utils/dialogs";
 import type {
   PoseBlendMode,
   PoseDefinition,
@@ -1752,6 +1751,26 @@ interface GroupedInputRowsByFolder {
   children: GroupedInputRowsByFolder[];
 }
 
+const FACE_ELEMENT_PROPERTIES_FOLDER_LABEL = "Face Element Properties";
+
+function compareInputFolderLabels(
+  leftLabel: string,
+  rightLabel: string,
+): number {
+  const leftIsRoot = leftLabel === "/";
+  const rightIsRoot = rightLabel === "/";
+  if (leftIsRoot !== rightIsRoot) {
+    return leftIsRoot ? -1 : 1;
+  }
+  const leftIsFaceElement = leftLabel === FACE_ELEMENT_PROPERTIES_FOLDER_LABEL;
+  const rightIsFaceElement =
+    rightLabel === FACE_ELEMENT_PROPERTIES_FOLDER_LABEL;
+  if (leftIsFaceElement !== rightIsFaceElement) {
+    return leftIsFaceElement ? 1 : -1;
+  }
+  return leftLabel.localeCompare(rightLabel);
+}
+
 function groupInputRowsByFolder(
   rows: InputCatalogRow[],
 ): GroupedInputRowsByFolder[] {
@@ -1802,12 +1821,12 @@ function groupInputRowsByFolder(
     rows: sortInputCatalogRows(node.rows),
     children: Array.from(node.children.values())
       .map((child) => finalize(child))
-      .sort((left, right) => left.label.localeCompare(right.label)),
+      .sort((left, right) => compareInputFolderLabels(left.label, right.label)),
   });
 
   const nestedGroups = Array.from(root.children.values())
     .map((child) => finalize(child))
-    .sort((left, right) => left.label.localeCompare(right.label));
+    .sort((left, right) => compareInputFolderLabels(left.label, right.label));
 
   if (root.rows.length > 0) {
     return [
@@ -1999,7 +2018,7 @@ function TreeRowWrapper({
         selectable={inputData.selectable}
         onSelect={() => onSelect?.(node)}
         onValueChange={(inputId, value) => onInputValueChange?.(inputId, value)}
-        lockedMessage="Animation transport is currently driving this input."
+        lockedMessage="Animation playback is currently driving this input."
         actions={
           <div className="flex items-center gap-1">
             {motionGraphContext?.active && canToggleMotionGraphInput ? (
@@ -2527,7 +2546,7 @@ function FlatInputControlRow({
       {locked ? (
         <p className="text-[10px] text-amber-300">
           {lockedMessage ??
-            "Animation transport is currently driving this input."}
+            "Animation playback is currently driving this input."}
         </p>
       ) : null}
     </div>
@@ -5093,47 +5112,6 @@ export function VariablesPanel({
       onSelectBlendStage?.(null);
     }
   };
-  const handleCreateMotionGraphInputDriver = useCallback(() => {
-    if (!proceduralAnimationProgrammingActive) {
-      return;
-    }
-    const suggestedPath = createUniqueCustomVariablePath();
-    const nextPath = window.prompt(
-      "Create procedural animation programming input driver path",
-      suggestedPath,
-    );
-    if (nextPath === null) {
-      return;
-    }
-    const trimmed = nextPath.trim();
-    if (!trimmed) {
-      alertDialog("Path cannot be empty.");
-      return;
-    }
-    const created = handleCreateCustomStandardInput(trimmed);
-    if (!created) {
-      return;
-    }
-    const graphPath = buildRigInputPath(runtimeFaceSegment, created.path);
-    if (!enabledMotionGraphInputs.has(graphPath)) {
-      toggleMotionGraphInput(graphPath);
-    }
-    onSelectMotionGraphNode?.(null);
-    onSelectRig?.(created.id);
-    onSelectPoseGroup?.(null);
-    onSelectBlendStage?.(null);
-  }, [
-    createUniqueCustomVariablePath,
-    enabledMotionGraphInputs,
-    handleCreateCustomStandardInput,
-    onSelectBlendStage,
-    onSelectMotionGraphNode,
-    onSelectPoseGroup,
-    onSelectRig,
-    proceduralAnimationProgrammingActive,
-    runtimeFaceSegment,
-    toggleMotionGraphInput,
-  ]);
   const handleToggleMotionGraphInputPath = useCallback(
     (path: string) => {
       if (!motionGraphDisplayInputRowsByPath.has(path)) {
@@ -6162,6 +6140,30 @@ export function VariablesPanel({
 
             return (
               <div className="flex flex-col h-full min-h-0 gap-1 p-2">
+                {isInputs ? (
+                  <div className="flex items-center gap-1 px-1 mb-1">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleCreateVariable}
+                      title="Create a new driver and inspect it"
+                    >
+                      <Plus size={11} />
+                      Add Driver
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={handleCaptureCurrentPose}
+                      title="Capture current input values as a new pose (non-neutral channels only)"
+                    >
+                      <Camera size={11} />
+                      Capture Current
+                    </Button>
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-2 px-1 mb-1">
                   <PanelSearch
                     ref={searchInputRef}
@@ -6341,18 +6343,6 @@ export function VariablesPanel({
                         Delete
                       </Button>
                     </>
-                  )}
-                  {isInputs && proceduralAnimationProgrammingActive && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleCreateMotionGraphInputDriver}
-                      title="Create a driver and enable it as a procedural animation programming input source"
-                    >
-                      <Plus size={11} />
-                      New Procedural Input Driver
-                    </Button>
                   )}
                   {isPoseGroups && (
                     <span className="text-[10px] uppercase tracking-wider text-text-muted">
@@ -7166,6 +7156,13 @@ export function VariablesPanel({
                           return -1;
                         if (a.type !== "folder" && b.type === "folder")
                           return 1;
+                        if (
+                          isInputs &&
+                          a.type === "folder" &&
+                          b.type === "folder"
+                        ) {
+                          return compareInputFolderLabels(a.label, b.label);
+                        }
                         return a.label.localeCompare(b.label);
                       })
                       .map((child) => (

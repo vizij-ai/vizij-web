@@ -81,4 +81,10 @@ describe("pose control input guard contracts", () => {
       "Object.is(inputValuesRef.current[resolvedInputId], value)",
     );
   });
+
+  it("locks animation-driven inputs only while playback is running", () => {
+    expect(useRigControllerTs).toContain(
+      'animationState.transportPlaybackState === "playing"',
+    );
+  });
 });

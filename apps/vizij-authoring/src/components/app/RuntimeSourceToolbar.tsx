@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pause, Play, Plus, Square } from "lucide-react";
+import { Pause, Play, Plus, Square, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Input } from "../ui/Input";
@@ -21,6 +21,11 @@ interface RuntimeTargetOption {
   label: string;
 }
 
+interface RuntimeTargetStat {
+  label: string;
+  value: string;
+}
+
 interface RuntimeSourceToolbarProps {
   mode: RuntimeSourceToolbarMode;
   activeSource: RuntimeAuthoringSource;
@@ -40,6 +45,15 @@ interface RuntimeSourceToolbarProps {
   onTargetNameChange?: (value: string) => void;
   onCreateTarget?: () => void;
   createTargetLabel?: string;
+  targetTypeLabel?: string;
+  targetStats?: RuntimeTargetStat[];
+  targetNumericLabel?: string;
+  targetNumericValue?: number;
+  targetNumericStep?: number;
+  targetNumericMin?: number;
+  onTargetNumericValueChange?: (value: number) => void;
+  onDeleteTarget?: () => void;
+  deleteTargetLabel?: string;
 }
 
 const modeMeta: Record<
@@ -91,6 +105,15 @@ export function RuntimeSourceToolbar({
   onTargetNameChange,
   onCreateTarget,
   createTargetLabel,
+  targetTypeLabel,
+  targetStats,
+  targetNumericLabel,
+  targetNumericValue,
+  targetNumericStep = 0.1,
+  targetNumericMin = 0,
+  onTargetNumericValueChange,
+  onDeleteTarget,
+  deleteTargetLabel,
 }: RuntimeSourceToolbarProps) {
   const modeDetails = modeMeta[mode];
   const isLive = activeSource !== "none";
@@ -101,6 +124,13 @@ export function RuntimeSourceToolbar({
     typeof onTargetChange === "function";
   const hasTargetNameEditor =
     typeof targetName === "string" && typeof onTargetNameChange === "function";
+  const hasTargetNumericEditor =
+    typeof targetNumericLabel === "string" &&
+    typeof targetNumericValue === "number" &&
+    Number.isFinite(targetNumericValue) &&
+    typeof onTargetNumericValueChange === "function";
+  const hasTargetStats = (targetStats?.length ?? 0) > 0;
+  const hasDeleteTargetAction = typeof onDeleteTarget === "function";
   const hasPlaybackControls =
     playbackState === "playing" ||
     playbackState === "paused" ||
@@ -231,6 +261,21 @@ export function RuntimeSourceToolbar({
     </div>
   ) : null;
 
+  const selectedTargetOption = useMemo(() => {
+    if (!targetOptions || typeof targetValue !== "string") {
+      return null;
+    }
+    return (
+      targetOptions.find((option) => option.value === targetValue) ??
+      (targetValue
+        ? {
+            value: targetValue,
+            label: targetValue,
+          }
+        : null)
+    );
+  }, [targetOptions, targetValue]);
+
   const targetNameEditor = hasTargetNameEditor ? (
     <div className="space-y-1.5">
       <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-1">
@@ -251,6 +296,101 @@ export function RuntimeSourceToolbar({
       />
     </div>
   ) : null;
+
+  const targetNumericEditor = hasTargetNumericEditor ? (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-1">
+        {targetNumericLabel}
+      </label>
+      <Input
+        size="sm"
+        type="number"
+        min={targetNumericMin}
+        step={targetNumericStep}
+        value={targetNumericValue}
+        onChange={(event) => {
+          const nextValue = Number.parseFloat(event.target.value);
+          if (!Number.isFinite(nextValue)) {
+            return;
+          }
+          onTargetNumericValueChange(nextValue);
+        }}
+      />
+    </div>
+  ) : null;
+
+  const targetStatsGrid = hasTargetStats ? (
+    <div className="grid grid-cols-2 gap-1.5">
+      {(targetStats ?? []).map((stat) => (
+        <div
+          key={`${stat.label}:${stat.value}`}
+          className="rounded border border-border-default/50 bg-bg-input/35 px-2 py-1"
+        >
+          <div className="text-[9px] uppercase tracking-wider text-text-muted">
+            {stat.label}
+          </div>
+          <div className="text-[11px] font-mono text-text-primary">
+            {stat.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
+  const playbackStatusTone =
+    playbackState === "playing"
+      ? "bg-color-success-subtle text-color-success"
+      : playbackState === "paused"
+        ? "bg-color-warning-subtle text-color-warning"
+        : "bg-bg-secondary text-text-secondary";
+
+  const targetMetadataCard =
+    hasTargetSelector ||
+    hasTargetNameEditor ||
+    hasTargetNumericEditor ||
+    hasTargetStats ||
+    hasDeleteTargetAction ? (
+      <div className="rounded-md border border-border-default/70 bg-bg-panel/45 p-2.5 space-y-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-widest text-text-secondary">
+              {targetTypeLabel ?? "Runtime Target"}
+            </div>
+            <div className="mt-0.5 text-xs font-semibold text-text-primary truncate">
+              {selectedTargetOption?.label ?? "No target selected"}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <span
+              className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${playbackStatusTone}`}
+            >
+              {playbackState ?? "stopped"}
+            </span>
+          </div>
+        </div>
+
+        {targetNameEditor}
+        {targetNumericEditor}
+        {targetStatsGrid}
+
+        {hasDeleteTargetAction && (
+          <div className="flex items-center gap-1.5">
+            {hasDeleteTargetAction ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] gap-1 text-color-danger"
+                onClick={() => onDeleteTarget?.()}
+                title={deleteTargetLabel ?? "Delete target"}
+              >
+                <Trash2 className="h-3 w-3" />
+                {deleteTargetLabel ?? "Delete"}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    ) : null;
 
   if (layout === "panel") {
     return (
@@ -286,7 +426,7 @@ export function RuntimeSourceToolbar({
 
         {targetSelector}
 
-        {targetNameEditor}
+        {targetMetadataCard}
       </div>
     );
   }
@@ -323,7 +463,7 @@ export function RuntimeSourceToolbar({
           <div className="w-[240px]">{runtimeSourceToggle}</div>
           <div className="w-[250px]">{playbackButtons}</div>
           <div className="w-[280px]">{targetSelector}</div>
-          <div className="w-[220px]">{targetNameEditor}</div>
+          <div className="w-[280px]">{targetMetadataCard}</div>
         </div>
       </div>
     </div>

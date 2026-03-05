@@ -22,7 +22,15 @@ import type {
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import MgNodeInspector from "../../motiongraph/components/MgNodeInspector";
-import { useAnimationStore } from "../../state/animationStore";
+import {
+  useAnimationStore,
+  type AnimationTimeDisplayMode,
+} from "../../state/animationStore";
+import {
+  formatKeyframeTime,
+  framesToSeconds,
+  secondsToFrames,
+} from "../../utils/animationTimeDisplay";
 import {
   buildPoseGroupCompositionPreview,
   buildPoseStageCompositionPreview,
@@ -134,6 +142,12 @@ function stageSourceToken(source: PoseIrStageSource): string {
   return `${source.kind}:${source.id}`;
 }
 
+function resolveAnimationTimeFieldLabel(
+  mode: AnimationTimeDisplayMode,
+): string {
+  return mode === "frames" ? "Frame" : "Time";
+}
+
 export function InspectorPanel({
   selectedPoseGroup = null,
   onSelectPoseGroup,
@@ -193,6 +207,9 @@ export function InspectorPanel({
   const selectAnimationTrack = useAnimationStore((state) => state.selectTrack);
   const selectAnimationKeyframe = useAnimationStore(
     (state) => state.selectKeyframe,
+  );
+  const animationTimeDisplayMode = useAnimationStore(
+    (state) => state.timeDisplayMode,
   );
 
   const poseLookup = useMemo(() => {
@@ -832,6 +849,20 @@ export function InspectorPanel({
       ),
     [selectedAnimationValueRange.max, selectedAnimationValueRange.min],
   );
+  const selectedAnimationKeyframeTimeFieldValue = useMemo(() => {
+    if (!selectedAnimationKeyframe) {
+      return 0;
+    }
+    if (animationTimeDisplayMode === "frames") {
+      return secondsToFrames(selectedAnimationKeyframe.time);
+    }
+    return selectedAnimationKeyframe.time;
+  }, [animationTimeDisplayMode, selectedAnimationKeyframe]);
+  const selectedAnimationTimeFieldStep =
+    animationTimeDisplayMode === "frames" ? 1 : 0.1;
+  const selectedAnimationTimeFieldLabel = resolveAnimationTimeFieldLabel(
+    animationTimeDisplayMode,
+  );
 
   const hasCompetingInspectorSelection = inspectorMode !== "default";
   const isPoseGroupInspectorMode = Boolean(
@@ -982,7 +1013,13 @@ export function InspectorPanel({
                             onClick={() => selectAnimationKeyframe(keyframe.id)}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span>t={keyframe.time.toFixed(3)}s</span>
+                              <span>
+                                t=
+                                {formatKeyframeTime(
+                                  keyframe.time,
+                                  animationTimeDisplayMode,
+                                )}
+                              </span>
                               <span>v={keyframe.value.toFixed(4)}</span>
                             </div>
                             <div className="mt-0.5 text-[9px] uppercase tracking-wider text-text-muted">
@@ -1020,13 +1057,13 @@ export function InspectorPanel({
                     </div>
                     <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
                       <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                        Time
+                        {selectedAnimationTimeFieldLabel}
                       </span>
                       <input
                         type="number"
-                        step="0.1"
+                        step={selectedAnimationTimeFieldStep}
                         className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                        value={selectedAnimationKeyframe.time}
+                        value={selectedAnimationKeyframeTimeFieldValue}
                         onChange={(event) => {
                           const nextValue = Number.parseFloat(
                             event.target.value,
@@ -1034,11 +1071,15 @@ export function InspectorPanel({
                           if (!Number.isFinite(nextValue)) {
                             return;
                           }
+                          const nextTimeSeconds =
+                            animationTimeDisplayMode === "frames"
+                              ? framesToSeconds(Math.round(nextValue))
+                              : nextValue;
                           updateAnimationKeyframe(
                             selectedAnimationTrack.id,
                             selectedAnimationKeyframe.id,
                             {
-                              time: nextValue,
+                              time: nextTimeSeconds,
                             },
                           );
                         }}

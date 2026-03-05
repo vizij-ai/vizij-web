@@ -974,7 +974,7 @@ export function useRigController(
       const animationState = useAnimationStore.getState();
       const timelineDriving =
         animationState.transportEnabled &&
-        animationState.transportPlaybackState !== "stopped";
+        animationState.transportPlaybackState === "playing";
       const nextLockedInputIds = new Set<string>();
       if (timelineDriving) {
         animationState.tracks.forEach((track) => {

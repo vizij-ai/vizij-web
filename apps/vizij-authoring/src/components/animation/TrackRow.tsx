@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  type AnimationTimeDisplayMode,
   type AnimationTrack,
   useAnimationStore,
 } from "../../state/animationStore";
+import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
 import { cn } from "../../utils/cn";
 
 interface TrackRowProps {
   track: AnimationTrack;
   duration: number;
+  timeDisplayMode: AnimationTimeDisplayMode;
 }
 
-export function TrackRow({ track, duration }: TrackRowProps) {
+export function TrackRow({ track, duration, timeDisplayMode }: TrackRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingKeyframeIdRef = useRef<string | null>(null);
   const [draggingKeyframeId, setDraggingKeyframeId] = useState<string | null>(
@@ -146,7 +149,7 @@ export function TrackRow({ track, duration }: TrackRowProps) {
               }}
               onClick={(e) => handleKeyframeClick(e, kf.id)}
               onPointerDown={(event) => handleKeyframePointerDown(event, kf.id)}
-              title={`Time: ${kf.time.toFixed(2)}s\nValue: ${kf.value.toFixed(2)}\nDrag to move in time`}
+              title={`Time: ${formatKeyframeTime(kf.time, timeDisplayMode)}\nValue: ${kf.value.toFixed(2)}\nDrag to move in time`}
             />
           );
         })}

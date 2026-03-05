@@ -477,31 +477,28 @@ export function useAnimationTransport() {
         });
         return;
       }
-      const nextPlaybackState = isPlaying
-        ? "playing"
-        : transportPlaybackState === "stopped"
-          ? "stopped"
-          : "paused";
-      if (nextPlaybackState === "stopped") {
-        syncTransportState({
-          currentTime: timeSeconds,
-          isPlaying: false,
-          transportActive: false,
-          transportPlaybackState: "stopped",
-        });
-        return;
+      const resumePlaying = isPlaying;
+      if (!resumePlaying) {
+        if (transportPlaybackState === "stopped") {
+          void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+            reset: false,
+            speed: playSpeed,
+          });
+        }
+        runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
       }
       runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, timeSeconds);
       syncTransportState({
         currentTime: timeSeconds,
-        isPlaying,
+        isPlaying: resumePlaying,
         transportActive: true,
-        transportPlaybackState: nextPlaybackState,
+        transportPlaybackState: resumePlaying ? "playing" : "paused",
       });
     },
     [
       canDrive,
       isPlaying,
+      playSpeed,
       runtimeTransport,
       syncTransportState,
       transportPlaybackState,
