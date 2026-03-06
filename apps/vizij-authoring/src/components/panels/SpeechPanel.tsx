@@ -5,6 +5,7 @@ import { useGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { buildRigInputPath } from "../../poseRig/utils";
+import { resolvePoseMembership } from "../../poseRig/groupMembership";
 import { useSpeechPlayback } from "../../hooks/useSpeechPlayback";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 import { useConversation } from "../../hooks/useConversation";
@@ -48,6 +49,7 @@ const SPEAKING_PATH_KEY = "vizij_speech_speaking_path";
 const USER_SPEAKING_PATH_KEY = "vizij_speech_user_speaking_path";
 const DEFAULT_SPEAKING_PATH = "/speech/speaking";
 const DEFAULT_USER_SPEAKING_PATH = "/speech/user_speaking";
+const EMOTION_GROUP_KEY = "vizij_speech_emotion_group_id";
 
 function getStoredPath(key: string, defaultValue: string): string {
   try {
@@ -63,6 +65,35 @@ function getStoredAgentName(): string {
   } catch {
     return DEFAULT_AGENT_NAME;
   }
+}
+
+function getStoredId(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Try to extract JSON {text, emotion} from an LLM response, handling markdown fences. */
+function parseEmotionResponse(raw: string): { text: string; emotion: string | null } | null {
+  let str = raw.trim();
+  // Strip markdown code fences
+  const fenceMatch = str.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  if (fenceMatch) str = fenceMatch[1];
+  try {
+    const parsed = JSON.parse(str) as unknown;
+    if (parsed && typeof parsed === "object" && "text" in parsed && typeof (parsed as Record<string, unknown>).text === "string") {
+      const p = parsed as Record<string, unknown>;
+      return {
+        text: p.text as string,
+        emotion: typeof p.emotion === "string" ? p.emotion : null,
+      };
+    }
+  } catch {
+    // not JSON
+  }
+  return null;
 }
 
 const EMPTY_POSES: import("@vizij/runtime-react").PoseDefinition[] = [];
@@ -106,6 +137,53 @@ export function SpeechPanel() {
     try { localStorage.setItem(USER_SPEAKING_PATH_KEY, value); } catch { /* ignore */ }
   }, []);
 
+  // --- Emotion group + derived state ---
+  const [selectedEmotionGroupId, setSelectedEmotionGroupId] = useState<string | null>(
+    () => getStoredId(EMOTION_GROUP_KEY),
+  );
+
+  const handleEmotionGroupChange = useCallback((id: string | null) => {
+    setSelectedEmotionGroupId(id);
+    try {
+      if (id) localStorage.setItem(EMOTION_GROUP_KEY, id);
+      else localStorage.removeItem(EMOTION_GROUP_KEY);
+    } catch { /* ignore */ }
+  }, []);
+
+  const emotionGroupOptions = useMemo((): SelectOption[] =>
+    poseGroups.map((g) => ({ value: g.id, label: g.path || g.name || g.id })),
+  [poseGroups]);
+
+  const defaultEmotionGroupId = useMemo((): string | null => {
+    const found = poseGroups.find(
+      (g) =>
+        g.path?.toLowerCase().includes("emotion") ||
+        g.name?.toLowerCase().includes("emotion"),
+    );
+    return found?.id ?? null;
+  }, [poseGroups]);
+
+  const effectiveEmotionGroupId = useMemo(() => {
+    if (selectedEmotionGroupId && emotionGroupOptions.some((o) => o.value === selectedEmotionGroupId)) {
+      return selectedEmotionGroupId;
+    }
+    return defaultEmotionGroupId;
+  }, [selectedEmotionGroupId, defaultEmotionGroupId, emotionGroupOptions]);
+
+  const emotionPoses = useMemo(() => {
+    if (!effectiveEmotionGroupId || poseGroups.length === 0) return [];
+    return poses.filter((pose) => {
+      const membership = resolvePoseMembership(
+        pose as Pick<import("../../poseRig/types").PoseDefinition, "group" | "groupId" | "groupIds">,
+        poseGroups as import("../../poseRig/types").PoseGroupDefinition[],
+      );
+      return membership.groupIds.includes(effectiveEmotionGroupId);
+    });
+  }, [poses, poseGroups, effectiveEmotionGroupId]);
+
+  const availableEmotions = useMemo(() => emotionPoses.map((p) => p.id), [emotionPoses]);
+
+  // --- Speech playback ---
   const speech = useSpeechPlayback({
     faceId,
     poses,
@@ -143,17 +221,36 @@ export function SpeechPanel() {
   // --- System prompt ---
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
 
-  // Resolve {{agent_name}} tag in prompt
+  // Resolve {{agent_name}} tag in prompt, and append emotion instructions when available
   const resolvedPrompt = useMemo(
     () => systemPrompt.replace(/\{\{agent_name\}\}/g, agentName || DEFAULT_AGENT_NAME),
     [systemPrompt, agentName],
   );
 
+  const resolvedPromptWithEmotion = useMemo(() => {
+    if (availableEmotions.length === 0) return resolvedPrompt;
+    const list = availableEmotions.join(", ");
+    return `${resolvedPrompt}\n\nAlways respond with a JSON object in exactly this format: {"text": "<your response>", "emotion": "<emotion>"}. Choose the emotion that best matches the tone of your response. Available emotions: ${list}.`;
+  }, [resolvedPrompt, availableEmotions]);
+
   // --- Conversation hook ---
   const conversation = useConversation({
     apiKey: oaiKey,
-    systemPrompt: resolvedPrompt,
+    systemPrompt: resolvedPromptWithEmotion,
   });
+
+  // --- Emotion activation ---
+  const activateEmotion = useCallback((emotionName: string | null) => {
+    if (!stageRuntimeInput || !runtimeReady) return;
+    // Reset all emotion inputs to 0
+    for (const name of availableEmotions) {
+      stageRuntimeInput(buildRigInputPath(faceSegment, `/speech/emotion/${name}`), 0);
+    }
+    // Activate the chosen one
+    if (emotionName && availableEmotions.includes(emotionName)) {
+      stageRuntimeInput(buildRigInputPath(faceSegment, `/speech/emotion/${emotionName}`), 1);
+    }
+  }, [stageRuntimeInput, runtimeReady, faceSegment, availableEmotions]);
 
   // --- Refs for async callbacks ---
   const handleSpeakRef = useRef(speech.handleSpeak);
@@ -164,6 +261,10 @@ export function SpeechPanel() {
   modeRef.current = mode;
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
+  const availableEmotionsRef = useRef(availableEmotions);
+  availableEmotionsRef.current = availableEmotions;
+  const activateEmotionRef = useRef(activateEmotion);
+  activateEmotionRef.current = activateEmotion;
   const historyRef = useRef<HTMLDivElement>(null);
 
   // --- ASR final transcript handler (mode-dependent) ---
@@ -175,10 +276,23 @@ export function SpeechPanel() {
     } else {
       // Conversation: send to LLM, then speak response
       void conversationRef.current.sendMessage(transcript).then((response) => {
-        if (response) {
-          setScriptRef.current(response);
-          void handleSpeakRef.current(response);
+        if (!response) return;
+
+        let speakText = response;
+        let emotion: string | null = null;
+
+        // Try to parse JSON emotion response (only when emotions are configured)
+        if (availableEmotionsRef.current.length > 0) {
+          const parsed = parseEmotionResponse(response);
+          if (parsed) {
+            speakText = parsed.text;
+            emotion = parsed.emotion;
+          }
         }
+
+        setScriptRef.current(speakText);
+        if (emotion) activateEmotionRef.current(emotion);
+        void handleSpeakRef.current(speakText);
       });
     }
   }, []);
@@ -202,7 +316,7 @@ export function SpeechPanel() {
     stageRuntimeInput(buildRigInputPath(faceSegment, userSpeakingInputPath), asr.listening ? 1 : 0);
   }, [asr.listening, stageRuntimeInput, runtimeReady, faceSegment, userSpeakingInputPath]);
 
-  // Auto-provision /speech/ PAP inputs if they don't exist yet
+  // Auto-provision /speech/speaking and /speech/user_speaking PAP inputs
   const lastProvisionedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!runtimeReady || !faceSegment) return;
@@ -226,6 +340,31 @@ export function SpeechPanel() {
       }
     }
   }, [runtimeReady, faceSegment, speakingInputPath, userSpeakingInputPath, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
+
+  // Auto-provision /speech/emotion/<name> PAP inputs for each available emotion
+  const lastProvisionedEmotionsRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!runtimeReady || !faceSegment || availableEmotions.length === 0) return;
+    const key = `${faceSegment}::${availableEmotions.join(",")}`;
+    if (lastProvisionedEmotionsRef.current === key) return;
+    lastProvisionedEmotionsRef.current = key;
+
+    for (const emotionName of availableEmotions) {
+      const relativePath = `/speech/emotion/${emotionName}`;
+      const normalizedPath = normalizeStandardRigInputPath(relativePath);
+      let input = standardInputsByPath.get(normalizedPath);
+      if (!input) {
+        const created = handleCreateCustomStandardInput(relativePath);
+        input = created ?? undefined;
+      }
+      if (input) {
+        const fullPath = buildRigInputPath(faceSegment, input.path);
+        if (!enabledMotionGraphInputs.has(fullPath)) {
+          toggleMotionGraphInput(fullPath);
+        }
+      }
+    }
+  }, [runtimeReady, faceSegment, availableEmotions, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
 
   // Auto-scroll conversation history
   useEffect(() => {
@@ -559,6 +698,20 @@ export function SpeechPanel() {
                   options={speech.groupOptions}
                   size="sm"
                 />
+              )}
+              {emotionGroupOptions.length > 0 && (
+                <Select
+                  label="Emotions Input Group"
+                  value={effectiveEmotionGroupId ?? ""}
+                  onChange={(val) => handleEmotionGroupChange(val || null)}
+                  options={emotionGroupOptions}
+                  size="sm"
+                />
+              )}
+              {availableEmotions.length > 0 && (
+                <p className="text-[10px] text-text-muted leading-snug">
+                  Emotions: {availableEmotions.join(", ")}
+                </p>
               )}
             </div>
           </div>
