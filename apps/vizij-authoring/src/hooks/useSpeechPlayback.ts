@@ -47,6 +47,7 @@ export interface UseSpeechPlaybackOptions {
     | ((graphPath: string, value: number, duration: number) => void)
     | undefined;
   runtimeReady: boolean;
+  speakingInputPath?: string;
 }
 
 export interface UseSpeechPlaybackReturn {
@@ -74,6 +75,7 @@ export function useSpeechPlayback({
   stageRuntimeInput,
   animateRuntimeValue,
   runtimeReady,
+  speakingInputPath,
 }: UseSpeechPlaybackOptions): UseSpeechPlaybackReturn {
   const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [selectedVoice, setSelectedVoice] = useState<PollyVoice>("Ruth");
@@ -85,6 +87,14 @@ export function useSpeechPlayback({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const autoplayRef = useRef(false);
+  const speakingInputPathRef = useRef(speakingInputPath);
+  const faceIdRef = useRef(faceId);
+  useEffect(() => {
+    speakingInputPathRef.current = speakingInputPath;
+  }, [speakingInputPath]);
+  useEffect(() => {
+    faceIdRef.current = faceId;
+  }, [faceId]);
   const visemeTimelineRef = useRef<VisemeTimelineEntry[]>([]);
   const visemePathsRef = useRef<Set<string>>(new Set());
   const lastVisemePathRef = useRef<string | null>(null);
@@ -285,6 +295,9 @@ export function useSpeechPlayback({
         audioRef.current.currentTime = 0;
       }
       clearVisemeInputs();
+      if (speakingInputPathRef.current && stageRuntimeInput && runtimeReady) {
+        stageRuntimeInput(buildRigInputPath(faceIdRef.current?.trim() || "face", speakingInputPathRef.current), 0);
+      }
       resetVisemeState();
       revokeAudioSrc();
       autoplayRef.current = false;
@@ -292,7 +305,7 @@ export function useSpeechPlayback({
         setStatus("idle");
       }
     },
-    [clearVisemeInputs, resetVisemeState, revokeAudioSrc, stopRAF],
+    [clearVisemeInputs, resetVisemeState, revokeAudioSrc, stopRAF, stageRuntimeInput, runtimeReady],
   );
 
   useEffect(() => () => stopPlayback(false), [stopPlayback]);
@@ -403,7 +416,10 @@ export function useSpeechPlayback({
   const handleAudioPlay = useCallback(() => {
     startRAF();
     setStatus("speaking");
-  }, [startRAF]);
+    if (speakingInputPathRef.current && stageRuntimeInput && runtimeReady) {
+      stageRuntimeInput(buildRigInputPath(faceIdRef.current?.trim() || "face", speakingInputPathRef.current), 1);
+    }
+  }, [startRAF, stageRuntimeInput, runtimeReady]);
 
   const handleAudioPause = useCallback(() => {
     stopRAF();

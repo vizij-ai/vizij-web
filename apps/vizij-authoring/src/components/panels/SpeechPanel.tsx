@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mic, MicOff, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { useGraphRuntimeStore } from "../../state/graphRuntimeStore";
+import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
+import { buildRigInputPath } from "../../poseRig/utils";
 import { useSpeechPlayback } from "../../hooks/useSpeechPlayback";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 import { useConversation } from "../../hooks/useConversation";
@@ -40,6 +44,19 @@ const DEFAULT_SYSTEM_PROMPT =
 const AGENT_NAME_KEY = "vizij_agent_name";
 const DEFAULT_AGENT_NAME = "Vizij";
 
+const SPEAKING_PATH_KEY = "vizij_speech_speaking_path";
+const USER_SPEAKING_PATH_KEY = "vizij_speech_user_speaking_path";
+const DEFAULT_SPEAKING_PATH = "/speech/speaking";
+const DEFAULT_USER_SPEAKING_PATH = "/speech/user_speaking";
+
+function getStoredPath(key: string, defaultValue: string): string {
+  try {
+    return localStorage.getItem(key) || defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
 function getStoredAgentName(): string {
   try {
     return localStorage.getItem(AGENT_NAME_KEY) || DEFAULT_AGENT_NAME;
@@ -59,11 +76,35 @@ export function SpeechPanel() {
   const poseGroups = useGraphRuntimeStore(
     (s) => s.poseConfig?.poseGroups ?? EMPTY_GROUPS,
   );
+  const faceSegment = useGraphRuntimeStore((s) => s.faceSegment);
   const stageRuntimeInput = useGraphRuntimeStore((s) => s.stageRuntimeInput);
   const animateRuntimeValue = useGraphRuntimeStore(
     (s) => s.animateRuntimeValue,
   );
   const runtimeReady = useGraphRuntimeStore((s) => s.runtimeViewReady);
+
+  const standardInputsByPath = useBindingAuthoring((s) => s.standardInputsByPath);
+  const handleCreateCustomStandardInput = useBindingAuthoring((s) => s.handleCreateCustomStandardInput);
+  const enabledMotionGraphInputs = useEditorStore((s) => s.enabledInputs);
+  const toggleMotionGraphInput = useEditorStore((s) => s.toggleInput);
+
+  // --- PAP input paths (persisted to localStorage) ---
+  const [speakingInputPath, setSpeakingInputPath] = useState(
+    () => getStoredPath(SPEAKING_PATH_KEY, DEFAULT_SPEAKING_PATH),
+  );
+  const [userSpeakingInputPath, setUserSpeakingInputPath] = useState(
+    () => getStoredPath(USER_SPEAKING_PATH_KEY, DEFAULT_USER_SPEAKING_PATH),
+  );
+
+  const handleSpeakingPathChange = useCallback((value: string) => {
+    setSpeakingInputPath(value);
+    try { localStorage.setItem(SPEAKING_PATH_KEY, value); } catch { /* ignore */ }
+  }, []);
+
+  const handleUserSpeakingPathChange = useCallback((value: string) => {
+    setUserSpeakingInputPath(value);
+    try { localStorage.setItem(USER_SPEAKING_PATH_KEY, value); } catch { /* ignore */ }
+  }, []);
 
   const speech = useSpeechPlayback({
     faceId,
@@ -72,6 +113,7 @@ export function SpeechPanel() {
     stageRuntimeInput,
     animateRuntimeValue,
     runtimeReady,
+    speakingInputPath,
   });
 
   // --- API keys ---
@@ -153,6 +195,37 @@ export function SpeechPanel() {
       speech.setScript(asr.interimTranscript);
     }
   }, [asr.listening, asr.interimTranscript, speech.setScript]);
+
+  // Drive /speech/user_speaking PAP input based on mic state
+  useEffect(() => {
+    if (!stageRuntimeInput || !runtimeReady || !userSpeakingInputPath) return;
+    stageRuntimeInput(buildRigInputPath(faceSegment, userSpeakingInputPath), asr.listening ? 1 : 0);
+  }, [asr.listening, stageRuntimeInput, runtimeReady, faceSegment, userSpeakingInputPath]);
+
+  // Auto-provision /speech/ PAP inputs if they don't exist yet
+  const lastProvisionedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!runtimeReady || !faceSegment) return;
+    const key = `${faceSegment}::${speakingInputPath}::${userSpeakingInputPath}`;
+    if (lastProvisionedRef.current === key) return;
+    lastProvisionedRef.current = key;
+
+    for (const path of [speakingInputPath, userSpeakingInputPath]) {
+      if (!path.trim()) continue;
+      const normalizedPath = normalizeStandardRigInputPath(path);
+      let input = standardInputsByPath.get(normalizedPath);
+      if (!input) {
+        const created = handleCreateCustomStandardInput(path);
+        input = created ?? undefined;
+      }
+      if (input) {
+        const fullPath = buildRigInputPath(faceSegment, input.path);
+        if (!enabledMotionGraphInputs.has(fullPath)) {
+          toggleMotionGraphInput(fullPath);
+        }
+      }
+    }
+  }, [runtimeReady, faceSegment, speakingInputPath, userSpeakingInputPath, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
 
   // Auto-scroll conversation history
   useEffect(() => {
@@ -259,15 +332,6 @@ export function SpeechPanel() {
           options={VOICE_OPTIONS}
           size="sm"
         />
-        {speech.groupOptions.length > 0 && (
-          <Select
-            label="Visemes Input Group"
-            value={speech.selectedGroupId ?? ""}
-            onChange={(val) => speech.setSelectedGroupId(val || null)}
-            options={speech.groupOptions}
-            size="sm"
-          />
-        )}
         <Select
           label="Mode"
           value={mode}
@@ -461,6 +525,41 @@ export function SpeechPanel() {
                 placeholder="System prompt for the LLM..."
                 className="text-[11px]"
               />
+            </div>
+            {/* PAP Input Mapping */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] text-text-muted uppercase tracking-wider">
+                PAP Input Mapping
+              </span>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted">Avatar Speaking</span>
+                <input
+                  type="text"
+                  value={speakingInputPath}
+                  onChange={(e) => handleSpeakingPathChange(e.target.value)}
+                  placeholder={DEFAULT_SPEAKING_PATH}
+                  className="h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50 font-mono"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted">User Speaking</span>
+                <input
+                  type="text"
+                  value={userSpeakingInputPath}
+                  onChange={(e) => handleUserSpeakingPathChange(e.target.value)}
+                  placeholder={DEFAULT_USER_SPEAKING_PATH}
+                  className="h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50 font-mono"
+                />
+              </div>
+              {speech.groupOptions.length > 0 && (
+                <Select
+                  label="Visemes Input Group"
+                  value={speech.selectedGroupId ?? ""}
+                  onChange={(val) => speech.setSelectedGroupId(val || null)}
+                  options={speech.groupOptions}
+                  size="sm"
+                />
+              )}
             </div>
           </div>
         )}
