@@ -405,7 +405,10 @@ function RuntimeStatusDebug() {
     }
   }, [loading, ready, rootId, error, controllers, outputPaths.length]);
   return (
-    <div className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
+    <div
+      data-testid="main-runtime-status"
+      className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white"
+    >
       {`runtime: ${ready ? "ready" : loading ? "loading" : "idle"} | rootId: ${
         rootId ?? "null"
       } | graphs: ${runtimeViewGraphCount} | outputs: ${runtimeViewOutputCount}`}
@@ -549,7 +552,10 @@ export function Viewer({
   );
 
   return (
-    <main className="h-full w-full relative bg-bg-panel overflow-hidden">
+    <main
+      data-testid="main-viewer"
+      className="h-full w-full relative bg-bg-panel overflow-hidden"
+    >
       {(runtimeWarning || runtimeError) && (
         <div className="absolute top-0 left-0 right-0 z-10 flex flex-col gap-2 p-3 pointer-events-none">
           {runtimeError && (
@@ -602,8 +608,10 @@ export function Viewer({
               onResetInputs={handleResetInputs}
               resetButtonLabel="Reset Main Inputs"
               resetButtonTitle="Reset main-face inputs to their default values"
+              resetButtonTestId="main-runtime-reset-inputs"
+              readyFlagTestId="main-runtime-ready-flag"
             />
-            <div className="h-full w-full">
+            <div data-testid="main-runtime-view" className="h-full w-full">
               <VizijRuntimeFace
                 className="h-full w-full"
                 showSafeArea={false}
@@ -615,7 +623,10 @@ export function Viewer({
             </div>
           </VizijRuntimeProvider>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-text-primary gap-6 p-8 text-center animate-in fade-in duration-700">
+          <div
+            data-testid="main-viewer-empty-state"
+            className="flex flex-col items-center justify-center h-full text-text-primary gap-6 p-8 text-center animate-in fade-in duration-700"
+          >
             <div className="flex flex-col gap-2">
               <p className="text-text-primary font-medium text-lg">
                 Empty Scene
@@ -626,7 +637,11 @@ export function Viewer({
               </p>
             </div>
             <div className="flex w-full max-w-3xl flex-col items-center gap-3">
-              <Button onClick={onImportClick} size="md">
+              <Button
+                data-testid="main-import-file-button"
+                onClick={onImportClick}
+                size="md"
+              >
                 Import File
               </Button>
               {presetLoadOptions &&
@@ -635,6 +650,7 @@ export function Viewer({
                 <div className="grid w-full grid-cols-3 gap-2">
                   {presetLoadOptions.map((preset) => (
                     <Button
+                      data-testid={`main-preset-${preset.id.replace(/[:/]/g, "-")}`}
                       key={preset.id}
                       variant="secondary"
                       size="sm"
@@ -653,10 +669,20 @@ export function Viewer({
                 </div>
               ) : (
                 <div className="flex gap-3">
-                  <Button variant="secondary" onClick={onLoadQuori} size="md">
+                  <Button
+                    data-testid="main-preset-quori-legacy"
+                    variant="secondary"
+                    onClick={onLoadQuori}
+                    size="md"
+                  >
                     Load Quori
                   </Button>
-                  <Button variant="secondary" onClick={onLoadHugo} size="md">
+                  <Button
+                    data-testid="main-preset-hugo-legacy"
+                    variant="secondary"
+                    onClick={onLoadHugo}
+                    size="md"
+                  >
                     Load Hugo
                   </Button>
                 </div>

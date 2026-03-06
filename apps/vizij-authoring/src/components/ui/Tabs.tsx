@@ -10,6 +10,8 @@ export interface TabItem {
   description?: ReactNode;
   disabled?: boolean;
   badge?: ReactNode;
+  testId?: string;
+  panelTestId?: string;
 }
 
 export interface TabsProps {
@@ -62,6 +64,7 @@ export function Tabs({
             key={item.id}
             value={item.id}
             disabled={item.disabled}
+            data-testid={item.testId}
             className={({ active: selected }: { active: boolean }) =>
               cn(
                 "group inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative cursor-pointer",
@@ -119,6 +122,7 @@ export function Tabs({
           <BaseTabs.Panel
             key={item.id}
             value={item.id}
+            data-testid={item.panelTestId}
             className={cn("focus:outline-none", fillPanels && "h-full min-h-0")}
           >
             {/* Optimization: only render content if active to match typical tab behavior, OR rely on Tabs.Panel hidden prop.

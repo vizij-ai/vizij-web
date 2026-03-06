@@ -119,6 +119,7 @@ export function PoseRigImportPanel({
             </span>
           </div>
           <Input
+            data-testid="import-pose-graph-input"
             id={graphInputId}
             type="file"
             accept="application/json,.graph.json"
@@ -138,6 +139,7 @@ export function PoseRigImportPanel({
             </span>
           </div>
           <Input
+            data-testid="import-pose-ir-input"
             id={poseIrInputId}
             type="file"
             accept="application/json,.ir.json,.pose-ir.json"
@@ -160,6 +162,7 @@ export function PoseRigImportPanel({
             </span>
           </div>
           <Input
+            data-testid="import-pose-config-input"
             id={configInputId}
             type="file"
             accept="application/json"
@@ -245,6 +248,7 @@ export function PoseRigExportPanel({
           Pose rig name
         </label>
         <Input
+          data-testid="pose-rig-name-input"
           id="pose-rig-name"
           type="text"
           value={rigName}
@@ -257,13 +261,18 @@ export function PoseRigExportPanel({
         </label>
         <div className="asset-card__form-row">
           <Input
+            data-testid="export-pose-graph-file-name"
             id="pose-rig-graph-file"
             type="text"
             value={poseGraphFileName}
             disabled={disabled}
             onChange={(event) => onPoseGraphFileNameChange(event.target.value)}
           />
-          <Button onClick={onExportPoseGraph} disabled={disabled}>
+          <Button
+            data-testid="export-pose-graph-button"
+            onClick={onExportPoseGraph}
+            disabled={disabled}
+          >
             Export
           </Button>
         </div>
@@ -273,6 +282,7 @@ export function PoseRigExportPanel({
         </label>
         <div className="asset-card__form-row">
           <Input
+            data-testid="export-pose-config-file-name"
             id="pose-rig-config-file"
             type="text"
             value={poseConfigFileName}
@@ -280,6 +290,7 @@ export function PoseRigExportPanel({
             onChange={(event) => onPoseConfigFileNameChange(event.target.value)}
           />
           <Button
+            data-testid="export-pose-config-button"
             variant="primary"
             onClick={onExportPoseConfig}
             disabled={disabled}
@@ -293,6 +304,7 @@ export function PoseRigExportPanel({
         </label>
         <div className="asset-card__form-row">
           <Input
+            data-testid="export-pose-ir-file-name"
             id="pose-rig-ir-file"
             type="text"
             value={poseIrFileName}
@@ -300,6 +312,7 @@ export function PoseRigExportPanel({
             onChange={(event) => onPoseIrFileNameChange(event.target.value)}
           />
           <Button
+            data-testid="export-pose-ir-button"
             variant="secondary"
             onClick={onExportPoseIr}
             disabled={disabled || !poseIrEnabled}

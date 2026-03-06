@@ -552,8 +552,12 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
 
   return (
     <ReactFlowProvider>
-      <div className="w-full h-full relative">
+      <div
+        data-testid="motiongraph-canvas-root"
+        className="w-full h-full relative"
+      >
         <div
+          data-testid="motiongraph-canvas"
           ref={reactFlowWrapper}
           className="w-full h-full"
           onDragOver={onDragOver}

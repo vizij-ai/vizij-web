@@ -2515,6 +2515,7 @@ function TreeRowWrapper({
                 variant="ghost"
                 size="sm"
                 className="h-5 w-5 p-0 hover:text-accent text-cyan-300"
+                data-testid="pose-copy-to-main"
                 onClick={(e) => {
                   e.stopPropagation();
                   onAction?.(node, "copy-pose-to-main");
@@ -2599,6 +2600,7 @@ function TreeRowWrapper({
                   variant="ghost"
                   size="sm"
                   className="h-5 w-5 p-0 hover:text-accent"
+                  data-testid="variable-copy-to-main"
                   onClick={(e) => {
                     e.stopPropagation();
                     onAction?.(node, "copy-to-main");
@@ -6075,18 +6077,32 @@ export function VariablesPanel({
       return {
         id,
         label: formatSurfaceLabelWithCount("Drivers", variableItemCount),
+        testId: "control-authoring-tab-drivers",
+        panelTestId: "control-authoring-panel-drivers",
       };
     }
     if (id === "poses") {
-      return { id, label: formatSurfaceLabelWithCount("Poses", poseItemCount) };
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Poses", poseItemCount),
+        testId: "control-authoring-tab-poses",
+        panelTestId: "control-authoring-panel-poses",
+      };
     }
     if (id === "pose-groups") {
       return {
         id,
         label: formatSurfaceLabelWithCount("Pose Groups", poseGroupItemCount),
+        testId: "control-authoring-tab-pose-groups",
+        panelTestId: "control-authoring-panel-pose-groups",
       };
     }
-    return { id, label: formatSurfaceLabelWithCount("Inputs", inputItemCount) };
+    return {
+      id,
+      label: formatSurfaceLabelWithCount("Inputs", inputItemCount),
+      testId: "input-controls-tab-inputs",
+      panelTestId: "input-controls-panel-inputs",
+    };
   });
 
   const surfaceForTab = (id: string): SurfaceTab =>
@@ -6412,6 +6428,7 @@ export function VariablesPanel({
                                   actions={
                                     <div className="flex items-center gap-1">
                                       <Button
+                                        data-testid="pap-add-input"
                                         variant="secondary"
                                         size="sm"
                                         className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
@@ -6427,6 +6444,7 @@ export function VariablesPanel({
                                         In
                                       </Button>
                                       <Button
+                                        data-testid="pap-add-output"
                                         variant="secondary"
                                         size="sm"
                                         className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
@@ -6569,6 +6587,7 @@ export function VariablesPanel({
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
+                      data-testid="variables-inputs-capture-current"
                       onClick={handleCaptureCurrentPose}
                       title="Capture current input values as a new pose (non-neutral channels only)"
                     >
@@ -6641,6 +6660,7 @@ export function VariablesPanel({
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
+                        data-testid="variables-poses-capture-current"
                         onClick={handleCaptureCurrentPose}
                         title="Capture current input values as a new pose (non-neutral channels only)"
                       >
@@ -6651,6 +6671,7 @@ export function VariablesPanel({
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
+                        data-testid="variables-poses-duplicate-selected"
                         onClick={handleDuplicateSelectedPose}
                         disabled={
                           !selectedPoseId ||
@@ -6671,6 +6692,7 @@ export function VariablesPanel({
                           variant="ghost"
                           size="sm"
                           className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
+                          data-testid="variables-poses-copy-reference"
                           onClick={handleCopyReferencePoseToMain}
                           disabled={!canCopyReferencePoses}
                           title={
@@ -6692,6 +6714,7 @@ export function VariablesPanel({
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                      data-testid="variables-drivers-copy-reference"
                       onClick={handleCopyReferenceToMain}
                       disabled={!canCopyReferenceDrivers}
                       title={
@@ -7313,6 +7336,7 @@ export function VariablesPanel({
                                     onValueChange={handlePanelInputValueChange}
                                     actions={
                                       <Button
+                                        data-testid="pap-remove-input"
                                         variant="ghost"
                                         size="sm"
                                         className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
@@ -7376,6 +7400,7 @@ export function VariablesPanel({
                                       }
                                       actions={
                                         <Button
+                                          data-testid="pap-remove-output"
                                           variant="ghost"
                                           size="sm"
                                           className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"

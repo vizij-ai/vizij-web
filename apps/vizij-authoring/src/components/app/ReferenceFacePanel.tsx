@@ -65,7 +65,10 @@ export function ReferenceFacePanel({
   );
 
   return (
-    <div className="h-full w-full relative bg-bg-panel overflow-hidden pointer-events-auto">
+    <div
+      data-testid="reference-face-panel"
+      className="h-full w-full relative bg-bg-panel overflow-hidden pointer-events-auto"
+    >
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -91,7 +94,10 @@ export function ReferenceFacePanel({
             onToggleSplit={onToggleSplit}
           />
         ) : (
-          <div className="h-full w-full relative">
+          <div
+            data-testid="reference-face-empty-state"
+            className="h-full w-full relative"
+          >
             <div className="absolute top-2 left-2 z-10">
               <Button
                 variant="secondary"
@@ -117,7 +123,12 @@ export function ReferenceFacePanel({
                 </p>
               </div>
               <div className="flex w-full max-w-3xl flex-col items-center gap-3">
-                <Button variant="primary" onClick={handleLoadClick} size="md">
+                <Button
+                  data-testid="reference-face-load-custom"
+                  variant="primary"
+                  onClick={handleLoadClick}
+                  size="md"
+                >
                   Load Custom Reference Face
                 </Button>
                 {REFERENCE_FACE_PRESET_GRID_OPTIONS.length > 0 ? (
@@ -127,6 +138,7 @@ export function ReferenceFacePanel({
                         preset.available && preset.referenceCompatible;
                       return (
                         <Button
+                          data-testid={`reference-face-preset-${preset.id.replace(/[:/]/g, "-")}`}
                           key={preset.id}
                           size="sm"
                           variant="secondary"
@@ -155,6 +167,7 @@ export function ReferenceFacePanel({
         {referenceFace.file && (
           <div className="absolute top-3 right-3 z-20 pointer-events-auto flex items-center gap-2">
             <Button
+              data-testid="reference-face-swap"
               variant="ghost"
               size="sm"
               className="text-[11px] h-7 px-2"
@@ -164,6 +177,7 @@ export function ReferenceFacePanel({
               Swap
             </Button>
             <Button
+              data-testid="reference-face-unload"
               variant="ghost"
               size="sm"
               className="text-[11px] h-7 px-2 text-amber-300 hover:text-amber-200"

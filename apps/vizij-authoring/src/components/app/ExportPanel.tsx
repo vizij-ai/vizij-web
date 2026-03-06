@@ -53,6 +53,7 @@ export function ExportPanel({
       <CardBody className="asset-card__body--compact">
         <div className="asset-card__form-row">
           <Input
+            data-testid="export-glb-file-name"
             id="vizij-export-name"
             type="text"
             value={exportFileName}
@@ -61,7 +62,12 @@ export function ExportPanel({
             disabled={!canExport}
             spellCheck={false}
           />
-          <Button variant="primary" onClick={onExportGlb} disabled={!canExport}>
+          <Button
+            data-testid="export-glb-button"
+            variant="primary"
+            onClick={onExportGlb}
+            disabled={!canExport}
+          >
             Export
           </Button>
         </div>
@@ -74,6 +80,7 @@ export function ExportPanel({
           renderLabelInControl
           control={
             <Switch
+              data-testid="export-embed-bundle-toggle"
               id="vizij-export-bundle-toggle"
               checked={includeBundle}
               onChange={onIncludeBundleChange}
@@ -145,6 +152,7 @@ export function ExportPanel({
           renderLabelInControl
           control={
             <Switch
+              data-testid="export-include-animations-toggle"
               id="vizij-export-animations-toggle"
               checked={
                 includeBundle && includeAnimations && animationsAvailable

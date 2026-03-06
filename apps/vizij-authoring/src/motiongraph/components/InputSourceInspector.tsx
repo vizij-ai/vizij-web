@@ -125,7 +125,7 @@ export default function InputSourceInspector({
   // ─── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="p-4 space-y-4">
+    <div data-testid="motiongraph-node-inspector" className="p-4 space-y-4">
       {/* Header */}
       <div>
         <div className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">

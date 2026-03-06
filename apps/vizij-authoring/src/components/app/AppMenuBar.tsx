@@ -72,17 +72,24 @@ export function AppMenuBar({
 
   return (
     <MenuBar>
-      <Menu label="File">
+      <Menu label="File" testId="app-menu-file">
         <MenuItem onSelect={onNew}>New</MenuItem>
         <MenuSeparator />
-        <MenuItem onSelect={onImport}>Import...</MenuItem>
+        <MenuItem onSelect={onImport} testId="app-menu-file-import">
+          Import...
+        </MenuItem>
         <MenuItem onSelect={onImportSkipChecks}>
           Import (Skip Checks)...
         </MenuItem>
-        <MenuItem onSelect={onImportReferenceFace}>
+        <MenuItem
+          onSelect={onImportReferenceFace}
+          testId="app-menu-file-import-reference-face"
+        >
           Import Reference Face...
         </MenuItem>
-        <MenuItem onSelect={onExport}>Export...</MenuItem>
+        <MenuItem onSelect={onExport} testId="app-menu-file-export">
+          Export...
+        </MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => {}} disabled>
           Save
@@ -93,13 +100,14 @@ export function AppMenuBar({
         <MenuSeparator />
         <MenuItem onSelect={() => {}}>Exit</MenuItem>
       </Menu>
-      <Menu label="Edit">
+      <Menu label="Edit" testId="app-menu-edit">
         <MenuItem>Undo</MenuItem>
         <MenuItem>Redo</MenuItem>
       </Menu>
-      <Menu label="Mode">
+      <Menu label="Mode" testId="app-menu-mode">
         <MenuLabel>Edit Focus</MenuLabel>
         <MenuCheckboxItem
+          testId="app-menu-mode-default"
           checked={activeEditFocus === "default"}
           onCheckedChange={(checked) => {
             if (checked) {
@@ -110,6 +118,7 @@ export function AppMenuBar({
           Default
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-mode-animation"
           checked={activeEditFocus === "animation"}
           onCheckedChange={(checked) => {
             if (checked) {
@@ -120,6 +129,7 @@ export function AppMenuBar({
           Animations
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-mode-procedural-animation"
           checked={activeEditFocus === "procedural-animation-programming"}
           onCheckedChange={(checked) => {
             if (checked) {
@@ -130,6 +140,7 @@ export function AppMenuBar({
           Procedural Animations
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-mode-reference-face"
           checked={activeEditFocus === "reference-face"}
           onCheckedChange={(checked) => {
             if (checked) {
@@ -140,7 +151,7 @@ export function AppMenuBar({
           Reference Face
         </MenuCheckboxItem>
       </Menu>
-      <Menu label="View">
+      <Menu label="View" testId="app-menu-view">
         <MenuLabel>Left Panel</MenuLabel>
         <MenuCheckboxItem
           checked={hierarchyPanelVisible}
@@ -189,6 +200,7 @@ export function AppMenuBar({
           Inputs
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-view-procedural-animation"
           checked={motionGraphPaletteVisible}
           onCheckedChange={(checked) =>
             setPanelVisibility("motiongraphPalette", checked)

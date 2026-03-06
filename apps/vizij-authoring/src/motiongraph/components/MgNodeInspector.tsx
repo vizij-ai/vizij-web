@@ -112,7 +112,7 @@ export default function MgNodeInspector() {
 
   if (!selectedNode) {
     return (
-      <div className="p-4">
+      <div data-testid="motiongraph-node-inspector" className="p-4">
         <p className="text-sm text-text-muted">No graph node selected</p>
       </div>
     );
@@ -124,7 +124,7 @@ export default function MgNodeInspector() {
     const portType = OUTPUT_TARGET_PORT_TYPE;
     const c = getPortColor(portType);
     return (
-      <div className="p-4 space-y-4">
+      <div data-testid="motiongraph-node-inspector" className="p-4 space-y-4">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">
             Graph Node
@@ -203,7 +203,7 @@ export default function MgNodeInspector() {
     schema?.signature?.type_id ?? schema?.signature?.id ?? selectedNode.type;
 
   return (
-    <div className="p-4 space-y-4">
+    <div data-testid="motiongraph-node-inspector" className="p-4 space-y-4">
       {/* Header */}
       <div>
         <div className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">
