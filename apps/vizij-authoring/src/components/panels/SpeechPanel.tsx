@@ -15,11 +15,15 @@ const VOICE_OPTIONS: SelectOption[] = POLLY_VOICES.map((v) => ({
 }));
 
 const EMPTY_POSES: import("@vizij/runtime-react").PoseDefinition[] = [];
+const EMPTY_GROUPS: import("@vizij/runtime-react").PoseGroupDefinition[] = [];
 
 export function SpeechPanel() {
   const faceId = useGraphRuntimeStore((s) => s.faceId);
   const poses = useGraphRuntimeStore(
     (s) => s.poseConfig?.poses ?? EMPTY_POSES,
+  );
+  const poseGroups = useGraphRuntimeStore(
+    (s) => s.poseConfig?.poseGroups ?? EMPTY_GROUPS,
   );
   const stageRuntimeInput = useGraphRuntimeStore((s) => s.stageRuntimeInput);
   const animateRuntimeValue = useGraphRuntimeStore(
@@ -30,6 +34,7 @@ export function SpeechPanel() {
   const speech = useSpeechPlayback({
     faceId,
     poses,
+    poseGroups,
     stageRuntimeInput,
     animateRuntimeValue,
     runtimeReady,
@@ -82,6 +87,15 @@ export function SpeechPanel() {
           options={VOICE_OPTIONS}
           size="sm"
         />
+        {speech.groupOptions.length > 0 && (
+          <Select
+            label="Pose Group"
+            value={speech.selectedGroupId ?? ""}
+            onChange={(val) => speech.setSelectedGroupId(val || null)}
+            options={speech.groupOptions}
+            size="sm"
+          />
+        )}
         {speech.error && (
           <p className="text-xs text-red-400 px-1">{speech.error}</p>
         )}

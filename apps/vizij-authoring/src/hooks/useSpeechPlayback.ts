@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PoseDefinition } from "@vizij/runtime-react";
+import type { PoseDefinition, PoseGroupDefinition } from "@vizij/runtime-react";
 import type { PollyVoice } from "../data/pollyVoices";
 import type { VisemeData } from "../types/polly";
+import type { SelectOption } from "../components/ui/Select";
 import { fetchVisemeData } from "../services/pollyApi";
 import { FACE_VISEME_SEGMENT_LIST, mapPollyViseme } from "../lib/visemeMapping";
+import { resolvePoseMembership } from "../poseRig/groupMembership";
 import {
   buildPoseWeightInputPathSegment,
   buildRigInputPath,
@@ -39,6 +41,7 @@ const clampMs = (value: number, min: number, max: number): number =>
 export interface UseSpeechPlaybackOptions {
   faceId: string;
   poses: PoseDefinition[];
+  poseGroups?: PoseGroupDefinition[];
   stageRuntimeInput: ((graphPath: string, value: number) => void) | undefined;
   animateRuntimeValue:
     | ((graphPath: string, value: number, duration: number) => void)
@@ -59,11 +62,15 @@ export interface UseSpeechPlaybackReturn {
   handleAudioPlay: () => void;
   handleAudioPause: () => void;
   handleAudioEnded: () => void;
+  selectedGroupId: string | null;
+  setSelectedGroupId: (id: string | null) => void;
+  groupOptions: SelectOption[];
 }
 
 export function useSpeechPlayback({
   faceId,
   poses,
+  poseGroups,
   stageRuntimeInput,
   animateRuntimeValue,
   runtimeReady,
@@ -73,6 +80,7 @@ export function useSpeechPlayback({
   const [status, setStatus] = useState<SpeechStatus>("idle");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -84,18 +92,68 @@ export function useSpeechPlayback({
   const speechCacheRef = useRef<Map<string, CachedSpeech>>(new Map());
   const audioSrcRef = useRef<string | null>(null);
 
+  // --- Pose group filtering ---
+
+  const groupOptions = useMemo((): SelectOption[] => {
+    if (!poseGroups || poseGroups.length === 0) {
+      return [];
+    }
+    return poseGroups.map((g) => ({
+      value: g.id,
+      label: g.path || g.name || g.id,
+    }));
+  }, [poseGroups]);
+
+  const defaultGroupId = useMemo((): string | null => {
+    if (!poseGroups || poseGroups.length === 0) {
+      return null;
+    }
+    const visemeGroup = poseGroups.find(
+      (g) =>
+        g.path?.toLowerCase().includes("viseme") ||
+        g.name?.toLowerCase().includes("viseme"),
+    );
+    return visemeGroup ? visemeGroup.id : poseGroups[0].id;
+  }, [poseGroups]);
+
+  const effectiveGroupId = useMemo(() => {
+    if (
+      selectedGroupId !== null &&
+      groupOptions.some((o) => o.value === selectedGroupId)
+    ) {
+      return selectedGroupId;
+    }
+    return defaultGroupId;
+  }, [selectedGroupId, defaultGroupId, groupOptions]);
+
+  const filteredPoses = useMemo(() => {
+    if (effectiveGroupId === null || !poseGroups || poseGroups.length === 0) {
+      return poses;
+    }
+    return poses.filter((pose) => {
+      const membership = resolvePoseMembership(
+        pose as Pick<
+          import("../poseRig/types").PoseDefinition,
+          "group" | "groupId" | "groupIds"
+        >,
+        poseGroups as import("../poseRig/types").PoseGroupDefinition[],
+      );
+      return membership.groupIds.includes(effectiveGroupId);
+    });
+  }, [poses, poseGroups, effectiveGroupId]);
+
   // Build a map from pose ID → absolute weight path using the pose rig system.
   // Viseme segment names (like "p", "t", "s") are matched against pose IDs.
   const poseWeightPaths = useMemo(() => {
     const faceSegment = faceId?.trim() || "face";
     const map = new Map<string, string>();
-    poses.forEach((pose) => {
+    filteredPoses.forEach((pose) => {
       const segment = buildPoseWeightInputPathSegment(pose.id);
       const relativePath = `${POSE_WEIGHT_INPUT_PATH_PREFIX}${segment}.weight`;
       map.set(pose.id, buildRigInputPath(faceSegment, relativePath));
     });
     return map;
-  }, [poses, faceId]);
+  }, [filteredPoses, faceId]);
 
   const resolveSegmentPath = useCallback(
     (segment: string): string | null => {
@@ -368,6 +426,9 @@ export function useSpeechPlayback({
     handleAudioPlay,
     handleAudioPause,
     handleAudioEnded,
+    selectedGroupId: effectiveGroupId,
+    setSelectedGroupId,
+    groupOptions,
   };
 }
 
