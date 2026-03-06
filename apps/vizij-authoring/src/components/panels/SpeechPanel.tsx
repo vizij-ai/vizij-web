@@ -47,8 +47,10 @@ const DEFAULT_AGENT_NAME = "Vizij";
 
 const SPEAKING_PATH_KEY = "vizij_speech_speaking_path";
 const USER_SPEAKING_PATH_KEY = "vizij_speech_user_speaking_path";
+const THINKING_PATH_KEY = "vizij_speech_thinking_path";
 const DEFAULT_SPEAKING_PATH = "/speech/speaking";
 const DEFAULT_USER_SPEAKING_PATH = "/speech/user_speaking";
+const DEFAULT_THINKING_PATH = "/speech/thinking";
 const EMOTION_GROUP_KEY = "vizij_speech_emotion_group_id";
 
 function getStoredPath(key: string, defaultValue: string): string {
@@ -135,6 +137,15 @@ export function SpeechPanel() {
   const handleUserSpeakingPathChange = useCallback((value: string) => {
     setUserSpeakingInputPath(value);
     try { localStorage.setItem(USER_SPEAKING_PATH_KEY, value); } catch { /* ignore */ }
+  }, []);
+
+  const [thinkingInputPath, setThinkingInputPath] = useState(
+    () => getStoredPath(THINKING_PATH_KEY, DEFAULT_THINKING_PATH),
+  );
+
+  const handleThinkingPathChange = useCallback((value: string) => {
+    setThinkingInputPath(value);
+    try { localStorage.setItem(THINKING_PATH_KEY, value); } catch { /* ignore */ }
   }, []);
 
   // --- Emotion group + derived state ---
@@ -239,6 +250,11 @@ export function SpeechPanel() {
     systemPrompt: resolvedPromptWithEmotion,
   });
 
+  // Thinking = LLM processing OR TTS fetching, but only in conversation mode
+  const isConversationThinking =
+    mode === "conversation" &&
+    (conversation.isProcessing || speech.status === "preparing");
+
   // --- Emotion activation ---
   const activateEmotion = useCallback((emotionName: string | null) => {
     if (!stageRuntimeInput || !runtimeReady) return;
@@ -316,15 +332,24 @@ export function SpeechPanel() {
     stageRuntimeInput(buildRigInputPath(faceSegment, userSpeakingInputPath), asr.listening ? 1 : 0);
   }, [asr.listening, stageRuntimeInput, runtimeReady, faceSegment, userSpeakingInputPath]);
 
-  // Auto-provision /speech/speaking and /speech/user_speaking PAP inputs
+  // Drive /speech/thinking PAP input (conversation mode only)
+  useEffect(() => {
+    if (!stageRuntimeInput || !runtimeReady || !thinkingInputPath) return;
+    stageRuntimeInput(
+      buildRigInputPath(faceSegment, thinkingInputPath),
+      isConversationThinking ? 1 : 0,
+    );
+  }, [isConversationThinking, stageRuntimeInput, runtimeReady, faceSegment, thinkingInputPath]);
+
+  // Auto-provision /speech/speaking, /speech/user_speaking and /speech/thinking PAP inputs
   const lastProvisionedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!runtimeReady || !faceSegment) return;
-    const key = `${faceSegment}::${speakingInputPath}::${userSpeakingInputPath}`;
+    const key = `${faceSegment}::${speakingInputPath}::${userSpeakingInputPath}::${thinkingInputPath}`;
     if (lastProvisionedRef.current === key) return;
     lastProvisionedRef.current = key;
 
-    for (const path of [speakingInputPath, userSpeakingInputPath]) {
+    for (const path of [speakingInputPath, userSpeakingInputPath, thinkingInputPath]) {
       if (!path.trim()) continue;
       const normalizedPath = normalizeStandardRigInputPath(path);
       let input = standardInputsByPath.get(normalizedPath);
@@ -339,7 +364,7 @@ export function SpeechPanel() {
         }
       }
     }
-  }, [runtimeReady, faceSegment, speakingInputPath, userSpeakingInputPath, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
+  }, [runtimeReady, faceSegment, speakingInputPath, userSpeakingInputPath, thinkingInputPath, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
 
   // Auto-provision /speech/emotion/<name> PAP inputs for each available emotion
   const lastProvisionedEmotionsRef = useRef<string | null>(null);
@@ -687,6 +712,16 @@ export function SpeechPanel() {
                   value={userSpeakingInputPath}
                   onChange={(e) => handleUserSpeakingPathChange(e.target.value)}
                   placeholder={DEFAULT_USER_SPEAKING_PATH}
+                  className="h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50 font-mono"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-text-muted">Avatar Thinking</span>
+                <input
+                  type="text"
+                  value={thinkingInputPath}
+                  onChange={(e) => handleThinkingPathChange(e.target.value)}
+                  placeholder={DEFAULT_THINKING_PATH}
                   className="h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50 font-mono"
                 />
               </div>
