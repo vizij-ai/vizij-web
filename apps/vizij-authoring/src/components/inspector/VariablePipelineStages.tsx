@@ -319,6 +319,7 @@ function ParentDirectControlEditor({
           min={directControl.min}
           max={directControl.max}
           step={0.01}
+          allowScrub={false}
           onChange={(value) => directControl.onValueChange?.(value)}
         />
       </div>
@@ -784,6 +785,7 @@ export function VariablePipelineStages({
                       max={1}
                       step={0.01}
                       value={pose.weight}
+                      allowScrub={false}
                       onChange={pose.onWeightChange}
                     />
                   </div>
@@ -849,6 +851,7 @@ export function VariablePipelineStages({
             min={directMin}
             max={directMax}
             step={0.01}
+            allowScrub={false}
             onChange={onDirectValueChange}
             disabled={!directInputEnabled || directControlDisabled}
           />
@@ -918,6 +921,7 @@ export function VariablePipelineStages({
               min={overrideMin}
               max={overrideMax}
               step={0.01}
+              allowScrub={false}
               onChange={onOverrideValueChange}
             />
           </div>

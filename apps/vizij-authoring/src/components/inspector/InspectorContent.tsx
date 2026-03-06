@@ -439,6 +439,7 @@ function PoseVariableExpandedControls({
             step={0.0001}
             format={POSE_VALUE_PRECISION_FORMAT}
             value={directVal}
+            allowScrub={false}
             className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
             onChange={handleDirectInputChange}
           />
@@ -516,6 +517,7 @@ function PoseVariableExpandedControls({
             step={0.0001}
             format={POSE_VALUE_PRECISION_FORMAT}
             value={item.poseVal}
+            allowScrub={false}
             className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
             onChange={handleTargetValueChange}
           />
@@ -2181,6 +2183,7 @@ export function InspectorContent({
                 step={step}
                 size="sm"
                 className="w-[108px]"
+                allowScrub={false}
                 onChange={(nextValue) =>
                   onSharedCombinedValueChange(clampToRange(nextValue, min, max))
                 }
@@ -2383,6 +2386,7 @@ export function InspectorContent({
                 step={0.01}
                 size="sm"
                 className="w-[92px]"
+                allowScrub={false}
                 onChange={(nextValue) =>
                   onSharedCombinedValueChange(clamp01(nextValue))
                 }
@@ -2433,6 +2437,7 @@ export function InspectorContent({
                     step={0.01}
                     size="sm"
                     className="w-full"
+                    allowScrub={false}
                     onChange={(nextValue) =>
                       setReferencePoseWeightValue(pose.id, clamp01(nextValue))
                     }
@@ -2985,6 +2990,7 @@ export function InspectorContent({
                 step={0.01}
                 size="sm"
                 className="w-[92px]"
+                allowScrub={false}
                 onChange={(nextValue) =>
                   handleSharedPoseWeightChange(nextValue)
                 }
@@ -4536,6 +4542,7 @@ export function InspectorContent({
                   )}
                   size="sm"
                   className="w-[108px]"
+                  allowScrub={false}
                   onChange={(nextValue) =>
                     handleSharedRigValueChange(nextValue)
                   }

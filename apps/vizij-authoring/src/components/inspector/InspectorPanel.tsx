@@ -1294,6 +1294,7 @@ export function InspectorPanel({
                             <NumberField
                               size="sm"
                               value={weight}
+                              allowScrub={false}
                               className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-[10px]"
                               onChange={(value) =>
                                 handlePoseGroupWeightChange(pose.id, value)
@@ -1506,6 +1507,7 @@ export function InspectorPanel({
                                 max={input.range.max}
                                 step={0.0001}
                                 value={directValue}
+                                allowScrub={false}
                                 className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-[10px]"
                                 onChange={(value) =>
                                   setActiveGroupNeutralDirectValue(
@@ -1930,6 +1932,7 @@ export function InspectorPanel({
                                 max={input.range.max}
                                 step={0.0001}
                                 value={directValue}
+                                allowScrub={false}
                                 className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-[10px]"
                                 onChange={(value) =>
                                   setActiveStageNeutralDirectValue(

@@ -33,6 +33,12 @@ export function NumberField({
   allowScrub = true,
 }: NumberFieldProps) {
   const [draftValue, setDraftValue] = React.useState(value);
+  const handleNonScrubPointerStart = React.useCallback<
+    React.MouseEventHandler<HTMLDivElement> &
+      React.PointerEventHandler<HTMLDivElement>
+  >((event) => {
+    event.stopPropagation();
+  }, []);
 
   React.useEffect(() => {
     setDraftValue(value);
@@ -95,7 +101,11 @@ export function NumberField({
           {inputElement}
         </BaseNumberField.ScrubArea>
       ) : (
-        <div className="flex-1 h-full flex items-center px-2">
+        <div
+          className="flex-1 h-full flex items-center px-2"
+          onMouseDown={handleNonScrubPointerStart}
+          onPointerDown={handleNonScrubPointerStart}
+        >
           {inputElement}
         </div>
       )}
