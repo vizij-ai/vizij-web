@@ -4,6 +4,8 @@ import { DeepgramClient } from "@deepgram/sdk";
 export interface UseSpeechRecognitionOptions {
   apiKey: string | null;
   language?: string;
+  /** Auto-stop after this many ms of silence (server-side VAD). 0 = disabled. */
+  autoStopSilenceMs?: number;
   onFinalTranscript?: (transcript: string) => void;
 }
 
@@ -19,6 +21,7 @@ export interface UseSpeechRecognitionReturn {
 export function useSpeechRecognition({
   apiKey,
   language = "en",
+  autoStopSilenceMs = 0,
   onFinalTranscript,
 }: UseSpeechRecognitionOptions): UseSpeechRecognitionReturn {
   const [listening, setListening] = useState(false);
@@ -97,10 +100,9 @@ export function useSpeechRecognition({
     stoppingRef.current = false;
   }, []);
 
-  const stopListening = useCallback(() => {
-    if (!listening || stoppingRef.current) {
-      return;
-    }
+  // Internal stop logic (ref-safe, callable from message handler)
+  const doStop = useCallback(() => {
+    if (stoppingRef.current) return;
     stoppingRef.current = true;
 
     // Stop recorder & mic so no more audio is sent
@@ -130,7 +132,15 @@ export function useSpeechRecognition({
     } else {
       finishStop();
     }
-  }, [listening, finishStop]);
+  }, [finishStop]);
+
+  const doStopRef = useRef(doStop);
+  doStopRef.current = doStop;
+
+  const stopListening = useCallback(() => {
+    if (!listening) return;
+    doStop();
+  }, [listening, doStop]);
 
   const startListening = useCallback(async () => {
     if (listening || !apiKey) {
@@ -167,6 +177,10 @@ export function useSpeechRecognition({
         punctuate: "true",
         interim_results: "true",
         smart_format: "true",
+        ...(autoStopSilenceMs > 0 && {
+          utterance_end_ms: String(autoStopSilenceMs),
+          vad_events: "true",
+        }),
         Authorization: `Token ${apiKey}`,
       });
       console.log("[ASR] Socket created successfully");
@@ -211,6 +225,14 @@ export function useSpeechRecognition({
     });
 
     connectedSocket.on("message", (data) => {
+      // Auto-stop on utterance end (silence detected by Deepgram VAD)
+      const msgType = (data as { type?: string }).type;
+      if (msgType === "UtteranceEnd" && !stoppingRef.current) {
+        console.log("[ASR] UtteranceEnd — auto-stopping");
+        doStopRef.current();
+        return;
+      }
+
       const transcript: string =
         (data as { channel?: { alternatives?: { transcript?: string }[] } })
           .channel?.alternatives?.[0]?.transcript ?? "";
@@ -268,7 +290,7 @@ export function useSpeechRecognition({
         setListening(false);
       }
     });
-  }, [apiKey, cleanup, finishStop, language, listening]);
+  }, [apiKey, autoStopSilenceMs, cleanup, finishStop, language, listening]);
 
   return {
     listening,

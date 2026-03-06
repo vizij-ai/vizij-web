@@ -57,7 +57,7 @@ export interface UseSpeechPlaybackReturn {
   setSelectedVoice: (voice: PollyVoice) => void;
   error: string | null;
   audioRef: React.RefObject<HTMLAudioElement | null>;
-  handleSpeak: () => Promise<void>;
+  handleSpeak: (textOverride?: string) => Promise<void>;
   handleStop: () => void;
   handleAudioPlay: () => void;
   handleAudioPause: () => void;
@@ -334,11 +334,11 @@ export function useSpeechPlayback({
     [defaultVisemePaths, resolveSegmentPath, triggerTransitionsUpToTime],
   );
 
-  const handleSpeak = useCallback(async () => {
+  const handleSpeak = useCallback(async (textOverride?: string) => {
     if (!runtimeReady || isLoading) {
       return;
     }
-    const trimmed = script.trim();
+    const trimmed = (textOverride ?? script).trim();
     if (!trimmed) {
       setError("Please enter something to speak.");
       return;
