@@ -2000,16 +2000,6 @@ function VizijRuntimeProviderInner({
       return;
     }
     const writes = frame.merged_writes ?? [];
-    if (isRuntimeDebugEnabled() && writes.length > 0) {
-      const samplePaths = writes
-        .slice(0, 8)
-        .map((write) => normalisePath(write.path))
-        .join(" | ");
-      console.log("[vizij-runtime] frame write sample", {
-        count: writes.length,
-        samplePaths,
-      });
-    }
     if (!writes.length) {
       return;
     }
