@@ -13,6 +13,7 @@ export type {
   VizijAnimationAsset,
   PoseRigConfig,
   PoseDefinition,
+  PoseGroupDefinition,
   RootBounds,
   AnimationClipLike,
   AnimationTrackLike,

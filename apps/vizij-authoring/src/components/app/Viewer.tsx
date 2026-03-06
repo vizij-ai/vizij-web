@@ -167,7 +167,8 @@ function RuntimeSelectionBridge({
 }
 
 function RuntimeInputBridge() {
-  const { setInput, ready, loading, rootId, outputPaths } = useVizijRuntime();
+  const { setInput, animateValue, ready, loading, rootId, outputPaths } =
+    useVizijRuntime();
   const graphRuntimeStore = useGraphRuntimeStoreApi();
 
   useEffect(() => {
@@ -177,17 +178,31 @@ function RuntimeInputBridge() {
             setInput(graphPath, { float: value });
           }
         : undefined,
+      animateRuntimeValue: ready
+        ? (graphPath: string, value: number, duration: number) => {
+            void animateValue(graphPath, { float: value }, { duration });
+          }
+        : undefined,
       runtimeViewReady: ready,
       runtimeViewLoading: loading,
       runtimeViewRootId: rootId ?? null,
       runtimeViewOutputCount: outputPaths.length,
     });
-  }, [graphRuntimeStore, loading, outputPaths.length, ready, rootId, setInput]);
+  }, [
+    animateValue,
+    graphRuntimeStore,
+    loading,
+    outputPaths.length,
+    ready,
+    rootId,
+    setInput,
+  ]);
 
   useEffect(
     () => () => {
       graphRuntimeStore.setState({
         stageRuntimeInput: undefined,
+        animateRuntimeValue: undefined,
         runtimeViewReady: false,
         runtimeViewLoading: false,
         runtimeViewRootId: null,
@@ -514,6 +529,7 @@ export function Viewer({
     }
     graphRuntimeStore.setState({
       stageRuntimeInput: undefined,
+      animateRuntimeValue: undefined,
       runtimeViewReady: false,
       runtimeViewLoading: false,
       runtimeViewRootId: null,

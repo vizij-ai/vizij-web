@@ -61,6 +61,7 @@ import {
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
+import { SpeechPanel } from "./components/panels/SpeechPanel";
 import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
@@ -380,6 +381,7 @@ function applyEditFocusPanelDefaults(
     toolbar: base.toolbar.isVisible,
     referenceFace: base.referenceFace.isVisible,
     materials: base.materials.isVisible,
+    speech: base.speech.isVisible,
   };
 
   if (focus === "animation") {
@@ -1425,6 +1427,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
+  const speechPanelVisible = useWorkspaceStore(
+    (state) => state.panels.speech.isVisible,
+  );
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
@@ -2314,11 +2319,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               createTargetLabel={runtimeTargetConfig?.createTargetLabel}
             />
           }
-          rightBottomVisible={inspectorPanelVisible || debugPanelVisible}
+          rightBottomVisible={inspectorPanelVisible || speechPanelVisible || debugPanelVisible}
           rightBottomPanel={
             <div
               className={`h-full min-h-0 ${
-                inspectorPanelVisible && debugPanelVisible
+                (inspectorPanelVisible && (debugPanelVisible || speechPanelVisible)) || (debugPanelVisible && speechPanelVisible)
                   ? "grid grid-rows-2"
                   : "flex flex-col"
               }`}
@@ -2335,6 +2340,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     )}
                     onClosePanel={handleHideInspectorPanel}
                   />
+                </div>
+              ) : null}
+              {speechPanelVisible ? (
+                <div className="min-h-0 overflow-y-auto border-t border-border-default/70">
+                  <SpeechPanel />
                 </div>
               ) : null}
               {debugPanelVisible ? (

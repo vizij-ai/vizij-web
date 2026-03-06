@@ -58,6 +58,9 @@ export function AppMenuBar({
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
+  const speechPanelVisible = useWorkspaceStore(
+    (state) => state.panels.speech.isVisible,
+  );
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
@@ -209,6 +212,12 @@ export function AppMenuBar({
           }
         >
           Inspector
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={speechPanelVisible}
+          onCheckedChange={(checked) => setPanelVisibility("speech", checked)}
+        >
+          Speech
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={debugPanelVisible}

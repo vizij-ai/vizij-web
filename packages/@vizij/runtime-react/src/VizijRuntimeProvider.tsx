@@ -1647,6 +1647,15 @@ function VizijRuntimeProviderInner({
         const rootId = findRootId(world);
         store.getState().addWorldElements(world as any, animatables, true);
 
+        // Clear the initial reloadAssets flag so the status.rootId dep
+        // change doesn't re-trigger a full reload (infinite-loop guard).
+        if (pendingPlanRef.current?.reloadAssets) {
+          pendingPlanRef.current = {
+            ...pendingPlanRef.current,
+            reloadAssets: false,
+          };
+        }
+
         reportStatus((prev) => ({
           ...prev,
           loading: false,
