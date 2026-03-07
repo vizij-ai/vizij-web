@@ -1036,6 +1036,7 @@ export function useRigController(
   const [lockedInspectorTargetIds, setLockedInspectorTargetIds] = useState<
     Set<string>
   >(() => new Set());
+  const lockedInspectorTargetIdsRef = useRef<Set<string>>(new Set());
   const [standardInputSchema, setStandardInputSchema] = useState<{
     id: string;
     version: string;
@@ -1123,7 +1124,7 @@ export function useRigController(
     });
   }, []);
 
-  const handleSetInspectorTargetLocked = useCallback(
+  const setInspectorTargetLockedState = useCallback(
     (targetId: string, locked: boolean) => {
       const normalized = targetId.trim();
       if (!normalized) {
@@ -1145,22 +1146,6 @@ export function useRigController(
     },
     [],
   );
-
-  const handleToggleInspectorTargetLock = useCallback((targetId: string) => {
-    const normalized = targetId.trim();
-    if (!normalized) {
-      return;
-    }
-    setLockedInspectorTargetIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(normalized)) {
-        next.delete(normalized);
-      } else {
-        next.add(normalized);
-      }
-      return next;
-    });
-  }, []);
   const [graphInsights, setGraphInsights] =
     useState<PersistedGraphInsight | null>(null);
   const [pipelineMetadataV1, setPipelineMetadataV1] =
@@ -1817,6 +1802,10 @@ export function useRigController(
   }, [animatableComponents]);
 
   useEffect(() => {
+    lockedInspectorTargetIdsRef.current = lockedInspectorTargetIds;
+  }, [lockedInspectorTargetIds]);
+
+  useEffect(() => {
     disabledStandardInputIdsRef.current = new Set(disabledStandardInputIds);
   }, [disabledStandardInputIds]);
 
@@ -2238,6 +2227,103 @@ export function useRigController(
     });
     return next;
   }, [basePipelineConfigByInputId, lockedPropsRigInputIds]);
+
+  const resolveLockSyncInputIdsForTarget = useCallback(
+    (targetId: string): string[] => {
+      const normalizedTargetId = targetId.trim();
+      if (!normalizedTargetId) {
+        return [];
+      }
+      const mappedPropsRigId =
+        propsrigInputIdByComponentId.get(normalizedTargetId) ?? null;
+      if (mappedPropsRigId) {
+        return [mappedPropsRigId];
+      }
+      const resolvedIds = collectBindingInputIds(bindings[normalizedTargetId])
+        .map((inputId) =>
+          resolveStandardRigInputId(inputId, standardInputsById),
+        )
+        .filter((inputId) => standardInputsById.has(inputId));
+      const preferredId =
+        resolvedIds.find((inputId) =>
+          isCanonicalPropsRigInputPath(standardInputsById.get(inputId)?.path),
+        ) ?? resolvedIds[0];
+      return preferredId ? [preferredId] : [];
+    },
+    [bindings, propsrigInputIdByComponentId, standardInputsById],
+  );
+
+  const applyDirectInputEnabledForInputIds = useCallback(
+    (inputIds: readonly string[], enabled: boolean) => {
+      if (inputIds.length === 0) {
+        return;
+      }
+      applyInputBindingPatch((previous) => {
+        let changed = false;
+        const next = { ...previous };
+        inputIds.forEach((inputId) => {
+          const sourceInput = standardInputsById.get(inputId);
+          if (!sourceInput) {
+            return;
+          }
+          const existingBinding =
+            next[inputId] ??
+            createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+          const nextMetadata = mergePipelineMetadata(
+            (existingBinding.metadata ?? undefined) as
+              | Record<string, unknown>
+              | undefined,
+            {
+              directInputEnabled: enabled,
+            },
+          );
+          const previousMetadataSignature = JSON.stringify(
+            existingBinding.metadata ?? null,
+          );
+          const nextMetadataSignature = JSON.stringify(nextMetadata);
+          if (previousMetadataSignature === nextMetadataSignature) {
+            return;
+          }
+          next[inputId] = {
+            ...existingBinding,
+            metadata: nextMetadata,
+          };
+          changed = true;
+        });
+        return changed ? next : previous;
+      });
+    },
+    [applyInputBindingPatch, standardInputsById],
+  );
+
+  const handleSetInspectorTargetLocked = useCallback(
+    (targetId: string, locked: boolean) => {
+      const normalized = targetId.trim();
+      if (!normalized) {
+        return;
+      }
+      setInspectorTargetLockedState(normalized, locked);
+      const syncInputIds = resolveLockSyncInputIdsForTarget(normalized);
+      applyDirectInputEnabledForInputIds(syncInputIds, !locked);
+    },
+    [
+      applyDirectInputEnabledForInputIds,
+      resolveLockSyncInputIdsForTarget,
+      setInspectorTargetLockedState,
+    ],
+  );
+
+  const handleToggleInspectorTargetLock = useCallback(
+    (targetId: string) => {
+      const normalized = targetId.trim();
+      if (!normalized) {
+        return;
+      }
+      const nextLocked = !lockedInspectorTargetIdsRef.current.has(normalized);
+      handleSetInspectorTargetLocked(normalized, nextLocked);
+    },
+    [handleSetInspectorTargetLocked],
+  );
 
   const handleMigrateAllLegacyBindings = useCallback((): number => {
     let migratedCount = 0;

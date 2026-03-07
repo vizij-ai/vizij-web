@@ -749,6 +749,100 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("keeps linked propsrig child inputs directly enabled when no explicit lock was authored", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+
+    const parentInput: StandardRigInput = {
+      id: "custom_smile_driver",
+      path: "/mouth/smile",
+      label: "Smile",
+      group: "custom",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+    const childInput: StandardRigInput = {
+      id: "propsrig_mouth_jawud_value",
+      path: "/propsrig/mouth/jawud/value",
+      label: "Mouth Jaw UD",
+      group: "mouth",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+    const linkId = "link/custom_smile_driver->propsrig_mouth_jawud_value";
+
+    const options = createOptions({
+      standardInputsById: new Map([
+        [parentInput.id, parentInput],
+        [childInput.id, childInput],
+      ]),
+      pipelineMetadataV1: {
+        links: {
+          [linkId]: {
+            linkId,
+            parentInputId: parentInput.id,
+            childInputId: childInput.id,
+            scale: 0.1,
+            offset: 0,
+            enabled: true,
+          },
+        },
+      },
+      pipelineConfigByInputId: {
+        [parentInput.id]: {
+          inputId: parentInput.id,
+          directInput: { enabled: true },
+        },
+        [childInput.id]: {
+          inputId: childInput.id,
+          parents: [
+            {
+              inputId: parentInput.id,
+              linkId,
+              alias: "smile",
+            },
+          ],
+        },
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedBuildRigGraphSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pipelineV1: expect.objectContaining({
+          byInputId: expect.objectContaining({
+            [childInput.id]: expect.objectContaining({
+              inputId: childInput.id,
+              directInput: expect.objectContaining({
+                enabled: true,
+              }),
+              parents: [
+                expect.objectContaining({
+                  inputId: parentInput.id,
+                  linkId,
+                  alias: "smile",
+                }),
+              ],
+            }),
+          }),
+        }),
+      }),
+    );
+
+    hook.unmount();
+  });
+
   it("includes pose compose targets in rig graph builds for GLB and graph exports", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,

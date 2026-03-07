@@ -125,4 +125,35 @@ describe("useRigController pipeline metadata merge helpers", () => {
       | undefined;
     expect(link?.expression).toBe("s1 = sin(parent * scale) + offset");
   });
+
+  it("lets explicit local direct-input enablement override imported disabled state", () => {
+    const imported = {
+      mouth_driver: {
+        inputId: "mouth_driver",
+        directInput: {
+          enabled: false,
+        },
+      },
+    };
+    const local = {
+      mouth_driver: {
+        inputId: "mouth_driver",
+        directInput: {
+          enabled: true,
+        },
+      },
+    };
+
+    const merged = mergeImportedAndLocalPipelineConfigByInputId(
+      imported,
+      local,
+    );
+    const mouthConfig = merged.mouth_driver as
+      | {
+          directInput?: { enabled?: boolean };
+        }
+      | undefined;
+
+    expect(mouthConfig?.directInput?.enabled).toBe(true);
+  });
 });

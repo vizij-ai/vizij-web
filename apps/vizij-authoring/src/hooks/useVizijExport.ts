@@ -432,6 +432,11 @@ function resolvePipelineMetadataForExport(
       ? poseSource.targetIds
       : [];
     const isPropsRigInput = /^propsrig_/i.test(inputId);
+    const hasLinkedParents =
+      parentsByChild.has(inputId) ||
+      (Array.isArray(entry.parents) && entry.parents.length > 0);
+    const hasExplicitDirectInput =
+      directInput && typeof directInput.enabled === "boolean";
     const shouldRepairDeadRelayDriver =
       !isPropsRigInput &&
       (childrenByParent.has(inputId) ||
@@ -445,6 +450,13 @@ function resolvePipelineMetadataForExport(
       !seededByConfigInputIds.has(inputId) &&
       directInput?.enabled === undefined
     ) {
+      entry.directInput = {
+        ...(directInput ?? {}),
+        enabled: true,
+      };
+      return;
+    }
+    if (isPropsRigInput && hasLinkedParents && !hasExplicitDirectInput) {
       entry.directInput = {
         ...(directInput ?? {}),
         enabled: true,
