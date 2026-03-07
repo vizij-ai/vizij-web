@@ -52,7 +52,7 @@ export function WorkspaceLayout({
   bottomPanel,
   bottomVisible = true,
   rightTopPanel,
-  rightMiddlePanel,
+  rightMiddlePanel: _rightMiddlePanel,
   rightBottomPanel,
   rightTopVisible = true,
   rightMiddleVisible = false,
@@ -86,21 +86,6 @@ export function WorkspaceLayout({
   }, []);
   const rightSidebarVisible =
     rightTopVisible || rightMiddleVisible || rightBottomVisible;
-  const rightSections = [
-    { id: "right-top", visible: rightTopVisible, panel: rightTopPanel },
-    {
-      id: "right-middle",
-      visible: rightMiddleVisible,
-      panel: rightMiddlePanel,
-    },
-    { id: "right-bottom", visible: rightBottomVisible, panel: rightBottomPanel },
-  ].reduce<Array<{ id: string; panel: React.ReactNode }>>((acc, section) => {
-    if (section.visible && section.panel) {
-      acc.push({ id: section.id, panel: section.panel });
-    }
-    return acc;
-  }, []);
-  const rightSectionCount = rightSections.length;
   const leftSectionCount = extendedLeftSections.length;
 
   return (

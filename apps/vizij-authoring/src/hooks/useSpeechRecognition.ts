@@ -29,7 +29,9 @@ export function useSpeechRecognition({
   const [error, setError] = useState<string | null>(null);
 
   const socketRef = useRef<ReturnType<
-    Awaited<ReturnType<InstanceType<typeof DeepgramClient>["listen"]["v1"]["connect"]>>["connect"]
+    Awaited<
+      ReturnType<InstanceType<typeof DeepgramClient>["listen"]["v1"]["connect"]>
+    >["connect"]
   > | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -198,7 +200,10 @@ export function useSpeechRecognition({
     try {
       connectedSocket = socket.connect();
       socketRef.current = connectedSocket;
-      console.log("[ASR] socket.connect() called, readyState:", connectedSocket.readyState);
+      console.log(
+        "[ASR] socket.connect() called, readyState:",
+        connectedSocket.readyState,
+      );
     } catch (err) {
       console.error("[ASR] socket.connect() threw:", err);
       setError(

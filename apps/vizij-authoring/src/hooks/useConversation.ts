@@ -38,10 +38,16 @@ export function useConversation({
       setError(null);
       setIsProcessing(true);
 
-      const userEntry: ChatMessage = { role: "user", content: userMessage.trim() };
+      const userEntry: ChatMessage = {
+        role: "user",
+        content: userMessage.trim(),
+      };
 
       // Build messages array with system prompt + history + new user message
-      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      const messages: {
+        role: "system" | "user" | "assistant";
+        content: string;
+      }[] = [
         { role: "system", content: systemPrompt },
         ...history.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userEntry.content },

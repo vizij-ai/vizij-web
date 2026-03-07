@@ -296,7 +296,13 @@ export function useSpeechPlayback({
       }
       clearVisemeInputs();
       if (speakingInputPathRef.current && stageRuntimeInput && runtimeReady) {
-        stageRuntimeInput(buildRigInputPath(faceIdRef.current?.trim() || "face", speakingInputPathRef.current), 0);
+        stageRuntimeInput(
+          buildRigInputPath(
+            faceIdRef.current?.trim() || "face",
+            speakingInputPathRef.current,
+          ),
+          0,
+        );
       }
       resetVisemeState();
       revokeAudioSrc();
@@ -305,7 +311,14 @@ export function useSpeechPlayback({
         setStatus("idle");
       }
     },
-    [clearVisemeInputs, resetVisemeState, revokeAudioSrc, stopRAF, stageRuntimeInput, runtimeReady],
+    [
+      clearVisemeInputs,
+      resetVisemeState,
+      revokeAudioSrc,
+      stopRAF,
+      stageRuntimeInput,
+      runtimeReady,
+    ],
   );
 
   useEffect(() => () => stopPlayback(false), [stopPlayback]);
@@ -347,67 +360,70 @@ export function useSpeechPlayback({
     [defaultVisemePaths, resolveSegmentPath, triggerTransitionsUpToTime],
   );
 
-  const handleSpeak = useCallback(async (textOverride?: string) => {
-    if (!runtimeReady || isLoading) {
-      return;
-    }
-    const trimmed = (textOverride ?? script).trim();
-    if (!trimmed) {
-      setError("Please enter something to speak.");
-      return;
-    }
-    const cacheKey = `${selectedVoice}::${trimmed}`;
-    setError(null);
-    stopPlayback(false);
-    setStatus("preparing");
-    setIsLoading(true);
-
-    const cached = speechCacheRef.current.get(cacheKey);
-    if (cached) {
-      const audioUrl = URL.createObjectURL(cached.audioBlob);
-      audioSrcRef.current = audioUrl;
-      updateTimeline(cached.visemeData.visemes);
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.currentTime = 0;
-        autoplayRef.current = true;
-        audioRef.current.play().catch(() => setStatus("idle"));
+  const handleSpeak = useCallback(
+    async (textOverride?: string) => {
+      if (!runtimeReady || isLoading) {
+        return;
       }
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const { visemeData, audioBlob } = await fetchVisemeData(
-        trimmed,
-        selectedVoice,
-      );
-      speechCacheRef.current.set(cacheKey, { visemeData, audioBlob });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      audioSrcRef.current = audioUrl;
-      updateTimeline(visemeData.visemes);
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.currentTime = 0;
-        autoplayRef.current = true;
-        audioRef.current.play().catch(() => setStatus("idle"));
+      const trimmed = (textOverride ?? script).trim();
+      if (!trimmed) {
+        setError("Please enter something to speak.");
+        return;
       }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch speech data.",
-      );
-      setStatus("idle");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    isLoading,
-    runtimeReady,
-    script,
-    selectedVoice,
-    stopPlayback,
-    updateTimeline,
-  ]);
+      const cacheKey = `${selectedVoice}::${trimmed}`;
+      setError(null);
+      stopPlayback(false);
+      setStatus("preparing");
+      setIsLoading(true);
+
+      const cached = speechCacheRef.current.get(cacheKey);
+      if (cached) {
+        const audioUrl = URL.createObjectURL(cached.audioBlob);
+        audioSrcRef.current = audioUrl;
+        updateTimeline(cached.visemeData.visemes);
+        if (audioRef.current) {
+          audioRef.current.src = audioUrl;
+          audioRef.current.currentTime = 0;
+          autoplayRef.current = true;
+          audioRef.current.play().catch(() => setStatus("idle"));
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { visemeData, audioBlob } = await fetchVisemeData(
+          trimmed,
+          selectedVoice,
+        );
+        speechCacheRef.current.set(cacheKey, { visemeData, audioBlob });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        audioSrcRef.current = audioUrl;
+        updateTimeline(visemeData.visemes);
+        if (audioRef.current) {
+          audioRef.current.src = audioUrl;
+          audioRef.current.currentTime = 0;
+          autoplayRef.current = true;
+          audioRef.current.play().catch(() => setStatus("idle"));
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch speech data.",
+        );
+        setStatus("idle");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      isLoading,
+      runtimeReady,
+      script,
+      selectedVoice,
+      stopPlayback,
+      updateTimeline,
+    ],
+  );
 
   const handleStop = useCallback(() => {
     stopPlayback();
@@ -417,7 +433,13 @@ export function useSpeechPlayback({
     startRAF();
     setStatus("speaking");
     if (speakingInputPathRef.current && stageRuntimeInput && runtimeReady) {
-      stageRuntimeInput(buildRigInputPath(faceIdRef.current?.trim() || "face", speakingInputPathRef.current), 1);
+      stageRuntimeInput(
+        buildRigInputPath(
+          faceIdRef.current?.trim() || "face",
+          speakingInputPathRef.current,
+        ),
+        1,
+      );
     }
   }, [startRAF, stageRuntimeInput, runtimeReady]);
 

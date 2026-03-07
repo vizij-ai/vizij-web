@@ -2712,11 +2712,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               createTargetLabel={runtimeTargetConfig?.createTargetLabel}
             />
           }
-          rightBottomVisible={inspectorPanelVisible || speechPanelVisible || debugPanelVisible}
+          rightBottomVisible={
+            inspectorPanelVisible || speechPanelVisible || debugPanelVisible
+          }
           rightBottomPanel={
             <div
               className={`h-full min-h-0 ${
-                (inspectorPanelVisible && (debugPanelVisible || speechPanelVisible)) || (debugPanelVisible && speechPanelVisible)
+                (inspectorPanelVisible &&
+                  (debugPanelVisible || speechPanelVisible)) ||
+                (debugPanelVisible && speechPanelVisible)
                   ? "grid grid-rows-2"
                   : "flex flex-col"
               }`}
