@@ -75,6 +75,10 @@ import {
   normalizeVizijPipelineLinkMap,
   type VizijPipelineMetadataV1,
 } from "../utils/graphImport";
+import {
+  buildStandardInputIdRemap,
+  remapPipelineMetadataInputIds,
+} from "../utils/standardInputRemap";
 import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
@@ -2122,6 +2126,7 @@ export function useRigController(
     allStandardInputsRef,
     standardInputsByIdRef,
   });
+  const previousStandardInputsRef = useRef<StandardRigInput[] | null>(null);
 
   const propsrigInputIdByComponentId = useMemo(() => {
     type Candidate = {
@@ -2463,6 +2468,25 @@ export function useRigController(
       graphSpec: runtimeGraphSpec.runtimeSpec?.spec ?? null,
     });
   }, [graphRuntimeStore, runtimeGraphSpec.runtimeSpec]);
+
+  useEffect(() => {
+    const previousInputs = previousStandardInputsRef.current;
+    previousStandardInputsRef.current = standardInputs;
+    if (
+      !previousInputs ||
+      previousInputs.length === 0 ||
+      standardInputs.length === 0
+    ) {
+      return;
+    }
+    const idRemap = buildStandardInputIdRemap(previousInputs, standardInputs);
+    if (idRemap.size === 0) {
+      return;
+    }
+    setPipelineMetadataV1((previous) =>
+      remapPipelineMetadataInputIds(previous, idRemap),
+    );
+  }, [setPipelineMetadataV1, standardInputs]);
 
   const graphMachineReport = useMemo(
     () => buildGraphMachineReport(rigGraphBuild),

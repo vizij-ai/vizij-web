@@ -2569,6 +2569,7 @@ export function InspectorContent({
             name={node.name || node.id}
             typeLabel={node.type}
             id={node.id}
+            nameEditable={false}
             onNameChange={(name) => handleRenameShape(node.id, name)}
           />
           {renderChainPath()}

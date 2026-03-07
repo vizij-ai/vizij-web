@@ -12,6 +12,7 @@ interface InspectorHeaderProps {
   id: string;
   onNameChange: (name: string) => void;
   onPathChange?: (path: string) => void;
+  nameEditable?: boolean;
   icon?: LucideIcon;
   actions?: ReactNode;
 }
@@ -23,6 +24,7 @@ export function InspectorHeader({
   id,
   onNameChange,
   onPathChange,
+  nameEditable = true,
   icon: CustomIcon,
   actions,
 }: InspectorHeaderProps) {
@@ -152,20 +154,29 @@ export function InspectorHeader({
           )}
 
           {/* Name Input */}
-          <div className="relative group/name min-w-0">
-            <input
-              type="text"
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              onBlur={commitName}
-              onKeyDown={handleNameKeyDown}
-              className="w-full bg-transparent border border-transparent hover:border-border-default focus:border-accent/50 rounded px-1 py-0 text-xs font-semibold text-text-primary focus:outline-none focus:bg-bg-input/50 transition-all placeholder-text-muted truncate"
-              placeholder="Name"
-            />
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/name:opacity-30 pointer-events-none">
-              <span className="text-[8px] text-text-muted">✎</span>
+          {nameEditable ? (
+            <div className="relative group/name min-w-0">
+              <input
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onBlur={commitName}
+                onKeyDown={handleNameKeyDown}
+                className="w-full bg-transparent border border-transparent hover:border-border-default focus:border-accent/50 rounded px-1 py-0 text-xs font-semibold text-text-primary focus:outline-none focus:bg-bg-input/50 transition-all placeholder-text-muted truncate"
+                placeholder="Name"
+              />
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/name:opacity-30 pointer-events-none">
+                <span className="text-[8px] text-text-muted">✎</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              className="rounded px-1 py-0 text-xs font-semibold text-text-primary truncate"
+              title={name}
+            >
+              {name}
+            </div>
+          )}
         </div>
 
         {/* Actions */}

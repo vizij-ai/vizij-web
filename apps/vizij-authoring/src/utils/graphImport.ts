@@ -40,6 +40,86 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function mergeIdentifiedRecords(
+  payloadValue: unknown,
+  compiledValue: unknown,
+  keyField: string,
+): unknown {
+  if (!Array.isArray(payloadValue) || !Array.isArray(compiledValue)) {
+    return compiledValue;
+  }
+
+  const next = new Map<string, Record<string, unknown>>();
+
+  payloadValue.forEach((entry) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+    const key = entry[keyField];
+    if (typeof key !== "string" || key.trim().length === 0) {
+      return;
+    }
+    next.set(key, cloneSerializable(entry));
+  });
+
+  compiledValue.forEach((entry) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+    const key = entry[keyField];
+    if (typeof key !== "string" || key.trim().length === 0) {
+      return;
+    }
+    const previous = next.get(key);
+    next.set(
+      key,
+      previous
+        ? {
+            ...previous,
+            ...cloneSerializable(entry),
+          }
+        : cloneSerializable(entry),
+    );
+  });
+
+  return Array.from(next.values());
+}
+
+function mergeVizijMetadata(
+  payloadVizijMetadata: Record<string, unknown>,
+  compiledVizijMetadata: Record<string, unknown> | null,
+): Record<string, unknown> {
+  if (!compiledVizijMetadata) {
+    return payloadVizijMetadata;
+  }
+
+  const merged: Record<string, unknown> = {
+    ...payloadVizijMetadata,
+    ...compiledVizijMetadata,
+  };
+
+  if ("inputs" in payloadVizijMetadata || "inputs" in compiledVizijMetadata) {
+    merged.inputs = mergeIdentifiedRecords(
+      payloadVizijMetadata.inputs,
+      compiledVizijMetadata.inputs,
+      "id",
+    );
+  }
+
+  if (
+    "bindings" in payloadVizijMetadata ||
+    "bindings" in compiledVizijMetadata
+  ) {
+    merged.bindings = mergeIdentifiedRecords(
+      payloadVizijMetadata.bindings,
+      compiledVizijMetadata.bindings,
+      "targetId",
+    );
+  }
+
+  return merged;
+}
+
 function extractIrGraphFromPayload(payload: unknown): IrGraph | null {
   const vizijMetadata = extractVizijMetadataSection(payload);
   if (
@@ -86,12 +166,10 @@ export function prepareSpecForImport(
     return enriched;
   }
   const compiledVizijMetadata = extractVizijMetadataSection(compiled.spec);
-  metadata.vizij = compiledVizijMetadata
-    ? {
-        ...payloadVizijMetadata,
-        ...compiledVizijMetadata,
-      }
-    : payloadVizijMetadata;
+  metadata.vizij = mergeVizijMetadata(
+    payloadVizijMetadata,
+    compiledVizijMetadata,
+  );
   enriched.metadata = metadata;
   return enriched;
 }
