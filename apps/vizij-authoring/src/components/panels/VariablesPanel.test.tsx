@@ -1067,6 +1067,143 @@ describe("VariablesPanel", () => {
     expect(screen.queryByText("Variable Copy Mapping")).toBeNull();
   });
 
+  it("bulk copy reuses a destination created earlier in the same queue run", () => {
+    const sourceFirst = makeInput("ref_shared_first", "/standard/shared", {
+      label: "Ref Shared First",
+      defaultValue: 0.2,
+    });
+    const sourceSecond = makeInput("ref_shared_second", "/standard/shared", {
+      label: "Ref Shared Second",
+      defaultValue: 0.7,
+    });
+    const createdShared = makeInput("main_shared", "/standard/shared", {
+      label: "Ref Shared First",
+      defaultValue: 0.2,
+    });
+
+    referenceFaceState.standardInputs = [sourceFirst, sourceSecond];
+    referenceFaceState.standardInputsById = new Map([
+      [sourceFirst.id, sourceFirst],
+      [sourceSecond.id, sourceSecond],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      sourceFirst,
+      sourceSecond,
+    ]);
+
+    bindingState.managedStandardInputs = [];
+    bindingState.standardInputsById = new Map();
+    bindingState.standardInputsByPath = new Map();
+    bindingState.handleCreateCustomStandardInput.mockImplementation((path) => {
+      if (path !== createdShared.path) {
+        return undefined;
+      }
+      if (bindingState.standardInputsByPath.has(path)) {
+        return undefined;
+      }
+      // Simulate a lagging catalog snapshot: the path/index updates immediately,
+      // but managedStandardInputs does not refresh before the next queued item.
+      bindingState.standardInputsById.set(createdShared.id, createdShared);
+      bindingState.standardInputsByPath.set(createdShared.path, createdShared);
+      return createdShared;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/" },
+      },
+    );
+    screen
+      .getAllByRole("checkbox", { name: "Bulk" })
+      .forEach((checkbox) => fireEvent.click(checkbox));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (2)" }));
+
+    expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      createdShared.id,
+      expect.objectContaining({
+        defaultValue: sourceFirst.defaultValue,
+      }),
+    );
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      createdShared.id,
+      expect.objectContaining({
+        defaultValue: sourceSecond.defaultValue,
+      }),
+    );
+    expect(screen.queryByText("Variable Copy Mapping")).toBeNull();
+  });
+
+  it("bulk copy re-resolves relationship mappings against current main-face state before confirm", () => {
+    const sourceParent = makeInput("ref_brow_up", "/standard/brow/up", {
+      label: "Ref Brow Up",
+    });
+    const sourceChild = makeInput("ref_blink", "/standard/eyes/blink", {
+      label: "Ref Blink",
+      defaultValue: 0.4,
+    });
+    const destinationParent = makeInput("main_brow_up", "/standard/brow/up", {
+      label: "Main Brow Up",
+    });
+    const createdChild = makeInput("main_blink", "/standard/eyes/blink", {
+      label: "Ref Blink",
+      defaultValue: 0.4,
+    });
+
+    referenceFaceState.standardInputs = [sourceParent, sourceChild];
+    referenceFaceState.standardInputsById = new Map([
+      [sourceParent.id, sourceParent],
+      [sourceChild.id, sourceChild],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceParent, sourceChild],
+      [
+        {
+          parentInputId: sourceParent.id,
+          childInputId: sourceChild.id,
+        },
+      ],
+    );
+
+    bindingState.handleCreateCustomStandardInput.mockImplementation((path) => {
+      return path === createdChild.path ? createdChild : null;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/eyes/blink" },
+      },
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bulk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (1)" }));
+
+    expect(screen.getByText("Variable Copy Mapping")).toBeTruthy();
+
+    bindingState.standardInputsById.set(
+      destinationParent.id,
+      destinationParent,
+    );
+    bindingState.standardInputsByPath.set(
+      destinationParent.path,
+      destinationParent,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(screen.queryByText("Variable Copy Mapping")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      destinationParent.id,
+      createdChild.id,
+    );
+  });
+
   it("bulk pose copy processes the final selected pose against fresh state", () => {
     const sourceSmile = makeInput("ref_smile", "/standard/mouth/smile", {
       label: "Smile",
@@ -2332,24 +2469,10 @@ describe("VariablesPanel", () => {
       {
         labelSuffix: " Copy",
         pathSuffix: "_copy",
+        cloneRelationships: true,
       },
     );
-    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
-      parent.id,
-      "source_copy",
-      {
-        scale: 0.25,
-        offset: 0.4,
-      },
-    );
-    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
-      "source_copy",
-      child.id,
-      {
-        scale: 0.8,
-        offset: -0.2,
-      },
-    );
+    expect(bindingState.handleLinkChildInput).not.toHaveBeenCalled();
     expect(onSelectRig).toHaveBeenCalledWith("source_copy");
   });
 

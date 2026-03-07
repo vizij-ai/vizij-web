@@ -8,10 +8,12 @@ import {
 } from "react";
 import type { SetStateAction } from "react";
 import {
+  addBindingSlot,
   bindingFromDefinition,
   bindingTargetFromComponent,
   bindingTargetFromInput,
   bindingToDefinition,
+  buildCanonicalBindingExpression,
   createDefaultBinding,
   createDefaultInputValues,
   createDefaultParentBinding,
@@ -233,6 +235,309 @@ export function appendStandardInputPathSuffix(
   const targetIndex = segments.length - 1;
   segments[targetIndex] = `${segments[targetIndex]}${suffix}`;
   return `/${segments.join("/")}`;
+}
+
+function remapInputIdList(
+  values: readonly string[],
+  idRemap: ReadonlyMap<string, string>,
+): string[] {
+  if (idRemap.size === 0 || values.length === 0) {
+    return [...values];
+  }
+  const next: string[] = [];
+  const seen = new Set<string>();
+  values.forEach((value) => {
+    const mapped = idRemap.get(value) ?? value;
+    if (seen.has(mapped)) {
+      return;
+    }
+    seen.add(mapped);
+    next.push(mapped);
+  });
+  return next;
+}
+
+function remapInputIdSet(
+  values: ReadonlySet<string>,
+  idRemap: ReadonlyMap<string, string>,
+): Set<string> {
+  if (idRemap.size === 0 || values.size === 0) {
+    return new Set(values);
+  }
+  const next = new Set<string>();
+  values.forEach((value) => {
+    next.add(idRemap.get(value) ?? value);
+  });
+  return next;
+}
+
+function remapStandardInputValues(
+  values: StandardInputValues,
+  idRemap: ReadonlyMap<string, string>,
+): StandardInputValues {
+  if (idRemap.size === 0) {
+    return values;
+  }
+  let changed = false;
+  const next: StandardInputValues = {};
+  Object.entries(values).forEach(([rawInputId, value]) => {
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    if (mappedInputId !== rawInputId) {
+      changed = true;
+    }
+    if (
+      mappedInputId !== rawInputId &&
+      Object.prototype.hasOwnProperty.call(values, mappedInputId)
+    ) {
+      return;
+    }
+    next[mappedInputId] = value;
+  });
+  return changed ? next : values;
+}
+
+function remapBindingMetadataInputIds(
+  metadata: AnimatableBinding["metadata"],
+  idRemap: ReadonlyMap<string, string>,
+): AnimatableBinding["metadata"] {
+  if (!metadata || idRemap.size === 0) {
+    return metadata;
+  }
+  const metadataRecord = asRecord(metadata);
+  if (!metadataRecord) {
+    return metadata;
+  }
+  const vizij = asRecord(metadataRecord.vizij);
+  const pipeline = vizij
+    ? remapPipelineMetadataInputIds(
+        asRecord(vizij.pipelineV1) as VizijPipelineMetadataV1 | null,
+        idRemap,
+      )
+    : null;
+  if (!pipeline || pipeline === vizij?.pipelineV1) {
+    return metadata;
+  }
+  return {
+    ...metadataRecord,
+    vizij: {
+      ...(vizij ?? {}),
+      pipelineV1: pipeline,
+    },
+  };
+}
+
+function remapBindingInputIds(
+  binding: AnimatableBinding,
+  target: BindingTarget,
+  idRemap: ReadonlyMap<string, string>,
+): AnimatableBinding {
+  if (idRemap.size === 0) {
+    return ensureBindingStructure(binding, target);
+  }
+  const ensured = ensureBindingStructure(binding, target);
+  let changed = false;
+
+  const nextInputId =
+    ensured.inputId && idRemap.has(ensured.inputId)
+      ? (idRemap.get(ensured.inputId) ?? ensured.inputId)
+      : ensured.inputId;
+  if (nextInputId !== ensured.inputId) {
+    changed = true;
+  }
+  if (ensured.targetId !== target.id) {
+    changed = true;
+  }
+
+  const nextSlots = ensured.slots.map((slot) => {
+    if (!slot.inputId) {
+      return slot;
+    }
+    const mapped = idRemap.get(slot.inputId);
+    if (!mapped || mapped === slot.inputId) {
+      return slot;
+    }
+    changed = true;
+    return {
+      ...slot,
+      inputId: mapped,
+    };
+  });
+
+  if (!changed) {
+    const remappedMetadata = remapBindingMetadataInputIds(
+      ensured.metadata,
+      idRemap,
+    );
+    if (remappedMetadata === ensured.metadata) {
+      return ensured;
+    }
+    return {
+      ...ensured,
+      metadata: remappedMetadata,
+      targetId: target.id,
+    };
+  }
+
+  return ensureBindingStructure(
+    {
+      ...ensured,
+      inputId: nextInputId ?? null,
+      slots: nextSlots,
+      metadata: remapBindingMetadataInputIds(ensured.metadata, idRemap),
+      targetId: target.id,
+    },
+    target,
+  );
+}
+
+function remapAnimatableBindings(
+  bindings: BindingMap,
+  componentsById: ReadonlyMap<string, AnimComponent>,
+  idRemap: ReadonlyMap<string, string>,
+): BindingMap {
+  if (idRemap.size === 0) {
+    return bindings;
+  }
+  let changed = false;
+  const next: BindingMap = {};
+  Object.entries(bindings).forEach(([targetId, binding]) => {
+    if (!binding) {
+      return;
+    }
+    const component = componentsById.get(targetId);
+    if (!component) {
+      next[targetId] = binding;
+      return;
+    }
+    const remapped = remapBindingInputIds(
+      binding,
+      bindingTargetFromComponent(component),
+      idRemap,
+    );
+    if (remapped !== binding) {
+      changed = true;
+    }
+    next[targetId] = remapped;
+  });
+  return changed ? next : bindings;
+}
+
+function remapInputBindings(
+  inputBindings: InputBindingMap,
+  standardInputsById: ReadonlyMap<string, StandardRigInput>,
+  idRemap: ReadonlyMap<string, string>,
+): InputBindingMap {
+  if (idRemap.size === 0) {
+    return inputBindings;
+  }
+  let changed = false;
+  const next: InputBindingMap = {};
+  Object.entries(inputBindings).forEach(([rawInputId, binding]) => {
+    if (!binding) {
+      return;
+    }
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    const input = standardInputsById.get(mappedInputId);
+    if (!input) {
+      changed = true;
+      return;
+    }
+    const remappedBinding = remapBindingInputIds(
+      binding,
+      bindingTargetFromInput(input),
+      idRemap,
+    );
+    if (mappedInputId !== rawInputId || remappedBinding !== binding) {
+      changed = true;
+    }
+    next[mappedInputId] = remappedBinding;
+  });
+  return changed ? next : inputBindings;
+}
+
+function remapBindingDefinition(
+  definition: RigBindingDefinition,
+  idRemap: ReadonlyMap<string, string>,
+): RigBindingDefinition {
+  if (idRemap.size === 0) {
+    return definition;
+  }
+  let changed = false;
+  const nextInputId =
+    definition.inputId && idRemap.has(definition.inputId)
+      ? (idRemap.get(definition.inputId) ?? definition.inputId)
+      : definition.inputId;
+  if (nextInputId !== definition.inputId) {
+    changed = true;
+  }
+  const nextSlots = definition.slots.map((slot) => {
+    if (!slot.inputId) {
+      return slot;
+    }
+    const mapped = idRemap.get(slot.inputId);
+    if (!mapped || mapped === slot.inputId) {
+      return slot;
+    }
+    changed = true;
+    return {
+      ...slot,
+      inputId: mapped,
+    };
+  });
+  if (!changed) {
+    const remappedMetadata = remapBindingMetadataInputIds(
+      definition.metadata,
+      idRemap,
+    );
+    if (remappedMetadata === definition.metadata) {
+      return definition;
+    }
+    return {
+      ...definition,
+      metadata: remappedMetadata,
+    };
+  }
+  return {
+    ...definition,
+    inputId: nextInputId ?? null,
+    slots: nextSlots,
+    metadata: remapBindingMetadataInputIds(definition.metadata, idRemap),
+  };
+}
+
+function remapBindingDefinitionRecord(
+  record: Record<string, RigBindingDefinition> | null,
+  idRemap: ReadonlyMap<string, string>,
+): Record<string, RigBindingDefinition> | null {
+  if (!record || idRemap.size === 0) {
+    return record;
+  }
+  let changed = false;
+  const next: Record<string, RigBindingDefinition> = {};
+  Object.entries(record).forEach(([rawInputId, definition]) => {
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    const remappedDefinition = remapBindingDefinition(definition, idRemap);
+    if (mappedInputId !== rawInputId || remappedDefinition !== definition) {
+      changed = true;
+    }
+    next[mappedInputId] = remappedDefinition;
+  });
+  return changed ? next : record;
+}
+
+function remapBindingDefinitionCache(
+  cache: ReadonlyMap<string, RigBindingDefinition>,
+  idRemap: ReadonlyMap<string, string>,
+): Map<string, RigBindingDefinition> {
+  if (idRemap.size === 0 || cache.size === 0) {
+    return new Map(cache);
+  }
+  const next = new Map<string, RigBindingDefinition>();
+  cache.forEach((definition, rawInputId) => {
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    next.set(mappedInputId, remapBindingDefinition(definition, idRemap));
+  });
+  return next;
 }
 
 function isDefaultSlotAlias(slot: RigBindingSlot, index: number): boolean {
@@ -867,6 +1172,133 @@ function sanitizePipelineConfigAndLinksForAvailableInputs(params: {
   };
 }
 
+function buildUpdatedStandardInputSnapshot(
+  inputsById: ReadonlyMap<string, StandardRigInput>,
+  options?: {
+    deleteIds?: readonly string[];
+    upserts?: readonly StandardRigInput[];
+  },
+): Map<string, StandardRigInput> {
+  const next = new Map(inputsById);
+  options?.deleteIds?.forEach((inputId) => {
+    next.delete(inputId);
+  });
+  options?.upserts?.forEach((input) => {
+    next.set(input.id, input);
+  });
+  return next;
+}
+
+function readPipelineLinkPatch(
+  binding: AnimatableBinding | null | undefined,
+  parentInputId: string,
+  childInputId: string,
+): {
+  scale?: number;
+  offset?: number;
+  enabled?: boolean;
+  expression?: string | null;
+} {
+  const metadata = asRecord(binding?.metadata);
+  const vizij = asRecord(metadata?.vizij);
+  const pipeline = asRecord(vizij?.pipelineV1);
+  const links = asRecord(pipeline?.links);
+  const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
+  const link = asRecord(links?.[linkId]);
+  if (!link) {
+    return {};
+  }
+  return {
+    scale: normalizeFiniteValue(link.scale),
+    offset: normalizeFiniteValue(link.offset),
+    enabled: normalizeBooleanValue(link.enabled),
+    expression: normalizeStringValue(link.expression),
+  };
+}
+
+function upsertParentLinkBinding(params: {
+  binding: AnimatableBinding | null | undefined;
+  childInput: StandardRigInput;
+  parentInput: StandardRigInput;
+  scale?: number;
+  offset?: number;
+  enabled?: boolean;
+  expression?: string | null;
+}): AnimatableBinding {
+  const target = bindingTargetFromInput(params.childInput);
+  let next = ensureBindingStructure(
+    params.binding ?? createDefaultParentBinding(target),
+    target,
+  );
+  const expressionBefore = (next.expression ?? "").trim();
+  const canonicalBefore = buildCanonicalBindingExpression(next).trim();
+  const expressionWasAuto =
+    expressionBefore.length === 0 || expressionBefore === canonicalBefore;
+
+  let targetSlotId =
+    next.slots.find((slot) => slot.inputId === params.parentInput.id)?.id ??
+    null;
+  if (!targetSlotId) {
+    const reusableSlot = next.slots.find(
+      (slot, index) =>
+        index > 0 && (slot.inputId === null || slot.inputId === undefined),
+    );
+    if (reusableSlot) {
+      targetSlotId = reusableSlot.id;
+    } else {
+      next = addBindingSlot(next, target);
+      targetSlotId = next.slots[next.slots.length - 1]?.id ?? null;
+    }
+  }
+
+  next = updateBindingWithInput(
+    next,
+    target,
+    params.parentInput,
+    targetSlotId ?? undefined,
+  );
+  if (expressionWasAuto) {
+    const canonicalAfter = buildCanonicalBindingExpression(next).trim();
+    if (
+      canonicalAfter.length > 0 &&
+      (next.expression ?? "").trim() !== canonicalAfter
+    ) {
+      next = {
+        ...next,
+        expression: canonicalAfter,
+      };
+    }
+  }
+
+  const linkId = buildRigPipelineV1LinkId(
+    params.parentInput.id,
+    params.childInput.id,
+  );
+  return {
+    ...next,
+    metadata: mergePipelineMetadata(
+      (next.metadata ?? undefined) as Record<string, unknown> | undefined,
+      {
+        directInputEnabled: true,
+        linkUpserts: {
+          [linkId]: {
+            parentInputId: params.parentInput.id,
+            childInputId: params.childInput.id,
+            ...(params.scale !== undefined ? { scale: params.scale } : {}),
+            ...(params.offset !== undefined ? { offset: params.offset } : {}),
+            ...(params.enabled !== undefined
+              ? { enabled: params.enabled }
+              : {}),
+            ...(params.expression !== undefined
+              ? { expression: params.expression }
+              : {}),
+          },
+        },
+      },
+    ),
+  };
+}
+
 type AnimatableComponent = AnimComponent;
 
 type StandardInputId = StandardRigInput["id"];
@@ -1474,6 +1906,169 @@ export function useRigController(
       return changed ? next : previous;
     });
   }, [animatableComponents, applyBindingPatch]);
+
+  const explicitStandardInputIdRemapRevisionRef = useRef(0);
+  const lastSkippedExplicitStandardInputIdRemapRevisionRef = useRef(0);
+
+  const syncStandardInputSnapshotRefs = useCallback(
+    (options: {
+      deleteIds?: readonly string[];
+      upserts?: readonly StandardRigInput[];
+    }) => {
+      allStandardInputsRef.current = buildUpdatedStandardInputSnapshot(
+        allStandardInputsRef.current,
+        options,
+      );
+      standardInputsByIdRef.current = buildUpdatedStandardInputSnapshot(
+        standardInputsByIdRef.current,
+        options,
+      );
+      runtimeInputIdResolutionCacheRef.current = {
+        sourceMap: null,
+        cache: new Map(),
+      };
+    },
+    [],
+  );
+
+  const publishStandardInputIdRemap = useCallback(
+    (idRemap: ReadonlyMap<string, string>) => {
+      if (idRemap.size === 0) {
+        return 0;
+      }
+      explicitStandardInputIdRemapRevisionRef.current += 1;
+      const revision = explicitStandardInputIdRemapRevisionRef.current;
+      bindingAuthoringStore.setState({
+        standardInputIdRemap: new Map(idRemap),
+        standardInputIdRemapRevision: revision,
+      });
+      return revision;
+    },
+    [bindingAuthoringStore],
+  );
+
+  const applyStandardInputIdRemapSideEffects = useCallback(
+    (idRemap: ReadonlyMap<string, string>) => {
+      if (idRemap.size === 0) {
+        return;
+      }
+
+      setHiddenDriverIds((previous) => {
+        const next = remapInputIdSet(previous, idRemap);
+        if (
+          next.size === previous.size &&
+          Array.from(next).every((value) => previous.has(value))
+        ) {
+          return previous;
+        }
+        return next;
+      });
+      setPipelineMetadataV1((previous) =>
+        remapPipelineMetadataInputIds(previous, idRemap),
+      );
+
+      const remappedTimelineLockedInputIds = remapInputIdSet(
+        timelineLockedInputIdsRef.current,
+        idRemap,
+      );
+      timelineLockedInputIdsRef.current = remappedTimelineLockedInputIds;
+
+      bindingAuthoringStore.setState((state) => {
+        const mappedSelectedRigId = state.selectedRigId
+          ? (idRemap.get(state.selectedRigId) ?? state.selectedRigId)
+          : state.selectedRigId;
+        const timelineLockedInputIds = remappedTimelineLockedInputIds;
+        const selectedRigChanged = mappedSelectedRigId !== state.selectedRigId;
+        const timelineChanged =
+          timelineLockedInputIds !== state.timelineLockedInputIds;
+        if (!selectedRigChanged && !timelineChanged) {
+          return;
+        }
+        return {
+          ...(selectedRigChanged ? { selectedRigId: mappedSelectedRigId } : {}),
+          ...(timelineChanged
+            ? { timelineLockedInputIds: timelineLockedInputIds }
+            : {}),
+        };
+      });
+
+      const animationState = useAnimationStore.getState();
+      let animationTracksChanged = false;
+      const remappedAnimationTracks = animationState.tracks.map((track) => {
+        const mappedVariableId =
+          idRemap.get(track.variableId) ?? track.variableId;
+        if (mappedVariableId === track.variableId) {
+          return track;
+        }
+        animationTracksChanged = true;
+        return {
+          ...track,
+          variableId: mappedVariableId,
+          channel:
+            track.channel === track.variableId
+              ? mappedVariableId
+              : track.channel,
+          label:
+            track.label === track.variableId ? mappedVariableId : track.label,
+        };
+      });
+      if (animationTracksChanged) {
+        useAnimationStore.setState({ tracks: remappedAnimationTracks });
+      }
+
+      publishStandardInputIdRemap(idRemap);
+    },
+    [
+      bindingAuthoringStore,
+      publishStandardInputIdRemap,
+      setHiddenDriverIds,
+      setPipelineMetadataV1,
+    ],
+  );
+
+  const applyStandardInputIdRemap = useCallback(
+    (
+      idRemap: ReadonlyMap<string, string>,
+      nextInputsById: ReadonlyMap<string, StandardRigInput>,
+    ) => {
+      if (idRemap.size === 0) {
+        return;
+      }
+      updateInputValues((previous) =>
+        remapStandardInputValues(previous, idRemap),
+      );
+      setBindings((previous) =>
+        remapAnimatableBindings(previous, componentsByIdRef.current, idRemap),
+      );
+      setInputBindings((previous) =>
+        remapInputBindings(previous, nextInputsById, idRemap),
+      );
+      setDisabledStandardInputIds((previous) => {
+        const next = remapInputIdList(previous, idRemap);
+        return next.length === previous.length &&
+          next.every((value, index) => value === previous[index])
+          ? previous
+          : next;
+      });
+      pendingInputBindingDefinitionsRef.current = remapBindingDefinitionRecord(
+        pendingInputBindingDefinitionsRef.current,
+        idRemap,
+      );
+      disabledInputBindingCacheRef.current = remapBindingDefinitionCache(
+        disabledInputBindingCacheRef.current,
+        idRemap,
+      );
+      applyStandardInputIdRemapSideEffects(idRemap);
+    },
+    [
+      applyStandardInputIdRemapSideEffects,
+      setBindings,
+      setDisabledStandardInputIds,
+      setInputBindings,
+      updateInputValues,
+    ],
+  );
+
   const handleCreateCustomStandardInput = useCallback(
     (path: string): StandardRigInput | null =>
       createCustomStandardInputEntry({
@@ -1496,7 +2091,7 @@ export function useRigController(
         range?: { min?: number; max?: number };
       },
     ) => {
-      updateStandardInputEntry({
+      const result = updateStandardInputEntry({
         inputId,
         updates,
         autoInputsRef,
@@ -1507,86 +2102,202 @@ export function useRigController(
         resolvePersistedAutoKey,
         groupFallback: GROUP_FALLBACK,
       });
+      if (!result) {
+        return;
+      }
+      syncStandardInputSnapshotRefs({
+        deleteIds:
+          result.previousId !== result.nextId ? [result.previousId] : undefined,
+        upserts: [result.updatedInput],
+      });
+      if (result.previousId === result.nextId) {
+        return;
+      }
+      applyStandardInputIdRemap(
+        new Map([[result.previousId, result.nextId]]),
+        standardInputsByIdRef.current,
+      );
     },
-    [autoInputsRef, customInputsRef, setAutoInputs, setCustomInputs],
+    [
+      applyStandardInputIdRemap,
+      autoInputsRef,
+      customInputsRef,
+      setAutoInputs,
+      setCustomInputs,
+      syncStandardInputSnapshotRefs,
+    ],
   );
 
   const handleCloneStandardInputs = useCallback(
     (
       inputIds: readonly string[],
-      options?: { labelSuffix?: string; pathSuffix?: string },
+      options?: {
+        labelSuffix?: string;
+        pathSuffix?: string;
+        cloneRelationships?: boolean;
+      },
     ) => {
       const mapping = new Map<string, string>();
       const labelSuffix = options?.labelSuffix ?? " Copy";
       const pathSuffix = options?.pathSuffix ?? "_copy";
-      setCustomInputs((previous) => {
-        const existingIds = new Set<string>([
-          ...previous.map((input) => input.id),
-          ...Array.from(standardInputsByIdRef.current.keys()),
-        ]);
-        const existingPaths = new Set<string>(
-          Array.from(allStandardInputsRef.current.values()).map((input) =>
-            normalizeStandardRigInputPath(input.path),
-          ),
+      const cloneRelationships = options?.cloneRelationships === true;
+      const existingIds = new Set<string>(
+        Array.from(allStandardInputsRef.current.keys()),
+      );
+      const existingPaths = new Set<string>(
+        Array.from(allStandardInputsRef.current.values()).map((input) =>
+          normalizeStandardRigInputPath(input.path),
+        ),
+      );
+      const clonedInputs: StandardRigInput[] = [];
+
+      inputIds.forEach((sourceId) => {
+        if (mapping.has(sourceId)) {
+          return;
+        }
+        const source = standardInputsByIdRef.current.get(sourceId);
+        if (!source) {
+          return;
+        }
+        let attempt = 1;
+        let candidatePath = normalizeStandardRigInputPath(
+          appendStandardInputPathSuffix(source.path, pathSuffix),
         );
-        const next = [...previous];
-
-        inputIds.forEach((sourceId) => {
-          if (mapping.has(sourceId)) {
-            return;
-          }
-          const source = standardInputsByIdRef.current.get(sourceId);
-          if (!source) return;
-          let attempt = 1;
-          let candidatePath = normalizeStandardRigInputPath(
-            appendStandardInputPathSuffix(source.path, pathSuffix),
+        let candidateId = createStandardRigInputFromPath(candidatePath).id;
+        while (
+          existingIds.has(candidateId) ||
+          existingPaths.has(candidatePath)
+        ) {
+          const suffix = attempt === 1 ? pathSuffix : `${pathSuffix}${attempt}`;
+          candidatePath = normalizeStandardRigInputPath(
+            appendStandardInputPathSuffix(source.path, suffix),
           );
-          let candidateId = source.id;
-          while (
-            existingIds.has(candidateId) ||
-            existingPaths.has(candidatePath)
-          ) {
-            const suffix =
-              attempt === 1 ? pathSuffix : `${pathSuffix}${attempt}`;
-            candidatePath = normalizeStandardRigInputPath(
-              appendStandardInputPathSuffix(source.path, suffix),
-            );
-            const derived = createStandardRigInputFromPath(candidatePath);
-            candidateId = derived.id;
-            attempt += 1;
+          candidateId = createStandardRigInputFromPath(candidatePath).id;
+          attempt += 1;
+        }
+
+        const cloned: StandardRigInput = {
+          ...source,
+          id: candidateId,
+          path: candidatePath,
+          label: `${source.label}${labelSuffix}`,
+          parentBinding: source.parentBinding ?? undefined,
+          derivedChildren: source.derivedChildren
+            ? [...source.derivedChildren]
+            : [],
+        };
+        clonedInputs.push(cloned);
+        existingIds.add(candidateId);
+        existingPaths.add(candidatePath);
+        mapping.set(source.id, cloned.id);
+      });
+
+      if (clonedInputs.length === 0) {
+        return mapping;
+      }
+
+      setCustomInputs((previous) => {
+        const next = [...previous, ...clonedInputs];
+        customInputsRef.current = next;
+        return next;
+      });
+      syncStandardInputSnapshotRefs({ upserts: clonedInputs });
+
+      updateInputValues((prev) => {
+        const next = { ...prev };
+        mapping.forEach((newId, oldId) => {
+          const src = standardInputsByIdRef.current.get(oldId);
+          if (src) {
+            next[newId] = src.defaultValue ?? 0;
           }
-
-          const cloned: StandardRigInput = {
-            ...source,
-            id: candidateId,
-            path: candidatePath,
-            label: `${source.label}${labelSuffix}`,
-          };
-          next.push(cloned);
-          existingIds.add(candidateId);
-          existingPaths.add(candidatePath);
-          mapping.set(source.id, cloned.id);
         });
-
         return next;
       });
 
-      if (mapping.size > 0) {
-        updateInputValues((prev) => {
-          const next = { ...prev };
-          mapping.forEach((newId, oldId) => {
-            const src = standardInputsByIdRef.current.get(oldId);
-            if (src) {
-              next[newId] = src.defaultValue ?? 0;
+      if (cloneRelationships) {
+        const nextInputsById = standardInputsByIdRef.current;
+        setInputBindings((previous) => {
+          let changed = false;
+          const next: InputBindingMap = { ...previous };
+
+          mapping.forEach((clonedInputId, sourceInputId) => {
+            const sourceBinding = previous[sourceInputId];
+            const clonedInput = nextInputsById.get(clonedInputId);
+            if (!sourceBinding || !clonedInput) {
+              return;
             }
+            next[clonedInputId] = bindingFromDefinition(
+              bindingTargetFromInput(clonedInput),
+              remapBindingDefinition(
+                bindingToDefinition(sourceBinding),
+                mapping,
+              ),
+            );
+            changed = true;
           });
-          return next;
+
+          Object.entries(previous).forEach(([childInputId, binding]) => {
+            if (!binding || mapping.has(childInputId)) {
+              return;
+            }
+            const childInput = nextInputsById.get(childInputId);
+            if (!childInput) {
+              return;
+            }
+            mapping.forEach((clonedInputId, sourceInputId) => {
+              const parentIds = collectBindingInputIds(binding);
+              if (!parentIds.includes(sourceInputId)) {
+                return;
+              }
+              const clonedParentInput = nextInputsById.get(clonedInputId);
+              if (!clonedParentInput) {
+                return;
+              }
+              const linkPatch = readPipelineLinkPatch(
+                binding,
+                sourceInputId,
+                childInputId,
+              );
+              const updatedBinding = upsertParentLinkBinding({
+                binding: next[childInputId] ?? binding,
+                childInput,
+                parentInput: clonedParentInput,
+                scale: linkPatch.scale ?? 1,
+                offset:
+                  linkPatch.offset ??
+                  (Number.isFinite(childInput.defaultValue)
+                    ? childInput.defaultValue
+                    : 0),
+                enabled: linkPatch.enabled ?? true,
+                expression: linkPatch.expression,
+              });
+              const previousDefinition = bindingToDefinition(
+                next[childInputId] ?? binding,
+              );
+              const nextDefinition = bindingToDefinition(updatedBinding);
+              if (
+                JSON.stringify(previousDefinition) ===
+                JSON.stringify(nextDefinition)
+              ) {
+                return;
+              }
+              next[childInputId] = updatedBinding;
+              changed = true;
+            });
+          });
+
+          return changed ? next : previous;
         });
       }
 
       return mapping;
     },
-    [standardInputsByIdRef, updateInputValues, allStandardInputsRef],
+    [
+      setCustomInputs,
+      setInputBindings,
+      syncStandardInputSnapshotRefs,
+      updateInputValues,
+    ],
   );
 
   const pruneInputBindings = useCallback(
@@ -2048,7 +2759,7 @@ export function useRigController(
       shapeName: string,
       previousName: string,
     ) => {
-      applyShapeInputRename({
+      const idRemap = applyShapeInputRename({
         shapeId,
         oldSlug,
         newSlug,
@@ -2073,8 +2784,10 @@ export function useRigController(
         setFeatureLabelOverrides,
         resolvePersistedAutoKey,
       });
+      applyStandardInputIdRemapSideEffects(idRemap);
     },
     [
+      applyStandardInputIdRemapSideEffects,
       componentsByIdRef,
       pendingInputBindingDefinitionsRef,
       persistedAutoInputsRef,
@@ -2563,14 +3276,25 @@ export function useRigController(
     ) {
       return;
     }
+    if (
+      explicitStandardInputIdRemapRevisionRef.current !== 0 &&
+      lastSkippedExplicitStandardInputIdRemapRevisionRef.current !==
+        explicitStandardInputIdRemapRevisionRef.current
+    ) {
+      lastSkippedExplicitStandardInputIdRemapRevisionRef.current =
+        explicitStandardInputIdRemapRevisionRef.current;
+      return;
+    }
+    if (explicitStandardInputIdRemapRevisionRef.current !== 0) {
+      lastSkippedExplicitStandardInputIdRemapRevisionRef.current =
+        explicitStandardInputIdRemapRevisionRef.current;
+    }
     const idRemap = buildStandardInputIdRemap(previousInputs, standardInputs);
     if (idRemap.size === 0) {
       return;
     }
-    setPipelineMetadataV1((previous) =>
-      remapPipelineMetadataInputIds(previous, idRemap),
-    );
-  }, [setPipelineMetadataV1, standardInputs]);
+    applyStandardInputIdRemap(idRemap, standardInputsById);
+  }, [applyStandardInputIdRemap, standardInputs, standardInputsById]);
 
   const graphMachineReport = useMemo(
     () => buildGraphMachineReport(rigGraphBuild),

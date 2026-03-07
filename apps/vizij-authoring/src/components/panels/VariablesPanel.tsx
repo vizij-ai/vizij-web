@@ -1213,6 +1213,29 @@ function createVariableCopyModalState(params: {
   };
 }
 
+function resolveVariableCopyRelationshipDestination(params: {
+  modalState: VariableCopyModalState;
+  row: VariableLinkMappingRow;
+  draft: VariableCopyLinkRowDraft | undefined;
+  standardInputsById: ReadonlyMap<string, StandardRigInput>;
+  standardInputsByPath: ReadonlyMap<string, StandardRigInput>;
+}): StandardRigInput | null {
+  const explicitDestinationInputId = params.draft?.destinationInputId.trim();
+  if (explicitDestinationInputId) {
+    return params.standardInputsById.get(explicitDestinationInputId) ?? null;
+  }
+  if (params.modalState.launchSource !== "toolbar") {
+    return null;
+  }
+  const normalizedSourcePath = params.row.sourcePath
+    ? normalizeStandardRigInputPath(params.row.sourcePath)
+    : "";
+  if (!normalizedSourcePath) {
+    return null;
+  }
+  return params.standardInputsByPath.get(normalizedSourcePath) ?? null;
+}
+
 function createPoseCopyModalState(params: {
   sourcePose: ReferencePoseDefinition;
   proposal: PoseCopyProposal;
@@ -4384,12 +4407,19 @@ export function VariablesPanel({
           blockingMessages.push(
             "Destination unresolved: provide a valid destination path for the new input.",
           );
-        } else if (standardInputsByPath.has(normalized)) {
-          blockingMessages.push(
-            "Destination unresolved: destination path already exists. Pick Existing or change the new path.",
-          );
         } else {
-          normalizedNewDestinationPath = normalized;
+          const existingByPath = standardInputsByPath.get(normalized) ?? null;
+          if (existingByPath) {
+            if (!isPrimaryVariableDestinationInput(existingByPath)) {
+              blockingMessages.push(
+                "Destination unresolved: destination path already exists. Pick Existing or change the new path.",
+              );
+            } else {
+              existingDestinationInput = existingByPath;
+            }
+          } else {
+            normalizedNewDestinationPath = normalized;
+          }
         }
       }
 
@@ -4438,11 +4468,14 @@ export function VariablesPanel({
           if (!draft?.apply) {
             return;
           }
-          const mappedInputId = draft.destinationInputId.trim();
-          if (
-            !mappedInputId ||
-            !modalState.destinationCatalog.inputsById.has(mappedInputId)
-          ) {
+          const mappedInput = resolveVariableCopyRelationshipDestination({
+            modalState,
+            row,
+            draft,
+            standardInputsById,
+            standardInputsByPath,
+          });
+          if (!mappedInput) {
             blockingMessages.push(
               `Applied row unresolved: ${relationshipLabel} "${row.sourceLabel}".`,
             );
@@ -4465,7 +4498,7 @@ export function VariablesPanel({
           pendingAppliedRows.push({
             rowId: row.rowId,
             relationship,
-            mappedInputId,
+            mappedInputId: mappedInput.id,
             scale,
             offset,
           });
@@ -4494,7 +4527,9 @@ export function VariablesPanel({
 
       let destinationInputId = destinationInputIdRaw;
       let createdDestinationInput: StandardRigInput | null = null;
-      if (modalState.destinationMode === "new") {
+      const shouldCreateDestinationInput =
+        modalState.destinationMode === "new" && !existingDestinationInput;
+      if (shouldCreateDestinationInput) {
         const created = handleCreateCustomStandardInput(
           normalizedNewDestinationPath!,
         );
@@ -4508,11 +4543,16 @@ export function VariablesPanel({
         }
         destinationInputId = created.id;
         createdDestinationInput = created;
+      } else if (
+        modalState.destinationMode === "new" &&
+        existingDestinationInput
+      ) {
+        destinationInputId = existingDestinationInput.id;
       }
 
       try {
         handleUpdateStandardInput(destinationInputId, {
-          ...(modalState.destinationMode === "new"
+          ...(shouldCreateDestinationInput
             ? {
                 label:
                   modalState.newDestinationLabel.trim() || sourceInput.label,
@@ -5217,37 +5257,11 @@ export function VariablesPanel({
       const clones = handleCloneStandardInputs([sourceInputId], {
         labelSuffix: " Copy",
         pathSuffix: "_copy",
+        cloneRelationships: true,
       });
       const clonedInputId = clones.get(sourceInputId);
       if (!clonedInputId) {
         return null;
-      }
-
-      const sourceCatalogInput =
-        mainFaceCopyTargetReferenceCatalog.inputsById.get(sourceInputId) ??
-        null;
-      if (sourceCatalogInput) {
-        sourceCatalogInput.parents.forEach((parentLink) => {
-          if (parentLink.parentInputId === clonedInputId) {
-            return;
-          }
-          handleLinkChildInput(parentLink.parentInputId, clonedInputId, {
-            scale: parentLink.scale,
-            offset: parentLink.offset,
-          });
-        });
-        sourceCatalogInput.children.forEach((childLink) => {
-          if (
-            childLink.childInputId === sourceInputId ||
-            childLink.childInputId === clonedInputId
-          ) {
-            return;
-          }
-          handleLinkChildInput(clonedInputId, childLink.childInputId, {
-            scale: childLink.scale,
-            offset: childLink.offset,
-          });
-        });
       }
 
       onSelectRig?.(clonedInputId);
@@ -5257,8 +5271,6 @@ export function VariablesPanel({
     },
     [
       handleCloneStandardInputs,
-      handleLinkChildInput,
-      mainFaceCopyTargetReferenceCatalog,
       onSelectBlendStage,
       onSelectPoseGroup,
       onSelectRig,
@@ -6225,11 +6237,9 @@ export function VariablesPanel({
   const variableCopyRelationshipDestinationOptions = useMemo(
     () =>
       variableCopyModal
-        ? [...variableCopyModal.destinationCatalog.inputs].sort(
-            sortCatalogInputs,
-          )
+        ? [...mainFaceCopyTargetReferenceCatalog.inputs].sort(sortCatalogInputs)
         : [],
-    [variableCopyModal],
+    [mainFaceCopyTargetReferenceCatalog.inputs, variableCopyModal],
   );
   const variableCopyUnresolvedCount = useMemo(() => {
     if (!variableCopyModal) {
@@ -6275,16 +6285,20 @@ export function VariablesPanel({
       if (!activeDraft.apply) {
         return;
       }
-      const destinationInputId = activeDraft.destinationInputId.trim();
-      if (
-        !destinationInputId ||
-        !variableCopyModal.destinationCatalog.inputsById.has(destinationInputId)
-      ) {
+      const destinationInput = resolveVariableCopyRelationshipDestination({
+        modalState: variableCopyModal,
+        row,
+        draft: activeDraft,
+        standardInputsById,
+        standardInputsByPath,
+      });
+      if (!destinationInput) {
         unresolvedCount += 1;
       }
     });
     return unresolvedCount;
   }, [
+    standardInputsById,
     standardInputsByPath,
     variableCopyModal,
     variableCopyRelationshipDestinationOptions,
