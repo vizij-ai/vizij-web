@@ -99,6 +99,6 @@ sample included in `public/samples`).
 1. Install the Firebase CLI (`pnpm exec firebase --version`) and authenticate once with `pnpm exec firebase login`.
 2. Build the production bundle locally when you want to validate changes: `pnpm --filter vizij-authoring build`. The deploy command triggers the same build via a predeploy hook.
 3. For a temporary preview URL run `pnpm --dir apps/vizij-authoring exec firebase hosting:channel:deploy staging --only hosting:vizij-authoring`.
-4. Promote to production with `pnpm --dir apps/vizij-authoring exec firebase deploy --only hosting:vizij-authoring`.
+4. Promote to production with `pnpm --dir apps/vizij-authoring exec firebase deploy --only hosting:vizij-workspace`.
 
 The Firebase config files live beside this app (`firebase.json`, `.firebaserc`). They point Hosting at the `dist/` output, apply the COOP/COEP headers required for the WASM runtime, and rewrite all routes to `index.html` for SPA routing. The optional `apphosting.yaml` is unused unless we switch to Firebase App Hosting/Cloud Run in the future.
