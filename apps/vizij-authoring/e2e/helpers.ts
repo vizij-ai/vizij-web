@@ -22,7 +22,7 @@ export async function bootAuthoring(page: Page): Promise<void> {
 
 export async function loadMainPreset(
   page: Page,
-  presetId = "quori:legacy",
+  presetId = "quori:latest",
 ): Promise<void> {
   await page.getByTestId(`main-preset-${sanitizePresetId(presetId)}`).click();
   await waitForMainFaceReady(page);

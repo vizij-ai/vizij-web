@@ -10,7 +10,7 @@ import {
 
 test("pose config export/import roundtrip @workflow", async ({ page }) => {
   await bootAuthoring(page);
-  await loadMainPreset(page, "quori:legacy");
+  await loadMainPreset(page, "quori:latest");
 
   const posesTab = page.getByTestId("control-authoring-tab-poses");
   const initialCount = await readTabCount(posesTab);

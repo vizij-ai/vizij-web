@@ -670,7 +670,7 @@ export function Viewer({
               ) : (
                 <div className="flex gap-3">
                   <Button
-                    data-testid="main-preset-quori-legacy"
+                    data-testid="main-preset-quori-latest"
                     variant="secondary"
                     onClick={onLoadQuori}
                     size="md"

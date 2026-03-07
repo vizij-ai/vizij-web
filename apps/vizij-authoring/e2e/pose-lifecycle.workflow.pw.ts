@@ -3,7 +3,7 @@ import { bootAuthoring, loadMainPreset, readTabCount } from "./helpers";
 
 test("pose authoring lifecycle @workflow", async ({ page }) => {
   await bootAuthoring(page);
-  await loadMainPreset(page, "quori:legacy");
+  await loadMainPreset(page, "quori:latest");
 
   const posesTab = page.getByTestId("control-authoring-tab-poses");
   await posesTab.click();

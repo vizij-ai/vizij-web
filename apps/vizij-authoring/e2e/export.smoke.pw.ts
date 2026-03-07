@@ -10,7 +10,7 @@ import {
 
 test("export dialog smoke flow @smoke", async ({ page }) => {
   await bootAuthoring(page);
-  await loadMainPreset(page, "quori:legacy");
+  await loadMainPreset(page, "quori:latest");
   await openExportDialog(page);
   await openAdvancedExportOptions(page);
 

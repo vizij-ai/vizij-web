@@ -7,7 +7,7 @@ import {
 
 test("motiongraph panel smoke flow @smoke", async ({ page }) => {
   await bootAuthoring(page);
-  await loadMainPreset(page, "quori:legacy");
+  await loadMainPreset(page, "quori:latest");
   await ensureProceduralAnimationPanelVisible(page);
 
   await expect(page.getByTestId("motiongraph-panel")).toBeVisible();

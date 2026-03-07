@@ -3,7 +3,7 @@ import { bootAuthoring, loadMainPreset } from "./helpers";
 
 test("app boot + main preset load @smoke", async ({ page }) => {
   await bootAuthoring(page);
-  await loadMainPreset(page, "quori:legacy");
+  await loadMainPreset(page, "quori:latest");
 
   await expect(page.getByTestId("main-runtime-view")).toBeVisible();
   await expect(

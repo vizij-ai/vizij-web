@@ -548,7 +548,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const handleLoadQuori = useCallback(() => {
-    handleLoadAssetFromUrl("/assets/Quori_Legacy.glb", "Quori_Legacy.glb");
+    handleLoadAssetFromUrl(
+      "/assets/Quori_Current_Extended.glb",
+      "Quori_Current_Extended.glb",
+    );
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadHugo = useCallback(() => {
