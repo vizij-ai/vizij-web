@@ -197,6 +197,7 @@ function sortPipelineLinks(
 
 function extractPipelineLinks(
   vizij: UnknownRecord | null,
+  defaultValueByInputId: ReadonlyMap<string, number>,
 ): ReferenceCatalogPipelineLink[] {
   const pipelineV1 = asRecord(vizij?.pipelineV1);
   const byLinkId = new Map<string, ReferenceCatalogPipelineLink>();
@@ -216,7 +217,10 @@ function extractPipelineLinks(
         return;
       }
       const scale = asFiniteNumber(config.scale) ?? 1;
-      const offset = asFiniteNumber(config.offset) ?? 0;
+      const offset =
+        asFiniteNumber(config.offset) ??
+        defaultValueByInputId.get(childInputId) ??
+        0;
       const enabled = asBoolean(config.enabled, true);
       byLinkId.set(linkId, {
         linkId,
@@ -271,7 +275,10 @@ function extractPipelineLinks(
           const scale =
             asFiniteNumber(parent.scale) ?? mergedExisting?.scale ?? 1;
           const offset =
-            asFiniteNumber(parent.offset) ?? mergedExisting?.offset ?? 0;
+            asFiniteNumber(parent.offset) ??
+            mergedExisting?.offset ??
+            defaultValueByInputId.get(childInputId) ??
+            0;
           const enabled = asBoolean(
             parent.enabled,
             mergedExisting?.enabled ?? true,
@@ -296,6 +303,7 @@ function extractPipelineLinks(
 function extractBindingFallbackLinks(
   vizij: UnknownRecord | null,
   knownInputIds: ReadonlySet<string>,
+  defaultValueByInputId: ReadonlyMap<string, number>,
 ): ReferenceCatalogPipelineLink[] {
   const rawBindings = Array.isArray(vizij?.bindings) ? vizij.bindings : [];
   const linksByPair = new Map<string, ReferenceCatalogPipelineLink>();
@@ -326,7 +334,7 @@ function extractBindingFallbackLinks(
       parentInputId,
       childInputId,
       scale: 1,
-      offset: 0,
+      offset: defaultValueByInputId.get(childInputId) ?? 0,
       enabled: true,
       source: "by-input-parent",
     });
@@ -455,9 +463,19 @@ export function extractReferenceCatalog(
   const vizij = extractVizijMetadata(bundle);
   const inputDescriptors = extractInputDescriptors(vizij);
   const inputIds = new Set(inputDescriptors.map((descriptor) => descriptor.id));
+  const defaultValueByInputId = new Map(
+    inputDescriptors.map((descriptor) => [
+      descriptor.id,
+      descriptor.defaultValue,
+    ]),
+  );
   const pipelineLinks = mergePipelineAndFallbackLinks({
-    primaryLinks: extractPipelineLinks(vizij),
-    fallbackLinks: extractBindingFallbackLinks(vizij, inputIds),
+    primaryLinks: extractPipelineLinks(vizij, defaultValueByInputId),
+    fallbackLinks: extractBindingFallbackLinks(
+      vizij,
+      inputIds,
+      defaultValueByInputId,
+    ),
   });
 
   const parentsByInputId = new Map<string, ReferenceCatalogParentLink[]>();

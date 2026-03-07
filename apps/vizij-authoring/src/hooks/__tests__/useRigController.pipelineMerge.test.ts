@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendStandardInputPathSuffix,
   mergeImportedAndLocalPipelineConfigByInputId,
   mergeImportedAndLocalPipelineLinksById,
 } from "../useRigController";
 
 describe("useRigController pipeline metadata merge helpers", () => {
+  it("appends duplicate suffixes to the leaf path segment", () => {
+    expect(appendStandardInputPathSuffix("/gaze/up", "_copy")).toBe(
+      "/gaze/up_copy",
+    );
+    expect(
+      appendStandardInputPathSuffix("/rig/face/head/rotation/x", "_copy"),
+    ).toBe("/rig/face/head/rotation/x_copy");
+  });
+
   it("preserves imported custom parent formulas and stage controls when local edits are partial", () => {
     const imported = {
       child_input: {

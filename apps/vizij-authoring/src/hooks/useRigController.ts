@@ -218,6 +218,23 @@ function deriveAliasFromInputDescriptor(
   return candidate;
 }
 
+export function appendStandardInputPathSuffix(
+  path: string,
+  suffix: string,
+): string {
+  const trimmed = path.trim();
+  if (trimmed === "/") {
+    return `/${suffix.replace(/^_*/, "")}`;
+  }
+  const segments = trimmed.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return `/${suffix.replace(/^_*/, "")}`;
+  }
+  const targetIndex = segments.length - 1;
+  segments[targetIndex] = `${segments[targetIndex]}${suffix}`;
+  return `/${segments.join("/")}`;
+}
+
 function isDefaultSlotAlias(slot: RigBindingSlot, index: number): boolean {
   if (slot.inputId === SELF_BINDING_ID) {
     return false;
@@ -1502,25 +1519,6 @@ export function useRigController(
       const mapping = new Map<string, string>();
       const labelSuffix = options?.labelSuffix ?? " Copy";
       const pathSuffix = options?.pathSuffix ?? "_copy";
-
-      const appendPathSuffix = (path: string, suffix: string): string => {
-        const trimmed = path.trim();
-        if (trimmed === "/") return `/${suffix.replace(/^_*/, "")}`;
-        const segments = trimmed.split("/").filter(Boolean);
-        if (segments.length === 0) {
-          return `/${suffix.replace(/^_*/, "")}`;
-        }
-        let insertAt = 0;
-        if (segments[0] === "rig") {
-          if (segments.length >= 3 && segments[1] === "face") {
-            insertAt = 2; // rig / face / <object>
-          } else if (segments.length >= 2) {
-            insertAt = 1; // rig / <object>
-          }
-        }
-        segments[insertAt] = `${segments[insertAt]}${suffix}`;
-        return `/${segments.join("/")}`;
-      };
       setCustomInputs((previous) => {
         const existingIds = new Set<string>([
           ...previous.map((input) => input.id),
@@ -1541,7 +1539,7 @@ export function useRigController(
           if (!source) return;
           let attempt = 1;
           let candidatePath = normalizeStandardRigInputPath(
-            appendPathSuffix(source.path, pathSuffix),
+            appendStandardInputPathSuffix(source.path, pathSuffix),
           );
           let candidateId = source.id;
           while (
@@ -1551,7 +1549,7 @@ export function useRigController(
             const suffix =
               attempt === 1 ? pathSuffix : `${pathSuffix}${attempt}`;
             candidatePath = normalizeStandardRigInputPath(
-              appendPathSuffix(source.path, suffix),
+              appendStandardInputPathSuffix(source.path, suffix),
             );
             const derived = createStandardRigInputFromPath(candidatePath);
             candidateId = derived.id;
@@ -3276,7 +3274,11 @@ export function useRigController(
   }, [graphRuntimeStore, handleImportGraphSpec]);
 
   const handleLinkChildInput = useCallback(
-    (parentId: string, childId: string) => {
+    (
+      parentId: string,
+      childId: string,
+      options?: { scale?: number; offset?: number },
+    ) => {
       linkChildInput({
         parentId,
         childId,
@@ -3284,8 +3286,66 @@ export function useRigController(
         standardInputsByIdRef,
         allStandardInputsRef,
       });
+      applyInputBindingPatch((previous) => {
+        const childInput =
+          standardInputsByIdRef.current.get(childId) ??
+          allStandardInputsRef.current.get(childId);
+        if (!childInput) {
+          return previous;
+        }
+        const resolvedScale =
+          typeof options?.scale === "number" && Number.isFinite(options.scale)
+            ? options.scale
+            : 1;
+        const resolvedOffset =
+          typeof options?.offset === "number" && Number.isFinite(options.offset)
+            ? options.offset
+            : Number.isFinite(childInput.defaultValue)
+              ? childInput.defaultValue
+              : 0;
+        const linkId = buildRigPipelineV1LinkId(parentId, childId);
+        const existingBinding =
+          previous[childId] ??
+          createDefaultParentBinding(bindingTargetFromInput(childInput));
+        const nextMetadata = mergePipelineMetadata(
+          (existingBinding.metadata ?? undefined) as
+            | Record<string, unknown>
+            | undefined,
+          {
+            directInputEnabled: true,
+            linkUpserts: {
+              [linkId]: {
+                parentInputId: parentId,
+                childInputId: childId,
+                scale: resolvedScale,
+                offset: resolvedOffset,
+                enabled: true,
+              },
+            },
+          },
+        );
+        const previousMetadataSignature = JSON.stringify(
+          existingBinding.metadata ?? null,
+        );
+        const nextMetadataSignature = JSON.stringify(nextMetadata);
+        if (previousMetadataSignature === nextMetadataSignature) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [childId]: {
+            ...existingBinding,
+            metadata: nextMetadata,
+          },
+        };
+      });
     },
-    [allStandardInputsRef, standardInputsByIdRef, updateInputBinding],
+    [
+      allStandardInputsRef,
+      applyInputBindingPatch,
+      standardInputsByIdRef,
+      updateInputBinding,
+    ],
   );
 
   const handleUnlinkChildInput = useCallback(

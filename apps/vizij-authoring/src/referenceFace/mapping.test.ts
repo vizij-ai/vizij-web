@@ -257,7 +257,12 @@ describe("referenceFace catalog + mapping", () => {
   it("derives parent-child links from binding summaries when pipeline metadata is missing", () => {
     const bundle = makeBundle({
       inputs: [
-        { id: "src_blink", path: "/controls/eyes/blink", label: "Blink" },
+        {
+          id: "src_blink",
+          path: "/controls/eyes/blink",
+          label: "Blink",
+          defaultValue: 0.35,
+        },
         {
           id: "src_lid_squint",
           path: "/controls/eyes/lid_squint",
@@ -285,7 +290,7 @@ describe("referenceFace catalog + mapping", () => {
         linkId: "link/src_lid_squint->src_blink",
         parentInputId: "src_lid_squint",
         scale: 1,
-        offset: 0,
+        offset: 0.35,
         enabled: true,
       },
     ]);
@@ -294,7 +299,7 @@ describe("referenceFace catalog + mapping", () => {
         linkId: "link/src_lid_squint->src_blink",
         childInputId: "src_blink",
         scale: 1,
-        offset: 0,
+        offset: 0.35,
         enabled: true,
       },
     ]);

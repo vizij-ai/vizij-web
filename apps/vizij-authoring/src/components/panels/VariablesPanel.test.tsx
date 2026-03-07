@@ -1180,6 +1180,7 @@ describe("VariablesPanel", () => {
       "/propsrig/left_eye/lid_lower",
       {
         label: "Main Child Prop",
+        defaultValue: 0.42,
       },
     );
 
@@ -1253,6 +1254,7 @@ describe("VariablesPanel", () => {
       "/propsrig/left_eye/lid_lower",
       {
         label: "Main Child Prop",
+        defaultValue: 0.42,
       },
     );
 
@@ -1304,7 +1306,7 @@ describe("VariablesPanel", () => {
 
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
     expect(screen.getByText(/Use current scale \(1.000\)/)).toBeTruthy();
-    expect(screen.getByText(/Use current offset \(0.000\)/)).toBeTruthy();
+    expect(screen.getByText(/Use current offset \(0.420\)/)).toBeTruthy();
   });
 
   it("defaults mapping rows to apply and auto-maps unique fuzzy destination matches", () => {
@@ -2286,6 +2288,30 @@ describe("VariablesPanel", () => {
         slots: [{ inputId: source.id }],
       },
     };
+    bindingState.pipelineConfigByInputId = {
+      [source.id]: {
+        inputId: source.id,
+        parents: [
+          {
+            inputId: parent.id,
+            linkId: "link/parent->source",
+            scale: 0.25,
+            offset: 0.4,
+          },
+        ],
+      },
+      [child.id]: {
+        inputId: child.id,
+        parents: [
+          {
+            inputId: source.id,
+            linkId: "link/source->child",
+            scale: 0.8,
+            offset: -0.2,
+          },
+        ],
+      },
+    };
     bindingState.handleCloneStandardInputs.mockReturnValue(
       new Map([[source.id, "source_copy"]]),
     );
@@ -2311,10 +2337,18 @@ describe("VariablesPanel", () => {
     expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
       parent.id,
       "source_copy",
+      {
+        scale: 0.25,
+        offset: 0.4,
+      },
     );
     expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
       "source_copy",
       child.id,
+      {
+        scale: 0.8,
+        offset: -0.2,
+      },
     );
     expect(onSelectRig).toHaveBeenCalledWith("source_copy");
   });

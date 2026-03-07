@@ -79,7 +79,11 @@ export interface BindingAuthoringState {
     updater: (bindings: InputBindingMap) => InputBindingMap,
   ) => void;
   handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
-  handleLinkChildInput: (parentId: string, childId: string) => void;
+  handleLinkChildInput: (
+    parentId: string,
+    childId: string,
+    options?: { scale?: number; offset?: number },
+  ) => void;
   handleUnlinkChildInput: (parentId: string, childId: string) => void;
   handleRenameShape: (shapeId: string, value: string) => void;
   handleUpdateStandardInput: (

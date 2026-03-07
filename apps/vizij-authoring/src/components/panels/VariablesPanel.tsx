@@ -537,6 +537,7 @@ function extractBindingPipelineLinks(
 
 function extractPipelineParentLinksFromConfig(params: {
   childInputId: string;
+  childDefaultValue: number;
   config: Record<string, unknown> | null;
 }): ReferenceCatalogPipelineLink[] {
   if (!params.config) {
@@ -571,7 +572,9 @@ function extractPipelineParentLinksFromConfig(params: {
       parentInputId,
       childInputId: params.childInputId,
       scale: isFiniteNumber(parentRecord.scale) ? parentRecord.scale : 1,
-      offset: isFiniteNumber(parentRecord.offset) ? parentRecord.offset : 0,
+      offset: isFiniteNumber(parentRecord.offset)
+        ? parentRecord.offset
+        : params.childDefaultValue,
       enabled:
         typeof parentRecord.enabled === "boolean" ? parentRecord.enabled : true,
       source: "by-input-parent",
@@ -637,6 +640,7 @@ function buildMainFaceReferenceCatalog(params: {
       }
       extractPipelineParentLinksFromConfig({
         childInputId,
+        childDefaultValue: baseInputsById.get(childInputId)?.defaultValue ?? 0,
         config: asRecord(rawConfig),
       }).forEach((link) => {
         if (
@@ -677,7 +681,7 @@ function buildMainFaceReferenceCatalog(params: {
           parentInputId,
           childInputId,
           scale: 1,
-          offset: 0,
+          offset: baseInputsById.get(childInputId)?.defaultValue ?? 0,
           enabled: true,
           source: "by-input-parent",
         });
@@ -5219,34 +5223,32 @@ export function VariablesPanel({
         return null;
       }
 
-      const inputBindingById = inputBindings as Record<
-        string,
-        BindingInputLike | undefined
-      >;
-      const sourceBinding = inputBindingById[sourceInputId];
-      const parentIds = Array.from(collectBindingInputIds(sourceBinding));
-      parentIds.forEach((parentInputId) => {
-        if (parentInputId === clonedInputId) {
-          return;
-        }
-        handleLinkChildInput(parentInputId, clonedInputId);
-      });
-
-      Object.entries(inputBindingById).forEach(
-        ([candidateChildId, binding]) => {
+      const sourceCatalogInput =
+        mainFaceCopyTargetReferenceCatalog.inputsById.get(sourceInputId) ??
+        null;
+      if (sourceCatalogInput) {
+        sourceCatalogInput.parents.forEach((parentLink) => {
+          if (parentLink.parentInputId === clonedInputId) {
+            return;
+          }
+          handleLinkChildInput(parentLink.parentInputId, clonedInputId, {
+            scale: parentLink.scale,
+            offset: parentLink.offset,
+          });
+        });
+        sourceCatalogInput.children.forEach((childLink) => {
           if (
-            candidateChildId === sourceInputId ||
-            candidateChildId === clonedInputId
+            childLink.childInputId === sourceInputId ||
+            childLink.childInputId === clonedInputId
           ) {
             return;
           }
-          const parentIdsForChild = collectBindingInputIds(binding);
-          if (!parentIdsForChild.has(sourceInputId)) {
-            return;
-          }
-          handleLinkChildInput(clonedInputId, candidateChildId);
-        },
-      );
+          handleLinkChildInput(clonedInputId, childLink.childInputId, {
+            scale: childLink.scale,
+            offset: childLink.offset,
+          });
+        });
+      }
 
       onSelectRig?.(clonedInputId);
       onSelectPoseGroup?.(null);
@@ -5256,7 +5258,7 @@ export function VariablesPanel({
     [
       handleCloneStandardInputs,
       handleLinkChildInput,
-      inputBindings,
+      mainFaceCopyTargetReferenceCatalog,
       onSelectBlendStage,
       onSelectPoseGroup,
       onSelectRig,
