@@ -37,7 +37,6 @@ import {
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
-import { Switch } from "../ui/Switch";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { CollapsibleGroup } from "../ui";
@@ -4560,23 +4559,11 @@ export function InspectorContent({
           ) : null}
           <CollapsibleGroup
             title="Driver Metadata"
-            subtitle={`Default ${input.defaultValue.toFixed(3)} · Range ${input.range.min.toFixed(3)}..${input.range.max.toFixed(3)} · ${
-              pipelineStageSettings.clampEnabled ? "Clamp on" : "Clamp off"
-            }`}
+            subtitle={`Default ${input.defaultValue.toFixed(3)} · Range ${input.range.min.toFixed(3)}..${input.range.max.toFixed(3)}`}
             defaultCollapsed={true}
             className="mb-0"
           >
-            <div className="flex items-center justify-between gap-2">
-              <Switch
-                checked={pipelineStageSettings.clampEnabled}
-                onChange={handlePipelineClampEnabledChange}
-                label={
-                  pipelineStageSettings.clampEnabled
-                    ? "Clamp Enabled"
-                    : "Clamp Disabled"
-                }
-                size="sm"
-              />
+            <div className="flex items-center justify-end gap-2">
               <span
                 className={cn(
                   "text-[10px] font-mono px-1.5 py-0.5 rounded border",
@@ -4900,6 +4887,8 @@ export function InspectorContent({
               setRigLinkSelectorMode("child");
               setShowSelector(true);
             }}
+            // Clamp editing is intentionally hidden here because mutating it
+            // still breaks the authored driver pipeline for this inspector flow.
             showClampStage={false}
           />
           {sharedLink && (
