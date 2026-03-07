@@ -141,6 +141,7 @@ interface UseVizijExportOptions {
   poseRig: PoseRigExportState;
   authoredMotionGraphs?: MotionGraphExportEntry[];
   getMotionGraphSpec?: () => { nodes: unknown[]; edges: unknown[] } | null;
+  onExportGlbComplete?: () => void;
 }
 
 interface MotionGraphExportEntry {
@@ -591,6 +592,7 @@ export function useVizijExport(
     poseRig,
     authoredMotionGraphs,
     getMotionGraphSpec,
+    onExportGlbComplete,
   } = options;
 
   const exportGraph = useCallback(() => {
@@ -1053,12 +1055,14 @@ export function useVizijExport(
           ? {
               fileName: downloadName,
               bundle,
+              onComplete: onExportGlbComplete,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
               },
             }
           : {
               fileName: downloadName,
+              onComplete: onExportGlbComplete,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
               },
@@ -1093,6 +1097,7 @@ export function useVizijExport(
     includeVizijBundle,
     inputBindings,
     loadedBundle,
+    onExportGlbComplete,
     pipelineConfigByInputId,
     pipelineMetadataV1,
     poseRig,

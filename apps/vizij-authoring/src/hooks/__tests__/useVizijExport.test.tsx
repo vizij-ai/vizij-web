@@ -322,6 +322,38 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("notifies when GLB export completes successfully", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    const onExportGlbComplete = vi.fn();
+    mockedExportScene.mockImplementation((_body, options) => {
+      if (typeof options === "string") {
+        return;
+      }
+      options?.onComplete?.();
+    });
+
+    const hook = renderHook(
+      createOptions({
+        onExportGlbComplete,
+      }),
+    );
+
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(onExportGlbComplete).toHaveBeenCalledTimes(1);
+    hook.unmount();
+  });
+
   it("passes staged pipeline config to graph build and preserves compiled rig pipeline metadata", async () => {
     const compiledPipelineMetadata = {
       version: 1,

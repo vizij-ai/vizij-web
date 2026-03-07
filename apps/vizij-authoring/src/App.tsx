@@ -82,6 +82,10 @@ import { useAnimationStore } from "./state/animationStore";
 import { useAnimationTransport } from "./hooks/useAnimationTransport";
 import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
 import {
+  buildGlbExportDirtySnapshot,
+  useExportDirtyState,
+} from "./hooks/useExportDirtyState";
+import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
   type AnimationClipIR,
@@ -518,6 +522,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
     useState<string | null>(null);
+  const exportGlbHandlerRef = useRef<(() => Promise<void>) | null>(null);
 
   // Reference Face State
 
@@ -697,8 +702,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.managedStandardInputs,
   );
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const bindings = useBindingAuthoring((state) => state.bindings);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const animatableComponents = useBindingAuthoring(
+    (state) => state.animatableComponents,
+  );
   const animatableComponentCount = useBindingAuthoring(
     (state) => state.animatableComponents.length,
+  );
+  const featureLabelOverrides = useBindingAuthoring(
+    (state) => state.featureLabelOverrides,
+  );
+  const pipelineMetadataV1 = useBindingAuthoring(
+    (state) => state.pipelineMetadataV1,
   );
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
@@ -716,6 +732,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const {
     activeWorkbench,
+    includeVizijBundle,
+    includeImportedAnimations,
     skipDiscrepancyCheck,
     activeRuntimeSource,
     activeEditFocus,
@@ -797,6 +815,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const animatables = useGraphRuntime((state) => state.animatables);
   const papPlaybackState = useGraphRuntime((state) => state.graphPlaybackState);
   const papTimeSeconds = useGraphRuntime((state) => state.graphTimeSeconds);
   const papPlaybackAvailable = useGraphRuntime(
@@ -1607,6 +1626,91 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedProceduralTargetId,
   ]);
 
+  const loadingSessionActive =
+    loader.faceLoadSessionStartedAtMs !== null &&
+    loader.faceLoadSessionCompletedAtMs === null;
+  const loadingCoordinatorSettled = faceLoadInFlightOperationCount === 0;
+  const deterministicMilestoneChainReady =
+    faceLoadMilestones["asset-loaded"] !== null &&
+    faceLoadMilestones["bundle-synced"] !== null &&
+    faceLoadMilestones["graph-ready"] !== null;
+  const exportSessionKey =
+    faceLoadSessionToken ??
+    `${sourceName ?? "__no-source__"}:${rootId ?? "__no-root__"}`;
+  const exportSessionReady =
+    Boolean(rootId) &&
+    deterministicMilestoneChainReady &&
+    loadingCoordinatorSettled &&
+    !loadingSessionActive &&
+    !isLoading;
+  const exportDirtySnapshot = useMemo(
+    () =>
+      buildGlbExportDirtySnapshot({
+        faceId,
+        includeVizijBundle,
+        includeImportedAnimations,
+        animatables,
+        animatableComponents,
+        featureLabelOverrides,
+        standardInputs,
+        bindings,
+        inputBindings,
+        pipelineMetadataV1,
+        poseGraphSpec: poseRig.poseGraphSpec,
+        poseGraphFileName: poseRig.poseGraphFileName,
+        poseConfigDraft: poseRig.poseConfigDraft,
+        poseIrDraft: poseRig.poseIrDraft,
+        blendMode: poseRig.blendMode,
+        crossGroupBlendMode: poseRig.crossGroupBlendMode,
+        authoredAnimationClips: authoredAnimationClipsForExport,
+        authoredMotionGraphs: authoredProceduralProgramsForExport,
+      }),
+    [
+      animatableComponents,
+      animatables,
+      authoredAnimationClipsForExport,
+      authoredProceduralProgramsForExport,
+      bindings,
+      faceId,
+      featureLabelOverrides,
+      includeImportedAnimations,
+      includeVizijBundle,
+      inputBindings,
+      pipelineMetadataV1,
+      poseRig.blendMode,
+      poseRig.crossGroupBlendMode,
+      poseRig.poseConfigDraft,
+      poseRig.poseGraphFileName,
+      poseRig.poseGraphSpec,
+      poseRig.poseIrDraft,
+      standardInputs,
+    ],
+  );
+  const { isDirty: hasUnsavedGlbChanges, markSaved: markGlbExportSaved } =
+    useExportDirtyState({
+      sessionKey: exportSessionKey,
+      ready: exportSessionReady,
+      snapshot: exportDirtySnapshot,
+    });
+
+  const handleRegisterGlbExportHandler = useCallback(
+    (handler: (() => Promise<void>) | null) => {
+      exportGlbHandlerRef.current = handler;
+    },
+    [],
+  );
+  const handleSaveExport = useCallback(() => {
+    if (!canExport) {
+      return;
+    }
+    const exportGlb = exportGlbHandlerRef.current;
+    if (!exportGlb) {
+      setShowExportDialog(true);
+      return;
+    }
+    void exportGlb();
+  }, [canExport]);
+
   useEffect(() => {
     if (
       animationTargetOptions.some(
@@ -2188,7 +2292,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
+      onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
+      canSave={canExport}
+      saveDirty={hasUnsavedGlbChanges}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
       activeEditFocus={activeEditFocus}
@@ -2214,14 +2321,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     !runtimeViewLoading &&
     runtimeViewRootId !== null &&
     runtimeViewRootId === rootId;
-  const loadingSessionActive =
-    loader.faceLoadSessionStartedAtMs !== null &&
-    loader.faceLoadSessionCompletedAtMs === null;
-  const loadingCoordinatorSettled = faceLoadInFlightOperationCount === 0;
-  const deterministicMilestoneChainReady =
-    faceLoadMilestones["asset-loaded"] !== null &&
-    faceLoadMilestones["bundle-synced"] !== null &&
-    faceLoadMilestones["graph-ready"] !== null;
   const loadingBarVisible = loadingSessionActive;
   const weightedStepProgress = useMemo(
     () => computeWeightedFaceLoadProgress(loader.faceLoadSteps),
@@ -2777,6 +2876,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         poseGraphRemap={poseGraphRemap}
         handlePoseGraphRemapApply={handlePoseGraphRemapApply}
         handlePoseGraphRemapCancel={handlePoseGraphRemapCancel}
+        onExportGlbComplete={markGlbExportSaved}
+        registerGlbExportHandler={handleRegisterGlbExportHandler}
       />
 
       <OrientationConfirmationDialog

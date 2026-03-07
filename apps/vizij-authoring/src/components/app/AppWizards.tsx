@@ -31,6 +31,8 @@ interface AppWizardsProps {
   poseGraphRemap: any;
   handlePoseGraphRemapApply: (remappedGraph: any) => void;
   handlePoseGraphRemapCancel: () => void;
+  onExportGlbComplete?: () => void;
+  registerGlbExportHandler?: (handler: (() => Promise<void>) | null) => void;
 }
 
 export function AppWizards({
@@ -48,6 +50,8 @@ export function AppWizards({
   poseGraphRemap,
   handlePoseGraphRemapApply,
   handlePoseGraphRemapCancel,
+  onExportGlbComplete,
+  registerGlbExportHandler,
 }: AppWizardsProps) {
   const discrepancyReview = useGraphRuntime((state) => state.discrepancyReview);
   const resolveDiscrepancyReview = useGraphRuntime(
@@ -87,6 +91,8 @@ export function AppWizards({
         authoredProceduralPrograms={authoredProceduralPrograms}
         canExport={canExport}
         onImportPoseGraph={handleImportPoseGraphFile}
+        onExportGlbComplete={onExportGlbComplete}
+        registerGlbExportHandler={registerGlbExportHandler}
       />
     </>
   );

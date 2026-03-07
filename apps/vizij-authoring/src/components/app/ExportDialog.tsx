@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useVizijStore } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import type { VizijBundleExtension } from "@vizij/render";
@@ -64,6 +64,8 @@ interface ExportDialogProps {
   canExport: boolean;
   onImportPoseGraph: (file: File) => Promise<void>;
   runtimeExportBodies?: RuntimeExportBodies;
+  onExportGlbComplete?: () => void;
+  registerGlbExportHandler?: (handler: (() => Promise<void>) | null) => void;
 }
 
 export function ExportDialog({
@@ -78,6 +80,8 @@ export function ExportDialog({
   canExport,
   onImportPoseGraph,
   runtimeExportBodies,
+  onExportGlbComplete,
+  registerGlbExportHandler,
 }: ExportDialogProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
@@ -231,7 +235,15 @@ export function ExportDialog({
       crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
     authoredMotionGraphs: authoredProceduralPrograms,
+    onExportGlbComplete,
   });
+
+  useEffect(() => {
+    registerGlbExportHandler?.(exportGlb);
+    return () => {
+      registerGlbExportHandler?.(null);
+    };
+  }, [exportGlb, registerGlbExportHandler]);
 
   const bundleSummary = useMemo<VizijBundleSummary>(() => {
     if (!loadedBundle) {
