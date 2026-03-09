@@ -54,6 +54,11 @@ import { cn } from "../../utils/cn";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
 import {
+  fromRotationDisplayValue,
+  shouldDisplayRotationInDegrees,
+  toRotationDisplayValue,
+} from "../../utils/rotationDisplay";
+import {
   buildPoseWeightRelativePath,
   parsePoseWeightInputSourceId,
 } from "../../poseRig/utils";
@@ -116,6 +121,7 @@ type PoseVariableGroup = {
 
 type PoseVariableBaseDefinition = {
   rawLabel: string;
+  path: string | null;
   min: number;
   max: number;
   neutralVal: number;
@@ -126,6 +132,7 @@ type PoseVariableBaseDefinition = {
 
 type PoseVariableRenderItem = PoseVariableItem & {
   label: string;
+  path: string | null;
   min: number;
   max: number;
   neutralVal: number;
@@ -349,6 +356,24 @@ function PoseVariableExpandedControls({
   onInputValueChange,
   onUpdatePoseValue,
 }: PoseVariableExpandedControlsProps) {
+  const { rotationDisplayMode } = useAuthoringUiState();
+  const useDegreeDisplay = shouldDisplayRotationInDegrees(
+    item.path,
+    rotationDisplayMode,
+  );
+  const displayMin = useDegreeDisplay
+    ? toRotationDisplayValue(item.min, rotationDisplayMode)
+    : item.min;
+  const displayMax = useDegreeDisplay
+    ? toRotationDisplayValue(item.max, rotationDisplayMode)
+    : item.max;
+  const displayPoseValue = useDegreeDisplay
+    ? toRotationDisplayValue(item.poseVal, rotationDisplayMode)
+    : item.poseVal;
+  const displayPoseDrivenValue = useDegreeDisplay
+    ? toRotationDisplayValue(item.poseDrivenVal, rotationDisplayMode)
+    : item.poseDrivenVal;
+  const displayStep = useDegreeDisplay ? 0.5 : 0.0001;
   const stagedValue = useBindingAuthoring(
     (state) => state.inputValues[item.varId],
   );
@@ -356,6 +381,9 @@ function PoseVariableExpandedControls({
     typeof stagedValue === "number" && Number.isFinite(stagedValue)
       ? stagedValue
       : item.neutralVal;
+  const displayDirectValue = useDegreeDisplay
+    ? toRotationDisplayValue(directVal, rotationDisplayMode)
+    : directVal;
   const sliderRange = item.max - item.min;
   const directPercent =
     sliderRange > 0 ? clamp01((directVal - item.min) / sliderRange) * 100 : 0;
@@ -374,10 +402,23 @@ function PoseVariableExpandedControls({
     (nextDirect: number) => {
       onInputValueChange(
         item.varId,
-        clampToRange(nextDirect, item.min, item.max),
+        clampToRange(
+          useDegreeDisplay
+            ? fromRotationDisplayValue(nextDirect, rotationDisplayMode)
+            : nextDirect,
+          item.min,
+          item.max,
+        ),
       );
     },
-    [item.max, item.min, item.varId, onInputValueChange],
+    [
+      item.max,
+      item.min,
+      item.varId,
+      onInputValueChange,
+      rotationDisplayMode,
+      useDegreeDisplay,
+    ],
   );
 
   const handleDirectReset = useCallback(() => {
@@ -398,10 +439,24 @@ function PoseVariableExpandedControls({
       onUpdatePoseValue(
         poseId,
         item.varId,
-        clampToRange(nextTarget, item.min, item.max),
+        clampToRange(
+          useDegreeDisplay
+            ? fromRotationDisplayValue(nextTarget, rotationDisplayMode)
+            : nextTarget,
+          item.min,
+          item.max,
+        ),
       );
     },
-    [item.max, item.min, item.varId, onUpdatePoseValue, poseId],
+    [
+      item.max,
+      item.min,
+      item.varId,
+      onUpdatePoseValue,
+      poseId,
+      rotationDisplayMode,
+      useDegreeDisplay,
+    ],
   );
 
   return (
@@ -416,10 +471,10 @@ function PoseVariableExpandedControls({
           </span>
           <div className="relative min-w-0">
             <Slider
-              min={item.min}
-              max={item.max}
-              step={0.0001}
-              value={directVal}
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              value={displayDirectValue}
               fillMode="none"
               className="w-full"
               onChange={(val) => handleDirectInputChange(val as number)}
@@ -437,11 +492,11 @@ function PoseVariableExpandedControls({
           >
             <NumberField
               size="sm"
-              min={item.min}
-              max={item.max}
-              step={0.0001}
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
               format={POSE_VALUE_PRECISION_FORMAT}
-              value={directVal}
+              value={displayDirectValue}
               allowScrub={false}
               className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
               onChange={handleDirectInputChange}
@@ -481,10 +536,10 @@ function PoseVariableExpandedControls({
         </span>
         <div className="relative min-w-0">
           <Slider
-            min={item.min}
-            max={item.max}
-            step={0.0001}
-            value={item.poseVal}
+            min={displayMin}
+            max={displayMax}
+            step={displayStep}
+            value={displayPoseValue}
             fillMode="none"
             className="w-full"
             onChange={(val) => handleTargetValueChange(val as number)}
@@ -516,11 +571,11 @@ function PoseVariableExpandedControls({
         >
           <NumberField
             size="sm"
-            min={item.min}
-            max={item.max}
-            step={0.0001}
+            min={displayMin}
+            max={displayMax}
+            step={displayStep}
             format={POSE_VALUE_PRECISION_FORMAT}
-            value={item.poseVal}
+            value={displayPoseValue}
             allowScrub={false}
             className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
             onChange={handleTargetValueChange}
@@ -531,7 +586,7 @@ function PoseVariableExpandedControls({
             className="text-[10px] font-mono whitespace-nowrap text-white"
             title={poseSemanticTooltips.poseDriven}
           >
-            Current Pose: {item.poseDrivenVal.toFixed(4)}
+            Current Pose: {displayPoseDrivenValue.toFixed(4)}
           </span>
         </div>
       </div>
@@ -546,7 +601,7 @@ interface InspectorContentProps {
 export function InspectorContent({
   hasReferenceFaceFile = false,
 }: InspectorContentProps) {
-  const { activeEditFocus } = useAuthoringUiState();
+  const { activeEditFocus, rotationDisplayMode } = useAuthoringUiState();
   const [showSelector, setShowSelector] = useState(false);
   const [rigLinkSelectorMode, setRigLinkSelectorMode] = useState<
     "child" | "parent"
@@ -581,6 +636,37 @@ export function InspectorContent({
   const [sharedPoseCombinedKey, setSharedPoseCombinedKey] = useState<
     string | null
   >(null);
+  const usesDegreeDisplay = useCallback(
+    (path: string | null | undefined) =>
+      shouldDisplayRotationInDegrees(path, rotationDisplayMode),
+    [rotationDisplayMode],
+  );
+  const toDisplayValue = useCallback(
+    (value: number, path: string | null | undefined) =>
+      usesDegreeDisplay(path)
+        ? toRotationDisplayValue(value, rotationDisplayMode)
+        : value,
+    [rotationDisplayMode, usesDegreeDisplay],
+  );
+  const fromDisplayValue = useCallback(
+    (value: number, path: string | null | undefined) =>
+      usesDegreeDisplay(path)
+        ? fromRotationDisplayValue(value, rotationDisplayMode)
+        : value,
+    [rotationDisplayMode, usesDegreeDisplay],
+  );
+  const resolveDisplayStep = useCallback(
+    (min: number, max: number, path: string | null | undefined) =>
+      usesDegreeDisplay(path)
+        ? 0.5
+        : Math.max(0.0001, Math.min(0.1, Math.abs(max - min) / 200)),
+    [usesDegreeDisplay],
+  );
+  const formatDraftDisplayNumber = useCallback(
+    (value: number, path: string | null | undefined) =>
+      formatDraftNumber(toDisplayValue(value, path)),
+    [toDisplayValue],
+  );
 
   // Hooks
   const {
@@ -1050,12 +1136,18 @@ export function InspectorContent({
       return;
     }
     const { input } = selectedManagedRigEntry;
-    setRigDefaultDraft(formatDraftNumber(input.defaultValue ?? 0));
-    setRigRangeMinDraft(formatDraftNumber(input.range.min ?? -1));
-    setRigRangeMaxDraft(formatDraftNumber(input.range.max ?? 1));
+    setRigDefaultDraft(
+      formatDraftDisplayNumber(input.defaultValue ?? 0, input.path),
+    );
+    setRigRangeMinDraft(
+      formatDraftDisplayNumber(input.range.min ?? -1, input.path),
+    );
+    setRigRangeMaxDraft(
+      formatDraftDisplayNumber(input.range.max ?? 1, input.path),
+    );
     setRigPathDraft(input.path ?? "");
     setRigLifecycleMessage(null);
-  }, [inspectorMode, selectedManagedRigEntry]);
+  }, [formatDraftDisplayNumber, inspectorMode, selectedManagedRigEntry]);
 
   const targetOwnerById = useMemo(() => {
     const targetOwners = new Map<string, string>();
@@ -1602,6 +1694,7 @@ export function InspectorContent({
     }
     Object.keys(selectedPose.values).forEach((varId) => {
       const inputDef = rigInputById.get(varId);
+      const inputPath = standardInputsById.get(varId)?.path ?? null;
       const min = inputDef?.range?.min ?? -1;
       const max = inputDef?.range?.max ?? 1;
       const fallbackDefault = standardInputsById.get(varId)?.defaultValue;
@@ -1618,6 +1711,7 @@ export function InspectorContent({
         : neutralVal;
       baseById.set(varId, {
         rawLabel: inputDef?.label || varId,
+        path: inputPath,
         min,
         max,
         neutralVal,
@@ -1647,6 +1741,7 @@ export function InspectorContent({
       items: group.items.map((item) => {
         const base = poseVariableBaseById.get(item.varId) ?? {
           rawLabel: item.varId,
+          path: null,
           min: -1,
           max: 1,
           neutralVal: 0,
@@ -1661,6 +1756,7 @@ export function InspectorContent({
         return {
           ...item,
           label: cleanLabel(base.rawLabel, group.label),
+          path: base.path,
           min: base.min,
           max: base.max,
           neutralVal: base.neutralVal,
@@ -2136,7 +2232,14 @@ export function InspectorContent({
     const currentValue = resolveReferenceRigInputValue(input);
     const min = Number.isFinite(input.range.min) ? input.range.min : -1;
     const max = Number.isFinite(input.range.max) ? input.range.max : 1;
-    const step = Math.max(0.0001, Math.min(0.1, Math.abs(max - min) / 200));
+    const displayMin = toDisplayValue(min, input.path);
+    const displayMax = toDisplayValue(max, input.path);
+    const displayCurrentValue = toDisplayValue(currentValue, input.path);
+    const displaySharedCombinedValue = toDisplayValue(
+      sharedCombinedValue,
+      input.path,
+    );
+    const step = resolveDisplayStep(min, max, input.path);
     const catalogInput = referenceFace.getReferenceCatalogInput(input.id);
     const rigValuesMatch =
       sharedMainValue === null ||
@@ -2163,18 +2266,21 @@ export function InspectorContent({
             </span>
             <div className="flex items-center gap-2">
               <Slider
-                value={sharedCombinedValue}
-                min={min}
-                max={max}
+                value={displaySharedCombinedValue}
+                min={displayMin}
+                max={displayMax}
                 step={step}
                 fillMode="value"
                 className="flex-1"
                 onChange={(nextValue) =>
                   onSharedCombinedValueChange(
                     clampToRange(
-                      typeof nextValue === "number"
-                        ? nextValue
-                        : (nextValue[0] ?? 0),
+                      fromDisplayValue(
+                        typeof nextValue === "number"
+                          ? nextValue
+                          : (nextValue[0] ?? 0),
+                        input.path,
+                      ),
                       min,
                       max,
                     ),
@@ -2182,15 +2288,21 @@ export function InspectorContent({
                 }
               />
               <NumberField
-                value={sharedCombinedValue}
-                min={min}
-                max={max}
+                value={displaySharedCombinedValue}
+                min={displayMin}
+                max={displayMax}
                 step={step}
                 size="sm"
                 className="w-[108px]"
                 allowScrub={false}
                 onChange={(nextValue) =>
-                  onSharedCombinedValueChange(clampToRange(nextValue, min, max))
+                  onSharedCombinedValueChange(
+                    clampToRange(
+                      fromDisplayValue(nextValue, input.path),
+                      min,
+                      max,
+                    ),
+                  )
                 }
               />
             </div>
@@ -2228,26 +2340,31 @@ export function InspectorContent({
                 Current Value
               </span>
               <NumberField
-                value={currentValue}
-                min={min}
-                max={max}
+                value={displayCurrentValue}
+                min={displayMin}
+                max={displayMax}
                 step={step}
                 size="sm"
                 className="w-[108px]"
-                onChange={(nextValue) => updateReferenceValue(nextValue)}
+                onChange={(nextValue) =>
+                  updateReferenceValue(fromDisplayValue(nextValue, input.path))
+                }
               />
             </div>
             <Slider
-              value={currentValue}
-              min={min}
-              max={max}
+              value={displayCurrentValue}
+              min={displayMin}
+              max={displayMax}
               step={step}
               fillMode="value"
               onChange={(nextValue) =>
                 updateReferenceValue(
-                  typeof nextValue === "number"
-                    ? nextValue
-                    : (nextValue[0] ?? 0),
+                  fromDisplayValue(
+                    typeof nextValue === "number"
+                      ? nextValue
+                      : (nextValue[0] ?? 0),
+                    input.path,
+                  ),
                 )
               }
             />
@@ -3108,9 +3225,12 @@ export function InspectorContent({
                 {group.items.map((item) => {
                   const varId = item.varId;
                   const isExpanded = expandedPoseVariableIds.has(varId);
+                  const displayPoseValue = toDisplayValue(
+                    item.poseVal,
+                    item.path,
+                  );
                   const {
                     label,
-                    poseVal,
                     poseComposeMode,
                     canInspectVariable,
                     chainSummary,
@@ -3172,7 +3292,7 @@ export function InspectorContent({
                               className="text-[9px] font-mono whitespace-nowrap rounded border border-amber-300/70 bg-amber-500/12 px-1 py-0.5 text-amber-200"
                               title={poseSemanticTooltips.target}
                             >
-                              Target {poseVal.toFixed(4)}
+                              Target {displayPoseValue.toFixed(4)}
                             </span>
                             <label
                               className="inline-flex items-center gap-1 rounded border border-border-default/60 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-muted"
@@ -3425,21 +3545,24 @@ export function InspectorContent({
       };
 
       const handleApplyRigMetadataDraft = () => {
-        const parsedMin = parseDraftNumber(rigRangeMinDraft, "Minimum value");
-        if (parsedMin === null) {
+        const displayMin = parseDraftNumber(rigRangeMinDraft, "Minimum value");
+        if (displayMin === null) {
           return;
         }
-        const parsedMax = parseDraftNumber(rigRangeMaxDraft, "Maximum value");
-        if (parsedMax === null) {
+        const displayMax = parseDraftNumber(rigRangeMaxDraft, "Maximum value");
+        if (displayMax === null) {
           return;
         }
-        const parsedDefault = parseDraftNumber(
+        const displayDefault = parseDraftNumber(
           rigDefaultDraft,
           "Default value",
         );
-        if (parsedDefault === null) {
+        if (displayDefault === null) {
           return;
         }
+        const parsedMin = fromDisplayValue(displayMin, input.path);
+        const parsedMax = fromDisplayValue(displayMax, input.path);
+        const parsedDefault = fromDisplayValue(displayDefault, input.path);
         if (parsedMin > parsedMax) {
           setRigLifecycleMessage({
             tone: "error",
@@ -3480,9 +3603,15 @@ export function InspectorContent({
         if (reactivity.value !== value) {
           handleInputValueChange(input.id, reactivity.value);
         }
-        setRigDefaultDraft(formatDraftNumber(reactivity.defaultValue));
-        setRigRangeMinDraft(formatDraftNumber(reactivity.range.min));
-        setRigRangeMaxDraft(formatDraftNumber(reactivity.range.max));
+        setRigDefaultDraft(
+          formatDraftDisplayNumber(reactivity.defaultValue, input.path),
+        );
+        setRigRangeMinDraft(
+          formatDraftDisplayNumber(reactivity.range.min, input.path),
+        );
+        setRigRangeMaxDraft(
+          formatDraftDisplayNumber(reactivity.range.max, input.path),
+        );
         setRigLifecycleMessage({
           tone: "info",
           text: "Driver metadata updated.",
@@ -4476,6 +4605,19 @@ export function InspectorContent({
           text: "Legacy canonical self+parent binding migrated to staged pipeline metadata.",
         });
       };
+      const rigDisplayMin = toDisplayValue(input.range.min, input.path);
+      const rigDisplayMax = toDisplayValue(input.range.max, input.path);
+      const rigDisplayDefault = toDisplayValue(input.defaultValue, input.path);
+      const rigDisplaySharedCombinedValue = toDisplayValue(
+        sharedRigCombinedValue,
+        input.path,
+      );
+      const rigDisplayStep = resolveDisplayStep(
+        input.range.min,
+        input.range.max,
+        input.path,
+      );
+      const rigMetadataStep = usesDegreeDisplay(input.path) ? "0.5" : "0.01";
       return (
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
           <InspectorHeader
@@ -4518,42 +4660,35 @@ export function InspectorContent({
               </span>
               <div className="flex items-center gap-2">
                 <Slider
-                  value={sharedRigCombinedValue}
-                  min={input.range.min}
-                  max={input.range.max}
-                  step={Math.max(
-                    0.0001,
-                    Math.min(
-                      0.1,
-                      Math.abs(input.range.max - input.range.min) / 200,
-                    ),
-                  )}
+                  value={rigDisplaySharedCombinedValue}
+                  min={rigDisplayMin}
+                  max={rigDisplayMax}
+                  step={rigDisplayStep}
                   fillMode="value"
                   className="flex-1"
                   onChange={(nextValue) =>
                     handleSharedRigValueChange(
-                      typeof nextValue === "number"
-                        ? nextValue
-                        : (nextValue[0] ?? 0),
+                      fromDisplayValue(
+                        typeof nextValue === "number"
+                          ? nextValue
+                          : (nextValue[0] ?? 0),
+                        input.path,
+                      ),
                     )
                   }
                 />
                 <NumberField
-                  value={sharedRigCombinedValue}
-                  min={input.range.min}
-                  max={input.range.max}
-                  step={Math.max(
-                    0.0001,
-                    Math.min(
-                      0.1,
-                      Math.abs(input.range.max - input.range.min) / 200,
-                    ),
-                  )}
+                  value={rigDisplaySharedCombinedValue}
+                  min={rigDisplayMin}
+                  max={rigDisplayMax}
+                  step={rigDisplayStep}
                   size="sm"
                   className="w-[108px]"
                   allowScrub={false}
                   onChange={(nextValue) =>
-                    handleSharedRigValueChange(nextValue)
+                    handleSharedRigValueChange(
+                      fromDisplayValue(nextValue, input.path),
+                    )
                   }
                 />
               </div>
@@ -4568,7 +4703,7 @@ export function InspectorContent({
           ) : null}
           <CollapsibleGroup
             title="Driver Metadata"
-            subtitle={`Default ${input.defaultValue.toFixed(3)} · Range ${input.range.min.toFixed(3)}..${input.range.max.toFixed(3)}`}
+            subtitle={`Default ${rigDisplayDefault.toFixed(3)} · Range ${rigDisplayMin.toFixed(3)}..${rigDisplayMax.toFixed(3)}`}
             defaultCollapsed={true}
             className="mb-0"
           >
@@ -4637,7 +4772,7 @@ export function InspectorContent({
                 <Input
                   size="sm"
                   type="number"
-                  step="0.01"
+                  step={rigMetadataStep}
                   value={rigDefaultDraft}
                   onChange={(event) => setRigDefaultDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -4647,7 +4782,10 @@ export function InspectorContent({
                     } else if (event.key === "Escape") {
                       event.preventDefault();
                       setRigDefaultDraft(
-                        formatDraftNumber(input.defaultValue ?? 0),
+                        formatDraftDisplayNumber(
+                          input.defaultValue ?? 0,
+                          input.path,
+                        ),
                       );
                       setRigLifecycleMessage(null);
                     }
@@ -4662,7 +4800,7 @@ export function InspectorContent({
                 <Input
                   size="sm"
                   type="number"
-                  step="0.01"
+                  step={rigMetadataStep}
                   value={rigRangeMinDraft}
                   onChange={(event) => setRigRangeMinDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -4672,7 +4810,10 @@ export function InspectorContent({
                     } else if (event.key === "Escape") {
                       event.preventDefault();
                       setRigRangeMinDraft(
-                        formatDraftNumber(input.range.min ?? -1),
+                        formatDraftDisplayNumber(
+                          input.range.min ?? -1,
+                          input.path,
+                        ),
                       );
                       setRigLifecycleMessage(null);
                     }
@@ -4687,7 +4828,7 @@ export function InspectorContent({
                 <Input
                   size="sm"
                   type="number"
-                  step="0.01"
+                  step={rigMetadataStep}
                   value={rigRangeMaxDraft}
                   onChange={(event) => setRigRangeMaxDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -4697,7 +4838,10 @@ export function InspectorContent({
                     } else if (event.key === "Escape") {
                       event.preventDefault();
                       setRigRangeMaxDraft(
-                        formatDraftNumber(input.range.max ?? 1),
+                        formatDraftDisplayNumber(
+                          input.range.max ?? 1,
+                          input.path,
+                        ),
                       );
                       setRigLifecycleMessage(null);
                     }
@@ -4720,9 +4864,15 @@ export function InspectorContent({
                 size="sm"
                 className="h-6 text-[10px]"
                 onClick={() => {
-                  setRigDefaultDraft(formatDraftNumber(input.defaultValue));
-                  setRigRangeMinDraft(formatDraftNumber(input.range.min));
-                  setRigRangeMaxDraft(formatDraftNumber(input.range.max));
+                  setRigDefaultDraft(
+                    formatDraftDisplayNumber(input.defaultValue, input.path),
+                  );
+                  setRigRangeMinDraft(
+                    formatDraftDisplayNumber(input.range.min, input.path),
+                  );
+                  setRigRangeMaxDraft(
+                    formatDraftDisplayNumber(input.range.max, input.path),
+                  );
                   setRigPathDraft(input.path ?? "");
                   setRigLifecycleMessage(null);
                 }}
@@ -4776,6 +4926,7 @@ export function InspectorContent({
                 value: entry.parentDirectValue,
                 min: entry.parentDirectMin,
                 max: entry.parentDirectMax,
+                path: standardInputsById.get(entry.inputId)?.path ?? null,
                 onValueChange: (nextValue) =>
                   handleInputValueChange(
                     entry.inputId,
@@ -4858,6 +5009,8 @@ export function InspectorContent({
             diagnostics={pipelineDiagnostics}
             directInputEnabled={effectiveDirectInputEnabled}
             directInputPath={directInputRuntimePath}
+            rotationDisplayPath={input.path}
+            rotationDisplayMode={rotationDisplayMode}
             directValue={value}
             directDefaultValue={input.defaultValue}
             directMin={input.range.min}

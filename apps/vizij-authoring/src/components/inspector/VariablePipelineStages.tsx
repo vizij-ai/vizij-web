@@ -4,6 +4,12 @@ import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
+import type { RotationDisplayMode } from "../../state/AuthoringUiProvider";
+import {
+  fromRotationDisplayValue,
+  shouldDisplayRotationInDegrees,
+  toRotationDisplayValue,
+} from "../../utils/rotationDisplay";
 import {
   formatPipelineValue,
   type PipelineDiagnosticsRow,
@@ -23,6 +29,7 @@ export interface PipelineStageLinkItem {
     value: number;
     min: number;
     max: number;
+    path?: string | null;
     onValueChange?: (value: number) => void;
   };
   linkControl?: {
@@ -58,6 +65,8 @@ interface VariablePipelineStagesProps {
   diagnostics: PipelineDiagnosticsRow;
   directInputEnabled: boolean;
   directInputPath: string;
+  rotationDisplayPath?: string | null;
+  rotationDisplayMode: RotationDisplayMode;
   directValue: number;
   directDefaultValue: number;
   directMin: number;
@@ -185,6 +194,38 @@ function formatSignedCompactNumber(value: number): string {
   return value >= 0 ? `+ ${absValue}` : `- ${absValue}`;
 }
 
+function toDisplayValue(
+  value: number,
+  path: string | null | undefined,
+  mode: RotationDisplayMode,
+): number {
+  return shouldDisplayRotationInDegrees(path, mode)
+    ? toRotationDisplayValue(value, mode)
+    : value;
+}
+
+function fromDisplayValue(
+  value: number,
+  path: string | null | undefined,
+  mode: RotationDisplayMode,
+): number {
+  return shouldDisplayRotationInDegrees(path, mode)
+    ? fromRotationDisplayValue(value, mode)
+    : value;
+}
+
+function resolveDisplayStep(
+  min: number,
+  max: number,
+  path: string | null | undefined,
+  mode: RotationDisplayMode,
+): number {
+  if (shouldDisplayRotationInDegrees(path, mode)) {
+    return 0.5;
+  }
+  return Math.max(0.0001, Math.min(0.1, Math.abs(max - min) / 200));
+}
+
 function buildParentVariableFormula(
   parent: Pick<
     PipelineStageLinkItem,
@@ -298,29 +339,64 @@ function LinkControlEditor({
 
 function ParentDirectControlEditor({
   directControl,
+  rotationDisplayMode,
 }: {
   directControl: NonNullable<PipelineStageLinkItem["directControl"]>;
+  rotationDisplayMode: RotationDisplayMode;
 }) {
+  const displayMin = toDisplayValue(
+    directControl.min,
+    directControl.path,
+    rotationDisplayMode,
+  );
+  const displayMax = toDisplayValue(
+    directControl.max,
+    directControl.path,
+    rotationDisplayMode,
+  );
+  const displayValue = toDisplayValue(
+    directControl.value,
+    directControl.path,
+    rotationDisplayMode,
+  );
+  const displayStep = resolveDisplayStep(
+    directControl.min,
+    directControl.max,
+    directControl.path,
+    rotationDisplayMode,
+  );
   return (
     <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1">
       <div className="text-[10px] text-text-secondary">Parent direct input</div>
       <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
         <span className="text-[10px] text-text-secondary">Value</span>
         <Slider
-          min={directControl.min}
-          max={directControl.max}
-          step={0.01}
-          value={directControl.value}
-          onChange={(value) => directControl.onValueChange?.(value as number)}
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
+          value={displayValue}
+          onChange={(value) =>
+            directControl.onValueChange?.(
+              fromDisplayValue(
+                value as number,
+                directControl.path,
+                rotationDisplayMode,
+              ),
+            )
+          }
         />
         <NumberField
           size="sm"
-          value={directControl.value}
-          min={directControl.min}
-          max={directControl.max}
-          step={0.01}
+          value={displayValue}
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
           allowScrub={false}
-          onChange={(value) => directControl.onValueChange?.(value)}
+          onChange={(value) =>
+            directControl.onValueChange?.(
+              fromDisplayValue(value, directControl.path, rotationDisplayMode),
+            )
+          }
         />
       </div>
     </div>
@@ -341,6 +417,8 @@ export function VariablePipelineStages({
   diagnostics,
   directInputEnabled,
   directInputPath,
+  rotationDisplayPath = null,
+  rotationDisplayMode,
   directValue,
   directDefaultValue,
   directMin,
@@ -363,6 +441,53 @@ export function VariablePipelineStages({
   onAddChild,
   showClampStage = true,
 }: VariablePipelineStagesProps) {
+  const currentDisplayMin = toDisplayValue(
+    directMin,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayMax = toDisplayValue(
+    directMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayValue = toDisplayValue(
+    directValue,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayDefault = toDisplayValue(
+    directDefaultValue,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayStep = resolveDisplayStep(
+    directMin,
+    directMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayMin = toDisplayValue(
+    overrideMin,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayMax = toDisplayValue(
+    overrideMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayValue = toDisplayValue(
+    overrideValue,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayStep = resolveDisplayStep(
+    overrideMin,
+    overrideMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
   const [parentExpressionDraft, setParentExpressionDraft] =
     React.useState(parentExpression);
   const [parentFormulaDraftById, setParentFormulaDraftById] = React.useState<
@@ -655,6 +780,7 @@ export function VariablePipelineStages({
                       {parent.directControl ? (
                         <ParentDirectControlEditor
                           directControl={parent.directControl}
+                          rotationDisplayMode={rotationDisplayMode}
                         />
                       ) : null}
                       {parent.onParentFormulaChange ? (
@@ -749,9 +875,11 @@ export function VariablePipelineStages({
                 key={pose.id}
                 id={`pipeline-pose-${pose.id}`}
                 title={pose.label}
-                subtitle={`Target ${pose.targetValue.toFixed(
-                  3,
-                )} · Weight ${pose.weight.toFixed(3)}`}
+                subtitle={`Target ${toDisplayValue(
+                  pose.targetValue,
+                  rotationDisplayPath,
+                  rotationDisplayMode,
+                ).toFixed(3)} · Weight ${pose.weight.toFixed(3)}`}
                 defaultExpanded={false}
                 showSlider={false}
                 className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
@@ -838,21 +966,37 @@ export function VariablePipelineStages({
           title={directControlReason ?? undefined}
         >
           <Slider
-            min={directMin}
-            max={directMax}
-            step={0.01}
-            value={directValue}
-            onChange={(value) => onDirectValueChange(value as number)}
+            min={currentDisplayMin}
+            max={currentDisplayMax}
+            step={currentDisplayStep}
+            value={currentDisplayValue}
+            onChange={(value) =>
+              onDirectValueChange(
+                fromDisplayValue(
+                  value as number,
+                  rotationDisplayPath,
+                  rotationDisplayMode,
+                ),
+              )
+            }
             disabled={!directInputEnabled || directControlDisabled}
           />
           <NumberField
             size="sm"
-            value={directValue}
-            min={directMin}
-            max={directMax}
-            step={0.01}
+            value={currentDisplayValue}
+            min={currentDisplayMin}
+            max={currentDisplayMax}
+            step={currentDisplayStep}
             allowScrub={false}
-            onChange={onDirectValueChange}
+            onChange={(value) =>
+              onDirectValueChange(
+                fromDisplayValue(
+                  value,
+                  rotationDisplayPath,
+                  rotationDisplayMode,
+                ),
+              )
+            }
             disabled={!directInputEnabled || directControlDisabled}
           />
           <Button
@@ -862,7 +1006,7 @@ export function VariablePipelineStages({
             onClick={onDirectReset}
             disabled={!directInputEnabled || directControlDisabled}
           >
-            Reset ({directDefaultValue.toFixed(2)})
+            Reset ({currentDisplayDefault.toFixed(2)})
           </Button>
         </div>
         {directControlReason ? (
@@ -909,20 +1053,36 @@ export function VariablePipelineStages({
         {overrideEnabled ? (
           <div className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-2">
             <Slider
-              min={overrideMin}
-              max={overrideMax}
-              step={0.01}
-              value={overrideValue}
-              onChange={(value) => onOverrideValueChange(value as number)}
+              min={overrideDisplayMin}
+              max={overrideDisplayMax}
+              step={overrideDisplayStep}
+              value={overrideDisplayValue}
+              onChange={(value) =>
+                onOverrideValueChange(
+                  fromDisplayValue(
+                    value as number,
+                    rotationDisplayPath,
+                    rotationDisplayMode,
+                  ),
+                )
+              }
             />
             <NumberField
               size="sm"
-              value={overrideValue}
-              min={overrideMin}
-              max={overrideMax}
-              step={0.01}
+              value={overrideDisplayValue}
+              min={overrideDisplayMin}
+              max={overrideDisplayMax}
+              step={overrideDisplayStep}
               allowScrub={false}
-              onChange={onOverrideValueChange}
+              onChange={(value) =>
+                onOverrideValueChange(
+                  fromDisplayValue(
+                    value,
+                    rotationDisplayPath,
+                    rotationDisplayMode,
+                  ),
+                )
+              }
             />
           </div>
         ) : (

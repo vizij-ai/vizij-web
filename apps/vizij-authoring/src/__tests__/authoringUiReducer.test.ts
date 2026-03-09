@@ -12,7 +12,7 @@ const baseState: AuthoringUiState = {
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
-  rotationDisplayMode: "radians",
+  rotationDisplayMode: "degrees",
 };
 
 describe("authoringUiReducer", () => {

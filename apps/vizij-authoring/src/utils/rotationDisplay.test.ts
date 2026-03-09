@@ -4,6 +4,7 @@ import {
   fromRotationDisplayValue,
   isRotationPropertyKey,
   radiansToDegrees,
+  shouldDisplayRotationInDegrees,
   toRotationDisplayValue,
 } from "./rotationDisplay";
 
@@ -13,7 +14,10 @@ describe("rotationDisplay", () => {
     expect(isRotationPropertyKey("scene_rotation")).toBe(true);
     expect(isRotationPropertyKey("Euler")).toBe(true);
     expect(isRotationPropertyKey("jaw_angle")).toBe(true);
+    expect(isRotationPropertyKey("/propsrig/eye_left/rotation/x")).toBe(true);
+    expect(isRotationPropertyKey("/drivers/head/neck_angle")).toBe(true);
     expect(isRotationPropertyKey("translation")).toBe(false);
+    expect(isRotationPropertyKey(null)).toBe(false);
   });
 
   it("converts between radians and degrees", () => {
@@ -26,5 +30,23 @@ describe("rotationDisplay", () => {
     expect(fromRotationDisplayValue(45, "degrees")).toBeCloseTo(Math.PI / 4, 6);
     expect(toRotationDisplayValue(1.25, "radians")).toBeCloseTo(1.25, 6);
     expect(fromRotationDisplayValue(1.25, "radians")).toBeCloseTo(1.25, 6);
+  });
+
+  it("only enables degree display for rotational identifiers", () => {
+    expect(
+      shouldDisplayRotationInDegrees(
+        "/propsrig/eye_left/rotation/x",
+        "degrees",
+      ),
+    ).toBe(true);
+    expect(
+      shouldDisplayRotationInDegrees("/propsrig/jaw/open", "degrees"),
+    ).toBe(false);
+    expect(
+      shouldDisplayRotationInDegrees(
+        "/propsrig/eye_left/rotation/x",
+        "radians",
+      ),
+    ).toBe(false);
   });
 });

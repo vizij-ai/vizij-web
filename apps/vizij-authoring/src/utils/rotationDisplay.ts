@@ -3,14 +3,26 @@ import type { RotationDisplayMode } from "../state/AuthoringUiProvider";
 const DEGREES_PER_RADIAN = 180 / Math.PI;
 const RADIANS_PER_DEGREE = Math.PI / 180;
 
-export function isRotationPropertyKey(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
+export function isRotationPropertyKey(
+  value: string | null | undefined,
+): boolean {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  if (!normalized) {
+    return false;
+  }
   return (
     normalized === "rotation" ||
     normalized.includes("rotation") ||
     normalized.includes("angle") ||
     normalized.includes("euler")
   );
+}
+
+export function shouldDisplayRotationInDegrees(
+  value: string | null | undefined,
+  mode: RotationDisplayMode,
+): boolean {
+  return mode === "degrees" && isRotationPropertyKey(value);
 }
 
 export function radiansToDegrees(value: number): number {

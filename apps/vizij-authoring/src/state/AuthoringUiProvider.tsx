@@ -45,7 +45,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
-  rotationDisplayMode: "radians",
+  rotationDisplayMode: "degrees",
 };
 
 export function authoringUiReducer(
