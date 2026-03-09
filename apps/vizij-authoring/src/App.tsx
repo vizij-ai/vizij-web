@@ -2041,18 +2041,30 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () => visibleVariablesSurfaces.filter((surface) => surface === "inputs"),
     [visibleVariablesSurfaces],
   );
-  const controlAuthoringSurfaces = useMemo<VariablesSurfaceTab[]>(
-    () => visibleVariablesSurfaces.filter((surface) => surface !== "inputs"),
+  const controlAuthoringSurfaces = useMemo<AuthoringSurface[]>(
+    () =>
+      visibleVariablesSurfaces.filter(
+        (surface): surface is AuthoringSurface => surface !== "inputs",
+      ),
     [visibleVariablesSurfaces],
   );
   const controlAuthoringPanelVisible = controlAuthoringSurfaces.length > 0;
-  const authoringSurfaces = useMemo<VariablesSurfaceTab[]>(
+  const authoringSurfaces = useMemo<AuthoringSurface[]>(
     () =>
       controlAuthoringPanelVisible
         ? [...controlAuthoringSurfaces, "animations", "programs"]
         : controlAuthoringSurfaces,
     [controlAuthoringPanelVisible, controlAuthoringSurfaces],
   );
+  useEffect(() => {
+    if (authoringSurfaces.length === 0) {
+      return;
+    }
+    if (authoringSurfaces.includes(activeAuthoringSurface)) {
+      return;
+    }
+    setActiveAuthoringSurface(authoringSurfaces[0]!);
+  }, [activeAuthoringSurface, authoringSurfaces]);
   const inputControlsPanelVisible = inputControlSurfaces.length > 0;
   const centerPanelDefaultSize = activeEditFocus === "pose-editing" ? 40 : 60;
   const rightSidebarDefaultSize = activeEditFocus === "pose-editing" ? 40 : 20;

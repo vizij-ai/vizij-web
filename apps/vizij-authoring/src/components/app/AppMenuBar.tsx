@@ -103,9 +103,19 @@ export function AppMenuBar({
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
   const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
-    setPanelVisibility("variables", true);
-    setPanelVisibility("poses", true);
-    setPanelVisibility("materials", true);
+    if (
+      surface === "variables" ||
+      surface === "animations" ||
+      surface === "programs"
+    ) {
+      setPanelVisibility("variables", true);
+    }
+    if (surface === "poses") {
+      setPanelVisibility("poses", true);
+    }
+    if (surface === "pose-groups") {
+      setPanelVisibility("materials", true);
+    }
     onSelectAuthoringSurface(surface);
   };
   const setCenterPanelVisibility = (
@@ -115,11 +125,21 @@ export function AppMenuBar({
     setPanelVisibility(panel, isVisible);
     if (panel === "motiongraph") {
       setPanelVisibility("motiongraphPalette", isVisible);
-      return;
-    }
-    if (isVisible) {
+    } else if (isVisible) {
       setPanelVisibility("motiongraphPalette", false);
     }
+    if (!isVisible) {
+      return;
+    }
+    if (panel === "animation") {
+      onSelectEditFocus("animation");
+      return;
+    }
+    if (panel === "motiongraph") {
+      onSelectEditFocus("procedural-animation-programming");
+      return;
+    }
+    onSelectEditFocus("reference-face");
   };
 
   return (

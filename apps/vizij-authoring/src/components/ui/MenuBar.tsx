@@ -5,7 +5,7 @@ import { cn } from "../../utils/cn";
 import { Logo } from "./Logo";
 
 const menuPopupClassName =
-  "z-50 min-w-[200px] rounded-xl border border-border-default bg-bg-card p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 origin-[var(--transform-origin)]";
+  "z-[220] min-w-[200px] rounded-xl border border-border-default bg-bg-card p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 origin-[var(--transform-origin)]";
 
 interface MenuBarProps {
   children: React.ReactNode;
@@ -14,7 +14,12 @@ interface MenuBarProps {
 
 export function MenuBar({ children, className }: MenuBarProps) {
   return (
-    <div className={cn("flex w-full items-center gap-1", className)}>
+    <div
+      className={cn(
+        "relative z-[210] flex w-full items-center gap-1",
+        className,
+      )}
+    >
       <Logo />
       <div className="w-px h-6 bg-border-default/60 mx-2" />
       {children}
