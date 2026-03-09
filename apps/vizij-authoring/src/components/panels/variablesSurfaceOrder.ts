@@ -2,7 +2,9 @@ export type VariablesSurfaceTab =
   | "variables"
   | "poses"
   | "pose-groups"
-  | "inputs";
+  | "inputs"
+  | "animations"
+  | "programs";
 
 interface VisibilityFlag {
   isVisible: boolean;

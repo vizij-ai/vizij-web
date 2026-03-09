@@ -98,6 +98,10 @@ import type {
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
 import { buildVisibleInputCatalog, type InputCatalogRow } from "./inputCatalog";
+import {
+  AuthoringTargetList,
+  type AuthoringTargetItem,
+} from "./AuthoringTargetList";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
@@ -106,18 +110,29 @@ import { buildVisibleInputCatalog, type InputCatalogRow } from "./inputCatalog";
 type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 type FaceOwnershipScope = "main" | "reference" | "shared" | "none";
-type SurfaceTab = "variables" | "poses" | "pose-groups" | "inputs";
+type SurfaceTab =
+  | "variables"
+  | "poses"
+  | "pose-groups"
+  | "animations"
+  | "programs"
+  | "inputs";
 type CenterAuthoringMode =
   | "none"
   | "animation"
   | "procedural-animation-programming"
   | "reference-face";
-type FilterableSurfaceTab = Exclude<SurfaceTab, "pose-groups">;
+type FilterableSurfaceTab = Exclude<
+  SurfaceTab,
+  "pose-groups" | "animations" | "programs"
+>;
 const DEFAULT_SURFACES: SurfaceTab[] = [
   "variables",
   "poses",
-  "inputs",
   "pose-groups",
+  "animations",
+  "programs",
+  "inputs",
 ];
 
 const UNASSIGNED_POSE_GROUP_PATH = "__unassigned__";
@@ -2950,6 +2965,20 @@ interface VariablesPanelProps {
   onClosePanel?: () => void;
   motionGraphActive?: boolean;
   animationActive?: boolean;
+  animationTargets?: AuthoringTargetItem[];
+  onSelectAnimationTarget?: (id: string) => void;
+  onCreateAnimationTarget?: () => void;
+  onDeleteAnimationTarget?: (id: string) => void;
+  onPlayAnimationTarget?: (id: string) => void;
+  onPauseAnimationTarget?: (id: string) => void;
+  onStopAnimationTarget?: (id: string) => void;
+  programTargets?: AuthoringTargetItem[];
+  onSelectProgramTarget?: (id: string) => void;
+  onCreateProgramTarget?: () => void;
+  onDeleteProgramTarget?: (id: string) => void;
+  onPlayProgramTarget?: (id: string) => void;
+  onPauseProgramTarget?: (id: string) => void;
+  onStopProgramTarget?: (id: string) => void;
   centerAuthoringMode?: CenterAuthoringMode;
   runtimeFaceId?: string | null;
   enableMotionGraphPruning?: boolean;
@@ -2975,6 +3004,20 @@ export function VariablesPanel({
   onClosePanel,
   motionGraphActive = false,
   animationActive = false,
+  animationTargets = [],
+  onSelectAnimationTarget,
+  onCreateAnimationTarget,
+  onDeleteAnimationTarget,
+  onPlayAnimationTarget,
+  onPauseAnimationTarget,
+  onStopAnimationTarget,
+  programTargets = [],
+  onSelectProgramTarget,
+  onCreateProgramTarget,
+  onDeleteProgramTarget,
+  onPlayProgramTarget,
+  onPauseProgramTarget,
+  onStopProgramTarget,
   centerAuthoringMode,
   runtimeFaceId = null,
   enableMotionGraphPruning = true,
@@ -6016,6 +6059,8 @@ export function VariablesPanel({
         sharedPoseLinks.sharedReferencePoseIds.size
       : 0);
   const poseGroupItemCount = poseGroups.length;
+  const animationItemCount = animationTargets.length;
+  const programItemCount = programTargets.length;
   const inputItemCount = inputRows.length;
   const poseGroupsForSurface = useMemo(() => {
     const list = [...visiblePoseGroups];
@@ -6131,7 +6176,11 @@ export function VariablesPanel({
         ? poseItemCount
         : activeSurface === "pose-groups"
           ? poseGroupItemCount
-          : inputItemCount;
+          : activeSurface === "animations"
+            ? animationItemCount
+            : activeSurface === "programs"
+              ? programItemCount
+              : inputItemCount;
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
@@ -6222,6 +6271,22 @@ export function VariablesPanel({
         panelTestId: "control-authoring-panel-pose-groups",
       };
     }
+    if (id === "animations") {
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Animations", animationItemCount),
+        testId: "control-authoring-tab-animations",
+        panelTestId: "control-authoring-panel-animations",
+      };
+    }
+    if (id === "programs") {
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Programs", programItemCount),
+        testId: "control-authoring-tab-programs",
+        panelTestId: "control-authoring-panel-programs",
+      };
+    }
     return {
       id,
       label: formatSurfaceLabelWithCount("Inputs", inputItemCount),
@@ -6235,9 +6300,13 @@ export function VariablesPanel({
       ? "poses"
       : id === "pose-groups"
         ? "pose-groups"
-        : id === "inputs"
-          ? "inputs"
-          : "variables";
+        : id === "animations"
+          ? "animations"
+          : id === "programs"
+            ? "programs"
+            : id === "inputs"
+              ? "inputs"
+              : "variables";
 
   const selectedPoseName = selectedPoseId
     ? (poseNameById.get(selectedPoseId) ?? selectedPoseId)
@@ -6478,6 +6547,7 @@ export function VariablesPanel({
           className="flex-1 min-h-0"
           fillPanels
           items={surfaceTabs}
+          listClassName="flex-wrap overflow-visible"
           value={activeSurface}
           onValueChange={(id) => {
             if (activeSurfaceOverride) {
@@ -6492,11 +6562,46 @@ export function VariablesPanel({
             const isVariables = id === "variables";
             const isPoseGroups = id === "pose-groups";
             const isPoses = id === "poses";
+            const isAnimations = id === "animations";
+            const isPrograms = id === "programs";
             const isInputs = id === "inputs";
             const hasReferenceFace = Boolean(referenceFace.file);
             const showSurfaceContext =
               hasReferenceFace && (isVariables || isPoses || isInputs);
             const filteredSearch = searchQuery.trim().toLowerCase();
+
+            if (isAnimations) {
+              return (
+                <AuthoringTargetList
+                  items={animationTargets}
+                  kindLabel="Animation"
+                  emptyDescription="Create a clip or import a bundle animation to edit it here."
+                  onCreate={() => onCreateAnimationTarget?.()}
+                  onDelete={onDeleteAnimationTarget}
+                  onSelect={(targetId) => onSelectAnimationTarget?.(targetId)}
+                  onPlay={onPlayAnimationTarget}
+                  onPause={onPauseAnimationTarget}
+                  onStop={onStopAnimationTarget}
+                />
+              );
+            }
+
+            if (isPrograms) {
+              return (
+                <AuthoringTargetList
+                  items={programTargets}
+                  kindLabel="Program"
+                  emptyDescription="Create a program or import a bundle graph to edit it here."
+                  onCreate={() => onCreateProgramTarget?.()}
+                  onDelete={onDeleteProgramTarget}
+                  onSelect={(targetId) => onSelectProgramTarget?.(targetId)}
+                  onPlay={onPlayProgramTarget}
+                  onPause={onPauseProgramTarget}
+                  onStop={onStopProgramTarget}
+                />
+              );
+            }
+
             const renderProceduralAvailableGroups = (
               groups: GroupedInputRowsByFolder[],
               depth = 0,

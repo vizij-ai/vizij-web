@@ -71,7 +71,10 @@ import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
-import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
+import {
+  getVisibleVariablesSurfaces,
+  type VariablesSurfaceTab,
+} from "./components/panels/variablesSurfaceOrder";
 import {
   radiansToRoundedDegrees,
   resolveRootSceneRotationInputs,
@@ -480,6 +483,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
     useState<string | null>(null);
   const exportGlbHandlerRef = useRef<(() => Promise<void>) | null>(null);
+  const setWorkspacePanelVisibility = useWorkspaceStore(
+    (state) => state.setPanelVisibility,
+  );
 
   // Reference Face State
 
@@ -931,6 +937,38 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ],
     [authoredProceduralTargetOptions, bundleProceduralTargetOptions],
   );
+  const authoringProgramTargets = useMemo(
+    () => [
+      ...authoredProceduralTargets.map((target) => ({
+        id: target.targetId,
+        label: target.name.trim().length > 0 ? target.name : "Untitled Program",
+        source: "authored" as const,
+        selected: target.targetId === selectedProceduralTargetId,
+        isRuntimeActive:
+          activeRuntimeSource === "procedural-animation-programming" &&
+          target.targetId === selectedProceduralTargetId,
+        meta: `${target.snapshot.nodes.length} node${
+          target.snapshot.nodes.length === 1 ? "" : "s"
+        }`,
+      })),
+      ...bundleProceduralTargetOptions.map((target) => ({
+        id: target.value,
+        label: target.label,
+        source: "imported" as const,
+        selected: target.value === selectedProceduralTargetId,
+        isRuntimeActive:
+          activeRuntimeSource === "procedural-animation-programming" &&
+          target.value === selectedProceduralTargetId,
+        meta: "Imported program",
+      })),
+    ],
+    [
+      activeRuntimeSource,
+      authoredProceduralTargets,
+      bundleProceduralTargetOptions,
+      selectedProceduralTargetId,
+    ],
+  );
 
   const saveAuthoredAnimationTarget = useCallback(
     (targetId: string) => {
@@ -970,6 +1008,38 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         (target) => target.targetId === selectedAnimationTargetId,
       ) ?? null,
     [authoredAnimationTargets, selectedAnimationTargetId],
+  );
+  const authoringAnimationTargets = useMemo(
+    () => [
+      ...authoredAnimationTargets.map((target) => ({
+        id: target.targetId,
+        label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
+        source: "authored" as const,
+        selected: target.targetId === selectedAnimationTargetId,
+        isRuntimeActive:
+          activeRuntimeSource === "animation" &&
+          target.targetId === selectedAnimationTargetId,
+        meta: `${target.clip.tracks.length} track${
+          target.clip.tracks.length === 1 ? "" : "s"
+        }`,
+      })),
+      ...bundleAnimationTargetOptions.map((target) => ({
+        id: target.value,
+        label: target.label,
+        source: "imported" as const,
+        selected: target.value === selectedAnimationTargetId,
+        isRuntimeActive:
+          activeRuntimeSource === "animation" &&
+          target.value === selectedAnimationTargetId,
+        meta: "Imported clip",
+      })),
+    ],
+    [
+      activeRuntimeSource,
+      authoredAnimationTargets,
+      bundleAnimationTargetOptions,
+      selectedAnimationTargetId,
+    ],
   );
   const selectedAuthoredProceduralTarget = useMemo(
     () =>
@@ -1194,101 +1264,108 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [selectedAnimationTargetId, setAnimationDuration],
   );
 
+  const deleteAnimationTargetById = useCallback(
+    (deletingTargetId: string) => {
+      const authoredClipId =
+        parseAuthoredAnimationTargetValue(deletingTargetId);
+      const activeTarget = authoredAnimationTargets.find(
+        (target) => target.targetId === deletingTargetId,
+      );
+      const activeOptionLabel =
+        animationTargetOptions.find(
+          (option) => option.value === deletingTargetId,
+        )?.label ?? activeTarget?.name;
+      const targetLabel = activeTarget?.name?.trim() || "this clip";
+      if (
+        !window.confirm(
+          `Delete animation clip "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+        )
+      ) {
+        return;
+      }
+
+      let nextAuthoredTargets = authoredAnimationTargets;
+      if (authoredClipId) {
+        nextAuthoredTargets = authoredAnimationTargets.filter(
+          (target) => target.targetId !== deletingTargetId,
+        );
+      } else if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        setHiddenBundleAnimationTargetIds((previous) => ({
+          ...previous,
+          [deletingTargetId]: true,
+        }));
+      }
+
+      const remainingBundleTargets = bundleAnimationTargetOptions.filter(
+        (option) => option.value !== deletingTargetId,
+      );
+
+      if (
+        nextAuthoredTargets.length === 0 &&
+        remainingBundleTargets.length === 0
+      ) {
+        const fallbackTarget = createAuthoredAnimationTarget(
+          AUTHORED_TIMELINE_CLIP_ID,
+          DEFAULT_NEW_ANIMATION_CLIP_NAME,
+        );
+        setAuthoredAnimationTargets([fallbackTarget]);
+        setSelectedAnimationTargetId(fallbackTarget.targetId);
+        importAnimationClipIr(fallbackTarget.clip);
+        return;
+      }
+
+      setAuthoredAnimationTargets(nextAuthoredTargets);
+      const nextTargetId =
+        nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
+      setSelectedAnimationTargetId(nextTargetId);
+      const nextAuthoredTarget = nextAuthoredTargets.find(
+        (target) => target.targetId === nextTargetId,
+      );
+      if (nextAuthoredTarget) {
+        importAnimationClipIr(nextAuthoredTarget.clip);
+        return;
+      }
+      if (nextTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        const rawIndex = nextTargetId.slice(
+          BUNDLE_ANIMATION_TARGET_PREFIX.length,
+        );
+        const index = Number.parseInt(rawIndex, 10);
+        if (!Number.isFinite(index) || index < 0) {
+          return;
+        }
+        const entry = loadedBundle?.animations?.[index];
+        if (!entry) {
+          return;
+        }
+        const clip = bundleAnimationEntryToClipIr(entry, {
+          standardInputsById: mainFaceInputsById,
+        });
+        if (!clip) {
+          return;
+        }
+        importAnimationClipIr(clip);
+        const overriddenDuration =
+          bundleAnimationDurationOverrides[nextTargetId];
+        if (Number.isFinite(overriddenDuration)) {
+          setAnimationDuration(overriddenDuration);
+        }
+      }
+    },
+    [
+      animationTargetOptions,
+      authoredAnimationTargets,
+      bundleAnimationDurationOverrides,
+      bundleAnimationTargetOptions,
+      importAnimationClipIr,
+      loadedBundle?.animations,
+      mainFaceInputsById,
+      setHiddenBundleAnimationTargetIds,
+      setAnimationDuration,
+    ],
+  );
   const handleDeleteAnimationTarget = useCallback(() => {
-    const deletingTargetId = selectedAnimationTargetId;
-    const authoredClipId = parseAuthoredAnimationTargetValue(deletingTargetId);
-    const activeTarget = authoredAnimationTargets.find(
-      (target) => target.targetId === deletingTargetId,
-    );
-    const activeOptionLabel =
-      animationTargetOptions.find((option) => option.value === deletingTargetId)
-        ?.label ?? activeTarget?.name;
-    const targetLabel = activeTarget?.name?.trim() || "this clip";
-    if (
-      !window.confirm(
-        `Delete animation clip "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
-      )
-    ) {
-      return;
-    }
-
-    let nextAuthoredTargets = authoredAnimationTargets;
-    if (authoredClipId) {
-      nextAuthoredTargets = authoredAnimationTargets.filter(
-        (target) => target.targetId !== deletingTargetId,
-      );
-    } else if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-      setHiddenBundleAnimationTargetIds((previous) => ({
-        ...previous,
-        [deletingTargetId]: true,
-      }));
-    }
-
-    const remainingBundleTargets = bundleAnimationTargetOptions.filter(
-      (option) => option.value !== deletingTargetId,
-    );
-
-    if (
-      nextAuthoredTargets.length === 0 &&
-      remainingBundleTargets.length === 0
-    ) {
-      const fallbackTarget = createAuthoredAnimationTarget(
-        AUTHORED_TIMELINE_CLIP_ID,
-        DEFAULT_NEW_ANIMATION_CLIP_NAME,
-      );
-      setAuthoredAnimationTargets([fallbackTarget]);
-      setSelectedAnimationTargetId(fallbackTarget.targetId);
-      importAnimationClipIr(fallbackTarget.clip);
-      return;
-    }
-
-    setAuthoredAnimationTargets(nextAuthoredTargets);
-    const nextTargetId =
-      nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
-    setSelectedAnimationTargetId(nextTargetId);
-    const nextAuthoredTarget = nextAuthoredTargets.find(
-      (target) => target.targetId === nextTargetId,
-    );
-    if (nextAuthoredTarget) {
-      importAnimationClipIr(nextAuthoredTarget.clip);
-      return;
-    }
-    if (nextTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-      const rawIndex = nextTargetId.slice(
-        BUNDLE_ANIMATION_TARGET_PREFIX.length,
-      );
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
-        return;
-      }
-      const entry = loadedBundle?.animations?.[index];
-      if (!entry) {
-        return;
-      }
-      const clip = bundleAnimationEntryToClipIr(entry, {
-        standardInputsById: mainFaceInputsById,
-      });
-      if (!clip) {
-        return;
-      }
-      importAnimationClipIr(clip);
-      const overriddenDuration = bundleAnimationDurationOverrides[nextTargetId];
-      if (Number.isFinite(overriddenDuration)) {
-        setAnimationDuration(overriddenDuration);
-      }
-    }
-  }, [
-    animationTargetOptions,
-    authoredAnimationTargets,
-    bundleAnimationDurationOverrides,
-    bundleAnimationTargetOptions,
-    importAnimationClipIr,
-    loadedBundle?.animations,
-    mainFaceInputsById,
-    selectedAnimationTargetId,
-    setHiddenBundleAnimationTargetIds,
-    setAnimationDuration,
-  ]);
+    deleteAnimationTargetById(selectedAnimationTargetId);
+  }, [deleteAnimationTargetById, selectedAnimationTargetId]);
 
   const authoredAnimationClipsForExport = useMemo(() => {
     const authoredClipId = parseAuthoredAnimationTargetValue(
@@ -1452,92 +1529,166 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [selectedProceduralTargetId],
   );
 
+  const deleteProceduralTargetById = useCallback(
+    (deletingTargetId: string) => {
+      const authoredProgramId =
+        parseAuthoredProceduralTargetValue(deletingTargetId);
+      const activeTarget = authoredProceduralTargets.find(
+        (target) => target.targetId === deletingTargetId,
+      );
+      const activeOptionLabel =
+        proceduralTargetOptions.find(
+          (option) => option.value === deletingTargetId,
+        )?.label ?? activeTarget?.name;
+      const targetLabel = activeTarget?.name?.trim() || "this program";
+      if (
+        !window.confirm(
+          `Delete procedural program "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+        )
+      ) {
+        return;
+      }
+
+      let nextAuthoredTargets = authoredProceduralTargets;
+      if (authoredProgramId) {
+        nextAuthoredTargets = authoredProceduralTargets.filter(
+          (target) => target.targetId !== deletingTargetId,
+        );
+      } else if (deletingTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        setHiddenBundleProceduralTargetIds((previous) => ({
+          ...previous,
+          [deletingTargetId]: true,
+        }));
+      }
+
+      const remainingBundleTargets = bundleProceduralTargetOptions.filter(
+        (option) => option.value !== deletingTargetId,
+      );
+
+      if (
+        nextAuthoredTargets.length === 0 &&
+        remainingBundleTargets.length === 0
+      ) {
+        const fallbackTarget = createAuthoredProceduralTarget(
+          AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
+          DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
+        );
+        setAuthoredProceduralTargets([fallbackTarget]);
+        setSelectedProceduralTargetId(fallbackTarget.targetId);
+        hydrateProceduralEditorState(fallbackTarget.snapshot);
+        return;
+      }
+
+      setAuthoredProceduralTargets(nextAuthoredTargets);
+      const nextTargetId =
+        nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
+      setSelectedProceduralTargetId(nextTargetId);
+      const nextAuthoredTarget = nextAuthoredTargets.find(
+        (target) => target.targetId === nextTargetId,
+      );
+      if (nextAuthoredTarget) {
+        hydrateProceduralEditorState(nextAuthoredTarget.snapshot);
+        return;
+      }
+      if (nextTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        const rawIndex = nextTargetId.slice(
+          BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+        );
+        const index = Number.parseInt(rawIndex, 10);
+        if (!Number.isFinite(index) || index < 0) {
+          return;
+        }
+        const entry = bundleProceduralEntries[index];
+        if (!entry) {
+          return;
+        }
+        importMotionGraph(
+          entry.spec ? (entry.spec as Record<string, unknown>) : null,
+        );
+      }
+    },
+    [
+      authoredProceduralTargets,
+      bundleProceduralEntries,
+      bundleProceduralTargetOptions,
+      importMotionGraph,
+      proceduralTargetOptions,
+      setHiddenBundleProceduralTargetIds,
+    ],
+  );
   const handleDeleteProceduralTarget = useCallback(() => {
-    const deletingTargetId = selectedProceduralTargetId;
-    const authoredProgramId =
-      parseAuthoredProceduralTargetValue(deletingTargetId);
-    const activeTarget = authoredProceduralTargets.find(
-      (target) => target.targetId === deletingTargetId,
-    );
-    const activeOptionLabel =
-      proceduralTargetOptions.find(
-        (option) => option.value === deletingTargetId,
-      )?.label ?? activeTarget?.name;
-    const targetLabel = activeTarget?.name?.trim() || "this program";
-    if (
-      !window.confirm(
-        `Delete procedural program "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
-      )
-    ) {
-      return;
-    }
-
-    let nextAuthoredTargets = authoredProceduralTargets;
-    if (authoredProgramId) {
-      nextAuthoredTargets = authoredProceduralTargets.filter(
-        (target) => target.targetId !== deletingTargetId,
-      );
-    } else if (deletingTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-      setHiddenBundleProceduralTargetIds((previous) => ({
-        ...previous,
-        [deletingTargetId]: true,
-      }));
-    }
-
-    const remainingBundleTargets = bundleProceduralTargetOptions.filter(
-      (option) => option.value !== deletingTargetId,
-    );
-
-    if (
-      nextAuthoredTargets.length === 0 &&
-      remainingBundleTargets.length === 0
-    ) {
-      const fallbackTarget = createAuthoredProceduralTarget(
-        AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
-        DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
-      );
-      setAuthoredProceduralTargets([fallbackTarget]);
-      setSelectedProceduralTargetId(fallbackTarget.targetId);
-      hydrateProceduralEditorState(fallbackTarget.snapshot);
-      return;
-    }
-
-    setAuthoredProceduralTargets(nextAuthoredTargets);
-    const nextTargetId =
-      nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
-    setSelectedProceduralTargetId(nextTargetId);
-    const nextAuthoredTarget = nextAuthoredTargets.find(
-      (target) => target.targetId === nextTargetId,
-    );
-    if (nextAuthoredTarget) {
-      hydrateProceduralEditorState(nextAuthoredTarget.snapshot);
-      return;
-    }
-    if (nextTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-      const rawIndex = nextTargetId.slice(
-        BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
-      );
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
-        return;
-      }
-      const entry = bundleProceduralEntries[index];
-      if (!entry) {
-        return;
-      }
-      importMotionGraph(
-        entry.spec ? (entry.spec as Record<string, unknown>) : null,
-      );
-    }
-  }, [
-    authoredProceduralTargets,
-    bundleProceduralEntries,
-    bundleProceduralTargetOptions,
-    importMotionGraph,
-    proceduralTargetOptions,
-    selectedProceduralTargetId,
-    setHiddenBundleProceduralTargetIds,
-  ]);
+    deleteProceduralTargetById(selectedProceduralTargetId);
+  }, [deleteProceduralTargetById, selectedProceduralTargetId]);
+  const handleInspectAnimationTarget = useCallback(
+    (targetId: string) => {
+      setWorkspacePanelVisibility("animation", true);
+      uiActions.setActiveRuntimeSource("animation");
+      handleSelectAnimationTarget(targetId);
+    },
+    [handleSelectAnimationTarget, setWorkspacePanelVisibility, uiActions],
+  );
+  const handleInspectProgramTarget = useCallback(
+    (targetId: string) => {
+      setWorkspacePanelVisibility("motiongraphPalette", true);
+      setWorkspacePanelVisibility("motiongraph", true);
+      uiActions.setActiveRuntimeSource("procedural-animation-programming");
+      handleSelectProceduralTarget(targetId);
+    },
+    [handleSelectProceduralTarget, setWorkspacePanelVisibility, uiActions],
+  );
+  const handleCreateAndInspectAnimationTarget = useCallback(() => {
+    setWorkspacePanelVisibility("animation", true);
+    uiActions.setActiveRuntimeSource("animation");
+    handleCreateAnimationTarget();
+  }, [handleCreateAnimationTarget, setWorkspacePanelVisibility, uiActions]);
+  const handleCreateAndInspectProgramTarget = useCallback(() => {
+    setWorkspacePanelVisibility("motiongraphPalette", true);
+    setWorkspacePanelVisibility("motiongraph", true);
+    uiActions.setActiveRuntimeSource("procedural-animation-programming");
+    handleCreateProceduralTarget();
+  }, [handleCreateProceduralTarget, setWorkspacePanelVisibility, uiActions]);
+  const handlePlayAnimationTarget = useCallback(
+    (targetId: string) => {
+      handleInspectAnimationTarget(targetId);
+      playAnimationTransport();
+    },
+    [handleInspectAnimationTarget, playAnimationTransport],
+  );
+  const handlePauseAnimationTarget = useCallback(
+    (targetId: string) => {
+      handleInspectAnimationTarget(targetId);
+      pauseAnimationTransport();
+    },
+    [handleInspectAnimationTarget, pauseAnimationTransport],
+  );
+  const handleStopAnimationTarget = useCallback(
+    (targetId: string) => {
+      handleInspectAnimationTarget(targetId);
+      stopAnimationTransport();
+    },
+    [handleInspectAnimationTarget, stopAnimationTransport],
+  );
+  const handlePlayProgramTarget = useCallback(
+    (targetId: string) => {
+      handleInspectProgramTarget(targetId);
+      playPapGraph();
+    },
+    [handleInspectProgramTarget, playPapGraph],
+  );
+  const handlePauseProgramTarget = useCallback(
+    (targetId: string) => {
+      handleInspectProgramTarget(targetId);
+      pausePapGraph();
+    },
+    [handleInspectProgramTarget, pausePapGraph],
+  );
+  const handleStopProgramTarget = useCallback(
+    (targetId: string) => {
+      handleInspectProgramTarget(targetId);
+      stopPapGraph();
+    },
+    [handleInspectProgramTarget, stopPapGraph],
+  );
 
   const authoredProceduralProgramsForExport = useMemo(() => {
     const activeAuthoredProgramId = parseAuthoredProceduralTargetValue(
@@ -1837,9 +1988,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeControlsPanelVisible = useWorkspaceStore(
     (state) => state.panels.toolbar.isVisible,
   );
-  const setWorkspacePanelVisibility = useWorkspaceStore(
-    (state) => state.setPanelVisibility,
-  );
   useEffect(() => {
     applyEditFocusPanelDefaults(activeEditFocus, setWorkspacePanelVisibility);
   }, [activeEditFocus, setWorkspacePanelVisibility]);
@@ -2048,12 +2196,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () => visibleVariablesSurfaces.filter((surface) => surface === "inputs"),
     [visibleVariablesSurfaces],
   );
-  const controlAuthoringSurfaces = useMemo(
+  const controlAuthoringSurfaces = useMemo<VariablesSurfaceTab[]>(
     () => visibleVariablesSurfaces.filter((surface) => surface !== "inputs"),
     [visibleVariablesSurfaces],
   );
-  const inputControlsPanelVisible = inputControlSurfaces.length > 0;
   const controlAuthoringPanelVisible = controlAuthoringSurfaces.length > 0;
+  const authoringSurfaces = useMemo<VariablesSurfaceTab[]>(
+    () =>
+      controlAuthoringPanelVisible
+        ? [...controlAuthoringSurfaces, "animations", "programs"]
+        : controlAuthoringSurfaces,
+    [controlAuthoringPanelVisible, controlAuthoringSurfaces],
+  );
+  const inputControlsPanelVisible = inputControlSurfaces.length > 0;
   const centerPanelDefaultSize = activeEditFocus === "pose-editing" ? 40 : 60;
   const rightSidebarDefaultSize = activeEditFocus === "pose-editing" ? 40 : 20;
   const rightSidebarResetKey =
@@ -2756,13 +2911,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectRig={handleSelectRigWithInspectorSync}
               onSelectPose={handleSelectPoseWithInspectorSync}
               onSelectScene={handleSelectObjectWithInspectorSync}
-              availableSurfaces={controlAuthoringSurfaces}
+              availableSurfaces={authoringSurfaces}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
               selectedBlendStage={selectedBlendStage}
               onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
+              animationTargets={authoringAnimationTargets}
+              onSelectAnimationTarget={handleInspectAnimationTarget}
+              onCreateAnimationTarget={handleCreateAndInspectAnimationTarget}
+              onDeleteAnimationTarget={deleteAnimationTargetById}
+              onPlayAnimationTarget={handlePlayAnimationTarget}
+              onPauseAnimationTarget={handlePauseAnimationTarget}
+              onStopAnimationTarget={handleStopAnimationTarget}
+              programTargets={authoringProgramTargets}
+              onSelectProgramTarget={handleInspectProgramTarget}
+              onCreateProgramTarget={handleCreateAndInspectProgramTarget}
+              onDeleteProgramTarget={deleteProceduralTargetById}
+              onPlayProgramTarget={handlePlayProgramTarget}
+              onPauseProgramTarget={handlePauseProgramTarget}
+              onStopProgramTarget={handleStopProgramTarget}
               panelTitle="Authoring"
-              panelDescription="Author and organize drivers, poses, and pose groups."
+              panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}

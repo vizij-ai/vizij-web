@@ -3982,6 +3982,130 @@ describe("VariablesPanel", () => {
     expect(screen.queryByRole("button", { name: "Add PAP Output" })).toBeNull();
   });
 
+  it("renders wrapped authoring tabs for animations and programs", () => {
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={[
+          "variables",
+          "poses",
+          "pose-groups",
+          "animations",
+          "programs",
+        ]}
+        animationTargets={[
+          {
+            id: "animation:wave",
+            label: "Wave",
+            source: "authored",
+          },
+        ]}
+        programTargets={[
+          {
+            id: "program:blink",
+            label: "Blink",
+            source: "authored",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("control-authoring-tab-animations")).toBeTruthy();
+    expect(screen.getByTestId("control-authoring-tab-programs")).toBeTruthy();
+
+    const tablist = view.container.querySelector('[role="tablist"]');
+    expect(tablist?.className).toContain("flex-wrap");
+    expect(tablist?.className).toContain("overflow-visible");
+  });
+
+  it("routes animation and program list actions through the provided callbacks", () => {
+    const onSelectAnimationTarget = vi.fn();
+    const onCreateAnimationTarget = vi.fn();
+    const onPlayAnimationTarget = vi.fn();
+    const onPauseAnimationTarget = vi.fn();
+    const onStopAnimationTarget = vi.fn();
+    const onDeleteAnimationTarget = vi.fn();
+    const onSelectProgramTarget = vi.fn();
+    const onCreateProgramTarget = vi.fn();
+    const onPlayProgramTarget = vi.fn();
+    const onPauseProgramTarget = vi.fn();
+    const onStopProgramTarget = vi.fn();
+    const onDeleteProgramTarget = vi.fn();
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["animations", "programs"]}
+        animationTargets={[
+          {
+            id: "animation:wave",
+            label: "Wave Clip",
+            source: "authored",
+            selected: true,
+            isRuntimeActive: true,
+            meta: "2 tracks",
+          },
+        ]}
+        onSelectAnimationTarget={onSelectAnimationTarget}
+        onCreateAnimationTarget={onCreateAnimationTarget}
+        onPlayAnimationTarget={onPlayAnimationTarget}
+        onPauseAnimationTarget={onPauseAnimationTarget}
+        onStopAnimationTarget={onStopAnimationTarget}
+        onDeleteAnimationTarget={onDeleteAnimationTarget}
+        programTargets={[
+          {
+            id: "program:blink",
+            label: "Blink Graph",
+            source: "authored",
+            selected: true,
+            isRuntimeActive: true,
+            meta: "3 nodes",
+          },
+        ]}
+        onSelectProgramTarget={onSelectProgramTarget}
+        onCreateProgramTarget={onCreateProgramTarget}
+        onPlayProgramTarget={onPlayProgramTarget}
+        onPauseProgramTarget={onPauseProgramTarget}
+        onStopProgramTarget={onStopProgramTarget}
+        onDeleteProgramTarget={onDeleteProgramTarget}
+      />,
+    );
+
+    expect(screen.getByPlaceholderText("Search animations...")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "All" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Authored" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Imported" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "New Animation" }));
+    fireEvent.click(screen.getByText("Wave Clip"));
+    fireEvent.click(screen.getByTitle("Play animation"));
+    fireEvent.click(screen.getByTitle("Pause animation"));
+    fireEvent.click(screen.getByTitle("Stop animation"));
+    fireEvent.click(screen.getByTitle("Delete animation"));
+
+    expect(onCreateAnimationTarget).toHaveBeenCalledTimes(1);
+    expect(onSelectAnimationTarget).toHaveBeenCalledWith("animation:wave");
+    expect(onPlayAnimationTarget).toHaveBeenCalledWith("animation:wave");
+    expect(onPauseAnimationTarget).toHaveBeenCalledWith("animation:wave");
+    expect(onStopAnimationTarget).toHaveBeenCalledWith("animation:wave");
+    expect(onDeleteAnimationTarget).toHaveBeenCalledWith("animation:wave");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Programs (1)" }));
+
+    expect(screen.getByPlaceholderText("Search programs...")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "New Program" }));
+    fireEvent.click(screen.getByText("Blink Graph"));
+    fireEvent.click(screen.getByTitle("Play program"));
+    fireEvent.click(screen.getByTitle("Pause program"));
+    fireEvent.click(screen.getByTitle("Stop program"));
+    fireEvent.click(screen.getByTitle("Delete program"));
+
+    expect(onCreateProgramTarget).toHaveBeenCalledTimes(1);
+    expect(onSelectProgramTarget).toHaveBeenCalledWith("program:blink");
+    expect(onPlayProgramTarget).toHaveBeenCalledWith("program:blink");
+    expect(onPauseProgramTarget).toHaveBeenCalledWith("program:blink");
+    expect(onStopProgramTarget).toHaveBeenCalledWith("program:blink");
+    expect(onDeleteProgramTarget).toHaveBeenCalledWith("program:blink");
+  });
+
   it("clears stale blend-stage selection when the backing stage no longer exists", () => {
     const onSelectBlendStage = vi.fn();
     const selectedBlendStage: BlendStageInspectorSelection = {
