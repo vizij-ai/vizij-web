@@ -90,9 +90,13 @@ function collectLockedPropsRigComponentIds(
 
 interface AnimationPanelProps {
   onClosePanel?: () => void;
+  onInspectTrack?: (trackId: string) => void;
 }
 
-export function AnimationPanel({ onClosePanel }: AnimationPanelProps) {
+export function AnimationPanel({
+  onClosePanel,
+  onInspectTrack,
+}: AnimationPanelProps) {
   const {
     isPlaying,
     currentTime,
@@ -360,6 +364,7 @@ export function AnimationPanel({ onClosePanel }: AnimationPanelProps) {
           onSeek={transport.seek}
           onPause={transport.pause}
           timeDisplayMode={timeDisplayMode}
+          onInspectTrack={onInspectTrack}
         />
         <div className="rounded-md border border-border-default/60 bg-bg-panel/40 px-2 py-1 text-[10px] text-text-muted">
           Select a track or keyframe to edit it from the Inspector panel.

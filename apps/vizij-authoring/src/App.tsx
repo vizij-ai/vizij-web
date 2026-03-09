@@ -95,7 +95,11 @@ import {
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
 import { createEditFocusPanelVisibility } from "./state/editFocusPanels";
-import { shouldShowAssetInspector } from "./utils/inspectorSelection";
+import {
+  areActiveInspectorTargetsEqual,
+  synchronizeActiveInspectorTarget,
+  type ActiveInspectorTarget,
+} from "./utils/inspectorSelection";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
@@ -642,6 +646,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [selectedProceduralTargetId, setSelectedProceduralTargetId] = useState(
     () => authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
   );
+  const [activeInspectorTarget, setActiveInspectorTarget] =
+    useState<ActiveInspectorTarget | null>(() => ({
+      kind: "animation-target",
+      targetId: authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
+    }));
   const [activeProgramRuntimeTargetId, setActiveProgramRuntimeTargetId] =
     useState<string | null>(null);
   const [
@@ -744,12 +753,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationRuntimeTransportAdapter = useAnimationStore(
     (state) => state.runtimeTransportAdapter,
   );
+  const selectedAnimationTrackId = useAnimationStore(
+    (state) => state.selectedTrackId,
+  );
   const selectAnimationTrack = useAnimationStore((state) => state.selectTrack);
   const selectAnimationKeyframe = useAnimationStore(
     (state) => state.selectKeyframe,
   );
   const animationDuration = useAnimationStore((state) => state.duration);
   const setAnimationDuration = useAnimationStore((state) => state.setDuration);
+  const openInspectorForTarget = useCallback(
+    (target: ActiveInspectorTarget) => {
+      setWorkspacePanelVisibility("inspector", true);
+      setActiveInspectorTarget((previous) =>
+        areActiveInspectorTargetsEqual(previous, target) ? previous : target,
+      );
+    },
+    [setWorkspacePanelVisibility],
+  );
   const proceduralEditorNodes = useEditorStore((state) => state.nodes);
   const proceduralEditorEdges = useEditorStore((state) => state.edges);
   const proceduralEditorEnabledOutputs = useEditorStore(
@@ -2076,6 +2097,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleInspectAnimationTarget = useCallback(
     (targetId: string) => {
       setActiveAuthoringSurface("animations");
+      openInspectorForTarget({ kind: "animation-target", targetId });
       setWorkspacePanelVisibility("animation", true);
       uiActions.setActiveRuntimeSource("animation");
       selectAnimationTrack(null);
@@ -2084,6 +2106,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       handleSelectAnimationTarget,
+      openInspectorForTarget,
       selectAnimationKeyframe,
       selectAnimationTrack,
       setWorkspacePanelVisibility,
@@ -2093,13 +2116,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleInspectProgramTarget = useCallback(
     (targetId: string) => {
       setActiveAuthoringSurface("programs");
+      openInspectorForTarget({ kind: "program-target", targetId });
       setWorkspacePanelVisibility("motiongraphPalette", true);
       setWorkspacePanelVisibility("motiongraph", true);
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
       useEditorStore.getState().setSelected(null);
       handleSelectProceduralTarget(targetId);
     },
-    [handleSelectProceduralTarget, setWorkspacePanelVisibility, uiActions],
+    [
+      handleSelectProceduralTarget,
+      openInspectorForTarget,
+      setWorkspacePanelVisibility,
+      uiActions,
+    ],
   );
   const handleCreateAndInspectAnimationTarget = useCallback(() => {
     setActiveAuthoringSurface("animations");
@@ -2269,14 +2298,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleInspectAnimationTrackFromInspector = useCallback(
     (trackId: string) => {
       setActiveAuthoringSurface("animations");
+      openInspectorForTarget({
+        kind: "animation-track",
+        targetId: selectedAnimationTargetId,
+        trackId,
+      });
       setWorkspacePanelVisibility("animation", true);
       uiActions.setActiveRuntimeSource("animation");
       selectAnimationKeyframe(null);
       selectAnimationTrack(trackId);
     },
     [
+      openInspectorForTarget,
+      selectedAnimationTargetId,
       selectAnimationKeyframe,
       selectAnimationTrack,
+      setWorkspacePanelVisibility,
+      uiActions,
+    ],
+  );
+  const handleInspectAnimationTrackFromTimeline = useCallback(
+    (trackId: string) => {
+      setActiveAuthoringSurface("animations");
+      openInspectorForTarget({
+        kind: "animation-track",
+        targetId: selectedAnimationTargetId,
+        trackId,
+      });
+      setWorkspacePanelVisibility("animation", true);
+      uiActions.setActiveRuntimeSource("animation");
+    },
+    [
+      openInspectorForTarget,
+      selectedAnimationTargetId,
       setWorkspacePanelVisibility,
       uiActions,
     ],
@@ -2915,34 +2969,61 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     handleClearSelection,
   } = useUnifiedSelection();
   const selectedSceneId = selectedId;
-  const showAssetInspector = shouldShowAssetInspector({
-    selectedSceneId: selectedId,
-    selectedRigId,
-    selectedPoseId,
-    selectedMaterialId,
-    selectedMotionGraphNodeId,
-  });
   const clearPoseGraphInspectorSelection = useCallback(() => {
     setSelectedPoseGroup(null);
     setSelectedBlendStage(null);
   }, []);
+  useEffect(() => {
+    setActiveInspectorTarget((previous) => {
+      const next = synchronizeActiveInspectorTarget(previous, {
+        selectedSceneId,
+        selectedRigId,
+        selectedPoseId,
+        selectedMaterialId,
+        selectedPoseGroup,
+        selectedBlendStage,
+        selectedAnimationTargetId,
+        selectedAnimationTrackId,
+        selectedProgramTargetId: selectedProceduralTargetId,
+        selectedMotionGraphNodeId,
+      });
+      return areActiveInspectorTargetsEqual(previous, next) ? previous : next;
+    });
+  }, [
+    selectedSceneId,
+    selectedRigId,
+    selectedPoseId,
+    selectedMaterialId,
+    selectedPoseGroup,
+    selectedBlendStage,
+    selectedAnimationTargetId,
+    selectedAnimationTrackId,
+    selectedProceduralTargetId,
+    selectedMotionGraphNodeId,
+  ]);
   const handleSelectObjectWithInspectorSync = useCallback(
     (id: string, options?: { additive?: boolean }) => {
       if (id) {
         clearPoseGraphInspectorSelection();
+        openInspectorForTarget({ kind: "scene", id });
       }
       handleSelectObject(id, options);
     },
-    [clearPoseGraphInspectorSelection, handleSelectObject],
+    [
+      clearPoseGraphInspectorSelection,
+      handleSelectObject,
+      openInspectorForTarget,
+    ],
   );
   const handleSelectRigWithInspectorSync = useCallback(
     (id: string | null) => {
       if (id) {
         clearPoseGraphInspectorSelection();
+        openInspectorForTarget({ kind: "rig", id });
       }
       handleSelectRig(id);
     },
-    [clearPoseGraphInspectorSelection, handleSelectRig],
+    [clearPoseGraphInspectorSelection, handleSelectRig, openInspectorForTarget],
   );
   const handleClearSelectionWithInspectorSync = useCallback(() => {
     clearPoseGraphInspectorSelection();
@@ -2952,14 +3033,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (id: string) => {
       if (id) {
         clearPoseGraphInspectorSelection();
+        openInspectorForTarget({ kind: "pose", id });
       }
       handleSelectPose(id);
     },
-    [clearPoseGraphInspectorSelection, handleSelectPose],
+    [
+      clearPoseGraphInspectorSelection,
+      handleSelectPose,
+      openInspectorForTarget,
+    ],
   );
   const handleSelectPoseGroupWithInspectorSync = useCallback(
     (selection: PoseGroupInspectorSelection | null) => {
       if (selection) {
+        openInspectorForTarget({
+          kind: "pose-group",
+          groupId: selection.groupId,
+          groupPath: selection.groupPath,
+        });
         if (selectedId) {
           handleClearSelection();
         }
@@ -2981,6 +3072,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       handleClearSelection,
       handleSelectMaterial,
       handleSelectRig,
+      openInspectorForTarget,
       poseRig,
       selectedId,
       selectedMaterialId,
@@ -2992,6 +3084,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleSelectBlendStageWithInspectorSync = useCallback(
     (selection: BlendStageInspectorSelection | null) => {
       if (selection) {
+        openInspectorForTarget({ kind: "blend-stage", id: selection.id });
         if (selectedId) {
           handleClearSelection();
         }
@@ -3013,6 +3106,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       handleClearSelection,
       handleSelectMaterial,
       handleSelectRig,
+      openInspectorForTarget,
       poseRig,
       selectedId,
       selectedMaterialId,
@@ -3025,10 +3119,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (id: string | null) => {
       if (id) {
         clearPoseGraphInspectorSelection();
+        openInspectorForTarget({
+          kind: "motiongraph-node",
+          targetId: selectedProceduralTargetId,
+          nodeId: id,
+        });
       }
       handleSelectMotionGraphNode(id);
     },
-    [clearPoseGraphInspectorSelection, handleSelectMotionGraphNode],
+    [
+      clearPoseGraphInspectorSelection,
+      handleSelectMotionGraphNode,
+      openInspectorForTarget,
+      selectedProceduralTargetId,
+    ],
   );
   const handleInspectProgramNodeFromInspector = useCallback(
     (nodeId: string) => {
@@ -3046,10 +3150,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleInspectInputFromAuthoringInspector = useCallback(
     (inputId: string) => {
-      setWorkspacePanelVisibility("inspector", true);
       handleSelectRigWithInspectorSync(inputId);
     },
-    [handleSelectRigWithInspectorSync, setWorkspacePanelVisibility],
+    [handleSelectRigWithInspectorSync],
   );
   useEffect(() => {
     if (motionGraphPanelVisible) {
@@ -3661,7 +3764,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           viewport={viewportContent}
           bottomVisible={animationPanelVisible}
           bottomPanel={
-            <AnimationPanel onClosePanel={handleHideAnimationPanel} />
+            <AnimationPanel
+              onClosePanel={handleHideAnimationPanel}
+              onInspectTrack={handleInspectAnimationTrackFromTimeline}
+            />
           }
           centerPanelDefaultSize={centerPanelDefaultSize}
           // Right
@@ -3694,15 +3800,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               {inspectorPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <InspectorPanel
+                    activeInspectorTarget={activeInspectorTarget}
                     selectedPoseGroup={selectedPoseGroup}
                     onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
                     selectedBlendStage={selectedBlendStage}
                     onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-                    selectedAnimationTarget={
-                      showAssetInspector
-                        ? selectedAnimationInspectorTarget
-                        : null
-                    }
+                    selectedAnimationTarget={selectedAnimationInspectorTarget}
                     onRenameAnimationTarget={handleRenameAnimationTarget}
                     onUpdateAnimationTargetDuration={
                       handleUpdateAnimationTargetDuration
@@ -3713,9 +3816,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     onInspectAnimationInput={
                       handleInspectInputFromAuthoringInspector
                     }
-                    selectedProgramTarget={
-                      showAssetInspector ? selectedProgramInspectorTarget : null
-                    }
+                    selectedProgramTarget={selectedProgramInspectorTarget}
                     onRenameProgramTarget={handleRenameProgramTarget}
                     onInspectProgramNode={handleInspectProgramNodeFromInspector}
                     onInspectProgramInput={

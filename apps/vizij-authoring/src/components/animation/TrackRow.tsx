@@ -11,9 +11,15 @@ interface TrackRowProps {
   track: AnimationTrack;
   duration: number;
   timeDisplayMode: AnimationTimeDisplayMode;
+  onInspect?: (trackId: string) => void;
 }
 
-export function TrackRow({ track, duration, timeDisplayMode }: TrackRowProps) {
+export function TrackRow({
+  track,
+  duration,
+  timeDisplayMode,
+  onInspect,
+}: TrackRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingKeyframeIdRef = useRef<string | null>(null);
   const [draggingKeyframeId, setDraggingKeyframeId] = useState<string | null>(
@@ -70,6 +76,7 @@ export function TrackRow({ track, duration, timeDisplayMode }: TrackRowProps) {
     e.preventDefault();
     selectKeyframe(kfId);
     selectTrack(track.id);
+    onInspect?.(track.id);
     endKeyframeDrag();
     draggingKeyframeIdRef.current = kfId;
     setDraggingKeyframeId(kfId);
@@ -88,12 +95,14 @@ export function TrackRow({ track, duration, timeDisplayMode }: TrackRowProps) {
   const handleTrackClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     selectTrack(track.id);
+    onInspect?.(track.id);
   };
 
   const handleKeyframeClick = (e: React.MouseEvent, kfId: string) => {
     e.stopPropagation();
     selectKeyframe(kfId);
     selectTrack(track.id);
+    onInspect?.(track.id);
   };
 
   const isSelected = selectedTrackId === track.id;

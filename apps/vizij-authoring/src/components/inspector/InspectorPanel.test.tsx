@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ActiveInspectorTarget } from "../../utils/inspectorSelection";
 import {
   InspectorPanel,
   type AnimationInspectorSelection,
@@ -39,13 +40,18 @@ vi.mock("../../state/RigControllerProvider", () => ({
     selector(bindingState),
 }));
 
-vi.mock("../../hooks/useUnifiedSelection", () => ({
-  useUnifiedSelection: () => ({
-    inspectorMode: "default",
-  }),
-}));
-
-const animationStoreState = {
+const animationStoreState: {
+  tracks: any[];
+  selectedTrackId: string | null;
+  selectedKeyframeId: string | null;
+  setTrackInterpolation: ReturnType<typeof vi.fn>;
+  updateKeyframe: ReturnType<typeof vi.fn>;
+  removeTrack: ReturnType<typeof vi.fn>;
+  removeKeyframe: ReturnType<typeof vi.fn>;
+  selectTrack: ReturnType<typeof vi.fn>;
+  selectKeyframe: ReturnType<typeof vi.fn>;
+  timeDisplayMode: "seconds";
+} = {
   tracks: [],
   selectedTrackId: null,
   selectedKeyframeId: null,
@@ -75,6 +81,10 @@ vi.mock("./InspectorContent", () => ({
 describe("InspectorPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bindingState.standardInputsById = new Map();
+    animationStoreState.tracks = [];
+    animationStoreState.selectedTrackId = null;
+    animationStoreState.selectedKeyframeId = null;
   });
 
   it("renders the animation asset inspector and commits rename plus navigation", () => {
@@ -102,6 +112,12 @@ describe("InspectorPanel", () => {
 
     render(
       <InspectorPanel
+        activeInspectorTarget={
+          {
+            kind: "animation-target",
+            targetId: "authored-animation:blink",
+          } satisfies ActiveInspectorTarget
+        }
         selectedAnimationTarget={selectedAnimationTarget}
         onRenameAnimationTarget={onRenameAnimationTarget}
         onUpdateAnimationTargetDuration={onUpdateAnimationTargetDuration}
@@ -176,6 +192,12 @@ describe("InspectorPanel", () => {
 
     render(
       <InspectorPanel
+        activeInspectorTarget={
+          {
+            kind: "program-target",
+            targetId: "authored-procedural:wave",
+          } satisfies ActiveInspectorTarget
+        }
         selectedProgramTarget={selectedProgramTarget}
         onRenameProgramTarget={onRenameProgramTarget}
         onInspectProgramNode={onInspectProgramNode}
@@ -200,5 +222,50 @@ describe("InspectorPanel", () => {
     );
     expect(onInspectProgramNode).toHaveBeenCalledWith("node-a");
     expect(onInspectProgramInput).toHaveBeenCalledWith("jaw.open");
+  });
+
+  it("renders the track inspector only when the active target is the track", () => {
+    animationStoreState.tracks = [
+      {
+        id: "track-1",
+        label: "Jaw Open",
+        variableId: "jaw.open",
+        channel: "/propsrig/jaw/open",
+        color: "#ffffff",
+        interpolation: "linear",
+        keyframes: [
+          {
+            id: "kf-1",
+            time: 0.25,
+            value: 0.5,
+          },
+        ],
+      },
+    ];
+    animationStoreState.selectedTrackId = "track-1";
+    animationStoreState.selectedKeyframeId = "kf-1";
+    bindingState.standardInputsById = new Map([
+      [
+        "jaw.open",
+        {
+          id: "jaw.open",
+          label: "Jaw Open",
+          range: { min: 0, max: 1 },
+        },
+      ],
+    ]);
+
+    render(
+      <InspectorPanel
+        activeInspectorTarget={{
+          kind: "animation-track",
+          targetId: "authored-animation:blink",
+          trackId: "track-1",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Keyframes: 1")).toBeTruthy();
+    expect(screen.queryByTestId("generic-inspector-content")).toBeNull();
   });
 });

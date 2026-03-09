@@ -11,6 +11,7 @@ interface TimelineEditorProps {
   onSeek?: (timeSeconds: number) => void;
   onPause?: () => void;
   timeDisplayMode?: AnimationTimeDisplayMode;
+  onInspectTrack?: (trackId: string) => void;
 }
 
 const TRACK_HEADER_WIDTH = 192;
@@ -19,6 +20,7 @@ export function TimelineEditor({
   onSeek,
   onPause,
   timeDisplayMode = "seconds",
+  onInspectTrack,
 }: TimelineEditorProps) {
   const {
     tracks,
@@ -259,6 +261,7 @@ export function TimelineEditor({
               track={track}
               duration={duration}
               timeDisplayMode={timeDisplayMode}
+              onInspect={onInspectTrack}
             />
           ))
         )}

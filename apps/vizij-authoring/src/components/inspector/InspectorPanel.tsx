@@ -21,13 +21,13 @@ import type {
   BlendStageInspectorSelection,
   PoseGroupInspectorSelection,
 } from "../../types/poseGroupInspector";
-import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import MgNodeInspector from "../../motiongraph/components/MgNodeInspector";
 import {
   useAnimationStore,
   type AnimationTimeDisplayMode,
 } from "../../state/animationStore";
+import type { ActiveInspectorTarget } from "../../utils/inspectorSelection";
 import {
   formatKeyframeTime,
   framesToSeconds,
@@ -42,6 +42,7 @@ import {
 import { InspectorContent } from "./InspectorContent";
 
 interface InspectorPanelProps {
+  activeInspectorTarget?: ActiveInspectorTarget | null;
   selectedPoseGroup?: PoseGroupInspectorSelection | null;
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
   selectedBlendStage?: BlendStageInspectorSelection | null;
@@ -295,6 +296,7 @@ function InspectorEntryButton({
 }
 
 export function InspectorPanel({
+  activeInspectorTarget = null,
   selectedPoseGroup = null,
   onSelectPoseGroup,
   selectedBlendStage = null,
@@ -341,7 +343,6 @@ export function InspectorPanel({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
-  const { inspectorMode } = useUnifiedSelection();
   const animationTracks = useAnimationStore((state) => state.tracks);
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
@@ -1019,66 +1020,51 @@ export function InspectorPanel({
     animationTimeDisplayMode,
   );
 
-  const hasCompetingInspectorSelection = inspectorMode !== "default";
-  const isPoseGroupInspectorMode = Boolean(
-    selectedPoseGroup && !hasCompetingInspectorSelection,
-  );
-  const isBlendStageInspectorMode = Boolean(
-    selectedBlendStage && !selectedPoseGroup && !hasCompetingInspectorSelection,
-  );
-  const isDedicatedInspectorMode =
-    isPoseGroupInspectorMode || isBlendStageInspectorMode;
-  const showMotionGraphInspector =
-    inspectorMode === "motiongraph" && !isDedicatedInspectorMode;
+  const activeInspectorKind = activeInspectorTarget?.kind ?? null;
+  const showPoseGroupInspector =
+    activeInspectorKind === "pose-group" && Boolean(selectedPoseGroup);
+  const showBlendStageInspector =
+    activeInspectorKind === "blend-stage" && Boolean(selectedBlendStage);
+  const showMotionGraphInspector = activeInspectorKind === "motiongraph-node";
   const showAnimationInspector =
-    !hasCompetingInspectorSelection &&
-    !isDedicatedInspectorMode &&
-    !showMotionGraphInspector &&
+    activeInspectorKind === "animation-track" &&
     Boolean(selectedAnimationTrack);
   const showAnimationTargetInspector =
-    !hasCompetingInspectorSelection &&
-    !isDedicatedInspectorMode &&
-    !showMotionGraphInspector &&
-    !showAnimationInspector &&
+    activeInspectorKind === "animation-target" &&
     Boolean(selectedAnimationTarget);
   const showProgramTargetInspector =
-    !hasCompetingInspectorSelection &&
-    !isDedicatedInspectorMode &&
-    !showMotionGraphInspector &&
-    !showAnimationInspector &&
-    !showAnimationTargetInspector &&
-    Boolean(selectedProgramTarget);
+    activeInspectorKind === "program-target" && Boolean(selectedProgramTarget);
+  const showDedicatedInspector =
+    showPoseGroupInspector || showBlendStageInspector;
+  const panelTitle = showPoseGroupInspector
+    ? "Pose Group Inspector"
+    : showBlendStageInspector
+      ? "Blend Stage Inspector"
+      : showProgramTargetInspector
+        ? "Program Inspector"
+        : showAnimationTargetInspector
+          ? "Animation Inspector"
+          : showMotionGraphInspector
+            ? "Procedural Animation Programming Inspector"
+            : showAnimationInspector
+              ? "Animation Inspector"
+              : "Inspector";
+  const panelDescription = showDedicatedInspector
+    ? "Author composition and inspect live output behavior."
+    : showProgramTargetInspector
+      ? "Inspect and edit the selected procedural animation program."
+      : showAnimationTargetInspector
+        ? "Inspect and edit the selected animation clip."
+        : showMotionGraphInspector
+          ? "Inspect and edit the selected procedural animation programming node."
+          : showAnimationInspector
+            ? "Inspect and edit the selected animation track or keyframe."
+            : "View and edit selected object properties.";
 
   return (
     <Panel
-      title={
-        isPoseGroupInspectorMode
-          ? "Pose Group Inspector"
-          : isBlendStageInspectorMode
-            ? "Blend Stage Inspector"
-            : showProgramTargetInspector
-              ? "Program Inspector"
-              : showAnimationTargetInspector
-                ? "Animation Inspector"
-                : showMotionGraphInspector
-                  ? "Procedural Animation Programming Inspector"
-                  : showAnimationInspector
-                    ? "Animation Inspector"
-                    : "Inspector"
-      }
-      description={
-        isDedicatedInspectorMode
-          ? "Author composition and inspect live output behavior."
-          : showProgramTargetInspector
-            ? "Inspect and edit the selected procedural animation program."
-            : showAnimationTargetInspector
-              ? "Inspect and edit the selected animation clip."
-              : showMotionGraphInspector
-                ? "Inspect and edit the selected procedural animation programming node."
-                : showAnimationInspector
-                  ? "Inspect and edit the selected animation track or keyframe."
-                  : "View and edit selected object properties."
-      }
+      title={panelTitle}
+      description={panelDescription}
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={
         onClosePanel ? (
@@ -1095,7 +1081,7 @@ export function InspectorPanel({
       }
     >
       <div className="flex flex-col h-full min-h-0">
-        {!isDedicatedInspectorMode && (
+        {!showDedicatedInspector && (
           <div className="flex-1 min-h-0 overflow-y-auto">
             {showProgramTargetInspector && selectedProgramTarget ? (
               <div className="flex flex-col gap-2 p-2">
@@ -1573,7 +1559,7 @@ export function InspectorPanel({
             )}
           </div>
         )}
-        {isPoseGroupInspectorMode && selectedPoseGroup && (
+        {showPoseGroupInspector && selectedPoseGroup && (
           <div className="px-2 pb-2 flex flex-col gap-2 min-h-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -2012,7 +1998,7 @@ export function InspectorPanel({
             </div>
           </div>
         )}
-        {isBlendStageInspectorMode && selectedBlendStage && (
+        {showBlendStageInspector && selectedBlendStage && (
           <div className="px-2 pb-2 flex flex-col gap-2 min-h-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
