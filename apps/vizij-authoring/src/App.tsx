@@ -2024,6 +2024,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const inputControlsPanelVisible = inputControlSurfaces.length > 0;
   const controlAuthoringPanelVisible = controlAuthoringSurfaces.length > 0;
+  const centerPanelDefaultSize = activeEditFocus === "pose-editing" ? 40 : 60;
+  const rightSidebarDefaultSize = activeEditFocus === "pose-editing" ? 40 : 20;
+  const rightSidebarResetKey =
+    activeEditFocus === "pose-editing" ? "pose-editing" : "default";
   const handleHideControlAuthoringPanel = useCallback(() => {
     setWorkspacePanelVisibility("variables", false);
     setWorkspacePanelVisibility("poses", false);
@@ -2739,6 +2743,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           viewport={viewportContent}
           bottomVisible={animationPanelVisible}
           bottomPanel={<AnimationPanel />}
+          centerPanelDefaultSize={centerPanelDefaultSize}
           // Right
           rightTopVisible={runtimeControlsPanelVisible}
           rightTopPanel={
@@ -2777,6 +2782,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           rightBottomVisible={
             inspectorPanelVisible || speechPanelVisible || debugPanelVisible
           }
+          rightSidebarDefaultSize={rightSidebarDefaultSize}
+          rightSidebarResetKey={rightSidebarResetKey}
           rightBottomPanel={
             <div
               className={`h-full min-h-0 ${

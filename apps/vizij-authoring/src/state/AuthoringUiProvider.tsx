@@ -32,6 +32,7 @@ export type RotationDisplayMode = "radians" | "degrees";
 export type EditFocus =
   | "default"
   | "pose-creation"
+  | "pose-editing"
   | "animation"
   | "procedural-animation-programming"
   | "reference-face";

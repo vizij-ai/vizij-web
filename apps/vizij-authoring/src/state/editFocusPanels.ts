@@ -73,5 +73,20 @@ export function createEditFocusPanelVisibility(
     nextVisibility.debug = false;
   }
 
+  if (focus === "pose-editing") {
+    nextVisibility.hierarchy = false;
+    nextVisibility.variables = false;
+    nextVisibility.poses = true;
+    nextVisibility.materials = true;
+    nextVisibility.inputs = false;
+    nextVisibility.motiongraphPalette = false;
+    nextVisibility.animation = false;
+    nextVisibility.motiongraph = false;
+    nextVisibility.referenceFace = false;
+    nextVisibility.toolbar = false;
+    nextVisibility.speech = false;
+    nextVisibility.debug = false;
+  }
+
   return nextVisibility;
 }

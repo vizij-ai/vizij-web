@@ -25,6 +25,7 @@ interface WorkspaceLayoutProps {
   viewport: React.ReactNode;
   bottomPanel?: React.ReactNode; // Timeline
   bottomVisible?: boolean;
+  centerPanelDefaultSize?: number;
 
   // Right Sidebar
   rightTopPanel?: React.ReactNode;
@@ -33,6 +34,8 @@ interface WorkspaceLayoutProps {
   rightTopVisible?: boolean;
   rightMiddleVisible?: boolean;
   rightBottomVisible?: boolean;
+  rightSidebarDefaultSize?: number;
+  rightSidebarResetKey?: string;
 }
 
 export function WorkspaceLayout({
@@ -51,12 +54,15 @@ export function WorkspaceLayout({
   viewport,
   bottomPanel,
   bottomVisible = true,
+  centerPanelDefaultSize = 60,
   rightTopPanel,
   rightMiddlePanel: _rightMiddlePanel,
   rightBottomPanel,
   rightTopVisible = true,
   rightMiddleVisible = false,
   rightBottomVisible = false,
+  rightSidebarDefaultSize = 20,
+  rightSidebarResetKey = "default",
 }: WorkspaceLayoutProps) {
   const leftSidebarVisible =
     leftTopVisible ||
@@ -137,7 +143,11 @@ export function WorkspaceLayout({
           )}
 
           {/* Center + Bottom Group */}
-          <Panel defaultSize={60} minSize={5} id="center-group">
+          <Panel
+            defaultSize={centerPanelDefaultSize}
+            minSize={5}
+            id="center-group"
+          >
             <Group orientation="vertical">
               {/* Top Toolbar Area */}
               {topPanel && (
@@ -181,7 +191,8 @@ export function WorkspaceLayout({
             <>
               <Separator className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
               <Panel
-                defaultSize={20}
+                key={rightSidebarResetKey}
+                defaultSize={rightSidebarDefaultSize}
                 minSize={5}
                 collapsible
                 id="right-sidebar"
