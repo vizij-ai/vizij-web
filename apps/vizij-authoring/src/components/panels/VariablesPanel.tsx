@@ -2915,22 +2915,27 @@ function FlatInputControlRow({
         </div>
       </div>
       {row.editable ? (
-        <Slider
-          value={value}
-          min={row.min}
-          max={row.max}
-          step={0.01}
-          disabled={locked}
-          onChange={(nextValue) => {
-            const normalizedValue = Array.isArray(nextValue)
-              ? nextValue[0]
-              : nextValue;
-            if (!Number.isFinite(normalizedValue)) {
-              return;
-            }
-            onValueChange(row.inputId, normalizedValue);
-          }}
-        />
+        <div
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <Slider
+            value={value}
+            min={row.min}
+            max={row.max}
+            step={0.01}
+            disabled={locked}
+            onChange={(nextValue) => {
+              const normalizedValue = Array.isArray(nextValue)
+                ? nextValue[0]
+                : nextValue;
+              if (!Number.isFinite(normalizedValue)) {
+                return;
+              }
+              onValueChange(row.inputId, normalizedValue);
+            }}
+          />
+        </div>
       ) : (
         <p className="text-[10px] text-text-muted">
           Derived control (read-only)

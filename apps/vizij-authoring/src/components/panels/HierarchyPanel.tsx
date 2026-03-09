@@ -795,8 +795,8 @@ export function HierarchyPanel({
           />
         </div>
 
-        <div className="flex-1 min-h-[200px] overflow-y-auto px-1 custom-scrollbar">
-          <div className="flex flex-col pb-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 custom-scrollbar">
+          <div className="flex min-h-full flex-col pb-6 pr-1">
             {referenceFaceFile ? (
               <>
                 {renderMainFaceRoot()}

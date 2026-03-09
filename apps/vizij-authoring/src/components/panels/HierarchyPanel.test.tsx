@@ -520,4 +520,25 @@ describe("HierarchyPanel", () => {
       expect.anything(),
     );
   });
+
+  it("uses a shrinkable scroll region so the last face element stays fully reachable", () => {
+    const composer = createSceneComposerMock([
+      {
+        id: "shape_a",
+        name: "Shape A",
+        type: "shape",
+        parentId: null,
+        childIds: [],
+        features: [],
+      },
+    ]);
+    mockUseSceneComposer.mockReturnValue(composer);
+
+    const view = renderPanel();
+
+    const scroller = view.container.querySelector(".custom-scrollbar");
+    expect(scroller).toBeTruthy();
+    expect(scroller?.className).toContain("min-h-0");
+    expect(scroller?.className).toContain("pb-2");
+  });
 });

@@ -84,6 +84,8 @@ export function useScrub(
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!onScrub) return;
+    e.preventDefault();
+    e.stopPropagation();
     setIsScrubbing(true);
     scrubRef.current = { startX: e.clientX, lastX: e.clientX, totalDelta: 0 };
     onScrubStart?.();

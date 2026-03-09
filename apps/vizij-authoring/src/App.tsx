@@ -3690,11 +3690,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
                     selectedBlendStage={selectedBlendStage}
                     onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-                    selectedAnimationTarget={
-                      activeAuthoringSurface === "animations"
-                        ? selectedAnimationInspectorTarget
-                        : null
-                    }
+                    selectedAnimationTarget={selectedAnimationInspectorTarget}
                     onRenameAnimationTarget={handleRenameAnimationTarget}
                     onUpdateAnimationTargetDuration={
                       handleUpdateAnimationTargetDuration
@@ -3705,11 +3701,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     onInspectAnimationInput={
                       handleInspectInputFromAuthoringInspector
                     }
-                    selectedProgramTarget={
-                      activeAuthoringSurface === "programs"
-                        ? selectedProgramInspectorTarget
-                        : null
-                    }
+                    selectedProgramTarget={selectedProgramInspectorTarget}
                     onRenameProgramTarget={handleRenameProgramTarget}
                     onInspectProgramNode={handleInspectProgramNodeFromInspector}
                     onInspectProgramInput={

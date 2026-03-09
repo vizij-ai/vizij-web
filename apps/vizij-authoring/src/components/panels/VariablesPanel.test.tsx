@@ -416,6 +416,40 @@ describe("VariablesPanel", () => {
     expect(scoped.getByText("Compare in Variables/Poses")).toBeTruthy();
   });
 
+  it("does not select an input when the slider hit area is clicked", () => {
+    const input = makeInput("jaw_open", "/standard/jaw/open", {
+      label: "Jaw Open",
+    });
+    bindingState.managedStandardInputs = [
+      {
+        input,
+        source: "preset",
+      },
+    ];
+    bindingState.standardInputsById = new Map([[input.id, input]]);
+    bindingState.standardInputsByPath = new Map([[input.path, input]]);
+    const onSelectRig = vi.fn();
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+        onSelectRig={onSelectRig}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
+      target: { value: "Jaw Open" },
+    });
+    const inputRow = screen.getByTitle("Jaw Open").closest('[role="button"]');
+    expect(inputRow).toBeTruthy();
+    const sliderRoot = inputRow?.querySelector('[class*="touch-none"]');
+    expect(sliderRoot).toBeTruthy();
+    fireEvent.click(sliderRoot as HTMLElement);
+
+    expect(onSelectRig).not.toHaveBeenCalled();
+  });
+
   it("saves the current input value onto the selected pose whenever a pose is selected", () => {
     const poseId = "pose_smile";
     const smileInput = makeInput("smile", "/smile", {
