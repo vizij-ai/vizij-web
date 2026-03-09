@@ -2042,6 +2042,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleHideInspectorPanel = useCallback(() => {
     setWorkspacePanelVisibility("inspector", false);
   }, [setWorkspacePanelVisibility]);
+  const handleHideRuntimeSourcePanel = useCallback(() => {
+    setWorkspacePanelVisibility("toolbar", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideSpeechPanel = useCallback(() => {
+    setWorkspacePanelVisibility("speech", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideDebugPanel = useCallback(() => {
+    setWorkspacePanelVisibility("debug", false);
+  }, [setWorkspacePanelVisibility]);
   const {
     selectedId,
     selectedRigId,
@@ -2777,6 +2786,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               deleteTargetLabel={runtimeTargetConfig?.deleteTargetLabel}
               onCreateTarget={runtimeTargetConfig?.onCreateTarget}
               createTargetLabel={runtimeTargetConfig?.createTargetLabel}
+              onClosePanel={handleHideRuntimeSourcePanel}
             />
           }
           rightBottomVisible={
@@ -2810,7 +2820,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               ) : null}
               {speechPanelVisible ? (
                 <div className="min-h-0 overflow-y-auto border-t border-border-default/70">
-                  <SpeechPanel />
+                  <SpeechPanel onClosePanel={handleHideSpeechPanel} />
                 </div>
               ) : null}
               {debugPanelVisible ? (
@@ -2820,6 +2830,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     loadedBundle={loader.bundle}
                     updateBundle={loader.updateBundle}
                     isLoading={loader.isLoading}
+                    onClosePanel={handleHideDebugPanel}
                   />
                 </div>
               ) : null}

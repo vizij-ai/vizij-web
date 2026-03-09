@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mic, MicOff, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  ChevronDown,
+  ChevronRight,
+  Trash2,
+  X,
+} from "lucide-react";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { useGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
@@ -108,7 +115,11 @@ function parseEmotionResponse(
 const EMPTY_POSES: import("@vizij/runtime-react").PoseDefinition[] = [];
 const EMPTY_GROUPS: import("@vizij/runtime-react").PoseGroupDefinition[] = [];
 
-export function SpeechPanel() {
+interface SpeechPanelProps {
+  onClosePanel?: () => void;
+}
+
+export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   const faceId = useGraphRuntimeStore((s) => s.faceId);
   const poses = useGraphRuntimeStore((s) => s.poseConfig?.poses ?? EMPTY_POSES);
   const poseGroups = useGraphRuntimeStore(
@@ -565,7 +576,24 @@ export function SpeechPanel() {
   const displayError = speech.error || asr.error || conversation.error;
 
   return (
-    <Panel title="Speech" badge={statusBadge}>
+    <Panel
+      title="Speech"
+      description="Draft speech, trigger playback, and configure conversation input paths for the active runtime face."
+      badge={statusBadge}
+      actions={
+        onClosePanel ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-text-secondary hover:text-text-primary"
+            onClick={onClosePanel}
+            title="Hide panel"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : null
+      }
+    >
       <div className="flex flex-col gap-3">
         <TextArea
           value={speech.script}

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pause, Play, Plus, Square, Trash2 } from "lucide-react";
+import { Pause, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Input } from "../ui/Input";
+import { Panel } from "../ui/Panel";
 import type { RuntimeAuthoringSource } from "../../state/AuthoringUiProvider";
 
 export type RuntimeSourceToolbarMode =
@@ -54,6 +55,7 @@ interface RuntimeSourceToolbarProps {
   onTargetNumericValueChange?: (value: number) => void;
   onDeleteTarget?: () => void;
   deleteTargetLabel?: string;
+  onClosePanel?: () => void;
 }
 
 const modeMeta: Record<
@@ -114,6 +116,7 @@ export function RuntimeSourceToolbar({
   onTargetNumericValueChange,
   onDeleteTarget,
   deleteTargetLabel,
+  onClosePanel,
 }: RuntimeSourceToolbarProps) {
   const modeDetails = modeMeta[mode];
   const isLive = activeSource !== "none";
@@ -394,40 +397,56 @@ export function RuntimeSourceToolbar({
 
   if (layout === "panel") {
     return (
-      <div className="h-full min-h-0 p-3 space-y-3 bg-bg-panel/70 backdrop-blur-sm">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-              Runtime Source
-            </span>
-            <span
-              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${modeDetails.badgeClassName}`}
+      <Panel
+        title="Runtime Source"
+        description="Choose which authored system is driving live runtime inputs and manage the active runtime target."
+        className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+        actions={
+          onClosePanel ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-text-secondary hover:text-text-primary"
+              onClick={onClosePanel}
+              title="Hide panel"
             >
-              {modeDetails.label}
-            </span>
-            <span
-              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                isLive
-                  ? "bg-color-success-subtle text-color-success"
-                  : "bg-bg-secondary text-text-secondary"
-              }`}
-            >
-              {isLive ? "Live" : "Idle"}
-            </span>
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null
+        }
+      >
+        <div className="h-full min-h-0 p-3 space-y-3 bg-bg-panel/70 backdrop-blur-sm">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${modeDetails.badgeClassName}`}
+              >
+                {modeDetails.label}
+              </span>
+              <span
+                className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                  isLive
+                    ? "bg-color-success-subtle text-color-success"
+                    : "bg-bg-secondary text-text-secondary"
+                }`}
+              >
+                {isLive ? "Live" : "Idle"}
+              </span>
+            </div>
+            <p className="text-[11px] text-text-secondary leading-relaxed">
+              {sourceDescriptions[activeSource]}
+            </p>
           </div>
-          <p className="text-[11px] text-text-secondary leading-relaxed">
-            {sourceDescriptions[activeSource]}
-          </p>
+
+          {runtimeSourceToggle}
+
+          {playbackButtons}
+
+          {targetSelector}
+
+          {targetMetadataCard}
         </div>
-
-        {runtimeSourceToggle}
-
-        {playbackButtons}
-
-        {targetSelector}
-
-        {targetMetadataCard}
-      </div>
+      </Panel>
     );
   }
 

@@ -6,9 +6,11 @@ import {
   MenuSeparator,
   MenuCheckboxItem,
   MenuLabel,
+  MenuSubmenu,
 } from "../ui/MenuBar";
 import { Button } from "../ui/Button";
 import { ThemeToggle } from "../ui/ThemeToggle";
+import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 import type {
   EditFocus,
@@ -82,6 +84,8 @@ export function AppMenuBar({
   const setPanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
 
@@ -200,40 +204,41 @@ export function AppMenuBar({
             setPanelVisibility("hierarchy", checked)
           }
         >
-          Hierarchy
+          Face Elements
         </MenuCheckboxItem>
-        <MenuCheckboxItem
+        <MenuSubmenu
+          label="Control Authoring"
           checked={controlAuthoringVisible}
-          onCheckedChange={(checked) => {
-            setPanelVisibility("variables", checked);
-            setPanelVisibility("poses", checked);
-            setPanelVisibility("materials", checked);
+          onSelect={() => {
+            const nextVisible = !controlAuthoringVisible;
+            setPanelVisibility("variables", nextVisible);
+            setPanelVisibility("poses", nextVisible);
+            setPanelVisibility("materials", nextVisible);
           }}
         >
-          Control Authoring
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
-          checked={variablesPanelVisible}
-          onCheckedChange={(checked) =>
-            setPanelVisibility("variables", checked)
-          }
-        >
-          <span className="pl-4">Drivers</span>
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
-          checked={posesPanelVisible}
-          onCheckedChange={(checked) => setPanelVisibility("poses", checked)}
-        >
-          <span className="pl-4">Poses</span>
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
-          checked={materialsPanelVisible}
-          onCheckedChange={(checked) =>
-            setPanelVisibility("materials", checked)
-          }
-        >
-          <span className="pl-4">Pose Groups</span>
-        </MenuCheckboxItem>
+          <MenuCheckboxItem
+            checked={variablesPanelVisible}
+            onCheckedChange={(checked) =>
+              setPanelVisibility("variables", checked)
+            }
+          >
+            Drivers
+          </MenuCheckboxItem>
+          <MenuCheckboxItem
+            checked={posesPanelVisible}
+            onCheckedChange={(checked) => setPanelVisibility("poses", checked)}
+          >
+            Poses
+          </MenuCheckboxItem>
+          <MenuCheckboxItem
+            checked={materialsPanelVisible}
+            onCheckedChange={(checked) =>
+              setPanelVisibility("materials", checked)
+            }
+          >
+            Pose Groups
+          </MenuCheckboxItem>
+        </MenuSubmenu>
         <MenuCheckboxItem
           checked={inputsPanelVisible}
           onCheckedChange={(checked) => setPanelVisibility("inputs", checked)}
@@ -256,7 +261,7 @@ export function AppMenuBar({
           checked={toolbarPanelVisible}
           onCheckedChange={(checked) => setPanelVisibility("toolbar", checked)}
         >
-          Control
+          Runtime Source
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={inspectorPanelVisible}
@@ -278,8 +283,8 @@ export function AppMenuBar({
         >
           Debug
         </MenuCheckboxItem>
-
-        <MenuSeparator />
+      </Menu>
+      <Menu label="Settings" testId="app-menu-settings">
         <MenuLabel>Rotation Display</MenuLabel>
         <MenuCheckboxItem
           checked={rotationDisplayMode === "degrees"}
@@ -290,11 +295,20 @@ export function AppMenuBar({
           Show Rotation in Degrees
         </MenuCheckboxItem>
         <MenuSeparator />
+        <MenuLabel>Selection</MenuLabel>
         <MenuCheckboxItem
           checked={showSelectionGlow}
           onCheckedChange={onToggleSelectionGlow}
         >
           Highlight Selected
+        </MenuCheckboxItem>
+        <MenuSeparator />
+        <MenuLabel>Appearance</MenuLabel>
+        <MenuCheckboxItem
+          checked={theme === "dark"}
+          onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+        >
+          Dark Mode
         </MenuCheckboxItem>
       </Menu>
 

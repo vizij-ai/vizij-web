@@ -1,8 +1,11 @@
 import * as React from "react";
 import { Menu as BaseMenu } from "@base-ui/react";
-import { Check } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { Logo } from "./Logo";
+
+const menuPopupClassName =
+  "z-50 min-w-[200px] rounded-xl border border-border-default bg-bg-card p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 origin-[var(--transform-origin)]";
 
 interface MenuBarProps {
   children: React.ReactNode;
@@ -37,7 +40,7 @@ export function Menu({ label, children, testId }: MenuProps) {
 
       <BaseMenu.Portal>
         <BaseMenu.Positioner sideOffset={4} align="start">
-          <BaseMenu.Popup className="z-50 min-w-[200px] rounded-xl border border-border-default bg-bg-card p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 origin-[var(--transform-origin)]">
+          <BaseMenu.Popup className={menuPopupClassName}>
             {children}
           </BaseMenu.Popup>
         </BaseMenu.Positioner>
@@ -115,5 +118,57 @@ export function MenuCheckboxItem({
       </BaseMenu.CheckboxItemIndicator>
       {children}
     </BaseMenu.CheckboxItem>
+  );
+}
+
+export function MenuSubmenu({
+  label,
+  children,
+  checked = false,
+  onSelect,
+  disabled,
+  testId,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  checked?: boolean;
+  onSelect?: () => void;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  return (
+    <BaseMenu.SubmenuRoot>
+      <BaseMenu.SubmenuTrigger
+        data-testid={testId}
+        disabled={disabled}
+        openOnHover
+        delay={75}
+        closeDelay={100}
+        onClick={onSelect}
+        className={cn(
+          "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-all outline-none select-none",
+          "data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",
+          "data-[popup-open]:bg-bg-hover data-[popup-open]:text-text-primary",
+          "text-text-secondary",
+          disabled
+            ? "opacity-50 cursor-not-allowed"
+            : "cursor-pointer active:scale-[0.98]",
+        )}
+      >
+        <span className="absolute left-3 flex h-3.5 w-3.5 items-center justify-center">
+          {checked ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : null}
+        </span>
+        <span className="flex-1">{label}</span>
+        <ChevronRight className="h-3.5 w-3.5 text-text-muted transition-colors group-data-[highlighted]:text-text-primary group-data-[popup-open]:text-text-primary" />
+      </BaseMenu.SubmenuTrigger>
+
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner side="right" align="start" sideOffset={6}>
+          <BaseMenu.Popup className={menuPopupClassName}>
+            {children}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.SubmenuRoot>
   );
 }

@@ -12,6 +12,7 @@ import {
   FileCheck,
   Stethoscope,
   Wrench,
+  X,
 } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import {
@@ -61,6 +62,7 @@ interface DebugPanelProps {
         ) => VizijBundleExtension | null),
   ) => void;
   isLoading: boolean;
+  onClosePanel?: () => void;
 }
 
 export function DebugPanel({
@@ -68,6 +70,7 @@ export function DebugPanel({
   loadedBundle,
   updateBundle,
   isLoading,
+  onClosePanel,
 }: DebugPanelProps) {
   const [activeTab, setActiveTab] = useState<HealthTabId>("playback");
 
@@ -335,9 +338,22 @@ export function DebugPanel({
 
   return (
     <Panel
-      title="Debug Panel"
+      title="Debug"
       description="Monitor status, playback, and rig health."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+      actions={
+        onClosePanel ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-text-secondary hover:text-text-primary"
+            onClick={onClosePanel}
+            title="Hide panel"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : null
+      }
       badge={
         graphStatus === "ready" ? (
           <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
