@@ -1326,17 +1326,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         edgeCount: snapshot.edges.length,
         inputCount: inputs.length,
         outputCount: outputs.length,
-        nodes: snapshot.nodes.map((node) => {
-          const rawLabel = node.data?.label;
-          return {
-            id: node.id,
-            label:
-              typeof rawLabel === "string" && rawLabel.trim().length > 0
-                ? rawLabel.trim()
-                : (node.type ?? node.id),
-            type: node.type ?? "node",
-          };
-        }),
+        nodes: snapshot.nodes
+          .filter((node) => node.type === "input" || node.type === "output")
+          .map((node) => {
+            const rawLabel = node.data?.label;
+            return {
+              id: node.id,
+              label:
+                typeof rawLabel === "string" && rawLabel.trim().length > 0
+                  ? rawLabel.trim()
+                  : (node.type ?? node.id),
+              kind:
+                node.type === "input"
+                  ? ("input" as const)
+                  : ("output" as const),
+            };
+          }),
         inputs,
         outputs,
       };
@@ -2226,6 +2231,40 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [],
   );
+  const handleUpdateAnimationTargetDuration = useCallback(
+    (targetId: string, nextDuration: number) => {
+      if (!Number.isFinite(nextDuration) || nextDuration < 0) {
+        return;
+      }
+
+      const normalizedDuration = Math.max(0, nextDuration);
+      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
+      if (authoredClipId) {
+        if (targetId !== selectedAnimationTargetId) {
+          return;
+        }
+        setAnimationDuration(normalizedDuration);
+        saveAuthoredAnimationTarget(targetId);
+        return;
+      }
+      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        return;
+      }
+      setBundleAnimationDurationOverrides((previous) => ({
+        ...previous,
+        [targetId]: normalizedDuration,
+      }));
+      if (targetId === selectedAnimationTargetId) {
+        setAnimationDuration(normalizedDuration);
+      }
+    },
+    [
+      saveAuthoredAnimationTarget,
+      selectedAnimationTargetId,
+      setAnimationDuration,
+      setBundleAnimationDurationOverrides,
+    ],
+  );
   const handleInspectAnimationTrackFromInspector = useCallback(
     (trackId: string) => {
       setActiveAuthoringSurface("animations");
@@ -2464,11 +2503,57 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ) {
       return;
     }
-    void animationRuntimeTransportAdapter.playAnimation(
-      AUTHORED_TIMELINE_CLIP_ID,
-      { reset: true, speed: 1 },
-    );
-    setPendingAnimationRuntimePlayTargetId(null);
+    let cancelled = false;
+    let retryTimeoutId: number | null = null;
+
+    const attemptPlay = () => {
+      if (cancelled) {
+        return;
+      }
+      const playPromise = animationRuntimeTransportAdapter.playAnimation(
+        AUTHORED_TIMELINE_CLIP_ID,
+        { reset: true, speed: 1 },
+      );
+      if (
+        animationRuntimeTransportAdapter.getAnimationState(
+          AUTHORED_TIMELINE_CLIP_ID,
+        )
+      ) {
+        setPendingAnimationRuntimePlayTargetId(null);
+        void playPromise.catch((error) => {
+          if (!cancelled) {
+            console.error(
+              "[vizij-authoring] animation runtime playback failed",
+              error,
+            );
+          }
+        });
+        return;
+      }
+      void playPromise.catch((error) => {
+        if (
+          error instanceof Error &&
+          error.message.includes("is not part of the current asset bundle")
+        ) {
+          return;
+        }
+        if (!cancelled) {
+          console.error(
+            "[vizij-authoring] animation runtime playback failed",
+            error,
+          );
+        }
+      });
+      retryTimeoutId = window.setTimeout(attemptPlay, 50);
+    };
+
+    attemptPlay();
+    return () => {
+      cancelled = true;
+      if (retryTimeoutId !== null) {
+        window.clearTimeout(retryTimeoutId);
+      }
+    };
   }, [
     activeAnimationRuntimeClip,
     activeAnimationRuntimeTargetId,
@@ -3724,6 +3809,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                         : null
                     }
                     onRenameAnimationTarget={handleRenameAnimationTarget}
+                    onUpdateAnimationTargetDuration={
+                      handleUpdateAnimationTargetDuration
+                    }
                     onInspectAnimationTrack={
                       handleInspectAnimationTrackFromInspector
                     }

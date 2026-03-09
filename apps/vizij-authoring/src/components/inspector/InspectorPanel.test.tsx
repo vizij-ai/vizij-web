@@ -79,6 +79,7 @@ describe("InspectorPanel", () => {
 
   it("renders the animation asset inspector and commits rename plus navigation", () => {
     const onRenameAnimationTarget = vi.fn();
+    const onUpdateAnimationTargetDuration = vi.fn();
     const onInspectAnimationTrack = vi.fn();
     const onInspectAnimationInput = vi.fn();
     const selectedAnimationTarget: AnimationInspectorSelection = {
@@ -103,6 +104,7 @@ describe("InspectorPanel", () => {
       <InspectorPanel
         selectedAnimationTarget={selectedAnimationTarget}
         onRenameAnimationTarget={onRenameAnimationTarget}
+        onUpdateAnimationTargetDuration={onUpdateAnimationTargetDuration}
         onInspectAnimationTrack={onInspectAnimationTrack}
         onInspectAnimationInput={onInspectAnimationInput}
       />,
@@ -111,6 +113,9 @@ describe("InspectorPanel", () => {
     const nameField = screen.getByDisplayValue("Idle Blink");
     fireEvent.change(nameField, { target: { value: "Blink Loop" } });
     fireEvent.blur(nameField);
+    const durationField = screen.getByRole("textbox", { name: "Duration" });
+    fireEvent.change(durationField, { target: { value: "2.5" } });
+    fireEvent.blur(durationField);
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -123,6 +128,10 @@ describe("InspectorPanel", () => {
     expect(onRenameAnimationTarget).toHaveBeenCalledWith(
       "authored-animation:blink",
       "Blink Loop",
+    );
+    expect(onUpdateAnimationTargetDuration).toHaveBeenCalledWith(
+      "authored-animation:blink",
+      2.5,
     );
     expect(onInspectAnimationTrack).toHaveBeenCalledWith("track-1");
     expect(onInspectAnimationInput).toHaveBeenCalledWith("jaw.open");
@@ -143,8 +152,8 @@ describe("InspectorPanel", () => {
       nodes: [
         {
           id: "node-a",
-          label: "Sine",
-          type: "Oscillator",
+          label: "Jaw Input",
+          kind: "input",
         },
       ],
       inputs: [
@@ -179,11 +188,12 @@ describe("InspectorPanel", () => {
     fireEvent.blur(nameField);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Sine Oscillator · node-a" }),
+      screen.getByRole("button", { name: "Jaw Input Input node" }),
     );
     fireEvent.click(screen.getAllByRole("button", { name: "Driver" })[0]!);
 
     expect(screen.getByText("Authored program")).toBeTruthy();
+    expect(screen.queryByText("node-a")).toBeNull();
     expect(onRenameProgramTarget).toHaveBeenCalledWith(
       "authored-procedural:wave",
       "Wave Copy",

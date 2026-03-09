@@ -48,6 +48,10 @@ interface InspectorPanelProps {
   onSelectBlendStage?: (selection: BlendStageInspectorSelection | null) => void;
   selectedAnimationTarget?: AnimationInspectorSelection | null;
   onRenameAnimationTarget?: (targetId: string, nextName: string) => void;
+  onUpdateAnimationTargetDuration?: (
+    targetId: string,
+    nextDuration: number,
+  ) => void;
   onInspectAnimationTrack?: (trackId: string) => void;
   onInspectAnimationInput?: (inputId: string) => void;
   selectedProgramTarget?: ProgramInspectorSelection | null;
@@ -79,7 +83,7 @@ export interface AnimationInspectorSelection {
 export interface ProgramInspectorNodeSelection {
   id: string;
   label: string;
-  type: string;
+  kind: "input" | "output";
 }
 
 export interface ProgramInspectorIoSelection {
@@ -297,6 +301,7 @@ export function InspectorPanel({
   onSelectBlendStage,
   selectedAnimationTarget = null,
   onRenameAnimationTarget,
+  onUpdateAnimationTargetDuration,
   onInspectAnimationTrack,
   onInspectAnimationInput,
   selectedProgramTarget = null,
@@ -1133,16 +1138,18 @@ export function InspectorPanel({
                 </div>
 
                 <InspectorSection
-                  title="Nodes"
+                  title="I/O Nodes"
                   count={selectedProgramTarget.nodes.length}
-                  emptyMessage="No nodes available for this program."
+                  emptyMessage="No input or output nodes are exposed by this program."
                 >
                   <div className="flex flex-col gap-1.5">
                     {selectedProgramTarget.nodes.map((node) => (
                       <InspectorEntryButton
                         key={node.id}
                         title={node.label}
-                        meta={`${node.type} · ${node.id}`}
+                        meta={
+                          node.kind === "input" ? "Input node" : "Output node"
+                        }
                         onClick={
                           onInspectProgramNode
                             ? () => onInspectProgramNode(node.id)
@@ -1242,24 +1249,55 @@ export function InspectorPanel({
                       {selectedAnimationTarget.duration.toFixed(2)}s
                     </div>
                   </div>
-                  <Input
-                    key={selectedAnimationTarget.targetId}
-                    size="sm"
-                    defaultValue={selectedAnimationTarget.name}
-                    className="h-7 text-[11px]"
-                    onBlur={(event) =>
-                      commitInspectorNameChange(
-                        selectedAnimationTarget.name,
-                        (nextName) =>
-                          onRenameAnimationTarget?.(
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Clip Name
+                      </div>
+                      <Input
+                        key={selectedAnimationTarget.targetId}
+                        size="sm"
+                        defaultValue={selectedAnimationTarget.name}
+                        className="h-7 text-[11px]"
+                        onBlur={(event) =>
+                          commitInspectorNameChange(
+                            selectedAnimationTarget.name,
+                            (nextName) =>
+                              onRenameAnimationTarget?.(
+                                selectedAnimationTarget.targetId,
+                                nextName,
+                              ),
+                            event.target.value,
+                          )
+                        }
+                        onKeyDown={handleNameFieldKeyDown}
+                      />
+                    </div>
+                    <label className="flex min-w-0 flex-col gap-1">
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Duration
+                      </span>
+                      <NumberField
+                        value={selectedAnimationTarget.duration}
+                        min={0}
+                        step={0.01}
+                        size="sm"
+                        allowScrub={false}
+                        commitMode="blur"
+                        format={{
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        }}
+                        onChange={(nextDuration) =>
+                          onUpdateAnimationTargetDuration?.(
                             selectedAnimationTarget.targetId,
-                            nextName,
-                          ),
-                        event.target.value,
-                      )
-                    }
-                    onKeyDown={handleNameFieldKeyDown}
-                  />
+                            nextDuration,
+                          )
+                        }
+                        className="text-[11px]"
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <InspectorSection
