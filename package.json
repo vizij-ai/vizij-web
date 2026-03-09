@@ -46,6 +46,8 @@
     "ci:publish": "node ./scripts/ci-publish.mjs",
     "release:ci": "pnpm run verify:packages && pnpm run ci:publish",
     "release": "pnpm install --frozen-lockfile && pnpm run release:ci",
+    "postinstall": "node ./scripts/wasm-links.mjs relink",
+    "rebuild-nodes": "node ./scripts/rebuild-nodes.mjs",
     "wasm:status": "node ./scripts/wasm-links.mjs status",
     "wasm:link": "node ./scripts/wasm-links.mjs link",
     "wasm:unlink": "node ./scripts/wasm-links.mjs unlink"
