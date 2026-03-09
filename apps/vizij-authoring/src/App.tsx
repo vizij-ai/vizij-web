@@ -9,7 +9,6 @@ import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
-  createInitialWorkspacePanels,
   useWorkspaceStore,
   type WorkspacePanelId,
 } from "./state/workspaceStore";
@@ -85,6 +84,7 @@ import {
   buildGlbExportDirtySnapshot,
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
+import { createEditFocusPanelVisibility } from "./state/editFocusPanels";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
@@ -371,50 +371,7 @@ function applyEditFocusPanelDefaults(
   focus: EditFocus,
   setPanelVisibility: (panelId: WorkspacePanelId, isVisible: boolean) => void,
 ): void {
-  const base = createInitialWorkspacePanels();
-  const nextVisibility: Record<WorkspacePanelId, boolean> = {
-    hierarchy: base.hierarchy.isVisible,
-    variables: base.variables.isVisible,
-    poses: base.poses.isVisible,
-    inputs: base.inputs.isVisible,
-    motiongraphPalette: base.motiongraphPalette.isVisible,
-    inspector: base.inspector.isVisible,
-    debug: base.debug.isVisible,
-    animation: base.animation.isVisible,
-    motiongraph: base.motiongraph.isVisible,
-    toolbar: base.toolbar.isVisible,
-    referenceFace: base.referenceFace.isVisible,
-    materials: base.materials.isVisible,
-    speech: base.speech.isVisible,
-  };
-
-  if (focus === "animation") {
-    nextVisibility.hierarchy = false;
-    nextVisibility.variables = false;
-    nextVisibility.poses = false;
-    nextVisibility.materials = false;
-    nextVisibility.inputs = true;
-    nextVisibility.motiongraphPalette = false;
-    nextVisibility.animation = true;
-    nextVisibility.motiongraph = false;
-    nextVisibility.referenceFace = false;
-  } else if (focus === "procedural-animation-programming") {
-    nextVisibility.hierarchy = false;
-    nextVisibility.variables = false;
-    nextVisibility.poses = false;
-    nextVisibility.materials = false;
-    nextVisibility.inputs = true;
-    nextVisibility.motiongraphPalette = true;
-    nextVisibility.animation = false;
-    nextVisibility.motiongraph = true;
-    nextVisibility.referenceFace = false;
-  } else if (focus === "reference-face") {
-    nextVisibility.animation = false;
-    nextVisibility.motiongraph = false;
-    nextVisibility.referenceFace = true;
-    nextVisibility.motiongraphPalette = false;
-  }
-
+  const nextVisibility = createEditFocusPanelVisibility(focus);
   (Object.keys(nextVisibility) as WorkspacePanelId[]).forEach(
     (panelId: WorkspacePanelId) => {
       setPanelVisibility(panelId, nextVisibility[panelId]);

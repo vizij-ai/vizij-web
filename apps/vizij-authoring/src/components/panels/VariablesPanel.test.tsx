@@ -109,6 +109,7 @@ const poseRigState = {
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  addPoseInput: vi.fn(),
   duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
   renamePoseGroup: vi.fn(),
@@ -190,8 +191,16 @@ const graphRuntimeState = {
   setStoreState: vi.fn(),
 };
 
+const authoringUiState = {
+  activeEditFocus: "default" as "default" | "pose-creation",
+};
+
 vi.mock("../../state/PoseRigProvider", () => ({
   usePoseRig: () => poseRigState,
+}));
+
+vi.mock("../../state/AuthoringUiProvider", () => ({
+  useAuthoringUiState: () => authoringUiState,
 }));
 
 vi.mock("../../state/ReferenceFaceContext", () => ({
@@ -235,6 +244,7 @@ describe("VariablesPanel", () => {
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.addPoseInput.mockReset();
     poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
     poseRigState.renamePoseGroup.mockReset();
@@ -288,6 +298,7 @@ describe("VariablesPanel", () => {
     bindingState.handleCloneStandardInputs.mockImplementation(
       () => new Map<string, string>(),
     );
+    authoringUiState.activeEditFocus = "default";
 
     useEditorStore.setState({
       nodes: [],
@@ -396,6 +407,59 @@ describe("VariablesPanel", () => {
     const scoped = within(contextRow as HTMLElement);
     expect(scoped.getByText("Main Face Inputs Only")).toBeTruthy();
     expect(scoped.getByText("Compare in Variables/Poses")).toBeTruthy();
+  });
+
+  it("saves the current input value onto the selected pose in pose-creation mode", () => {
+    const poseId = "pose_smile";
+    const smileInput = makeInput("smile", "/smile", {
+      label: "Smile",
+      defaultValue: 0.1,
+      range: { min: -1, max: 1 },
+    });
+    poseRigState.poses = [
+      {
+        id: poseId,
+        name: "Smile Pose",
+        values: {},
+        group: null,
+        groupId: null,
+        groupIds: [],
+        createdAt: "2026-03-08T00:00:00.000Z",
+        updatedAt: "2026-03-08T00:00:00.000Z",
+      },
+    ];
+    poseRigState.selectedPoseId = poseId;
+    bindingState.managedStandardInputs = [
+      {
+        input: smileInput,
+        source: "custom",
+      },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      [smileInput.path, smileInput],
+    ]);
+    bindingState.standardInputsById = new Map([[smileInput.id, smileInput]]);
+    bindingState.inputValues = { [smileInput.id]: 0.42 };
+    authoringUiState.activeEditFocus = "pose-creation";
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Pose Target" }));
+
+    expect(poseRigState.addPoseInput).toHaveBeenCalledWith(
+      poseId,
+      smileInput.id,
+    );
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      poseId,
+      smileInput.id,
+      0.42,
+    );
   });
 
   it("filters out /rig/element variables from the variables panel", () => {

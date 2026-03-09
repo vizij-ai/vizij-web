@@ -68,9 +68,9 @@ describe("authoringUiReducer", () => {
   it("updates the active edit focus", () => {
     const result = authoringUiReducer(baseState, {
       type: "set-edit-focus",
-      payload: "reference-face",
+      payload: "pose-creation",
     });
-    expect(result.activeEditFocus).toBe("reference-face");
+    expect(result.activeEditFocus).toBe("pose-creation");
   });
 
   it("updates the rotation display mode", () => {

@@ -148,6 +148,17 @@ export function AppMenuBar({
           Animations
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-mode-pose-creation"
+          checked={activeEditFocus === "pose-creation"}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              onSelectEditFocus("pose-creation");
+            }
+          }}
+        >
+          Pose Creation
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
           testId="app-menu-mode-procedural-animation"
           checked={activeEditFocus === "procedural-animation-programming"}
           onCheckedChange={(checked) => {

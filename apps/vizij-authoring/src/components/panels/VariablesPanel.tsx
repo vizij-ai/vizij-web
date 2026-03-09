@@ -46,6 +46,7 @@ import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
 import { Slider } from "../ui/Slider";
+import { useAuthoringUiState } from "../../state/AuthoringUiProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
@@ -2137,6 +2138,12 @@ interface TreeRowWrapperProps {
     onAddTrack: (row: InputCatalogRow) => void;
     onRemoveTrack: (inputId: string) => void;
   };
+  poseTargetContext?: {
+    active: boolean;
+    selectedPoseId: string | null;
+    targetedInputIds: ReadonlySet<string>;
+    onSetTarget: (row: InputCatalogRow) => void;
+  };
   searchQuery: string;
 }
 
@@ -2159,6 +2166,7 @@ function TreeRowWrapper({
   timelineLockedInputIds,
   motionGraphContext,
   animationTrackContext,
+  poseTargetContext,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
@@ -2285,6 +2293,15 @@ function TreeRowWrapper({
       canToggleAnimationTrack && animationTrackContext
         ? animationTrackContext.trackedInputIds.has(inputData.inputId)
         : false;
+    const canSetPoseTarget =
+      Boolean(poseTargetContext?.active) &&
+      inputData.editable &&
+      inputData.controlKind === "rig-input";
+    const poseTargetEnabled =
+      canSetPoseTarget && Boolean(poseTargetContext?.selectedPoseId);
+    const poseTargetSaved =
+      canSetPoseTarget &&
+      Boolean(poseTargetContext?.targetedInputIds.has(inputData.inputId));
     return (
       <FlatInputControlRow
         row={inputData}
@@ -2387,6 +2404,38 @@ function TreeRowWrapper({
                 }
               >
                 {animationTrackEnabled ? "Track -" : "Track +"}
+              </Button>
+            ) : null}
+            {canSetPoseTarget ? (
+              <Button
+                variant={poseTargetSaved ? "ghost" : "secondary"}
+                size="sm"
+                className={cn(
+                  "h-6 px-2 text-[10px] gap-1",
+                  poseTargetSaved
+                    ? "text-amber-200 hover:text-amber-100"
+                    : undefined,
+                )}
+                disabled={!poseTargetEnabled}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!poseTargetEnabled) {
+                    return;
+                  }
+                  poseTargetContext?.onSetTarget(inputData);
+                }}
+                title={
+                  poseTargetEnabled
+                    ? poseTargetSaved
+                      ? "Update the selected pose target from this current input value"
+                      : "Save this current input value as a target on the selected pose"
+                    : "Select a pose before saving input targets"
+                }
+                aria-label={
+                  poseTargetSaved ? "Update Pose Target" : "Save Pose Target"
+                }
+              >
+                {poseTargetSaved ? "Update Target" : "Save Target"}
               </Button>
             ) : null}
           </div>
@@ -2773,6 +2822,7 @@ function TreeRowWrapper({
                 timelineLockedInputIds={timelineLockedInputIds}
                 motionGraphContext={motionGraphContext}
                 animationTrackContext={animationTrackContext}
+                poseTargetContext={poseTargetContext}
                 searchQuery={searchQuery}
               />
             ))}
@@ -2941,6 +2991,7 @@ export function VariablesPanel({
     deletePoseGroup,
     deletePose,
     updatePoseGroup,
+    addPoseInput,
     updatePoseValue,
     crossGroupBlendMode,
     blendMode,
@@ -2956,6 +3007,8 @@ export function VariablesPanel({
   } = usePoseRig();
   const selectedPoseId =
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
+  const { activeEditFocus } = useAuthoringUiState();
+  const poseCreationActive = activeEditFocus === "pose-creation";
   const [searchQuery, setSearchQuery] = useState("");
   const [stageEditMessage, setStageEditMessage] = useState<string | null>(null);
   const poseGroupBlendModeFallback =
@@ -2971,6 +3024,14 @@ export function VariablesPanel({
   const poseById = useMemo(
     () => new Map(poses.map((pose) => [pose.id, pose])),
     [poses],
+  );
+  const selectedPose =
+    selectedPoseId && selectedPoseId !== "__pose_rig_neutral__"
+      ? (poseById.get(selectedPoseId) ?? null)
+      : null;
+  const selectedPoseTargetInputIds = useMemo(
+    () => new Set(Object.keys(selectedPose?.values ?? {})),
+    [selectedPose],
   );
 
   const poseGroups = useMemo(() => {
@@ -5635,6 +5696,24 @@ export function VariablesPanel({
       keyframeInputAtCurrentTime,
     ],
   );
+  const handleSetPoseTargetFromInput = useCallback(
+    (row: InputCatalogRow) => {
+      if (!selectedPose || !row.editable) {
+        return;
+      }
+      const currentValue =
+        typeof row.value === "number" && Number.isFinite(row.value)
+          ? row.value
+          : row.min;
+      const nextTargetValue = Math.max(
+        row.min,
+        Math.min(row.max, currentValue),
+      );
+      addPoseInput(selectedPose.id, row.inputId);
+      updatePoseValue(selectedPose.id, row.inputId, nextTargetValue);
+    },
+    [addPoseInput, selectedPose, updatePoseValue],
+  );
   const handleRemoveAnimationTrack = useCallback(
     (inputId: string) => {
       const matchingTrackIds = animationTrackIdsByInputId.get(inputId) ?? [];
@@ -5656,6 +5735,20 @@ export function VariablesPanel({
       handleAddAnimationTrack,
       handleRemoveAnimationTrack,
       trackedAnimationInputIds,
+    ],
+  );
+  const poseTargetInputContext = useMemo(
+    () => ({
+      active: poseCreationActive,
+      selectedPoseId: selectedPose?.id ?? null,
+      targetedInputIds: selectedPoseTargetInputIds,
+      onSetTarget: handleSetPoseTargetFromInput,
+    }),
+    [
+      handleSetPoseTargetFromInput,
+      poseCreationActive,
+      selectedPose?.id,
+      selectedPoseTargetInputIds,
     ],
   );
   const keyPoseChannelsAtCurrentTime = useCallback(
@@ -7660,6 +7753,7 @@ export function VariablesPanel({
                           timelineLockedInputIds={timelineLockedInputIds}
                           motionGraphContext={motionGraphInputContext}
                           animationTrackContext={animationTrackInputContext}
+                          poseTargetContext={poseTargetInputContext}
                           searchQuery={searchQuery}
                         />
                       ))
