@@ -58,9 +58,9 @@ describe("AppMenuBar", () => {
 
     expect(await screen.findByText("Face Elements")).toBeTruthy();
     expect(screen.getByText("Authoring")).toBeTruthy();
-    expect(screen.getByText("Runtime Source")).toBeTruthy();
     expect(screen.getByText("Node Palette")).toBeTruthy();
     expect(screen.queryByText("Hierarchy")).toBeNull();
+    expect(screen.queryByText("Runtime Source")).toBeNull();
   });
 
   it("shows Drivers, Poses, and Pose Groups in the Authoring flyout", async () => {

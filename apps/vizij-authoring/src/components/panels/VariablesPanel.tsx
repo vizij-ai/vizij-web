@@ -2962,6 +2962,7 @@ interface VariablesPanelProps {
   availableSurfaces?: SurfaceTab[];
   panelTitle?: string;
   panelDescription?: string;
+  headerContent?: ReactNode;
   onClosePanel?: () => void;
   motionGraphActive?: boolean;
   animationActive?: boolean;
@@ -3001,6 +3002,7 @@ export function VariablesPanel({
   availableSurfaces,
   panelTitle = "Control Elements",
   panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
+  headerContent,
   onClosePanel,
   motionGraphActive = false,
   animationActive = false,
@@ -6543,917 +6545,1300 @@ export function VariablesPanel({
         actions={actions}
         badge={`${totalCount}`}
       >
-        <Tabs
-          className="flex-1 min-h-0"
-          fillPanels
-          items={surfaceTabs}
-          listClassName="flex-wrap overflow-visible"
-          value={activeSurface}
-          onValueChange={(id) => {
-            if (activeSurfaceOverride) {
-              return;
-            }
-            setActiveSurfaceState(surfaceForTab(id));
-          }}
-          renderPanel={(id) => {
-            if (surfaceForTab(id) !== activeSurface) {
-              return null;
-            }
-            const isVariables = id === "variables";
-            const isPoseGroups = id === "pose-groups";
-            const isPoses = id === "poses";
-            const isAnimations = id === "animations";
-            const isPrograms = id === "programs";
-            const isInputs = id === "inputs";
-            const hasReferenceFace = Boolean(referenceFace.file);
-            const showSurfaceContext =
-              hasReferenceFace && (isVariables || isPoses || isInputs);
-            const filteredSearch = searchQuery.trim().toLowerCase();
+        <div className="flex flex-1 min-h-0 flex-col gap-3">
+          {headerContent ? (
+            <div className="shrink-0 px-2 pt-2">{headerContent}</div>
+          ) : null}
+          <Tabs
+            className="flex-1 min-h-0"
+            fillPanels
+            items={surfaceTabs}
+            listClassName="flex-wrap overflow-visible"
+            value={activeSurface}
+            onValueChange={(id) => {
+              if (activeSurfaceOverride) {
+                return;
+              }
+              setActiveSurfaceState(surfaceForTab(id));
+            }}
+            renderPanel={(id) => {
+              if (surfaceForTab(id) !== activeSurface) {
+                return null;
+              }
+              const isVariables = id === "variables";
+              const isPoseGroups = id === "pose-groups";
+              const isPoses = id === "poses";
+              const isAnimations = id === "animations";
+              const isPrograms = id === "programs";
+              const isInputs = id === "inputs";
+              const hasReferenceFace = Boolean(referenceFace.file);
+              const showSurfaceContext =
+                hasReferenceFace && (isVariables || isPoses || isInputs);
+              const filteredSearch = searchQuery.trim().toLowerCase();
 
-            if (isAnimations) {
-              return (
-                <AuthoringTargetList
-                  items={animationTargets}
-                  kindLabel="Animation"
-                  emptyDescription="Create a clip or import a bundle animation to edit it here."
-                  onCreate={() => onCreateAnimationTarget?.()}
-                  onDelete={onDeleteAnimationTarget}
-                  onSelect={(targetId) => onSelectAnimationTarget?.(targetId)}
-                  onPlay={onPlayAnimationTarget}
-                  onPause={onPauseAnimationTarget}
-                  onStop={onStopAnimationTarget}
-                />
-              );
-            }
-
-            if (isPrograms) {
-              return (
-                <AuthoringTargetList
-                  items={programTargets}
-                  kindLabel="Program"
-                  emptyDescription="Create a program or import a bundle graph to edit it here."
-                  onCreate={() => onCreateProgramTarget?.()}
-                  onDelete={onDeleteProgramTarget}
-                  onSelect={(targetId) => onSelectProgramTarget?.(targetId)}
-                  onPlay={onPlayProgramTarget}
-                  onPause={onPauseProgramTarget}
-                  onStop={onStopProgramTarget}
-                />
-              );
-            }
-
-            const renderProceduralAvailableGroups = (
-              groups: GroupedInputRowsByFolder[],
-              depth = 0,
-            ): ReactNode =>
-              groups.map((group) => {
-                const folderExpanded =
-                  filteredSearch.length > 0 ||
-                  availablePapExpandedIds.has(group.id);
-                const hasChildren =
-                  group.children.length > 0 || group.rows.length > 0;
+              if (isAnimations) {
                 return (
-                  <TreeRow
-                    key={`pap-available-folder:${group.id}`}
-                    depth={depth}
-                    label={group.label}
-                    hasChildren={hasChildren}
-                    isExpanded={folderExpanded}
-                    onToggle={() => toggleAvailablePapFolder(group.id)}
-                    icon={<Folder size={12} className="text-text-muted" />}
-                  >
-                    {folderExpanded ? (
-                      <>
-                        {group.children.length > 0
-                          ? renderProceduralAvailableGroups(
-                              group.children,
-                              depth + 1,
-                            )
-                          : null}
-                        {group.rows.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 pt-1">
-                            {group.rows.map((row) => {
-                              const path = buildRigInputPath(
-                                runtimeFaceSegment,
-                                row.path,
-                              );
-                              const canAddInput =
-                                motionGraphEligibleInputPaths.has(path) &&
-                                !enabledMotionGraphInputs.has(path);
-                              const canAddOutput =
-                                motionGraphEligibleOutputPaths.has(path) &&
-                                !enabledMotionGraphOutputs.has(path);
-                              return (
-                                <FlatInputControlRow
-                                  key={`pap-available:${row.inputId}:${row.path}`}
-                                  row={row}
-                                  selected={
-                                    activeSelection?.type === "input" &&
-                                    activeSelection.id === row.inputId
-                                  }
-                                  depth={depth + 1}
-                                  locked={isInputCatalogRowLocked(row)}
-                                  onSelect={() =>
-                                    handleSelectInputCatalogRow(row)
-                                  }
-                                  onValueChange={handlePanelInputValueChange}
-                                  actions={
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        data-testid="pap-add-input"
-                                        variant="secondary"
-                                        size="sm"
-                                        className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleEnableMotionGraphInputRow(row);
-                                        }}
-                                        disabled={!canAddInput}
-                                        title="Add PAP Input"
-                                        aria-label="Add PAP Input"
-                                      >
-                                        <Plus size={11} />
-                                        In
-                                      </Button>
-                                      <Button
-                                        data-testid="pap-add-output"
-                                        variant="secondary"
-                                        size="sm"
-                                        className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleEnableMotionGraphOutputRow(row);
-                                        }}
-                                        disabled={!canAddOutput}
-                                        title="Add PAP Output"
-                                        aria-label="Add PAP Output"
-                                      >
-                                        <Plus size={11} />
-                                        Out
-                                      </Button>
-                                    </div>
-                                  }
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </TreeRow>
+                  <AuthoringTargetList
+                    items={animationTargets}
+                    kindLabel="Animation"
+                    emptyDescription="Create a clip or import a bundle animation to edit it here."
+                    onCreate={() => onCreateAnimationTarget?.()}
+                    onDelete={onDeleteAnimationTarget}
+                    onSelect={(targetId) => onSelectAnimationTarget?.(targetId)}
+                    onPlay={onPlayAnimationTarget}
+                    onPause={onPauseAnimationTarget}
+                    onStop={onStopAnimationTarget}
+                  />
                 );
-              });
-            const renderAnimationAvailableGroups = (
-              groups: GroupedInputRowsByFolder[],
-              depth = 0,
-            ): ReactNode =>
-              groups.map((group) => {
-                const folderExpanded =
-                  filteredSearch.length > 0 ||
-                  availableAnimationExpandedIds.has(group.id);
-                const hasChildren =
-                  group.children.length > 0 || group.rows.length > 0;
+              }
+
+              if (isPrograms) {
                 return (
-                  <TreeRow
-                    key={`animation-available-folder:${group.id}`}
-                    depth={depth}
-                    label={group.label}
-                    hasChildren={hasChildren}
-                    isExpanded={folderExpanded}
-                    onToggle={() => toggleAvailableAnimationFolder(group.id)}
-                    icon={<Folder size={12} className="text-text-muted" />}
-                  >
-                    {folderExpanded ? (
-                      <>
-                        {group.children.length > 0
-                          ? renderAnimationAvailableGroups(
-                              group.children,
-                              depth + 1,
-                            )
-                          : null}
-                        {group.rows.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 pt-1">
-                            {group.rows.map((row) => {
-                              const trackInput = standardInputsById.get(
-                                row.inputId,
-                              );
-                              const poseId = parsePoseWeightInputSourceId(
-                                trackInput?.sourceId,
-                              );
-                              const pose = poseId
-                                ? poseById.get(poseId)
-                                : undefined;
-                              return (
-                                <FlatInputControlRow
-                                  key={`animation-available:${row.inputId}`}
-                                  row={row}
-                                  selected={
-                                    activeSelection?.type === "input" &&
-                                    activeSelection.id === row.inputId
-                                  }
-                                  depth={depth + 1}
-                                  locked={isInputCatalogRowLocked(row)}
-                                  onSelect={() =>
-                                    handleSelectInputCatalogRow(row)
-                                  }
-                                  onValueChange={handlePanelInputValueChange}
-                                  actions={
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-emerald-100"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleAddAnimationTrack(row);
-                                        }}
-                                        title="Add Animation Track"
-                                        aria-label="Add Animation Track"
-                                      >
-                                        <Plus size={11} />
-                                      </Button>
-                                      {pose ? (
+                  <AuthoringTargetList
+                    items={programTargets}
+                    kindLabel="Program"
+                    emptyDescription="Create a program or import a bundle graph to edit it here."
+                    onCreate={() => onCreateProgramTarget?.()}
+                    onDelete={onDeleteProgramTarget}
+                    onSelect={(targetId) => onSelectProgramTarget?.(targetId)}
+                    onPlay={onPlayProgramTarget}
+                    onPause={onPauseProgramTarget}
+                    onStop={onStopProgramTarget}
+                  />
+                );
+              }
+
+              const renderProceduralAvailableGroups = (
+                groups: GroupedInputRowsByFolder[],
+                depth = 0,
+              ): ReactNode =>
+                groups.map((group) => {
+                  const folderExpanded =
+                    filteredSearch.length > 0 ||
+                    availablePapExpandedIds.has(group.id);
+                  const hasChildren =
+                    group.children.length > 0 || group.rows.length > 0;
+                  return (
+                    <TreeRow
+                      key={`pap-available-folder:${group.id}`}
+                      depth={depth}
+                      label={group.label}
+                      hasChildren={hasChildren}
+                      isExpanded={folderExpanded}
+                      onToggle={() => toggleAvailablePapFolder(group.id)}
+                      icon={<Folder size={12} className="text-text-muted" />}
+                    >
+                      {folderExpanded ? (
+                        <>
+                          {group.children.length > 0
+                            ? renderProceduralAvailableGroups(
+                                group.children,
+                                depth + 1,
+                              )
+                            : null}
+                          {group.rows.length > 0 ? (
+                            <div className="flex flex-col gap-1.5 pt-1">
+                              {group.rows.map((row) => {
+                                const path = buildRigInputPath(
+                                  runtimeFaceSegment,
+                                  row.path,
+                                );
+                                const canAddInput =
+                                  motionGraphEligibleInputPaths.has(path) &&
+                                  !enabledMotionGraphInputs.has(path);
+                                const canAddOutput =
+                                  motionGraphEligibleOutputPaths.has(path) &&
+                                  !enabledMotionGraphOutputs.has(path);
+                                return (
+                                  <FlatInputControlRow
+                                    key={`pap-available:${row.inputId}:${row.path}`}
+                                    row={row}
+                                    selected={
+                                      activeSelection?.type === "input" &&
+                                      activeSelection.id === row.inputId
+                                    }
+                                    depth={depth + 1}
+                                    locked={isInputCatalogRowLocked(row)}
+                                    onSelect={() =>
+                                      handleSelectInputCatalogRow(row)
+                                    }
+                                    onValueChange={handlePanelInputValueChange}
+                                    actions={
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          data-testid="pap-add-input"
+                                          variant="secondary"
+                                          size="sm"
+                                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleEnableMotionGraphInputRow(
+                                              row,
+                                            );
+                                          }}
+                                          disabled={!canAddInput}
+                                          title="Add PAP Input"
+                                          aria-label="Add PAP Input"
+                                        >
+                                          <Plus size={11} />
+                                          In
+                                        </Button>
+                                        <Button
+                                          data-testid="pap-add-output"
+                                          variant="secondary"
+                                          size="sm"
+                                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleEnableMotionGraphOutputRow(
+                                              row,
+                                            );
+                                          }}
+                                          disabled={!canAddOutput}
+                                          title="Add PAP Output"
+                                          aria-label="Add PAP Output"
+                                        >
+                                          <Plus size={11} />
+                                          Out
+                                        </Button>
+                                      </div>
+                                    }
+                                  />
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </TreeRow>
+                  );
+                });
+              const renderAnimationAvailableGroups = (
+                groups: GroupedInputRowsByFolder[],
+                depth = 0,
+              ): ReactNode =>
+                groups.map((group) => {
+                  const folderExpanded =
+                    filteredSearch.length > 0 ||
+                    availableAnimationExpandedIds.has(group.id);
+                  const hasChildren =
+                    group.children.length > 0 || group.rows.length > 0;
+                  return (
+                    <TreeRow
+                      key={`animation-available-folder:${group.id}`}
+                      depth={depth}
+                      label={group.label}
+                      hasChildren={hasChildren}
+                      isExpanded={folderExpanded}
+                      onToggle={() => toggleAvailableAnimationFolder(group.id)}
+                      icon={<Folder size={12} className="text-text-muted" />}
+                    >
+                      {folderExpanded ? (
+                        <>
+                          {group.children.length > 0
+                            ? renderAnimationAvailableGroups(
+                                group.children,
+                                depth + 1,
+                              )
+                            : null}
+                          {group.rows.length > 0 ? (
+                            <div className="flex flex-col gap-1.5 pt-1">
+                              {group.rows.map((row) => {
+                                const trackInput = standardInputsById.get(
+                                  row.inputId,
+                                );
+                                const poseId = parsePoseWeightInputSourceId(
+                                  trackInput?.sourceId,
+                                );
+                                const pose = poseId
+                                  ? poseById.get(poseId)
+                                  : undefined;
+                                return (
+                                  <FlatInputControlRow
+                                    key={`animation-available:${row.inputId}`}
+                                    row={row}
+                                    selected={
+                                      activeSelection?.type === "input" &&
+                                      activeSelection.id === row.inputId
+                                    }
+                                    depth={depth + 1}
+                                    locked={isInputCatalogRowLocked(row)}
+                                    onSelect={() =>
+                                      handleSelectInputCatalogRow(row)
+                                    }
+                                    onValueChange={handlePanelInputValueChange}
+                                    actions={
+                                      <div className="flex items-center gap-1">
                                         <Button
                                           variant="secondary"
                                           size="sm"
-                                          className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                                          className="h-6 w-6 p-0 text-emerald-100"
                                           onClick={(event) => {
                                             event.stopPropagation();
-                                            keyPoseChannelsAtCurrentTime(pose);
+                                            handleAddAnimationTrack(row);
                                           }}
-                                          title="Add pose channels as animation tracks at current time"
-                                          aria-label="Add Pose Targets"
+                                          title="Add Animation Track"
+                                          aria-label="Add Animation Track"
                                         >
-                                          <Zap size={11} />
-                                          Targets
+                                          <Plus size={11} />
                                         </Button>
-                                      ) : null}
-                                    </div>
-                                  }
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </TreeRow>
-                );
-              });
+                                        {pose ? (
+                                          <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              keyPoseChannelsAtCurrentTime(
+                                                pose,
+                                              );
+                                            }}
+                                            title="Add pose channels as animation tracks at current time"
+                                            aria-label="Add Pose Targets"
+                                          >
+                                            <Zap size={11} />
+                                            Targets
+                                          </Button>
+                                        ) : null}
+                                      </div>
+                                    }
+                                  />
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </TreeRow>
+                  );
+                });
 
-            return (
-              <div className="flex flex-col h-full min-h-0 gap-1 p-2">
-                {isInputs ? (
-                  <div className="flex items-center gap-1 px-1 mb-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleCreateVariable}
-                      title="Create a new driver and inspect it"
-                    >
-                      <Plus size={11} />
-                      Add Driver
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      data-testid="variables-inputs-capture-current"
-                      onClick={handleCaptureCurrentPose}
-                      title="Capture current input values as a new pose (non-neutral channels only)"
-                    >
-                      <Camera size={11} />
-                      Capture Current
-                    </Button>
-                  </div>
-                ) : null}
-                <div className="flex items-center gap-2 px-1 mb-1">
-                  <PanelSearch
-                    ref={searchInputRef}
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder={
-                      searchQuery
-                        ? "Filter..."
-                        : isVariables
-                          ? "Search drivers..."
-                          : isPoses
-                            ? "Search poses..."
-                            : isPoseGroups
-                              ? "Search pose groups..."
-                              : "Search inputs..."
-                    }
-                  />
-                </div>
-                <div className="flex items-center gap-1 px-1 mb-1">
-                  {isVariables && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleCreateVariable}
-                      title="Create a new driver and inspect it"
-                    >
-                      <Plus size={11} />
-                      New Driver
-                    </Button>
-                  )}
-                  {isVariables && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={handleDuplicateSelectedVariable}
-                      disabled={!selectedMainVariableId}
-                      title={
-                        selectedMainVariableId
-                          ? "Duplicate selected driver and inspect the copy"
-                          : "Select a driver to duplicate"
-                      }
-                    >
-                      <Copy size={11} />
-                      Duplicate Driver
-                    </Button>
-                  )}
-                  {isPoses && (
-                    <>
+              return (
+                <div className="flex flex-col h-full min-h-0 gap-1 p-2">
+                  {isInputs ? (
+                    <div className="flex items-center gap-1 px-1 mb-1">
                       <Button
                         variant="secondary"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
-                        onClick={handleCreatePose}
-                        title="Create a new pose and inspect it"
+                        onClick={handleCreateVariable}
+                        title="Create a new driver and inspect it"
                       >
-                        <Activity size={11} className="text-purple-400" />
-                        New Pose
+                        <Plus size={11} />
+                        Add Driver
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
-                        data-testid="variables-poses-capture-current"
+                        data-testid="variables-inputs-capture-current"
                         onClick={handleCaptureCurrentPose}
                         title="Capture current input values as a new pose (non-neutral channels only)"
                       >
                         <Camera size={11} />
                         Capture Current
                       </Button>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center gap-2 px-1 mb-1">
+                    <PanelSearch
+                      ref={searchInputRef}
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      placeholder={
+                        searchQuery
+                          ? "Filter..."
+                          : isVariables
+                            ? "Search drivers..."
+                            : isPoses
+                              ? "Search poses..."
+                              : isPoseGroups
+                                ? "Search pose groups..."
+                                : "Search inputs..."
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 px-1 mb-1">
+                    {isVariables && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={handleCreateVariable}
+                        title="Create a new driver and inspect it"
+                      >
+                        <Plus size={11} />
+                        New Driver
+                      </Button>
+                    )}
+                    {isVariables && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
-                        data-testid="variables-poses-duplicate-selected"
-                        onClick={handleDuplicateSelectedPose}
-                        disabled={
-                          !selectedPoseId ||
-                          selectedPoseId === "__pose_rig_neutral__"
-                        }
+                        onClick={handleDuplicateSelectedVariable}
+                        disabled={!selectedMainVariableId}
                         title={
-                          selectedPoseId &&
-                          selectedPoseId !== "__pose_rig_neutral__"
-                            ? "Duplicate selected pose"
-                            : "Select a pose to duplicate"
+                          selectedMainVariableId
+                            ? "Duplicate selected driver and inspect the copy"
+                            : "Select a driver to duplicate"
                         }
                       >
                         <Copy size={11} />
-                        Duplicate Pose
+                        Duplicate Driver
                       </Button>
-                      {referenceFace.file && (
+                    )}
+                    {isPoses && (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          onClick={handleCreatePose}
+                          title="Create a new pose and inspect it"
+                        >
+                          <Activity size={11} className="text-purple-400" />
+                          New Pose
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
-                          data-testid="variables-poses-copy-reference"
-                          onClick={handleCopyReferencePoseToMain}
-                          disabled={!canCopyReferencePoses}
+                          className="h-6 px-2 text-[10px] gap-1"
+                          data-testid="variables-poses-capture-current"
+                          onClick={handleCaptureCurrentPose}
+                          title="Capture current input values as a new pose (non-neutral channels only)"
+                        >
+                          <Camera size={11} />
+                          Capture Current
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          data-testid="variables-poses-duplicate-selected"
+                          onClick={handleDuplicateSelectedPose}
+                          disabled={
+                            !selectedPoseId ||
+                            selectedPoseId === "__pose_rig_neutral__"
+                          }
                           title={
-                            selectedReferencePoseCopyCount > 0
-                              ? "Copy selected reference poses to the main face"
-                              : "Copy a reference pose to the main face"
+                            selectedPoseId &&
+                            selectedPoseId !== "__pose_rig_neutral__"
+                              ? "Duplicate selected pose"
+                              : "Select a pose to duplicate"
                           }
                         >
                           <Copy size={11} />
-                          {selectedReferencePoseCopyCount > 0
-                            ? `Copy Ref Pose (${selectedReferencePoseCopyCount})`
-                            : `Copy Ref Pose (${referencePoseCopyCount})`}
+                          Duplicate Pose
                         </Button>
-                      )}
-                    </>
-                  )}
-                  {isVariables && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-                      data-testid="variables-drivers-copy-reference"
-                      onClick={handleCopyReferenceToMain}
-                      disabled={!canCopyReferenceDrivers}
-                      title={
-                        selectedReferenceRigCopyCount > 0
-                          ? "Copy selected reference drivers to main face"
-                          : "Copy reference-only drivers to main face"
-                      }
-                    >
-                      <Copy size={11} />
-                      {selectedReferenceRigCopyCount > 0
-                        ? `Copy Ref (${selectedReferenceRigCopyCount})`
-                        : `Copy Ref (${uncopiedReferenceCount})`}
-                    </Button>
-                  )}
-                  {isPoseGroups && (
-                    <>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1"
-                        onClick={handleCreatePoseGroup}
-                      >
-                        <Plus size={11} />
-                        New Group
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1"
-                        onClick={handleCreateBlendStage}
-                        title="Create a new blend stage"
-                      >
-                        <Plus size={11} />
-                        New Stage
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1"
-                        disabled={!selectedPoseGroup?.groupId}
-                        onClick={handleRenameSelectedPoseGroup}
-                        title={
-                          selectedPoseGroup?.groupId
-                            ? "Rename selected pose group"
-                            : "Select a configured pose group first"
-                        }
-                      >
-                        Rename
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
-                        disabled={!selectedPoseGroup?.groupId}
-                        onClick={handleDeleteSelectedPoseGroup}
-                        title={
-                          selectedPoseGroup?.groupId
-                            ? "Delete selected pose group"
-                            : "Select a configured pose group first"
-                        }
-                      >
-                        Delete
-                      </Button>
-                    </>
-                  )}
-                  {isPoseGroups && (
-                    <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                      Compatibility blend
-                    </span>
-                  )}
-                </div>
-                {showSurfaceContext && (
-                  <div className="flex flex-wrap items-center gap-1 px-1 mb-1">
-                    {isVariables ? (
-                      <>
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-                          Variables Context
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
-                          <Zap size={10} />
-                          Main Face
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-violet-500/40 text-violet-200">
-                          <Zap size={10} />
-                          Reference Face
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
-                          <Zap
-                            size={10}
-                            className={MAIN_FACE_SCOPE_ICON_CLASS}
-                          />
-                          <Zap
-                            size={10}
-                            className={REFERENCE_FACE_SCOPE_ICON_CLASS}
-                          />
-                          Shared
-                        </span>
-                      </>
-                    ) : isPoses ? (
-                      <>
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-                          Poses Context
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
-                          <Zap size={10} />
-                          Main Face
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-violet-500/40 text-violet-200">
-                          <Zap size={10} />
-                          Reference Face
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-                          Inputs Context
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
-                          Main Face Inputs Only
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
-                          Compare in Variables/Poses
-                        </span>
+                        {referenceFace.file && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
+                            data-testid="variables-poses-copy-reference"
+                            onClick={handleCopyReferencePoseToMain}
+                            disabled={!canCopyReferencePoses}
+                            title={
+                              selectedReferencePoseCopyCount > 0
+                                ? "Copy selected reference poses to the main face"
+                                : "Copy a reference pose to the main face"
+                            }
+                          >
+                            <Copy size={11} />
+                            {selectedReferencePoseCopyCount > 0
+                              ? `Copy Ref Pose (${selectedReferencePoseCopyCount})`
+                              : `Copy Ref Pose (${referencePoseCopyCount})`}
+                          </Button>
+                        )}
                       </>
                     )}
-                  </div>
-                )}
-                {isInputs && proceduralAnimationProgrammingActive && (
-                  <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-                      Procedural Animation Programming
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
-                      Inputs {visibleEnabledMotionGraphInputsCount}/
-                      {motionGraphDisplayInputRowsByPath.size}
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
-                      Outputs {visibleEnabledMotionGraphOutputsCount}/
-                      {motionGraphDisplayOutputRowsByPath.size}
-                    </span>
-                    <span className="text-[10px] text-text-muted">
-                      Active and available lists below show exactly what is in
-                      the graph.
-                    </span>
-                  </div>
-                )}
-                {isInputs && animationAuthoringActive && (
-                  <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-                      Animation
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-100/90">
-                      Tracks {visibleTrackedAnimationInputCount}/
-                      {visibleTrackableAnimationInputCount}
-                    </span>
-                    <span className="text-[10px] text-text-muted">
-                      Active tracks and available tracks are listed separately.
-                      Slider edits keyframe at the current animation time.
-                    </span>
-                  </div>
-                )}
-                {isPoseGroups && (
-                  <div className="flex flex-col gap-2 px-1">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <span className="text-[10px] text-text-muted">
-                        {selectedPoseName
-                          ? `Selected pose: ${selectedPoseName}`
-                          : "Select a pose to edit membership"}
+                    {isVariables && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                        data-testid="variables-drivers-copy-reference"
+                        onClick={handleCopyReferenceToMain}
+                        disabled={!canCopyReferenceDrivers}
+                        title={
+                          selectedReferenceRigCopyCount > 0
+                            ? "Copy selected reference drivers to main face"
+                            : "Copy reference-only drivers to main face"
+                        }
+                      >
+                        <Copy size={11} />
+                        {selectedReferenceRigCopyCount > 0
+                          ? `Copy Ref (${selectedReferenceRigCopyCount})`
+                          : `Copy Ref (${uncopiedReferenceCount})`}
+                      </Button>
+                    )}
+                    {isPoseGroups && (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          onClick={handleCreatePoseGroup}
+                        >
+                          <Plus size={11} />
+                          New Group
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          onClick={handleCreateBlendStage}
+                          title="Create a new blend stage"
+                        >
+                          <Plus size={11} />
+                          New Stage
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          disabled={!selectedPoseGroup?.groupId}
+                          onClick={handleRenameSelectedPoseGroup}
+                          title={
+                            selectedPoseGroup?.groupId
+                              ? "Rename selected pose group"
+                              : "Select a configured pose group first"
+                          }
+                        >
+                          Rename
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
+                          disabled={!selectedPoseGroup?.groupId}
+                          onClick={handleDeleteSelectedPoseGroup}
+                          title={
+                            selectedPoseGroup?.groupId
+                              ? "Delete selected pose group"
+                              : "Select a configured pose group first"
+                          }
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                    {isPoseGroups && (
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Compatibility blend
                       </span>
-                      {selectedPoseName && (
-                        <div className="flex flex-wrap items-center gap-1">
-                          {selectedPoseMemberships.map((membership) => (
-                            <span
-                              key={membership.path}
-                              className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
-                            >
-                              {membership.label}
-                            </span>
-                          ))}
-                        </div>
+                    )}
+                  </div>
+                  {showSurfaceContext && (
+                    <div className="flex flex-wrap items-center gap-1 px-1 mb-1">
+                      {isVariables ? (
+                        <>
+                          <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                            Variables Context
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
+                            <Zap size={10} />
+                            Main Face
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-violet-500/40 text-violet-200">
+                            <Zap size={10} />
+                            Reference Face
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                            <Zap
+                              size={10}
+                              className={MAIN_FACE_SCOPE_ICON_CLASS}
+                            />
+                            <Zap
+                              size={10}
+                              className={REFERENCE_FACE_SCOPE_ICON_CLASS}
+                            />
+                            Shared
+                          </span>
+                        </>
+                      ) : isPoses ? (
+                        <>
+                          <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                            Poses Context
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
+                            <Zap size={10} />
+                            Main Face
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-violet-500/40 text-violet-200">
+                            <Zap size={10} />
+                            Reference Face
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                            Inputs Context
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border-default/60 text-text-secondary">
+                            Main Face Inputs Only
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
+                            Compare in Variables/Poses
+                          </span>
+                        </>
                       )}
-                      <div className="ml-auto flex flex-wrap items-center gap-1">
+                    </div>
+                  )}
+                  {isInputs && proceduralAnimationProgrammingActive && (
+                    <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                        Procedural Animation Programming
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
+                        Inputs {visibleEnabledMotionGraphInputsCount}/
+                        {motionGraphDisplayInputRowsByPath.size}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-100/90">
+                        Outputs {visibleEnabledMotionGraphOutputsCount}/
+                        {motionGraphDisplayOutputRowsByPath.size}
+                      </span>
+                      <span className="text-[10px] text-text-muted">
+                        Active and available lists below show exactly what is in
+                        the graph.
+                      </span>
+                    </div>
+                  )}
+                  {isInputs && animationAuthoringActive && (
+                    <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                      <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
+                        Animation
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-100/90">
+                        Tracks {visibleTrackedAnimationInputCount}/
+                        {visibleTrackableAnimationInputCount}
+                      </span>
+                      <span className="text-[10px] text-text-muted">
+                        Active tracks and available tracks are listed
+                        separately. Slider edits keyframe at the current
+                        animation time.
+                      </span>
+                    </div>
+                  )}
+                  {isPoseGroups && (
+                    <div className="flex flex-col gap-2 px-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         <span className="text-[10px] text-text-muted">
-                          {stageDefinitions.length === 0
-                            ? "Legacy cross-group mode"
-                            : "Fallback mode"}
+                          {selectedPoseName
+                            ? `Selected pose: ${selectedPoseName}`
+                            : "Select a pose to edit membership"}
                         </span>
-                        <Button
-                          variant={
-                            crossGroupBlendMode === "average"
-                              ? "primary"
-                              : "subtle"
-                          }
-                          size="sm"
-                          className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
-                          disabled={crossGroupBlendMode === "average"}
-                          onClick={() => setCrossGroupBlendMode("average")}
-                        >
-                          Average
-                        </Button>
-                        <Button
-                          variant={
-                            crossGroupBlendMode === "additive"
-                              ? "primary"
-                              : "subtle"
-                          }
-                          size="sm"
-                          className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
-                          disabled={crossGroupBlendMode === "additive"}
-                          onClick={() => setCrossGroupBlendMode("additive")}
-                        >
-                          Additive
-                        </Button>
+                        {selectedPoseName && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {selectedPoseMemberships.map((membership) => (
+                              <span
+                                key={membership.path}
+                                className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
+                              >
+                                {membership.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="ml-auto flex flex-wrap items-center gap-1">
+                          <span className="text-[10px] text-text-muted">
+                            {stageDefinitions.length === 0
+                              ? "Legacy cross-group mode"
+                              : "Fallback mode"}
+                          </span>
+                          <Button
+                            variant={
+                              crossGroupBlendMode === "average"
+                                ? "primary"
+                                : "subtle"
+                            }
+                            size="sm"
+                            className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
+                            disabled={crossGroupBlendMode === "average"}
+                            onClick={() => setCrossGroupBlendMode("average")}
+                          >
+                            Average
+                          </Button>
+                          <Button
+                            variant={
+                              crossGroupBlendMode === "additive"
+                                ? "primary"
+                                : "subtle"
+                            }
+                            size="sm"
+                            className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
+                            disabled={crossGroupBlendMode === "additive"}
+                            onClick={() => setCrossGroupBlendMode("additive")}
+                          >
+                            Additive
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded border border-border-default/50 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                            Blend Stages
+                          </span>
+                          <span className="text-[10px] text-text-muted">
+                            {stageDefinitions.length === 0
+                              ? "No stages (compatibility mode)"
+                              : `${stageDefinitions.length} configured`}
+                          </span>
+                        </div>
+                        {stageEditMessage && (
+                          <div
+                            role="alert"
+                            className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100"
+                          >
+                            {stageEditMessage}
+                          </div>
+                        )}
+                        {stageDefinitions.length === 0 ? (
+                          <div className="text-[10px] text-text-muted">
+                            Add stages to author explicit multi-stage blending.
+                            Until then, cross-group blend mode above is used.
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {stageDefinitions.map((stage, stageIndex) => {
+                              const stageName = blendStageDisplayName(
+                                stage,
+                                stageIndex,
+                              );
+                              const isSelectedStage =
+                                selectedBlendStage?.id === stage.id;
+                              const stageSourceSummary =
+                                stage.sources.length === 0
+                                  ? "No sources configured"
+                                  : stage.sources
+                                      .map((source) =>
+                                        source.kind === "group"
+                                          ? source.id
+                                          : `stage:${source.id}`,
+                                      )
+                                      .join(" · ");
+                              const referencesThisStage = stageDefinitions
+                                .slice(stageIndex + 1)
+                                .some((candidate) =>
+                                  candidate.sources.some(
+                                    (source) =>
+                                      source.kind === "stage" &&
+                                      source.id === stage.id,
+                                  ),
+                                );
+
+                              const moveIssueFor = (
+                                direction: "up" | "down",
+                              ): string | null => {
+                                const toIndex =
+                                  direction === "up"
+                                    ? stageIndex - 1
+                                    : stageIndex + 1;
+                                if (
+                                  toIndex < 0 ||
+                                  toIndex >= stageDefinitions.length
+                                ) {
+                                  return "Boundary";
+                                }
+                                const nextStages = [...stageDefinitions];
+                                const [moved] = nextStages.splice(
+                                  stageIndex,
+                                  1,
+                                );
+                                if (!moved) {
+                                  return "Missing stage";
+                                }
+                                nextStages.splice(toIndex, 0, moved);
+                                return evaluateBlendStageTopology(
+                                  nextStages,
+                                  stageGroupIds,
+                                );
+                              };
+
+                              const moveUpIssue = moveIssueFor("up");
+                              const moveDownIssue = moveIssueFor("down");
+
+                              return (
+                                <div
+                                  key={stage.id}
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-pressed={isSelectedStage}
+                                  aria-label={`Inspect blend stage ${stageName}`}
+                                  className={cn(
+                                    "rounded border p-2 flex flex-col gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                                    isSelectedStage
+                                      ? "border-accent/60 bg-accent/10"
+                                      : "border-border-default/50 bg-bg-panel/30 hover:border-border-default/70 hover:bg-bg-panel/45",
+                                  )}
+                                  onClick={() =>
+                                    handleInspectBlendStage(stage, stageIndex)
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (
+                                      event.key !== "Enter" &&
+                                      event.key !== " "
+                                    ) {
+                                      return;
+                                    }
+                                    event.preventDefault();
+                                    handleInspectBlendStage(stage, stageIndex);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-text-muted font-mono">
+                                      {stage.id}
+                                    </span>
+                                    <span className="text-xs text-text-primary">
+                                      {stageName}
+                                    </span>
+                                    <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                                      {stage.mode === "add" ? "Add" : "Average"}
+                                    </span>
+                                    {isSelectedStage && (
+                                      <span className="rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                                        Inspecting
+                                      </span>
+                                    )}
+                                    <div className="ml-auto flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-1"
+                                        disabled={Boolean(moveUpIssue)}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleReorderBlendStage(
+                                            stageIndex,
+                                            "up",
+                                          );
+                                        }}
+                                        title={
+                                          moveUpIssue &&
+                                          moveUpIssue !== "Boundary"
+                                            ? moveUpIssue
+                                            : "Move stage up"
+                                        }
+                                      >
+                                        <ArrowUp size={11} />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-1"
+                                        disabled={Boolean(moveDownIssue)}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleReorderBlendStage(
+                                            stageIndex,
+                                            "down",
+                                          );
+                                        }}
+                                        title={
+                                          moveDownIssue &&
+                                          moveDownIssue !== "Boundary"
+                                            ? moveDownIssue
+                                            : "Move stage down"
+                                        }
+                                      >
+                                        <ArrowDown size={11} />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleRenameBlendStage(
+                                            stage,
+                                            stageIndex,
+                                          );
+                                        }}
+                                        title="Rename blend stage"
+                                      >
+                                        Rename
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px] text-amber-300 hover:text-amber-200"
+                                        disabled={referencesThisStage}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDeleteBlendStage(
+                                            stage,
+                                            stageIndex,
+                                          );
+                                        }}
+                                        title={
+                                          referencesThisStage
+                                            ? "Delete blocked while later stages reference this stage"
+                                            : "Delete blend stage"
+                                        }
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="text-[10px] text-text-muted font-mono truncate">
+                                    Sources: {stageSourceSummary}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    <div className="rounded border border-border-default/50 bg-bg-panel/40 px-2 py-2 flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                          Blend Stages
-                        </span>
-                        <span className="text-[10px] text-text-muted">
-                          {stageDefinitions.length === 0
-                            ? "No stages (compatibility mode)"
-                            : `${stageDefinitions.length} configured`}
-                        </span>
-                      </div>
-                      {stageEditMessage && (
-                        <div
-                          role="alert"
-                          className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100"
-                        >
-                          {stageEditMessage}
-                        </div>
-                      )}
-                      {stageDefinitions.length === 0 ? (
-                        <div className="text-[10px] text-text-muted">
-                          Add stages to author explicit multi-stage blending.
-                          Until then, cross-group blend mode above is used.
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {stageDefinitions.map((stage, stageIndex) => {
-                            const stageName = blendStageDisplayName(
-                              stage,
-                              stageIndex,
-                            );
-                            const isSelectedStage =
-                              selectedBlendStage?.id === stage.id;
-                            const stageSourceSummary =
-                              stage.sources.length === 0
-                                ? "No sources configured"
-                                : stage.sources
-                                    .map((source) =>
-                                      source.kind === "group"
-                                        ? source.id
-                                        : `stage:${source.id}`,
-                                    )
-                                    .join(" · ");
-                            const referencesThisStage = stageDefinitions
-                              .slice(stageIndex + 1)
-                              .some((candidate) =>
-                                candidate.sources.some(
-                                  (source) =>
-                                    source.kind === "stage" &&
-                                    source.id === stage.id,
-                                ),
-                              );
-
-                            const moveIssueFor = (
-                              direction: "up" | "down",
-                            ): string | null => {
-                              const toIndex =
-                                direction === "up"
-                                  ? stageIndex - 1
-                                  : stageIndex + 1;
-                              if (
-                                toIndex < 0 ||
-                                toIndex >= stageDefinitions.length
-                              ) {
-                                return "Boundary";
-                              }
-                              const nextStages = [...stageDefinitions];
-                              const [moved] = nextStages.splice(stageIndex, 1);
-                              if (!moved) {
-                                return "Missing stage";
-                              }
-                              nextStages.splice(toIndex, 0, moved);
-                              return evaluateBlendStageTopology(
-                                nextStages,
-                                stageGroupIds,
-                              );
-                            };
-
-                            const moveUpIssue = moveIssueFor("up");
-                            const moveDownIssue = moveIssueFor("down");
-
+                  )}
+                  {isVariables && (
+                    <>
+                      <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
+                        {referenceFace.file && (
+                          <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
+                            <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
+                              Control Scope
+                            </span>
+                            <span className="text-[10px] text-text-muted">
+                              Main controls only Main Face, Reference controls
+                              only Reference Face, and Shared controls both.
+                            </span>
+                          </div>
+                        )}
+                        {(
+                          [
+                            ["auto", "Auto"],
+                            ["preset", "Preset"],
+                            ["custom", "Custom"],
+                            ...(referenceFace.file
+                              ? ([["shared", "Shared"]] as const)
+                              : []),
+                            ["reference", "Reference Face"],
+                          ] as Array<[RigNodeSource, string]>
+                        )
+                          .filter(([source]) =>
+                            source === "reference"
+                              ? Boolean(referenceFace.file)
+                              : true,
+                          )
+                          .map(([source, label]) => {
+                            const isActive = enabledSources.has(source);
+                            const count = sourceCounts[source];
                             return (
-                              <div
-                                key={stage.id}
-                                role="button"
-                                tabIndex={0}
-                                aria-pressed={isSelectedStage}
-                                aria-label={`Inspect blend stage ${stageName}`}
-                                className={cn(
-                                  "rounded border p-2 flex flex-col gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                                  isSelectedStage
-                                    ? "border-accent/60 bg-accent/10"
-                                    : "border-border-default/50 bg-bg-panel/30 hover:border-border-default/70 hover:bg-bg-panel/45",
-                                )}
-                                onClick={() =>
-                                  handleInspectBlendStage(stage, stageIndex)
-                                }
-                                onKeyDown={(event) => {
-                                  if (
-                                    event.key !== "Enter" &&
-                                    event.key !== " "
-                                  ) {
-                                    return;
-                                  }
-                                  event.preventDefault();
-                                  handleInspectBlendStage(stage, stageIndex);
+                              <button
+                                key={source}
+                                type="button"
+                                title={label}
+                                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                                  isActive
+                                    ? "border-border-hover bg-bg-panel text-text-primary"
+                                    : "border-border-default text-text-muted hover:text-text-primary"
+                                }`}
+                                onClick={() => {
+                                  setEnabledSources((previous) => {
+                                    const next = new Set(previous);
+                                    if (next.has(source)) {
+                                      next.delete(source);
+                                    } else {
+                                      next.add(source);
+                                    }
+                                    return next;
+                                  });
                                 }}
                               >
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[10px] text-text-muted font-mono">
-                                    {stage.id}
-                                  </span>
-                                  <span className="text-xs text-text-primary">
-                                    {stageName}
-                                  </span>
-                                  <span className="text-[10px] text-text-muted uppercase tracking-wide">
-                                    {stage.mode === "add" ? "Add" : "Average"}
-                                  </span>
-                                  {isSelectedStage && (
-                                    <span className="rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
-                                      Inspecting
+                                {label} ({count})
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </>
+                  )}
+                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                    {isPoseGroups ? (
+                      poseGroupsForSurface.length === 0 ? (
+                        <EmptyState
+                          icon={Search}
+                          iconSize={18}
+                          title={
+                            filteredSearch.length > 0
+                              ? "No pose groups found"
+                              : "No pose groups yet"
+                          }
+                          description={
+                            filteredSearch.length > 0
+                              ? `No items found matching "${searchQuery}"`
+                              : "Create a group or assign poses to populate this list."
+                          }
+                          action={
+                            filteredSearch.length > 0 ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSearchQuery("")}
+                                className="h-6 text-[10px] text-accent hover:text-accent-hover"
+                              >
+                                Clear Search
+                              </Button>
+                            ) : undefined
+                          }
+                          className="py-12"
+                        />
+                      ) : (
+                        <div className="flex flex-col">
+                          {poseGroupsForSurface.map((group) => {
+                            const isMember =
+                              selectedPoseId &&
+                              selectedPoseGroupPaths.includes(group.path);
+                            const isUnassigned =
+                              group.path === UNASSIGNED_POSE_GROUP_PATH;
+                            return (
+                              <TreeRow
+                                key={group.id}
+                                depth={0}
+                                label={group.label}
+                                hasChildren={false}
+                                isExpanded={false}
+                                isSelected={
+                                  activeSelection?.type === "pose-group" &&
+                                  activeSelection.id === group.id
+                                }
+                                onToggle={() => {}}
+                                onSelect={() => selectPoseGroup(group)}
+                                highlightQuery={searchQuery}
+                                icon={
+                                  <Users
+                                    size={12}
+                                    className="text-purple-300"
+                                  />
+                                }
+                                actions={
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-text-muted font-mono">
+                                      {group.source}
                                     </span>
-                                  )}
-                                  <div className="ml-auto flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-1"
-                                      disabled={Boolean(moveUpIssue)}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleReorderBlendStage(
-                                          stageIndex,
-                                          "up",
-                                        );
-                                      }}
-                                      title={
-                                        moveUpIssue &&
-                                        moveUpIssue !== "Boundary"
-                                          ? moveUpIssue
-                                          : "Move stage up"
-                                      }
-                                    >
-                                      <ArrowUp size={11} />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-1"
-                                      disabled={Boolean(moveDownIssue)}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleReorderBlendStage(
-                                          stageIndex,
-                                          "down",
-                                        );
-                                      }}
-                                      title={
-                                        moveDownIssue &&
-                                        moveDownIssue !== "Boundary"
-                                          ? moveDownIssue
-                                          : "Move stage down"
-                                      }
-                                    >
-                                      <ArrowDown size={11} />
-                                    </Button>
+                                    <span className="text-[10px] text-text-muted font-mono">
+                                      {group.poseIds.length}
+                                    </span>
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       className="h-6 px-2 text-[10px]"
+                                      disabled={!selectedPoseId || isUnassigned}
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        handleRenameBlendStage(
-                                          stage,
-                                          stageIndex,
-                                        );
-                                      }}
-                                      title="Rename blend stage"
-                                    >
-                                      Rename
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-2 text-[10px] text-amber-300 hover:text-amber-200"
-                                      disabled={referencesThisStage}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleDeleteBlendStage(
-                                          stage,
-                                          stageIndex,
-                                        );
+                                        handlePoseGroupMembershipToggle(group);
                                       }}
                                       title={
-                                        referencesThisStage
-                                          ? "Delete blocked while later stages reference this stage"
-                                          : "Delete blend stage"
+                                        !selectedPoseId
+                                          ? "Select a pose first"
+                                          : isUnassigned
+                                            ? "Unassigned membership is derived from poses with no groups"
+                                            : isMember
+                                              ? "Unassign selected pose"
+                                              : "Assign selected pose"
                                       }
                                     >
-                                      Delete
+                                      {isMember ? "Unassign" : "Assign"}
                                     </Button>
                                   </div>
-                                </div>
-                                <div className="text-[10px] text-text-muted font-mono truncate">
-                                  Sources: {stageSourceSummary}
-                                </div>
-                              </div>
+                                }
+                              />
                             );
                           })}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {isVariables && (
-                  <>
-                    <div className="flex flex-wrap items-center gap-1 px-1 mb-2">
-                      {referenceFace.file && (
-                        <div className="w-full flex flex-wrap items-center gap-1 pb-1 border-b border-border-default/40 mb-1">
-                          <span className="text-[10px] uppercase tracking-wider font-bold text-text-muted mr-1">
-                            Control Scope
-                          </span>
-                          <span className="text-[10px] text-text-muted">
-                            Main controls only Main Face, Reference controls
-                            only Reference Face, and Shared controls both.
-                          </span>
-                        </div>
-                      )}
-                      {(
-                        [
-                          ["auto", "Auto"],
-                          ["preset", "Preset"],
-                          ["custom", "Custom"],
-                          ...(referenceFace.file
-                            ? ([["shared", "Shared"]] as const)
-                            : []),
-                          ["reference", "Reference Face"],
-                        ] as Array<[RigNodeSource, string]>
                       )
-                        .filter(([source]) =>
-                          source === "reference"
-                            ? Boolean(referenceFace.file)
-                            : true,
-                        )
-                        .map(([source, label]) => {
-                          const isActive = enabledSources.has(source);
-                          const count = sourceCounts[source];
-                          return (
-                            <button
-                              key={source}
-                              type="button"
-                              title={label}
-                              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                                isActive
-                                  ? "border-border-hover bg-bg-panel text-text-primary"
-                                  : "border-border-default text-text-muted hover:text-text-primary"
-                              }`}
-                              onClick={() => {
-                                setEnabledSources((previous) => {
-                                  const next = new Set(previous);
-                                  if (next.has(source)) {
-                                    next.delete(source);
-                                  } else {
-                                    next.add(source);
-                                  }
-                                  return next;
-                                });
-                              }}
-                            >
-                              {label} ({count})
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </>
-                )}
-                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                  {isPoseGroups ? (
-                    poseGroupsForSurface.length === 0 ? (
+                    ) : isInputs &&
+                      (proceduralAnimationProgrammingActive ||
+                        animationAuthoringActive) ? (
+                      <div className="flex flex-col gap-3 px-1 pb-2">
+                        {proceduralAnimationProgrammingActive ? (
+                          <>
+                            <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                  Active Graph Inputs
+                                </span>
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {visibleMotionGraphInputRows.length}
+                                </span>
+                              </div>
+                              {visibleMotionGraphInputRows.length === 0 ? (
+                                <p className="text-[10px] text-text-muted">
+                                  No inputs are currently enabled for the
+                                  procedural graph.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {visibleMotionGraphInputRows.map((row) => (
+                                    <FlatInputControlRow
+                                      key={`pap-active-input:${row.inputId}`}
+                                      row={row}
+                                      selected={
+                                        activeSelection?.type === "input" &&
+                                        activeSelection.id === row.inputId
+                                      }
+                                      depth={0}
+                                      locked={isInputCatalogRowLocked(row)}
+                                      onSelect={() =>
+                                        handleSelectInputCatalogRow(row)
+                                      }
+                                      onValueChange={
+                                        handlePanelInputValueChange
+                                      }
+                                      actions={
+                                        <Button
+                                          data-testid="pap-remove-input"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleEnableMotionGraphInputRow(
+                                              row,
+                                            );
+                                          }}
+                                          title="Remove PAP Input"
+                                          aria-label="Remove PAP Input"
+                                        >
+                                          <X size={11} />
+                                        </Button>
+                                      }
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </section>
+
+                            <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                  Active Graph Outputs
+                                </span>
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {visibleMotionGraphOutputRows.length}
+                                </span>
+                              </div>
+                              {visibleMotionGraphOutputRows.length === 0 ? (
+                                <p className="text-[10px] text-text-muted">
+                                  No outputs are currently enabled for the
+                                  procedural graph.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {visibleMotionGraphOutputRows.map((row) => {
+                                    const timelineLocked =
+                                      isInputCatalogRowLocked(row);
+                                    const graphLocked =
+                                      proceduralOutputPlaybackLocked;
+                                    return (
+                                      <FlatInputControlRow
+                                        key={`pap-active-output:${row.inputId}:${row.path}`}
+                                        row={row}
+                                        selected={
+                                          activeSelection?.type === "input" &&
+                                          activeSelection.id === row.inputId
+                                        }
+                                        depth={0}
+                                        locked={timelineLocked || graphLocked}
+                                        lockedMessage={
+                                          graphLocked && !timelineLocked
+                                            ? "Procedural animation playback is currently driving this output."
+                                            : undefined
+                                        }
+                                        onSelect={() =>
+                                          handleSelectInputCatalogRow(row)
+                                        }
+                                        onValueChange={
+                                          handlePanelInputValueChange
+                                        }
+                                        actions={
+                                          <Button
+                                            data-testid="pap-remove-output"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleEnableMotionGraphOutputRow(
+                                                row,
+                                              );
+                                            }}
+                                            title="Remove PAP Output"
+                                            aria-label="Remove PAP Output"
+                                          >
+                                            <X size={11} />
+                                          </Button>
+                                        }
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </section>
+
+                            <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                  Available
+                                </span>
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {availableMotionGraphRows.length}
+                                </span>
+                              </div>
+                              {availableMotionGraphRowsByFolder.length === 0 ? (
+                                <p className="text-[10px] text-text-muted">
+                                  All visible rows are already active for both
+                                  graph input and output.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {renderProceduralAvailableGroups(
+                                    availableMotionGraphRowsByFolder,
+                                  )}
+                                </div>
+                              )}
+                            </section>
+                          </>
+                        ) : null}
+
+                        {animationAuthoringActive ? (
+                          <>
+                            <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                  Active Tracks
+                                </span>
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {visibleAnimationTrackRows.length}
+                                </span>
+                              </div>
+                              {visibleAnimationTrackRows.length === 0 ? (
+                                <p className="text-[10px] text-text-muted">
+                                  No tracks are currently active.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {visibleAnimationTrackRows.map((row) => {
+                                    const trackInput = standardInputsById.get(
+                                      row.inputId,
+                                    );
+                                    const poseId = parsePoseWeightInputSourceId(
+                                      trackInput?.sourceId,
+                                    );
+                                    const pose = poseId
+                                      ? poseById.get(poseId)
+                                      : undefined;
+                                    return (
+                                      <FlatInputControlRow
+                                        key={`animation-active:${row.inputId}`}
+                                        row={row}
+                                        selected={
+                                          activeSelection?.type === "input" &&
+                                          activeSelection.id === row.inputId
+                                        }
+                                        depth={0}
+                                        locked={isInputCatalogRowLocked(row)}
+                                        onSelect={() =>
+                                          handleSelectInputCatalogRow(row)
+                                        }
+                                        onValueChange={
+                                          handlePanelInputValueChange
+                                        }
+                                        actions={
+                                          <div className="flex items-center gap-1">
+                                            {pose ? (
+                                              <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  keyPoseChannelsAtCurrentTime(
+                                                    pose,
+                                                  );
+                                                }}
+                                                title="Add pose channels as animation tracks at current time"
+                                                aria-label="Add Pose Targets"
+                                              >
+                                                <Zap size={11} />
+                                                Targets
+                                              </Button>
+                                            ) : null}
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleRemoveAnimationTrack(
+                                                  row.inputId,
+                                                );
+                                              }}
+                                              title="Remove Animation Track"
+                                              aria-label="Remove Animation Track"
+                                            >
+                                              <X size={11} />
+                                            </Button>
+                                          </div>
+                                        }
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </section>
+                            <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
+                                  Available Tracks
+                                </span>
+                                <span className="text-[10px] text-text-muted font-mono">
+                                  {availableAnimationTrackRows.length}
+                                </span>
+                              </div>
+                              {availableAnimationTrackRowsByFolder.length ===
+                              0 ? (
+                                <p className="text-[10px] text-text-muted">
+                                  All visible inputs already have tracks.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {renderAnimationAvailableGroups(
+                                    availableAnimationTrackRowsByFolder,
+                                  )}
+                                </div>
+                              )}
+                            </section>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : visibleRoot.children.size === 0 ? (
                       <EmptyState
                         icon={Search}
                         iconSize={18}
                         title={
                           filteredSearch.length > 0
-                            ? "No pose groups found"
-                            : "No pose groups yet"
+                            ? "No results"
+                            : isVariables
+                              ? "No drivers defined"
+                              : isPoses
+                                ? "No poses defined"
+                                : isInputs
+                                  ? "No inputs defined"
+                                  : "No pose groups defined"
                         }
                         description={
                           filteredSearch.length > 0
                             ? `No items found matching "${searchQuery}"`
-                            : "Create a group or assign poses to populate this list."
+                            : isVariables
+                              ? "Create new drivers or import a model with poses."
+                              : isPoses
+                                ? "Create a pose to get started."
+                                : isInputs
+                                  ? "Inputs are populated from rig auto-generation and references."
+                                  : "No pose groups yet."
                         }
                         action={
                           filteredSearch.length > 0 ? (
@@ -7470,422 +7855,61 @@ export function VariablesPanel({
                         className="py-12"
                       />
                     ) : (
-                      <div className="flex flex-col">
-                        {poseGroupsForSurface.map((group) => {
-                          const isMember =
-                            selectedPoseId &&
-                            selectedPoseGroupPaths.includes(group.path);
-                          const isUnassigned =
-                            group.path === UNASSIGNED_POSE_GROUP_PATH;
-                          return (
-                            <TreeRow
-                              key={group.id}
-                              depth={0}
-                              label={group.label}
-                              hasChildren={false}
-                              isExpanded={false}
-                              isSelected={
-                                activeSelection?.type === "pose-group" &&
-                                activeSelection.id === group.id
-                              }
-                              onToggle={() => {}}
-                              onSelect={() => selectPoseGroup(group)}
-                              highlightQuery={searchQuery}
-                              icon={
-                                <Users size={12} className="text-purple-300" />
-                              }
-                              actions={
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[10px] text-text-muted font-mono">
-                                    {group.source}
-                                  </span>
-                                  <span className="text-[10px] text-text-muted font-mono">
-                                    {group.poseIds.length}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-[10px]"
-                                    disabled={!selectedPoseId || isUnassigned}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handlePoseGroupMembershipToggle(group);
-                                    }}
-                                    title={
-                                      !selectedPoseId
-                                        ? "Select a pose first"
-                                        : isUnassigned
-                                          ? "Unassigned membership is derived from poses with no groups"
-                                          : isMember
-                                            ? "Unassign selected pose"
-                                            : "Assign selected pose"
-                                    }
-                                  >
-                                    {isMember ? "Unassign" : "Assign"}
-                                  </Button>
-                                </div>
-                              }
-                            />
-                          );
-                        })}
-                      </div>
-                    )
-                  ) : isInputs &&
-                    (proceduralAnimationProgrammingActive ||
-                      animationAuthoringActive) ? (
-                    <div className="flex flex-col gap-3 px-1 pb-2">
-                      {proceduralAnimationProgrammingActive ? (
-                        <>
-                          <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                Active Graph Inputs
-                              </span>
-                              <span className="text-[10px] text-text-muted font-mono">
-                                {visibleMotionGraphInputRows.length}
-                              </span>
-                            </div>
-                            {visibleMotionGraphInputRows.length === 0 ? (
-                              <p className="text-[10px] text-text-muted">
-                                No inputs are currently enabled for the
-                                procedural graph.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1.5">
-                                {visibleMotionGraphInputRows.map((row) => (
-                                  <FlatInputControlRow
-                                    key={`pap-active-input:${row.inputId}`}
-                                    row={row}
-                                    selected={
-                                      activeSelection?.type === "input" &&
-                                      activeSelection.id === row.inputId
-                                    }
-                                    depth={0}
-                                    locked={isInputCatalogRowLocked(row)}
-                                    onSelect={() =>
-                                      handleSelectInputCatalogRow(row)
-                                    }
-                                    onValueChange={handlePanelInputValueChange}
-                                    actions={
-                                      <Button
-                                        data-testid="pap-remove-input"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleEnableMotionGraphInputRow(row);
-                                        }}
-                                        title="Remove PAP Input"
-                                        aria-label="Remove PAP Input"
-                                      >
-                                        <X size={11} />
-                                      </Button>
-                                    }
-                                  />
-                                ))}
-                              </div>
-                            )}
-                          </section>
-
-                          <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                Active Graph Outputs
-                              </span>
-                              <span className="text-[10px] text-text-muted font-mono">
-                                {visibleMotionGraphOutputRows.length}
-                              </span>
-                            </div>
-                            {visibleMotionGraphOutputRows.length === 0 ? (
-                              <p className="text-[10px] text-text-muted">
-                                No outputs are currently enabled for the
-                                procedural graph.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1.5">
-                                {visibleMotionGraphOutputRows.map((row) => {
-                                  const timelineLocked =
-                                    isInputCatalogRowLocked(row);
-                                  const graphLocked =
-                                    proceduralOutputPlaybackLocked;
-                                  return (
-                                    <FlatInputControlRow
-                                      key={`pap-active-output:${row.inputId}:${row.path}`}
-                                      row={row}
-                                      selected={
-                                        activeSelection?.type === "input" &&
-                                        activeSelection.id === row.inputId
-                                      }
-                                      depth={0}
-                                      locked={timelineLocked || graphLocked}
-                                      lockedMessage={
-                                        graphLocked && !timelineLocked
-                                          ? "Procedural animation playback is currently driving this output."
-                                          : undefined
-                                      }
-                                      onSelect={() =>
-                                        handleSelectInputCatalogRow(row)
-                                      }
-                                      onValueChange={
-                                        handlePanelInputValueChange
-                                      }
-                                      actions={
-                                        <Button
-                                          data-testid="pap-remove-output"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleEnableMotionGraphOutputRow(
-                                              row,
-                                            );
-                                          }}
-                                          title="Remove PAP Output"
-                                          aria-label="Remove PAP Output"
-                                        >
-                                          <X size={11} />
-                                        </Button>
-                                      }
-                                    />
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </section>
-
-                          <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                Available
-                              </span>
-                              <span className="text-[10px] text-text-muted font-mono">
-                                {availableMotionGraphRows.length}
-                              </span>
-                            </div>
-                            {availableMotionGraphRowsByFolder.length === 0 ? (
-                              <p className="text-[10px] text-text-muted">
-                                All visible rows are already active for both
-                                graph input and output.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1.5">
-                                {renderProceduralAvailableGroups(
-                                  availableMotionGraphRowsByFolder,
-                                )}
-                              </div>
-                            )}
-                          </section>
-                        </>
-                      ) : null}
-
-                      {animationAuthoringActive ? (
-                        <>
-                          <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                Active Tracks
-                              </span>
-                              <span className="text-[10px] text-text-muted font-mono">
-                                {visibleAnimationTrackRows.length}
-                              </span>
-                            </div>
-                            {visibleAnimationTrackRows.length === 0 ? (
-                              <p className="text-[10px] text-text-muted">
-                                No tracks are currently active.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1.5">
-                                {visibleAnimationTrackRows.map((row) => {
-                                  const trackInput = standardInputsById.get(
-                                    row.inputId,
-                                  );
-                                  const poseId = parsePoseWeightInputSourceId(
-                                    trackInput?.sourceId,
-                                  );
-                                  const pose = poseId
-                                    ? poseById.get(poseId)
-                                    : undefined;
-                                  return (
-                                    <FlatInputControlRow
-                                      key={`animation-active:${row.inputId}`}
-                                      row={row}
-                                      selected={
-                                        activeSelection?.type === "input" &&
-                                        activeSelection.id === row.inputId
-                                      }
-                                      depth={0}
-                                      locked={isInputCatalogRowLocked(row)}
-                                      onSelect={() =>
-                                        handleSelectInputCatalogRow(row)
-                                      }
-                                      onValueChange={
-                                        handlePanelInputValueChange
-                                      }
-                                      actions={
-                                        <div className="flex items-center gap-1">
-                                          {pose ? (
-                                            <Button
-                                              variant="secondary"
-                                              size="sm"
-                                              className="h-6 px-2 text-[10px] gap-1 text-violet-100"
-                                              onClick={(event) => {
-                                                event.stopPropagation();
-                                                keyPoseChannelsAtCurrentTime(
-                                                  pose,
-                                                );
-                                              }}
-                                              title="Add pose channels as animation tracks at current time"
-                                              aria-label="Add Pose Targets"
-                                            >
-                                              <Zap size={11} />
-                                              Targets
-                                            </Button>
-                                          ) : null}
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              handleRemoveAnimationTrack(
-                                                row.inputId,
-                                              );
-                                            }}
-                                            title="Remove Animation Track"
-                                            aria-label="Remove Animation Track"
-                                          >
-                                            <X size={11} />
-                                          </Button>
-                                        </div>
-                                      }
-                                    />
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </section>
-                          <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                Available Tracks
-                              </span>
-                              <span className="text-[10px] text-text-muted font-mono">
-                                {availableAnimationTrackRows.length}
-                              </span>
-                            </div>
-                            {availableAnimationTrackRowsByFolder.length ===
-                            0 ? (
-                              <p className="text-[10px] text-text-muted">
-                                All visible inputs already have tracks.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1.5">
-                                {renderAnimationAvailableGroups(
-                                  availableAnimationTrackRowsByFolder,
-                                )}
-                              </div>
-                            )}
-                          </section>
-                        </>
-                      ) : null}
-                    </div>
-                  ) : visibleRoot.children.size === 0 ? (
-                    <EmptyState
-                      icon={Search}
-                      iconSize={18}
-                      title={
-                        filteredSearch.length > 0
-                          ? "No results"
-                          : isVariables
-                            ? "No drivers defined"
-                            : isPoses
-                              ? "No poses defined"
-                              : isInputs
-                                ? "No inputs defined"
-                                : "No pose groups defined"
-                      }
-                      description={
-                        filteredSearch.length > 0
-                          ? `No items found matching "${searchQuery}"`
-                          : isVariables
-                            ? "Create new drivers or import a model with poses."
-                            : isPoses
-                              ? "Create a pose to get started."
-                              : isInputs
-                                ? "Inputs are populated from rig auto-generation and references."
-                                : "No pose groups yet."
-                      }
-                      action={
-                        filteredSearch.length > 0 ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSearchQuery("")}
-                            className="h-6 text-[10px] text-accent hover:text-accent-hover"
-                          >
-                            Clear Search
-                          </Button>
-                        ) : undefined
-                      }
-                      className="py-12"
-                    />
-                  ) : (
-                    Array.from(visibleRoot.children.values())
-                      .sort((a, b) => {
-                        if (a.type === "folder" && b.type !== "folder")
-                          return -1;
-                        if (a.type !== "folder" && b.type === "folder")
-                          return 1;
-                        if (
-                          isInputs &&
-                          a.type === "folder" &&
-                          b.type === "folder"
-                        ) {
-                          return compareInputFolderLabels(a.label, b.label);
-                        }
-                        return a.label.localeCompare(b.label);
-                      })
-                      .map((child) => (
-                        <TreeRowWrapper
-                          key={child.id}
-                          node={child}
-                          depth={0}
-                          expanded={expandedIds}
-                          onToggle={handleToggle}
-                          onAction={handleAction}
-                          onSelect={handleSelect}
-                          onInputValueChange={handlePanelInputValueChange}
-                          selection={activeSelection}
-                          selectedReferenceRigIds={selectedReferenceRigIds}
-                          selectedReferencePoseIds={selectedReferencePoseIds}
-                          onToggleReferenceRigSelection={
-                            toggleReferenceRigSelection
+                      Array.from(visibleRoot.children.values())
+                        .sort((a, b) => {
+                          if (a.type === "folder" && b.type !== "folder")
+                            return -1;
+                          if (a.type !== "folder" && b.type === "folder")
+                            return 1;
+                          if (
+                            isInputs &&
+                            a.type === "folder" &&
+                            b.type === "folder"
+                          ) {
+                            return compareInputFolderLabels(a.label, b.label);
                           }
-                          onToggleReferencePoseSelection={
-                            toggleReferencePoseSelection
-                          }
-                          onSetReferenceRigSelection={
-                            setReferenceRigSelectionBatch
-                          }
-                          onSetReferencePoseSelection={
-                            setReferencePoseSelectionBatch
-                          }
-                          timelineInputLockActive={timelineInputLockActive}
-                          timelineLockedInputIds={timelineLockedInputIds}
-                          motionGraphContext={motionGraphInputContext}
-                          animationTrackContext={animationTrackInputContext}
-                          poseTargetContext={poseTargetInputContext}
-                          searchQuery={searchQuery}
-                        />
-                      ))
-                  )}
+                          return a.label.localeCompare(b.label);
+                        })
+                        .map((child) => (
+                          <TreeRowWrapper
+                            key={child.id}
+                            node={child}
+                            depth={0}
+                            expanded={expandedIds}
+                            onToggle={handleToggle}
+                            onAction={handleAction}
+                            onSelect={handleSelect}
+                            onInputValueChange={handlePanelInputValueChange}
+                            selection={activeSelection}
+                            selectedReferenceRigIds={selectedReferenceRigIds}
+                            selectedReferencePoseIds={selectedReferencePoseIds}
+                            onToggleReferenceRigSelection={
+                              toggleReferenceRigSelection
+                            }
+                            onToggleReferencePoseSelection={
+                              toggleReferencePoseSelection
+                            }
+                            onSetReferenceRigSelection={
+                              setReferenceRigSelectionBatch
+                            }
+                            onSetReferencePoseSelection={
+                              setReferencePoseSelectionBatch
+                            }
+                            timelineInputLockActive={timelineInputLockActive}
+                            timelineLockedInputIds={timelineLockedInputIds}
+                            motionGraphContext={motionGraphInputContext}
+                            animationTrackContext={animationTrackInputContext}
+                            poseTargetContext={poseTargetInputContext}
+                            searchQuery={searchQuery}
+                          />
+                        ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          }}
-        />
+              );
+            }}
+          />
+        </div>
       </Panel>
       {variableCopyModal && (
         <Modal

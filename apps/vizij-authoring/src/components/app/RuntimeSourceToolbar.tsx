@@ -32,7 +32,7 @@ interface RuntimeSourceToolbarProps {
   activeSource: RuntimeAuthoringSource;
   options: RuntimeSourceOption[];
   onChange: (source: RuntimeAuthoringSource) => void;
-  layout?: "bar" | "panel";
+  layout?: "bar" | "embedded" | "panel";
   playbackState?: "playing" | "paused" | "stopped";
   onPlay?: () => void;
   onPause?: () => void;
@@ -394,6 +394,47 @@ export function RuntimeSourceToolbar({
         )}
       </div>
     ) : null;
+
+  const embeddedContent = (
+    <div className="space-y-3 rounded-xl border border-border-default/70 bg-bg-panel/70 p-3 backdrop-blur-sm">
+      <div className="space-y-1">
+        <div className="text-[10px] font-black uppercase tracking-widest text-text-secondary">
+          Runtime Source
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${modeDetails.badgeClassName}`}
+          >
+            {modeDetails.label}
+          </span>
+          <span
+            className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+              isLive
+                ? "bg-color-success-subtle text-color-success"
+                : "bg-bg-secondary text-text-secondary"
+            }`}
+          >
+            {isLive ? "Live" : "Idle"}
+          </span>
+        </div>
+        <p className="text-[11px] leading-relaxed text-text-secondary">
+          {sourceDescriptions[activeSource]}
+        </p>
+      </div>
+
+      {runtimeSourceToggle}
+
+      {playbackButtons}
+
+      {targetSelector}
+
+      {targetMetadataCard}
+    </div>
+  );
+
+  if (layout === "embedded") {
+    return embeddedContent;
+  }
 
   if (layout === "panel") {
     return (

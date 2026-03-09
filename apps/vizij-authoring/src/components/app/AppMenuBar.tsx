@@ -69,9 +69,6 @@ export function AppMenuBar({
   const materialsPanelVisible = useWorkspaceStore(
     (state) => state.panels.materials.isVisible,
   );
-  const toolbarPanelVisible = useWorkspaceStore(
-    (state) => state.panels.toolbar.isVisible,
-  );
   const inspectorPanelVisible = useWorkspaceStore(
     (state) => state.panels.inspector.isVisible,
   );
@@ -247,12 +244,6 @@ export function AppMenuBar({
         </MenuCheckboxItem>
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
-        <MenuCheckboxItem
-          checked={toolbarPanelVisible}
-          onCheckedChange={(checked) => setPanelVisibility("toolbar", checked)}
-        >
-          Runtime Source
-        </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={inspectorPanelVisible}
           onCheckedChange={(checked) =>

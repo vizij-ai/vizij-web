@@ -1985,9 +1985,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
-  const runtimeControlsPanelVisible = useWorkspaceStore(
-    (state) => state.panels.toolbar.isVisible,
-  );
   useEffect(() => {
     applyEditFocusPanelDefaults(activeEditFocus, setWorkspacePanelVisibility);
   }, [activeEditFocus, setWorkspacePanelVisibility]);
@@ -2226,9 +2223,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [setWorkspacePanelVisibility]);
   const handleHideInspectorPanel = useCallback(() => {
     setWorkspacePanelVisibility("inspector", false);
-  }, [setWorkspacePanelVisibility]);
-  const handleHideRuntimeSourcePanel = useCallback(() => {
-    setWorkspacePanelVisibility("toolbar", false);
   }, [setWorkspacePanelVisibility]);
   const handleHideAnimationPanel = useCallback(() => {
     setWorkspacePanelVisibility("animation", false);
@@ -2932,6 +2926,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onStopProgramTarget={handleStopProgramTarget}
               panelTitle="Authoring"
               panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
+              headerContent={
+                <RuntimeSourceToolbar
+                  layout="embedded"
+                  mode={centerAuthoringMode}
+                  activeSource={activeRuntimeSource}
+                  options={runtimeSourceOptions}
+                  onChange={uiActions.setActiveRuntimeSource}
+                  playbackState={runtimePlaybackConfig.playbackState}
+                  playbackDisabled={runtimePlaybackConfig.playbackDisabled}
+                  onPlay={runtimePlaybackConfig.onPlay}
+                  onPause={runtimePlaybackConfig.onPause}
+                  onStop={runtimePlaybackConfig.onStop}
+                  targetLabel={runtimeTargetConfig?.targetLabel}
+                  targetValue={runtimeTargetConfig?.targetValue}
+                  targetOptions={runtimeTargetConfig?.targetOptions}
+                  onTargetChange={runtimeTargetConfig?.onTargetChange}
+                  targetTypeLabel={runtimeTargetConfig?.targetTypeLabel}
+                  targetName={runtimeTargetConfig?.targetName}
+                  onTargetNameChange={runtimeTargetConfig?.onTargetNameChange}
+                  targetStats={runtimeTargetConfig?.targetStats}
+                  targetNumericLabel={runtimeTargetConfig?.targetNumericLabel}
+                  targetNumericValue={runtimeTargetConfig?.targetNumericValue}
+                  targetNumericStep={runtimeTargetConfig?.targetNumericStep}
+                  targetNumericMin={runtimeTargetConfig?.targetNumericMin}
+                  onTargetNumericValueChange={
+                    runtimeTargetConfig?.onTargetNumericValueChange
+                  }
+                  onDeleteTarget={runtimeTargetConfig?.onDeleteTarget}
+                  deleteTargetLabel={runtimeTargetConfig?.deleteTargetLabel}
+                  onCreateTarget={runtimeTargetConfig?.onCreateTarget}
+                  createTargetLabel={runtimeTargetConfig?.createTargetLabel}
+                />
+              }
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
@@ -2973,41 +3000,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           }
           centerPanelDefaultSize={centerPanelDefaultSize}
           // Right
-          rightTopVisible={runtimeControlsPanelVisible}
-          rightTopPanel={
-            <RuntimeSourceToolbar
-              layout="panel"
-              mode={centerAuthoringMode}
-              activeSource={activeRuntimeSource}
-              options={runtimeSourceOptions}
-              onChange={uiActions.setActiveRuntimeSource}
-              playbackState={runtimePlaybackConfig.playbackState}
-              playbackDisabled={runtimePlaybackConfig.playbackDisabled}
-              onPlay={runtimePlaybackConfig.onPlay}
-              onPause={runtimePlaybackConfig.onPause}
-              onStop={runtimePlaybackConfig.onStop}
-              targetLabel={runtimeTargetConfig?.targetLabel}
-              targetValue={runtimeTargetConfig?.targetValue}
-              targetOptions={runtimeTargetConfig?.targetOptions}
-              onTargetChange={runtimeTargetConfig?.onTargetChange}
-              targetTypeLabel={runtimeTargetConfig?.targetTypeLabel}
-              targetName={runtimeTargetConfig?.targetName}
-              onTargetNameChange={runtimeTargetConfig?.onTargetNameChange}
-              targetStats={runtimeTargetConfig?.targetStats}
-              targetNumericLabel={runtimeTargetConfig?.targetNumericLabel}
-              targetNumericValue={runtimeTargetConfig?.targetNumericValue}
-              targetNumericStep={runtimeTargetConfig?.targetNumericStep}
-              targetNumericMin={runtimeTargetConfig?.targetNumericMin}
-              onTargetNumericValueChange={
-                runtimeTargetConfig?.onTargetNumericValueChange
-              }
-              onDeleteTarget={runtimeTargetConfig?.onDeleteTarget}
-              deleteTargetLabel={runtimeTargetConfig?.deleteTargetLabel}
-              onCreateTarget={runtimeTargetConfig?.onCreateTarget}
-              createTargetLabel={runtimeTargetConfig?.createTargetLabel}
-              onClosePanel={handleHideRuntimeSourcePanel}
-            />
-          }
+          rightTopVisible={false}
+          rightTopPanel={null}
           rightBottomVisible={
             (motionGraphPanelVisible && motionGraphPalettePanelVisible) ||
             inspectorPanelVisible ||
