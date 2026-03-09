@@ -2762,7 +2762,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               selectedBlendStage={selectedBlendStage}
               onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
               panelTitle="Authoring"
-              panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
+              panelDescription="Author and organize drivers, poses, and pose groups."
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}

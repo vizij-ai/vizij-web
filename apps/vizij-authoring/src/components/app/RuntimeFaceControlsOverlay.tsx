@@ -3,23 +3,31 @@ import { Button } from "../ui";
 
 export type RuntimeFaceControlsOverlayProps = {
   onResetInputs?: () => void;
+  onStopActiveRuntime?: () => void;
   onToggleSplit?: () => void;
   splitVertical?: boolean;
   showReadyFlag?: boolean;
   resetButtonLabel?: string;
   resetButtonTitle?: string;
   resetButtonTestId?: string;
+  stopButtonLabel?: string;
+  stopButtonTitle?: string;
+  stopButtonTestId?: string;
   readyFlagTestId?: string;
 };
 
 export function RuntimeFaceControlsOverlay({
   onResetInputs,
+  onStopActiveRuntime,
   onToggleSplit,
   splitVertical = false,
   showReadyFlag = true,
   resetButtonLabel = "Reset Inputs",
   resetButtonTitle = "Reset graph inputs to their default values",
   resetButtonTestId,
+  stopButtonLabel = "Stop Active Runtime",
+  stopButtonTitle = "Stop the active authored runtime source",
+  stopButtonTestId,
   readyFlagTestId,
 }: RuntimeFaceControlsOverlayProps) {
   const { ready, loading, stepHz } = useVizijRuntime();
@@ -53,6 +61,17 @@ export function RuntimeFaceControlsOverlay({
           title={resetButtonTitle}
         >
           {resetButtonLabel}
+        </Button>
+      )}
+      {onStopActiveRuntime && (
+        <Button
+          data-testid={stopButtonTestId}
+          variant="secondary"
+          size="sm"
+          onClick={onStopActiveRuntime}
+          title={stopButtonTitle}
+        >
+          {stopButtonLabel}
         </Button>
       )}
       {onToggleSplit && (
