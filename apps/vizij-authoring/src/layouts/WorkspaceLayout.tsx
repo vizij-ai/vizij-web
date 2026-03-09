@@ -98,7 +98,7 @@ export function WorkspaceLayout({
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-bg-app text-text-primary">
       {/* MenuBar */}
       {menuBar && (
-        <div className="relative z-40 h-10 border-b border-border-default flex items-center px-1 bg-bg-panel shrink-0">
+        <div className="relative isolate z-[3800] h-10 border-b border-border-default flex items-center px-1 bg-bg-panel shrink-0">
           {menuBar}
         </div>
       )}

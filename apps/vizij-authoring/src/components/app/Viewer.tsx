@@ -29,7 +29,10 @@ import {
   isPoseOutputInputPath,
 } from "../../poseRig/utils";
 import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
-import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
+import {
+  RuntimeFaceControlsOverlay,
+  type RuntimeFaceOverlayAction,
+} from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import {
   applyLockedRuntimeOutputWrite,
@@ -431,16 +434,7 @@ export interface ViewerProps {
   motionGraphRuntimeNodes?: EditorNode[] | null;
   motionGraphRuntimeEdges?: EditorEdge[] | null;
   runtimeStatusLabel?: string;
-  playbackControlsDisabled?: boolean;
-  onPlayActiveRuntime?: () => void;
-  onPauseActiveRuntime?: () => void;
-  onStopActiveRuntime?: () => void;
-  playActiveRuntimeLabel?: string;
-  playActiveRuntimeTitle?: string;
-  pauseActiveRuntimeLabel?: string;
-  pauseActiveRuntimeTitle?: string;
-  stopActiveRuntimeLabel?: string;
-  stopActiveRuntimeTitle?: string;
+  runtimeActions?: RuntimeFaceOverlayAction[];
   selectedSceneId?: string | null;
   onSelectScene?: (id: string) => void;
   onRuntimeInputsReady?: (
@@ -467,16 +461,7 @@ export function Viewer({
   motionGraphRuntimeNodes = null,
   motionGraphRuntimeEdges = null,
   runtimeStatusLabel,
-  playbackControlsDisabled = false,
-  onPlayActiveRuntime,
-  onPauseActiveRuntime,
-  onStopActiveRuntime,
-  playActiveRuntimeLabel,
-  playActiveRuntimeTitle,
-  pauseActiveRuntimeLabel,
-  pauseActiveRuntimeTitle,
-  stopActiveRuntimeLabel,
-  stopActiveRuntimeTitle,
+  runtimeActions = [],
   selectedSceneId = null,
   onSelectScene,
   onRuntimeInputsReady,
@@ -655,22 +640,10 @@ export function Viewer({
               onResetInputs={handleResetInputs}
               runtimeStatusLabel={runtimeStatusLabel}
               runtimeStatusTestId="main-runtime-status-chip"
-              playbackControlsDisabled={playbackControlsDisabled}
-              onPlayActiveRuntime={onPlayActiveRuntime}
-              onPauseActiveRuntime={onPauseActiveRuntime}
-              onStopActiveRuntime={onStopActiveRuntime}
+              runtimeActions={runtimeActions}
               resetButtonLabel="Reset Main Inputs"
               resetButtonTitle="Reset main-face inputs to their default values"
               resetButtonTestId="main-runtime-reset-inputs"
-              playButtonLabel={playActiveRuntimeLabel}
-              playButtonTitle={playActiveRuntimeTitle}
-              playButtonTestId="main-runtime-play-active"
-              pauseButtonLabel={pauseActiveRuntimeLabel}
-              pauseButtonTitle={pauseActiveRuntimeTitle}
-              pauseButtonTestId="main-runtime-pause-active"
-              stopButtonLabel={stopActiveRuntimeLabel}
-              stopButtonTitle={stopActiveRuntimeTitle}
-              stopButtonTestId="main-runtime-stop-active"
               readyFlagTestId="main-runtime-ready-flag"
             />
             <div data-testid="main-runtime-view" className="h-full w-full">

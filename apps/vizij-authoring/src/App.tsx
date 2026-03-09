@@ -2734,100 +2734,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       : activeProgramRuntimeTargetId && papTimeSeconds > 0
         ? ("paused" as const)
         : ("stopped" as const);
-  const handlePlayFocusedRuntime = useCallback(() => {
-    if (activeRuntimeSource === "animation" && activeAnimationRuntimeTargetId) {
-      handlePlayAnimationTarget(activeAnimationRuntimeTargetId);
-      return;
-    }
-    if (
-      activeRuntimeSource === "procedural-animation-programming" &&
-      activeProgramRuntimeTargetId
-    ) {
-      handlePlayProgramTarget(activeProgramRuntimeTargetId);
-    }
-  }, [
-    activeAnimationRuntimeTargetId,
-    activeProgramRuntimeTargetId,
-    activeRuntimeSource,
-    handlePlayAnimationTarget,
-    handlePlayProgramTarget,
-  ]);
-  const handlePauseFocusedRuntime = useCallback(() => {
-    if (activeRuntimeSource === "animation" && activeAnimationRuntimeTargetId) {
-      handlePauseAnimationTarget(activeAnimationRuntimeTargetId);
-      return;
-    }
-    if (
-      activeRuntimeSource === "procedural-animation-programming" &&
-      activeProgramRuntimeTargetId
-    ) {
-      handlePauseProgramTarget(activeProgramRuntimeTargetId);
-    }
-  }, [
-    activeAnimationRuntimeTargetId,
-    activeProgramRuntimeTargetId,
-    activeRuntimeSource,
-    handlePauseAnimationTarget,
-    handlePauseProgramTarget,
-  ]);
-  const handleStopFocusedRuntime = useCallback(() => {
-    if (activeRuntimeSource === "animation" && activeAnimationRuntimeTargetId) {
+  const handleStopAnimationRuntime = useCallback(() => {
+    if (activeAnimationRuntimeTargetId) {
       handleStopAnimationTarget(activeAnimationRuntimeTargetId);
-      return;
     }
-    if (
-      activeRuntimeSource === "procedural-animation-programming" &&
-      activeProgramRuntimeTargetId
-    ) {
+  }, [activeAnimationRuntimeTargetId, handleStopAnimationTarget]);
+  const handleStopProgramRuntime = useCallback(() => {
+    if (activeProgramRuntimeTargetId) {
       handleStopProgramTarget(activeProgramRuntimeTargetId);
     }
-  }, [
-    activeAnimationRuntimeTargetId,
-    activeProgramRuntimeTargetId,
-    activeRuntimeSource,
-    handleStopAnimationTarget,
-    handleStopProgramTarget,
-  ]);
-  const runtimePlaybackConfig = useMemo(() => {
-    if (activeRuntimeSource === "animation") {
-      return {
-        playbackState: animationRuntimePlaybackState,
-        playbackDisabled:
-          !activeAnimationRuntimeTargetId || !activeAnimationRuntimeClip,
-        onPlay: handlePlayFocusedRuntime,
-        onPause: handlePauseFocusedRuntime,
-        onStop: handleStopFocusedRuntime,
-      };
-    }
-    if (activeRuntimeSource === "procedural-animation-programming") {
-      return {
-        playbackState: programRuntimePlaybackState,
-        playbackDisabled:
-          !activeProgramRuntimeTargetId || !activeProgramRuntimeSnapshot,
-        onPlay: handlePlayFocusedRuntime,
-        onPause: handlePauseFocusedRuntime,
-        onStop: handleStopFocusedRuntime,
-      };
-    }
-    return {
-      playbackState: "stopped" as const,
-      playbackDisabled: true,
-      onPlay: undefined,
-      onPause: undefined,
-      onStop: undefined,
-    };
-  }, [
-    activeAnimationRuntimeClip,
-    activeAnimationRuntimeTargetId,
-    activeProgramRuntimeSnapshot,
-    activeProgramRuntimeTargetId,
-    activeRuntimeSource,
-    animationRuntimePlaybackState,
-    handlePauseFocusedRuntime,
-    handlePlayFocusedRuntime,
-    handleStopFocusedRuntime,
-    programRuntimePlaybackState,
-  ]);
+  }, [activeProgramRuntimeTargetId, handleStopProgramTarget]);
   const animationSourceActive = activeAnimationRuntimeClip !== null;
   const motionGraphSourceActive = activeProgramRuntimeSnapshot !== null;
   const runtimeStatusLabel = useMemo(() => {
@@ -2871,48 +2787,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     animationRuntimePlaybackState,
     programRuntimePlaybackState,
   ]);
-  const onPlayActiveRuntime =
-    activeRuntimeSource === "none" ? undefined : runtimePlaybackConfig.onPlay;
-  const onPauseActiveRuntime =
-    activeRuntimeSource === "none" ? undefined : runtimePlaybackConfig.onPause;
-  const onStopActiveRuntime =
-    activeRuntimeSource === "none" ? undefined : runtimePlaybackConfig.onStop;
-  const playActiveRuntimeLabel =
-    activeRuntimeSource === "procedural-animation-programming"
-      ? "Play Program"
-      : activeRuntimeSource === "animation"
-        ? "Play Animation"
-        : undefined;
-  const playActiveRuntimeTitle =
-    activeRuntimeSource === "procedural-animation-programming"
-      ? "Play the active procedural program"
-      : activeRuntimeSource === "animation"
-        ? "Play the active animation"
-        : undefined;
-  const pauseActiveRuntimeLabel =
-    activeRuntimeSource === "procedural-animation-programming"
-      ? "Pause Program"
-      : activeRuntimeSource === "animation"
-        ? "Pause Animation"
-        : undefined;
-  const pauseActiveRuntimeTitle =
-    activeRuntimeSource === "procedural-animation-programming"
-      ? "Pause the active procedural program"
-      : activeRuntimeSource === "animation"
-        ? "Pause the active animation"
-        : undefined;
-  const stopActiveRuntimeLabel =
-    activeRuntimeSource === "procedural-animation-programming"
-      ? "Stop Program"
-      : activeRuntimeSource === "animation"
-        ? "Stop Animation"
-        : undefined;
-  const stopActiveRuntimeTitle =
-    activeRuntimeSource === "procedural-animation-programming"
-      ? "Stop the active procedural program"
-      : activeRuntimeSource === "animation"
-        ? "Stop the active animation"
-        : undefined;
+  const runtimeActions = useMemo(
+    () =>
+      [
+        activeAnimationRuntimeTargetId
+          ? {
+              label: "Stop Animation",
+              onClick: handleStopAnimationRuntime,
+              title: "Stop the active animation",
+              disabled: animationRuntimePlaybackState === "stopped",
+              testId: "main-runtime-stop-animation",
+            }
+          : null,
+        activeProgramRuntimeTargetId
+          ? {
+              label: "Stop Program",
+              onClick: handleStopProgramRuntime,
+              title: "Stop the active procedural program",
+              disabled: programRuntimePlaybackState === "stopped",
+              testId: "main-runtime-stop-program",
+            }
+          : null,
+      ].filter(
+        (action): action is NonNullable<typeof action> => action !== null,
+      ),
+    [
+      activeAnimationRuntimeTargetId,
+      activeProgramRuntimeTargetId,
+      animationRuntimePlaybackState,
+      handleStopAnimationRuntime,
+      handleStopProgramRuntime,
+      programRuntimePlaybackState,
+    ],
+  );
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -3543,18 +3450,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 motionGraphRuntimeNodes={activeProgramRuntimeSnapshot?.nodes}
                 motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
                 runtimeStatusLabel={runtimeStatusLabel}
-                playbackControlsDisabled={
-                  runtimePlaybackConfig.playbackDisabled
-                }
-                onPlayActiveRuntime={onPlayActiveRuntime}
-                onPauseActiveRuntime={onPauseActiveRuntime}
-                onStopActiveRuntime={onStopActiveRuntime}
-                playActiveRuntimeLabel={playActiveRuntimeLabel}
-                playActiveRuntimeTitle={playActiveRuntimeTitle}
-                pauseActiveRuntimeLabel={pauseActiveRuntimeLabel}
-                pauseActiveRuntimeTitle={pauseActiveRuntimeTitle}
-                stopActiveRuntimeLabel={stopActiveRuntimeLabel}
-                stopActiveRuntimeTitle={stopActiveRuntimeTitle}
+                runtimeActions={runtimeActions}
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -3613,16 +3509,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             motionGraphRuntimeNodes={activeProgramRuntimeSnapshot?.nodes}
             motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
             runtimeStatusLabel={runtimeStatusLabel}
-            playbackControlsDisabled={runtimePlaybackConfig.playbackDisabled}
-            onPlayActiveRuntime={onPlayActiveRuntime}
-            onPauseActiveRuntime={onPauseActiveRuntime}
-            onStopActiveRuntime={onStopActiveRuntime}
-            playActiveRuntimeLabel={playActiveRuntimeLabel}
-            playActiveRuntimeTitle={playActiveRuntimeTitle}
-            pauseActiveRuntimeLabel={pauseActiveRuntimeLabel}
-            pauseActiveRuntimeTitle={pauseActiveRuntimeTitle}
-            stopActiveRuntimeLabel={stopActiveRuntimeLabel}
-            stopActiveRuntimeTitle={stopActiveRuntimeTitle}
+            runtimeActions={runtimeActions}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}

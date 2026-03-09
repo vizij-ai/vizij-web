@@ -1,55 +1,39 @@
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../ui";
 
+export type RuntimeFaceOverlayAction = {
+  label: string;
+  onClick: () => void;
+  title?: string;
+  disabled?: boolean;
+  testId?: string;
+};
+
 export type RuntimeFaceControlsOverlayProps = {
   onResetInputs?: () => void;
-  onPlayActiveRuntime?: () => void;
-  onPauseActiveRuntime?: () => void;
-  onStopActiveRuntime?: () => void;
+  runtimeActions?: RuntimeFaceOverlayAction[];
   onToggleSplit?: () => void;
   splitVertical?: boolean;
   showReadyFlag?: boolean;
   runtimeStatusLabel?: string;
   runtimeStatusTestId?: string;
-  playbackControlsDisabled?: boolean;
   resetButtonLabel?: string;
   resetButtonTitle?: string;
   resetButtonTestId?: string;
-  playButtonLabel?: string;
-  playButtonTitle?: string;
-  playButtonTestId?: string;
-  pauseButtonLabel?: string;
-  pauseButtonTitle?: string;
-  pauseButtonTestId?: string;
-  stopButtonLabel?: string;
-  stopButtonTitle?: string;
-  stopButtonTestId?: string;
   readyFlagTestId?: string;
 };
 
 export function RuntimeFaceControlsOverlay({
   onResetInputs,
-  onPlayActiveRuntime,
-  onPauseActiveRuntime,
-  onStopActiveRuntime,
+  runtimeActions = [],
   onToggleSplit,
   splitVertical = false,
   showReadyFlag = true,
   runtimeStatusLabel,
   runtimeStatusTestId,
-  playbackControlsDisabled = false,
   resetButtonLabel = "Reset Inputs",
   resetButtonTitle = "Reset graph inputs to their default values",
   resetButtonTestId,
-  playButtonLabel = "Play Active Runtime",
-  playButtonTitle = "Play the active authored runtime source",
-  playButtonTestId,
-  pauseButtonLabel = "Pause Active Runtime",
-  pauseButtonTitle = "Pause the active authored runtime source",
-  pauseButtonTestId,
-  stopButtonLabel = "Stop Active Runtime",
-  stopButtonTitle = "Stop the active authored runtime source",
-  stopButtonTestId,
   readyFlagTestId,
 }: RuntimeFaceControlsOverlayProps) {
   const { ready, loading, stepHz } = useVizijRuntime();
@@ -93,42 +77,19 @@ export function RuntimeFaceControlsOverlay({
           {resetButtonLabel}
         </Button>
       )}
-      {onPlayActiveRuntime && (
+      {runtimeActions.map((action) => (
         <Button
-          data-testid={playButtonTestId}
+          key={action.testId ?? action.label}
+          data-testid={action.testId}
           variant="secondary"
           size="sm"
-          disabled={playbackControlsDisabled}
-          onClick={onPlayActiveRuntime}
-          title={playButtonTitle}
+          disabled={action.disabled}
+          onClick={action.onClick}
+          title={action.title}
         >
-          {playButtonLabel}
+          {action.label}
         </Button>
-      )}
-      {onPauseActiveRuntime && (
-        <Button
-          data-testid={pauseButtonTestId}
-          variant="secondary"
-          size="sm"
-          disabled={playbackControlsDisabled}
-          onClick={onPauseActiveRuntime}
-          title={pauseButtonTitle}
-        >
-          {pauseButtonLabel}
-        </Button>
-      )}
-      {onStopActiveRuntime && (
-        <Button
-          data-testid={stopButtonTestId}
-          variant="secondary"
-          size="sm"
-          disabled={playbackControlsDisabled}
-          onClick={onStopActiveRuntime}
-          title={stopButtonTitle}
-        >
-          {stopButtonLabel}
-        </Button>
-      )}
+      ))}
       {onToggleSplit && (
         <Button
           variant="secondary"
