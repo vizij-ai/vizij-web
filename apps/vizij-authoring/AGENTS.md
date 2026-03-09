@@ -6,7 +6,7 @@ Build and maintain a runtime-truthful Vizij authoring surface: import assets/gra
 
 ## Runbook
 
-- Dev server: `pnpm --filter vizij-authoring dev`
+- Dev server: `NODE_ENV=development pnpm --filter vizij-authoring dev`
 - Build/preview: `pnpm --filter vizij-authoring build` / `pnpm --filter vizij-authoring preview`
 - Typecheck: `pnpm --filter vizij-authoring typecheck`
 
@@ -23,6 +23,12 @@ Build and maintain a runtime-truthful Vizij authoring surface: import assets/gra
 - The IR inspector quick links (download IR, download machine report, copy `vizij-ir-report --diff` command) are the supported parity workflow—update AGENT notes if the command or button labels change.
 
 ## Troubleshooting
+
+### Blank Page in Codex Browser
+
+- If the authoring app opens as a blank page in Codex and the console shows `_jsxDEV is not a function`, check the shell environment before blaming the current UI change.
+- Codex desktop sessions can inherit `NODE_ENV=production`, which causes Vite dev mode to serve the production `react-jsx-dev-runtime`.
+- Restart the dev server with `NODE_ENV=development pnpm --filter vizij-authoring dev` before running Playwright or browser checks.
 
 ### Derived Inputs
 
