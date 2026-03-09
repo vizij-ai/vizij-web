@@ -1186,6 +1186,102 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedAnimationTargetId,
   ]);
 
+  const handleDuplicateAnimationTarget = useCallback(
+    (targetId: string) => {
+      const nextOrdinal = nextAuthoredAnimationClipOrdinal(
+        authoredAnimationTargets,
+      );
+      const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
+      let sourceClip: AnimationClipIR | null = null;
+      let sourceName = `Animation Clip ${nextOrdinal}`;
+
+      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
+      if (authoredClipId) {
+        const authoredTarget = authoredAnimationTargets.find(
+          (target) =>
+            target.targetId === targetId || target.clipId === authoredClipId,
+        );
+        if (!authoredTarget) {
+          return;
+        }
+        sourceName =
+          authoredTarget.name.trim().length > 0
+            ? authoredTarget.name
+            : sourceName;
+        sourceClip =
+          targetId === selectedAnimationTargetId
+            ? exportAnimationClipIr({
+                id: authoredTarget.clipId,
+                name: authoredTarget.name,
+              })
+            : structuredClone(authoredTarget.clip);
+      } else if (targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        const rawIndex = targetId.slice(BUNDLE_ANIMATION_TARGET_PREFIX.length);
+        const index = Number.parseInt(rawIndex, 10);
+        if (!Number.isFinite(index) || index < 0) {
+          return;
+        }
+        const entry = loadedBundle?.animations?.[index];
+        if (!entry) {
+          return;
+        }
+        const importedClip = bundleAnimationEntryToClipIr(entry, {
+          standardInputsById: mainFaceInputsById,
+        });
+        if (!importedClip) {
+          return;
+        }
+        const overriddenDuration = bundleAnimationDurationOverrides[targetId];
+        sourceClip = {
+          ...importedClip,
+          duration: Number.isFinite(overriddenDuration)
+            ? overriddenDuration
+            : importedClip.duration,
+        };
+        sourceName =
+          bundleAnimationTargetOptions.find(
+            (option) => option.value === targetId,
+          )?.label ??
+          importedClip.name?.trim() ??
+          sourceName;
+      }
+
+      if (!sourceClip) {
+        return;
+      }
+
+      const nextName = `${sourceName} Copy`;
+      const nextClip: AnimationClipIR = {
+        ...structuredClone(sourceClip),
+        id: nextClipId,
+        name: nextName,
+      };
+      const nextTarget: AuthoredAnimationTarget = {
+        targetId: authoredAnimationTargetValue(nextClipId),
+        clipId: nextClipId,
+        name: nextName,
+        clip: nextClip,
+      };
+
+      setActiveAuthoringSurface("animations");
+      setWorkspacePanelVisibility("animation", true);
+      setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
+      setSelectedAnimationTargetId(nextTarget.targetId);
+      importAnimationClipIr(nextClip);
+    },
+    [
+      authoredAnimationTargets,
+      bundleAnimationDurationOverrides,
+      bundleAnimationTargetOptions,
+      exportAnimationClipIr,
+      importAnimationClipIr,
+      loadedBundle?.animations,
+      mainFaceInputsById,
+      selectedAnimationTargetId,
+      setWorkspacePanelVisibility,
+    ],
+  );
+
   const deleteAnimationTargetById = useCallback(
     (deletingTargetId: string) => {
       const authoredClipId =
@@ -1414,6 +1510,87 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setSelectedProceduralTargetId(nextTarget.targetId);
     hydrateProceduralEditorState(nextTarget.snapshot);
   }, [authoredProceduralTargets, selectedProceduralTargetId]);
+
+  const handleDuplicateProgramTarget = useCallback(
+    (targetId: string) => {
+      const nextOrdinal = nextAuthoredProceduralProgramOrdinal(
+        authoredProceduralTargets,
+      );
+      const nextProgramId = `authoring.motiongraph.program.${nextOrdinal}`;
+      let sourceSnapshot: ProceduralProgramSnapshot | null = null;
+      let sourceName = `Procedural Program ${nextOrdinal}`;
+
+      const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
+      if (authoredProgramId) {
+        const authoredTarget = authoredProceduralTargets.find(
+          (target) =>
+            target.targetId === targetId ||
+            target.programId === authoredProgramId,
+        );
+        if (!authoredTarget) {
+          return;
+        }
+        sourceName =
+          authoredTarget.name.trim().length > 0
+            ? authoredTarget.name
+            : sourceName;
+        sourceSnapshot =
+          targetId === selectedProceduralTargetId
+            ? snapshotProceduralEditorState()
+            : structuredClone(authoredTarget.snapshot);
+      } else if (targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        const rawIndex = targetId.slice(BUNDLE_PROCEDURAL_TARGET_PREFIX.length);
+        const index = Number.parseInt(rawIndex, 10);
+        if (!Number.isFinite(index) || index < 0) {
+          return;
+        }
+        const entry = bundleProceduralEntries[index];
+        if (!entry?.spec || typeof entry.spec !== "object") {
+          return;
+        }
+        const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+        sourceSnapshot = {
+          nodes: parsed.nodes,
+          edges: parsed.edges,
+          enabledOutputs: Array.from(parsed.enabledOutputs),
+          enabledInputs: Array.from(parsed.enabledInputs),
+          customInputPaths: [...parsed.customInputPaths],
+        };
+        sourceName =
+          bundleProceduralTargetOptions.find(
+            (option) => option.value === targetId,
+          )?.label ?? sourceName;
+      }
+
+      if (!sourceSnapshot) {
+        return;
+      }
+
+      const nextName = `${sourceName} Copy`;
+      const nextTarget: AuthoredProceduralTarget = {
+        targetId: authoredProceduralTargetValue(nextProgramId),
+        programId: nextProgramId,
+        name: nextName,
+        snapshot: structuredClone(sourceSnapshot),
+      };
+
+      setActiveAuthoringSurface("programs");
+      setWorkspacePanelVisibility("motiongraphPalette", true);
+      setWorkspacePanelVisibility("motiongraph", true);
+      setAuthoredProceduralTargets((previous) => [...previous, nextTarget]);
+      setSelectedProceduralTargetId(nextTarget.targetId);
+      hydrateProceduralEditorState(nextTarget.snapshot);
+    },
+    [
+      authoredProceduralTargets,
+      bundleProceduralEntries,
+      bundleProceduralTargetOptions,
+      hydrateProceduralEditorState,
+      selectedProceduralTargetId,
+      setWorkspacePanelVisibility,
+      snapshotProceduralEditorState,
+    ],
+  );
 
   const deleteProceduralTargetById = useCallback(
     (deletingTargetId: string) => {
@@ -2800,6 +2977,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               animationTargets={authoringAnimationTargets}
               onSelectAnimationTarget={handleInspectAnimationTarget}
               onCreateAnimationTarget={handleCreateAndInspectAnimationTarget}
+              onDuplicateAnimationTarget={handleDuplicateAnimationTarget}
               onDeleteAnimationTarget={deleteAnimationTargetById}
               onPlayAnimationTarget={handlePlayAnimationTarget}
               onPauseAnimationTarget={handlePauseAnimationTarget}
@@ -2807,6 +2985,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               programTargets={authoringProgramTargets}
               onSelectProgramTarget={handleInspectProgramTarget}
               onCreateProgramTarget={handleCreateAndInspectProgramTarget}
+              onDuplicateProgramTarget={handleDuplicateProgramTarget}
               onDeleteProgramTarget={deleteProceduralTargetById}
               onPlayProgramTarget={handlePlayProgramTarget}
               onPauseProgramTarget={handlePauseProgramTarget}

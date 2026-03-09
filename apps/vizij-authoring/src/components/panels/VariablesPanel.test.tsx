@@ -3999,6 +3999,8 @@ describe("VariablesPanel", () => {
             source: "authored",
           },
         ]}
+        onDuplicateAnimationTarget={vi.fn()}
+        onDeleteAnimationTarget={vi.fn()}
         programTargets={[
           {
             id: "program:blink",
@@ -4006,11 +4008,21 @@ describe("VariablesPanel", () => {
             source: "authored",
           },
         ]}
+        onDuplicateProgramTarget={vi.fn()}
+        onDeleteProgramTarget={vi.fn()}
       />,
     );
 
     expect(screen.getByTestId("control-authoring-tab-animations")).toBeTruthy();
     expect(screen.getByTestId("control-authoring-tab-programs")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("control-authoring-tab-animations"));
+    expect(screen.getByRole("button", { name: "New Animation" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Copy" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: "Delete" }).length,
+    ).toBeGreaterThan(0);
 
     const tablist = view.container.querySelector('[role="tablist"]');
     expect(tablist?.className).toContain("flex-wrap");

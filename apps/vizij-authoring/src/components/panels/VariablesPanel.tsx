@@ -2969,6 +2969,7 @@ interface VariablesPanelProps {
   animationTargets?: AuthoringTargetItem[];
   onSelectAnimationTarget?: (id: string) => void;
   onCreateAnimationTarget?: () => void;
+  onDuplicateAnimationTarget?: (id: string) => void;
   onDeleteAnimationTarget?: (id: string) => void;
   onPlayAnimationTarget?: (id: string) => void;
   onPauseAnimationTarget?: (id: string) => void;
@@ -2976,6 +2977,7 @@ interface VariablesPanelProps {
   programTargets?: AuthoringTargetItem[];
   onSelectProgramTarget?: (id: string) => void;
   onCreateProgramTarget?: () => void;
+  onDuplicateProgramTarget?: (id: string) => void;
   onDeleteProgramTarget?: (id: string) => void;
   onPlayProgramTarget?: (id: string) => void;
   onPauseProgramTarget?: (id: string) => void;
@@ -3009,6 +3011,7 @@ export function VariablesPanel({
   animationTargets = [],
   onSelectAnimationTarget,
   onCreateAnimationTarget,
+  onDuplicateAnimationTarget,
   onDeleteAnimationTarget,
   onPlayAnimationTarget,
   onPauseAnimationTarget,
@@ -3016,6 +3019,7 @@ export function VariablesPanel({
   programTargets = [],
   onSelectProgramTarget,
   onCreateProgramTarget,
+  onDuplicateProgramTarget,
   onDeleteProgramTarget,
   onPlayProgramTarget,
   onPauseProgramTarget,
@@ -6582,6 +6586,7 @@ export function VariablesPanel({
                     kindLabel="Animation"
                     emptyDescription="Create a clip or import a bundle animation to edit it here."
                     onCreate={() => onCreateAnimationTarget?.()}
+                    onDuplicate={onDuplicateAnimationTarget}
                     onDelete={onDeleteAnimationTarget}
                     onSelect={(targetId) => onSelectAnimationTarget?.(targetId)}
                     onPlay={onPlayAnimationTarget}
@@ -6598,6 +6603,7 @@ export function VariablesPanel({
                     kindLabel="Program"
                     emptyDescription="Create a program or import a bundle graph to edit it here."
                     onCreate={() => onCreateProgramTarget?.()}
+                    onDuplicate={onDuplicateProgramTarget}
                     onDelete={onDeleteProgramTarget}
                     onSelect={(targetId) => onSelectProgramTarget?.(targetId)}
                     onPlay={onPlayProgramTarget}
@@ -6839,24 +6845,6 @@ export function VariablesPanel({
                       </Button>
                     </div>
                   ) : null}
-                  <div className="flex items-center gap-2 px-1 mb-1">
-                    <PanelSearch
-                      ref={searchInputRef}
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      placeholder={
-                        searchQuery
-                          ? "Filter..."
-                          : isVariables
-                            ? "Search drivers..."
-                            : isPoses
-                              ? "Search poses..."
-                              : isPoseGroups
-                                ? "Search pose groups..."
-                                : "Search inputs..."
-                      }
-                    />
-                  </div>
                   <div className="flex items-center gap-1 px-1 mb-1">
                     {isVariables && (
                       <Button
@@ -7028,6 +7016,24 @@ export function VariablesPanel({
                         Compatibility blend
                       </span>
                     )}
+                  </div>
+                  <div className="flex items-center gap-2 px-1 mb-1">
+                    <PanelSearch
+                      ref={searchInputRef}
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      placeholder={
+                        searchQuery
+                          ? "Filter..."
+                          : isVariables
+                            ? "Search drivers..."
+                            : isPoses
+                              ? "Search poses..."
+                              : isPoseGroups
+                                ? "Search pose groups..."
+                                : "Search inputs..."
+                      }
+                    />
                   </div>
                   {showSurfaceContext && (
                     <div className="flex flex-wrap items-center gap-1 px-1 mb-1">

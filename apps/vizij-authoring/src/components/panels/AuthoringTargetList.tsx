@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { Film, Pause, Play, Plus, Search, Square, Trash2 } from "lucide-react";
+import {
+  Copy,
+  Film,
+  Pause,
+  Play,
+  Plus,
+  Search,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
@@ -23,6 +32,7 @@ interface AuthoringTargetListProps {
   kindLabel: string;
   onCreate: () => void;
   onDelete?: (id: string) => void;
+  onDuplicate?: (id: string) => void;
   onPause?: (id: string) => void;
   onPlay?: (id: string) => void;
   onSelect: (id: string) => void;
@@ -46,6 +56,7 @@ export function AuthoringTargetList({
   kindLabel,
   onCreate,
   onDelete,
+  onDuplicate,
   onPause,
   onPlay,
   onSelect,
@@ -53,6 +64,10 @@ export function AuthoringTargetList({
 }: AuthoringTargetListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const selectedItem = useMemo(
+    () => items.find((item) => item.selected) ?? null,
+    [items],
+  );
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -72,7 +87,61 @@ export function AuthoringTargetList({
   }, [items, searchQuery, sourceFilter]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 p-2">
+    <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+      <div className="flex flex-wrap items-center gap-1 px-1">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-6 px-2 text-[10px] gap-1"
+          onClick={onCreate}
+          title={`Create a new ${kindLabel.toLowerCase()}`}
+        >
+          <Plus size={11} />
+          {`New ${kindLabel}`}
+        </Button>
+        {onDuplicate ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1"
+            onClick={() => {
+              if (selectedItem) {
+                onDuplicate(selectedItem.id);
+              }
+            }}
+            disabled={!selectedItem}
+            title={
+              selectedItem
+                ? `Copy selected ${kindLabel.toLowerCase()}`
+                : `Select a ${kindLabel.toLowerCase()} to copy`
+            }
+          >
+            <Copy size={11} />
+            Copy
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
+            onClick={() => {
+              if (selectedItem) {
+                onDelete(selectedItem.id);
+              }
+            }}
+            disabled={!selectedItem}
+            title={
+              selectedItem
+                ? `Delete selected ${kindLabel.toLowerCase()}`
+                : `Select a ${kindLabel.toLowerCase()} to delete`
+            }
+          >
+            <Trash2 size={11} />
+            Delete
+          </Button>
+        ) : null}
+      </div>
       <div className="flex items-center gap-2 px-1">
         <Input
           size="sm"
@@ -86,7 +155,7 @@ export function AuthoringTargetList({
         {SOURCE_FILTERS.map((filter) => (
           <Button
             key={filter.id}
-            variant={sourceFilter === filter.id ? "primary" : "ghost"}
+            variant={sourceFilter === filter.id ? "secondary" : "ghost"}
             size="sm"
             className="h-6 px-2 text-[10px] uppercase tracking-wider"
             onClick={() => setSourceFilter(filter.id)}
@@ -94,16 +163,6 @@ export function AuthoringTargetList({
             {filter.label}
           </Button>
         ))}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="ml-auto h-6 px-2 text-[10px] gap-1"
-          onClick={onCreate}
-          title={`Create a new ${kindLabel.toLowerCase()}`}
-        >
-          <Plus size={11} />
-          {`New ${kindLabel}`}
-        </Button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-1">
         {filteredItems.length === 0 ? (
@@ -120,7 +179,7 @@ export function AuthoringTargetList({
               <div
                 key={item.id}
                 className={cn(
-                  "group flex w-full scroll-mt-24 flex-col gap-2 rounded-xl border px-3 py-2.5 transition-colors sm:flex-row sm:items-center sm:gap-3",
+                  "group flex w-full scroll-mt-24 flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors",
                   item.selected
                     ? "border-accent/60 bg-accent/10"
                     : "border-border-default/70 bg-bg-panel/60 hover:border-border-hover hover:bg-bg-hover",
@@ -145,31 +204,32 @@ export function AuthoringTargetList({
                     ) : null}
                   </div>
                   {item.meta ? (
-                    <p className="truncate pt-1 text-[11px] text-text-secondary">
+                    <p className="truncate pt-1 font-mono text-[10px] text-text-secondary">
                       {item.meta}
                     </p>
                   ) : null}
                 </button>
-                <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:justify-end sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                <div className="flex w-full flex-wrap items-center gap-1">
                   {onPlay ? (
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
                       onClick={(event) => {
                         event.stopPropagation();
                         onPlay(item.id);
                       }}
                       title={`Play ${kindLabel.toLowerCase()}`}
                     >
-                      <Play className="h-3.5 w-3.5 fill-current" />
+                      <Play className="h-3 w-3 fill-current" />
+                      Play
                     </Button>
                   ) : null}
                   {onPause ? (
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
                       disabled={!item.isRuntimeActive && !item.selected}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -177,14 +237,15 @@ export function AuthoringTargetList({
                       }}
                       title={`Pause ${kindLabel.toLowerCase()}`}
                     >
-                      <Pause className="h-3.5 w-3.5 fill-current" />
+                      <Pause className="h-3 w-3 fill-current" />
+                      Pause
                     </Button>
                   ) : null}
                   {onStop ? (
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
                       disabled={!item.isRuntimeActive && !item.selected}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -192,21 +253,38 @@ export function AuthoringTargetList({
                       }}
                       title={`Stop ${kindLabel.toLowerCase()}`}
                     >
-                      <Square className="h-3.5 w-3.5 fill-current" />
+                      <Square className="h-3 w-3 fill-current" />
+                      Stop
+                    </Button>
+                  ) : null}
+                  {onDuplicate ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDuplicate(item.id);
+                      }}
+                      title={`Copy ${kindLabel.toLowerCase()}`}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy
                     </Button>
                   ) : null}
                   {onDelete ? (
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-amber-300 hover:text-amber-200"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
                       onClick={(event) => {
                         event.stopPropagation();
                         onDelete(item.id);
                       }}
                       title={`Delete ${kindLabel.toLowerCase()}`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" />
+                      Delete
                     </Button>
                   ) : null}
                 </div>
