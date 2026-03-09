@@ -38,4 +38,19 @@ describe("RuntimeFaceControlsOverlay", () => {
     fireEvent.click(view.getByRole("button", { name: "Reset Inputs" }));
     expect(onResetInputs).toHaveBeenCalledTimes(1);
   });
+
+  it("renders the active-runtime stop action when provided", () => {
+    const onStopActiveRuntime = vi.fn();
+    const view = render(
+      <RuntimeFaceControlsOverlay
+        onStopActiveRuntime={onStopActiveRuntime}
+        stopButtonLabel="Stop Active Animation/Program"
+      />,
+    );
+
+    fireEvent.click(
+      view.getByRole("button", { name: "Stop Active Animation/Program" }),
+    );
+    expect(onStopActiveRuntime).toHaveBeenCalledTimes(1);
+  });
 });

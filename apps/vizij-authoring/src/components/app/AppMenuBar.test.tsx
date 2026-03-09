@@ -57,18 +57,19 @@ describe("AppMenuBar", () => {
     fireEvent.click(screen.getByTestId("app-menu-view"));
 
     expect(await screen.findByText("Face Elements")).toBeTruthy();
-    expect(screen.getByText("Control Authoring")).toBeTruthy();
+    expect(screen.getByText("Authoring")).toBeTruthy();
     expect(screen.getByText("Runtime Source")).toBeTruthy();
+    expect(screen.getByText("Node Palette")).toBeTruthy();
     expect(screen.queryByText("Hierarchy")).toBeNull();
   });
 
-  it("shows Drivers, Poses, and Pose Groups in the Control Authoring flyout", async () => {
+  it("shows Drivers, Poses, and Pose Groups in the Authoring flyout", async () => {
     renderMenuBar();
 
     fireEvent.click(screen.getByTestId("app-menu-view"));
 
     const controlAuthoringTrigger = await screen.findByRole("menuitem", {
-      name: "Control Authoring",
+      name: "Authoring",
     });
     fireEvent.click(controlAuthoringTrigger);
 

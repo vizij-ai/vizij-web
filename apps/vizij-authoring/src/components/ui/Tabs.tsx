@@ -47,7 +47,7 @@ export function Tabs({
     >
       <BaseTabs.List
         className={cn(
-          "flex w-full overflow-x-auto custom-scrollbar",
+          "flex w-full flex-wrap overflow-visible",
           fillPanels && "shrink-0",
           {
             "gap-1 border-b border-border-default": variant === "default",

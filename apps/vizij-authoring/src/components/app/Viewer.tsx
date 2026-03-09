@@ -422,6 +422,9 @@ export interface ViewerProps {
   bundle: VizijAssetBundle | null;
   animationSourceActive?: boolean;
   motionGraphSourceActive?: boolean;
+  onStopActiveRuntime?: () => void;
+  stopActiveRuntimeLabel?: string;
+  stopActiveRuntimeTitle?: string;
   selectedSceneId?: string | null;
   onSelectScene?: (id: string) => void;
   onRuntimeInputsReady?: (
@@ -444,6 +447,9 @@ export function Viewer({
   bundle,
   animationSourceActive = true,
   motionGraphSourceActive = false,
+  onStopActiveRuntime,
+  stopActiveRuntimeLabel,
+  stopActiveRuntimeTitle,
   selectedSceneId = null,
   onSelectScene,
   onRuntimeInputsReady,
@@ -606,9 +612,13 @@ export function Viewer({
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay
               onResetInputs={handleResetInputs}
+              onStopActiveRuntime={onStopActiveRuntime}
               resetButtonLabel="Reset Main Inputs"
               resetButtonTitle="Reset main-face inputs to their default values"
               resetButtonTestId="main-runtime-reset-inputs"
+              stopButtonLabel={stopActiveRuntimeLabel}
+              stopButtonTitle={stopActiveRuntimeTitle}
+              stopButtonTestId="main-runtime-stop-active"
               readyFlagTestId="main-runtime-ready-flag"
             />
             <div data-testid="main-runtime-view" className="h-full w-full">

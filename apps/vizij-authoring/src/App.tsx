@@ -1999,6 +1999,36 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationSourceActive = activeRuntimeSource === "animation";
   const motionGraphSourceActive =
     activeRuntimeSource === "procedural-animation-programming";
+  const onStopActiveRuntime = useMemo(() => {
+    if (
+      activeRuntimeSource === "procedural-animation-programming" &&
+      papPlaybackAvailable
+    ) {
+      return stopPapGraph;
+    }
+    if (activeRuntimeSource === "animation" && animationTransportActive) {
+      return stopAnimationTransport;
+    }
+    return undefined;
+  }, [
+    activeRuntimeSource,
+    animationTransportActive,
+    papPlaybackAvailable,
+    stopAnimationTransport,
+    stopPapGraph,
+  ]);
+  const stopActiveRuntimeLabel =
+    activeRuntimeSource === "procedural-animation-programming"
+      ? "Stop Active Program"
+      : activeRuntimeSource === "animation"
+        ? "Stop Active Animation"
+        : "Stop Active Animation/Program";
+  const stopActiveRuntimeTitle =
+    activeRuntimeSource === "procedural-animation-programming"
+      ? "Stop the active procedural program"
+      : activeRuntimeSource === "animation"
+        ? "Stop the active animation"
+        : "Stop the active animation or program";
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -2044,6 +2074,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [setWorkspacePanelVisibility]);
   const handleHideRuntimeSourcePanel = useCallback(() => {
     setWorkspacePanelVisibility("toolbar", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideAnimationPanel = useCallback(() => {
+    setWorkspacePanelVisibility("animation", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideMotionGraphPanel = useCallback(() => {
+    setWorkspacePanelVisibility("motiongraph", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideMotionGraphPalettePanel = useCallback(() => {
+    setWorkspacePanelVisibility("motiongraphPalette", false);
+  }, [setWorkspacePanelVisibility]);
+  const handleHideReferenceFacePanel = useCallback(() => {
+    setWorkspacePanelVisibility("referenceFace", false);
   }, [setWorkspacePanelVisibility]);
   const handleHideSpeechPanel = useCallback(() => {
     setWorkspacePanelVisibility("speech", false);
@@ -2576,6 +2618,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 motionGraphSourceActive={
                   motionGraphSourceActive && papPlaybackActive
                 }
+                onStopActiveRuntime={onStopActiveRuntime}
+                stopActiveRuntimeLabel={stopActiveRuntimeLabel}
+                stopActiveRuntimeTitle={stopActiveRuntimeTitle}
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -2601,6 +2646,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             <ReferenceFacePanel
               splitVertical={viewerSplitVertical}
               onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
+              onClosePanel={handleHideReferenceFacePanel}
             />
           </ResizablePanel>
         </PanelGroup>
@@ -2631,6 +2677,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             motionGraphSourceActive={
               motionGraphSourceActive && papPlaybackActive
             }
+            onStopActiveRuntime={onStopActiveRuntime}
+            stopActiveRuntimeLabel={stopActiveRuntimeLabel}
+            stopActiveRuntimeTitle={stopActiveRuntimeTitle}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -2675,6 +2724,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
           splitVertical={motionGraphSplitVertical}
           onToggleSplit={() => setMotionGraphSplitVertical((prev) => !prev)}
+          onClosePanel={handleHideMotionGraphPanel}
         />
       </ResizablePanel>
     </PanelGroup>
@@ -2711,8 +2761,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
               selectedBlendStage={selectedBlendStage}
               onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-              panelTitle="Control Authoring"
-              panelDescription="Author and organize variables, poses, and pose groups."
+              panelTitle="Authoring"
+              panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
@@ -2721,10 +2771,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             />
           }
           leftBottomVisible2={false}
-          leftBottomVisible3={
-            motionGraphPanelVisible && motionGraphPalettePanelVisible
-          }
-          leftBottomPanel3={<MotionGraphPalettePanel />}
+          leftBottomVisible3={false}
+          leftBottomPanel3={null}
           leftMiddleVisible={inputControlsPanelVisible}
           leftMiddlePanel={
             <VariablesPanel
@@ -2751,7 +2799,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           leftBottomVisible={controlAuthoringPanelVisible}
           viewport={viewportContent}
           bottomVisible={animationPanelVisible}
-          bottomPanel={<AnimationPanel />}
+          bottomPanel={
+            <AnimationPanel onClosePanel={handleHideAnimationPanel} />
+          }
           centerPanelDefaultSize={centerPanelDefaultSize}
           // Right
           rightTopVisible={runtimeControlsPanelVisible}
@@ -2790,22 +2840,31 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             />
           }
           rightBottomVisible={
-            inspectorPanelVisible || speechPanelVisible || debugPanelVisible
+            (motionGraphPanelVisible && motionGraphPalettePanelVisible) ||
+            inspectorPanelVisible ||
+            speechPanelVisible ||
+            debugPanelVisible
           }
           rightSidebarDefaultSize={rightSidebarDefaultSize}
           rightSidebarResetKey={rightSidebarResetKey}
           rightBottomPanel={
-            <div
-              className={`h-full min-h-0 ${
-                (inspectorPanelVisible &&
-                  (debugPanelVisible || speechPanelVisible)) ||
-                (debugPanelVisible && speechPanelVisible)
-                  ? "grid grid-rows-2"
-                  : "flex flex-col"
-              }`}
-            >
+            <div className="flex h-full min-h-0 flex-col">
+              {motionGraphPanelVisible && motionGraphPalettePanelVisible ? (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <MotionGraphPalettePanel
+                    onClosePanel={handleHideMotionGraphPalettePanel}
+                  />
+                </div>
+              ) : null}
+              {motionGraphPanelVisible &&
+              motionGraphPalettePanelVisible &&
+              (inspectorPanelVisible ||
+                speechPanelVisible ||
+                debugPanelVisible) ? (
+                <div className="border-t border-border-default/70" />
+              ) : null}
               {inspectorPanelVisible ? (
-                <div className="min-h-0 overflow-y-auto">
+                <div className="flex-1 min-h-0 overflow-y-auto">
                   <InspectorPanel
                     selectedPoseGroup={selectedPoseGroup}
                     onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
@@ -2819,12 +2878,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 </div>
               ) : null}
               {speechPanelVisible ? (
-                <div className="min-h-0 overflow-y-auto border-t border-border-default/70">
+                <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
                   <SpeechPanel onClosePanel={handleHideSpeechPanel} />
                 </div>
               ) : null}
               {debugPanelVisible ? (
-                <div className="min-h-0 overflow-y-auto border-t border-border-default/70">
+                <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
                   <DebugPanel
                     rootId={loader.rootId}
                     loadedBundle={loader.bundle}

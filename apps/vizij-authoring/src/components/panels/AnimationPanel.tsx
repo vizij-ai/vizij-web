@@ -7,6 +7,7 @@ import {
   Square,
   StepForward,
   Trash2,
+  X,
 } from "lucide-react";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import { Panel } from "../ui/Panel";
@@ -87,7 +88,11 @@ function collectLockedPropsRigComponentIds(
   return lockedComponentIds;
 }
 
-export function AnimationPanel() {
+interface AnimationPanelProps {
+  onClosePanel?: () => void;
+}
+
+export function AnimationPanel({ onClosePanel }: AnimationPanelProps) {
   const {
     isPlaying,
     currentTime,
@@ -225,6 +230,17 @@ export function AnimationPanel() {
       >
         <Settings2 className="h-3.5 w-3.5" />
       </Button>
+      {onClosePanel ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-text-secondary hover:text-text-primary"
+          onClick={onClosePanel}
+          title="Hide panel"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      ) : null}
     </div>
   );
 

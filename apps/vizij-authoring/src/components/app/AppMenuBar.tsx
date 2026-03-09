@@ -207,7 +207,7 @@ export function AppMenuBar({
           Face Elements
         </MenuCheckboxItem>
         <MenuSubmenu
-          label="Control Authoring"
+          label="Authoring"
           checked={controlAuthoringVisible}
           onSelect={() => {
             const nextVisible = !controlAuthoringVisible;
@@ -245,16 +245,6 @@ export function AppMenuBar({
         >
           Inputs
         </MenuCheckboxItem>
-        <MenuCheckboxItem
-          testId="app-menu-view-procedural-animation"
-          checked={motionGraphPaletteVisible}
-          onCheckedChange={(checked) =>
-            setPanelVisibility("motiongraphPalette", checked)
-          }
-        >
-          Procedural Animation
-        </MenuCheckboxItem>
-
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
         <MenuCheckboxItem
@@ -282,6 +272,15 @@ export function AppMenuBar({
           onCheckedChange={(checked) => setPanelVisibility("debug", checked)}
         >
           Debug
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          testId="app-menu-view-node-palette"
+          checked={motionGraphPaletteVisible}
+          onCheckedChange={(checked) =>
+            setPanelVisibility("motiongraphPalette", checked)
+          }
+        >
+          Node Palette
         </MenuCheckboxItem>
       </Menu>
       <Menu label="Settings" testId="app-menu-settings">

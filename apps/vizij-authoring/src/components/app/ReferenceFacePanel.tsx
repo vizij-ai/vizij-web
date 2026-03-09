@@ -1,4 +1,5 @@
 import { useRef, useCallback, type ChangeEvent } from "react";
+import { X } from "lucide-react";
 import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { Button } from "../ui";
@@ -11,11 +12,13 @@ import {
 export interface ReferenceFacePanelProps {
   splitVertical: boolean;
   onToggleSplit: () => void;
+  onClosePanel?: () => void;
 }
 
 export function ReferenceFacePanel({
   splitVertical,
   onToggleSplit,
+  onClosePanel,
 }: ReferenceFacePanelProps) {
   const referenceFace = useReferenceFace();
 
@@ -112,6 +115,20 @@ export function ReferenceFacePanel({
                 {splitVertical ? "⬌" : "⬍"}
               </Button>
             </div>
+            {onClosePanel ? (
+              <div className="absolute top-2 right-2 z-10 pointer-events-auto">
+                <Button
+                  data-testid="reference-face-close"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 px-0"
+                  onClick={onClosePanel}
+                  title="Hide panel"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
             <div className="flex flex-col items-center justify-center h-full text-text-primary gap-6 p-8 text-center animate-in fade-in duration-700">
               <div className="flex flex-col gap-2">
                 <p className="text-text-primary font-medium text-lg">
@@ -166,6 +183,18 @@ export function ReferenceFacePanel({
 
         {referenceFace.file && (
           <div className="absolute top-3 right-3 z-20 pointer-events-auto flex items-center gap-2">
+            {onClosePanel ? (
+              <Button
+                data-testid="reference-face-close"
+                variant="ghost"
+                size="sm"
+                className="text-[11px] h-7 w-7 px-0"
+                onClick={onClosePanel}
+                title="Hide panel"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : null}
             <Button
               data-testid="reference-face-swap"
               variant="ghost"
