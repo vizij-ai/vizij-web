@@ -30,6 +30,7 @@ import {
   buildRigPipelineV1LinkId,
   buildRigPipelineV1OverrideEnabledPath,
   buildRigPipelineV1OverrideValuePath,
+  formatStandardRigInputDisplayPath,
   normalizeStandardRigInputPath,
   SELF_BINDING_ID,
 } from "@vizij/utils";
@@ -4497,7 +4498,9 @@ export function InspectorContent({
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
           <InspectorHeader
             name={input.label || input.id}
-            path={input.path || ""}
+            path={
+              input.path ? formatStandardRigInputDisplayPath(input.path) : ""
+            }
             typeLabel="Rig"
             id={input.id}
             onNameChange={(name) => {

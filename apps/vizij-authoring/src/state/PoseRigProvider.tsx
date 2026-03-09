@@ -16,6 +16,7 @@ import {
   type UsePoseRigAuthoringResult,
 } from "../poseRig/usePoseRigAuthoring";
 import {
+  formatPoseWeightInputLabel,
   buildPoseWeightInputSourceId,
   buildPoseWeightPathMap,
   isPoseWeightInputPath,
@@ -180,7 +181,7 @@ function PoseRigController({
       const normalizedPath = normalizeStandardRigInputPath(
         pathInfo?.relativePath ?? `/poses/${pose.id}.weight`,
       );
-      const label = `Pose Weight - ${pose.name?.trim() || pose.id}`;
+      const label = formatPoseWeightInputLabel(pose.name, pose.id);
       return {
         poseId: pose.id,
         path: normalizedPath,

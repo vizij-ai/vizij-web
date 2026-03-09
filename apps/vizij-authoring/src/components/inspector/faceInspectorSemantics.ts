@@ -1,4 +1,7 @@
-import type { StandardRigInput } from "@vizij/utils";
+import {
+  formatStandardRigInputDisplayPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 
 export type FaceInspectorCurrentValueSourceKind =
   | "propsrig-channel"
@@ -53,11 +56,14 @@ export function resolveFaceInspectorCurrentValue({
       standardInput.defaultValue,
       fallback,
     );
-    const sourceLabel = standardInput.path || standardInput.id;
+    const sourcePath = standardInput.path || "";
+    const sourceLabel = sourcePath
+      ? formatStandardRigInputDisplayPath(sourcePath)
+      : standardInput.id;
     return {
       currentValue: coerceFiniteNumber(staged, defaultValue),
       sourceLabel,
-      sourceKind: sourceLabel.startsWith("/propsrig/")
+      sourceKind: sourcePath.startsWith("/propsrig/")
         ? "propsrig-channel"
         : "standard-input-channel",
     };

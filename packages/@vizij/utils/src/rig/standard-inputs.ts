@@ -483,26 +483,102 @@ function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-export function deriveLabelFromNormalizedPath(normalizedPath: string): string {
+function deriveDisplaySegmentsFromNormalizedPath(
+  normalizedPath: string,
+): string[] {
   const withoutLeading = normalizedPath.startsWith("/")
     ? normalizedPath.slice(1)
     : normalizedPath;
   if (!withoutLeading) {
+    return [];
+  }
+
+  const segments = withoutLeading
+    .split("/")
+    .filter(Boolean)
+    .filter((segment, index) => {
+      if (index !== 0) {
+        return true;
+      }
+      return segment !== "standard" && segment !== "propsrig";
+    })
+    .map((segment) => {
+      switch (segment.toLowerCase()) {
+        case "translation":
+          return "trans";
+        case "rotation":
+          return "rot";
+        default:
+          return segment;
+      }
+    });
+
+  if (
+    segments.length > 1 &&
+    segments[segments.length - 1]?.toLowerCase() === "value"
+  ) {
+    segments.pop();
+  }
+
+  return segments;
+}
+
+function deriveLegacyDisplaySegmentsFromNormalizedPath(
+  normalizedPath: string,
+): string[] {
+  const withoutLeading = normalizedPath.startsWith("/")
+    ? normalizedPath.slice(1)
+    : normalizedPath;
+  if (!withoutLeading) {
+    return [];
+  }
+  return withoutLeading
+    .split("/")
+    .filter(Boolean)
+    .filter((segment, index) => !(index === 0 && segment === "standard"));
+}
+
+function deriveLabelFromSegments(segments: string[]): string {
+  if (segments.length === 0) {
     return "Custom Input";
   }
-  const segments = withoutLeading.split("/");
-  const filteredSegments = segments.filter((segment, index) => {
-    if (index === 0 && segment === "standard") {
-      return false;
-    }
-    return true;
-  });
-  const words = filteredSegments
+  const words = segments
     .flatMap((segment) =>
       segment.replace(/[_-]+/g, " ").split(" ").filter(Boolean),
     )
     .map(capitalize);
   return words.length > 0 ? words.join(" ") : "Custom Input";
+}
+
+export function formatStandardRigInputDisplayPath(path: string): string {
+  const normalized = normalizeStandardRigInputPath(path);
+  const segments = deriveDisplaySegmentsFromNormalizedPath(normalized);
+  if (segments.length === 0) {
+    return "/";
+  }
+  return `/${segments.join("/")}`;
+}
+
+export function deriveLabelFromNormalizedPath(normalizedPath: string): string {
+  return deriveLabelFromSegments(
+    deriveDisplaySegmentsFromNormalizedPath(normalizedPath),
+  );
+}
+
+export function migrateLegacyStandardRigInputLabel(
+  path: string,
+  label: string | null | undefined,
+): string {
+  const normalizedPath = normalizeStandardRigInputPath(path);
+  const normalizedLabel = normalizeWhitespace(label || "");
+  const currentLabel = deriveLabelFromNormalizedPath(normalizedPath);
+  if (!normalizedLabel) {
+    return currentLabel;
+  }
+  const legacyLabel = deriveLabelFromSegments(
+    deriveLegacyDisplaySegmentsFromNormalizedPath(normalizedPath),
+  );
+  return normalizedLabel === legacyLabel ? currentLabel : normalizedLabel;
 }
 
 export function deriveGroupFromNormalizedPath(normalizedPath: string): string {

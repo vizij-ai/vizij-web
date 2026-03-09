@@ -36,6 +36,7 @@ import {
 } from "@vizij/node-graph-authoring";
 import {
   buildRigPipelineV1LinkId,
+  formatStandardRigInputDisplayPath,
   normalizeStandardRigInputPath,
   SELF_BINDING_ID,
 } from "@vizij/utils";
@@ -964,14 +965,16 @@ function insertRigNodeAtPath(params: {
   data: RigNodeData;
 }): void {
   const { root, key, input, data } = params;
-  const pathParts = getPathParts(input.path);
+  const normalizedPath = normalizeStandardRigInputPath(input.path);
+  const pathParts = getPathParts(normalizedPath);
   const folderParts = pathParts.slice(0, Math.max(pathParts.length - 1, 0));
   let current = root;
   folderParts.forEach((part) => {
     current = getOrCreateChild(current, part, part);
   });
-  const leafLabel =
-    pathParts.length > 0
+  const leafLabel = isPropsRigStandardInputPath(normalizedPath)
+    ? input.label || formatStandardRigInputDisplayPath(normalizedPath)
+    : pathParts.length > 0
       ? pathParts.join("/")
       : input.label || input.id || "driver";
   current.children.set(key, {

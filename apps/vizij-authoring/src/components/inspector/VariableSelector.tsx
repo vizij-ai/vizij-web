@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Zap } from "lucide-react";
-import { SELF_BINDING_ID } from "@vizij/utils";
+import {
+  formatStandardRigInputDisplayPath,
+  SELF_BINDING_ID,
+} from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { cn } from "../../utils/cn";
@@ -359,16 +362,6 @@ function extractComponentIdFromSourceId(
   }
 }
 
-function stripPropsRigRoot(path: string): string {
-  if (path === "/propsrig") {
-    return "/";
-  }
-  if (path.startsWith("/propsrig/")) {
-    return `/${path.slice("/propsrig/".length)}`;
-  }
-  return path;
-}
-
 function normalizeFacetToken(value: string | null | undefined): string | null {
   if (!value) {
     return null;
@@ -643,7 +636,7 @@ function InputList({
         return;
       }
 
-      const displayPath = stripPropsRigRoot(input.path);
+      const displayPath = formatStandardRigInputDisplayPath(input.path);
       const typeKey = derivePropertyTypeKey({
         metadataFeatureKey: entry.metadata?.featureKey,
         metadataFeatureLabel: entry.metadata?.featureLabel,
@@ -806,7 +799,7 @@ function InputList({
       }
 
       const displayPath = isPropsRig
-        ? stripPropsRigRoot(input.path)
+        ? formatStandardRigInputDisplayPath(input.path)
         : input.path;
       const groupText = input.group?.trim() || "";
       const group = deriveGroup(displayPath, groupText);

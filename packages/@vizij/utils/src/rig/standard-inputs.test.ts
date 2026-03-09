@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createStandardRigInput,
+  createStandardRigInputFromPath,
+  formatStandardRigInputDisplayPath,
+  migrateLegacyStandardRigInputLabel,
   normalizeStandardRigInputPath,
   resolveStandardRigInputId,
 } from "./standard-inputs";
@@ -29,6 +32,44 @@ describe("createStandardRigInput", () => {
       range: { min: -1, max: 1 },
     });
     expect(input.path).toBe("/eyes/blink");
+  });
+
+  it("derives compact labels for propsrig inputs", () => {
+    const input = createStandardRigInputFromPath(
+      "/propsrig/head/translation/x",
+    );
+    expect(input.label).toBe("Head Trans X");
+  });
+});
+
+describe("formatStandardRigInputDisplayPath", () => {
+  it("strips the propsrig root and shortens transform segments", () => {
+    expect(
+      formatStandardRigInputDisplayPath("/propsrig/head/translation/value"),
+    ).toBe("/head/trans");
+    expect(formatStandardRigInputDisplayPath("/propsrig/head/rotation/x")).toBe(
+      "/head/rot/x",
+    );
+  });
+});
+
+describe("migrateLegacyStandardRigInputLabel", () => {
+  it("rewrites legacy path-derived propsrig labels to the compact form", () => {
+    expect(
+      migrateLegacyStandardRigInputLabel(
+        "/propsrig/head/translation/value",
+        "Propsrig Head Translation Value",
+      ),
+    ).toBe("Head Trans");
+  });
+
+  it("preserves custom labels during migration", () => {
+    expect(
+      migrateLegacyStandardRigInputLabel(
+        "/propsrig/head/translation/value",
+        "Jaw Driver",
+      ),
+    ).toBe("Jaw Driver");
   });
 });
 

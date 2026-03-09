@@ -5,6 +5,7 @@ import {
   buildPoseWeightRelativePath,
   buildRigInputPath,
   buildPoseWeightPathMap,
+  formatPoseWeightInputLabel,
   isPoseControlInputPath,
   isPoseOutputInputPath,
   isPoseWeightInputPath,
@@ -101,6 +102,15 @@ describe("pose weight input helpers", () => {
     expect(sourceId).toBe("pose-weight:pose_smile");
     expect(parsePoseWeightInputSourceId(sourceId)).toBe("pose_smile");
     expect(parsePoseWeightInputSourceId("custom:pose_smile")).toBeNull();
+  });
+
+  it("formats pose-weight labels with the pose name first", () => {
+    expect(formatPoseWeightInputLabel("Smile", "pose_smile")).toBe(
+      "Smile - Pose Weight",
+    );
+    expect(formatPoseWeightInputLabel("   ", "pose_smile")).toBe(
+      "pose_smile - Pose Weight",
+    );
   });
 });
 

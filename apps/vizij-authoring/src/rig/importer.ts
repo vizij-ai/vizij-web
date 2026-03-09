@@ -19,6 +19,7 @@ import {
   createStandardRigInputFromPath,
   deriveGroupFromNormalizedPath,
   isPropsRigStandardInputPath,
+  migrateLegacyStandardRigInputLabel,
   normalizeStandardRigInputPath,
   resolveStandardRigInputId,
   type AnimatableComponent,
@@ -857,7 +858,7 @@ export function rehydrateRigDataFromGraph(
       id: input.id,
       path: normalizedPath,
       sourceId: input.sourceId,
-      label: input.label,
+      label: migrateLegacyStandardRigInputLabel(normalizedPath, input.label),
       group,
       defaultValue: input.defaultValue,
       range: {

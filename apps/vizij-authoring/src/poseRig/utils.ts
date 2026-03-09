@@ -308,6 +308,14 @@ export function buildPoseWeightInputSourceId(
   return `${POSE_WEIGHT_INPUT_SOURCE_PREFIX}${poseId?.trim() ?? ""}`;
 }
 
+export function formatPoseWeightInputLabel(
+  poseName: string | null | undefined,
+  poseId: string | null | undefined,
+): string {
+  const displayName = poseName?.trim() || poseId?.trim() || "Pose";
+  return `${displayName} - Pose Weight`;
+}
+
 export function buildPoseControlRelativePath(
   inputId: string | null | undefined,
 ): string {
