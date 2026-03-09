@@ -19,7 +19,6 @@ import {
   Box,
   Play,
   RotateCcw,
-  Save,
   Lock,
   LockOpen,
 } from "lucide-react";
@@ -152,7 +151,6 @@ type PoseVariableRenderGroup = {
 
 type PoseSemanticTooltips = {
   target: string;
-  direct: string;
   poseDriven: string;
   contribution: string;
 };
@@ -343,7 +341,6 @@ interface PoseVariableExpandedControlsProps {
   poseId: string;
   item: PoseVariableRenderItem;
   poseSemanticTooltips: PoseSemanticTooltips;
-  showDirectControlRow: boolean;
   onInputValueChange: (inputId: string, value: number) => void;
   onUpdatePoseValue: (poseId: string, inputId: string, value: number) => void;
 }
@@ -352,8 +349,7 @@ function PoseVariableExpandedControls({
   poseId,
   item,
   poseSemanticTooltips,
-  showDirectControlRow,
-  onInputValueChange,
+  onInputValueChange: _onInputValueChange,
   onUpdatePoseValue,
 }: PoseVariableExpandedControlsProps) {
   const { rotationDisplayMode } = useAuthoringUiState();
@@ -374,19 +370,7 @@ function PoseVariableExpandedControls({
     ? toRotationDisplayValue(item.poseDrivenVal, rotationDisplayMode)
     : item.poseDrivenVal;
   const displayStep = useDegreeDisplay ? 0.5 : 0.0001;
-  const stagedValue = useBindingAuthoring(
-    (state) => state.inputValues[item.varId],
-  );
-  const directVal =
-    typeof stagedValue === "number" && Number.isFinite(stagedValue)
-      ? stagedValue
-      : item.neutralVal;
-  const displayDirectValue = useDegreeDisplay
-    ? toRotationDisplayValue(directVal, rotationDisplayMode)
-    : directVal;
   const sliderRange = item.max - item.min;
-  const directPercent =
-    sliderRange > 0 ? clamp01((directVal - item.min) / sliderRange) * 100 : 0;
   const targetPercent =
     sliderRange > 0
       ? clamp01((item.poseVal - item.min) / sliderRange) * 100
@@ -397,42 +381,6 @@ function PoseVariableExpandedControls({
     0,
     Math.abs(targetPercent - poseDrivenPercent),
   );
-
-  const handleDirectInputChange = useCallback(
-    (nextDirect: number) => {
-      onInputValueChange(
-        item.varId,
-        clampToRange(
-          useDegreeDisplay
-            ? fromRotationDisplayValue(nextDirect, rotationDisplayMode)
-            : nextDirect,
-          item.min,
-          item.max,
-        ),
-      );
-    },
-    [
-      item.max,
-      item.min,
-      item.varId,
-      onInputValueChange,
-      rotationDisplayMode,
-      useDegreeDisplay,
-    ],
-  );
-
-  const handleDirectReset = useCallback(() => {
-    onInputValueChange(
-      item.varId,
-      clampToRange(item.directDefaultValue, item.min, item.max),
-    );
-  }, [
-    item.directDefaultValue,
-    item.max,
-    item.min,
-    item.varId,
-    onInputValueChange,
-  ]);
 
   const handleTargetValueChange = useCallback(
     (nextTarget: number) => {
@@ -460,137 +408,69 @@ function PoseVariableExpandedControls({
   );
 
   return (
-    <>
-      {showDirectControlRow ? (
-        <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
+    <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
+      <span
+        className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+        title={poseSemanticTooltips.target}
+      >
+        Control Target
+      </span>
+      <div className="relative min-w-0">
+        <Slider
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
+          value={displayPoseValue}
+          fillMode="none"
+          className="w-full"
+          onChange={(val) => handleTargetValueChange(val as number)}
+        />
+        {targetToCurrentRangeWidth > 0 ? (
           <span
-            className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-            title={poseSemanticTooltips.direct}
-          >
-            Control Driver
-          </span>
-          <div className="relative min-w-0">
-            <Slider
-              min={displayMin}
-              max={displayMax}
-              step={displayStep}
-              value={displayDirectValue}
-              fillMode="none"
-              className="w-full"
-              onChange={(val) => handleDirectInputChange(val as number)}
-            />
-            <span
-              className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-white/90 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.45)]"
-              style={{ left: `${directPercent}%` }}
-              title={poseSemanticTooltips.direct}
-            />
-          </div>
-          <div
-            className="inspector-numeric-control min-w-0"
-            onMouseDown={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <NumberField
-              size="sm"
-              min={displayMin}
-              max={displayMax}
-              step={displayStep}
-              format={POSE_VALUE_PRECISION_FORMAT}
-              value={displayDirectValue}
-              allowScrub={false}
-              className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-              onChange={handleDirectInputChange}
-            />
-          </div>
-          <div className="flex items-center justify-end gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              title="Reset control driver to default"
-              onClick={handleDirectReset}
-            >
-              <RotateCcw size={11} />
-              Reset
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              title="Use control driver value as the new control target"
-              onClick={() => onUpdatePoseValue(poseId, item.varId, directVal)}
-            >
-              <Save size={11} />
-              Set Target
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
+            className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
+            style={{
+              left: `${targetToCurrentRangeStart}%`,
+              width: `${targetToCurrentRangeWidth}%`,
+            }}
+          />
+        ) : null}
         <span
-          className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
+          className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200/90 bg-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.45)]"
+          style={{ left: `${targetPercent}%` }}
           title={poseSemanticTooltips.target}
-        >
-          Control Target
-        </span>
-        <div className="relative min-w-0">
-          <Slider
-            min={displayMin}
-            max={displayMax}
-            step={displayStep}
-            value={displayPoseValue}
-            fillMode="none"
-            className="w-full"
-            onChange={(val) => handleTargetValueChange(val as number)}
-          />
-          {targetToCurrentRangeWidth > 0 ? (
-            <span
-              className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
-              style={{
-                left: `${targetToCurrentRangeStart}%`,
-                width: `${targetToCurrentRangeWidth}%`,
-              }}
-            />
-          ) : null}
-          <span
-            className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-amber-200/90 bg-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.45)]"
-            style={{ left: `${targetPercent}%` }}
-            title={poseSemanticTooltips.target}
-          />
-          <span
-            className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-white/90 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.45)]"
-            style={{ left: `${item.poseDrivenPercent}%` }}
-            title={poseSemanticTooltips.poseDriven}
-          />
-        </div>
-        <div
-          className="inspector-numeric-control min-w-0"
-          onMouseDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <NumberField
-            size="sm"
-            min={displayMin}
-            max={displayMax}
-            step={displayStep}
-            format={POSE_VALUE_PRECISION_FORMAT}
-            value={displayPoseValue}
-            allowScrub={false}
-            className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
-            onChange={handleTargetValueChange}
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          <span
-            className="text-[10px] font-mono whitespace-nowrap text-white"
-            title={poseSemanticTooltips.poseDriven}
-          >
-            Current Pose: {displayPoseDrivenValue.toFixed(4)}
-          </span>
-        </div>
+        />
+        <span
+          className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 -translate-x-1/2 rounded-full border border-white/90 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.45)]"
+          style={{ left: `${item.poseDrivenPercent}%` }}
+          title={poseSemanticTooltips.poseDriven}
+        />
       </div>
-    </>
+      <div
+        className="inspector-numeric-control min-w-0"
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <NumberField
+          size="sm"
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
+          format={POSE_VALUE_PRECISION_FORMAT}
+          value={displayPoseValue}
+          allowScrub={false}
+          className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-primary"
+          onChange={handleTargetValueChange}
+        />
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <span
+          className="text-[10px] font-mono whitespace-nowrap text-white"
+          title={poseSemanticTooltips.poseDriven}
+        >
+          Current Pose: {displayPoseDrivenValue.toFixed(4)}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -601,7 +481,7 @@ interface InspectorContentProps {
 export function InspectorContent({
   hasReferenceFaceFile = false,
 }: InspectorContentProps) {
-  const { activeEditFocus, rotationDisplayMode } = useAuthoringUiState();
+  const { rotationDisplayMode } = useAuthoringUiState();
   const [showSelector, setShowSelector] = useState(false);
   const [rigLinkSelectorMode, setRigLinkSelectorMode] = useState<
     "child" | "parent"
@@ -2956,8 +2836,6 @@ export function InspectorContent({
     const poseSemanticTooltips: PoseSemanticTooltips = {
       target:
         "Control Target: authored pose value for this rig input when the pose contributes at 100%.",
-      direct:
-        "Control Driver: canonical rig input value edited directly (matches Inputs pane for this driver).",
       poseDriven:
         "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
       contribution:
@@ -3344,9 +3222,6 @@ export function InspectorContent({
                             poseId={pose.id}
                             item={item}
                             poseSemanticTooltips={poseSemanticTooltips}
-                            showDirectControlRow={
-                              activeEditFocus !== "pose-creation"
-                            }
                             onInputValueChange={handleInputValueChange}
                             onUpdatePoseValue={updatePoseValue}
                           />

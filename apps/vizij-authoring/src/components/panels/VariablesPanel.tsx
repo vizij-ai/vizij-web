@@ -46,7 +46,6 @@ import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
 import { Slider } from "../ui/Slider";
-import { useAuthoringUiState } from "../../state/AuthoringUiProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
@@ -3007,8 +3006,6 @@ export function VariablesPanel({
   } = usePoseRig();
   const selectedPoseId =
     selectedPoseIdFromParent ?? selectedPoseIdFromAuthoring;
-  const { activeEditFocus } = useAuthoringUiState();
-  const poseCreationActive = activeEditFocus === "pose-creation";
   const [searchQuery, setSearchQuery] = useState("");
   const [stageEditMessage, setStageEditMessage] = useState<string | null>(null);
   const poseGroupBlendModeFallback =
@@ -5739,14 +5736,14 @@ export function VariablesPanel({
   );
   const poseTargetInputContext = useMemo(
     () => ({
-      active: poseCreationActive,
+      active: Boolean(selectedPose),
       selectedPoseId: selectedPose?.id ?? null,
       targetedInputIds: selectedPoseTargetInputIds,
       onSetTarget: handleSetPoseTargetFromInput,
     }),
     [
       handleSetPoseTargetFromInput,
-      poseCreationActive,
+      selectedPose,
       selectedPose?.id,
       selectedPoseTargetInputIds,
     ],

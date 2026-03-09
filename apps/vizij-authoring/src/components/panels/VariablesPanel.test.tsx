@@ -409,7 +409,7 @@ describe("VariablesPanel", () => {
     expect(scoped.getByText("Compare in Variables/Poses")).toBeTruthy();
   });
 
-  it("saves the current input value onto the selected pose in pose-creation mode", () => {
+  it("saves the current input value onto the selected pose whenever a pose is selected", () => {
     const poseId = "pose_smile";
     const smileInput = makeInput("smile", "/smile", {
       label: "Smile",
@@ -440,8 +440,6 @@ describe("VariablesPanel", () => {
     ]);
     bindingState.standardInputsById = new Map([[smileInput.id, smileInput]]);
     bindingState.inputValues = { [smileInput.id]: 0.42 };
-    authoringUiState.activeEditFocus = "pose-creation";
-
     render(
       <VariablesPanel
         availableSurfaces={["inputs"]}
