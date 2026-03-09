@@ -14,7 +14,10 @@ import {
 } from "./state/workspaceStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
-import { VariablesPanel } from "./components/panels/VariablesPanel";
+import {
+  VariablesPanel,
+  type SurfaceTab,
+} from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
 import {
   Viewer,
@@ -356,6 +359,10 @@ type CenterAuthoringMode =
   | "animation"
   | "reference-face"
   | "none";
+type AuthoringSurface = Extract<
+  SurfaceTab,
+  "variables" | "poses" | "pose-groups" | "animations" | "programs"
+>;
 
 function applyEditFocusPanelDefaults(
   focus: EditFocus,
@@ -585,6 +592,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState(
     () => authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
   );
+  const [activeAuthoringSurface, setActiveAuthoringSurface] =
+    useState<AuthoringSurface>("variables");
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
     AuthoredProceduralTarget[]
   >(() => [
@@ -1495,6 +1504,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleInspectAnimationTarget = useCallback(
     (targetId: string) => {
+      setActiveAuthoringSurface("animations");
       setWorkspacePanelVisibility("animation", true);
       uiActions.setActiveRuntimeSource("animation");
       handleSelectAnimationTarget(targetId);
@@ -1503,6 +1513,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleInspectProgramTarget = useCallback(
     (targetId: string) => {
+      setActiveAuthoringSurface("programs");
       setWorkspacePanelVisibility("motiongraphPalette", true);
       setWorkspacePanelVisibility("motiongraph", true);
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
@@ -1511,11 +1522,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [handleSelectProceduralTarget, setWorkspacePanelVisibility, uiActions],
   );
   const handleCreateAndInspectAnimationTarget = useCallback(() => {
+    setActiveAuthoringSurface("animations");
     setWorkspacePanelVisibility("animation", true);
     uiActions.setActiveRuntimeSource("animation");
     handleCreateAnimationTarget();
   }, [handleCreateAnimationTarget, setWorkspacePanelVisibility, uiActions]);
   const handleCreateAndInspectProgramTarget = useCallback(() => {
+    setActiveAuthoringSurface("programs");
     setWorkspacePanelVisibility("motiongraphPalette", true);
     setWorkspacePanelVisibility("motiongraph", true);
     uiActions.setActiveRuntimeSource("procedural-animation-programming");
@@ -2299,6 +2312,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onSelectEditFocus={uiActions.setEditFocus}
       rotationDisplayMode={rotationDisplayMode}
       onSelectRotationDisplayMode={uiActions.setRotationDisplayMode}
+      activeAuthoringSurface={activeAuthoringSurface}
+      onSelectAuthoringSurface={setActiveAuthoringSurface}
     />
   );
 
@@ -2759,6 +2774,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectPose={handleSelectPoseWithInspectorSync}
               onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={authoringSurfaces}
+              activeSurfaceOverride={activeAuthoringSurface}
+              onActiveSurfaceChange={(surface) => {
+                if (surface === "inputs") {
+                  return;
+                }
+                setActiveAuthoringSurface(surface);
+              }}
               selectedPoseGroup={selectedPoseGroup}
               onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
               selectedBlendStage={selectedBlendStage}

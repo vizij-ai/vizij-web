@@ -30,6 +30,8 @@ function renderMenuBar() {
       onSelectEditFocus={vi.fn()}
       rotationDisplayMode="radians"
       onSelectRotationDisplayMode={vi.fn()}
+      activeAuthoringSurface="variables"
+      onSelectAuthoringSurface={vi.fn()}
     />,
   );
 }
@@ -58,12 +60,16 @@ describe("AppMenuBar", () => {
 
     expect(await screen.findByText("Face Elements")).toBeTruthy();
     expect(screen.getByText("Authoring")).toBeTruthy();
-    expect(screen.getByText("Node Palette")).toBeTruthy();
+    expect(screen.getByText("Center Panel")).toBeTruthy();
+    expect(screen.getByText("Animation")).toBeTruthy();
+    expect(screen.getByText("Program")).toBeTruthy();
+    expect(screen.getByText("Reference Face")).toBeTruthy();
+    expect(screen.queryByText("Node Palette")).toBeNull();
     expect(screen.queryByText("Hierarchy")).toBeNull();
     expect(screen.queryByText("Runtime Source")).toBeNull();
   });
 
-  it("shows Drivers, Poses, and Pose Groups in the Authoring flyout", async () => {
+  it("shows all authoring surfaces in the Authoring flyout", async () => {
     renderMenuBar();
 
     fireEvent.click(screen.getByTestId("app-menu-view"));
@@ -77,6 +83,8 @@ describe("AppMenuBar", () => {
       expect(screen.getByText("Drivers")).toBeTruthy();
       expect(screen.getByText("Poses")).toBeTruthy();
       expect(screen.getByText("Pose Groups")).toBeTruthy();
+      expect(screen.getByText("Animations")).toBeTruthy();
+      expect(screen.getByText("Programs")).toBeTruthy();
     });
   });
 
@@ -92,5 +100,18 @@ describe("AppMenuBar", () => {
     expect(await screen.findByText("Show Rotation in Degrees")).toBeTruthy();
     expect(screen.getByText("Highlight Selected")).toBeTruthy();
     expect(screen.getByText("Dark Mode")).toBeTruthy();
+  });
+
+  it("treats Program as a center-panel mode and reveals the Node Palette", async () => {
+    renderMenuBar();
+
+    fireEvent.click(screen.getByTestId("app-menu-view"));
+    fireEvent.click(await screen.findByText("Program"));
+
+    const panels = useWorkspaceStore.getState().panels;
+    expect(panels.motiongraph.isVisible).toBe(true);
+    expect(panels.motiongraphPalette.isVisible).toBe(true);
+    expect(panels.animation.isVisible).toBe(false);
+    expect(panels.referenceFace.isVisible).toBe(false);
   });
 });

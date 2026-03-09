@@ -18,6 +18,13 @@ import type {
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
 
+type AuthoringSurfaceMenuTarget =
+  | "variables"
+  | "poses"
+  | "pose-groups"
+  | "animations"
+  | "programs";
+
 interface AppMenuBarProps {
   onNew: () => void;
   onImport: () => void;
@@ -33,6 +40,8 @@ interface AppMenuBarProps {
   onSelectEditFocus: (focus: EditFocus) => void;
   rotationDisplayMode: RotationDisplayMode;
   onSelectRotationDisplayMode: (mode: RotationDisplayMode) => void;
+  activeAuthoringSurface: AuthoringSurfaceMenuTarget;
+  onSelectAuthoringSurface: (surface: AuthoringSurfaceMenuTarget) => void;
 }
 
 export function AppMenuBar({
@@ -50,6 +59,8 @@ export function AppMenuBar({
   onSelectEditFocus,
   rotationDisplayMode,
   onSelectRotationDisplayMode,
+  activeAuthoringSurface,
+  onSelectAuthoringSurface,
 }: AppMenuBarProps) {
   const hierarchyPanelVisible = useWorkspaceStore(
     (state) => state.panels.hierarchy.isVisible,
@@ -63,9 +74,6 @@ export function AppMenuBar({
   const inputsPanelVisible = useWorkspaceStore(
     (state) => state.panels.inputs.isVisible,
   );
-  const motionGraphPaletteVisible = useWorkspaceStore(
-    (state) => state.panels.motiongraphPalette.isVisible,
-  );
   const materialsPanelVisible = useWorkspaceStore(
     (state) => state.panels.materials.isVisible,
   );
@@ -78,6 +86,15 @@ export function AppMenuBar({
   const debugPanelVisible = useWorkspaceStore(
     (state) => state.panels.debug.isVisible,
   );
+  const animationPanelVisible = useWorkspaceStore(
+    (state) => state.panels.animation.isVisible,
+  );
+  const motionGraphPanelVisible = useWorkspaceStore(
+    (state) => state.panels.motiongraph.isVisible,
+  );
+  const referenceFacePanelVisible = useWorkspaceStore(
+    (state) => state.panels.referenceFace.isVisible,
+  );
   const setPanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
@@ -85,6 +102,25 @@ export function AppMenuBar({
   const setTheme = useThemeStore((state) => state.setTheme);
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
+  const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
+    setPanelVisibility("variables", true);
+    setPanelVisibility("poses", true);
+    setPanelVisibility("materials", true);
+    onSelectAuthoringSurface(surface);
+  };
+  const setCenterPanelVisibility = (
+    panel: "animation" | "motiongraph" | "referenceFace",
+    isVisible: boolean,
+  ) => {
+    setPanelVisibility(panel, isVisible);
+    if (panel === "motiongraph") {
+      setPanelVisibility("motiongraphPalette", isVisible);
+      return;
+    }
+    if (isVisible) {
+      setPanelVisibility("motiongraphPalette", false);
+    }
+  };
 
   return (
     <MenuBar>
@@ -214,26 +250,59 @@ export function AppMenuBar({
           }}
         >
           <MenuCheckboxItem
-            checked={variablesPanelVisible}
-            onCheckedChange={(checked) =>
-              setPanelVisibility("variables", checked)
-            }
+            checked={activeAuthoringSurface === "variables"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("variables");
+            }}
           >
             Drivers
           </MenuCheckboxItem>
           <MenuCheckboxItem
-            checked={posesPanelVisible}
-            onCheckedChange={(checked) => setPanelVisibility("poses", checked)}
+            checked={activeAuthoringSurface === "poses"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("poses");
+            }}
           >
             Poses
           </MenuCheckboxItem>
           <MenuCheckboxItem
-            checked={materialsPanelVisible}
-            onCheckedChange={(checked) =>
-              setPanelVisibility("materials", checked)
-            }
+            checked={activeAuthoringSurface === "pose-groups"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("pose-groups");
+            }}
           >
             Pose Groups
+          </MenuCheckboxItem>
+          <MenuCheckboxItem
+            checked={activeAuthoringSurface === "animations"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("animations");
+            }}
+          >
+            Animations
+          </MenuCheckboxItem>
+          <MenuCheckboxItem
+            checked={activeAuthoringSurface === "programs"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("programs");
+            }}
+          >
+            Programs
           </MenuCheckboxItem>
         </MenuSubmenu>
         <MenuCheckboxItem
@@ -241,6 +310,32 @@ export function AppMenuBar({
           onCheckedChange={(checked) => setPanelVisibility("inputs", checked)}
         >
           Inputs
+        </MenuCheckboxItem>
+        <MenuSeparator />
+        <MenuLabel>Center Panel</MenuLabel>
+        <MenuCheckboxItem
+          checked={animationPanelVisible}
+          onCheckedChange={(checked) =>
+            setCenterPanelVisibility("animation", checked)
+          }
+        >
+          Animation
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={motionGraphPanelVisible}
+          onCheckedChange={(checked) =>
+            setCenterPanelVisibility("motiongraph", checked)
+          }
+        >
+          Program
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          checked={referenceFacePanelVisible}
+          onCheckedChange={(checked) =>
+            setCenterPanelVisibility("referenceFace", checked)
+          }
+        >
+          Reference Face
         </MenuCheckboxItem>
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
@@ -263,15 +358,6 @@ export function AppMenuBar({
           onCheckedChange={(checked) => setPanelVisibility("debug", checked)}
         >
           Debug
-        </MenuCheckboxItem>
-        <MenuCheckboxItem
-          testId="app-menu-view-node-palette"
-          checked={motionGraphPaletteVisible}
-          onCheckedChange={(checked) =>
-            setPanelVisibility("motiongraphPalette", checked)
-          }
-        >
-          Node Palette
         </MenuCheckboxItem>
       </Menu>
       <Menu label="Settings" testId="app-menu-settings">

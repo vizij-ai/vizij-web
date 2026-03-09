@@ -110,7 +110,7 @@ import {
 type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 type FaceOwnershipScope = "main" | "reference" | "shared" | "none";
-type SurfaceTab =
+export type SurfaceTab =
   | "variables"
   | "poses"
   | "pose-groups"
@@ -2959,6 +2959,7 @@ interface VariablesPanelProps {
   selectedBlendStage?: BlendStageInspectorSelection | null;
   onSelectBlendStage?: (selection: BlendStageInspectorSelection | null) => void;
   activeSurfaceOverride?: SurfaceTab;
+  onActiveSurfaceChange?: (surface: SurfaceTab) => void;
   availableSurfaces?: SurfaceTab[];
   panelTitle?: string;
   panelDescription?: string;
@@ -2998,6 +2999,7 @@ export function VariablesPanel({
   selectedBlendStage,
   onSelectBlendStage,
   activeSurfaceOverride,
+  onActiveSurfaceChange,
   availableSurfaces,
   panelTitle = "Control Elements",
   panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
@@ -6551,10 +6553,12 @@ export function VariablesPanel({
             listClassName="flex-wrap overflow-visible"
             value={activeSurface}
             onValueChange={(id) => {
+              const nextSurface = surfaceForTab(id);
+              onActiveSurfaceChange?.(nextSurface);
               if (activeSurfaceOverride) {
                 return;
               }
-              setActiveSurfaceState(surfaceForTab(id));
+              setActiveSurfaceState(nextSurface);
             }}
             renderPanel={(id) => {
               if (surfaceForTab(id) !== activeSurface) {
