@@ -3276,6 +3276,13 @@ export function VariablesPanel({
   const graphPlaybackState = useGraphRuntime(
     (state) => state.graphPlaybackState,
   );
+  const graphStatus = useGraphRuntime((state) => state.graphStatus);
+  const stageRuntimeInput = useGraphRuntime((state) => state.stageRuntimeInput);
+  const runtimeViewReady = useGraphRuntime((state) => state.runtimeViewReady);
+  const runtimeViewLoading = useGraphRuntime(
+    (state) => state.runtimeViewLoading,
+  );
+  const runtimePoseConfig = useGraphRuntime((state) => state.poseConfig);
   const handleInputValueChange = useBindingAuthoring(
     (state) => state.handleInputValueChange,
   );
@@ -3368,6 +3375,44 @@ export function VariablesPanel({
       return true;
     },
     [applyStandardInputBatch, poseWeightInputIdByPoseId, poses],
+  );
+  const stagePoseWeightSoloToRuntime = useCallback(
+    (poseId: string) => {
+      if (
+        graphStatus !== "ready" ||
+        runtimeViewLoading ||
+        !runtimeViewReady ||
+        typeof stageRuntimeInput !== "function"
+      ) {
+        return false;
+      }
+      const runtimePoseIds = new Set(
+        (runtimePoseConfig?.poses ?? []).map((pose) => pose.id),
+      );
+      if (!runtimePoseIds.has(poseId)) {
+        return false;
+      }
+      let stagedAny = false;
+      poses.forEach((pose) => {
+        if (!runtimePoseIds.has(pose.id)) {
+          return;
+        }
+        stageRuntimeInput(
+          buildPoseWeightRelativePath(pose.id),
+          pose.id === poseId ? 1 : 0,
+        );
+        stagedAny = true;
+      });
+      return stagedAny;
+    },
+    [
+      graphStatus,
+      poses,
+      runtimePoseConfig,
+      runtimeViewLoading,
+      runtimeViewReady,
+      stageRuntimeInput,
+    ],
   );
   const referenceFace = useReferenceFace();
   const pendingPoseSelectionRef = useRef(false);
@@ -5221,11 +5266,18 @@ export function VariablesPanel({
     if (!poseWeightInputIdByPoseId.has(pendingPoseId)) {
       return;
     }
+    if (!stagePoseWeightSoloToRuntime(pendingPoseId)) {
+      return;
+    }
     if (!setPoseWeightSolo(pendingPoseId)) {
       return;
     }
     pendingCapturedPoseWeightSoloIdRef.current = null;
-  }, [poseWeightInputIdByPoseId, setPoseWeightSolo]);
+  }, [
+    poseWeightInputIdByPoseId,
+    setPoseWeightSolo,
+    stagePoseWeightSoloToRuntime,
+  ]);
 
   const handleToggle = (id: string) => {
     const newExpanded = new Set(expandedIds);

@@ -9,7 +9,10 @@ import {
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
-import { buildPoseWeightInputSourceId } from "../../poseRig/utils";
+import {
+  buildPoseWeightInputSourceId,
+  buildPoseWeightRelativePath,
+} from "../../poseRig/utils";
 import type { BlendStageInspectorSelection } from "../../types/poseGroupInspector";
 import type {
   ReferenceCatalog,
@@ -192,6 +195,11 @@ const graphRuntimeState = {
   world: null,
   animatables: {},
   graphPlaybackState: "paused" as "playing" | "paused",
+  graphStatus: "idle" as "idle" | "loading" | "ready" | "error",
+  stageRuntimeInput: vi.fn(),
+  runtimeViewReady: false,
+  runtimeViewLoading: false,
+  poseConfig: null as { poses?: Array<{ id: string }> } | null,
   setStoreState: vi.fn(),
 };
 
@@ -306,6 +314,11 @@ describe("VariablesPanel", () => {
       () => new Map<string, string>(),
     );
     authoringUiState.activeEditFocus = "default";
+    graphRuntimeState.graphStatus = "idle";
+    graphRuntimeState.stageRuntimeInput.mockReset();
+    graphRuntimeState.runtimeViewReady = false;
+    graphRuntimeState.runtimeViewLoading = false;
+    graphRuntimeState.poseConfig = null;
 
     useEditorStore.setState({
       nodes: [],
@@ -467,7 +480,7 @@ describe("VariablesPanel", () => {
     );
   });
 
-  it("resets inputs and solos the captured pose weight after capture", async () => {
+  it("waits for runtime readiness before soloing the captured pose weight", async () => {
     const existingPose: PoseDefinition = {
       id: "pose_existing",
       name: "Existing",
@@ -545,11 +558,37 @@ describe("VariablesPanel", () => {
     );
 
     await waitFor(() => {
+      expect(bindingState.applyStandardInputBatch).toHaveBeenCalledTimes(1);
+    });
+    expect(graphRuntimeState.stageRuntimeInput).not.toHaveBeenCalled();
+
+    graphRuntimeState.graphStatus = "ready";
+    graphRuntimeState.runtimeViewReady = true;
+    graphRuntimeState.poseConfig = {
+      poses: [{ id: existingPose.id }, { id: capturedPose.id }],
+    };
+
+    view.rerender(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    await waitFor(() => {
       expect(bindingState.applyStandardInputBatch).toHaveBeenNthCalledWith(2, {
         pose_existing_weight: 0,
         pose_capture_weight: 1,
       });
     });
+    expect(graphRuntimeState.stageRuntimeInput).toHaveBeenCalledWith(
+      buildPoseWeightRelativePath(existingPose.id),
+      0,
+    );
+    expect(graphRuntimeState.stageRuntimeInput).toHaveBeenCalledWith(
+      buildPoseWeightRelativePath(capturedPose.id),
+      1,
+    );
   });
 
   it("filters out /rig/element variables from the variables panel", () => {
