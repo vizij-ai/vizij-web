@@ -19,6 +19,7 @@ import { usePoseRigStore } from "./store";
 import { PoseSnapshotService } from "./services/poseSnapshotService";
 import { PoseGraphService } from "./services/poseGraphService";
 import { PoseIrService } from "./services/poseIrService";
+import { normalizePoseGroupPath } from "./groupMembership";
 
 export interface UsePoseRigAuthoringOptions {
   faceId: string | null;
@@ -185,6 +186,20 @@ export function usePoseRigAuthoring(
     () => poses.find((p) => p.id === selectedPoseId) ?? null,
     [poses, selectedPoseId],
   );
+  const defaultNewPoseGroup = useMemo(() => {
+    const configuredGroups = poseConfigDraft?.poseGroups ?? [];
+    const defaultGroup = configuredGroups.find((group) => {
+      const normalizedPath = normalizePoseGroupPath(
+        group.path ?? group.name ?? group.id,
+      );
+      return normalizedPath === "default";
+    });
+    return (
+      normalizePoseGroupPath(
+        defaultGroup?.path ?? defaultGroup?.name ?? defaultGroup?.id ?? null,
+      ) ?? "default"
+    );
+  }, [poseConfigDraft?.poseGroups]);
 
   const isNeutralSelected =
     selectedPoseId === "__pose_rig_neutral__" || selectedPoseId === null;
@@ -197,8 +212,8 @@ export function usePoseRigAuthoring(
   );
   const selectPose = store.selectPose;
   const createPose = useCallback(
-    (name?: string) => store.createPose(name, selectedPose?.group),
-    [store, selectedPose],
+    (name?: string) => store.createPose(name, defaultNewPoseGroup),
+    [defaultNewPoseGroup, store],
   );
   const deletePose = store.deletePose;
   // ... (lines 101-125)
@@ -329,12 +344,12 @@ export function usePoseRigAuthoring(
         neutralInputs,
         {
           name: name || `Pose ${poses.length + 1}`,
-          group: selectedPose?.group,
+          group: defaultNewPoseGroup,
         },
       );
       store.addPose(snapshot);
     },
-    [currentValues, neutralInputs, selectedPose, store, poses.length],
+    [currentValues, defaultNewPoseGroup, neutralInputs, store, poses.length],
   );
 
   const clearPose = useCallback(
