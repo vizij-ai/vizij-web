@@ -10,6 +10,7 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
   LEGACY_AUTHORED_TIMELINE_CLIP_ID,
+  type AnimationClipIR,
 } from "../types/animationClipIr";
 import { clipIrToBundleAnimationEntry } from "../utils/animationClipCompiler";
 
@@ -76,8 +77,10 @@ function muteAnimationClip(
 
 export function AnimationRuntimeBridge({
   active = true,
+  clip = null,
 }: {
   active?: boolean;
+  clip?: AnimationClipIR | null;
 }) {
   const runtime = useVizijRuntime();
   const runtimeRootId = runtime.rootId ?? null;
@@ -108,7 +111,7 @@ export function AnimationRuntimeBridge({
   );
   const currentTime = useAnimationStore((state) => state.currentTime);
   const transportActive = useAnimationStore((state) => state.transportActive);
-  const authoredClip = useMemo(
+  const editorClip = useMemo(
     () =>
       tracks.length > 0
         ? exportClipIr({
@@ -118,6 +121,7 @@ export function AnimationRuntimeBridge({
         : null,
     [exportClipIr, tracks],
   );
+  const authoredClip = clip ?? editorClip;
 
   const authoredAnimation = useMemo<VizijAnimationAsset | null>(() => {
     if (!active || !authoredClip) {

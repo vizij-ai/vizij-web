@@ -1,6 +1,10 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useOrchestrator } from "@vizij/orchestrator-react";
-import { useEditorStore } from "../store/useEditorStore";
+import {
+  useEditorStore,
+  type EditorEdge,
+  type EditorNode,
+} from "../store/useEditorStore";
 import { buildGraphSpec } from "../utils/buildGraphSpec";
 
 const MOTIONGRAPH_CONTROLLER_ID = "motiongraph-editor";
@@ -21,6 +25,8 @@ const DEBOUNCE_MS = 50;
 export function useMotionGraphDriver(
   namespace: string,
   resyncSignal?: unknown,
+  nodesOverride?: EditorNode[],
+  edgesOverride?: EditorEdge[],
 ): void {
   const { ready, registerGraph, removeGraph } = useOrchestrator();
 
@@ -30,7 +36,10 @@ export function useMotionGraphDriver(
   const syncGraph = useCallback(() => {
     if (!ready) return;
 
-    const { nodes, edges } = useEditorStore.getState();
+    const { nodes, edges } =
+      nodesOverride && edgesOverride
+        ? { nodes: nodesOverride, edges: edgesOverride }
+        : useEditorStore.getState();
     const built = buildGraphSpec(nodes, edges, namespace);
 
     // Remove previous graph if registered.
@@ -67,7 +76,14 @@ export function useMotionGraphDriver(
       console.error("[motiongraph] Failed to register graph:", err);
       registeredIdRef.current = null;
     }
-  }, [ready, namespace, registerGraph, removeGraph]);
+  }, [
+    edgesOverride,
+    namespace,
+    nodesOverride,
+    ready,
+    registerGraph,
+    removeGraph,
+  ]);
 
   // Subscribe to editor store changes and debounce graph syncs.
   useEffect(() => {
@@ -75,6 +91,15 @@ export function useMotionGraphDriver(
 
     // Initial sync once the orchestrator is ready.
     syncGraph();
+
+    if (nodesOverride && edgesOverride) {
+      return () => {
+        if (debounceTimerRef.current !== null) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
+      };
+    }
 
     const unsubscribe = useEditorStore.subscribe((state, prevState) => {
       // Only react to structural changes (nodes or edges).
@@ -98,7 +123,7 @@ export function useMotionGraphDriver(
         debounceTimerRef.current = null;
       }
     };
-  }, [ready, syncGraph, resyncSignal]);
+  }, [edgesOverride, nodesOverride, ready, syncGraph, resyncSignal]);
 
   // Clean up graph on unmount.
   useEffect(() => {

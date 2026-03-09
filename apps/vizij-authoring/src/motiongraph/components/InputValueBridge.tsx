@@ -15,14 +15,20 @@ import { INPUT_SOURCE_TYPE, type InputSourceNodeData } from "./InputSourceNode";
  *  - Instant: `appliedValue` is set on every slider change
  *  - Trigger: `appliedValue` is set only when the Trigger button is clicked
  */
-export function InputValueBridge({ active }: { active: boolean }) {
+export function InputValueBridge({
+  active,
+  nodes,
+}: {
+  active: boolean;
+  nodes?: EditorNode[];
+}) {
   if (!active) {
     return null;
   }
-  return <InputValueBridgeInner />;
+  return <InputValueBridgeInner nodes={nodes} />;
 }
 
-function InputValueBridgeInner() {
+function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
   const { setInput, ready: orchestratorReady } = useOrchestrator();
   const { namespace } = useVizijRuntime();
   // Track last pushed values to avoid redundant setInput calls.
@@ -31,8 +37,16 @@ function InputValueBridgeInner() {
   useEffect(() => {
     if (!orchestratorReady) return;
 
+    const syncNodes = nodes ?? useEditorStore.getState().nodes;
+
     // Push current values immediately.
-    syncAll(useEditorStore.getState().nodes);
+    syncAll(syncNodes);
+
+    if (nodes) {
+      return () => {
+        pushedRef.current.clear();
+      };
+    }
 
     const unsubscribe = useEditorStore.subscribe((state, prevState) => {
       if (state.nodes === prevState.nodes) return;
@@ -45,7 +59,7 @@ function InputValueBridgeInner() {
       pushedRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orchestratorReady, namespace, setInput]);
+  }, [nodes, orchestratorReady, namespace, setInput]);
 
   function syncAll(nodes: EditorNode[]) {
     for (const node of nodes) {

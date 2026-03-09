@@ -11,7 +11,11 @@ import { Button } from "../ui";
 import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
 import { InputValueBridge } from "../../motiongraph/components/InputValueBridge";
 import { MotionGraphValueSampler } from "../../motiongraph/components/MotionGraphValueSampler";
-import { useEditorStore } from "../../motiongraph/store/useEditorStore";
+import {
+  useEditorStore,
+  type EditorEdge,
+  type EditorNode,
+} from "../../motiongraph/store/useEditorStore";
 import {
   useBindingAuthoring,
   useGraphRuntime,
@@ -19,6 +23,7 @@ import {
 } from "../../state/RigControllerProvider";
 import { useAnimationStore } from "../../state/animationStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
+import type { AnimationClipIR } from "../../types/animationClipIr";
 import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
@@ -421,7 +426,10 @@ export interface ViewerProps {
   namespace: string;
   bundle: VizijAssetBundle | null;
   animationSourceActive?: boolean;
+  animationRuntimeClip?: AnimationClipIR | null;
   motionGraphSourceActive?: boolean;
+  motionGraphRuntimeNodes?: EditorNode[] | null;
+  motionGraphRuntimeEdges?: EditorEdge[] | null;
   runtimeStatusLabel?: string;
   playbackControlsDisabled?: boolean;
   onPlayActiveRuntime?: () => void;
@@ -454,7 +462,10 @@ export function Viewer({
   namespace: _namespace,
   bundle,
   animationSourceActive = true,
+  animationRuntimeClip = null,
   motionGraphSourceActive = false,
+  motionGraphRuntimeNodes = null,
+  motionGraphRuntimeEdges = null,
   runtimeStatusLabel,
   playbackControlsDisabled = false,
   onPlayActiveRuntime,
@@ -619,11 +630,25 @@ export function Viewer({
             ) : null}
             <RuntimeInputBridge />
             <RuntimeGraphBridge />
-            <AnimationRuntimeBridge active={animationSourceActive} />
-            <InputValueBridge active={motionGraphSourceActive} />
-            <MotionGraphDriverBridge active={motionGraphSourceActive} />
+            <AnimationRuntimeBridge
+              active={animationSourceActive}
+              clip={animationRuntimeClip}
+            />
+            <InputValueBridge
+              active={motionGraphSourceActive}
+              nodes={motionGraphRuntimeNodes ?? undefined}
+            />
+            <MotionGraphDriverBridge
+              active={motionGraphSourceActive}
+              nodes={motionGraphRuntimeNodes ?? undefined}
+              edges={motionGraphRuntimeEdges ?? undefined}
+            />
             <MotionGraphValueSampler
-              active={motionGraphSourceActive && plotActive}
+              active={
+                motionGraphSourceActive &&
+                plotActive &&
+                !motionGraphRuntimeNodes
+              }
             />
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay
