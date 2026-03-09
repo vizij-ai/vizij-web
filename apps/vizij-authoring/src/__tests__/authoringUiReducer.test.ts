@@ -12,6 +12,7 @@ const baseState: AuthoringUiState = {
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
+  rotationDisplayMode: "radians",
 };
 
 describe("authoringUiReducer", () => {
@@ -70,5 +71,13 @@ describe("authoringUiReducer", () => {
       payload: "reference-face",
     });
     expect(result.activeEditFocus).toBe("reference-face");
+  });
+
+  it("updates the rotation display mode", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-rotation-display-mode",
+      payload: "degrees",
+    });
+    expect(result.rotationDisplayMode).toBe("degrees");
   });
 });

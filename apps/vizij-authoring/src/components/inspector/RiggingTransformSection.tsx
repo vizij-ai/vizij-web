@@ -6,8 +6,14 @@ import type {
   SceneObjectNode,
   SceneObjectFeature,
 } from "../../scene/sceneGraph";
+import { useAuthoringUiState } from "../../state/AuthoringUiProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import {
+  fromRotationDisplayValue,
+  isRotationPropertyKey,
+  toRotationDisplayValue,
+} from "../../utils/rotationDisplay";
 import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
@@ -19,6 +25,7 @@ interface RiggingTransformSectionProps {
 export function RiggingTransformSection({
   node,
 }: RiggingTransformSectionProps) {
+  const { rotationDisplayMode } = useAuthoringUiState();
   const bindings = useBindingAuthoring((state) => state.bindings);
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsById = useBindingAuthoring(
@@ -82,6 +89,7 @@ export function RiggingTransformSection({
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
+          rotationDisplayMode={rotationDisplayMode}
         />
       )}
 
@@ -103,6 +111,7 @@ export function RiggingTransformSection({
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
+          rotationDisplayMode={rotationDisplayMode}
         />
       )}
 
@@ -124,6 +133,7 @@ export function RiggingTransformSection({
           onStaticValueChange={handleStaticValueChange}
           onUpdateStandardInput={handleUpdateStandardInput}
           setStaticFeatureValue={setStaticFeatureValue}
+          rotationDisplayMode={rotationDisplayMode}
         />
       )}
     </div>
@@ -149,6 +159,7 @@ interface RiggingVectorRowProps {
     id: string,
     updater: (curr: AnimatableValue) => AnimatableValue,
   ) => void;
+  rotationDisplayMode: "radians" | "degrees";
   onStaticValueChange?: (
     targetId: string,
     value: number,
@@ -175,6 +186,7 @@ function RiggingVectorRow({
   onValueChange,
   onDefaultChange,
   onConstraintChange,
+  rotationDisplayMode,
   onStaticValueChange,
   onUpdateStandardInput,
   setStaticFeatureValue,
@@ -186,6 +198,10 @@ function RiggingVectorRow({
   const handleSetInspectorTargetLocked = useBindingAuthoring(
     (state) => state.handleSetInspectorTargetLocked,
   );
+  const useDegreeDisplay =
+    rotationDisplayMode === "degrees" && isRotationPropertyKey(feature.key);
+  const displayStep = useDegreeDisplay ? 0.5 : 0.01;
+  const displayLabel = useDegreeDisplay ? `${label} (deg)` : label;
 
   // Extract inputs for x, y, z components
   const components = useMemo(() => {
@@ -422,6 +438,14 @@ function RiggingVectorRow({
             val = c.max as number;
             canEdit = true;
           }
+          const displayValue =
+            typeof val === "number"
+              ? toRotationDisplayValue(val, rotationDisplayMode)
+              : 0;
+          const toStoredValue = (nextValue: number) =>
+            useDegreeDisplay
+              ? fromRotationDisplayValue(nextValue, rotationDisplayMode)
+              : nextValue;
 
           return (
             <div
@@ -439,18 +463,24 @@ function RiggingVectorRow({
               <ScrubbableLabel
                 label={c.componentLabel}
                 onScrub={(_, totalDelta) => {
-                  const step = 0.05;
+                  const step = useDegreeDisplay ? 0.5 : 0.05;
+                  const deltaValue = useDegreeDisplay
+                    ? fromRotationDisplayValue(
+                        totalDelta * step,
+                        rotationDisplayMode,
+                      )
+                    : totalDelta * step;
                   if (type === "current") {
                     if (c.isLocked) {
                       return;
                     }
                     if (c.isBound && c.inputId) {
                       const startVal = scrubValuesRef.current[c.inputId] ?? 0;
-                      onValueChange(c.inputId, startVal + totalDelta * step);
+                      onValueChange(c.inputId, startVal + deltaValue);
                     } else if (onStaticValueChange) {
                       const startValueToUse =
                         scrubValuesRef.current["current"] ?? 0;
-                      const newVal = startValueToUse + totalDelta * step;
+                      const newVal = startValueToUse + deltaValue;
                       if (feature.animated && feature.animatableId) {
                         onStaticValueChange(
                           feature.animatableId,
@@ -467,7 +497,7 @@ function RiggingVectorRow({
                     }
                   } else if (type === "default" && c.inputId) {
                     const startVal = scrubValuesRef.current[c.inputId] ?? 0;
-                    const nextVal = startVal + totalDelta * step;
+                    const nextVal = startVal + deltaValue;
                     onDefaultChange(c.inputId, nextVal);
                     if (
                       onStaticValueChange &&
@@ -486,7 +516,7 @@ function RiggingVectorRow({
                     const key = c.componentLabel.toLowerCase();
                     const startVal =
                       scrubValuesRef.current[`${type}:${key}`] ?? 0;
-                    const nextVal = startVal + totalDelta * step;
+                    const nextVal = startVal + deltaValue;
 
                     if (c.inputId) {
                       onUpdateStandardInput(c.inputId, {
@@ -540,43 +570,44 @@ function RiggingVectorRow({
               <input
                 type="number"
                 className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none"
-                value={typeof val === "number" ? val : 0}
-                step={0.01}
+                value={displayValue}
+                step={displayStep}
                 disabled={!canEdit}
                 onChange={(e) => {
                   const num = parseFloat(e.target.value);
                   if (isNaN(num)) return;
+                  const nextValue = toStoredValue(num);
 
                   if (type === "current") {
                     if (c.isLocked) {
                       return;
                     }
                     if (c.isBound && c.inputId) {
-                      onValueChange(c.inputId, num);
+                      onValueChange(c.inputId, nextValue);
                     } else if (onStaticValueChange) {
                       if (feature.animated && feature.animatableId) {
                         onStaticValueChange(
                           feature.animatableId,
-                          num,
+                          nextValue,
                           c.componentLabel.toLowerCase(),
                         );
                       } else if (setStaticFeatureValue && node) {
                         const current = (feature.staticValue as any) || {};
                         setStaticFeatureValue(node.id, feature.id, {
                           ...current,
-                          [c.componentLabel.toLowerCase()]: num,
+                          [c.componentLabel.toLowerCase()]: nextValue,
                         });
                       }
                     }
                   } else if (type === "default" && c.inputId) {
-                    onDefaultChange(c.inputId, num);
+                    onDefaultChange(c.inputId, nextValue);
                     if (
                       onStaticValueChange &&
                       (c.targetId || feature.animatableId)
                     ) {
                       onStaticValueChange(
                         c.targetId ?? feature.animatableId!,
-                        num,
+                        nextValue,
                         c.componentLabel.toLowerCase(),
                       );
                     }
@@ -587,7 +618,7 @@ function RiggingVectorRow({
                     const key = c.componentLabel.toLowerCase();
                     if (c.inputId) {
                       onUpdateStandardInput(c.inputId, {
-                        range: { [type]: num },
+                        range: { [type]: nextValue },
                       });
                     }
                     if (feature.animatableId) {
@@ -599,7 +630,7 @@ function RiggingVectorRow({
                         const currentVal = nextConstraints[kind] || {};
                         nextConstraints[kind] = {
                           ...(typeof currentVal === "object" ? currentVal : {}),
-                          [key]: num,
+                          [key]: nextValue,
                         } as any;
                         return { ...curr, constraints: nextConstraints } as any;
                       });
@@ -651,7 +682,7 @@ function RiggingVectorRow({
 
   return (
     <RiggingPropertyRow
-      label={label}
+      label={displayLabel}
       hasDifferentDefault={hasDifferentDefault}
       hasMinChanged={hasMinChanged}
       hasMaxChanged={hasMaxChanged}
@@ -675,8 +706,8 @@ function RiggingVectorRow({
           )}
           title={
             areAllLockableTargetsLocked
-              ? `Unlock ${label} channels`
-              : `Lock ${label} channels`
+              ? `Unlock ${displayLabel} channels`
+              : `Lock ${displayLabel} channels`
           }
           disabled={lockableTargetIds.length === 0}
           onClick={toggleRowLock}

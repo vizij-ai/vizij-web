@@ -737,6 +737,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     skipDiscrepancyCheck,
     activeRuntimeSource,
     activeEditFocus,
+    rotationDisplayMode,
   } = uiState;
 
   const poseRig = usePoseRig();
@@ -2300,6 +2301,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onToggleSelectionGlow={setShowSelectionGlow}
       activeEditFocus={activeEditFocus}
       onSelectEditFocus={uiActions.setEditFocus}
+      rotationDisplayMode={rotationDisplayMode}
+      onSelectRotationDisplayMode={uiActions.setRotationDisplayMode}
     />
   );
 

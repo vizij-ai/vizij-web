@@ -10,6 +10,7 @@ export interface AuthoringUiState {
   skipDiscrepancyCheck: boolean;
   activeRuntimeSource: RuntimeAuthoringSource;
   activeEditFocus: EditFocus;
+  rotationDisplayMode: RotationDisplayMode;
 }
 
 export type AuthoringUiAction =
@@ -19,13 +20,15 @@ export type AuthoringUiAction =
   | { type: "set-rigging-tab"; payload: RiggingTab }
   | { type: "set-skip-discrepancy-check"; payload: boolean }
   | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource }
-  | { type: "set-edit-focus"; payload: EditFocus };
+  | { type: "set-edit-focus"; payload: EditFocus }
+  | { type: "set-rotation-display-mode"; payload: RotationDisplayMode };
 
 export type RiggingTab = "rigging" | "face";
 export type RuntimeAuthoringSource =
   | "animation"
   | "procedural-animation-programming"
   | "none";
+export type RotationDisplayMode = "radians" | "degrees";
 export type EditFocus =
   | "default"
   | "animation"
@@ -40,6 +43,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
+  rotationDisplayMode: "radians",
 };
 
 export function authoringUiReducer(
@@ -93,6 +97,11 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, activeEditFocus: action.payload };
+    case "set-rotation-display-mode":
+      if (state.rotationDisplayMode === action.payload) {
+        return state;
+      }
+      return { ...state, rotationDisplayMode: action.payload };
     default:
       return state;
   }
@@ -116,6 +125,7 @@ export interface AuthoringUiActions {
   setSkipDiscrepancyCheck: (value: boolean) => void;
   setActiveRuntimeSource: (value: RuntimeAuthoringSource) => void;
   setEditFocus: (value: EditFocus) => void;
+  setRotationDisplayMode: (value: RotationDisplayMode) => void;
 }
 
 export function AuthoringUiProvider({
@@ -141,6 +151,8 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-active-runtime-source", payload: value }),
       setEditFocus: (value) =>
         dispatch({ type: "set-edit-focus", payload: value }),
+      setRotationDisplayMode: (value) =>
+        dispatch({ type: "set-rotation-display-mode", payload: value }),
     }),
     [],
   );

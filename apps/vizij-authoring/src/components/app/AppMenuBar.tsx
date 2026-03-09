@@ -10,7 +10,10 @@ import {
 import { Button } from "../ui/Button";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { useWorkspaceStore } from "../../state/workspaceStore";
-import type { EditFocus } from "../../state/AuthoringUiProvider";
+import type {
+  EditFocus,
+  RotationDisplayMode,
+} from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
 
 interface AppMenuBarProps {
@@ -26,6 +29,8 @@ interface AppMenuBarProps {
   onToggleSelectionGlow: (enabled: boolean) => void;
   activeEditFocus: EditFocus;
   onSelectEditFocus: (focus: EditFocus) => void;
+  rotationDisplayMode: RotationDisplayMode;
+  onSelectRotationDisplayMode: (mode: RotationDisplayMode) => void;
 }
 
 export function AppMenuBar({
@@ -41,6 +46,8 @@ export function AppMenuBar({
   onToggleSelectionGlow,
   activeEditFocus,
   onSelectEditFocus,
+  rotationDisplayMode,
+  onSelectRotationDisplayMode,
 }: AppMenuBarProps) {
   const hierarchyPanelVisible = useWorkspaceStore(
     (state) => state.panels.hierarchy.isVisible,
@@ -250,6 +257,16 @@ export function AppMenuBar({
           Debug
         </MenuCheckboxItem>
 
+        <MenuSeparator />
+        <MenuLabel>Rotation Display</MenuLabel>
+        <MenuCheckboxItem
+          checked={rotationDisplayMode === "degrees"}
+          onCheckedChange={(checked) =>
+            onSelectRotationDisplayMode(checked ? "degrees" : "radians")
+          }
+        >
+          Show Rotation in Degrees
+        </MenuCheckboxItem>
         <MenuSeparator />
         <MenuCheckboxItem
           checked={showSelectionGlow}
