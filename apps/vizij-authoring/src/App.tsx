@@ -6,7 +6,10 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
-import type { StandardRigInput } from "@vizij/utils";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
   useWorkspaceStore,
@@ -60,7 +63,11 @@ import {
   type EditFocus,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
-import { InspectorPanel } from "./components/inspector/InspectorPanel";
+import {
+  InspectorPanel,
+  type AnimationInspectorSelection,
+  type ProgramInspectorSelection,
+} from "./components/inspector/InspectorPanel";
 import { SpeechPanel } from "./components/panels/SpeechPanel";
 import type {
   BlendStageInspectorSelection,
@@ -297,6 +304,18 @@ function buildProceduralExportSpec(snapshot: ProceduralProgramSnapshot): {
     nodes: unknown[];
     edges: unknown[];
   };
+}
+
+function resolveStandardInputForRuntimePath(
+  standardInputsByPath: ReadonlyMap<string, StandardRigInput>,
+  rawPath: string,
+): StandardRigInput | null {
+  const normalizedPath = normalizeStandardRigInputPath(rawPath);
+  return (
+    standardInputsByPath.get(normalizedPath) ??
+    standardInputsByPath.get(normalizedPath.replace(/^\/rig\/[^/]+\//, "/")) ??
+    null
+  );
 }
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
@@ -713,6 +732,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationTransportEnabled = useAnimationStore(
     (state) => state.transportEnabled,
   );
+  const selectAnimationTrack = useAnimationStore((state) => state.selectTrack);
+  const selectAnimationKeyframe = useAnimationStore(
+    (state) => state.selectKeyframe,
+  );
   const animationDuration = useAnimationStore((state) => state.duration);
   const setAnimationDuration = useAnimationStore((state) => state.setDuration);
   const {
@@ -1097,6 +1120,241 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedBundleProceduralMetrics,
     selectedProceduralTargetId,
   ]);
+  const selectedAnimationInspectorTarget =
+    useMemo<AnimationInspectorSelection | null>(() => {
+      if (!selectedAnimationTargetId) {
+        return null;
+      }
+
+      const authoredClipId = parseAuthoredAnimationTargetValue(
+        selectedAnimationTargetId,
+      );
+      let clip: AnimationClipIR | null = null;
+      let targetName = "Untitled Clip";
+      let source: "authored" | "imported" = "imported";
+
+      if (authoredClipId) {
+        const authoredTarget = authoredAnimationTargets.find(
+          (target) =>
+            target.targetId === selectedAnimationTargetId ||
+            target.clipId === authoredClipId,
+        );
+        if (!authoredTarget) {
+          return null;
+        }
+        targetName =
+          authoredTarget.name.trim().length > 0
+            ? authoredTarget.name
+            : "Untitled Clip";
+        source = "authored";
+        clip = exportAnimationClipIr({
+          id: authoredTarget.clipId,
+          name: targetName,
+        });
+      } else if (
+        selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+      ) {
+        const rawIndex = selectedAnimationTargetId.slice(
+          BUNDLE_ANIMATION_TARGET_PREFIX.length,
+        );
+        const index = Number.parseInt(rawIndex, 10);
+        if (!Number.isFinite(index) || index < 0) {
+          return null;
+        }
+        const entry = loadedBundle?.animations?.[index];
+        if (!entry) {
+          return null;
+        }
+        clip = bundleAnimationEntryToClipIr(entry, {
+          standardInputsById: mainFaceInputsById,
+        });
+        if (!clip) {
+          return null;
+        }
+        const overriddenDuration =
+          bundleAnimationDurationOverrides[selectedAnimationTargetId];
+        if (Number.isFinite(overriddenDuration)) {
+          clip = {
+            ...clip,
+            duration: overriddenDuration,
+          };
+        }
+        targetName =
+          bundleAnimationTargetOptions.find(
+            (option) => option.value === selectedAnimationTargetId,
+          )?.label ??
+          clip.name?.trim() ??
+          "Imported Animation";
+      } else {
+        return null;
+      }
+
+      return {
+        targetId: selectedAnimationTargetId,
+        name: targetName,
+        source,
+        duration: clip.duration,
+        trackCount: clip.tracks.length,
+        tracks: clip.tracks.map((track) => {
+          const directInput = mainFaceInputsById.get(track.variableId) ?? null;
+          const pathInput =
+            directInput ??
+            resolveStandardInputForRuntimePath(
+              standardInputsByPath,
+              track.channel,
+            );
+          return {
+            id: track.id,
+            label: track.label?.trim().length
+              ? track.label.trim()
+              : directInput?.label?.trim() ||
+                pathInput?.label?.trim() ||
+                track.variableId,
+            channel: track.channel,
+            keyframeCount: track.keyframes.length,
+            inputId: directInput?.id ?? pathInput?.id ?? null,
+            inputLabel:
+              directInput?.label?.trim() || pathInput?.label?.trim() || null,
+          };
+        }),
+      };
+    }, [
+      animationDuration,
+      animationTracks,
+      authoredAnimationTargets,
+      bundleAnimationDurationOverrides,
+      bundleAnimationTargetOptions,
+      exportAnimationClipIr,
+      loadedBundle?.animations,
+      mainFaceInputsById,
+      selectedAnimationTargetId,
+      standardInputsByPath,
+    ]);
+  const selectedProgramInspectorTarget =
+    useMemo<ProgramInspectorSelection | null>(() => {
+      if (!selectedProceduralTargetId) {
+        return null;
+      }
+
+      let snapshot: ProceduralProgramSnapshot | null = null;
+      let targetName = "Untitled Program";
+      let source: "authored" | "imported" = "imported";
+
+      const authoredProgramId = parseAuthoredProceduralTargetValue(
+        selectedProceduralTargetId,
+      );
+      if (authoredProgramId) {
+        const authoredTarget = authoredProceduralTargets.find(
+          (target) =>
+            target.targetId === selectedProceduralTargetId ||
+            target.programId === authoredProgramId,
+        );
+        if (!authoredTarget) {
+          return null;
+        }
+        targetName =
+          authoredTarget.name.trim().length > 0
+            ? authoredTarget.name
+            : "Untitled Program";
+        source = "authored";
+        snapshot =
+          selectedProceduralTargetId === authoredTarget.targetId
+            ? snapshotProceduralEditorState()
+            : structuredClone(authoredTarget.snapshot);
+      } else if (
+        selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+      ) {
+        const rawIndex = selectedProceduralTargetId.slice(
+          BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+        );
+        const index = Number.parseInt(rawIndex, 10);
+        if (!Number.isFinite(index) || index < 0) {
+          return null;
+        }
+        const entry = bundleProceduralEntries[index];
+        if (!entry?.spec || typeof entry.spec !== "object") {
+          return null;
+        }
+        const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+        snapshot = {
+          nodes: parsed.nodes,
+          edges: parsed.edges,
+          enabledOutputs: Array.from(parsed.enabledOutputs),
+          enabledInputs: Array.from(parsed.enabledInputs),
+          customInputPaths: [...parsed.customInputPaths],
+        };
+        targetName =
+          bundleProceduralTargetOptions.find(
+            (option) => option.value === selectedProceduralTargetId,
+          )?.label ?? "Imported Program";
+      } else {
+        return null;
+      }
+
+      const customInputPathSet = new Set(snapshot.customInputPaths);
+      const inputs = Array.from(new Set(snapshot.enabledInputs))
+        .sort((left, right) => left.localeCompare(right))
+        .map((path) => {
+          const input = resolveStandardInputForRuntimePath(
+            standardInputsByPath,
+            path,
+          );
+          return {
+            path,
+            label: input?.label?.trim() || input?.id || path,
+            inputId: input?.id ?? null,
+            tag: customInputPathSet.has(path) ? "Custom" : null,
+          };
+        });
+      const outputs = Array.from(new Set(snapshot.enabledOutputs))
+        .sort((left, right) => left.localeCompare(right))
+        .map((path) => {
+          const input = resolveStandardInputForRuntimePath(
+            standardInputsByPath,
+            path,
+          );
+          return {
+            path,
+            label: input?.label?.trim() || input?.id || path,
+            inputId: input?.id ?? null,
+            tag: input ? null : "External",
+          };
+        });
+
+      return {
+        targetId: selectedProceduralTargetId,
+        name: targetName,
+        source,
+        nodeCount: snapshot.nodes.length,
+        edgeCount: snapshot.edges.length,
+        inputCount: inputs.length,
+        outputCount: outputs.length,
+        nodes: snapshot.nodes.map((node) => {
+          const rawLabel = node.data?.label;
+          return {
+            id: node.id,
+            label:
+              typeof rawLabel === "string" && rawLabel.trim().length > 0
+                ? rawLabel.trim()
+                : (node.type ?? node.id),
+            type: node.type ?? "node",
+          };
+        }),
+        inputs,
+        outputs,
+      };
+    }, [
+      authoredProceduralTargets,
+      bundleProceduralEntries,
+      bundleProceduralTargetOptions,
+      proceduralEditorCustomInputPaths,
+      proceduralEditorEdges,
+      proceduralEditorEnabledInputs,
+      proceduralEditorEnabledOutputs,
+      proceduralEditorNodes,
+      selectedProceduralTargetId,
+      standardInputsByPath,
+    ]);
 
   const handleSelectAnimationTarget = useCallback(
     (targetId: string) => {
@@ -1684,9 +1942,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setActiveAuthoringSurface("animations");
       setWorkspacePanelVisibility("animation", true);
       uiActions.setActiveRuntimeSource("animation");
+      selectAnimationTrack(null);
+      selectAnimationKeyframe(null);
       handleSelectAnimationTarget(targetId);
     },
-    [handleSelectAnimationTarget, setWorkspacePanelVisibility, uiActions],
+    [
+      handleSelectAnimationTarget,
+      selectAnimationKeyframe,
+      selectAnimationTrack,
+      setWorkspacePanelVisibility,
+      uiActions,
+    ],
   );
   const handleInspectProgramTarget = useCallback(
     (targetId: string) => {
@@ -1694,6 +1960,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setWorkspacePanelVisibility("motiongraphPalette", true);
       setWorkspacePanelVisibility("motiongraph", true);
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
+      useEditorStore.getState().setSelected(null);
       handleSelectProceduralTarget(targetId);
     },
     [handleSelectProceduralTarget, setWorkspacePanelVisibility, uiActions],
@@ -1752,6 +2019,68 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       stopPapGraph();
     },
     [handleInspectProgramTarget, stopPapGraph],
+  );
+  const handleRenameAnimationTarget = useCallback(
+    (targetId: string, nextName: string) => {
+      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
+      if (authoredClipId) {
+        setAuthoredAnimationTargets((previous) =>
+          previous.map((target) =>
+            target.targetId === targetId || target.clipId === authoredClipId
+              ? { ...target, name: nextName }
+              : target,
+          ),
+        );
+        return;
+      }
+      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        return;
+      }
+      setBundleAnimationNameOverrides((previous) => ({
+        ...previous,
+        [targetId]: nextName,
+      }));
+    },
+    [],
+  );
+  const handleInspectAnimationTrackFromInspector = useCallback(
+    (trackId: string) => {
+      setActiveAuthoringSurface("animations");
+      setWorkspacePanelVisibility("animation", true);
+      uiActions.setActiveRuntimeSource("animation");
+      selectAnimationKeyframe(null);
+      selectAnimationTrack(trackId);
+    },
+    [
+      selectAnimationKeyframe,
+      selectAnimationTrack,
+      setWorkspacePanelVisibility,
+      uiActions,
+    ],
+  );
+  const handleRenameProgramTarget = useCallback(
+    (targetId: string, nextName: string) => {
+      const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
+      if (authoredProgramId) {
+        setAuthoredProceduralTargets((previous) =>
+          previous.map((target) =>
+            target.targetId === targetId ||
+            target.programId === authoredProgramId
+              ? { ...target, name: nextName }
+              : target,
+          ),
+        );
+        return;
+      }
+      if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        return;
+      }
+      setBundleProceduralNameOverrides((previous) => ({
+        ...previous,
+        [targetId]: nextName,
+      }));
+    },
+    [],
   );
 
   const authoredProceduralProgramsForExport = useMemo(() => {
@@ -2400,6 +2729,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       handleSelectMotionGraphNode(id);
     },
     [clearPoseGraphInspectorSelection, handleSelectMotionGraphNode],
+  );
+  const handleInspectProgramNodeFromInspector = useCallback(
+    (nodeId: string) => {
+      setActiveAuthoringSurface("programs");
+      setWorkspacePanelVisibility("motiongraphPalette", true);
+      setWorkspacePanelVisibility("motiongraph", true);
+      uiActions.setActiveRuntimeSource("procedural-animation-programming");
+      handleSelectMotionGraphNodeWithInspectorSync(nodeId);
+    },
+    [
+      handleSelectMotionGraphNodeWithInspectorSync,
+      setWorkspacePanelVisibility,
+      uiActions,
+    ],
+  );
+  const handleInspectInputFromAuthoringInspector = useCallback(
+    (inputId: string) => {
+      setWorkspacePanelVisibility("inspector", true);
+      handleSelectRigWithInspectorSync(inputId);
+    },
+    [handleSelectRigWithInspectorSync, setWorkspacePanelVisibility],
   );
   useEffect(() => {
     if (motionGraphPanelVisible) {
@@ -3066,6 +3416,28 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
                     selectedBlendStage={selectedBlendStage}
                     onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
+                    selectedAnimationTarget={
+                      activeAuthoringSurface === "animations"
+                        ? selectedAnimationInspectorTarget
+                        : null
+                    }
+                    onRenameAnimationTarget={handleRenameAnimationTarget}
+                    onInspectAnimationTrack={
+                      handleInspectAnimationTrackFromInspector
+                    }
+                    onInspectAnimationInput={
+                      handleInspectInputFromAuthoringInspector
+                    }
+                    selectedProgramTarget={
+                      activeAuthoringSurface === "programs"
+                        ? selectedProgramInspectorTarget
+                        : null
+                    }
+                    onRenameProgramTarget={handleRenameProgramTarget}
+                    onInspectProgramNode={handleInspectProgramNodeFromInspector}
+                    onInspectProgramInput={
+                      handleInspectInputFromAuthoringInspector
+                    }
                     hasReferenceFaceFile={Boolean(
                       referenceFaceContextValue.file,
                     )}

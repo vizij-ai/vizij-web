@@ -1,7 +1,9 @@
+import type { KeyboardEvent, ReactNode } from "react";
 import { useMemo } from "react";
-import { RotateCcw, Activity, Trash2, X } from "lucide-react";
+import { Activity, RotateCcw, Trash2, X } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
 import { EmptyState } from "../ui/EmptyState";
@@ -44,8 +46,60 @@ interface InspectorPanelProps {
   onSelectPoseGroup?: (selection: PoseGroupInspectorSelection | null) => void;
   selectedBlendStage?: BlendStageInspectorSelection | null;
   onSelectBlendStage?: (selection: BlendStageInspectorSelection | null) => void;
+  selectedAnimationTarget?: AnimationInspectorSelection | null;
+  onRenameAnimationTarget?: (targetId: string, nextName: string) => void;
+  onInspectAnimationTrack?: (trackId: string) => void;
+  onInspectAnimationInput?: (inputId: string) => void;
+  selectedProgramTarget?: ProgramInspectorSelection | null;
+  onRenameProgramTarget?: (targetId: string, nextName: string) => void;
+  onInspectProgramNode?: (nodeId: string) => void;
+  onInspectProgramInput?: (inputId: string) => void;
   hasReferenceFaceFile?: boolean;
   onClosePanel?: () => void;
+}
+
+export interface AnimationInspectorTrackSelection {
+  id: string;
+  label: string;
+  channel: string;
+  keyframeCount: number;
+  inputId: string | null;
+  inputLabel: string | null;
+}
+
+export interface AnimationInspectorSelection {
+  targetId: string;
+  name: string;
+  source: "authored" | "imported";
+  duration: number;
+  trackCount: number;
+  tracks: readonly AnimationInspectorTrackSelection[];
+}
+
+export interface ProgramInspectorNodeSelection {
+  id: string;
+  label: string;
+  type: string;
+}
+
+export interface ProgramInspectorIoSelection {
+  path: string;
+  label: string;
+  inputId: string | null;
+  tag?: string | null;
+}
+
+export interface ProgramInspectorSelection {
+  targetId: string;
+  name: string;
+  source: "authored" | "imported";
+  nodeCount: number;
+  edgeCount: number;
+  inputCount: number;
+  outputCount: number;
+  nodes: readonly ProgramInspectorNodeSelection[];
+  inputs: readonly ProgramInspectorIoSelection[];
+  outputs: readonly ProgramInspectorIoSelection[];
 }
 
 function clamp01(value: number): number {
@@ -148,11 +202,107 @@ function resolveAnimationTimeFieldLabel(
   return mode === "frames" ? "Frame" : "Time";
 }
 
+function handleNameFieldKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.currentTarget.blur();
+  }
+}
+
+function commitInspectorNameChange(
+  currentName: string,
+  onCommit: ((nextName: string) => void) | undefined,
+  rawValue: string,
+) {
+  if (!onCommit) {
+    return;
+  }
+  const trimmed = rawValue.trim();
+  if (!trimmed || trimmed === currentName) {
+    return;
+  }
+  onCommit(trimmed);
+}
+
+function InspectorSection({
+  title,
+  count,
+  emptyMessage,
+  children,
+}: {
+  title: string;
+  count?: number;
+  emptyMessage?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-wider text-text-muted">
+          {title}
+        </span>
+        {typeof count === "number" ? (
+          <span className="text-[10px] text-text-muted font-mono">{count}</span>
+        ) : null}
+      </div>
+      {count === 0 && emptyMessage ? (
+        <p className="text-[10px] text-text-muted">{emptyMessage}</p>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+function InspectorEntryButton({
+  title,
+  meta,
+  onClick,
+  action,
+}: {
+  title: string;
+  meta: string;
+  onClick?: () => void;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded border border-border-default/50 bg-bg-input/35 px-2 py-1.5">
+      <button
+        type="button"
+        className={cn(
+          "min-w-0 flex-1 text-left transition-colors",
+          onClick
+            ? "hover:text-text-primary text-text-secondary"
+            : "cursor-default text-text-secondary",
+        )}
+        onClick={onClick}
+        disabled={!onClick}
+      >
+        <div className="truncate text-[10px] font-semibold text-text-primary">
+          {title}
+        </div>
+        <div className="truncate font-mono text-[10px] text-text-muted">
+          {meta}
+        </div>
+      </button>
+      {action}
+    </div>
+  );
+}
+
 export function InspectorPanel({
   selectedPoseGroup = null,
   onSelectPoseGroup,
   selectedBlendStage = null,
   onSelectBlendStage,
+  selectedAnimationTarget = null,
+  onRenameAnimationTarget,
+  onInspectAnimationTrack,
+  onInspectAnimationInput,
+  selectedProgramTarget = null,
+  onRenameProgramTarget,
+  onInspectProgramNode,
+  onInspectProgramInput,
   hasReferenceFaceFile = false,
   onClosePanel,
 }: InspectorPanelProps) {
@@ -879,6 +1029,17 @@ export function InspectorPanel({
     !isDedicatedInspectorMode &&
     !showMotionGraphInspector &&
     Boolean(selectedAnimationTrack);
+  const showAnimationTargetInspector =
+    !isDedicatedInspectorMode &&
+    !showMotionGraphInspector &&
+    !showAnimationInspector &&
+    Boolean(selectedAnimationTarget);
+  const showProgramTargetInspector =
+    !isDedicatedInspectorMode &&
+    !showMotionGraphInspector &&
+    !showAnimationInspector &&
+    !showAnimationTargetInspector &&
+    Boolean(selectedProgramTarget);
 
   return (
     <Panel
@@ -887,20 +1048,28 @@ export function InspectorPanel({
           ? "Pose Group Inspector"
           : isBlendStageInspectorMode
             ? "Blend Stage Inspector"
-            : showMotionGraphInspector
-              ? "Procedural Animation Programming Inspector"
-              : showAnimationInspector
+            : showProgramTargetInspector
+              ? "Program Inspector"
+              : showAnimationTargetInspector
                 ? "Animation Inspector"
-                : "Inspector"
+                : showMotionGraphInspector
+                  ? "Procedural Animation Programming Inspector"
+                  : showAnimationInspector
+                    ? "Animation Inspector"
+                    : "Inspector"
       }
       description={
         isDedicatedInspectorMode
           ? "Author composition and inspect live output behavior."
-          : showMotionGraphInspector
-            ? "Inspect and edit the selected procedural animation programming node."
-            : showAnimationInspector
-              ? "Inspect and edit the selected animation track or keyframe."
-              : "View and edit selected object properties."
+          : showProgramTargetInspector
+            ? "Inspect and edit the selected procedural animation program."
+            : showAnimationTargetInspector
+              ? "Inspect and edit the selected animation clip."
+              : showMotionGraphInspector
+                ? "Inspect and edit the selected procedural animation programming node."
+                : showAnimationInspector
+                  ? "Inspect and edit the selected animation track or keyframe."
+                  : "View and edit selected object properties."
       }
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={
@@ -920,8 +1089,214 @@ export function InspectorPanel({
       <div className="flex flex-col h-full min-h-0">
         {!isDedicatedInspectorMode && (
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {showMotionGraphInspector ? (
+            {showProgramTargetInspector && selectedProgramTarget ? (
+              <div className="flex flex-col gap-2 p-2">
+                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Name
+                      </div>
+                      <div className="text-[10px] font-mono text-text-muted">
+                        {selectedProgramTarget.source === "authored"
+                          ? "Authored program"
+                          : "Imported program"}
+                      </div>
+                    </div>
+                    <div className="text-[10px] font-mono text-text-muted">
+                      {selectedProgramTarget.nodeCount} nodes ·{" "}
+                      {selectedProgramTarget.edgeCount} edges
+                    </div>
+                  </div>
+                  <Input
+                    key={selectedProgramTarget.targetId}
+                    size="sm"
+                    defaultValue={selectedProgramTarget.name}
+                    className="h-7 text-[11px]"
+                    onBlur={(event) =>
+                      commitInspectorNameChange(
+                        selectedProgramTarget.name,
+                        (nextName) =>
+                          onRenameProgramTarget?.(
+                            selectedProgramTarget.targetId,
+                            nextName,
+                          ),
+                        event.target.value,
+                      )
+                    }
+                    onKeyDown={handleNameFieldKeyDown}
+                  />
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-text-muted">
+                    <div>Inputs: {selectedProgramTarget.inputCount}</div>
+                    <div>Outputs: {selectedProgramTarget.outputCount}</div>
+                  </div>
+                </div>
+
+                <InspectorSection
+                  title="Nodes"
+                  count={selectedProgramTarget.nodes.length}
+                  emptyMessage="No nodes available for this program."
+                >
+                  <div className="flex flex-col gap-1.5">
+                    {selectedProgramTarget.nodes.map((node) => (
+                      <InspectorEntryButton
+                        key={node.id}
+                        title={node.label}
+                        meta={`${node.type} · ${node.id}`}
+                        onClick={
+                          onInspectProgramNode
+                            ? () => onInspectProgramNode(node.id)
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                </InspectorSection>
+
+                <InspectorSection
+                  title="Inputs"
+                  count={selectedProgramTarget.inputs.length}
+                  emptyMessage="No runtime inputs are exposed by this program."
+                >
+                  <div className="flex flex-col gap-1.5">
+                    {selectedProgramTarget.inputs.map((entry) => (
+                      <InspectorEntryButton
+                        key={entry.path}
+                        title={entry.label}
+                        meta={entry.path}
+                        action={
+                          entry.inputId && onInspectProgramInput ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() =>
+                                onInspectProgramInput(entry.inputId!)
+                              }
+                            >
+                              Driver
+                            </Button>
+                          ) : entry.tag ? (
+                            <span className="text-[10px] font-mono text-text-muted">
+                              {entry.tag}
+                            </span>
+                          ) : null
+                        }
+                      />
+                    ))}
+                  </div>
+                </InspectorSection>
+
+                <InspectorSection
+                  title="Outputs"
+                  count={selectedProgramTarget.outputs.length}
+                  emptyMessage="No runtime outputs are exposed by this program."
+                >
+                  <div className="flex flex-col gap-1.5">
+                    {selectedProgramTarget.outputs.map((entry) => (
+                      <InspectorEntryButton
+                        key={entry.path}
+                        title={entry.label}
+                        meta={entry.path}
+                        action={
+                          entry.inputId && onInspectProgramInput ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() =>
+                                onInspectProgramInput(entry.inputId!)
+                              }
+                            >
+                              Driver
+                            </Button>
+                          ) : entry.tag ? (
+                            <span className="text-[10px] font-mono text-text-muted">
+                              {entry.tag}
+                            </span>
+                          ) : null
+                        }
+                      />
+                    ))}
+                  </div>
+                </InspectorSection>
+              </div>
+            ) : showMotionGraphInspector ? (
               <MgNodeInspector />
+            ) : showAnimationTargetInspector && selectedAnimationTarget ? (
+              <div className="flex flex-col gap-2 p-2">
+                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-text-muted">
+                        Name
+                      </div>
+                      <div className="text-[10px] font-mono text-text-muted">
+                        {selectedAnimationTarget.source === "authored"
+                          ? "Authored clip"
+                          : "Imported clip"}
+                      </div>
+                    </div>
+                    <div className="text-[10px] font-mono text-text-muted">
+                      {selectedAnimationTarget.trackCount} tracks ·{" "}
+                      {selectedAnimationTarget.duration.toFixed(2)}s
+                    </div>
+                  </div>
+                  <Input
+                    key={selectedAnimationTarget.targetId}
+                    size="sm"
+                    defaultValue={selectedAnimationTarget.name}
+                    className="h-7 text-[11px]"
+                    onBlur={(event) =>
+                      commitInspectorNameChange(
+                        selectedAnimationTarget.name,
+                        (nextName) =>
+                          onRenameAnimationTarget?.(
+                            selectedAnimationTarget.targetId,
+                            nextName,
+                          ),
+                        event.target.value,
+                      )
+                    }
+                    onKeyDown={handleNameFieldKeyDown}
+                  />
+                </div>
+
+                <InspectorSection
+                  title="Tracks"
+                  count={selectedAnimationTarget.tracks.length}
+                  emptyMessage="No tracks yet for this animation."
+                >
+                  <div className="flex flex-col gap-1.5">
+                    {selectedAnimationTarget.tracks.map((track) => (
+                      <InspectorEntryButton
+                        key={track.id}
+                        title={track.label}
+                        meta={`${track.channel} · ${track.keyframeCount} keyframes`}
+                        onClick={
+                          onInspectAnimationTrack
+                            ? () => onInspectAnimationTrack(track.id)
+                            : undefined
+                        }
+                        action={
+                          track.inputId && onInspectAnimationInput ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() =>
+                                onInspectAnimationInput(track.inputId!)
+                              }
+                            >
+                              {track.inputLabel ?? "Driver"}
+                            </Button>
+                          ) : null
+                        }
+                      />
+                    ))}
+                  </div>
+                </InspectorSection>
+              </div>
             ) : showAnimationInspector && selectedAnimationTrack ? (
               <div className="flex flex-col gap-2 p-2">
                 <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
