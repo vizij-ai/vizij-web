@@ -20,6 +20,7 @@ function createBaseProps(): VariablePipelineStagesProps {
       {
         id: "parent:jaw",
         label: "Jaw Parent",
+        expressionVariable: "s1",
         kind: "variable" as const,
         onInspect: vi.fn(),
         directControl: {
@@ -66,6 +67,8 @@ function createBaseProps(): VariablePipelineStagesProps {
     },
     directInputEnabled: true,
     directInputPath: "rig/robot/controls/jawOpen",
+    rotationDisplayPath: "rig/robot/controls/jawOpen",
+    rotationDisplayMode: "degrees",
     directValue: 0.2,
     directDefaultValue: 0,
     directMin: -1,
@@ -103,7 +106,62 @@ function openStage(
   return stage;
 }
 
+function hasNumericInputValue(
+  container: HTMLElement,
+  expected: number,
+  tolerance = 1e-3,
+): boolean {
+  return Array.from(container.querySelectorAll("input")).some((element) => {
+    const value = Number((element as HTMLInputElement).value);
+    return Number.isFinite(value) && Math.abs(value - expected) <= tolerance;
+  });
+}
+
+function getTextInputByValue(
+  container: HTMLElement,
+  expected: string,
+): HTMLInputElement {
+  const input = Array.from(container.querySelectorAll("input")).find(
+    (element) =>
+      (element as HTMLInputElement).type === "text" &&
+      (element as HTMLInputElement).value === expected,
+  );
+  if (!input) {
+    throw new Error(`No text input found with value ${expected}`);
+  }
+  return input as HTMLInputElement;
+}
+
 describe("VariablePipelineStages", () => {
+  it("displays rotational direct-input values in degrees and converts edits back to radians", () => {
+    const props = createBaseProps();
+    props.directInputPath = "/propsrig/head/rotation/x";
+    props.rotationDisplayPath = props.directInputPath;
+    props.directValue = Math.PI / 2;
+    props.directDefaultValue = Math.PI / 4;
+    props.directMin = -Math.PI;
+    props.directMax = Math.PI;
+    props.onDirectValueChange = vi.fn();
+
+    const view = render(<VariablePipelineStages {...props} />);
+    const directStage = openStage(
+      view,
+      "pipeline-stage-direct-input",
+      /direct input/i,
+    );
+
+    expect(hasNumericInputValue(directStage, 90)).toBe(true);
+    expect(
+      within(directStage).getByRole("button", { name: /reset \(45\.00\)/i }),
+    ).toBeTruthy();
+
+    fireEvent.change(getTextInputByValue(directStage, "90"), {
+      target: { value: "180" },
+    });
+
+    expect(props.onDirectValueChange).toHaveBeenCalledWith(Math.PI);
+  });
+
   it("keeps parents and children sections open by default", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);
@@ -230,6 +288,41 @@ describe("VariablePipelineStages", () => {
     );
   });
 
+  it("applies advanced parent formulas from collapsed editor", () => {
+    const props = createBaseProps();
+    const onParentFormulaChange = vi.fn();
+    props.parents = [
+      {
+        ...props.parents[0]!,
+        parentFormula: "s1 = parent * scale + offset",
+        parentFormulaDefault: "s1 = parent * scale + offset",
+        onParentFormulaChange,
+      },
+    ];
+    const view = render(<VariablePipelineStages {...props} />);
+    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+
+    fireEvent.click(
+      within(parentStage).getByRole("button", { name: /jaw parent/i }),
+    );
+    fireEvent.click(within(parentStage).getByText("Advanced Formula"));
+
+    fireEvent.change(
+      within(parentStage).getByTestId(
+        "pipeline-parent-formula-editor-parent:jaw",
+      ),
+      {
+        target: { value: "s1 = parent * scale + offset * 2" },
+      },
+    );
+    fireEvent.click(
+      within(parentStage).getByRole("button", { name: "Apply Formula" }),
+    );
+    expect(onParentFormulaChange).toHaveBeenCalledWith(
+      "s1 = parent * scale + offset * 2",
+    );
+  });
+
   it("commits parent and child link scale/offset changes on blur", () => {
     const props = createBaseProps();
     const parentScaleChange = props.parents[0]?.linkControl?.onScaleChange;
@@ -316,6 +409,19 @@ describe("VariablePipelineStages", () => {
     ).toBeNull();
   });
 
+  it("shows parent variable mapping with expanded contribution math", () => {
+    const props = createBaseProps();
+    const view = render(<VariablePipelineStages {...props} />);
+    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+
+    const mapping = within(parentStage).getByTestId(
+      "pipeline-parent-variable-mapping",
+    );
+    expect(within(mapping).getByText("Parent Variable Mapping")).toBeTruthy();
+    expect(within(mapping).getByText("s1 = parent * 1 + 0")).toBeTruthy();
+    expect(within(mapping).getByText("s1 = 0.4 * 1 + 0 = 0.4")).toBeTruthy();
+  });
+
   it("renders slider controls for parent, direct, and override stages", () => {
     const props = createBaseProps();
     props.overrideEnabled = true;
@@ -340,6 +446,36 @@ describe("VariablePipelineStages", () => {
 
     const sliders = view.getAllByRole("slider");
     expect(sliders.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("displays rotational driver values in degrees by default", () => {
+    const props = createBaseProps();
+    props.rotationDisplayPath = "/propsrig/head/rotation/x";
+    props.directInputPath = "/propsrig/head/rotation/x";
+    props.directValue = Math.PI / 2;
+    props.directDefaultValue = Math.PI / 4;
+    props.directMin = -Math.PI;
+    props.directMax = Math.PI;
+    props.overrideEnabled = true;
+    props.overrideValue = Math.PI / 6;
+    props.overrideMin = -Math.PI;
+    props.overrideMax = Math.PI;
+
+    const view = render(<VariablePipelineStages {...props} />);
+    const directStage = openStage(
+      view,
+      "pipeline-stage-direct-input",
+      /direct input/i,
+    );
+    const overrideStage = openStage(
+      view,
+      "pipeline-stage-override",
+      /override/i,
+    );
+
+    expect(hasNumericInputValue(directStage, 90)).toBe(true);
+    expect(within(directStage).getByText("Reset (45.00)")).toBeTruthy();
+    expect(hasNumericInputValue(overrideStage, 30)).toBe(true);
   });
 
   it("shows disabled state labels for direct and override toggles when off", () => {

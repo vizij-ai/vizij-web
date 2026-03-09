@@ -28,6 +28,7 @@ export function RigGraphExportPanel({
         </label>
         <div className="flex gap-2">
           <Input
+            data-testid="export-rig-graph-file-name"
             id="vizij-graph-name"
             type="text"
             className="flex-1 bg-slate-950/50 border-slate-800"
@@ -37,7 +38,11 @@ export function RigGraphExportPanel({
             disabled={!canExport}
             spellCheck={false}
           />
-          <Button onClick={onExportGraph} disabled={!canExport}>
+          <Button
+            data-testid="export-rig-graph-button"
+            onClick={onExportGraph}
+            disabled={!canExport}
+          >
             Export
           </Button>
         </div>

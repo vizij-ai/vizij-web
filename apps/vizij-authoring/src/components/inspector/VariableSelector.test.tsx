@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("VariableSelector", () => {
-  it("excludes /rig/element paths from the variables tab", () => {
+  it("excludes /rig/element paths when filtering to drivers", () => {
     mockedUseBindingAuthoring.mockReturnValue({
       managedStandardInputs: [
         {
@@ -47,17 +47,22 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
 
-    fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
-      target: { value: "Jaw Open" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "Jaw Open" },
+      },
+    );
+    fireEvent.click(screen.getByText("Path · /standard/jaw"));
 
     expect(screen.getByText("Jaw Open")).toBeTruthy();
     expect(screen.queryByText("Rig Element Jaw Open")).toBeNull();
   });
 
-  it("matches variables by path segments and id fragments", () => {
+  it("matches drivers by path segments and id fragments", () => {
     mockedUseBindingAuthoring.mockReturnValue({
       managedStandardInputs: [
         {
@@ -77,16 +82,24 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="variables" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
 
-    fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
-      target: { value: "mouth morph" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "mouth morph" },
+      },
+    );
+    fireEvent.click(screen.getByText("Group · semio"));
     expect(screen.getByText("Smile Left")).toBeTruthy();
 
-    fireEvent.change(screen.getByPlaceholderText("Search drivers..."), {
-      target: { value: "ctrl_01" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "ctrl_01" },
+      },
+    );
     expect(screen.getByText("Smile Left")).toBeTruthy();
   });
 
@@ -121,7 +134,8 @@ describe("VariableSelector", () => {
     });
 
     const onSelect = vi.fn();
-    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+    render(<VariableSelector onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
     fireEvent.click(screen.getByText("Group · face"));
     expect(screen.getByText("Jaw X")).toBeTruthy();
@@ -132,7 +146,7 @@ describe("VariableSelector", () => {
     expect(screen.queryByRole("button", { name: /^Y\s*\d+/i })).toBeNull();
 
     fireEvent.click(screen.getByText("Jaw X"));
-    fireEvent.click(screen.getByRole("button", { name: "Add All (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Selected (1)" }));
 
     expect(onSelect).toHaveBeenLastCalledWith({
       type: "property",
@@ -177,7 +191,8 @@ describe("VariableSelector", () => {
     });
 
     const onSelect = vi.fn();
-    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+    render(<VariableSelector onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
     fireEvent.click(screen.getByText("Group · face"));
     expect(screen.getByText("Locked")).toBeTruthy();
@@ -250,11 +265,15 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="scene" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
-    fireEvent.change(screen.getByPlaceholderText("Search properties..."), {
-      target: { value: "eye" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "eye" },
+      },
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /Translation/i }));
     fireEvent.click(screen.getByRole("button", { name: /Rotation/i }));
@@ -272,6 +291,7 @@ describe("VariableSelector", () => {
     expect(yFilter).toBeTruthy();
     fireEvent.click(xFilter!);
     fireEvent.click(yFilter!);
+    fireEvent.click(screen.getByText("Group · face"));
 
     expect(screen.getByText("Left Eye Translate X")).toBeTruthy();
     expect(screen.getByText("Left Eye Rotate Y")).toBeTruthy();
@@ -323,12 +343,13 @@ describe("VariableSelector", () => {
     });
 
     const onSelect = vi.fn();
-    render(<VariableSelector onSelect={onSelect} defaultTab="scene" />);
+    render(<VariableSelector onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
     fireEvent.click(screen.getByText("Group · face"));
     fireEvent.click(screen.getByText("Left Eye Translate X"));
     fireEvent.click(screen.getByText("Left Eye Rotate X"));
-    fireEvent.click(screen.getByRole("button", { name: "Add All (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Selected (2)" }));
 
     expect(onSelect).toHaveBeenLastCalledWith({
       type: "property",
@@ -340,7 +361,95 @@ describe("VariableSelector", () => {
     });
   });
 
-  it("shows actionable empty-state diagnostics for property searches", () => {
+  it("supports staged mixed selection across filters", () => {
+    mockedUseBindingAuthoring.mockReturnValue({
+      managedStandardInputs: [
+        {
+          input: {
+            id: "jaw_open",
+            path: "/standard/jaw/open",
+            label: "Jaw Open",
+            group: "face",
+          },
+        },
+        {
+          input: {
+            id: "eye_translate_x",
+            path: "/propsrig/eye_left/translation/x",
+            label: "Left Eye Translate X",
+            group: "face",
+            sourceId: "component:face:translation:x:comp_eye_tx",
+          },
+          metadata: {
+            elementId: "face_mesh",
+            featureKey: "translation",
+            featureLabel: "Translation",
+            componentId: "comp_eye_tx",
+            componentKey: "x",
+          },
+        },
+        {
+          input: {
+            id: "eye_rotate_x",
+            path: "/propsrig/eye_left/rotation/x",
+            label: "Left Eye Rotate X",
+            group: "face",
+            sourceId: "component:face:rotation:x:comp_eye_rx",
+          },
+          metadata: {
+            elementId: "face_mesh",
+            featureKey: "rotation",
+            featureLabel: "Rotation",
+            componentId: "comp_eye_rx",
+            componentKey: "x",
+          },
+        },
+      ],
+      bindings: {},
+    });
+    mockedUseSceneComposer.mockReturnValue({
+      objects: [],
+      rootIds: [],
+      getChildren: () => [],
+    });
+
+    const onSelect = vi.fn();
+    render(<VariableSelector onSelect={onSelect} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "jaw" },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Filtered To Selection (1)" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "eye" },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Filtered To Selection (2)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add Selected (3)" }));
+
+    expect(onSelect).toHaveBeenCalledWith({
+      type: "mixed",
+      label: "Selected Drivers (1) + Properties (2)",
+      variableIds: ["jaw_open"],
+      propertyInputIds: ["eye_rotate_x", "eye_translate_x"],
+      propertyTargetIds: ["comp_eye_rx", "comp_eye_tx"],
+    });
+  });
+
+  it("shows actionable empty-state diagnostics for filtered searches", () => {
     mockedUseBindingAuthoring.mockReturnValue({
       managedStandardInputs: [],
       bindings: {},
@@ -351,15 +460,21 @@ describe("VariableSelector", () => {
       getChildren: () => [],
     });
 
-    render(<VariableSelector onSelect={vi.fn()} defaultTab="scene" />);
+    render(<VariableSelector onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
-    fireEvent.change(screen.getByPlaceholderText("Search properties..."), {
-      target: { value: "notfound" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Search drivers or properties..."),
+      {
+        target: { value: "notfound" },
+      },
+    );
 
-    expect(screen.getByText('No properties match "notfound".')).toBeTruthy();
     expect(
-      screen.getByText("Try a label, path segment, or ID fragment."),
+      screen.getByText('No drivers or properties match "notfound".'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Try broadening your filter chips or search terms."),
     ).toBeTruthy();
   });
 });

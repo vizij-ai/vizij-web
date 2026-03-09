@@ -635,6 +635,99 @@ describe("usePoseRigAuthoring", () => {
     expect(result.current?.poseConfigDraft?.poses[0]?.group).toBe("Emotions");
   });
 
+  it("uses the default group instead of inheriting the selected pose group", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPose("Grouped Pose");
+    });
+    const groupedPoseId = result.current?.poses[0]?.id;
+    expect(groupedPoseId).toBeTruthy();
+
+    act(() => {
+      if (!groupedPoseId) {
+        return;
+      }
+      result.current?.updatePoseGroup(groupedPoseId, "emotion/primary");
+      result.current?.selectPose(groupedPoseId);
+    });
+
+    act(() => {
+      result.current?.createPose("Fresh Pose");
+    });
+
+    const freshPose = result.current?.poses.find(
+      (pose) => pose.name === "Fresh Pose",
+    );
+    expect(freshPose?.group).toBe("default");
+    expect(freshPose?.groupIds).toEqual(["default"]);
+
+    act(() => {
+      if (!groupedPoseId) {
+        return;
+      }
+      result.current?.selectPose(groupedPoseId);
+      result.current?.createPoseFromSnapshot("Snapshot Pose");
+    });
+
+    const snapshotPose = result.current?.poses.find(
+      (pose) => pose.name === "Snapshot Pose",
+    );
+    expect(snapshotPose?.group).toBe("default");
+    expect(snapshotPose?.groupIds).toEqual(["default"]);
+  });
+
+  it("uses the configured default group for new poses instead of the selected pose group", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPoseGroup("default");
+      result.current?.createPoseGroup("emotion/primary");
+      result.current?.createPose("Grouped Pose");
+    });
+
+    const groupedPoseId = result.current?.poses.find(
+      (pose) => pose.name === "Grouped Pose",
+    )?.id;
+    const defaultGroupId = result.current?.poseConfigDraft?.poseGroups?.find(
+      (group) => group.path === "default",
+    )?.id;
+    expect(groupedPoseId).toBeTruthy();
+    expect(defaultGroupId).toBeTruthy();
+
+    act(() => {
+      if (!groupedPoseId) {
+        return;
+      }
+      result.current?.updatePoseGroup(groupedPoseId, "emotion/primary");
+      result.current?.selectPose(groupedPoseId);
+    });
+
+    act(() => {
+      result.current?.createPose("Default Group Pose");
+    });
+
+    const defaultGroupPose = result.current?.poses.find(
+      (pose) => pose.name === "Default Group Pose",
+    );
+    expect(defaultGroupPose?.group).toBe("default");
+    expect(defaultGroupPose?.groupId).toBe(defaultGroupId);
+    expect(defaultGroupPose?.groupIds).toEqual([defaultGroupId]);
+
+    act(() => {
+      if (!groupedPoseId) {
+        return;
+      }
+      result.current?.selectPose(groupedPoseId);
+      result.current?.createPoseFromSnapshot("Default Group Snapshot");
+    });
+
+    const defaultGroupSnapshotPose = result.current?.poses.find(
+      (pose) => pose.name === "Default Group Snapshot",
+    );
+    expect(defaultGroupSnapshotPose?.group).toBe("default");
+    expect(defaultGroupSnapshotPose?.groupId).toBe(defaultGroupId);
+    expect(defaultGroupSnapshotPose?.groupIds).toEqual([defaultGroupId]);
+  });
+
   it("batch assigns pose groups across multiple poses", () => {
     const { result } = hook!;
     act(() => {

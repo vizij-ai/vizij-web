@@ -13,10 +13,12 @@ import {
   compileAnimationClipIr,
   evaluateAnimationTrackAtTime,
 } from "../utils/animationClipCompiler";
+import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
 
 export type AnimationKeyframe = AnimationKeyframeIR;
 export type AnimationTrack = AnimationTrackIR;
 export type AnimationTransportPlaybackState = "playing" | "paused" | "stopped";
+export type AnimationTimeDisplayMode = "seconds" | "frames";
 export type AnimationRuntimePlaybackState = {
   time: number;
   duration: number;
@@ -45,6 +47,7 @@ export interface AnimationInputKeyframeEntry {
 
 const MIN_DURATION_SECONDS = 0;
 const TIME_EPSILON = 1e-6;
+const FRAME_TIME_MATCH_TOLERANCE_SECONDS = 1 / ANIMATION_TIMELINE_FPS;
 const TRACK_ID_PREFIX = "track-";
 const KEYFRAME_ID_PREFIX = "kf-";
 
@@ -64,6 +67,30 @@ function clampTime(value: number, duration: number): number {
 
 function isSameTime(left: number, right: number): boolean {
   return Math.abs(left - right) <= TIME_EPSILON;
+}
+
+function findNearestKeyframeWithinFrameTolerance(
+  keyframes: ReadonlyArray<AnimationKeyframe>,
+  time: number,
+): AnimationKeyframe | null {
+  let nearest: AnimationKeyframe | null = null;
+  let nearestDelta = Number.POSITIVE_INFINITY;
+  keyframes.forEach((keyframe) => {
+    const delta = Math.abs(keyframe.time - time);
+    if (delta > FRAME_TIME_MATCH_TOLERANCE_SECONDS) {
+      return;
+    }
+    if (
+      delta < nearestDelta ||
+      (isSameTime(delta, nearestDelta) &&
+        nearest !== null &&
+        keyframe.time < nearest.time)
+    ) {
+      nearest = keyframe;
+      nearestDelta = delta;
+    }
+  });
+  return nearest;
 }
 
 function deterministicTrackColor(variableId: string): string {
@@ -234,6 +261,7 @@ interface AnimationState {
   transportEnabled: boolean;
   transportPlaybackState: AnimationTransportPlaybackState;
   runtimeTransportAdapter: AnimationRuntimeTransportAdapter | null;
+  timeDisplayMode: AnimationTimeDisplayMode;
 
   // Selection
   selectedTrackId: string | null;
@@ -267,6 +295,7 @@ interface AnimationState {
     adapter: AnimationRuntimeTransportAdapter | null,
   ) => void;
   setTransportEnabled: (enabled: boolean) => void;
+  setTimeDisplayMode: (mode: AnimationTimeDisplayMode) => void;
 
   addTrack: (variableId: string, label?: string, channel?: string) => void;
   setTrackInterpolation: (
@@ -315,6 +344,7 @@ const INITIAL_STATE: Pick<
   | "transportEnabled"
   | "transportPlaybackState"
   | "runtimeTransportAdapter"
+  | "timeDisplayMode"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
@@ -330,6 +360,7 @@ const INITIAL_STATE: Pick<
   transportEnabled: true,
   transportPlaybackState: "stopped",
   runtimeTransportAdapter: null,
+  timeDisplayMode: "seconds",
   selectedTrackId: null,
   selectedKeyframeId: null,
   nextTrackOrdinal: 1,
@@ -457,6 +488,10 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       state.transportEnabled === transportEnabled
         ? state
         : { transportEnabled },
+    ),
+  setTimeDisplayMode: (timeDisplayMode) =>
+    set((state) =>
+      state.timeDisplayMode === timeDisplayMode ? state : { timeDisplayMode },
     ),
 
   addTrack: (variableId, label, channel) =>
@@ -601,8 +636,9 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
                 return nextTracks.length - 1;
               })();
         const track = nextTracks[trackIndex]!;
-        const existingKeyframe = track.keyframes.find((keyframe) =>
-          isSameTime(keyframe.time, clampedTime),
+        const existingKeyframe = findNearestKeyframeWithinFrameTolerance(
+          track.keyframes,
+          clampedTime,
         );
         if (existingKeyframe) {
           track.keyframes = normalizeKeyframesForTrack(

@@ -4,6 +4,12 @@ import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
 import { Switch } from "../ui/Switch";
+import type { RotationDisplayMode } from "../../state/AuthoringUiProvider";
+import {
+  fromRotationDisplayValue,
+  shouldDisplayRotationInDegrees,
+  toRotationDisplayValue,
+} from "../../utils/rotationDisplay";
 import {
   formatPipelineValue,
   type PipelineDiagnosticsRow,
@@ -12,13 +18,18 @@ import {
 export interface PipelineStageLinkItem {
   id: string;
   label: string;
+  expressionVariable?: string;
+  parentFormula?: string;
+  parentFormulaDefault?: string;
   kind: "variable" | "property" | "propsrig";
   onInspect?: () => void;
   onUnlink?: () => void;
+  onParentFormulaChange?: (expression: string) => void;
   directControl?: {
     value: number;
     min: number;
     max: number;
+    path?: string | null;
     onValueChange?: (value: number) => void;
   };
   linkControl?: {
@@ -54,6 +65,8 @@ interface VariablePipelineStagesProps {
   diagnostics: PipelineDiagnosticsRow;
   directInputEnabled: boolean;
   directInputPath: string;
+  rotationDisplayPath?: string | null;
+  rotationDisplayMode: RotationDisplayMode;
   directValue: number;
   directDefaultValue: number;
   directMin: number;
@@ -173,17 +186,109 @@ function formatCompactNumber(value: number): string {
   return Number(value.toFixed(3)).toString();
 }
 
+function formatSignedCompactNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "+ 0";
+  }
+  const absValue = formatCompactNumber(Math.abs(value));
+  return value >= 0 ? `+ ${absValue}` : `- ${absValue}`;
+}
+
+function toDisplayValue(
+  value: number,
+  path: string | null | undefined,
+  mode: RotationDisplayMode,
+): number {
+  return shouldDisplayRotationInDegrees(path, mode)
+    ? toRotationDisplayValue(value, mode)
+    : value;
+}
+
+function fromDisplayValue(
+  value: number,
+  path: string | null | undefined,
+  mode: RotationDisplayMode,
+): number {
+  return shouldDisplayRotationInDegrees(path, mode)
+    ? fromRotationDisplayValue(value, mode)
+    : value;
+}
+
+function resolveDisplayStep(
+  min: number,
+  max: number,
+  path: string | null | undefined,
+  mode: RotationDisplayMode,
+): number {
+  if (shouldDisplayRotationInDegrees(path, mode)) {
+    return 0.5;
+  }
+  return Math.max(0.0001, Math.min(0.1, Math.abs(max - min) / 200));
+}
+
+function buildParentVariableFormula(
+  parent: Pick<
+    PipelineStageLinkItem,
+    "expressionVariable" | "linkControl" | "directControl" | "parentFormula"
+  >,
+): { symbolic: string; expanded: string | null } | null {
+  if (!parent.linkControl) {
+    return null;
+  }
+  const variable =
+    parent.expressionVariable && parent.expressionVariable.trim().length > 0
+      ? parent.expressionVariable.trim()
+      : "s1";
+  const scaleText = formatCompactNumber(parent.linkControl.scale);
+  const offsetText = formatSignedCompactNumber(parent.linkControl.offset);
+  const customFormula =
+    parent.parentFormula && parent.parentFormula.trim().length > 0
+      ? parent.parentFormula.trim()
+      : null;
+  const symbolic =
+    customFormula ?? `${variable} = parent * ${scaleText} ${offsetText}`;
+  if (customFormula) {
+    return { symbolic, expanded: null };
+  }
+  if (!parent.directControl) {
+    return { symbolic, expanded: null };
+  }
+  const parentValue = parent.directControl.value;
+  const expandedValue =
+    parentValue * parent.linkControl.scale + parent.linkControl.offset;
+  const expanded = `${variable} = ${formatCompactNumber(parentValue)} * ${scaleText} ${offsetText} = ${formatCompactNumber(expandedValue)}`;
+  return { symbolic, expanded };
+}
+
 function LinkControlEditor({
   linkControl,
   context,
+  expressionVariable,
+  sourceValue,
 }: {
   linkControl: NonNullable<PipelineStageLinkItem["linkControl"]>;
   context: "parent" | "child";
+  expressionVariable?: string;
+  sourceValue?: number;
 }) {
+  const variableToken =
+    expressionVariable && expressionVariable.trim().length > 0
+      ? expressionVariable.trim()
+      : "s1";
+  const scaleText = formatCompactNumber(linkControl.scale);
+  const offsetText = formatSignedCompactNumber(linkControl.offset);
   const formulaHint =
     context === "parent"
-      ? "Contribution = parent x scale + offset"
+      ? `${variableToken} = parent * scale + offset`
       : "Child input = this x scale + offset";
+  const expandedFormulaHint =
+    context === "parent" &&
+    typeof sourceValue === "number" &&
+    Number.isFinite(sourceValue)
+      ? `${variableToken} = ${formatCompactNumber(sourceValue)} * ${scaleText} ${offsetText} = ${formatCompactNumber(
+          sourceValue * linkControl.scale + linkControl.offset,
+        )}`
+      : null;
 
   return (
     <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
@@ -195,15 +300,20 @@ function LinkControlEditor({
           hint="Toggle this connection on/off."
           size="sm"
         />
-        <span className="text-[9px] text-text-muted">{formulaHint}</span>
+        <div className="flex flex-col items-end">
+          <span className="text-[9px] text-text-muted">{formulaHint}</span>
+          {expandedFormulaHint ? (
+            <span className="text-[9px] text-text-muted font-mono">
+              {expandedFormulaHint}
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="grid grid-cols-[58px_72px] items-center gap-2">
         <span className="text-[10px] text-text-secondary">Scale</span>
         <NumberField
           size="sm"
           value={linkControl.scale}
-          min={-3}
-          max={3}
           step={0.01}
           commitMode="blur"
           allowScrub={false}
@@ -229,28 +339,64 @@ function LinkControlEditor({
 
 function ParentDirectControlEditor({
   directControl,
+  rotationDisplayMode,
 }: {
   directControl: NonNullable<PipelineStageLinkItem["directControl"]>;
+  rotationDisplayMode: RotationDisplayMode;
 }) {
+  const displayMin = toDisplayValue(
+    directControl.min,
+    directControl.path,
+    rotationDisplayMode,
+  );
+  const displayMax = toDisplayValue(
+    directControl.max,
+    directControl.path,
+    rotationDisplayMode,
+  );
+  const displayValue = toDisplayValue(
+    directControl.value,
+    directControl.path,
+    rotationDisplayMode,
+  );
+  const displayStep = resolveDisplayStep(
+    directControl.min,
+    directControl.max,
+    directControl.path,
+    rotationDisplayMode,
+  );
   return (
     <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1">
       <div className="text-[10px] text-text-secondary">Parent direct input</div>
       <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
         <span className="text-[10px] text-text-secondary">Value</span>
         <Slider
-          min={directControl.min}
-          max={directControl.max}
-          step={0.01}
-          value={directControl.value}
-          onChange={(value) => directControl.onValueChange?.(value as number)}
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
+          value={displayValue}
+          onChange={(value) =>
+            directControl.onValueChange?.(
+              fromDisplayValue(
+                value as number,
+                directControl.path,
+                rotationDisplayMode,
+              ),
+            )
+          }
         />
         <NumberField
           size="sm"
-          value={directControl.value}
-          min={directControl.min}
-          max={directControl.max}
-          step={0.01}
-          onChange={(value) => directControl.onValueChange?.(value)}
+          value={displayValue}
+          min={displayMin}
+          max={displayMax}
+          step={displayStep}
+          allowScrub={false}
+          onChange={(value) =>
+            directControl.onValueChange?.(
+              fromDisplayValue(value, directControl.path, rotationDisplayMode),
+            )
+          }
         />
       </div>
     </div>
@@ -271,6 +417,8 @@ export function VariablePipelineStages({
   diagnostics,
   directInputEnabled,
   directInputPath,
+  rotationDisplayPath = null,
+  rotationDisplayMode,
   directValue,
   directDefaultValue,
   directMin,
@@ -293,11 +441,107 @@ export function VariablePipelineStages({
   onAddChild,
   showClampStage = true,
 }: VariablePipelineStagesProps) {
+  const currentDisplayMin = toDisplayValue(
+    directMin,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayMax = toDisplayValue(
+    directMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayValue = toDisplayValue(
+    directValue,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayDefault = toDisplayValue(
+    directDefaultValue,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const currentDisplayStep = resolveDisplayStep(
+    directMin,
+    directMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayMin = toDisplayValue(
+    overrideMin,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayMax = toDisplayValue(
+    overrideMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayValue = toDisplayValue(
+    overrideValue,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
+  const overrideDisplayStep = resolveDisplayStep(
+    overrideMin,
+    overrideMax,
+    rotationDisplayPath,
+    rotationDisplayMode,
+  );
   const [parentExpressionDraft, setParentExpressionDraft] =
     React.useState(parentExpression);
+  const [parentFormulaDraftById, setParentFormulaDraftById] = React.useState<
+    Record<string, string>
+  >({});
+  const parentFormulaSourceByIdRef = React.useRef<Record<string, string>>({});
   React.useEffect(() => {
     setParentExpressionDraft(parentExpression);
   }, [parentExpression]);
+  React.useEffect(() => {
+    setParentFormulaDraftById((previous) => {
+      const next = { ...previous };
+      const nextSourceById: Record<string, string> = {};
+      const activeIds = new Set<string>();
+      let changed = false;
+
+      parents.forEach((parent) => {
+        if (!parent.onParentFormulaChange) {
+          return;
+        }
+        const formula =
+          parent.parentFormula && parent.parentFormula.trim().length > 0
+            ? parent.parentFormula
+            : (parent.parentFormulaDefault ?? "");
+        activeIds.add(parent.id);
+        nextSourceById[parent.id] = formula;
+        const previousSource = parentFormulaSourceByIdRef.current[parent.id];
+        const previousDraft = previous[parent.id];
+        if (previousDraft === undefined) {
+          next[parent.id] = formula;
+          changed = true;
+          return;
+        }
+        if (
+          previousSource !== undefined &&
+          formula !== previousSource &&
+          previousDraft === previousSource
+        ) {
+          next[parent.id] = formula;
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((id) => {
+        if (!activeIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+
+      parentFormulaSourceByIdRef.current = nextSourceById;
+      return changed ? next : previous;
+    });
+  }, [parents]);
   const parentExpressionDirty =
     parentExpressionDraft.trim() !== parentExpression.trim();
   const canEditParentExpression =
@@ -305,6 +549,23 @@ export function VariablePipelineStages({
   const sourceSectionClass = overrideEnabled
     ? "opacity-45 saturate-75 transition-opacity"
     : "";
+  const parentVariableMappings = React.useMemo(
+    () =>
+      parents
+        .map((parent) => ({
+          parent,
+          formula: buildParentVariableFormula(parent),
+        }))
+        .filter(
+          (
+            entry,
+          ): entry is {
+            parent: PipelineStageLinkItem;
+            formula: { symbolic: string; expanded: string | null };
+          } => entry.formula !== null,
+        ),
+    [parents],
+  );
 
   return (
     <div
@@ -438,58 +699,148 @@ export function VariablePipelineStages({
               {parentExpression.trim().length > 0 ? parentExpression : "n/a"}
             </code>
           )}
+          {parentVariableMappings.length > 0 ? (
+            <div
+              className="mt-2 rounded-md border border-border-default/60 bg-bg-panel/50 p-2 flex flex-col gap-1"
+              data-testid="pipeline-parent-variable-mapping"
+            >
+              <span className="text-[9px] uppercase tracking-wide text-text-muted">
+                Parent Variable Mapping
+              </span>
+              {parentVariableMappings.map(({ parent, formula }) => (
+                <div key={`mapping-${parent.id}`} className="flex flex-col">
+                  <code className="text-[10px] text-text-primary break-all">
+                    {formula.symbolic}
+                  </code>
+                  {formula.expanded ? (
+                    <code className="text-[9px] text-text-muted break-all">
+                      {formula.expanded}
+                    </code>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
         {parents.length > 0 ? (
           <div className="flex flex-col gap-2">
-            {parents.map((parent) => (
-              <CollapsibleRow
-                key={parent.id}
-                id={`pipeline-parent-${parent.id}`}
-                title={parent.label}
-                subtitle={
-                  parent.linkControl
-                    ? `${
-                        parent.linkControl.enabled ? "Enabled" : "Disabled"
-                      } · scale ${formatCompactNumber(
-                        parent.linkControl.scale,
-                      )} · offset ${formatCompactNumber(parent.linkControl.offset)}`
-                    : "No link controls configured"
-                }
-                defaultExpanded={false}
-                showSlider={false}
-                className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
-                actions={
-                  <>
-                    {parent.onInspect ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[10px] gap-1.5"
-                        onClick={parent.onInspect}
-                      >
-                        Inspect
-                        <ArrowRight size={11} aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                  </>
-                }
-                expandedContent={
-                  <div className="flex flex-col gap-1.5">
-                    {parent.linkControl ? (
-                      <LinkControlEditor
-                        linkControl={parent.linkControl}
-                        context="parent"
-                      />
-                    ) : null}
-                    {parent.directControl ? (
-                      <ParentDirectControlEditor
-                        directControl={parent.directControl}
-                      />
-                    ) : null}
-                  </div>
-                }
-              />
-            ))}
+            {parents.map((parent) => {
+              const parentFormula =
+                parent.parentFormula && parent.parentFormula.trim().length > 0
+                  ? parent.parentFormula
+                  : (parent.parentFormulaDefault ?? "");
+              const parentFormulaDraft =
+                parentFormulaDraftById[parent.id] ?? parentFormula;
+              const parentFormulaDirty =
+                parentFormulaDraft.trim() !== parentFormula.trim();
+              return (
+                <CollapsibleRow
+                  key={parent.id}
+                  id={`pipeline-parent-${parent.id}`}
+                  title={parent.label}
+                  subtitle={
+                    parent.linkControl
+                      ? `${parent.expressionVariable ? `${parent.expressionVariable} · ` : ""}${
+                          parent.linkControl.enabled ? "Enabled" : "Disabled"
+                        } · scale ${formatCompactNumber(
+                          parent.linkControl.scale,
+                        )} · offset ${formatCompactNumber(
+                          parent.linkControl.offset,
+                        )}`
+                      : "No link controls configured"
+                  }
+                  defaultExpanded={false}
+                  showSlider={false}
+                  className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
+                  actions={
+                    <>
+                      {parent.onInspect ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1.5"
+                          onClick={parent.onInspect}
+                        >
+                          Inspect
+                          <ArrowRight size={11} aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                  expandedContent={
+                    <div className="flex flex-col gap-1.5">
+                      {parent.linkControl ? (
+                        <LinkControlEditor
+                          linkControl={parent.linkControl}
+                          context="parent"
+                          expressionVariable={parent.expressionVariable}
+                          sourceValue={parent.directControl?.value}
+                        />
+                      ) : null}
+                      {parent.directControl ? (
+                        <ParentDirectControlEditor
+                          directControl={parent.directControl}
+                          rotationDisplayMode={rotationDisplayMode}
+                        />
+                      ) : null}
+                      {parent.onParentFormulaChange ? (
+                        <details className="rounded-md border border-border-default/50 bg-bg-input/20 px-2 py-1.5">
+                          <summary className="cursor-pointer text-[10px] font-semibold text-text-secondary">
+                            Advanced Formula
+                          </summary>
+                          <div className="mt-2 flex flex-col gap-1.5">
+                            <span className="text-[9px] text-text-muted">
+                              Edit this parent contribution formula directly.
+                            </span>
+                            <TextArea
+                              value={parentFormulaDraft}
+                              onChange={(event) =>
+                                setParentFormulaDraftById((previous) => ({
+                                  ...previous,
+                                  [parent.id]: event.target.value,
+                                }))
+                              }
+                              rows={2}
+                              className="min-h-[52px] text-[10px] leading-snug break-all bg-bg-panel/60 border-border-default/60"
+                              data-testid={`pipeline-parent-formula-editor-${parent.id}`}
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={() =>
+                                  parent.onParentFormulaChange?.(
+                                    parentFormulaDraft,
+                                  )
+                                }
+                                disabled={!parentFormulaDirty}
+                              >
+                                Apply Formula
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={() =>
+                                  setParentFormulaDraftById((previous) => ({
+                                    ...previous,
+                                    [parent.id]: parentFormula,
+                                  }))
+                                }
+                                disabled={!parentFormulaDirty}
+                              >
+                                Reset
+                              </Button>
+                            </div>
+                          </div>
+                        </details>
+                      ) : null}
+                    </div>
+                  }
+                />
+              );
+            })}
           </div>
         ) : (
           <span className="text-[10px] text-text-muted">
@@ -524,9 +875,11 @@ export function VariablePipelineStages({
                 key={pose.id}
                 id={`pipeline-pose-${pose.id}`}
                 title={pose.label}
-                subtitle={`Target ${pose.targetValue.toFixed(
-                  3,
-                )} · Weight ${pose.weight.toFixed(3)}`}
+                subtitle={`Target ${toDisplayValue(
+                  pose.targetValue,
+                  rotationDisplayPath,
+                  rotationDisplayMode,
+                ).toFixed(3)} · Weight ${pose.weight.toFixed(3)}`}
                 defaultExpanded={false}
                 showSlider={false}
                 className="bg-transparent border-border-default/30 group-data-[state=open]:shadow-none group-data-[state=open]:border-border-default/45"
@@ -560,6 +913,7 @@ export function VariablePipelineStages({
                       max={1}
                       step={0.01}
                       value={pose.weight}
+                      allowScrub={false}
                       onChange={pose.onWeightChange}
                     />
                   </div>
@@ -612,20 +966,37 @@ export function VariablePipelineStages({
           title={directControlReason ?? undefined}
         >
           <Slider
-            min={directMin}
-            max={directMax}
-            step={0.01}
-            value={directValue}
-            onChange={(value) => onDirectValueChange(value as number)}
+            min={currentDisplayMin}
+            max={currentDisplayMax}
+            step={currentDisplayStep}
+            value={currentDisplayValue}
+            onChange={(value) =>
+              onDirectValueChange(
+                fromDisplayValue(
+                  value as number,
+                  rotationDisplayPath,
+                  rotationDisplayMode,
+                ),
+              )
+            }
             disabled={!directInputEnabled || directControlDisabled}
           />
           <NumberField
             size="sm"
-            value={directValue}
-            min={directMin}
-            max={directMax}
-            step={0.01}
-            onChange={onDirectValueChange}
+            value={currentDisplayValue}
+            min={currentDisplayMin}
+            max={currentDisplayMax}
+            step={currentDisplayStep}
+            allowScrub={false}
+            onChange={(value) =>
+              onDirectValueChange(
+                fromDisplayValue(
+                  value,
+                  rotationDisplayPath,
+                  rotationDisplayMode,
+                ),
+              )
+            }
             disabled={!directInputEnabled || directControlDisabled}
           />
           <Button
@@ -635,7 +1006,7 @@ export function VariablePipelineStages({
             onClick={onDirectReset}
             disabled={!directInputEnabled || directControlDisabled}
           >
-            Reset ({directDefaultValue.toFixed(2)})
+            Reset ({currentDisplayDefault.toFixed(2)})
           </Button>
         </div>
         {directControlReason ? (
@@ -682,19 +1053,36 @@ export function VariablePipelineStages({
         {overrideEnabled ? (
           <div className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-2">
             <Slider
-              min={overrideMin}
-              max={overrideMax}
-              step={0.01}
-              value={overrideValue}
-              onChange={(value) => onOverrideValueChange(value as number)}
+              min={overrideDisplayMin}
+              max={overrideDisplayMax}
+              step={overrideDisplayStep}
+              value={overrideDisplayValue}
+              onChange={(value) =>
+                onOverrideValueChange(
+                  fromDisplayValue(
+                    value as number,
+                    rotationDisplayPath,
+                    rotationDisplayMode,
+                  ),
+                )
+              }
             />
             <NumberField
               size="sm"
-              value={overrideValue}
-              min={overrideMin}
-              max={overrideMax}
-              step={0.01}
-              onChange={onOverrideValueChange}
+              value={overrideDisplayValue}
+              min={overrideDisplayMin}
+              max={overrideDisplayMax}
+              step={overrideDisplayStep}
+              allowScrub={false}
+              onChange={(value) =>
+                onOverrideValueChange(
+                  fromDisplayValue(
+                    value,
+                    rotationDisplayPath,
+                    rotationDisplayMode,
+                  ),
+                )
+              }
             />
           </div>
         ) : (
@@ -908,8 +1296,6 @@ export function VariablePipelineStages({
                         <NumberField
                           size="sm"
                           value={child.linkControl.scale}
-                          min={-3}
-                          max={3}
                           step={0.01}
                           commitMode="blur"
                           allowScrub={false}

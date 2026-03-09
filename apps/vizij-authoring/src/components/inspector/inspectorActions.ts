@@ -2,10 +2,12 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 import type { VariableSelection } from "./VariableSelector";
 import { resolveSelectionTargetIds } from "./bindingSelection";
 
+type RigDrivenSelectorSelection = Exclude<VariableSelection, { type: "mixed" }>;
+
 export type RigDrivenSelectionResolution =
   | {
       kind: "variable";
-      childInputId: string;
+      childInputIds: string[];
     }
   | {
       kind: "self-variable";
@@ -19,17 +21,28 @@ export type RigDrivenSelectionResolution =
     };
 
 export function resolveRigDrivenSelection(
-  selection: VariableSelection,
+  selection: RigDrivenSelectorSelection,
   selectedRigId: string,
   objects: SceneObjectNode[],
 ): RigDrivenSelectionResolution {
   if (selection.type === "variable") {
-    if (selection.id === selectedRigId) {
+    const selectedInputIds = Array.from(
+      new Set(
+        (selection.ids && selection.ids.length > 0
+          ? selection.ids
+          : [selection.id]
+        )
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0),
+      ),
+    );
+    const childInputIds = selectedInputIds.filter((id) => id !== selectedRigId);
+    if (childInputIds.length === 0) {
       return { kind: "self-variable" };
     }
     return {
       kind: "variable",
-      childInputId: selection.id,
+      childInputIds,
     };
   }
 

@@ -78,14 +78,21 @@ function getStoredId(key: string): string | null {
 }
 
 /** Try to extract JSON {text, emotion} from an LLM response, handling markdown fences. */
-function parseEmotionResponse(raw: string): { text: string; emotion: string | null } | null {
+function parseEmotionResponse(
+  raw: string,
+): { text: string; emotion: string | null } | null {
   let str = raw.trim();
   // Strip markdown code fences
   const fenceMatch = str.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   if (fenceMatch) str = fenceMatch[1];
   try {
     const parsed = JSON.parse(str) as unknown;
-    if (parsed && typeof parsed === "object" && "text" in parsed && typeof (parsed as Record<string, unknown>).text === "string") {
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "text" in parsed &&
+      typeof (parsed as Record<string, unknown>).text === "string"
+    ) {
       const p = parsed as Record<string, unknown>;
       return {
         text: p.text as string,
@@ -103,9 +110,7 @@ const EMPTY_GROUPS: import("@vizij/runtime-react").PoseGroupDefinition[] = [];
 
 export function SpeechPanel() {
   const faceId = useGraphRuntimeStore((s) => s.faceId);
-  const poses = useGraphRuntimeStore(
-    (s) => s.poseConfig?.poses ?? EMPTY_POSES,
-  );
+  const poses = useGraphRuntimeStore((s) => s.poseConfig?.poses ?? EMPTY_POSES);
   const poseGroups = useGraphRuntimeStore(
     (s) => s.poseConfig?.poseGroups ?? EMPTY_GROUPS,
   );
@@ -116,54 +121,74 @@ export function SpeechPanel() {
   );
   const runtimeReady = useGraphRuntimeStore((s) => s.runtimeViewReady);
 
-  const standardInputsByPath = useBindingAuthoring((s) => s.standardInputsByPath);
-  const handleCreateCustomStandardInput = useBindingAuthoring((s) => s.handleCreateCustomStandardInput);
+  const standardInputsByPath = useBindingAuthoring(
+    (s) => s.standardInputsByPath,
+  );
+  const handleCreateCustomStandardInput = useBindingAuthoring(
+    (s) => s.handleCreateCustomStandardInput,
+  );
   const enabledMotionGraphInputs = useEditorStore((s) => s.enabledInputs);
   const toggleMotionGraphInput = useEditorStore((s) => s.toggleInput);
 
   // --- PAP input paths (persisted to localStorage) ---
-  const [speakingInputPath, setSpeakingInputPath] = useState(
-    () => getStoredPath(SPEAKING_PATH_KEY, DEFAULT_SPEAKING_PATH),
+  const [speakingInputPath, setSpeakingInputPath] = useState(() =>
+    getStoredPath(SPEAKING_PATH_KEY, DEFAULT_SPEAKING_PATH),
   );
-  const [userSpeakingInputPath, setUserSpeakingInputPath] = useState(
-    () => getStoredPath(USER_SPEAKING_PATH_KEY, DEFAULT_USER_SPEAKING_PATH),
+  const [userSpeakingInputPath, setUserSpeakingInputPath] = useState(() =>
+    getStoredPath(USER_SPEAKING_PATH_KEY, DEFAULT_USER_SPEAKING_PATH),
   );
 
   const handleSpeakingPathChange = useCallback((value: string) => {
     setSpeakingInputPath(value);
-    try { localStorage.setItem(SPEAKING_PATH_KEY, value); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(SPEAKING_PATH_KEY, value);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const handleUserSpeakingPathChange = useCallback((value: string) => {
     setUserSpeakingInputPath(value);
-    try { localStorage.setItem(USER_SPEAKING_PATH_KEY, value); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(USER_SPEAKING_PATH_KEY, value);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const [thinkingInputPath, setThinkingInputPath] = useState(
-    () => getStoredPath(THINKING_PATH_KEY, DEFAULT_THINKING_PATH),
+  const [thinkingInputPath, setThinkingInputPath] = useState(() =>
+    getStoredPath(THINKING_PATH_KEY, DEFAULT_THINKING_PATH),
   );
 
   const handleThinkingPathChange = useCallback((value: string) => {
     setThinkingInputPath(value);
-    try { localStorage.setItem(THINKING_PATH_KEY, value); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(THINKING_PATH_KEY, value);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   // --- Emotion group + derived state ---
-  const [selectedEmotionGroupId, setSelectedEmotionGroupId] = useState<string | null>(
-    () => getStoredId(EMOTION_GROUP_KEY),
-  );
+  const [selectedEmotionGroupId, setSelectedEmotionGroupId] = useState<
+    string | null
+  >(() => getStoredId(EMOTION_GROUP_KEY));
 
   const handleEmotionGroupChange = useCallback((id: string | null) => {
     setSelectedEmotionGroupId(id);
     try {
       if (id) localStorage.setItem(EMOTION_GROUP_KEY, id);
       else localStorage.removeItem(EMOTION_GROUP_KEY);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const emotionGroupOptions = useMemo((): SelectOption[] =>
-    poseGroups.map((g) => ({ value: g.id, label: g.path || g.name || g.id })),
-  [poseGroups]);
+  const emotionGroupOptions = useMemo(
+    (): SelectOption[] =>
+      poseGroups.map((g) => ({ value: g.id, label: g.path || g.name || g.id })),
+    [poseGroups],
+  );
 
   const defaultEmotionGroupId = useMemo((): string | null => {
     const found = poseGroups.find(
@@ -175,7 +200,10 @@ export function SpeechPanel() {
   }, [poseGroups]);
 
   const effectiveEmotionGroupId = useMemo(() => {
-    if (selectedEmotionGroupId && emotionGroupOptions.some((o) => o.value === selectedEmotionGroupId)) {
+    if (
+      selectedEmotionGroupId &&
+      emotionGroupOptions.some((o) => o.value === selectedEmotionGroupId)
+    ) {
       return selectedEmotionGroupId;
     }
     return defaultEmotionGroupId;
@@ -185,14 +213,20 @@ export function SpeechPanel() {
     if (!effectiveEmotionGroupId || poseGroups.length === 0) return [];
     return poses.filter((pose) => {
       const membership = resolvePoseMembership(
-        pose as Pick<import("../../poseRig/types").PoseDefinition, "group" | "groupId" | "groupIds">,
+        pose as Pick<
+          import("../../poseRig/types").PoseDefinition,
+          "group" | "groupId" | "groupIds"
+        >,
         poseGroups as import("../../poseRig/types").PoseGroupDefinition[],
       );
       return membership.groupIds.includes(effectiveEmotionGroupId);
     });
   }, [poses, poseGroups, effectiveEmotionGroupId]);
 
-  const availableEmotions = useMemo(() => emotionPoses.map((p) => p.id), [emotionPoses]);
+  const availableEmotions = useMemo(
+    () => emotionPoses.map((p) => p.id),
+    [emotionPoses],
+  );
 
   // --- Speech playback ---
   const speech = useSpeechPlayback({
@@ -234,7 +268,11 @@ export function SpeechPanel() {
 
   // Resolve {{agent_name}} tag in prompt, and append emotion instructions when available
   const resolvedPrompt = useMemo(
-    () => systemPrompt.replace(/\{\{agent_name\}\}/g, agentName || DEFAULT_AGENT_NAME),
+    () =>
+      systemPrompt.replace(
+        /\{\{agent_name\}\}/g,
+        agentName || DEFAULT_AGENT_NAME,
+      ),
     [systemPrompt, agentName],
   );
 
@@ -256,17 +294,26 @@ export function SpeechPanel() {
     (conversation.isProcessing || speech.status === "preparing");
 
   // --- Emotion activation ---
-  const activateEmotion = useCallback((emotionName: string | null) => {
-    if (!stageRuntimeInput || !runtimeReady) return;
-    // Reset all emotion inputs to 0
-    for (const name of availableEmotions) {
-      stageRuntimeInput(buildRigInputPath(faceSegment, `/speech/emotion/${name}`), 0);
-    }
-    // Activate the chosen one
-    if (emotionName && availableEmotions.includes(emotionName)) {
-      stageRuntimeInput(buildRigInputPath(faceSegment, `/speech/emotion/${emotionName}`), 1);
-    }
-  }, [stageRuntimeInput, runtimeReady, faceSegment, availableEmotions]);
+  const activateEmotion = useCallback(
+    (emotionName: string | null) => {
+      if (!stageRuntimeInput || !runtimeReady) return;
+      // Reset all emotion inputs to 0
+      for (const name of availableEmotions) {
+        stageRuntimeInput(
+          buildRigInputPath(faceSegment, `/speech/emotion/${name}`),
+          0,
+        );
+      }
+      // Activate the chosen one
+      if (emotionName && availableEmotions.includes(emotionName)) {
+        stageRuntimeInput(
+          buildRigInputPath(faceSegment, `/speech/emotion/${emotionName}`),
+          1,
+        );
+      }
+    },
+    [stageRuntimeInput, runtimeReady, faceSegment, availableEmotions],
+  );
 
   // --- Refs for async callbacks ---
   const handleSpeakRef = useRef(speech.handleSpeak);
@@ -329,8 +376,17 @@ export function SpeechPanel() {
   // Drive /speech/user_speaking PAP input based on mic state
   useEffect(() => {
     if (!stageRuntimeInput || !runtimeReady || !userSpeakingInputPath) return;
-    stageRuntimeInput(buildRigInputPath(faceSegment, userSpeakingInputPath), asr.listening ? 1 : 0);
-  }, [asr.listening, stageRuntimeInput, runtimeReady, faceSegment, userSpeakingInputPath]);
+    stageRuntimeInput(
+      buildRigInputPath(faceSegment, userSpeakingInputPath),
+      asr.listening ? 1 : 0,
+    );
+  }, [
+    asr.listening,
+    stageRuntimeInput,
+    runtimeReady,
+    faceSegment,
+    userSpeakingInputPath,
+  ]);
 
   // Drive /speech/thinking PAP input (conversation mode only)
   useEffect(() => {
@@ -339,7 +395,13 @@ export function SpeechPanel() {
       buildRigInputPath(faceSegment, thinkingInputPath),
       isConversationThinking ? 1 : 0,
     );
-  }, [isConversationThinking, stageRuntimeInput, runtimeReady, faceSegment, thinkingInputPath]);
+  }, [
+    isConversationThinking,
+    stageRuntimeInput,
+    runtimeReady,
+    faceSegment,
+    thinkingInputPath,
+  ]);
 
   // Auto-provision /speech/speaking, /speech/user_speaking and /speech/thinking PAP inputs
   const lastProvisionedRef = useRef<string | null>(null);
@@ -349,7 +411,11 @@ export function SpeechPanel() {
     if (lastProvisionedRef.current === key) return;
     lastProvisionedRef.current = key;
 
-    for (const path of [speakingInputPath, userSpeakingInputPath, thinkingInputPath]) {
+    for (const path of [
+      speakingInputPath,
+      userSpeakingInputPath,
+      thinkingInputPath,
+    ]) {
       if (!path.trim()) continue;
       const normalizedPath = normalizeStandardRigInputPath(path);
       let input = standardInputsByPath.get(normalizedPath);
@@ -364,7 +430,17 @@ export function SpeechPanel() {
         }
       }
     }
-  }, [runtimeReady, faceSegment, speakingInputPath, userSpeakingInputPath, thinkingInputPath, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
+  }, [
+    runtimeReady,
+    faceSegment,
+    speakingInputPath,
+    userSpeakingInputPath,
+    thinkingInputPath,
+    standardInputsByPath,
+    handleCreateCustomStandardInput,
+    enabledMotionGraphInputs,
+    toggleMotionGraphInput,
+  ]);
 
   // Auto-provision /speech/emotion/<name> PAP inputs for each available emotion
   const lastProvisionedEmotionsRef = useRef<string | null>(null);
@@ -389,7 +465,15 @@ export function SpeechPanel() {
         }
       }
     }
-  }, [runtimeReady, faceSegment, availableEmotions, standardInputsByPath, handleCreateCustomStandardInput, enabledMotionGraphInputs, toggleMotionGraphInput]);
+  }, [
+    runtimeReady,
+    faceSegment,
+    availableEmotions,
+    standardInputsByPath,
+    handleCreateCustomStandardInput,
+    enabledMotionGraphInputs,
+    toggleMotionGraphInput,
+  ]);
 
   // Auto-scroll conversation history
   useEffect(() => {
@@ -451,11 +535,12 @@ export function SpeechPanel() {
         ? "Stop"
         : "Speak";
 
-  const buttonVariant =
-    speech.status === "speaking" ? "danger" : "primary";
+  const buttonVariant = speech.status === "speaking" ? "danger" : "primary";
 
   const buttonHandler =
-    speech.status === "speaking" ? speech.handleStop : () => void speech.handleSpeak();
+    speech.status === "speaking"
+      ? speech.handleStop
+      : () => void speech.handleSpeak();
 
   const buttonDisabled =
     speech.status === "preparing" ||
@@ -609,9 +694,7 @@ export function SpeechPanel() {
         {settingsOpen && (
           <div className="mt-2 flex flex-col gap-3">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-text-muted">
-                Agent Name
-              </span>
+              <span className="text-[10px] text-text-muted">Agent Name</span>
               <input
                 type="text"
                 value={agentName}
@@ -634,17 +717,15 @@ export function SpeechPanel() {
                   type="password"
                   value={dgKeyInput}
                   onChange={(e) => setDgKeyInput(e.target.value)}
-                  placeholder={dgFromEnv ? "Override env key..." : "Deepgram API key"}
+                  placeholder={
+                    dgFromEnv ? "Override env key..." : "Deepgram API key"
+                  }
                   className="flex-1 h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") saveDgKey();
                   }}
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={saveDgKey}
-                >
+                <Button variant="secondary" size="sm" onClick={saveDgKey}>
                   Save
                 </Button>
               </div>
@@ -663,17 +744,15 @@ export function SpeechPanel() {
                   type="password"
                   value={oaiKeyInput}
                   onChange={(e) => setOaiKeyInput(e.target.value)}
-                  placeholder={oaiFromEnv ? "Override env key..." : "OpenAI API key"}
+                  placeholder={
+                    oaiFromEnv ? "Override env key..." : "OpenAI API key"
+                  }
                   className="flex-1 h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") saveOaiKey();
                   }}
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={saveOaiKey}
-                >
+                <Button variant="secondary" size="sm" onClick={saveOaiKey}>
                   Save
                 </Button>
               </div>
@@ -696,7 +775,9 @@ export function SpeechPanel() {
                 PAP Input Mapping
               </span>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-text-muted">Avatar Speaking</span>
+                <span className="text-[10px] text-text-muted">
+                  Avatar Speaking
+                </span>
                 <input
                   type="text"
                   value={speakingInputPath}
@@ -706,7 +787,9 @@ export function SpeechPanel() {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-text-muted">User Speaking</span>
+                <span className="text-[10px] text-text-muted">
+                  User Speaking
+                </span>
                 <input
                   type="text"
                   value={userSpeakingInputPath}
@@ -716,7 +799,9 @@ export function SpeechPanel() {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-text-muted">Avatar Thinking</span>
+                <span className="text-[10px] text-text-muted">
+                  Avatar Thinking
+                </span>
                 <input
                   type="text"
                   value={thinkingInputPath}

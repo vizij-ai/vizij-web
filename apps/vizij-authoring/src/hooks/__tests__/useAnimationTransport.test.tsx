@@ -122,7 +122,7 @@ describe("useAnimationTransport", () => {
     hook.unmount();
   });
 
-  it("does not write runtime outputs when seeking while transport is stopped", () => {
+  it("bootstraps runtime transport and pauses when seeking from stopped", () => {
     const playAnimation = vi.fn().mockResolvedValue(undefined);
     const pauseAnimation = vi.fn();
     const stopAnimation = vi.fn();
@@ -150,14 +150,21 @@ describe("useAnimationTransport", () => {
 
     hook.result.stop();
     seekAnimation.mockClear();
+    playAnimation.mockClear();
+    pauseAnimation.mockClear();
 
     hook.result.seek(0.75);
 
-    expect(seekAnimation).not.toHaveBeenCalled();
+    expect(playAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
+      reset: false,
+      speed: 1,
+    });
+    expect(pauseAnimation).toHaveBeenCalledWith("authoring.timeline.main");
+    expect(seekAnimation).toHaveBeenCalledWith("authoring.timeline.main", 0.75);
     const state = useAnimationStore.getState();
     expect(state.currentTime).toBe(0.75);
-    expect(state.transportActive).toBe(false);
-    expect(state.transportPlaybackState).toBe("stopped");
+    expect(state.transportActive).toBe(true);
+    expect(state.transportPlaybackState).toBe("paused");
     hook.unmount();
   });
 });

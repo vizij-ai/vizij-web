@@ -35,6 +35,7 @@ const poseRigState = {
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  addPoseInput: vi.fn(),
   duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
   renamePoseGroup: vi.fn(),
@@ -75,8 +76,16 @@ const bindingState = {
   handleDeleteCustomStandardInput: vi.fn(),
 };
 
+const authoringUiState = {
+  activeEditFocus: "default" as "default" | "pose-creation",
+};
+
 vi.mock("../../state/PoseRigProvider", () => ({
   usePoseRig: () => poseRigState,
+}));
+
+vi.mock("../../state/AuthoringUiProvider", () => ({
+  useAuthoringUiState: () => authoringUiState,
 }));
 
 vi.mock("../../state/ReferenceFaceContext", () => ({
@@ -240,6 +249,7 @@ describe("VariablesPanel inputs perf baseline", () => {
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.addPoseInput.mockReset();
     poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
     poseRigState.renamePoseGroup.mockReset();
@@ -269,6 +279,7 @@ describe("VariablesPanel inputs perf baseline", () => {
     bindingState.handleCreateCustomStandardInput.mockReset();
     bindingState.handleUpdateStandardInput.mockReset();
     bindingState.handleDeleteCustomStandardInput.mockReset();
+    authoringUiState.activeEditFocus = "default";
   });
 
   const perfTest = RUN_PERF_CAPTURE ? it : it.skip;

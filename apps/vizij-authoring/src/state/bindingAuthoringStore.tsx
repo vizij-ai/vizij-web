@@ -46,6 +46,8 @@ export interface BindingAuthoringState {
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
   standardInputsByPath: Map<string, StandardRigInput>;
+  standardInputIdRemap: ReadonlyMap<string, string> | null;
+  standardInputIdRemapRevision: number;
   rigOutputLookup: Map<string, StandardRigInput>;
   validOutputTargets: Set<string>;
   pipelineMetadataV1: VizijPipelineMetadataV1 | null;
@@ -79,7 +81,11 @@ export interface BindingAuthoringState {
     updater: (bindings: InputBindingMap) => InputBindingMap,
   ) => void;
   handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
-  handleLinkChildInput: (parentId: string, childId: string) => void;
+  handleLinkChildInput: (
+    parentId: string,
+    childId: string,
+    options?: { scale?: number; offset?: number },
+  ) => void;
   handleUnlinkChildInput: (parentId: string, childId: string) => void;
   handleRenameShape: (shapeId: string, value: string) => void;
   handleUpdateStandardInput: (
@@ -134,7 +140,11 @@ export interface BindingAuthoringState {
   handleEnableParentLocalControl: (targetId: string) => void;
   handleCloneStandardInputs: (
     inputIds: readonly string[],
-    options?: { labelSuffix?: string; pathSuffix?: string },
+    options?: {
+      labelSuffix?: string;
+      pathSuffix?: string;
+      cloneRelationships?: boolean;
+    },
   ) => Map<string, string>;
   handleUpdateFeatureLabel: (
     featureId: string,
@@ -202,6 +212,8 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   standardInputs: [],
   standardInputsById: new Map(),
   standardInputsByPath: new Map(),
+  standardInputIdRemap: null,
+  standardInputIdRemapRevision: 0,
   rigOutputLookup: new Map(),
   validOutputTargets: new Set(),
   pipelineMetadataV1: null,

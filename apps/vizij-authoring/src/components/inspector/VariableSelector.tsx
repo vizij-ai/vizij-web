@@ -4,7 +4,7 @@ import { SELF_BINDING_ID } from "@vizij/utils";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { cn } from "../../utils/cn";
-import { Button, Tabs, PanelSearch, TreeRow } from "../ui";
+import { Button, PanelSearch, TreeRow } from "../ui";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 
 // ----------------------------------------------------------------------------
@@ -12,7 +12,7 @@ import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 // ----------------------------------------------------------------------------
 
 export type VariableSelection =
-  | { type: "variable"; id: string }
+  | { type: "variable"; id: string; ids?: string[] }
   | {
       type: "property";
       objectId: string;
@@ -22,16 +22,21 @@ export type VariableSelection =
       inputIds?: string[];
       targetId?: string;
       targetIds?: string[];
+    }
+  | {
+      type: "mixed";
+      label: string;
+      variableIds: string[];
+      propertyInputIds: string[];
+      propertyTargetIds: string[];
     };
 
 interface VariableSelectorProps {
   onSelect: (selection: VariableSelection) => void;
   onCancel?: () => void;
-  defaultTab?: "variables" | "scene";
 }
 
-type SelectorTab = "variables" | "scene";
-type ListMode = "variables" | "properties";
+type SourceFilter = "drivers" | "properties";
 type GroupKind = "group" | "path" | "unassigned";
 
 interface TargetMetadata {
@@ -50,6 +55,9 @@ interface SelectorGroup {
 }
 
 interface SelectorRow {
+  rowKey: string;
+  sourceFilter: SourceFilter;
+  sourceLabel: string;
   id: string;
   label: string;
   path: string;
@@ -470,48 +478,22 @@ function buildFacetOptions(
 export function VariableSelector({
   onSelect,
   onCancel,
-  defaultTab = "variables",
 }: VariableSelectorProps) {
-  const [activeTab, setActiveTab] = useState<SelectorTab>(defaultTab);
   const [search, setSearch] = useState("");
-
-  const tabs = [
-    { id: "variables", label: "Drivers" },
-    { id: "scene", label: "Properties" },
-  ] as const;
 
   return (
     <div className="flex flex-col h-[80vh] max-h-[980px] w-full bg-bg-app text-text-primary overflow-hidden rounded-xl border border-border-default shadow-2xl">
       <div className="p-3 border-b border-border-default flex flex-col gap-3 bg-bg-panel/50 backdrop-blur-md">
-        <Tabs
-          items={tabs}
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as SelectorTab)}
-          renderPanel={() => null}
-          size="sm"
-          variant="pill"
-          panelClassName="hidden"
-          className="w-full"
-        />
-
         <PanelSearch
           value={search}
           onChange={setSearch}
-          placeholder={
-            activeTab === "variables"
-              ? "Search drivers..."
-              : "Search properties..."
-          }
+          placeholder="Search drivers or properties..."
           className="h-9"
         />
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar bg-bg-input/20">
-        <InputList
-          mode={activeTab === "variables" ? "variables" : "properties"}
-          search={search}
-          onSelect={onSelect}
-        />
+        <InputList search={search} onSelect={onSelect} />
       </div>
 
       {onCancel && (
@@ -535,11 +517,9 @@ export function VariableSelector({
 // ----------------------------------------------------------------------------
 
 function InputList({
-  mode,
   search,
   onSelect,
 }: {
-  mode: ListMode;
   search: string;
   onSelect: (selection: VariableSelection) => void;
 }) {
@@ -655,6 +635,7 @@ function InputList({
     const typeCounts = new Map<string, number>();
     const leafCounts = new Map<string, number>();
     const allTargetIds = new Set<string>();
+    const targetIdToInputIds = new Map<string, Set<string>>();
 
     managedStandardInputs.forEach((entry) => {
       const input = entry.input;
@@ -682,6 +663,9 @@ function InputList({
 
       if (componentId) {
         allTargetIds.add(componentId);
+        const mappedInputIds = targetIdToInputIds.get(componentId) ?? new Set();
+        mappedInputIds.add(input.id);
+        targetIdToInputIds.set(componentId, mappedInputIds);
       }
 
       if (typeKey) {
@@ -696,16 +680,29 @@ function InputList({
       typeOptions: buildFacetOptions(PROPERTY_TYPE_CATALOG, typeCounts),
       leafOptions: buildFacetOptions(PROPERTY_LEAF_CATALOG, leafCounts),
       allTargetIds,
+      targetIdToInputIds: new Map(
+        Array.from(targetIdToInputIds.entries()).map(([targetId, inputIds]) => [
+          targetId,
+          Array.from(inputIds).sort(compareText),
+        ]),
+      ),
     };
   }, [managedStandardInputs]);
 
+  const [selectedSourceFilters, setSelectedSourceFilters] = useState<
+    Set<SourceFilter>
+  >(new Set());
   const [selectedPropertyTypeFilters, setSelectedPropertyTypeFilters] =
     useState<Set<string>>(new Set());
   const [selectedPropertyLeafFilters, setSelectedPropertyLeafFilters] =
     useState<Set<string>>(new Set());
+  const [selectedVariableInputIds, setSelectedVariableInputIds] = useState<
+    Set<string>
+  >(new Set());
   const [selectedPropertyTargetIds, setSelectedPropertyTargetIds] = useState<
     Set<string>
   >(new Set());
+
   const visiblePropertyTypeOptions = useMemo(
     () => propertyFacetData.typeOptions.filter((option) => option.count > 0),
     [propertyFacetData.typeOptions],
@@ -714,6 +711,34 @@ function InputList({
     () => propertyFacetData.leafOptions.filter((option) => option.count > 0),
     [propertyFacetData.leafOptions],
   );
+
+  const driverInputIdOrder = useMemo(
+    () =>
+      managedStandardInputs
+        .filter((entry) => !isPropsRigStandardInputPath(entry.input.path))
+        .map((entry) => entry.input.id),
+    [managedStandardInputs],
+  );
+
+  const allDriverInputIds = useMemo(
+    () => new Set(driverInputIdOrder),
+    [driverInputIdOrder],
+  );
+
+  useEffect(() => {
+    setSelectedVariableInputIds((current) => {
+      const next = new Set<string>();
+      current.forEach((inputId) => {
+        if (allDriverInputIds.has(inputId)) {
+          next.add(inputId);
+        }
+      });
+      if (next.size === current.size) {
+        return current;
+      }
+      return next;
+    });
+  }, [allDriverInputIds]);
 
   useEffect(() => {
     setSelectedPropertyTargetIds((current) => {
@@ -772,13 +797,17 @@ function InputList({
     managedStandardInputs.forEach((entry) => {
       const input = entry.input;
       const isPropsRig = isPropsRigStandardInputPath(input.path);
-      const isInScope = mode === "variables" ? !isPropsRig : isPropsRig;
-      if (!isInScope) {
+      const sourceFilter: SourceFilter = isPropsRig ? "properties" : "drivers";
+      if (
+        selectedSourceFilters.size > 0 &&
+        !selectedSourceFilters.has(sourceFilter)
+      ) {
         return;
       }
 
-      const displayPath =
-        mode === "properties" ? stripPropsRigRoot(input.path) : input.path;
+      const displayPath = isPropsRig
+        ? stripPropsRigRoot(input.path)
+        : input.path;
       const groupText = input.group?.trim() || "";
       const group = deriveGroup(displayPath, groupText);
       const label = input.label?.trim() || input.id;
@@ -788,32 +817,30 @@ function InputList({
       const componentId =
         metadata?.componentId ?? extractComponentIdFromSourceId(sourceId);
 
-      if (mode === "properties" && !componentId) {
+      if (sourceFilter === "properties" && !componentId) {
         return;
       }
 
-      const propertyTypeKey =
-        mode === "properties"
-          ? derivePropertyTypeKey({
-              metadataFeatureKey: metadata?.featureKey,
-              metadataFeatureLabel: metadata?.featureLabel,
-              displayPath,
-            })
-          : undefined;
-      const propertyLeafKey =
-        mode === "properties"
-          ? derivePropertyLeafKey({
-              metadataComponentKey:
-                metadata?.componentKey !== undefined
-                  ? String(metadata.componentKey)
-                  : undefined,
-              displayPath,
-              label,
-            })
-          : undefined;
+      const propertyTypeKey = isPropsRig
+        ? derivePropertyTypeKey({
+            metadataFeatureKey: metadata?.featureKey,
+            metadataFeatureLabel: metadata?.featureLabel,
+            displayPath,
+          })
+        : undefined;
+      const propertyLeafKey = isPropsRig
+        ? derivePropertyLeafKey({
+            metadataComponentKey:
+              metadata?.componentKey !== undefined
+                ? String(metadata.componentKey)
+                : undefined,
+            displayPath,
+            label,
+          })
+        : undefined;
 
       if (
-        mode === "properties" &&
+        sourceFilter === "properties" &&
         selectedPropertyTypeFilters.size > 0 &&
         (!propertyTypeKey || !selectedPropertyTypeFilters.has(propertyTypeKey))
       ) {
@@ -821,17 +848,16 @@ function InputList({
       }
 
       if (
-        mode === "properties" &&
+        sourceFilter === "properties" &&
         selectedPropertyLeafFilters.size > 0 &&
         (!propertyLeafKey || !selectedPropertyLeafFilters.has(propertyLeafKey))
       ) {
         return;
       }
 
-      const variableTargetMetadata =
-        mode === "variables"
-          ? (targetMetadataByInputId.get(input.id) ?? [])
-          : [];
+      const variableTargetMetadata = !isPropsRig
+        ? (targetMetadataByInputId.get(input.id) ?? [])
+        : [];
       const variableTargetText = variableTargetMetadata
         .map((item) => item.targetId)
         .join(" ");
@@ -842,30 +868,29 @@ function InputList({
           ? `${metadata?.elementName || metadata?.elementId} · ${metadata?.featureLabel || metadata?.featureKey || "Property"}`
           : "";
 
-      const contextText =
-        mode === "properties" ? displayPath : variableContext || displayPath;
-      const contextTitle =
-        mode === "properties"
-          ? `${displayPath}${propertyContext ? ` • ${propertyContext}` : ""}`
-          : variableContext
-            ? `${variableContext} • ${displayPath}`
-            : displayPath;
+      const contextText = isPropsRig
+        ? displayPath
+        : variableContext || displayPath;
+      const contextTitle = isPropsRig
+        ? `${displayPath}${propertyContext ? ` • ${propertyContext}` : ""}`
+        : variableContext
+          ? `${variableContext} • ${displayPath}`
+          : displayPath;
 
-      const targetText =
-        mode === "properties"
-          ? [
-              componentId,
-              metadata?.animatableId,
-              metadata?.featureKey,
-              propertyTypeKey,
-              propertyLeafKey,
-            ]
-              .filter(Boolean)
-              .join(" ")
-          : variableTargetText;
+      const targetText = isPropsRig
+        ? [
+            componentId,
+            metadata?.animatableId,
+            metadata?.featureKey,
+            propertyTypeKey,
+            propertyLeafKey,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : variableTargetText;
 
       const disabledByTargetLock =
-        mode === "properties" &&
+        isPropsRig &&
         componentId !== null &&
         lockedInspectorTargetIds.has(componentId);
       const disabledByPropsRigLock = lockedPropsRigInputIds.has(input.id);
@@ -876,6 +901,7 @@ function InputList({
           ? "Direct control disabled from Face Element inspector lock."
           : null;
 
+      const sourceLabel = sourceFilter === "drivers" ? "Driver" : "Property";
       const searchText = normalizeSearchText(
         [
           label,
@@ -884,6 +910,7 @@ function InputList({
           displayPath,
           groupText,
           sourceId,
+          sourceLabel,
           targetText,
           variableContext,
           propertyContext,
@@ -895,6 +922,9 @@ function InputList({
       }
 
       rows.push({
+        rowKey: `${sourceFilter}:${componentId ?? input.id}`,
+        sourceFilter,
+        sourceLabel,
         id: input.id,
         label,
         path: input.path,
@@ -916,18 +946,14 @@ function InputList({
         }),
         contextText,
         contextTitle,
-        objectId:
-          mode === "properties"
-            ? (metadata?.elementId ?? "propsrig")
-            : (variableTargetMetadata[0]?.objectId ?? undefined),
-        featureId:
-          mode === "properties"
-            ? (metadata?.featureKey ?? "propsrig")
-            : (variableTargetMetadata[0]?.featureId ?? undefined),
-        targetId:
-          mode === "properties" ? (componentId ?? undefined) : undefined,
-        selectionLabel:
-          mode === "properties" ? `${label} · ${displayPath}` : undefined,
+        objectId: isPropsRig
+          ? (metadata?.elementId ?? "propsrig")
+          : (variableTargetMetadata[0]?.objectId ?? undefined),
+        featureId: isPropsRig
+          ? (metadata?.featureKey ?? "propsrig")
+          : (variableTargetMetadata[0]?.featureId ?? undefined),
+        targetId: isPropsRig ? (componentId ?? undefined) : undefined,
+        selectionLabel: isPropsRig ? `${label} · ${displayPath}` : undefined,
         propertyTypeKey: propertyTypeKey ?? undefined,
         propertyLeafKey: propertyLeafKey ?? undefined,
         disabled: rowDisabled,
@@ -944,6 +970,10 @@ function InputList({
       const groupDiff = compareText(left.groupLabel, right.groupLabel);
       if (groupDiff !== 0) {
         return groupDiff;
+      }
+      const sourceDiff = compareText(left.sourceLabel, right.sourceLabel);
+      if (sourceDiff !== 0) {
+        return sourceDiff;
       }
       const labelDiff = compareText(left.label, right.label);
       if (labelDiff !== 0) {
@@ -970,8 +1000,8 @@ function InputList({
     return Array.from(grouped.values());
   }, [
     managedStandardInputs,
-    mode,
     queryTokens,
+    selectedSourceFilters,
     selectedPropertyLeafFilters,
     selectedPropertyTypeFilters,
     lockedPropsRigInputIds,
@@ -979,34 +1009,66 @@ function InputList({
     targetMetadataByInputId,
   ]);
 
+  const allRows = useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
+
   const filteredPropertyRows = useMemo(
     () =>
-      mode === "properties"
-        ? groups
-            .flatMap((group) => group.rows)
-            .filter((row) => Boolean(row.targetId) && !row.disabled)
-        : [],
-    [groups, mode],
+      allRows.filter(
+        (row) =>
+          row.sourceFilter === "properties" &&
+          Boolean(row.targetId) &&
+          !row.disabled,
+      ),
+    [allRows],
   );
 
   const filteredPropertyTargetIds = useMemo(
     () =>
-      filteredPropertyRows
-        .map((row) => row.targetId)
-        .filter((targetId): targetId is string => Boolean(targetId)),
+      Array.from(
+        new Set(
+          filteredPropertyRows
+            .map((row) => row.targetId)
+            .filter((targetId): targetId is string => Boolean(targetId)),
+        ),
+      ).sort(compareText),
     [filteredPropertyRows],
   );
 
-  const selectedPropertyCount = useMemo(() => {
-    if (selectedPropertyTargetIds.size === 0) {
-      return 0;
-    }
-    return filteredPropertyTargetIds.reduce(
-      (count, targetId) =>
-        selectedPropertyTargetIds.has(targetId) ? count + 1 : count,
-      0,
-    );
-  }, [filteredPropertyTargetIds, selectedPropertyTargetIds]);
+  const propertyRowByTargetId = useMemo(() => {
+    const byTarget = new Map<string, SelectorRow>();
+    allRows.forEach((row) => {
+      if (row.sourceFilter !== "properties" || !row.targetId) {
+        return;
+      }
+      if (!byTarget.has(row.targetId)) {
+        byTarget.set(row.targetId, row);
+      }
+    });
+    return byTarget;
+  }, [allRows]);
+
+  const filteredVariableRows = useMemo(
+    () =>
+      allRows.filter((row) => row.sourceFilter === "drivers" && !row.disabled),
+    [allRows],
+  );
+
+  const filteredVariableInputIds = useMemo(
+    () =>
+      Array.from(new Set(filteredVariableRows.map((row) => row.id))).sort(
+        compareText,
+      ),
+    [filteredVariableRows],
+  );
+
+  const selectedVariableCount = selectedVariableInputIds.size;
+  const selectedPropertyCount = selectedPropertyTargetIds.size;
+  const totalSelectedCount = selectedVariableCount + selectedPropertyCount;
+  const totalFilteredCount =
+    filteredVariableInputIds.length + filteredPropertyTargetIds.length;
 
   const groupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -1061,13 +1123,40 @@ function InputList({
     });
   };
 
+  const toggleSourceFilter = (sourceFilter: SourceFilter) => {
+    setSelectedSourceFilters((current) => {
+      const next = new Set(current);
+      if (next.has(sourceFilter)) {
+        next.delete(sourceFilter);
+      } else {
+        next.add(sourceFilter);
+      }
+      return next;
+    });
+  };
+
   const hasActivePropertyFilters =
     selectedPropertyTypeFilters.size > 0 ||
     selectedPropertyLeafFilters.size > 0;
+  const hasActiveFilters =
+    hasActivePropertyFilters || selectedSourceFilters.size > 0;
 
-  const clearPropertyFilters = () => {
+  const clearFilters = () => {
+    setSelectedSourceFilters(new Set());
     setSelectedPropertyTypeFilters(new Set());
     setSelectedPropertyLeafFilters(new Set());
+  };
+
+  const toggleVariableSelection = (inputId: string) => {
+    setSelectedVariableInputIds((current) => {
+      const next = new Set(current);
+      if (next.has(inputId)) {
+        next.delete(inputId);
+      } else {
+        next.add(inputId);
+      }
+      return next;
+    });
   };
 
   const togglePropertySelection = (targetId: string) => {
@@ -1082,39 +1171,75 @@ function InputList({
     });
   };
 
-  const selectFilteredProperties = () => {
-    setSelectedPropertyTargetIds(new Set(filteredPropertyTargetIds));
+  const addFilteredToSelection = () => {
+    if (filteredVariableInputIds.length > 0) {
+      setSelectedVariableInputIds((current) => {
+        const next = new Set(current);
+        filteredVariableInputIds.forEach((inputId) => next.add(inputId));
+        return next;
+      });
+    }
+    if (filteredPropertyTargetIds.length > 0) {
+      setSelectedPropertyTargetIds((current) => {
+        const next = new Set(current);
+        filteredPropertyTargetIds.forEach((targetId) => next.add(targetId));
+        return next;
+      });
+    }
   };
 
-  const clearSelectedProperties = () => {
+  const clearSelection = () => {
+    setSelectedVariableInputIds(new Set());
     setSelectedPropertyTargetIds(new Set());
   };
 
-  const handleAddSelectedProperties = () => {
-    if (selectedPropertyTargetIds.size === 0) {
+  const handleAddSelected = () => {
+    if (totalSelectedCount === 0) {
+      return;
+    }
+    const orderedVariableIds = driverInputIdOrder.filter((inputId) =>
+      selectedVariableInputIds.has(inputId),
+    );
+
+    const orderedPropertyTargetIds = Array.from(
+      selectedPropertyTargetIds.values(),
+    ).sort(compareText);
+
+    const selectedPropertyInputIds = Array.from(
+      new Set(
+        orderedPropertyTargetIds.flatMap(
+          (targetId) =>
+            propertyFacetData.targetIdToInputIds.get(targetId) ?? [],
+        ),
+      ),
+    ).sort(compareText);
+
+    if (orderedVariableIds.length > 0 && orderedPropertyTargetIds.length > 0) {
+      onSelect({
+        type: "mixed",
+        label: `Selected Drivers (${orderedVariableIds.length}) + Properties (${orderedPropertyTargetIds.length})`,
+        variableIds: orderedVariableIds,
+        propertyInputIds: selectedPropertyInputIds,
+        propertyTargetIds: orderedPropertyTargetIds,
+      });
       return;
     }
 
-    const selectedRows = filteredPropertyRows.filter(
-      (row) => row.targetId && selectedPropertyTargetIds.has(row.targetId),
-    );
-    if (selectedRows.length === 0) {
+    if (orderedVariableIds.length > 0) {
+      if (orderedVariableIds.length === 1) {
+        onSelect({ type: "variable", id: orderedVariableIds[0]! });
+        return;
+      }
+      onSelect({
+        type: "variable",
+        id: orderedVariableIds[0]!,
+        ids: orderedVariableIds,
+      });
       return;
     }
-    const ordered = Array.from(
-      new Set(
-        selectedRows
-          .map((row) => row.targetId)
-          .filter((targetId): targetId is string => Boolean(targetId)),
-      ),
-    ).sort(compareText);
-    const selectedInputIds = Array.from(
-      new Set(selectedRows.map((row) => row.id)),
-    ).sort(compareText);
-    if (ordered.length === 1) {
-      const singleRow = filteredPropertyRows.find(
-        (row) => row.targetId === ordered[0],
-      );
+
+    if (orderedPropertyTargetIds.length === 1) {
+      const singleRow = propertyRowByTargetId.get(orderedPropertyTargetIds[0]!);
       if (singleRow?.targetId) {
         onSelect({
           type: "property",
@@ -1124,22 +1249,32 @@ function InputList({
           inputId: singleRow.id,
           targetId: singleRow.targetId,
         });
-        return;
       }
+      return;
     }
 
     onSelect({
       type: "property",
       objectId: "propsrig",
       featureId: "propsrig",
-      label: `Selected Properties (${ordered.length})`,
-      inputIds: selectedInputIds,
-      targetIds: ordered,
+      label: `Selected Properties (${orderedPropertyTargetIds.length})`,
+      inputIds: selectedPropertyInputIds,
+      targetIds: orderedPropertyTargetIds,
     });
   };
 
-  const handleAddSingleProperty = (row: SelectorRow) => {
-    if (!row.targetId || row.disabled) {
+  const handleAddSingle = (row: SelectorRow) => {
+    if (row.disabled) {
+      return;
+    }
+    if (row.sourceFilter === "drivers") {
+      onSelect({
+        type: "variable",
+        id: row.id,
+      });
+      return;
+    }
+    if (!row.targetId) {
       return;
     }
     onSelect({
@@ -1152,134 +1287,169 @@ function InputList({
     });
   };
 
-  const noun = mode === "variables" ? "drivers" : "properties";
+  const sourceOptions: Array<{
+    key: SourceFilter;
+    label: string;
+    count: number;
+  }> = [
+    { key: "drivers", label: "Drivers", count: driverInputIdOrder.length },
+    {
+      key: "properties",
+      label: "Properties",
+      count: propertyFacetData.allTargetIds.size,
+    },
+  ];
 
   return (
     <div className="flex flex-col p-2 gap-0.5 pb-4">
-      {mode === "properties" && (
-        <div className="sticky top-0 z-20 mb-2 rounded-lg border border-border-default bg-bg-panel/80 backdrop-blur-md p-2 flex flex-col gap-2">
-          <div className="flex items-start gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
-              Type
-            </span>
-            <div className="flex flex-wrap gap-1 flex-1">
-              {visiblePropertyTypeOptions.map((option) => {
-                const selected = selectedPropertyTypeFilters.has(option.key);
-                return (
-                  <button
-                    key={`type-${option.key}`}
-                    type="button"
-                    className={cn(
-                      "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
-                      selected
-                        ? "border-accent/50 bg-accent/20 text-text-primary"
-                        : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
-                    )}
-                    aria-pressed={selected}
-                    onClick={() =>
-                      toggleFacetFilter(
-                        option.key,
-                        setSelectedPropertyTypeFilters,
-                      )
-                    }
-                  >
-                    <span>{option.label}</span>
-                    <span className="font-mono text-[9px]">{option.count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
-              Leaf
-            </span>
-            <div className="flex flex-wrap gap-1 flex-1">
-              {visiblePropertyLeafOptions.map((option) => {
-                const selected = selectedPropertyLeafFilters.has(option.key);
-                return (
-                  <button
-                    key={`leaf-${option.key}`}
-                    type="button"
-                    className={cn(
-                      "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
-                      selected
-                        ? "border-emerald-500/50 bg-emerald-500/15 text-text-primary"
-                        : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
-                    )}
-                    aria-pressed={selected}
-                    onClick={() =>
-                      toggleFacetFilter(
-                        option.key,
-                        setSelectedPropertyLeafFilters,
-                      )
-                    }
-                  >
-                    <span>{option.label}</span>
-                    <span className="font-mono text-[9px]">{option.count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-default/60">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={clearPropertyFilters}
-              disabled={!hasActivePropertyFilters}
-            >
-              Clear Filters
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={selectFilteredProperties}
-              disabled={filteredPropertyTargetIds.length === 0}
-            >
-              Select Filtered ({filteredPropertyTargetIds.length})
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={clearSelectedProperties}
-              disabled={selectedPropertyCount === 0}
-            >
-              Clear Selected
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              className="h-6 px-2 text-[10px]"
-              onClick={handleAddSelectedProperties}
-              disabled={selectedPropertyCount === 0}
-            >
-              Add All ({selectedPropertyCount})
-            </Button>
+      <div className="sticky top-0 z-20 mb-2 rounded-lg border border-border-default bg-bg-panel/80 backdrop-blur-md p-2 flex flex-col gap-2">
+        <div className="flex items-start gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+            Source
+          </span>
+          <div className="flex flex-wrap gap-1 flex-1">
+            {sourceOptions.map((option) => {
+              const selected = selectedSourceFilters.has(option.key);
+              return (
+                <button
+                  key={`source-${option.key}`}
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                    selected
+                      ? "border-sky-500/50 bg-sky-500/20 text-text-primary"
+                      : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                  )}
+                  aria-pressed={selected}
+                  onClick={() => toggleSourceFilter(option.key)}
+                >
+                  <span>{option.label}</span>
+                  <span className="font-mono text-[9px]">{option.count}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+
+        <div className="flex items-start gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+            Type
+          </span>
+          <div className="flex flex-wrap gap-1 flex-1">
+            {visiblePropertyTypeOptions.map((option) => {
+              const selected = selectedPropertyTypeFilters.has(option.key);
+              return (
+                <button
+                  key={`type-${option.key}`}
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                    selected
+                      ? "border-accent/50 bg-accent/20 text-text-primary"
+                      : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                  )}
+                  aria-pressed={selected}
+                  onClick={() =>
+                    toggleFacetFilter(
+                      option.key,
+                      setSelectedPropertyTypeFilters,
+                    )
+                  }
+                >
+                  <span>{option.label}</span>
+                  <span className="font-mono text-[9px]">{option.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-text-muted w-12 pt-1">
+            Leaf
+          </span>
+          <div className="flex flex-wrap gap-1 flex-1">
+            {visiblePropertyLeafOptions.map((option) => {
+              const selected = selectedPropertyLeafFilters.has(option.key);
+              return (
+                <button
+                  key={`leaf-${option.key}`}
+                  type="button"
+                  className={cn(
+                    "inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[10px] transition-colors",
+                    selected
+                      ? "border-emerald-500/50 bg-emerald-500/15 text-text-primary"
+                      : "border-border-default bg-bg-input text-text-secondary hover:text-text-primary hover:border-border-hover",
+                  )}
+                  aria-pressed={selected}
+                  onClick={() =>
+                    toggleFacetFilter(
+                      option.key,
+                      setSelectedPropertyLeafFilters,
+                    )
+                  }
+                >
+                  <span>{option.label}</span>
+                  <span className="font-mono text-[9px]">{option.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border-default/60">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px]"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+          >
+            Clear Filters
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px]"
+            onClick={addFilteredToSelection}
+            disabled={totalFilteredCount === 0}
+          >
+            Add Filtered To Selection ({totalFilteredCount})
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px]"
+            onClick={clearSelection}
+            disabled={totalSelectedCount === 0}
+          >
+            Clear Selection
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            className="h-6 px-2 text-[10px]"
+            onClick={handleAddSelected}
+            disabled={totalSelectedCount === 0}
+          >
+            Add Selected ({totalSelectedCount})
+          </Button>
+        </div>
+      </div>
 
       {groups.length === 0 ? (
         <div className="p-8 text-center text-xs text-text-muted italic flex flex-col gap-1">
           {search.trim() ? (
             <>
-              <span>
-                No {noun} match "{search.trim()}".
-              </span>
+              <span>No drivers or properties match "{search.trim()}".</span>
               <span className="text-[11px] not-italic text-text-secondary">
-                {mode === "properties" && hasActivePropertyFilters
+                {hasActiveFilters
                   ? "Try broadening your filter chips or search terms."
                   : "Try a label, path segment, or ID fragment."}
               </span>
             </>
           ) : (
-            <span>No {noun} available.</span>
+            <span>No drivers or properties available.</span>
           )}
         </div>
       ) : (
@@ -1307,18 +1477,23 @@ function InputList({
             >
               <div className="flex flex-col">
                 {group.rows.map((row) => {
+                  const isVariableSelected =
+                    row.sourceFilter === "drivers" &&
+                    selectedVariableInputIds.has(row.id);
                   const isPropertySelected =
-                    mode === "properties" &&
+                    row.sourceFilter === "properties" &&
                     !!row.targetId &&
                     selectedPropertyTargetIds.has(row.targetId);
+                  const rowIsSelected =
+                    isVariableSelected || isPropertySelected;
 
                   return (
                     <TreeRow
-                      key={row.id}
+                      key={row.rowKey}
                       depth={1}
                       label={row.label}
                       hasChildren={false}
-                      isSelected={isPropertySelected}
+                      isSelected={rowIsSelected}
                       disabled={row.disabled}
                       disabledReason={row.disabledReason ?? undefined}
                       onToggle={() => undefined}
@@ -1326,8 +1501,8 @@ function InputList({
                         if (row.disabled) {
                           return;
                         }
-                        if (mode === "variables") {
-                          onSelect({ type: "variable", id: row.id });
+                        if (row.sourceFilter === "drivers") {
+                          toggleVariableSelection(row.id);
                           return;
                         }
                         if (!row.targetId) {
@@ -1353,43 +1528,47 @@ function InputList({
                               Locked
                             </span>
                           ) : null}
-                          {mode === "properties" && row.targetId ? (
-                            <Button
-                              size="sm"
-                              variant={
-                                isPropertySelected ? "secondary" : "ghost"
+                          <span className="text-[9px] px-1.5 py-0.5 rounded border border-border-default/60 bg-bg-input/60 text-text-muted">
+                            {row.sourceLabel}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant={rowIsSelected ? "secondary" : "ghost"}
+                            className="h-5 px-1.5 text-[9px]"
+                            disabled={row.disabled}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (row.disabled) {
+                                return;
                               }
-                              className="h-5 px-1.5 text-[9px]"
-                              disabled={row.disabled}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (row.disabled) {
-                                  return;
-                                }
-                                togglePropertySelection(row.targetId!);
-                              }}
-                            >
-                              {isPropertySelected ? "Selected" : "Select"}
-                            </Button>
-                          ) : null}
+                              if (row.sourceFilter === "drivers") {
+                                toggleVariableSelection(row.id);
+                                return;
+                              }
+                              if (!row.targetId) {
+                                return;
+                              }
+                              togglePropertySelection(row.targetId);
+                            }}
+                          >
+                            {rowIsSelected ? "Selected" : "Select"}
+                          </Button>
 
-                          {mode === "properties" ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-5 px-1.5 text-[9px]"
-                              disabled={row.disabled}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (row.disabled) {
-                                  return;
-                                }
-                                handleAddSingleProperty(row);
-                              }}
-                            >
-                              Add
-                            </Button>
-                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 px-1.5 text-[9px]"
+                            disabled={row.disabled}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (row.disabled) {
+                                return;
+                              }
+                              handleAddSingle(row);
+                            }}
+                          >
+                            Add
+                          </Button>
                         </div>
                       }
                     />

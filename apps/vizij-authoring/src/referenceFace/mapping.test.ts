@@ -23,6 +23,9 @@ interface BundleInputFixture {
 interface BundlePoseFixture {
   id: string;
   name: string;
+  group?: string;
+  groupId?: string;
+  groupIds?: string[];
   values: Record<string, unknown>;
 }
 
@@ -223,10 +226,43 @@ describe("referenceFace catalog + mapping", () => {
     });
   });
 
+  it("retains optional reference pose group metadata for foldering", () => {
+    const bundle = makeBundle({
+      inputs: [
+        { id: "src_smile", path: "/controls/mouth/smile", label: "Smile" },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          group: "emotion/upper",
+          groupId: "emotion_upper",
+          groupIds: ["emotion_upper", "emotion"],
+          values: { src_smile: 0.8 },
+        },
+      ],
+    });
+
+    const catalog = extractReferenceCatalog(bundle);
+    expect(catalog.posesById.get("pose_smile")).toEqual({
+      id: "pose_smile",
+      name: "Smile",
+      group: "emotion/upper",
+      groupId: "emotion_upper",
+      groupIds: ["emotion_upper", "emotion"],
+      targets: [{ inputId: "src_smile", value: 0.8 }],
+    });
+  });
+
   it("derives parent-child links from binding summaries when pipeline metadata is missing", () => {
     const bundle = makeBundle({
       inputs: [
-        { id: "src_blink", path: "/controls/eyes/blink", label: "Blink" },
+        {
+          id: "src_blink",
+          path: "/controls/eyes/blink",
+          label: "Blink",
+          defaultValue: 0.35,
+        },
         {
           id: "src_lid_squint",
           path: "/controls/eyes/lid_squint",
@@ -254,7 +290,7 @@ describe("referenceFace catalog + mapping", () => {
         linkId: "link/src_lid_squint->src_blink",
         parentInputId: "src_lid_squint",
         scale: 1,
-        offset: 0,
+        offset: 0.35,
         enabled: true,
       },
     ]);
@@ -263,7 +299,7 @@ describe("referenceFace catalog + mapping", () => {
         linkId: "link/src_lid_squint->src_blink",
         childInputId: "src_blink",
         scale: 1,
-        offset: 0,
+        offset: 0.35,
         enabled: true,
       },
     ]);

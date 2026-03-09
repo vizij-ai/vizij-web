@@ -207,6 +207,110 @@ describe("graph import helpers", () => {
     expect(prepared.metadata.vizij.preservedOnlyInPayload).toBe(true);
   });
 
+  it("preserves payload-only vizij input and binding metadata when compiled IR metadata is incomplete", () => {
+    const irGraph = {
+      id: "ir-partial",
+      faceId: "ir_face",
+      nodes: [],
+      edges: [],
+      constants: [],
+      issues: [],
+      summary: {
+        faceId: "ir_face",
+        inputs: [],
+        outputs: [],
+        bindings: [],
+      },
+      metadata: {
+        source: "test",
+        annotations: {
+          graphSpecMetadata: {
+            vizij: {
+              faceId: "ir_face",
+              inputs: [
+                {
+                  id: "compiled_input",
+                  path: "/propsrig/jaw_open",
+                  label: "Compiled Jaw",
+                },
+              ],
+              bindings: [{ targetId: "compiled_target", expression: "x" }],
+            },
+          },
+        },
+      },
+    };
+    const payload = {
+      metadata: {
+        vizij: {
+          faceId: "payload_face",
+          inputs: [
+            {
+              id: "compiled_input",
+              path: "/propsrig/jaw_open",
+              label: "Payload Jaw",
+              sourceId: "payload-source",
+            },
+            {
+              id: "payload_only_input",
+              path: "/propsrig/chin/value",
+              label: "Payload Chin",
+              sourceId: "payload-chin-source",
+            },
+          ],
+          bindings: [
+            {
+              targetId: "compiled_target",
+              expression: "payload-x",
+              metadata: { source: "payload" },
+            },
+            {
+              targetId: "payload_only_target",
+              expression: "payload-y",
+            },
+          ],
+        },
+      },
+    };
+
+    const prepared = prepareSpecForImport(payload, irGraph) as {
+      metadata: {
+        vizij: {
+          faceId: string;
+          inputs: Array<Record<string, unknown>>;
+          bindings: Array<Record<string, unknown>>;
+        };
+      };
+    };
+
+    expect(prepared.metadata.vizij.faceId).toBe("ir_face");
+    expect(prepared.metadata.vizij.inputs).toEqual([
+      {
+        id: "compiled_input",
+        path: "/propsrig/jaw_open",
+        label: "Compiled Jaw",
+        sourceId: "payload-source",
+      },
+      {
+        id: "payload_only_input",
+        path: "/propsrig/chin/value",
+        label: "Payload Chin",
+        sourceId: "payload-chin-source",
+      },
+    ]);
+    expect(prepared.metadata.vizij.bindings).toEqual([
+      {
+        targetId: "compiled_target",
+        expression: "x",
+        metadata: { source: "payload" },
+      },
+      {
+        targetId: "payload_only_target",
+        expression: "payload-y",
+      },
+    ]);
+  });
+
   it("falls back to payload vizij metadata when compiled IR spec has no metadata section", () => {
     const irGraph = {
       id: "ir-no-metadata",

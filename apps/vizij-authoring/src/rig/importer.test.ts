@@ -74,6 +74,7 @@ function makeSpec(options: {
         scale?: number;
         offset?: number;
         enabled?: boolean;
+        expression?: string;
       }
     >;
   };
@@ -625,6 +626,7 @@ describe("rehydrateRigDataFromGraph", () => {
             scale: 1,
             offset: 0,
             enabled: true,
+            expression: "s1 = sin(parent * scale) + offset",
           },
         },
       },
@@ -645,5 +647,19 @@ describe("rehydrateRigDataFromGraph", () => {
       (input) => input.id === "propsrig_ltlid_lidcurve_value",
     );
     expect(child?.parentBinding?.inputId).toBe("blink");
+    expect(
+      (
+        result.inputBindings.propsrig_ltlid_lidcurve_value?.metadata as
+          | {
+              vizij?: {
+                pipelineV1?: {
+                  links?: Record<string, { expression?: string }>;
+                };
+              };
+            }
+          | undefined
+      )?.vizij?.pipelineV1?.links?.["link/blink->propsrig_ltlid_lidcurve_value"]
+        ?.expression,
+    ).toBe("s1 = sin(parent * scale) + offset");
   });
 });

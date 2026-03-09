@@ -258,7 +258,10 @@ export default function InputSetsPanel() {
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col">
+    <div
+      data-testid="motiongraph-input-sets-panel"
+      className="h-full flex flex-col"
+    >
       {/* Header */}
       <div className="px-3 py-2 border-b border-neutral-700">
         <div className="flex items-center justify-between mb-1.5">
@@ -275,6 +278,7 @@ export default function InputSetsPanel() {
           Namespace
         </div>
         <select
+          data-testid="motiongraph-namespace-select"
           value={selectedBase}
           onChange={(e) => setSelectedBase(e.target.value)}
           className="w-full px-2 py-1 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-300 focus:outline-none focus:border-sky-500 mb-1.5"
@@ -292,6 +296,7 @@ export default function InputSetsPanel() {
         {addingRoot ? (
           <div className="flex items-center gap-1">
             <input
+              data-testid="motiongraph-new-namespace-input"
               autoFocus
               value={newRootName}
               onChange={(e) => setNewRootName(e.target.value)}
@@ -303,12 +308,14 @@ export default function InputSetsPanel() {
               className="flex-1 px-2 py-1 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-300 focus:outline-none focus:border-sky-500"
             />
             <button
+              data-testid="motiongraph-new-namespace-confirm"
               onClick={handleConfirmNewRoot}
               className="px-1.5 py-1 text-xs text-sky-400 hover:text-sky-300"
             >
               OK
             </button>
             <button
+              data-testid="motiongraph-new-namespace-cancel"
               onClick={handleCancelNewRoot}
               className="px-1.5 py-1 text-xs text-neutral-500 hover:text-neutral-300"
             >
@@ -317,6 +324,7 @@ export default function InputSetsPanel() {
           </div>
         ) : (
           <button
+            data-testid="motiongraph-new-namespace-trigger"
             onClick={() => setAddingRoot(true)}
             className="w-full px-2 py-1 text-xs rounded border border-dashed border-neutral-700 text-neutral-500 hover:text-sky-400 hover:border-sky-700 transition-colors"
           >
@@ -356,6 +364,7 @@ export default function InputSetsPanel() {
         </div>
         <div className="flex items-center gap-1">
           <input
+            data-testid="motiongraph-new-input-path"
             value={newInputPath}
             onChange={(e) => {
               setNewInputPath(e.target.value);
@@ -368,6 +377,7 @@ export default function InputSetsPanel() {
             className="flex-1 px-2 py-1 text-xs rounded bg-neutral-800 border border-neutral-700 text-neutral-300 focus:outline-none focus:border-sky-500"
           />
           <button
+            data-testid="motiongraph-add-input"
             onClick={handleAddInput}
             className="px-2 py-1 text-xs rounded bg-sky-700 text-sky-100 hover:bg-sky-600 transition-colors"
           >

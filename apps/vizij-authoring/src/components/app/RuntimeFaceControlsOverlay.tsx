@@ -8,6 +8,8 @@ export type RuntimeFaceControlsOverlayProps = {
   showReadyFlag?: boolean;
   resetButtonLabel?: string;
   resetButtonTitle?: string;
+  resetButtonTestId?: string;
+  readyFlagTestId?: string;
 };
 
 export function RuntimeFaceControlsOverlay({
@@ -17,6 +19,8 @@ export function RuntimeFaceControlsOverlay({
   showReadyFlag = true,
   resetButtonLabel = "Reset Inputs",
   resetButtonTitle = "Reset graph inputs to their default values",
+  resetButtonTestId,
+  readyFlagTestId,
 }: RuntimeFaceControlsOverlayProps) {
   const { ready, loading, stepHz } = useVizijRuntime();
 
@@ -31,8 +35,10 @@ export function RuntimeFaceControlsOverlay({
     <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
       {showReadyFlag && (
         <div className="flex items-center gap-1 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          Ready
+          <div data-testid={readyFlagTestId} className="contents">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Ready
+          </div>
         </div>
       )}
       <div className="rounded bg-black/60 px-2 py-1 text-[10px] text-white">
@@ -40,6 +46,7 @@ export function RuntimeFaceControlsOverlay({
       </div>
       {onResetInputs && (
         <Button
+          data-testid={resetButtonTestId}
           variant="secondary"
           size="sm"
           onClick={onResetInputs}

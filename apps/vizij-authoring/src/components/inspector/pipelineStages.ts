@@ -8,6 +8,10 @@ type JsonObject = Record<string, unknown>;
 
 interface PipelineV1Metadata {
   links?: Record<string, Record<string, unknown>>;
+  parentBlend?: {
+    mode?: unknown;
+    expression?: unknown;
+  };
   directInput?: {
     enabled?: unknown;
   };
@@ -149,6 +153,21 @@ function formatExpressionNumber(value: number): string {
     return "0";
   }
   return rounded.toString();
+}
+
+export function buildDefaultParentVariableFormula(variable: string): string {
+  const trimmed = variable.trim();
+  const token = trimmed.length > 0 ? trimmed : "P1";
+  return `${token} = parent * scale + offset`;
+}
+
+export function buildDefaultParentContributionFormula(
+  variables: readonly string[],
+): string {
+  const terms = variables
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  return `parentContribution = normalizedAdditive([${terms.join(", ")}], baseline=default)`;
 }
 
 function normalizeMigrationInputId(
@@ -412,8 +431,10 @@ export function mergePipelineMetadata(
         scale?: number;
         offset?: number;
         enabled?: boolean;
+        expression?: string | null;
       }
     >;
+    parentBlendExpression?: string | null;
     migrationStatus?: "migrated";
     migrationSource?: string;
     migrationExpression?: string;
@@ -427,6 +448,14 @@ export function mergePipelineMetadata(
 
   const nextPipeline: PipelineV1Metadata = {
     ...pipeline,
+    parentBlend: {
+      ...(asObject(pipeline.parentBlend) ?? {}),
+      ...(patch.parentBlendExpression !== undefined
+        ? patch.parentBlendExpression === null
+          ? {}
+          : { expression: patch.parentBlendExpression }
+        : {}),
+    },
     directInput: {
       ...(asObject(pipeline.directInput) ?? {}),
       ...(patch.directInputEnabled !== undefined
@@ -482,9 +511,25 @@ export function mergePipelineMetadata(
         ...(linkPatch.enabled !== undefined
           ? { enabled: linkPatch.enabled }
           : {}),
+        ...(linkPatch.expression !== undefined
+          ? linkPatch.expression === null
+            ? {}
+            : { expression: linkPatch.expression }
+          : {}),
       };
+      if (linkPatch.expression === null) {
+        delete nextLinks[linkId].expression;
+      }
     });
     nextPipeline.links = nextLinks;
+  }
+
+  if (patch.parentBlendExpression === null) {
+    const existingParentBlend = asObject(nextPipeline.parentBlend);
+    if (existingParentBlend) {
+      delete existingParentBlend.expression;
+      nextPipeline.parentBlend = existingParentBlend;
+    }
   }
 
   if (patch.migrationStatus === "migrated") {

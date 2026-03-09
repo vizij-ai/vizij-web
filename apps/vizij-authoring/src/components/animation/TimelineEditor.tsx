@@ -1,17 +1,30 @@
-import { useRef } from "react";
-import { useAnimationStore } from "../../state/animationStore";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useAnimationStore,
+  type AnimationTimeDisplayMode,
+} from "../../state/animationStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import { ANIMATION_TIMELINE_FPS } from "../../utils/animationTimeDisplay";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
   onSeek?: (timeSeconds: number) => void;
+  onPause?: () => void;
+  timeDisplayMode?: AnimationTimeDisplayMode;
 }
 
-export function TimelineEditor({ onSeek }: TimelineEditorProps) {
+const TRACK_HEADER_WIDTH = 192;
+
+export function TimelineEditor({
+  onSeek,
+  onPause,
+  timeDisplayMode = "seconds",
+}: TimelineEditorProps) {
   const {
     tracks,
     duration,
     currentTime,
+    transportPlaybackState,
     seek,
     addKeyframe,
     selectedTrackId,
@@ -21,34 +34,50 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
+  const isScrubbingRulerRef = useRef(false);
+  const scrubStartClientXRef = useRef<number | null>(null);
+  const pausedForScrubRef = useRef(false);
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
   const seekTo = onSeek ?? seek;
 
+  const resolveTimeFromClientX = useCallback(
+    (clientX: number): number | null => {
+      const rect = timelineRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return null;
+      }
+      const x = clientX - rect.left;
+      if (x < TRACK_HEADER_WIDTH) {
+        return null;
+      }
+      const trackWidth = rect.width - TRACK_HEADER_WIDTH;
+      if (trackWidth <= 0) {
+        return 0;
+      }
+      const clickX = x - TRACK_HEADER_WIDTH;
+      return Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
+    },
+    [duration],
+  );
+
+  const seekFromClientX = useCallback(
+    (clientX: number) => {
+      const time = resolveTimeFromClientX(clientX);
+      if (time === null) {
+        return;
+      }
+      seekTo(time);
+    },
+    [resolveTimeFromClientX, seekTo],
+  );
+
   const handleTimelineClick = (e: React.MouseEvent) => {
-    // Only seek if clicking on the ruler area or empty space, not on interactive elements which stop propagation
     const rect = timelineRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // Calculate time based on click position relative to track area (ignoring the 48px header width if needed, or keeping it uniform)
-    // Actually our TrackRow reserves 192px (w-48 = 12rem = 192px) for the header.
-    // The timeline ruler should match this.
-
-    // Let's assume the timeline area starts at 192px offset for the ruler content
-    // But for simplicity of click seeking, we can make the whole width correspond to time if we want,
-    // OR we can make the click only work in the track area.
-
-    const x = e.clientX - rect.left;
-    const headerWidth = 192; // w-48
-
-    if (x < headerWidth) return;
-
-    const trackWidth = rect.width - headerWidth;
-    const clickX = x - headerWidth;
-    const t = Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
-
-    seekTo(t);
+    seekFromClientX(e.clientX);
   };
 
   // Double click to add keyframe
@@ -58,14 +87,10 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
     const rect = timelineRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const x = e.clientX - rect.left;
-    const headerWidth = 192;
-
-    if (x < headerWidth) return;
-
-    const trackWidth = rect.width - headerWidth;
-    const clickX = x - headerWidth;
-    const t = Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
+    const t = resolveTimeFromClientX(e.clientX);
+    if (t === null) {
+      return;
+    }
 
     const selectedTrack = tracks.find((track) => track.id === selectedTrackId);
     if (!selectedTrack) {
@@ -75,6 +100,105 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
       standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0;
     addKeyframe(selectedTrackId, t, defaultValue);
   };
+
+  const handleRulerPointerMove = useCallback(
+    (event: PointerEvent) => {
+      if (!isScrubbingRulerRef.current) {
+        return;
+      }
+      if (
+        transportPlaybackState !== "paused" &&
+        !pausedForScrubRef.current &&
+        scrubStartClientXRef.current !== null &&
+        Math.abs(event.clientX - scrubStartClientXRef.current) >= 2
+      ) {
+        onPause?.();
+        pausedForScrubRef.current = true;
+      }
+      seekFromClientX(event.clientX);
+    },
+    [onPause, seekFromClientX, transportPlaybackState],
+  );
+
+  const stopRulerScrub = useCallback(() => {
+    if (!isScrubbingRulerRef.current) {
+      return;
+    }
+    isScrubbingRulerRef.current = false;
+    scrubStartClientXRef.current = null;
+    pausedForScrubRef.current = false;
+    window.removeEventListener("pointermove", handleRulerPointerMove);
+    window.removeEventListener("pointerup", stopRulerScrub);
+    window.removeEventListener("pointercancel", stopRulerScrub);
+  }, [handleRulerPointerMove]);
+
+  const handleRulerPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+    isScrubbingRulerRef.current = true;
+    scrubStartClientXRef.current = event.clientX;
+    pausedForScrubRef.current = false;
+    seekFromClientX(event.clientX);
+    window.addEventListener("pointermove", handleRulerPointerMove);
+    window.addEventListener("pointerup", stopRulerScrub);
+    window.addEventListener("pointercancel", stopRulerScrub);
+  };
+
+  useEffect(
+    () => () => {
+      isScrubbingRulerRef.current = false;
+      scrubStartClientXRef.current = null;
+      pausedForScrubRef.current = false;
+      window.removeEventListener("pointermove", handleRulerPointerMove);
+      window.removeEventListener("pointerup", stopRulerScrub);
+      window.removeEventListener("pointercancel", stopRulerScrub);
+    },
+    [handleRulerPointerMove, stopRulerScrub],
+  );
+
+  const rulerTicks = useMemo(() => {
+    const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+    if (timeDisplayMode === "frames") {
+      const totalFrames = Math.max(
+        0,
+        Math.floor(safeDuration * ANIMATION_TIMELINE_FPS),
+      );
+      const stepFrames = 16;
+      const frames: number[] = [0];
+      for (let frame = stepFrames; frame <= totalFrames; frame += stepFrames) {
+        frames.push(frame);
+      }
+      if (frames[frames.length - 1] !== totalFrames) {
+        frames.push(totalFrames);
+      }
+      return frames.map((frame) => {
+        const time = frame / ANIMATION_TIMELINE_FPS;
+        const leftPct = safeDuration > 0 ? (time / safeDuration) * 100 : 0;
+        return {
+          key: `frame-${frame}`,
+          leftPct,
+          label: `${frame}f`,
+        };
+      });
+    }
+
+    const maxWholeSecond = Math.floor(safeDuration);
+    const ticks: number[] = [0];
+    for (let second = 1; second <= maxWholeSecond; second += 1) {
+      ticks.push(second);
+    }
+    return ticks.map((second) => {
+      const leftPct = safeDuration > 0 ? (second / safeDuration) * 100 : 0;
+      return {
+        key: `second-${second}`,
+        leftPct,
+        label: `${second}s`,
+      };
+    });
+  }, [duration, timeDisplayMode]);
 
   const playheadLeftPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -86,7 +210,10 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
       onDoubleClick={handleDoubleClick}
     >
       {/* Time Ruler */}
-      <div className="h-7 border-b border-border-default/80 bg-bg-panel/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-pointer hover:bg-bg-panel transition-colors">
+      <div
+        className="h-7 border-b border-border-default/80 bg-bg-panel/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-ew-resize hover:bg-bg-panel transition-colors"
+        onPointerDown={handleRulerPointerDown}
+      >
         {/* Header spacer */}
         <div className="w-48 shrink-0 border-r border-border-default/30 h-full flex items-center px-3">
           <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">
@@ -96,20 +223,17 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 
         {/* Ticks */}
         <div className="flex-1 relative h-full overflow-hidden">
-          {Array.from({ length: 11 }).map((_, i) => {
-            const pct = i * 10;
-            return (
-              <div
-                key={i}
-                className="absolute bottom-0 h-2 border-l border-border-default/50"
-                style={{ left: `${pct}%` }}
-              >
-                <span className="absolute -top-4 -left-1 text-[9px] font-mono font-medium text-text-muted">
-                  {(duration * (i / 10)).toFixed(1)}s
-                </span>
-              </div>
-            );
-          })}
+          {rulerTicks.map((tick) => (
+            <div
+              key={tick.key}
+              className="absolute bottom-0 h-2 border-l border-border-default/50"
+              style={{ left: `${tick.leftPct}%` }}
+            >
+              <span className="absolute -top-4 -left-1 text-[9px] font-mono font-medium text-text-muted">
+                {tick.label}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -130,7 +254,12 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
           </div>
         ) : (
           tracks.map((track) => (
-            <TrackRow key={track.id} track={track} duration={duration} />
+            <TrackRow
+              key={track.id}
+              track={track}
+              duration={duration}
+              timeDisplayMode={timeDisplayMode}
+            />
           ))
         )}
 

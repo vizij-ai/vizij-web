@@ -22,12 +22,16 @@ export function MenuBar({ children, className }: MenuBarProps) {
 interface MenuProps {
   label: string;
   children: React.ReactNode;
+  testId?: string;
 }
 
-export function Menu({ label, children }: MenuProps) {
+export function Menu({ label, children, testId }: MenuProps) {
   return (
     <BaseMenu.Root>
-      <BaseMenu.Trigger className="inline-flex justify-center gap-x-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent data-[popup-open]:bg-bg-active data-[popup-open]:text-text-primary cursor-pointer active:scale-95">
+      <BaseMenu.Trigger
+        data-testid={testId}
+        className="inline-flex justify-center gap-x-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent data-[popup-open]:bg-bg-active data-[popup-open]:text-text-primary cursor-pointer active:scale-95"
+      >
         {label}
       </BaseMenu.Trigger>
 
@@ -46,13 +50,16 @@ export function MenuItem({
   children,
   onSelect,
   disabled,
+  testId,
 }: {
   children: React.ReactNode;
   onSelect?: () => void;
   disabled?: boolean;
+  testId?: string;
 }) {
   return (
     <BaseMenu.Item
+      data-testid={testId}
       disabled={disabled}
       onClick={onSelect}
       className={cn(
@@ -85,13 +92,16 @@ export function MenuCheckboxItem({
   children,
   checked,
   onCheckedChange,
+  testId,
 }: {
   children: React.ReactNode;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  testId?: string;
 }) {
   return (
     <BaseMenu.CheckboxItem
+      data-testid={testId}
       checked={checked}
       onCheckedChange={onCheckedChange}
       className={cn(

@@ -1557,6 +1557,346 @@ export function buildRigGraphSpec({
     return normalizedNodeId;
   };
 
+  const splitTopLevelCommaSeparated = (value: string): string[] => {
+    const segments: string[] = [];
+    let depthParen = 0;
+    let depthBracket = 0;
+    let start = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const char = value[index];
+      if (char === "(") {
+        depthParen += 1;
+        continue;
+      }
+      if (char === ")") {
+        depthParen = Math.max(0, depthParen - 1);
+        continue;
+      }
+      if (char === "[") {
+        depthBracket += 1;
+        continue;
+      }
+      if (char === "]") {
+        depthBracket = Math.max(0, depthBracket - 1);
+        continue;
+      }
+      if (char === "," && depthParen === 0 && depthBracket === 0) {
+        segments.push(value.slice(start, index));
+        start = index + 1;
+      }
+    }
+    segments.push(value.slice(start));
+    return segments;
+  };
+
+  const stripTopLevelAssignment = (value: string): string => {
+    let depthParen = 0;
+    let depthBracket = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const char = value[index];
+      if (char === "(") {
+        depthParen += 1;
+        continue;
+      }
+      if (char === ")") {
+        depthParen = Math.max(0, depthParen - 1);
+        continue;
+      }
+      if (char === "[") {
+        depthBracket += 1;
+        continue;
+      }
+      if (char === "]") {
+        depthBracket = Math.max(0, depthBracket - 1);
+        continue;
+      }
+      if (char !== "=" || depthParen !== 0 || depthBracket !== 0) {
+        continue;
+      }
+      const previous = value[index - 1];
+      const next = value[index + 1];
+      if (previous === "=" || next === "=") {
+        continue;
+      }
+      return value.slice(index + 1).trim();
+    }
+    return value.trim();
+  };
+
+  const isNormalizedAdditiveFunctionName = (value: string): boolean => {
+    const normalized = value.trim().toLowerCase();
+    return (
+      normalized === "normalizedadditive" ||
+      normalized === "normalizedaddative" ||
+      normalized === "noramalizedadditive" ||
+      normalized === "noramalizedaddative"
+    );
+  };
+
+  const buildNormalizedAdditiveExpression = (value: string): string => {
+    const args = splitTopLevelCommaSeparated(value).map((entry) =>
+      entry.trim(),
+    );
+    if (args.length === 0) {
+      return "default";
+    }
+
+    const parentTerms: string[] = [];
+    let baselineExpression = "default";
+
+    const firstArg = args[0];
+    if (firstArg && firstArg.startsWith("[") && firstArg.endsWith("]")) {
+      const inner = firstArg.slice(1, -1).trim();
+      if (inner.length > 0) {
+        splitTopLevelCommaSeparated(inner).forEach((entry) => {
+          const term = entry.trim();
+          if (term.length > 0) {
+            parentTerms.push(term);
+          }
+        });
+      }
+      args.slice(1).forEach((entry) => {
+        const baselineMatch = entry.match(/^baseline\s*=\s*(.+)$/i);
+        if (baselineMatch?.[1]) {
+          baselineExpression = baselineMatch[1].trim();
+          return;
+        }
+        const term = entry.trim();
+        if (term.length > 0) {
+          parentTerms.push(term);
+        }
+      });
+    } else {
+      args.forEach((entry) => {
+        const baselineMatch = entry.match(/^baseline\s*=\s*(.+)$/i);
+        if (baselineMatch?.[1]) {
+          baselineExpression = baselineMatch[1].trim();
+          return;
+        }
+        const term = entry.trim();
+        if (term.length > 0) {
+          parentTerms.push(term);
+        }
+      });
+    }
+
+    if (parentTerms.length === 0) {
+      return `(${baselineExpression})`;
+    }
+    if (parentTerms.length === 1) {
+      return `(${parentTerms[0]})`;
+    }
+    return `((${parentTerms.join(" + ")}) - (${parentTerms.length - 1}) * (${baselineExpression}))`;
+  };
+
+  const rewriteNormalizedAdditiveCalls = (value: string): string => {
+    let cursor = 0;
+    let rewritten = "";
+    while (cursor < value.length) {
+      const remaining = value.slice(cursor);
+      const match = remaining.match(
+        /(normalizedadditive|normalizedaddative|noramalizedadditive|noramalizedaddative)\s*\(/i,
+      );
+      if (!match || match.index === undefined) {
+        rewritten += remaining;
+        break;
+      }
+      const matchStart = cursor + match.index;
+      const functionName = match[1] ?? "";
+      const openParenIndex = value.indexOf(
+        "(",
+        matchStart + functionName.length,
+      );
+      if (openParenIndex < 0) {
+        rewritten += value.slice(cursor);
+        break;
+      }
+      rewritten += value.slice(cursor, matchStart);
+
+      let depth = 1;
+      let closeParenIndex = openParenIndex + 1;
+      while (closeParenIndex < value.length && depth > 0) {
+        const char = value[closeParenIndex];
+        if (char === "(") {
+          depth += 1;
+        } else if (char === ")") {
+          depth -= 1;
+        }
+        closeParenIndex += 1;
+      }
+      if (depth !== 0) {
+        rewritten += value.slice(matchStart);
+        break;
+      }
+
+      const argsContent = value.slice(openParenIndex + 1, closeParenIndex - 1);
+      if (isNormalizedAdditiveFunctionName(functionName)) {
+        rewritten += buildNormalizedAdditiveExpression(argsContent);
+      } else {
+        rewritten += value.slice(matchStart, closeParenIndex);
+      }
+      cursor = closeParenIndex;
+    }
+    return rewritten;
+  };
+
+  const normalizeStagedFormulaExpression = (expression: string): string => {
+    const rhs = stripTopLevelAssignment(expression);
+    return rewriteNormalizedAdditiveCalls(rhs);
+  };
+
+  const normalizeFormulaSignature = (expression: string): string =>
+    normalizeStagedFormulaExpression(expression)
+      .replace(/\s+/g, "")
+      .toLowerCase();
+
+  const buildDefaultParentTransformNodeId = (params: {
+    sourceNodeId: string;
+    nodeSuffix: string;
+    scale: number;
+    offset: number;
+  }): string => {
+    let transformedNodeId = params.sourceNodeId;
+    if (params.scale !== 1) {
+      const scaledNodeId = `input_parent_scale_${params.nodeSuffix}`;
+      nodes.push({
+        id: scaledNodeId,
+        type: "multiply",
+        inputDefaults: {
+          operand_2: params.scale,
+        },
+      });
+      edges.push({
+        from: { nodeId: transformedNodeId },
+        to: { nodeId: scaledNodeId, portId: "operand_1" },
+      });
+      transformedNodeId = scaledNodeId;
+    }
+    if (params.offset !== 0) {
+      const offsetNodeId = `input_parent_offset_${params.nodeSuffix}`;
+      nodes.push({
+        id: offsetNodeId,
+        type: "add",
+        inputDefaults: {
+          operand_2: params.offset,
+        },
+      });
+      edges.push({
+        from: { nodeId: transformedNodeId },
+        to: { nodeId: offsetNodeId, portId: "operand_1" },
+      });
+      transformedNodeId = offsetNodeId;
+    }
+    return transformedNodeId;
+  };
+
+  const buildStagedFormulaNodeId = (params: {
+    expression: string;
+    fallbackNodeId: string;
+    componentSafeId: string;
+    inputId: string;
+    issuePrefix: string;
+    variables: Record<string, { nodeId?: string; value?: number }>;
+  }): string => {
+    const normalizedExpression = normalizeStagedFormulaExpression(
+      params.expression,
+    );
+    if (!normalizedExpression) {
+      return params.fallbackNodeId;
+    }
+
+    const parseResult = parseControlExpression(normalizedExpression);
+    const issues: string[] = [];
+    if (!parseResult.node) {
+      parseResult.errors.forEach((error) => {
+        issues.push(
+          `${params.issuePrefix}: ${error.message} (index ${error.index}).`,
+        );
+      });
+    }
+    if (!parseResult.node || issues.length > 0) {
+      const issueSet = bindingIssues.get(params.inputId) ?? new Set<string>();
+      issues.forEach((issue) => issueSet.add(issue));
+      if (issues.length > 0) {
+        bindingIssues.set(params.inputId, issueSet);
+      }
+      return params.fallbackNodeId;
+    }
+
+    const exprContext: ExpressionBuildContext = {
+      componentSafeId: params.componentSafeId,
+      nodes,
+      edges,
+      constants: new Map(),
+      counter: 1,
+      reservedNodes: new Map(),
+      nodeValueTypes: new Map(),
+      graphReservedNodes,
+      generateReservedNodeId,
+    };
+    const variableTable = createExpressionVariableTable();
+    const registerVariableName = (name: string, nodeId: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        return;
+      }
+      variableTable.registerReservedVariable({
+        name: trimmed,
+        nodeId,
+        description: "Staged pipeline formula variable",
+      });
+      const lower = trimmed.toLowerCase();
+      if (lower !== trimmed) {
+        variableTable.registerReservedVariable({
+          name: lower,
+          nodeId,
+          description: "Staged pipeline formula variable",
+        });
+      }
+    };
+    Object.entries(params.variables).forEach(([name, variable]) => {
+      const nodeId =
+        variable.nodeId ??
+        (typeof variable.value === "number" && Number.isFinite(variable.value)
+          ? getConstantNodeId(exprContext, variable.value)
+          : null);
+      if (!nodeId) {
+        return;
+      }
+      registerVariableName(name, nodeId);
+    });
+
+    const references = collectExpressionReferences(parseResult.node);
+    const missingVariables = variableTable.missing(references);
+    if (missingVariables.length > 0) {
+      const issueSet = bindingIssues.get(params.inputId) ?? new Set<string>();
+      missingVariables.forEach((entry) => {
+        issueSet.add(
+          `${params.issuePrefix}: unknown formula variable "${entry.name}".`,
+        );
+      });
+      bindingIssues.set(params.inputId, issueSet);
+      return params.fallbackNodeId;
+    }
+
+    validateLiteralParamArguments(parseResult.node, issues);
+    const nodeId = materializeExpression(
+      parseResult.node,
+      exprContext,
+      variableTable,
+      issues,
+    );
+    if (issues.length > 0) {
+      const issueSet = bindingIssues.get(params.inputId) ?? new Set<string>();
+      issues.forEach((issue) =>
+        issueSet.add(`${params.issuePrefix}: ${issue}`),
+      );
+      bindingIssues.set(params.inputId, issueSet);
+      return params.fallbackNodeId;
+    }
+    return nodeId;
+  };
+
   const buildLegacyEffectiveInputNodeId = (
     input: StandardRigInput,
     directNodeId: string,
@@ -1647,6 +1987,7 @@ export function buildRigGraphSpec({
       : 0;
 
     const parentContributionNodes: string[] = [];
+    const parentNodeIdByAlias = new Map<string, string>();
     stagedConfig.parents.forEach((parent, index) => {
       if (!parent.enabled) {
         return;
@@ -1665,48 +2006,76 @@ export function buildRigGraphSpec({
         return;
       }
 
-      let transformedNodeId = parentInput.nodeId;
       const nodeSuffix = `${safeInputId}_${index + 1}`;
-      if (parent.scale !== 1) {
-        const scaledNodeId = `input_parent_scale_${nodeSuffix}`;
-        nodes.push({
-          id: scaledNodeId,
-          type: "multiply",
-          inputDefaults: {
-            operand_2: parent.scale,
-          },
-        });
-        edges.push({
-          from: { nodeId: transformedNodeId },
-          to: { nodeId: scaledNodeId, portId: "operand_1" },
-        });
-        transformedNodeId = scaledNodeId;
+      const fallbackParentNodeId = buildDefaultParentTransformNodeId({
+        sourceNodeId: parentInput.nodeId,
+        nodeSuffix,
+        scale: parent.scale,
+        offset: parent.offset,
+      });
+      const defaultParentFormulaExpression = `${parent.alias} = parent * scale + offset`;
+      const parentFormulaNodeId =
+        normalizeFormulaSignature(parent.expression) ===
+        normalizeFormulaSignature(defaultParentFormulaExpression)
+          ? fallbackParentNodeId
+          : buildStagedFormulaNodeId({
+              expression: parent.expression,
+              fallbackNodeId: fallbackParentNodeId,
+              componentSafeId: `staged_parent_${nodeSuffix}`,
+              inputId: input.id,
+              issuePrefix: `Parent formula "${parent.alias}"`,
+              variables: {
+                parent: { nodeId: parentInput.nodeId },
+                scale: { value: parent.scale },
+                offset: { value: parent.offset },
+                default: { value: composeBaseline },
+                baseline: { value: composeBaseline },
+              },
+            });
+      parentContributionNodes.push(parentFormulaNodeId);
+      parentNodeIdByAlias.set(parent.alias, parentFormulaNodeId);
+      const normalizedAlias = parent.alias.toLowerCase();
+      if (normalizedAlias !== parent.alias) {
+        parentNodeIdByAlias.set(normalizedAlias, parentFormulaNodeId);
       }
-      if (parent.offset !== 0) {
-        const offsetNodeId = `input_parent_offset_${nodeSuffix}`;
-        nodes.push({
-          id: offsetNodeId,
-          type: "add",
-          inputDefaults: {
-            operand_2: parent.offset,
-          },
-        });
-        edges.push({
-          from: { nodeId: transformedNodeId },
-          to: { nodeId: offsetNodeId, portId: "operand_1" },
-        });
-        transformedNodeId = offsetNodeId;
-      }
-      parentContributionNodes.push(transformedNodeId);
     });
 
     const parentContributionNodeId =
       parentContributionNodes.length > 0
-        ? buildNormalizedAdditiveBlendNodeId({
-            nodeIdPrefix: `input_parent_blend_${safeInputId}`,
-            sourceNodeIds: parentContributionNodes,
-            baseline: composeBaseline,
-          })
+        ? (() => {
+            const defaultParentContributionNodeId =
+              buildNormalizedAdditiveBlendNodeId({
+                nodeIdPrefix: `input_parent_blend_${safeInputId}`,
+                sourceNodeIds: parentContributionNodes,
+                baseline: composeBaseline,
+              });
+            const defaultParentContributionExpression = `parentContribution = normalizedAdditive([${stagedConfig.parents
+              .filter((entry) => entry.enabled)
+              .map((entry) => entry.alias)
+              .join(", ")}], baseline=default)`;
+            if (
+              normalizeFormulaSignature(stagedConfig.parentBlend.expression) ===
+              normalizeFormulaSignature(defaultParentContributionExpression)
+            ) {
+              return defaultParentContributionNodeId;
+            }
+            return buildStagedFormulaNodeId({
+              expression: stagedConfig.parentBlend.expression,
+              fallbackNodeId: defaultParentContributionNodeId,
+              componentSafeId: `staged_parent_contribution_${safeInputId}`,
+              inputId: input.id,
+              issuePrefix: "Parent contribution formula",
+              variables: {
+                ...Object.fromEntries(
+                  Array.from(parentNodeIdByAlias.entries()).map(
+                    ([alias, nodeId]) => [alias, { nodeId }],
+                  ),
+                ),
+                default: { value: composeBaseline },
+                baseline: { value: composeBaseline },
+              },
+            });
+          })()
         : null;
 
     let poseContributionNodeId: string | null = null;
@@ -2203,6 +2572,7 @@ export function buildRigGraphSpec({
                   scale: parent.scale,
                   offset: parent.offset,
                   enabled: parent.enabled,
+                  expression: parent.expression,
                 })),
                 children: stagedConfig.children.map((child) => ({
                   linkId: child.linkId,
@@ -2210,6 +2580,7 @@ export function buildRigGraphSpec({
                 })),
                 parentBlend: {
                   mode: stagedConfig.parentBlend.mode,
+                  expression: stagedConfig.parentBlend.expression,
                 },
                 poseSource: {
                   targetIds: [...stagedConfig.poseSource.targetIds],

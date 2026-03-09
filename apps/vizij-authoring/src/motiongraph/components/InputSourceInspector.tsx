@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { Trash2 } from "lucide-react";
 import { useEditorStore, type EditorNode } from "../store/useEditorStore";
 import { getPortColor } from "../utils/portColors";
 import type {
@@ -59,7 +60,13 @@ function resolveData(node: EditorNode): InputSourceNodeData & {
  * communication is handled by `InputValueBridge` which runs inside the
  * VizijRuntimeProvider and watches the store for `appliedValue` changes.
  */
-export default function InputSourceInspector({ node }: { node: EditorNode }) {
+export default function InputSourceInspector({
+  node,
+  onDeleteNode,
+}: {
+  node: EditorNode;
+  onDeleteNode?: () => void;
+}) {
   const setNodes = useEditorStore((s) => s.setNodes);
 
   const d = resolveData(node);
@@ -118,14 +125,27 @@ export default function InputSourceInspector({ node }: { node: EditorNode }) {
   // ─── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="p-4 space-y-4">
+    <div data-testid="motiongraph-node-inspector" className="p-4 space-y-4">
       {/* Header */}
       <div>
         <div className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-2">
           Graph Node
         </div>
-        <div className="text-base font-semibold text-text-primary">
-          {d.label ?? "Input Source"}
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-base font-semibold text-text-primary">
+            {d.label ?? "Input Source"}
+          </div>
+          {onDeleteNode ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 hover:text-red-100 hover:bg-red-500/20"
+              onClick={onDeleteNode}
+              title="Remove this input node from the graph and input list"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+          ) : null}
         </div>
         <div className="text-xs text-accent mt-0.5">Input Source</div>
       </div>

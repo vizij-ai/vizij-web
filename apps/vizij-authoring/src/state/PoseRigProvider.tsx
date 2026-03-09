@@ -8,6 +8,7 @@ import {
 import {
   createPoseRigStore,
   PoseRigStoreProvider,
+  type PoseRigState,
   type PoseRigStore,
 } from "../poseRig/store";
 import {
@@ -22,6 +23,11 @@ import {
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
+import {
+  buildStandardInputIdRemap,
+  remapPoseConfigInputIds,
+  remapPoseIrInputIds,
+} from "../utils/standardInputRemap";
 import {
   useBindingAuthoring,
   useGraphRuntime,
@@ -377,12 +383,41 @@ export function PoseRigProvider({
   const standardInputSchema = useBindingAuthoring(
     (state) => state.standardInputSchema,
   );
+  const standardInputIdRemap = useBindingAuthoring(
+    (state) => state.standardInputIdRemap,
+  );
+  const standardInputIdRemapRevision = useBindingAuthoring(
+    (state) => state.standardInputIdRemapRevision,
+  );
+  const previousPoseAuthoringInputsRef = useRef<StandardRigInput[] | null>(
+    null,
+  );
+  const lastAppliedStandardInputIdRemapRevisionRef = useRef(0);
 
   useEffect(() => {
     poseRigStore.setState({ faceId });
   }, [poseRigStore, faceId]);
 
   useEffect(() => {
+    const previousPoseAuthoringInputs = previousPoseAuthoringInputsRef.current;
+    previousPoseAuthoringInputsRef.current = poseAuthoringStandardInputs;
+    const hasExplicitIdRemap =
+      standardInputIdRemapRevision >
+        lastAppliedStandardInputIdRemapRevisionRef.current &&
+      standardInputIdRemap !== null &&
+      standardInputIdRemap.size > 0;
+    const idRemap = hasExplicitIdRemap
+      ? new Map(standardInputIdRemap ?? [])
+      : previousPoseAuthoringInputs && previousPoseAuthoringInputs.length > 0
+        ? buildStandardInputIdRemap(
+            previousPoseAuthoringInputs,
+            poseAuthoringStandardInputs,
+          )
+        : new Map<string, string>();
+    if (hasExplicitIdRemap) {
+      lastAppliedStandardInputIdRemapRevisionRef.current =
+        standardInputIdRemapRevision;
+    }
     const hiddenSet = new Set(hiddenInputIds);
     const visibleInputs = poseAuthoringStandardInputs.filter(
       (input) => !hiddenSet.has(input.id),
@@ -393,17 +428,29 @@ export function PoseRigProvider({
     );
     poseRigStore.setState((state) => {
       const isReady = Boolean(rootId && visibleInputs.length > 0);
-      const patch: {
-        currentValues: Record<string, number>;
-        hiddenInputIds: string[];
-        isReady: boolean;
-        standardInputs?: StandardRigInput[];
-        standardInputSchema?: { id: string; version: string } | null;
-      } = {
+      const patch: Partial<PoseRigState> = {
         currentValues: filteredCurrent,
         hiddenInputIds: Array.from(hiddenSet),
         isReady,
       };
+
+      if (idRemap.size > 0) {
+        const remappedPoseConfigDraft = remapPoseConfigInputIds(
+          state.poseConfigDraft,
+          idRemap,
+        );
+        const remappedLastImportedConfig = remapPoseConfigInputIds(
+          state.lastImportedConfig,
+          idRemap,
+        );
+        const remappedPoseIrDraft = remapPoseIrInputIds(
+          state.poseIrDraft,
+          idRemap,
+        );
+        patch.poseConfigDraft = remappedPoseConfigDraft;
+        patch.lastImportedConfig = remappedLastImportedConfig;
+        patch.poseIrDraft = remappedPoseIrDraft;
+      }
 
       if (!areStandardInputsEquivalent(state.standardInputs, visibleInputs)) {
         patch.standardInputs = visibleInputs;
@@ -421,6 +468,8 @@ export function PoseRigProvider({
     inputValues,
     poseRigStore,
     rootId,
+    standardInputIdRemap,
+    standardInputIdRemapRevision,
     standardInputSchema,
     poseAuthoringStandardInputs,
   ]);

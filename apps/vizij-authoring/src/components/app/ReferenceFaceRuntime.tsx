@@ -549,7 +549,10 @@ function ReferenceFaceBridge({
   }, [resettableStandardInputs, resolveRuntimeWritePath]);
 
   return (
-    <div className="h-full w-full bg-bg-panel overflow-hidden">
+    <div
+      data-testid="reference-face-runtime"
+      className="h-full w-full bg-bg-panel overflow-hidden"
+    >
       <RuntimeFaceFrame
         variant="fill"
         className="h-full w-full"
@@ -560,6 +563,8 @@ function ReferenceFaceBridge({
             splitVertical={splitVertical}
             resetButtonLabel="Reset Reference Inputs"
             resetButtonTitle="Reset reference-face inputs to their default values"
+            resetButtonTestId="reference-runtime-reset-inputs"
+            readyFlagTestId="reference-runtime-ready-flag"
           />
         }
       />

@@ -8,10 +8,12 @@ import {
 } from "react";
 import type { SetStateAction } from "react";
 import {
+  addBindingSlot,
   bindingFromDefinition,
   bindingTargetFromComponent,
   bindingTargetFromInput,
   bindingToDefinition,
+  buildCanonicalBindingExpression,
   createDefaultBinding,
   createDefaultInputValues,
   createDefaultParentBinding,
@@ -75,6 +77,10 @@ import {
   normalizeVizijPipelineLinkMap,
   type VizijPipelineMetadataV1,
 } from "../utils/graphImport";
+import {
+  buildStandardInputIdRemap,
+  remapPipelineMetadataInputIds,
+} from "../utils/standardInputRemap";
 import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
@@ -214,6 +220,326 @@ function deriveAliasFromInputDescriptor(
   return candidate;
 }
 
+export function appendStandardInputPathSuffix(
+  path: string,
+  suffix: string,
+): string {
+  const trimmed = path.trim();
+  if (trimmed === "/") {
+    return `/${suffix.replace(/^_*/, "")}`;
+  }
+  const segments = trimmed.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return `/${suffix.replace(/^_*/, "")}`;
+  }
+  const targetIndex = segments.length - 1;
+  segments[targetIndex] = `${segments[targetIndex]}${suffix}`;
+  return `/${segments.join("/")}`;
+}
+
+function remapInputIdList(
+  values: readonly string[],
+  idRemap: ReadonlyMap<string, string>,
+): string[] {
+  if (idRemap.size === 0 || values.length === 0) {
+    return [...values];
+  }
+  const next: string[] = [];
+  const seen = new Set<string>();
+  values.forEach((value) => {
+    const mapped = idRemap.get(value) ?? value;
+    if (seen.has(mapped)) {
+      return;
+    }
+    seen.add(mapped);
+    next.push(mapped);
+  });
+  return next;
+}
+
+function remapInputIdSet(
+  values: ReadonlySet<string>,
+  idRemap: ReadonlyMap<string, string>,
+): Set<string> {
+  if (idRemap.size === 0 || values.size === 0) {
+    return new Set(values);
+  }
+  const next = new Set<string>();
+  values.forEach((value) => {
+    next.add(idRemap.get(value) ?? value);
+  });
+  return next;
+}
+
+function remapStandardInputValues(
+  values: StandardInputValues,
+  idRemap: ReadonlyMap<string, string>,
+): StandardInputValues {
+  if (idRemap.size === 0) {
+    return values;
+  }
+  let changed = false;
+  const next: StandardInputValues = {};
+  Object.entries(values).forEach(([rawInputId, value]) => {
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    if (mappedInputId !== rawInputId) {
+      changed = true;
+    }
+    if (
+      mappedInputId !== rawInputId &&
+      Object.prototype.hasOwnProperty.call(values, mappedInputId)
+    ) {
+      return;
+    }
+    next[mappedInputId] = value;
+  });
+  return changed ? next : values;
+}
+
+function remapBindingMetadataInputIds(
+  metadata: AnimatableBinding["metadata"],
+  idRemap: ReadonlyMap<string, string>,
+): AnimatableBinding["metadata"] {
+  if (!metadata || idRemap.size === 0) {
+    return metadata;
+  }
+  const metadataRecord = asRecord(metadata);
+  if (!metadataRecord) {
+    return metadata;
+  }
+  const vizij = asRecord(metadataRecord.vizij);
+  const pipeline = vizij
+    ? remapPipelineMetadataInputIds(
+        asRecord(vizij.pipelineV1) as VizijPipelineMetadataV1 | null,
+        idRemap,
+      )
+    : null;
+  if (!pipeline || pipeline === vizij?.pipelineV1) {
+    return metadata;
+  }
+  return {
+    ...metadataRecord,
+    vizij: {
+      ...(vizij ?? {}),
+      pipelineV1: pipeline,
+    },
+  };
+}
+
+function remapBindingInputIds(
+  binding: AnimatableBinding,
+  target: BindingTarget,
+  idRemap: ReadonlyMap<string, string>,
+): AnimatableBinding {
+  if (idRemap.size === 0) {
+    return ensureBindingStructure(binding, target);
+  }
+  const ensured = ensureBindingStructure(binding, target);
+  let changed = false;
+
+  const nextInputId =
+    ensured.inputId && idRemap.has(ensured.inputId)
+      ? (idRemap.get(ensured.inputId) ?? ensured.inputId)
+      : ensured.inputId;
+  if (nextInputId !== ensured.inputId) {
+    changed = true;
+  }
+  if (ensured.targetId !== target.id) {
+    changed = true;
+  }
+
+  const nextSlots = ensured.slots.map((slot) => {
+    if (!slot.inputId) {
+      return slot;
+    }
+    const mapped = idRemap.get(slot.inputId);
+    if (!mapped || mapped === slot.inputId) {
+      return slot;
+    }
+    changed = true;
+    return {
+      ...slot,
+      inputId: mapped,
+    };
+  });
+
+  if (!changed) {
+    const remappedMetadata = remapBindingMetadataInputIds(
+      ensured.metadata,
+      idRemap,
+    );
+    if (remappedMetadata === ensured.metadata) {
+      return ensured;
+    }
+    return {
+      ...ensured,
+      metadata: remappedMetadata,
+      targetId: target.id,
+    };
+  }
+
+  return ensureBindingStructure(
+    {
+      ...ensured,
+      inputId: nextInputId ?? null,
+      slots: nextSlots,
+      metadata: remapBindingMetadataInputIds(ensured.metadata, idRemap),
+      targetId: target.id,
+    },
+    target,
+  );
+}
+
+function remapAnimatableBindings(
+  bindings: BindingMap,
+  componentsById: ReadonlyMap<string, AnimComponent>,
+  idRemap: ReadonlyMap<string, string>,
+): BindingMap {
+  if (idRemap.size === 0) {
+    return bindings;
+  }
+  let changed = false;
+  const next: BindingMap = {};
+  Object.entries(bindings).forEach(([targetId, binding]) => {
+    if (!binding) {
+      return;
+    }
+    const component = componentsById.get(targetId);
+    if (!component) {
+      next[targetId] = binding;
+      return;
+    }
+    const remapped = remapBindingInputIds(
+      binding,
+      bindingTargetFromComponent(component),
+      idRemap,
+    );
+    if (remapped !== binding) {
+      changed = true;
+    }
+    next[targetId] = remapped;
+  });
+  return changed ? next : bindings;
+}
+
+function remapInputBindings(
+  inputBindings: InputBindingMap,
+  standardInputsById: ReadonlyMap<string, StandardRigInput>,
+  idRemap: ReadonlyMap<string, string>,
+): InputBindingMap {
+  if (idRemap.size === 0) {
+    return inputBindings;
+  }
+  let changed = false;
+  const next: InputBindingMap = {};
+  Object.entries(inputBindings).forEach(([rawInputId, binding]) => {
+    if (!binding) {
+      return;
+    }
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    const input = standardInputsById.get(mappedInputId);
+    if (!input) {
+      changed = true;
+      return;
+    }
+    const remappedBinding = remapBindingInputIds(
+      binding,
+      bindingTargetFromInput(input),
+      idRemap,
+    );
+    if (mappedInputId !== rawInputId || remappedBinding !== binding) {
+      changed = true;
+    }
+    next[mappedInputId] = remappedBinding;
+  });
+  return changed ? next : inputBindings;
+}
+
+function remapBindingDefinition(
+  definition: RigBindingDefinition,
+  idRemap: ReadonlyMap<string, string>,
+): RigBindingDefinition {
+  if (idRemap.size === 0) {
+    return definition;
+  }
+  let changed = false;
+  const nextInputId =
+    definition.inputId && idRemap.has(definition.inputId)
+      ? (idRemap.get(definition.inputId) ?? definition.inputId)
+      : definition.inputId;
+  if (nextInputId !== definition.inputId) {
+    changed = true;
+  }
+  const nextSlots = definition.slots.map((slot) => {
+    if (!slot.inputId) {
+      return slot;
+    }
+    const mapped = idRemap.get(slot.inputId);
+    if (!mapped || mapped === slot.inputId) {
+      return slot;
+    }
+    changed = true;
+    return {
+      ...slot,
+      inputId: mapped,
+    };
+  });
+  if (!changed) {
+    const remappedMetadata = remapBindingMetadataInputIds(
+      definition.metadata,
+      idRemap,
+    );
+    if (remappedMetadata === definition.metadata) {
+      return definition;
+    }
+    return {
+      ...definition,
+      metadata: remappedMetadata,
+    };
+  }
+  return {
+    ...definition,
+    inputId: nextInputId ?? null,
+    slots: nextSlots,
+    metadata: remapBindingMetadataInputIds(definition.metadata, idRemap),
+  };
+}
+
+function remapBindingDefinitionRecord(
+  record: Record<string, RigBindingDefinition> | null,
+  idRemap: ReadonlyMap<string, string>,
+): Record<string, RigBindingDefinition> | null {
+  if (!record || idRemap.size === 0) {
+    return record;
+  }
+  let changed = false;
+  const next: Record<string, RigBindingDefinition> = {};
+  Object.entries(record).forEach(([rawInputId, definition]) => {
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    const remappedDefinition = remapBindingDefinition(definition, idRemap);
+    if (mappedInputId !== rawInputId || remappedDefinition !== definition) {
+      changed = true;
+    }
+    next[mappedInputId] = remappedDefinition;
+  });
+  return changed ? next : record;
+}
+
+function remapBindingDefinitionCache(
+  cache: ReadonlyMap<string, RigBindingDefinition>,
+  idRemap: ReadonlyMap<string, string>,
+): Map<string, RigBindingDefinition> {
+  if (idRemap.size === 0 || cache.size === 0) {
+    return new Map(cache);
+  }
+  const next = new Map<string, RigBindingDefinition>();
+  cache.forEach((definition, rawInputId) => {
+    const mappedInputId = idRemap.get(rawInputId) ?? rawInputId;
+    next.set(mappedInputId, remapBindingDefinition(definition, idRemap));
+  });
+  return next;
+}
+
 function isDefaultSlotAlias(slot: RigBindingSlot, index: number): boolean {
   if (slot.inputId === SELF_BINDING_ID) {
     return false;
@@ -262,6 +588,247 @@ function normalizeBooleanValue(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function mergePipelineParentsForInput(
+  inputId: string,
+  importedParentsRaw: unknown,
+  localParentsRaw: unknown,
+): Record<string, unknown>[] | undefined {
+  const importedParents = Array.isArray(importedParentsRaw)
+    ? importedParentsRaw
+    : [];
+  const localParents = Array.isArray(localParentsRaw) ? localParentsRaw : [];
+  if (importedParents.length === 0 && localParents.length === 0) {
+    return undefined;
+  }
+
+  const importedByKey = new Map<string, Record<string, unknown>>();
+  const importedWithoutKey: Record<string, unknown>[] = [];
+  importedParents.forEach((rawParent) => {
+    const parent = asRecord(rawParent);
+    if (!parent) {
+      return;
+    }
+    const parentInputId = normalizeStringValue(parent.inputId);
+    const linkId =
+      normalizeStringValue(parent.linkId) ??
+      (parentInputId ? buildRigPipelineV1LinkId(parentInputId, inputId) : null);
+    if (!parentInputId || !linkId) {
+      importedWithoutKey.push({ ...parent });
+      return;
+    }
+    importedByKey.set(`${parentInputId}::${linkId}`, { ...parent });
+  });
+
+  const consumedImportedKeys = new Set<string>();
+  const merged: Record<string, unknown>[] = [];
+  localParents.forEach((rawParent) => {
+    const parent = asRecord(rawParent);
+    if (!parent) {
+      return;
+    }
+    const parentInputId = normalizeStringValue(parent.inputId);
+    const linkId =
+      normalizeStringValue(parent.linkId) ??
+      (parentInputId ? buildRigPipelineV1LinkId(parentInputId, inputId) : null);
+    if (!parentInputId || !linkId) {
+      merged.push({ ...parent });
+      return;
+    }
+    const key = `${parentInputId}::${linkId}`;
+    const imported = importedByKey.get(key) ?? null;
+    if (imported) {
+      consumedImportedKeys.add(key);
+    }
+    const importedAlias = normalizeStringValue(imported?.alias);
+    const localAlias = normalizeStringValue(parent.alias);
+    const importedExpression = normalizeStringValue(imported?.expression);
+    const localExpression = normalizeStringValue(parent.expression);
+    merged.push({
+      ...(imported ?? {}),
+      ...parent,
+      ...(localAlias
+        ? { alias: localAlias }
+        : importedAlias
+          ? { alias: importedAlias }
+          : {}),
+      ...(localExpression
+        ? { expression: localExpression }
+        : importedExpression
+          ? { expression: importedExpression }
+          : {}),
+      inputId: parentInputId,
+      linkId,
+    });
+  });
+
+  importedByKey.forEach((parent, key) => {
+    if (consumedImportedKeys.has(key)) {
+      return;
+    }
+    merged.push({ ...parent });
+  });
+  importedWithoutKey.forEach((parent) => {
+    merged.push({ ...parent });
+  });
+
+  const dedupedByKey = new Map<string, Record<string, unknown>>();
+  const dedupedWithoutKey: Record<string, unknown>[] = [];
+  merged.forEach((parent) => {
+    const parentInputId = normalizeStringValue(parent.inputId);
+    const linkId = normalizeStringValue(parent.linkId);
+    if (!parentInputId || !linkId) {
+      dedupedWithoutKey.push(parent);
+      return;
+    }
+    dedupedByKey.set(`${parentInputId}::${linkId}`, parent);
+  });
+
+  const normalized = [
+    ...Array.from(dedupedByKey.values()).sort((left, right) => {
+      const leftInputId = normalizeStringValue(left.inputId) ?? "";
+      const rightInputId = normalizeStringValue(right.inputId) ?? "";
+      if (leftInputId !== rightInputId) {
+        return leftInputId.localeCompare(rightInputId);
+      }
+      const leftLinkId = normalizeStringValue(left.linkId) ?? "";
+      const rightLinkId = normalizeStringValue(right.linkId) ?? "";
+      return leftLinkId.localeCompare(rightLinkId);
+    }),
+    ...dedupedWithoutKey,
+  ];
+  return normalized;
+}
+
+function mergePipelineInputConfigRecord(
+  inputId: string,
+  importedConfigRaw: Record<string, unknown> | null,
+  localConfigRaw: Record<string, unknown>,
+): Record<string, unknown> {
+  const importedConfig = importedConfigRaw ?? {};
+  const merged: Record<string, unknown> = {
+    ...importedConfig,
+    ...localConfigRaw,
+    inputId,
+  };
+
+  const mergedParents = mergePipelineParentsForInput(
+    inputId,
+    importedConfig.parents,
+    localConfigRaw.parents,
+  );
+  if (mergedParents) {
+    merged.parents = mergedParents;
+  } else {
+    delete merged.parents;
+  }
+
+  const importedParentBlend = asRecord(importedConfig.parentBlend);
+  const localParentBlend = asRecord(localConfigRaw.parentBlend);
+  if (importedParentBlend || localParentBlend) {
+    merged.parentBlend = {
+      ...(importedParentBlend ?? {}),
+      ...(localParentBlend ?? {}),
+    };
+  }
+
+  const importedDirectInput = asRecord(importedConfig.directInput);
+  const localDirectInput = asRecord(localConfigRaw.directInput);
+  if (importedDirectInput || localDirectInput) {
+    merged.directInput = {
+      ...(importedDirectInput ?? {}),
+      ...(localDirectInput ?? {}),
+    };
+  }
+
+  const importedOverride = asRecord(importedConfig.override);
+  const localOverride = asRecord(localConfigRaw.override);
+  if (importedOverride || localOverride) {
+    merged.override = {
+      ...(importedOverride ?? {}),
+      ...(localOverride ?? {}),
+    };
+  }
+
+  const importedClamp = asRecord(importedConfig.clamp);
+  const localClamp = asRecord(localConfigRaw.clamp);
+  if (importedClamp || localClamp) {
+    merged.clamp = {
+      ...(importedClamp ?? {}),
+      ...(localClamp ?? {}),
+    };
+  }
+
+  return merged;
+}
+
+export function mergeImportedAndLocalPipelineConfigByInputId(
+  imported: Record<string, Record<string, unknown>>,
+  local: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>> {
+  if (Object.keys(local).length === 0) {
+    return imported;
+  }
+  const merged: Record<string, Record<string, unknown>> = {
+    ...imported,
+  };
+  Object.entries(local).forEach(([rawInputId, localConfigCandidate]) => {
+    const localConfig = asRecord(localConfigCandidate);
+    if (!localConfig) {
+      return;
+    }
+    const inputId =
+      normalizeStringValue(rawInputId) ??
+      normalizeStringValue(localConfig.inputId);
+    if (!inputId) {
+      return;
+    }
+    const importedConfig = asRecord(merged[inputId]);
+    merged[inputId] = mergePipelineInputConfigRecord(
+      inputId,
+      importedConfig,
+      localConfig,
+    );
+  });
+  return merged;
+}
+
+export function mergeImportedAndLocalPipelineLinksById(
+  imported: Record<string, Record<string, unknown>>,
+  local: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>> {
+  if (Object.keys(local).length === 0) {
+    return imported;
+  }
+  const merged: Record<string, Record<string, unknown>> = {
+    ...imported,
+  };
+  Object.entries(local).forEach(([rawLinkId, localLinkCandidate]) => {
+    const localLink = asRecord(localLinkCandidate);
+    if (!localLink) {
+      return;
+    }
+    const linkId =
+      normalizeStringValue(rawLinkId) ?? normalizeStringValue(localLink.linkId);
+    if (!linkId) {
+      return;
+    }
+    const importedLink = asRecord(merged[linkId]);
+    const importedExpression = normalizeStringValue(importedLink?.expression);
+    const localExpression = normalizeStringValue(localLink.expression);
+    merged[linkId] = {
+      ...(importedLink ?? {}),
+      ...localLink,
+      linkId,
+      ...(localExpression
+        ? { expression: localExpression }
+        : importedExpression
+          ? { expression: importedExpression }
+          : {}),
+    };
+  });
+  return merged;
+}
+
 interface DerivedPipelineEdits {
   byInputId: Record<string, RigPipelineV1InputConfig>;
   links: Record<string, RigPipelineV1LinkConfig>;
@@ -305,6 +872,7 @@ function derivePipelineConfigFromInputBindings(
         const scale = normalizeFiniteValue(linkConfig.scale);
         const offset = normalizeFiniteValue(linkConfig.offset);
         const enabled = normalizeBooleanValue(linkConfig.enabled);
+        const expression = normalizeStringValue(linkConfig.expression);
         if (scale !== undefined) {
           nextLink.scale = scale;
         }
@@ -313,6 +881,9 @@ function derivePipelineConfigFromInputBindings(
         }
         if (enabled !== undefined) {
           nextLink.enabled = enabled;
+        }
+        if (expression !== null) {
+          nextLink.expression = expression;
         }
         const isOwnerRecord = childInputId === inputId;
         const nextPriority = isOwnerRecord ? 2 : 1;
@@ -331,6 +902,12 @@ function derivePipelineConfigFromInputBindings(
 
     const migration = asRecord(pipeline.migration);
     const migrated = migration?.status === "migrated";
+    const parentBlend = asRecord(pipeline.parentBlend);
+    const parentBlendMode =
+      parentBlend?.mode === "normalized-additive"
+        ? "normalized-additive"
+        : null;
+    const parentBlendExpression = normalizeStringValue(parentBlend?.expression);
     const direct = asRecord(pipeline.directInput);
     const override = asRecord(pipeline.override);
     const clamp = asRecord(pipeline.clamp);
@@ -342,15 +919,25 @@ function derivePipelineConfigFromInputBindings(
         }
         const alias = slot.alias?.trim() || slot.id?.trim() || `s${index + 1}`;
         const linkId = buildRigPipelineV1LinkId(slot.inputId, inputId);
+        const linkExpression = normalizeStringValue(
+          asRecord(pipelineLinks?.[linkId])?.expression,
+        );
         return {
           linkId,
           inputId: slot.inputId,
           alias,
+          ...(linkExpression !== null ? { expression: linkExpression } : {}),
         };
       })
       .filter(
-        (entry): entry is { linkId: string; inputId: string; alias: string } =>
-          entry !== null,
+        (
+          entry,
+        ): entry is {
+          linkId: string;
+          inputId: string;
+          alias: string;
+          expression?: string;
+        } => entry !== null,
       );
 
     const directEnabled =
@@ -368,7 +955,11 @@ function derivePipelineConfigFromInputBindings(
       directEnabled !== undefined ||
       overrideEnabled !== undefined ||
       overrideValue !== undefined ||
-      clampEnabled !== undefined;
+      clampEnabled !== undefined ||
+      parentBlendExpression !== null ||
+      parentEntries.some((entry) =>
+        Boolean(normalizeStringValue(entry.expression)),
+      );
     if (!migrated && !hasStageControls) {
       return;
     }
@@ -378,6 +969,12 @@ function derivePipelineConfigFromInputBindings(
     };
     if (parentEntries.length > 0) {
       config.parents = parentEntries;
+    }
+    if (parentBlendMode || parentBlendExpression) {
+      config.parentBlend = {
+        ...(parentBlendMode ? { mode: parentBlendMode } : {}),
+        ...(parentBlendExpression ? { expression: parentBlendExpression } : {}),
+      };
     }
     if (directEnabled !== undefined) {
       config.directInput = {
@@ -575,6 +1172,133 @@ function sanitizePipelineConfigAndLinksForAvailableInputs(params: {
   };
 }
 
+function buildUpdatedStandardInputSnapshot(
+  inputsById: ReadonlyMap<string, StandardRigInput>,
+  options?: {
+    deleteIds?: readonly string[];
+    upserts?: readonly StandardRigInput[];
+  },
+): Map<string, StandardRigInput> {
+  const next = new Map(inputsById);
+  options?.deleteIds?.forEach((inputId) => {
+    next.delete(inputId);
+  });
+  options?.upserts?.forEach((input) => {
+    next.set(input.id, input);
+  });
+  return next;
+}
+
+function readPipelineLinkPatch(
+  binding: AnimatableBinding | null | undefined,
+  parentInputId: string,
+  childInputId: string,
+): {
+  scale?: number;
+  offset?: number;
+  enabled?: boolean;
+  expression?: string | null;
+} {
+  const metadata = asRecord(binding?.metadata);
+  const vizij = asRecord(metadata?.vizij);
+  const pipeline = asRecord(vizij?.pipelineV1);
+  const links = asRecord(pipeline?.links);
+  const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
+  const link = asRecord(links?.[linkId]);
+  if (!link) {
+    return {};
+  }
+  return {
+    scale: normalizeFiniteValue(link.scale),
+    offset: normalizeFiniteValue(link.offset),
+    enabled: normalizeBooleanValue(link.enabled),
+    expression: normalizeStringValue(link.expression),
+  };
+}
+
+function upsertParentLinkBinding(params: {
+  binding: AnimatableBinding | null | undefined;
+  childInput: StandardRigInput;
+  parentInput: StandardRigInput;
+  scale?: number;
+  offset?: number;
+  enabled?: boolean;
+  expression?: string | null;
+}): AnimatableBinding {
+  const target = bindingTargetFromInput(params.childInput);
+  let next = ensureBindingStructure(
+    params.binding ?? createDefaultParentBinding(target),
+    target,
+  );
+  const expressionBefore = (next.expression ?? "").trim();
+  const canonicalBefore = buildCanonicalBindingExpression(next).trim();
+  const expressionWasAuto =
+    expressionBefore.length === 0 || expressionBefore === canonicalBefore;
+
+  let targetSlotId =
+    next.slots.find((slot) => slot.inputId === params.parentInput.id)?.id ??
+    null;
+  if (!targetSlotId) {
+    const reusableSlot = next.slots.find(
+      (slot, index) =>
+        index > 0 && (slot.inputId === null || slot.inputId === undefined),
+    );
+    if (reusableSlot) {
+      targetSlotId = reusableSlot.id;
+    } else {
+      next = addBindingSlot(next, target);
+      targetSlotId = next.slots[next.slots.length - 1]?.id ?? null;
+    }
+  }
+
+  next = updateBindingWithInput(
+    next,
+    target,
+    params.parentInput,
+    targetSlotId ?? undefined,
+  );
+  if (expressionWasAuto) {
+    const canonicalAfter = buildCanonicalBindingExpression(next).trim();
+    if (
+      canonicalAfter.length > 0 &&
+      (next.expression ?? "").trim() !== canonicalAfter
+    ) {
+      next = {
+        ...next,
+        expression: canonicalAfter,
+      };
+    }
+  }
+
+  const linkId = buildRigPipelineV1LinkId(
+    params.parentInput.id,
+    params.childInput.id,
+  );
+  return {
+    ...next,
+    metadata: mergePipelineMetadata(
+      (next.metadata ?? undefined) as Record<string, unknown> | undefined,
+      {
+        directInputEnabled: true,
+        linkUpserts: {
+          [linkId]: {
+            parentInputId: params.parentInput.id,
+            childInputId: params.childInput.id,
+            ...(params.scale !== undefined ? { scale: params.scale } : {}),
+            ...(params.offset !== undefined ? { offset: params.offset } : {}),
+            ...(params.enabled !== undefined
+              ? { enabled: params.enabled }
+              : {}),
+            ...(params.expression !== undefined
+              ? { expression: params.expression }
+              : {}),
+          },
+        },
+      },
+    ),
+  };
+}
+
 type AnimatableComponent = AnimComponent;
 
 type StandardInputId = StandardRigInput["id"];
@@ -761,6 +1485,7 @@ export function useRigController(
   const [lockedInspectorTargetIds, setLockedInspectorTargetIds] = useState<
     Set<string>
   >(() => new Set());
+  const lockedInspectorTargetIdsRef = useRef<Set<string>>(new Set());
   const [standardInputSchema, setStandardInputSchema] = useState<{
     id: string;
     version: string;
@@ -848,7 +1573,7 @@ export function useRigController(
     });
   }, []);
 
-  const handleSetInspectorTargetLocked = useCallback(
+  const setInspectorTargetLockedState = useCallback(
     (targetId: string, locked: boolean) => {
       const normalized = targetId.trim();
       if (!normalized) {
@@ -870,22 +1595,6 @@ export function useRigController(
     },
     [],
   );
-
-  const handleToggleInspectorTargetLock = useCallback((targetId: string) => {
-    const normalized = targetId.trim();
-    if (!normalized) {
-      return;
-    }
-    setLockedInspectorTargetIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(normalized)) {
-        next.delete(normalized);
-      } else {
-        next.add(normalized);
-      }
-      return next;
-    });
-  }, []);
   const [graphInsights, setGraphInsights] =
     useState<PersistedGraphInsight | null>(null);
   const [pipelineMetadataV1, setPipelineMetadataV1] =
@@ -974,7 +1683,7 @@ export function useRigController(
       const animationState = useAnimationStore.getState();
       const timelineDriving =
         animationState.transportEnabled &&
-        animationState.transportPlaybackState !== "stopped";
+        animationState.transportPlaybackState === "playing";
       const nextLockedInputIds = new Set<string>();
       if (timelineDriving) {
         animationState.tracks.forEach((track) => {
@@ -1120,13 +1829,7 @@ export function useRigController(
     const localEdits = normalizeVizijPipelineConfigMap(
       derivedPipelineEdits.byInputId,
     );
-    if (Object.keys(localEdits).length === 0) {
-      return imported;
-    }
-    return {
-      ...imported,
-      ...localEdits,
-    };
+    return mergeImportedAndLocalPipelineConfigByInputId(imported, localEdits);
   }, [derivedPipelineEdits.byInputId, pipelineMetadataV1]);
 
   const mergedPipelineLinksById: Record<
@@ -1138,13 +1841,7 @@ export function useRigController(
     const localEdits = normalizeVizijPipelineLinkMap(
       derivedPipelineEdits.links,
     );
-    if (Object.keys(localEdits).length === 0) {
-      return imported;
-    }
-    return {
-      ...imported,
-      ...localEdits,
-    };
+    return mergeImportedAndLocalPipelineLinksById(imported, localEdits);
   }, [derivedPipelineEdits.links, pipelineMetadataV1]);
 
   const {
@@ -1209,6 +1906,169 @@ export function useRigController(
       return changed ? next : previous;
     });
   }, [animatableComponents, applyBindingPatch]);
+
+  const explicitStandardInputIdRemapRevisionRef = useRef(0);
+  const lastSkippedExplicitStandardInputIdRemapRevisionRef = useRef(0);
+
+  const syncStandardInputSnapshotRefs = useCallback(
+    (options: {
+      deleteIds?: readonly string[];
+      upserts?: readonly StandardRigInput[];
+    }) => {
+      allStandardInputsRef.current = buildUpdatedStandardInputSnapshot(
+        allStandardInputsRef.current,
+        options,
+      );
+      standardInputsByIdRef.current = buildUpdatedStandardInputSnapshot(
+        standardInputsByIdRef.current,
+        options,
+      );
+      runtimeInputIdResolutionCacheRef.current = {
+        sourceMap: null,
+        cache: new Map(),
+      };
+    },
+    [],
+  );
+
+  const publishStandardInputIdRemap = useCallback(
+    (idRemap: ReadonlyMap<string, string>) => {
+      if (idRemap.size === 0) {
+        return 0;
+      }
+      explicitStandardInputIdRemapRevisionRef.current += 1;
+      const revision = explicitStandardInputIdRemapRevisionRef.current;
+      bindingAuthoringStore.setState({
+        standardInputIdRemap: new Map(idRemap),
+        standardInputIdRemapRevision: revision,
+      });
+      return revision;
+    },
+    [bindingAuthoringStore],
+  );
+
+  const applyStandardInputIdRemapSideEffects = useCallback(
+    (idRemap: ReadonlyMap<string, string>) => {
+      if (idRemap.size === 0) {
+        return;
+      }
+
+      setHiddenDriverIds((previous) => {
+        const next = remapInputIdSet(previous, idRemap);
+        if (
+          next.size === previous.size &&
+          Array.from(next).every((value) => previous.has(value))
+        ) {
+          return previous;
+        }
+        return next;
+      });
+      setPipelineMetadataV1((previous) =>
+        remapPipelineMetadataInputIds(previous, idRemap),
+      );
+
+      const remappedTimelineLockedInputIds = remapInputIdSet(
+        timelineLockedInputIdsRef.current,
+        idRemap,
+      );
+      timelineLockedInputIdsRef.current = remappedTimelineLockedInputIds;
+
+      bindingAuthoringStore.setState((state) => {
+        const mappedSelectedRigId = state.selectedRigId
+          ? (idRemap.get(state.selectedRigId) ?? state.selectedRigId)
+          : state.selectedRigId;
+        const timelineLockedInputIds = remappedTimelineLockedInputIds;
+        const selectedRigChanged = mappedSelectedRigId !== state.selectedRigId;
+        const timelineChanged =
+          timelineLockedInputIds !== state.timelineLockedInputIds;
+        if (!selectedRigChanged && !timelineChanged) {
+          return;
+        }
+        return {
+          ...(selectedRigChanged ? { selectedRigId: mappedSelectedRigId } : {}),
+          ...(timelineChanged
+            ? { timelineLockedInputIds: timelineLockedInputIds }
+            : {}),
+        };
+      });
+
+      const animationState = useAnimationStore.getState();
+      let animationTracksChanged = false;
+      const remappedAnimationTracks = animationState.tracks.map((track) => {
+        const mappedVariableId =
+          idRemap.get(track.variableId) ?? track.variableId;
+        if (mappedVariableId === track.variableId) {
+          return track;
+        }
+        animationTracksChanged = true;
+        return {
+          ...track,
+          variableId: mappedVariableId,
+          channel:
+            track.channel === track.variableId
+              ? mappedVariableId
+              : track.channel,
+          label:
+            track.label === track.variableId ? mappedVariableId : track.label,
+        };
+      });
+      if (animationTracksChanged) {
+        useAnimationStore.setState({ tracks: remappedAnimationTracks });
+      }
+
+      publishStandardInputIdRemap(idRemap);
+    },
+    [
+      bindingAuthoringStore,
+      publishStandardInputIdRemap,
+      setHiddenDriverIds,
+      setPipelineMetadataV1,
+    ],
+  );
+
+  const applyStandardInputIdRemap = useCallback(
+    (
+      idRemap: ReadonlyMap<string, string>,
+      nextInputsById: ReadonlyMap<string, StandardRigInput>,
+    ) => {
+      if (idRemap.size === 0) {
+        return;
+      }
+      updateInputValues((previous) =>
+        remapStandardInputValues(previous, idRemap),
+      );
+      setBindings((previous) =>
+        remapAnimatableBindings(previous, componentsByIdRef.current, idRemap),
+      );
+      setInputBindings((previous) =>
+        remapInputBindings(previous, nextInputsById, idRemap),
+      );
+      setDisabledStandardInputIds((previous) => {
+        const next = remapInputIdList(previous, idRemap);
+        return next.length === previous.length &&
+          next.every((value, index) => value === previous[index])
+          ? previous
+          : next;
+      });
+      pendingInputBindingDefinitionsRef.current = remapBindingDefinitionRecord(
+        pendingInputBindingDefinitionsRef.current,
+        idRemap,
+      );
+      disabledInputBindingCacheRef.current = remapBindingDefinitionCache(
+        disabledInputBindingCacheRef.current,
+        idRemap,
+      );
+      applyStandardInputIdRemapSideEffects(idRemap);
+    },
+    [
+      applyStandardInputIdRemapSideEffects,
+      setBindings,
+      setDisabledStandardInputIds,
+      setInputBindings,
+      updateInputValues,
+    ],
+  );
+
   const handleCreateCustomStandardInput = useCallback(
     (path: string): StandardRigInput | null =>
       createCustomStandardInputEntry({
@@ -1231,7 +2091,7 @@ export function useRigController(
         range?: { min?: number; max?: number };
       },
     ) => {
-      updateStandardInputEntry({
+      const result = updateStandardInputEntry({
         inputId,
         updates,
         autoInputsRef,
@@ -1242,105 +2102,202 @@ export function useRigController(
         resolvePersistedAutoKey,
         groupFallback: GROUP_FALLBACK,
       });
+      if (!result) {
+        return;
+      }
+      syncStandardInputSnapshotRefs({
+        deleteIds:
+          result.previousId !== result.nextId ? [result.previousId] : undefined,
+        upserts: [result.updatedInput],
+      });
+      if (result.previousId === result.nextId) {
+        return;
+      }
+      applyStandardInputIdRemap(
+        new Map([[result.previousId, result.nextId]]),
+        standardInputsByIdRef.current,
+      );
     },
-    [autoInputsRef, customInputsRef, setAutoInputs, setCustomInputs],
+    [
+      applyStandardInputIdRemap,
+      autoInputsRef,
+      customInputsRef,
+      setAutoInputs,
+      setCustomInputs,
+      syncStandardInputSnapshotRefs,
+    ],
   );
 
   const handleCloneStandardInputs = useCallback(
     (
       inputIds: readonly string[],
-      options?: { labelSuffix?: string; pathSuffix?: string },
+      options?: {
+        labelSuffix?: string;
+        pathSuffix?: string;
+        cloneRelationships?: boolean;
+      },
     ) => {
       const mapping = new Map<string, string>();
       const labelSuffix = options?.labelSuffix ?? " Copy";
       const pathSuffix = options?.pathSuffix ?? "_copy";
+      const cloneRelationships = options?.cloneRelationships === true;
+      const existingIds = new Set<string>(
+        Array.from(allStandardInputsRef.current.keys()),
+      );
+      const existingPaths = new Set<string>(
+        Array.from(allStandardInputsRef.current.values()).map((input) =>
+          normalizeStandardRigInputPath(input.path),
+        ),
+      );
+      const clonedInputs: StandardRigInput[] = [];
 
-      const appendPathSuffix = (path: string, suffix: string): string => {
-        const trimmed = path.trim();
-        if (trimmed === "/") return `/${suffix.replace(/^_*/, "")}`;
-        const segments = trimmed.split("/").filter(Boolean);
-        if (segments.length === 0) {
-          return `/${suffix.replace(/^_*/, "")}`;
+      inputIds.forEach((sourceId) => {
+        if (mapping.has(sourceId)) {
+          return;
         }
-        let insertAt = 0;
-        if (segments[0] === "rig") {
-          if (segments.length >= 3 && segments[1] === "face") {
-            insertAt = 2; // rig / face / <object>
-          } else if (segments.length >= 2) {
-            insertAt = 1; // rig / <object>
-          }
+        const source = standardInputsByIdRef.current.get(sourceId);
+        if (!source) {
+          return;
         }
-        segments[insertAt] = `${segments[insertAt]}${suffix}`;
-        return `/${segments.join("/")}`;
-      };
-      setCustomInputs((previous) => {
-        const existingIds = new Set<string>([
-          ...previous.map((input) => input.id),
-          ...Array.from(standardInputsByIdRef.current.keys()),
-        ]);
-        const existingPaths = new Set<string>(
-          Array.from(allStandardInputsRef.current.values()).map((input) =>
-            normalizeStandardRigInputPath(input.path),
-          ),
+        let attempt = 1;
+        let candidatePath = normalizeStandardRigInputPath(
+          appendStandardInputPathSuffix(source.path, pathSuffix),
         );
-        const next = [...previous];
-
-        inputIds.forEach((sourceId) => {
-          if (mapping.has(sourceId)) {
-            return;
-          }
-          const source = standardInputsByIdRef.current.get(sourceId);
-          if (!source) return;
-          let attempt = 1;
-          let candidatePath = normalizeStandardRigInputPath(
-            appendPathSuffix(source.path, pathSuffix),
+        let candidateId = createStandardRigInputFromPath(candidatePath).id;
+        while (
+          existingIds.has(candidateId) ||
+          existingPaths.has(candidatePath)
+        ) {
+          const suffix = attempt === 1 ? pathSuffix : `${pathSuffix}${attempt}`;
+          candidatePath = normalizeStandardRigInputPath(
+            appendStandardInputPathSuffix(source.path, suffix),
           );
-          let candidateId = source.id;
-          while (
-            existingIds.has(candidateId) ||
-            existingPaths.has(candidatePath)
-          ) {
-            const suffix =
-              attempt === 1 ? pathSuffix : `${pathSuffix}${attempt}`;
-            candidatePath = normalizeStandardRigInputPath(
-              appendPathSuffix(source.path, suffix),
-            );
-            const derived = createStandardRigInputFromPath(candidatePath);
-            candidateId = derived.id;
-            attempt += 1;
+          candidateId = createStandardRigInputFromPath(candidatePath).id;
+          attempt += 1;
+        }
+
+        const cloned: StandardRigInput = {
+          ...source,
+          id: candidateId,
+          path: candidatePath,
+          label: `${source.label}${labelSuffix}`,
+          parentBinding: source.parentBinding ?? undefined,
+          derivedChildren: source.derivedChildren
+            ? [...source.derivedChildren]
+            : [],
+        };
+        clonedInputs.push(cloned);
+        existingIds.add(candidateId);
+        existingPaths.add(candidatePath);
+        mapping.set(source.id, cloned.id);
+      });
+
+      if (clonedInputs.length === 0) {
+        return mapping;
+      }
+
+      setCustomInputs((previous) => {
+        const next = [...previous, ...clonedInputs];
+        customInputsRef.current = next;
+        return next;
+      });
+      syncStandardInputSnapshotRefs({ upserts: clonedInputs });
+
+      updateInputValues((prev) => {
+        const next = { ...prev };
+        mapping.forEach((newId, oldId) => {
+          const src = standardInputsByIdRef.current.get(oldId);
+          if (src) {
+            next[newId] = src.defaultValue ?? 0;
           }
-
-          const cloned: StandardRigInput = {
-            ...source,
-            id: candidateId,
-            path: candidatePath,
-            label: `${source.label}${labelSuffix}`,
-          };
-          next.push(cloned);
-          existingIds.add(candidateId);
-          existingPaths.add(candidatePath);
-          mapping.set(source.id, cloned.id);
         });
-
         return next;
       });
 
-      if (mapping.size > 0) {
-        updateInputValues((prev) => {
-          const next = { ...prev };
-          mapping.forEach((newId, oldId) => {
-            const src = standardInputsByIdRef.current.get(oldId);
-            if (src) {
-              next[newId] = src.defaultValue ?? 0;
+      if (cloneRelationships) {
+        const nextInputsById = standardInputsByIdRef.current;
+        setInputBindings((previous) => {
+          let changed = false;
+          const next: InputBindingMap = { ...previous };
+
+          mapping.forEach((clonedInputId, sourceInputId) => {
+            const sourceBinding = previous[sourceInputId];
+            const clonedInput = nextInputsById.get(clonedInputId);
+            if (!sourceBinding || !clonedInput) {
+              return;
             }
+            next[clonedInputId] = bindingFromDefinition(
+              bindingTargetFromInput(clonedInput),
+              remapBindingDefinition(
+                bindingToDefinition(sourceBinding),
+                mapping,
+              ),
+            );
+            changed = true;
           });
-          return next;
+
+          Object.entries(previous).forEach(([childInputId, binding]) => {
+            if (!binding || mapping.has(childInputId)) {
+              return;
+            }
+            const childInput = nextInputsById.get(childInputId);
+            if (!childInput) {
+              return;
+            }
+            mapping.forEach((clonedInputId, sourceInputId) => {
+              const parentIds = collectBindingInputIds(binding);
+              if (!parentIds.includes(sourceInputId)) {
+                return;
+              }
+              const clonedParentInput = nextInputsById.get(clonedInputId);
+              if (!clonedParentInput) {
+                return;
+              }
+              const linkPatch = readPipelineLinkPatch(
+                binding,
+                sourceInputId,
+                childInputId,
+              );
+              const updatedBinding = upsertParentLinkBinding({
+                binding: next[childInputId] ?? binding,
+                childInput,
+                parentInput: clonedParentInput,
+                scale: linkPatch.scale ?? 1,
+                offset:
+                  linkPatch.offset ??
+                  (Number.isFinite(childInput.defaultValue)
+                    ? childInput.defaultValue
+                    : 0),
+                enabled: linkPatch.enabled ?? true,
+                expression: linkPatch.expression,
+              });
+              const previousDefinition = bindingToDefinition(
+                next[childInputId] ?? binding,
+              );
+              const nextDefinition = bindingToDefinition(updatedBinding);
+              if (
+                JSON.stringify(previousDefinition) ===
+                JSON.stringify(nextDefinition)
+              ) {
+                return;
+              }
+              next[childInputId] = updatedBinding;
+              changed = true;
+            });
+          });
+
+          return changed ? next : previous;
         });
       }
 
       return mapping;
     },
-    [standardInputsByIdRef, updateInputValues, allStandardInputsRef],
+    [
+      setCustomInputs,
+      setInputBindings,
+      syncStandardInputSnapshotRefs,
+      updateInputValues,
+    ],
   );
 
   const pruneInputBindings = useCallback(
@@ -1552,6 +2509,10 @@ export function useRigController(
       return changed ? next : previous;
     });
   }, [animatableComponents]);
+
+  useEffect(() => {
+    lockedInspectorTargetIdsRef.current = lockedInspectorTargetIds;
+  }, [lockedInspectorTargetIds]);
 
   useEffect(() => {
     disabledStandardInputIdsRef.current = new Set(disabledStandardInputIds);
@@ -1798,7 +2759,7 @@ export function useRigController(
       shapeName: string,
       previousName: string,
     ) => {
-      applyShapeInputRename({
+      const idRemap = applyShapeInputRename({
         shapeId,
         oldSlug,
         newSlug,
@@ -1823,8 +2784,10 @@ export function useRigController(
         setFeatureLabelOverrides,
         resolvePersistedAutoKey,
       });
+      applyStandardInputIdRemapSideEffects(idRemap);
     },
     [
+      applyStandardInputIdRemapSideEffects,
       componentsByIdRef,
       pendingInputBindingDefinitionsRef,
       persistedAutoInputsRef,
@@ -1863,6 +2826,7 @@ export function useRigController(
     allStandardInputsRef,
     standardInputsByIdRef,
   });
+  const previousStandardInputsRef = useRef<StandardRigInput[] | null>(null);
 
   const propsrigInputIdByComponentId = useMemo(() => {
     type Candidate = {
@@ -1974,6 +2938,103 @@ export function useRigController(
     });
     return next;
   }, [basePipelineConfigByInputId, lockedPropsRigInputIds]);
+
+  const resolveLockSyncInputIdsForTarget = useCallback(
+    (targetId: string): string[] => {
+      const normalizedTargetId = targetId.trim();
+      if (!normalizedTargetId) {
+        return [];
+      }
+      const mappedPropsRigId =
+        propsrigInputIdByComponentId.get(normalizedTargetId) ?? null;
+      if (mappedPropsRigId) {
+        return [mappedPropsRigId];
+      }
+      const resolvedIds = collectBindingInputIds(bindings[normalizedTargetId])
+        .map((inputId) =>
+          resolveStandardRigInputId(inputId, standardInputsById),
+        )
+        .filter((inputId) => standardInputsById.has(inputId));
+      const preferredId =
+        resolvedIds.find((inputId) =>
+          isCanonicalPropsRigInputPath(standardInputsById.get(inputId)?.path),
+        ) ?? resolvedIds[0];
+      return preferredId ? [preferredId] : [];
+    },
+    [bindings, propsrigInputIdByComponentId, standardInputsById],
+  );
+
+  const applyDirectInputEnabledForInputIds = useCallback(
+    (inputIds: readonly string[], enabled: boolean) => {
+      if (inputIds.length === 0) {
+        return;
+      }
+      applyInputBindingPatch((previous) => {
+        let changed = false;
+        const next = { ...previous };
+        inputIds.forEach((inputId) => {
+          const sourceInput = standardInputsById.get(inputId);
+          if (!sourceInput) {
+            return;
+          }
+          const existingBinding =
+            next[inputId] ??
+            createDefaultParentBinding(bindingTargetFromInput(sourceInput));
+          const nextMetadata = mergePipelineMetadata(
+            (existingBinding.metadata ?? undefined) as
+              | Record<string, unknown>
+              | undefined,
+            {
+              directInputEnabled: enabled,
+            },
+          );
+          const previousMetadataSignature = JSON.stringify(
+            existingBinding.metadata ?? null,
+          );
+          const nextMetadataSignature = JSON.stringify(nextMetadata);
+          if (previousMetadataSignature === nextMetadataSignature) {
+            return;
+          }
+          next[inputId] = {
+            ...existingBinding,
+            metadata: nextMetadata,
+          };
+          changed = true;
+        });
+        return changed ? next : previous;
+      });
+    },
+    [applyInputBindingPatch, standardInputsById],
+  );
+
+  const handleSetInspectorTargetLocked = useCallback(
+    (targetId: string, locked: boolean) => {
+      const normalized = targetId.trim();
+      if (!normalized) {
+        return;
+      }
+      setInspectorTargetLockedState(normalized, locked);
+      const syncInputIds = resolveLockSyncInputIdsForTarget(normalized);
+      applyDirectInputEnabledForInputIds(syncInputIds, !locked);
+    },
+    [
+      applyDirectInputEnabledForInputIds,
+      resolveLockSyncInputIdsForTarget,
+      setInspectorTargetLockedState,
+    ],
+  );
+
+  const handleToggleInspectorTargetLock = useCallback(
+    (targetId: string) => {
+      const normalized = targetId.trim();
+      if (!normalized) {
+        return;
+      }
+      const nextLocked = !lockedInspectorTargetIdsRef.current.has(normalized);
+      handleSetInspectorTargetLocked(normalized, nextLocked);
+    },
+    [handleSetInspectorTargetLocked],
+  );
 
   const handleMigrateAllLegacyBindings = useCallback((): number => {
     let migratedCount = 0;
@@ -2204,6 +3265,36 @@ export function useRigController(
       graphSpec: runtimeGraphSpec.runtimeSpec?.spec ?? null,
     });
   }, [graphRuntimeStore, runtimeGraphSpec.runtimeSpec]);
+
+  useEffect(() => {
+    const previousInputs = previousStandardInputsRef.current;
+    previousStandardInputsRef.current = standardInputs;
+    if (
+      !previousInputs ||
+      previousInputs.length === 0 ||
+      standardInputs.length === 0
+    ) {
+      return;
+    }
+    if (
+      explicitStandardInputIdRemapRevisionRef.current !== 0 &&
+      lastSkippedExplicitStandardInputIdRemapRevisionRef.current !==
+        explicitStandardInputIdRemapRevisionRef.current
+    ) {
+      lastSkippedExplicitStandardInputIdRemapRevisionRef.current =
+        explicitStandardInputIdRemapRevisionRef.current;
+      return;
+    }
+    if (explicitStandardInputIdRemapRevisionRef.current !== 0) {
+      lastSkippedExplicitStandardInputIdRemapRevisionRef.current =
+        explicitStandardInputIdRemapRevisionRef.current;
+    }
+    const idRemap = buildStandardInputIdRemap(previousInputs, standardInputs);
+    if (idRemap.size === 0) {
+      return;
+    }
+    applyStandardInputIdRemap(idRemap, standardInputsById);
+  }, [applyStandardInputIdRemap, standardInputs, standardInputsById]);
 
   const graphMachineReport = useMemo(
     () => buildGraphMachineReport(rigGraphBuild),
@@ -2907,7 +3998,11 @@ export function useRigController(
   }, [graphRuntimeStore, handleImportGraphSpec]);
 
   const handleLinkChildInput = useCallback(
-    (parentId: string, childId: string) => {
+    (
+      parentId: string,
+      childId: string,
+      options?: { scale?: number; offset?: number },
+    ) => {
       linkChildInput({
         parentId,
         childId,
@@ -2915,8 +4010,66 @@ export function useRigController(
         standardInputsByIdRef,
         allStandardInputsRef,
       });
+      applyInputBindingPatch((previous) => {
+        const childInput =
+          standardInputsByIdRef.current.get(childId) ??
+          allStandardInputsRef.current.get(childId);
+        if (!childInput) {
+          return previous;
+        }
+        const resolvedScale =
+          typeof options?.scale === "number" && Number.isFinite(options.scale)
+            ? options.scale
+            : 1;
+        const resolvedOffset =
+          typeof options?.offset === "number" && Number.isFinite(options.offset)
+            ? options.offset
+            : Number.isFinite(childInput.defaultValue)
+              ? childInput.defaultValue
+              : 0;
+        const linkId = buildRigPipelineV1LinkId(parentId, childId);
+        const existingBinding =
+          previous[childId] ??
+          createDefaultParentBinding(bindingTargetFromInput(childInput));
+        const nextMetadata = mergePipelineMetadata(
+          (existingBinding.metadata ?? undefined) as
+            | Record<string, unknown>
+            | undefined,
+          {
+            directInputEnabled: true,
+            linkUpserts: {
+              [linkId]: {
+                parentInputId: parentId,
+                childInputId: childId,
+                scale: resolvedScale,
+                offset: resolvedOffset,
+                enabled: true,
+              },
+            },
+          },
+        );
+        const previousMetadataSignature = JSON.stringify(
+          existingBinding.metadata ?? null,
+        );
+        const nextMetadataSignature = JSON.stringify(nextMetadata);
+        if (previousMetadataSignature === nextMetadataSignature) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [childId]: {
+            ...existingBinding,
+            metadata: nextMetadata,
+          },
+        };
+      });
     },
-    [allStandardInputsRef, standardInputsByIdRef, updateInputBinding],
+    [
+      allStandardInputsRef,
+      applyInputBindingPatch,
+      standardInputsByIdRef,
+      updateInputBinding,
+    ],
   );
 
   const handleUnlinkChildInput = useCallback(

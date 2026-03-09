@@ -9,7 +9,6 @@ import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
-  createInitialWorkspacePanels,
   useWorkspaceStore,
   type WorkspacePanelId,
 } from "./state/workspaceStore";
@@ -82,9 +81,13 @@ import { useAnimationStore } from "./state/animationStore";
 import { useAnimationTransport } from "./hooks/useAnimationTransport";
 import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
 import {
+  buildGlbExportDirtySnapshot,
+  useExportDirtyState,
+} from "./hooks/useExportDirtyState";
+import { createEditFocusPanelVisibility } from "./state/editFocusPanels";
+import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
-  AUTHORED_TIMELINE_CLIP_NAME,
   type AnimationClipIR,
 } from "./types/animationClipIr";
 
@@ -94,7 +97,8 @@ const AUTHORED_PROCEDURAL_TARGET_PREFIX = "authored-procedural:";
 const BUNDLE_ANIMATION_TARGET_PREFIX = "bundle-animation:";
 const BUNDLE_PROCEDURAL_TARGET_PREFIX = "bundle-procedural:";
 const AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID = "authoring.motiongraph.main";
-const AUTHORED_PROCEDURAL_MAIN_PROGRAM_NAME = "Procedural Program";
+const DEFAULT_NEW_ANIMATION_CLIP_NAME = "New Animation Clip";
+const DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME = "New Procedural Program";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
 function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
   return {
@@ -367,50 +371,7 @@ function applyEditFocusPanelDefaults(
   focus: EditFocus,
   setPanelVisibility: (panelId: WorkspacePanelId, isVisible: boolean) => void,
 ): void {
-  const base = createInitialWorkspacePanels();
-  const nextVisibility: Record<WorkspacePanelId, boolean> = {
-    hierarchy: base.hierarchy.isVisible,
-    variables: base.variables.isVisible,
-    poses: base.poses.isVisible,
-    inputs: base.inputs.isVisible,
-    motiongraphPalette: base.motiongraphPalette.isVisible,
-    inspector: base.inspector.isVisible,
-    debug: base.debug.isVisible,
-    animation: base.animation.isVisible,
-    motiongraph: base.motiongraph.isVisible,
-    toolbar: base.toolbar.isVisible,
-    referenceFace: base.referenceFace.isVisible,
-    materials: base.materials.isVisible,
-    speech: base.speech.isVisible,
-  };
-
-  if (focus === "animation") {
-    nextVisibility.hierarchy = false;
-    nextVisibility.variables = false;
-    nextVisibility.poses = false;
-    nextVisibility.materials = false;
-    nextVisibility.inputs = true;
-    nextVisibility.motiongraphPalette = false;
-    nextVisibility.animation = true;
-    nextVisibility.motiongraph = false;
-    nextVisibility.referenceFace = false;
-  } else if (focus === "procedural-animation-programming") {
-    nextVisibility.hierarchy = false;
-    nextVisibility.variables = false;
-    nextVisibility.poses = false;
-    nextVisibility.materials = false;
-    nextVisibility.inputs = true;
-    nextVisibility.motiongraphPalette = true;
-    nextVisibility.animation = false;
-    nextVisibility.motiongraph = true;
-    nextVisibility.referenceFace = false;
-  } else if (focus === "reference-face") {
-    nextVisibility.animation = false;
-    nextVisibility.motiongraph = false;
-    nextVisibility.referenceFace = true;
-    nextVisibility.motiongraphPalette = false;
-  }
-
+  const nextVisibility = createEditFocusPanelVisibility(focus);
   (Object.keys(nextVisibility) as WorkspacePanelId[]).forEach(
     (panelId: WorkspacePanelId) => {
       setPanelVisibility(panelId, nextVisibility[panelId]);
@@ -518,6 +479,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
     useState<string | null>(null);
+  const exportGlbHandlerRef = useRef<(() => Promise<void>) | null>(null);
 
   // Reference Face State
 
@@ -548,7 +510,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const handleLoadQuori = useCallback(() => {
-    handleLoadAssetFromUrl("/assets/Quori_Legacy.glb", "Quori_Legacy.glb");
+    handleLoadAssetFromUrl(
+      "/assets/Quori_Current_Extended.glb",
+      "Quori_Current_Extended.glb",
+    );
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadHugo = useCallback(() => {
@@ -621,7 +586,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   >(() => [
     createAuthoredAnimationTarget(
       AUTHORED_TIMELINE_CLIP_ID,
-      AUTHORED_TIMELINE_CLIP_NAME,
+      DEFAULT_NEW_ANIMATION_CLIP_NAME,
     ),
   ]);
   const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState(
@@ -632,9 +597,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   >(() => [
     createAuthoredProceduralTarget(
       AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
-      AUTHORED_PROCEDURAL_MAIN_PROGRAM_NAME,
+      DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
     ),
   ]);
+  const [bundleAnimationNameOverrides, setBundleAnimationNameOverrides] =
+    useState<Record<string, string>>({});
+  const [
+    bundleAnimationDurationOverrides,
+    setBundleAnimationDurationOverrides,
+  ] = useState<Record<string, number>>({});
+  const [bundleProceduralNameOverrides, setBundleProceduralNameOverrides] =
+    useState<Record<string, string>>({});
+  const [hiddenBundleAnimationTargetIds, setHiddenBundleAnimationTargetIds] =
+    useState<Record<string, true>>({});
+  const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
+    useState<Record<string, true>>({});
   const [selectedProceduralTargetId, setSelectedProceduralTargetId] = useState(
     () => authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
   );
@@ -668,6 +645,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   useEffect(() => {
     setRuntimeExportBodies(createEmptyRuntimeExportBodiesSnapshot());
   }, [rootId]);
+  useEffect(() => {
+    setBundleAnimationNameOverrides({});
+    setBundleAnimationDurationOverrides({});
+    setBundleProceduralNameOverrides({});
+    setHiddenBundleAnimationTargetIds({});
+    setHiddenBundleProceduralTargetIds({});
+  }, [rootId]);
 
   const canExport = Boolean(rootId) && !isLoading;
 
@@ -675,8 +659,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.managedStandardInputs,
   );
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const bindings = useBindingAuthoring((state) => state.bindings);
+  const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const animatableComponents = useBindingAuthoring(
+    (state) => state.animatableComponents,
+  );
   const animatableComponentCount = useBindingAuthoring(
     (state) => state.animatableComponents.length,
+  );
+  const featureLabelOverrides = useBindingAuthoring(
+    (state) => state.featureLabelOverrides,
+  );
+  const pipelineMetadataV1 = useBindingAuthoring(
+    (state) => state.pipelineMetadataV1,
   );
   const standardInputsByPath = useBindingAuthoring(
     (state) => state.standardInputsByPath,
@@ -694,9 +689,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const {
     activeWorkbench,
+    includeVizijBundle,
+    includeImportedAnimations,
     skipDiscrepancyCheck,
     activeRuntimeSource,
     activeEditFocus,
+    rotationDisplayMode,
   } = uiState;
 
   const poseRig = usePoseRig();
@@ -714,10 +712,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.transportEnabled,
   );
   const animationDuration = useAnimationStore((state) => state.duration);
+  const setAnimationDuration = useAnimationStore((state) => state.setDuration);
   const {
     active: animationTransportActive,
     play: playAnimationTransport,
     pause: pauseAnimationTransport,
+    stop: stopAnimationTransport,
   } = useAnimationTransport();
   const proceduralEditorNodes = useEditorStore((state) => state.nodes);
   const proceduralEditorEdges = useEditorStore((state) => state.edges);
@@ -773,12 +773,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const standardInputCount = poseRig.standardInputs.length;
 
   const faceId = useGraphRuntime((state) => state.faceId);
+  const animatables = useGraphRuntime((state) => state.animatables);
   const papPlaybackState = useGraphRuntime((state) => state.graphPlaybackState);
+  const papTimeSeconds = useGraphRuntime((state) => state.graphTimeSeconds);
   const papPlaybackAvailable = useGraphRuntime(
     (state) => state.graphPlaybackAvailable,
   );
   const playPapGraph = useGraphRuntime((state) => state.playGraph);
   const pausePapGraph = useGraphRuntime((state) => state.pauseGraph);
+  const stopPapGraph = useGraphRuntime((state) => state.stopGraph);
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
@@ -846,17 +849,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const bundleAnimationTargetOptions = useMemo(() => {
     const entries = loadedBundle?.animations ?? [];
-    return entries.map((entry, index) => {
-      const clipName =
-        typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
-      const fallbackName =
-        entry.id?.trim() || `Imported Animation ${index + 1}`;
-      return {
-        value: `${BUNDLE_ANIMATION_TARGET_PREFIX}${index}`,
-        label: clipName || fallbackName,
-      };
-    });
-  }, [loadedBundle?.animations]);
+    return entries
+      .map((entry, index) => {
+        const targetValue = `${BUNDLE_ANIMATION_TARGET_PREFIX}${index}`;
+        const clipName =
+          typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
+        const fallbackName =
+          entry.id?.trim() || `Imported Animation ${index + 1}`;
+        const baseLabel = clipName || fallbackName;
+        return {
+          value: targetValue,
+          label: bundleAnimationNameOverrides[targetValue] ?? baseLabel,
+        };
+      })
+      .filter((option) => !hiddenBundleAnimationTargetIds[option.value]);
+  }, [
+    bundleAnimationNameOverrides,
+    hiddenBundleAnimationTargetIds,
+    loadedBundle?.animations,
+  ]);
 
   const authoredAnimationTargetOptions = useMemo(
     () =>
@@ -882,17 +893,26 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const bundleProceduralTargetOptions = useMemo(
     () =>
-      bundleProceduralEntries.map((entry, index) => {
-        const metadataLabel =
-          typeof entry.label === "string" ? entry.label.trim() : "";
-        const metadataId = typeof entry.id === "string" ? entry.id.trim() : "";
-        const fallback = `Imported Program ${index + 1}`;
-        return {
-          value: `${BUNDLE_PROCEDURAL_TARGET_PREFIX}${index}`,
-          label: metadataLabel || metadataId || fallback,
-        };
-      }),
-    [bundleProceduralEntries],
+      bundleProceduralEntries
+        .map((entry, index) => {
+          const targetValue = `${BUNDLE_PROCEDURAL_TARGET_PREFIX}${index}`;
+          const metadataLabel =
+            typeof entry.label === "string" ? entry.label.trim() : "";
+          const metadataId =
+            typeof entry.id === "string" ? entry.id.trim() : "";
+          const baseLabel =
+            metadataLabel || metadataId || `Imported Program ${index + 1}`;
+          return {
+            value: targetValue,
+            label: bundleProceduralNameOverrides[targetValue] ?? baseLabel,
+          };
+        })
+        .filter((option) => !hiddenBundleProceduralTargetIds[option.value]),
+    [
+      bundleProceduralEntries,
+      bundleProceduralNameOverrides,
+      hiddenBundleProceduralTargetIds,
+    ],
   );
 
   const authoredProceduralTargetOptions = useMemo(
@@ -958,6 +978,59 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredProceduralTargets, selectedProceduralTargetId],
   );
+  const selectedBundleProceduralMetrics = useMemo(() => {
+    if (
+      !selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+    ) {
+      return null;
+    }
+    const rawIndex = selectedProceduralTargetId.slice(
+      BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+    );
+    const index = Number.parseInt(rawIndex, 10);
+    if (!Number.isFinite(index) || index < 0) {
+      return null;
+    }
+    const entry = bundleProceduralEntries[index];
+    if (!entry?.spec || typeof entry.spec !== "object") {
+      return null;
+    }
+    const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+    return {
+      nodes: parsed.nodes.length,
+      edges: parsed.edges.length,
+      inputs: parsed.enabledInputs.size,
+      outputs: parsed.enabledOutputs.size,
+    };
+  }, [bundleProceduralEntries, selectedProceduralTargetId]);
+  const selectedProceduralMetrics = useMemo(() => {
+    const isAuthored = Boolean(
+      parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
+    );
+    if (isAuthored) {
+      return {
+        nodes: proceduralEditorNodes.length,
+        edges: proceduralEditorEdges.length,
+        inputs: proceduralEditorEnabledInputs.size,
+        outputs: proceduralEditorEnabledOutputs.size,
+      };
+    }
+    return (
+      selectedBundleProceduralMetrics ?? {
+        nodes: proceduralEditorNodes.length,
+        edges: proceduralEditorEdges.length,
+        inputs: proceduralEditorEnabledInputs.size,
+        outputs: proceduralEditorEnabledOutputs.size,
+      }
+    );
+  }, [
+    proceduralEditorEdges.length,
+    proceduralEditorEnabledInputs.size,
+    proceduralEditorEnabledOutputs.size,
+    proceduralEditorNodes.length,
+    selectedBundleProceduralMetrics,
+    selectedProceduralTargetId,
+  ]);
 
   const handleSelectAnimationTarget = useCallback(
     (targetId: string) => {
@@ -1000,15 +1073,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       });
       if (clip) {
         importAnimationClipIr(clip);
+        const overriddenDuration = bundleAnimationDurationOverrides[targetId];
+        if (Number.isFinite(overriddenDuration)) {
+          setAnimationDuration(overriddenDuration);
+        }
       }
     },
     [
       authoredAnimationTargets,
+      bundleAnimationDurationOverrides,
       importAnimationClipIr,
       loadedBundle?.animations,
       mainFaceInputsById,
       saveAuthoredAnimationTarget,
       selectedAnimationTargetId,
+      setAnimationDuration,
     ],
   );
 
@@ -1043,14 +1122,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const handleRenameAnimationTarget = useCallback(
     (nextName: string) => {
+      const normalizedName =
+        nextName.trim().length > 0 ? nextName.trim() : "Untitled Clip";
       const authoredClipId = parseAuthoredAnimationTargetValue(
         selectedAnimationTargetId,
       );
       if (!authoredClipId) {
+        if (
+          selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+        ) {
+          setBundleAnimationNameOverrides((previous) => ({
+            ...previous,
+            [selectedAnimationTargetId]: normalizedName,
+          }));
+        }
         return;
       }
-      const normalizedName =
-        nextName.trim().length > 0 ? nextName.trim() : "Untitled Clip";
       setAuthoredAnimationTargets((previous) =>
         previous.map((target) =>
           target.targetId === selectedAnimationTargetId
@@ -1068,6 +1155,140 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [selectedAnimationTargetId],
   );
+
+  const handleUpdateSelectedAnimationDuration = useCallback(
+    (nextDuration: number) => {
+      if (!Number.isFinite(nextDuration)) {
+        return;
+      }
+      const normalizedDuration = Math.max(0, nextDuration);
+      setAnimationDuration(normalizedDuration);
+      const authoredClipId = parseAuthoredAnimationTargetValue(
+        selectedAnimationTargetId,
+      );
+      if (!authoredClipId) {
+        if (
+          selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+        ) {
+          setBundleAnimationDurationOverrides((previous) => ({
+            ...previous,
+            [selectedAnimationTargetId]: normalizedDuration,
+          }));
+        }
+        return;
+      }
+      setAuthoredAnimationTargets((previous) =>
+        previous.map((target) =>
+          target.targetId === selectedAnimationTargetId
+            ? {
+                ...target,
+                clip: {
+                  ...target.clip,
+                  duration: normalizedDuration,
+                },
+              }
+            : target,
+        ),
+      );
+    },
+    [selectedAnimationTargetId, setAnimationDuration],
+  );
+
+  const handleDeleteAnimationTarget = useCallback(() => {
+    const deletingTargetId = selectedAnimationTargetId;
+    const authoredClipId = parseAuthoredAnimationTargetValue(deletingTargetId);
+    const activeTarget = authoredAnimationTargets.find(
+      (target) => target.targetId === deletingTargetId,
+    );
+    const activeOptionLabel =
+      animationTargetOptions.find((option) => option.value === deletingTargetId)
+        ?.label ?? activeTarget?.name;
+    const targetLabel = activeTarget?.name?.trim() || "this clip";
+    if (
+      !window.confirm(
+        `Delete animation clip "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    let nextAuthoredTargets = authoredAnimationTargets;
+    if (authoredClipId) {
+      nextAuthoredTargets = authoredAnimationTargets.filter(
+        (target) => target.targetId !== deletingTargetId,
+      );
+    } else if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      setHiddenBundleAnimationTargetIds((previous) => ({
+        ...previous,
+        [deletingTargetId]: true,
+      }));
+    }
+
+    const remainingBundleTargets = bundleAnimationTargetOptions.filter(
+      (option) => option.value !== deletingTargetId,
+    );
+
+    if (
+      nextAuthoredTargets.length === 0 &&
+      remainingBundleTargets.length === 0
+    ) {
+      const fallbackTarget = createAuthoredAnimationTarget(
+        AUTHORED_TIMELINE_CLIP_ID,
+        DEFAULT_NEW_ANIMATION_CLIP_NAME,
+      );
+      setAuthoredAnimationTargets([fallbackTarget]);
+      setSelectedAnimationTargetId(fallbackTarget.targetId);
+      importAnimationClipIr(fallbackTarget.clip);
+      return;
+    }
+
+    setAuthoredAnimationTargets(nextAuthoredTargets);
+    const nextTargetId =
+      nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
+    setSelectedAnimationTargetId(nextTargetId);
+    const nextAuthoredTarget = nextAuthoredTargets.find(
+      (target) => target.targetId === nextTargetId,
+    );
+    if (nextAuthoredTarget) {
+      importAnimationClipIr(nextAuthoredTarget.clip);
+      return;
+    }
+    if (nextTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      const rawIndex = nextTargetId.slice(
+        BUNDLE_ANIMATION_TARGET_PREFIX.length,
+      );
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return;
+      }
+      const entry = loadedBundle?.animations?.[index];
+      if (!entry) {
+        return;
+      }
+      const clip = bundleAnimationEntryToClipIr(entry, {
+        standardInputsById: mainFaceInputsById,
+      });
+      if (!clip) {
+        return;
+      }
+      importAnimationClipIr(clip);
+      const overriddenDuration = bundleAnimationDurationOverrides[nextTargetId];
+      if (Number.isFinite(overriddenDuration)) {
+        setAnimationDuration(overriddenDuration);
+      }
+    }
+  }, [
+    animationTargetOptions,
+    authoredAnimationTargets,
+    bundleAnimationDurationOverrides,
+    bundleAnimationTargetOptions,
+    importAnimationClipIr,
+    loadedBundle?.animations,
+    mainFaceInputsById,
+    selectedAnimationTargetId,
+    setHiddenBundleAnimationTargetIds,
+    setAnimationDuration,
+  ]);
 
   const authoredAnimationClipsForExport = useMemo(() => {
     const authoredClipId = parseAuthoredAnimationTargetValue(
@@ -1201,14 +1422,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const handleRenameProceduralTarget = useCallback(
     (nextName: string) => {
+      const normalizedName =
+        nextName.trim().length > 0 ? nextName.trim() : "Untitled Program";
       const authoredProgramId = parseAuthoredProceduralTargetValue(
         selectedProceduralTargetId,
       );
       if (!authoredProgramId) {
+        if (
+          selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+        ) {
+          setBundleProceduralNameOverrides((previous) => ({
+            ...previous,
+            [selectedProceduralTargetId]: normalizedName,
+          }));
+        }
         return;
       }
-      const normalizedName =
-        nextName.trim().length > 0 ? nextName.trim() : "Untitled Program";
       setAuthoredProceduralTargets((previous) =>
         previous.map((target) =>
           target.targetId === selectedProceduralTargetId
@@ -1222,6 +1451,93 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [selectedProceduralTargetId],
   );
+
+  const handleDeleteProceduralTarget = useCallback(() => {
+    const deletingTargetId = selectedProceduralTargetId;
+    const authoredProgramId =
+      parseAuthoredProceduralTargetValue(deletingTargetId);
+    const activeTarget = authoredProceduralTargets.find(
+      (target) => target.targetId === deletingTargetId,
+    );
+    const activeOptionLabel =
+      proceduralTargetOptions.find(
+        (option) => option.value === deletingTargetId,
+      )?.label ?? activeTarget?.name;
+    const targetLabel = activeTarget?.name?.trim() || "this program";
+    if (
+      !window.confirm(
+        `Delete procedural program "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    let nextAuthoredTargets = authoredProceduralTargets;
+    if (authoredProgramId) {
+      nextAuthoredTargets = authoredProceduralTargets.filter(
+        (target) => target.targetId !== deletingTargetId,
+      );
+    } else if (deletingTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      setHiddenBundleProceduralTargetIds((previous) => ({
+        ...previous,
+        [deletingTargetId]: true,
+      }));
+    }
+
+    const remainingBundleTargets = bundleProceduralTargetOptions.filter(
+      (option) => option.value !== deletingTargetId,
+    );
+
+    if (
+      nextAuthoredTargets.length === 0 &&
+      remainingBundleTargets.length === 0
+    ) {
+      const fallbackTarget = createAuthoredProceduralTarget(
+        AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
+        DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
+      );
+      setAuthoredProceduralTargets([fallbackTarget]);
+      setSelectedProceduralTargetId(fallbackTarget.targetId);
+      hydrateProceduralEditorState(fallbackTarget.snapshot);
+      return;
+    }
+
+    setAuthoredProceduralTargets(nextAuthoredTargets);
+    const nextTargetId =
+      nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
+    setSelectedProceduralTargetId(nextTargetId);
+    const nextAuthoredTarget = nextAuthoredTargets.find(
+      (target) => target.targetId === nextTargetId,
+    );
+    if (nextAuthoredTarget) {
+      hydrateProceduralEditorState(nextAuthoredTarget.snapshot);
+      return;
+    }
+    if (nextTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      const rawIndex = nextTargetId.slice(
+        BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+      );
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return;
+      }
+      const entry = bundleProceduralEntries[index];
+      if (!entry) {
+        return;
+      }
+      importMotionGraph(
+        entry.spec ? (entry.spec as Record<string, unknown>) : null,
+      );
+    }
+  }, [
+    authoredProceduralTargets,
+    bundleProceduralEntries,
+    bundleProceduralTargetOptions,
+    importMotionGraph,
+    proceduralTargetOptions,
+    selectedProceduralTargetId,
+    setHiddenBundleProceduralTargetIds,
+  ]);
 
   const authoredProceduralProgramsForExport = useMemo(() => {
     const activeAuthoredProgramId = parseAuthoredProceduralTargetValue(
@@ -1267,6 +1583,91 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedAuthoredProceduralTarget,
     selectedProceduralTargetId,
   ]);
+
+  const loadingSessionActive =
+    loader.faceLoadSessionStartedAtMs !== null &&
+    loader.faceLoadSessionCompletedAtMs === null;
+  const loadingCoordinatorSettled = faceLoadInFlightOperationCount === 0;
+  const deterministicMilestoneChainReady =
+    faceLoadMilestones["asset-loaded"] !== null &&
+    faceLoadMilestones["bundle-synced"] !== null &&
+    faceLoadMilestones["graph-ready"] !== null;
+  const exportSessionKey =
+    faceLoadSessionToken ??
+    `${sourceName ?? "__no-source__"}:${rootId ?? "__no-root__"}`;
+  const exportSessionReady =
+    Boolean(rootId) &&
+    deterministicMilestoneChainReady &&
+    loadingCoordinatorSettled &&
+    !loadingSessionActive &&
+    !isLoading;
+  const exportDirtySnapshot = useMemo(
+    () =>
+      buildGlbExportDirtySnapshot({
+        faceId,
+        includeVizijBundle,
+        includeImportedAnimations,
+        animatables,
+        animatableComponents,
+        featureLabelOverrides,
+        standardInputs,
+        bindings,
+        inputBindings,
+        pipelineMetadataV1,
+        poseGraphSpec: poseRig.poseGraphSpec,
+        poseGraphFileName: poseRig.poseGraphFileName,
+        poseConfigDraft: poseRig.poseConfigDraft,
+        poseIrDraft: poseRig.poseIrDraft,
+        blendMode: poseRig.blendMode,
+        crossGroupBlendMode: poseRig.crossGroupBlendMode,
+        authoredAnimationClips: authoredAnimationClipsForExport,
+        authoredMotionGraphs: authoredProceduralProgramsForExport,
+      }),
+    [
+      animatableComponents,
+      animatables,
+      authoredAnimationClipsForExport,
+      authoredProceduralProgramsForExport,
+      bindings,
+      faceId,
+      featureLabelOverrides,
+      includeImportedAnimations,
+      includeVizijBundle,
+      inputBindings,
+      pipelineMetadataV1,
+      poseRig.blendMode,
+      poseRig.crossGroupBlendMode,
+      poseRig.poseConfigDraft,
+      poseRig.poseGraphFileName,
+      poseRig.poseGraphSpec,
+      poseRig.poseIrDraft,
+      standardInputs,
+    ],
+  );
+  const { isDirty: hasUnsavedGlbChanges, markSaved: markGlbExportSaved } =
+    useExportDirtyState({
+      sessionKey: exportSessionKey,
+      ready: exportSessionReady,
+      snapshot: exportDirtySnapshot,
+    });
+
+  const handleRegisterGlbExportHandler = useCallback(
+    (handler: (() => Promise<void>) | null) => {
+      exportGlbHandlerRef.current = handler;
+    },
+    [],
+  );
+  const handleSaveExport = useCallback(() => {
+    if (!canExport) {
+      return;
+    }
+    const exportGlb = exportGlbHandlerRef.current;
+    if (!exportGlb) {
+      setShowExportDialog(true);
+      return;
+    }
+    void exportGlb();
+  }, [canExport]);
 
   useEffect(() => {
     if (
@@ -1461,39 +1862,62 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeSourceOptions = RUNTIME_SOURCE_OPTIONS;
   const runtimeTargetConfig = useMemo(() => {
     if (activeRuntimeSource === "animation") {
-      const canRenameTarget = Boolean(
-        parseAuthoredAnimationTargetValue(selectedAnimationTargetId),
-      );
+      const selectedTargetLabel =
+        animationTargetOptions.find(
+          (option) => option.value === selectedAnimationTargetId,
+        )?.label ?? selectedAnimationTargetId;
       return {
         targetLabel: "Animation Clip",
         targetValue: selectedAnimationTargetId,
         targetOptions: animationTargetOptions,
         onTargetChange: handleSelectAnimationTarget,
-        targetName: canRenameTarget
-          ? selectedAuthoredAnimationTarget?.name
-          : undefined,
-        onTargetNameChange: canRenameTarget
-          ? handleRenameAnimationTarget
-          : undefined,
+        targetTypeLabel: "Animation Clip",
+        targetName:
+          selectedAuthoredAnimationTarget?.name ?? selectedTargetLabel,
+        onTargetNameChange: handleRenameAnimationTarget,
+        targetNumericLabel: "Duration (seconds)",
+        targetNumericValue: animationDuration,
+        targetNumericStep: 0.1,
+        targetNumericMin: 0,
+        onTargetNumericValueChange: handleUpdateSelectedAnimationDuration,
+        targetStats: [
+          { label: "Tracks", value: animationTracks.length.toString() },
+          { label: "Duration", value: `${animationDuration.toFixed(2)}s` },
+        ],
+        onDeleteTarget: handleDeleteAnimationTarget,
+        deleteTargetLabel: "Delete Clip",
         onCreateTarget: handleCreateAnimationTarget,
         createTargetLabel: "New Clip",
       };
     }
     if (activeRuntimeSource === "procedural-animation-programming") {
-      const canRenameTarget = Boolean(
-        parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
-      );
+      const selectedTargetLabel =
+        proceduralTargetOptions.find(
+          (option) => option.value === selectedProceduralTargetId,
+        )?.label ?? selectedProceduralTargetId;
       return {
         targetLabel: "Procedural Program",
         targetValue: selectedProceduralTargetId,
         targetOptions: proceduralTargetOptions,
         onTargetChange: handleSelectProceduralTarget,
-        targetName: canRenameTarget
-          ? selectedAuthoredProceduralTarget?.name
-          : undefined,
-        onTargetNameChange: canRenameTarget
-          ? handleRenameProceduralTarget
-          : undefined,
+        targetTypeLabel: "Procedural Program",
+        targetName:
+          selectedAuthoredProceduralTarget?.name ?? selectedTargetLabel,
+        onTargetNameChange: handleRenameProceduralTarget,
+        targetStats: [
+          { label: "Nodes", value: selectedProceduralMetrics.nodes.toString() },
+          { label: "Edges", value: selectedProceduralMetrics.edges.toString() },
+          {
+            label: "Inputs",
+            value: selectedProceduralMetrics.inputs.toString(),
+          },
+          {
+            label: "Outputs",
+            value: selectedProceduralMetrics.outputs.toString(),
+          },
+        ],
+        onDeleteTarget: handleDeleteProceduralTarget,
+        deleteTargetLabel: "Delete Program",
         onCreateTarget: handleCreateProceduralTarget,
         createTargetLabel: "New Program",
       };
@@ -1501,14 +1925,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     return null;
   }, [
     activeRuntimeSource,
+    animationDuration,
+    animationTracks.length,
     animationTargetOptions,
     handleCreateAnimationTarget,
     handleCreateProceduralTarget,
+    handleDeleteAnimationTarget,
+    handleDeleteProceduralTarget,
     handleRenameAnimationTarget,
     handleRenameProceduralTarget,
     handleSelectAnimationTarget,
     handleSelectProceduralTarget,
+    handleUpdateSelectedAnimationDuration,
     proceduralTargetOptions,
+    selectedProceduralMetrics.edges,
+    selectedProceduralMetrics.inputs,
+    selectedProceduralMetrics.nodes,
+    selectedProceduralMetrics.outputs,
     selectedAuthoredAnimationTarget,
     selectedAuthoredProceduralTarget,
     selectedAnimationTargetId,
@@ -1516,27 +1949,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   ]);
   const runtimePlaybackConfig = useMemo(() => {
     if (activeRuntimeSource === "animation") {
-      const isPlaying = animationPlaybackState === "playing";
       return {
-        playbackState: isPlaying ? ("playing" as const) : ("paused" as const),
+        playbackState: animationPlaybackState,
         playbackDisabled:
           !animationTransportActive || !animationTransportEnabled,
         onPlay: playAnimationTransport,
         onPause: pauseAnimationTransport,
+        onStop: stopAnimationTransport,
       };
     }
     if (activeRuntimeSource === "procedural-animation-programming") {
+      const papTransportState =
+        papPlaybackState === "playing"
+          ? ("playing" as const)
+          : papTimeSeconds > 0
+            ? ("paused" as const)
+            : ("stopped" as const);
       return {
-        playbackState:
-          papPlaybackState === "playing"
-            ? ("playing" as const)
-            : ("paused" as const),
+        playbackState: papTransportState,
         playbackDisabled: !papPlaybackAvailable,
         onPlay: playPapGraph,
         onPause: pausePapGraph,
+        onStop: stopPapGraph,
       };
     }
-    return null;
+    return {
+      playbackState: "stopped" as const,
+      playbackDisabled: true,
+      onPlay: undefined,
+      onPause: undefined,
+      onStop: undefined,
+    };
   }, [
     activeRuntimeSource,
     animationTransportActive,
@@ -1546,8 +1989,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pausePapGraph,
     papPlaybackAvailable,
     papPlaybackState,
+    papTimeSeconds,
     playAnimationTransport,
     playPapGraph,
+    stopAnimationTransport,
+    stopPapGraph,
   ]);
   const papPlaybackActive = papPlaybackState === "playing";
   const animationSourceActive = activeRuntimeSource === "animation";
@@ -1578,6 +2024,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const inputControlsPanelVisible = inputControlSurfaces.length > 0;
   const controlAuthoringPanelVisible = controlAuthoringSurfaces.length > 0;
+  const centerPanelDefaultSize = activeEditFocus === "pose-editing" ? 40 : 60;
+  const rightSidebarDefaultSize = activeEditFocus === "pose-editing" ? 40 : 20;
+  const rightSidebarResetKey =
+    activeEditFocus === "pose-editing" ? "pose-editing" : "default";
   const handleHideControlAuthoringPanel = useCallback(() => {
     setWorkspacePanelVisibility("variables", false);
     setWorkspacePanelVisibility("poses", false);
@@ -1804,11 +2254,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
+      onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
+      canSave={canExport}
+      saveDirty={hasUnsavedGlbChanges}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
       activeEditFocus={activeEditFocus}
       onSelectEditFocus={uiActions.setEditFocus}
+      rotationDisplayMode={rotationDisplayMode}
+      onSelectRotationDisplayMode={uiActions.setRotationDisplayMode}
     />
   );
 
@@ -1830,14 +2285,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     !runtimeViewLoading &&
     runtimeViewRootId !== null &&
     runtimeViewRootId === rootId;
-  const loadingSessionActive =
-    loader.faceLoadSessionStartedAtMs !== null &&
-    loader.faceLoadSessionCompletedAtMs === null;
-  const loadingCoordinatorSettled = faceLoadInFlightOperationCount === 0;
-  const deterministicMilestoneChainReady =
-    faceLoadMilestones["asset-loaded"] !== null &&
-    faceLoadMilestones["bundle-synced"] !== null &&
-    faceLoadMilestones["graph-ready"] !== null;
   const loadingBarVisible = loadingSessionActive;
   const weightedStepProgress = useMemo(
     () => computeWeightedFaceLoadProgress(loader.faceLoadSteps),
@@ -2296,6 +2743,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           viewport={viewportContent}
           bottomVisible={animationPanelVisible}
           bottomPanel={<AnimationPanel />}
+          centerPanelDefaultSize={centerPanelDefaultSize}
           // Right
           rightTopVisible={runtimeControlsPanelVisible}
           rightTopPanel={
@@ -2305,25 +2753,43 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               activeSource={activeRuntimeSource}
               options={runtimeSourceOptions}
               onChange={uiActions.setActiveRuntimeSource}
-              playbackState={runtimePlaybackConfig?.playbackState}
-              playbackDisabled={runtimePlaybackConfig?.playbackDisabled}
-              onPlay={runtimePlaybackConfig?.onPlay}
-              onPause={runtimePlaybackConfig?.onPause}
+              playbackState={runtimePlaybackConfig.playbackState}
+              playbackDisabled={runtimePlaybackConfig.playbackDisabled}
+              onPlay={runtimePlaybackConfig.onPlay}
+              onPause={runtimePlaybackConfig.onPause}
+              onStop={runtimePlaybackConfig.onStop}
               targetLabel={runtimeTargetConfig?.targetLabel}
               targetValue={runtimeTargetConfig?.targetValue}
               targetOptions={runtimeTargetConfig?.targetOptions}
               onTargetChange={runtimeTargetConfig?.onTargetChange}
+              targetTypeLabel={runtimeTargetConfig?.targetTypeLabel}
               targetName={runtimeTargetConfig?.targetName}
               onTargetNameChange={runtimeTargetConfig?.onTargetNameChange}
+              targetStats={runtimeTargetConfig?.targetStats}
+              targetNumericLabel={runtimeTargetConfig?.targetNumericLabel}
+              targetNumericValue={runtimeTargetConfig?.targetNumericValue}
+              targetNumericStep={runtimeTargetConfig?.targetNumericStep}
+              targetNumericMin={runtimeTargetConfig?.targetNumericMin}
+              onTargetNumericValueChange={
+                runtimeTargetConfig?.onTargetNumericValueChange
+              }
+              onDeleteTarget={runtimeTargetConfig?.onDeleteTarget}
+              deleteTargetLabel={runtimeTargetConfig?.deleteTargetLabel}
               onCreateTarget={runtimeTargetConfig?.onCreateTarget}
               createTargetLabel={runtimeTargetConfig?.createTargetLabel}
             />
           }
-          rightBottomVisible={inspectorPanelVisible || speechPanelVisible || debugPanelVisible}
+          rightBottomVisible={
+            inspectorPanelVisible || speechPanelVisible || debugPanelVisible
+          }
+          rightSidebarDefaultSize={rightSidebarDefaultSize}
+          rightSidebarResetKey={rightSidebarResetKey}
           rightBottomPanel={
             <div
               className={`h-full min-h-0 ${
-                (inspectorPanelVisible && (debugPanelVisible || speechPanelVisible)) || (debugPanelVisible && speechPanelVisible)
+                (inspectorPanelVisible &&
+                  (debugPanelVisible || speechPanelVisible)) ||
+                (debugPanelVisible && speechPanelVisible)
                   ? "grid grid-rows-2"
                   : "flex flex-col"
               }`}
@@ -2377,6 +2843,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         poseGraphRemap={poseGraphRemap}
         handlePoseGraphRemapApply={handlePoseGraphRemapApply}
         handlePoseGraphRemapCancel={handlePoseGraphRemapCancel}
+        onExportGlbComplete={markGlbExportSaved}
+        registerGlbExportHandler={handleRegisterGlbExportHandler}
       />
 
       <OrientationConfirmationDialog

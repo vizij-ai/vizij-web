@@ -72,6 +72,12 @@ export interface ReferencePoseTarget {
 export interface ReferencePoseDefinition {
   id: string;
   name: string;
+  /** Optional legacy/canonical group path for foldering */
+  group?: string;
+  /** Optional legacy primary group id/path */
+  groupId?: string;
+  /** Optional multi-group membership ids/paths */
+  groupIds?: readonly string[];
   targets: readonly ReferencePoseTarget[];
 }
 

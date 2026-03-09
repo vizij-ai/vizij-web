@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useVizijStore } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import type { VizijBundleExtension } from "@vizij/render";
@@ -64,6 +64,8 @@ interface ExportDialogProps {
   canExport: boolean;
   onImportPoseGraph: (file: File) => Promise<void>;
   runtimeExportBodies?: RuntimeExportBodies;
+  onExportGlbComplete?: () => void;
+  registerGlbExportHandler?: (handler: (() => Promise<void>) | null) => void;
 }
 
 export function ExportDialog({
@@ -78,6 +80,8 @@ export function ExportDialog({
   canExport,
   onImportPoseGraph,
   runtimeExportBodies,
+  onExportGlbComplete,
+  registerGlbExportHandler,
 }: ExportDialogProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
@@ -231,7 +235,15 @@ export function ExportDialog({
       crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
     authoredMotionGraphs: authoredProceduralPrograms,
+    onExportGlbComplete,
   });
+
+  useEffect(() => {
+    registerGlbExportHandler?.(exportGlb);
+    return () => {
+      registerGlbExportHandler?.(null);
+    };
+  }, [exportGlb, registerGlbExportHandler]);
 
   const bundleSummary = useMemo<VizijBundleSummary>(() => {
     if (!loadedBundle) {
@@ -276,7 +288,7 @@ export function ExportDialog({
 
   return (
     <Modal open={open} onClose={onClose} title="Export Settings" maxWidth="2xl">
-      <div className="space-y-6">
+      <div data-testid="export-dialog" className="space-y-6">
         <div className="space-y-4">
           <InstructionCallout
             label="Export best practices"
@@ -319,6 +331,7 @@ export function ExportDialog({
 
         <div className="pt-2 border-t border-border-default/50">
           <button
+            data-testid="export-advanced-toggle"
             type="button"
             className="w-full flex items-center justify-between p-3 rounded-xl bg-bg-input/50 hover:bg-bg-input border border-border-default/50 transition-all group"
             onClick={() => setIsAdvancedOpen((current) => !current)}
@@ -344,7 +357,10 @@ export function ExportDialog({
           </button>
 
           {isAdvancedOpen && (
-            <div className="mt-4 p-4 rounded-xl bg-bg-input/30 border border-border-default/50 space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div
+              data-testid="export-advanced-panel"
+              className="mt-4 p-4 rounded-xl bg-bg-input/30 border border-border-default/50 space-y-6 animate-in fade-in slide-in-from-top-2 duration-200"
+            >
               <div className="flex items-start gap-3">
                 <div className="mt-1 w-1 h-1 rounded-full bg-accent shrink-0" />
                 <p className="text-[11px] leading-relaxed text-text-muted font-medium">

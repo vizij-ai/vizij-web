@@ -59,7 +59,7 @@ describe("resolveRigDrivenSelection", () => {
       "jaw_open",
       OBJECTS,
     );
-    expect(result).toEqual({ kind: "variable", childInputId: "smile" });
+    expect(result).toEqual({ kind: "variable", childInputIds: ["smile"] });
   });
 
   it("returns concrete target ids for property selections", () => {

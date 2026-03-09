@@ -33,6 +33,8 @@ import {
   sanitizePoseGroupId,
 } from "./groupMembership";
 
+const DEFAULT_POSE_GROUP_ID = sanitizePoseGroupId(null, "default");
+
 function nextPoseGroupId(base: string, existing: Set<string>): string {
   const sanitized = sanitizePoseGroupId(base, base);
   if (!existing.has(sanitized)) {
@@ -1577,15 +1579,18 @@ export function createPoseRigStore(
             return pose;
           }
           const membership = resolvePoseMembership(pose, groups);
-          if (membership.groupIds.includes(groupId)) {
+          const nextGroupIds =
+            groupId === DEFAULT_POSE_GROUP_ID
+              ? membership.groupIds
+              : membership.groupIds.filter(
+                  (existingGroupId) =>
+                    existingGroupId !== DEFAULT_POSE_GROUP_ID,
+                );
+          if (nextGroupIds.includes(groupId)) {
             return pose;
           }
           poseChanged = true;
-          return withMembershipIds(
-            pose,
-            [...membership.groupIds, groupId],
-            groups,
-          );
+          return withMembershipIds(pose, [...nextGroupIds, groupId], groups);
         });
 
         if (!poseChanged && !groupsChanged) {

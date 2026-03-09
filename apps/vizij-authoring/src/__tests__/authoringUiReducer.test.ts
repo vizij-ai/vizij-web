@@ -12,6 +12,7 @@ const baseState: AuthoringUiState = {
   skipDiscrepancyCheck: true,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
+  rotationDisplayMode: "degrees",
 };
 
 describe("authoringUiReducer", () => {
@@ -67,8 +68,16 @@ describe("authoringUiReducer", () => {
   it("updates the active edit focus", () => {
     const result = authoringUiReducer(baseState, {
       type: "set-edit-focus",
-      payload: "reference-face",
+      payload: "pose-editing",
     });
-    expect(result.activeEditFocus).toBe("reference-face");
+    expect(result.activeEditFocus).toBe("pose-editing");
+  });
+
+  it("updates the rotation display mode", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-rotation-display-mode",
+      payload: "degrees",
+    });
+    expect(result.rotationDisplayMode).toBe("degrees");
   });
 });

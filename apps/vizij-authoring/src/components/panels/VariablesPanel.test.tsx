@@ -4,10 +4,12 @@ import {
   fireEvent,
   within,
   cleanup,
+  waitFor,
 } from "@testing-library/react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
+import { buildPoseWeightInputSourceId } from "../../poseRig/utils";
 import type { BlendStageInspectorSelection } from "../../types/poseGroupInspector";
 import type {
   ReferenceCatalog,
@@ -105,10 +107,13 @@ function makeReferenceCatalog(
 
 const poseRigState = {
   poses: [] as PoseDefinition[],
+  neutralInputs: {} as Record<string, number>,
   applyPose: vi.fn(),
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  createPoseFromSnapshot: vi.fn(() => "pose_capture"),
+  addPoseInput: vi.fn(),
   duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
   renamePoseGroup: vi.fn(),
@@ -190,8 +195,16 @@ const graphRuntimeState = {
   setStoreState: vi.fn(),
 };
 
+const authoringUiState = {
+  activeEditFocus: "default" as "default" | "pose-creation",
+};
+
 vi.mock("../../state/PoseRigProvider", () => ({
   usePoseRig: () => poseRigState,
+}));
+
+vi.mock("../../state/AuthoringUiProvider", () => ({
+  useAuthoringUiState: () => authoringUiState,
 }));
 
 vi.mock("../../state/ReferenceFaceContext", () => ({
@@ -231,10 +244,14 @@ function makeInput(
 describe("VariablesPanel", () => {
   beforeEach(() => {
     poseRigState.poses = [];
+    poseRigState.neutralInputs = {};
     poseRigState.selectedPoseId = null;
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.createPoseFromSnapshot.mockReset();
+    poseRigState.createPoseFromSnapshot.mockReturnValue("pose_capture");
+    poseRigState.addPoseInput.mockReset();
     poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
     poseRigState.renamePoseGroup.mockReset();
@@ -288,6 +305,7 @@ describe("VariablesPanel", () => {
     bindingState.handleCloneStandardInputs.mockImplementation(
       () => new Map<string, string>(),
     );
+    authoringUiState.activeEditFocus = "default";
 
     useEditorStore.setState({
       nodes: [],
@@ -396,6 +414,142 @@ describe("VariablesPanel", () => {
     const scoped = within(contextRow as HTMLElement);
     expect(scoped.getByText("Main Face Inputs Only")).toBeTruthy();
     expect(scoped.getByText("Compare in Variables/Poses")).toBeTruthy();
+  });
+
+  it("saves the current input value onto the selected pose whenever a pose is selected", () => {
+    const poseId = "pose_smile";
+    const smileInput = makeInput("smile", "/smile", {
+      label: "Smile",
+      defaultValue: 0.1,
+      range: { min: -1, max: 1 },
+    });
+    poseRigState.poses = [
+      {
+        id: poseId,
+        name: "Smile Pose",
+        values: {},
+        group: null,
+        groupId: null,
+        groupIds: [],
+        createdAt: "2026-03-08T00:00:00.000Z",
+        updatedAt: "2026-03-08T00:00:00.000Z",
+      },
+    ];
+    poseRigState.selectedPoseId = poseId;
+    bindingState.managedStandardInputs = [
+      {
+        input: smileInput,
+        source: "custom",
+      },
+    ];
+    bindingState.standardInputsByPath = new Map([
+      [smileInput.path, smileInput],
+    ]);
+    bindingState.standardInputsById = new Map([[smileInput.id, smileInput]]);
+    bindingState.inputValues = { [smileInput.id]: 0.42 };
+    render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Pose Target" }));
+
+    expect(poseRigState.addPoseInput).toHaveBeenCalledWith(
+      poseId,
+      smileInput.id,
+    );
+    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
+      poseId,
+      smileInput.id,
+      0.42,
+    );
+  });
+
+  it("resets inputs and solos the captured pose weight after capture", async () => {
+    const existingPose: PoseDefinition = {
+      id: "pose_existing",
+      name: "Existing",
+      values: {},
+      createdAt: "2026-03-08T00:00:00.000Z",
+      updatedAt: "2026-03-08T00:00:00.000Z",
+    };
+    const capturedPose: PoseDefinition = {
+      id: "pose_capture",
+      name: "Captured",
+      values: {},
+      createdAt: "2026-03-08T00:00:00.000Z",
+      updatedAt: "2026-03-08T00:00:00.000Z",
+    };
+
+    poseRigState.poses = [existingPose];
+    poseRigState.neutralInputs = { smile: 0, brow_raise: 0 };
+    poseRigState.createPoseFromSnapshot.mockReturnValue(capturedPose.id);
+    bindingState.managedStandardInputs = [
+      {
+        input: makeInput(
+          "pose_existing_weight",
+          "/poses/pose_existing.weight",
+          {
+            label: "Pose Weight - Existing",
+            sourceId: buildPoseWeightInputSourceId(existingPose.id),
+          },
+        ),
+        source: "custom",
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("variables-inputs-capture-current"));
+
+    expect(poseRigState.createPoseFromSnapshot).toHaveBeenCalledTimes(1);
+    expect(bindingState.applyStandardInputBatch).toHaveBeenNthCalledWith(1, {
+      smile: 0,
+      brow_raise: 0,
+    });
+
+    poseRigState.poses = [existingPose, capturedPose];
+    bindingState.managedStandardInputs = [
+      {
+        input: makeInput(
+          "pose_existing_weight",
+          "/poses/pose_existing.weight",
+          {
+            label: "Pose Weight - Existing",
+            sourceId: buildPoseWeightInputSourceId(existingPose.id),
+          },
+        ),
+        source: "custom",
+      },
+      {
+        input: makeInput("pose_capture_weight", "/poses/pose_capture.weight", {
+          label: "Pose Weight - Captured",
+          sourceId: buildPoseWeightInputSourceId(capturedPose.id),
+        }),
+        source: "custom",
+      },
+    ];
+
+    view.rerender(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(bindingState.applyStandardInputBatch).toHaveBeenNthCalledWith(2, {
+        pose_existing_weight: 0,
+        pose_capture_weight: 1,
+      });
+    });
   });
 
   it("filters out /rig/element variables from the variables panel", () => {
@@ -961,6 +1115,39 @@ describe("VariablesPanel", () => {
     );
   });
 
+  it("allows bulk-selecting an entire driver folder for reference copy", () => {
+    const sourceA = makeInput("ref_folder_a", "/standard/folder/a", {
+      label: "Ref Folder A",
+    });
+    const sourceB = makeInput("ref_folder_b", "/standard/folder/b", {
+      label: "Ref Folder B",
+    });
+    referenceFaceState.standardInputs = [sourceA, sourceB];
+    referenceFaceState.standardInputsById = new Map([
+      [sourceA.id, sourceA],
+      [sourceB.id, sourceB],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      sourceA,
+      sourceB,
+    ]);
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/folder/" },
+      },
+    );
+    fireEvent.click(
+      within(view.container).getByTitle(
+        "Select all reference/shared drivers in this folder for bulk copy",
+      ),
+    );
+
+    expect(screen.getByRole("button", { name: "Copy Ref (2)" })).toBeTruthy();
+  });
+
   it("bulk copy processes the final selected driver against fresh state", () => {
     const sourceFirst = makeInput("ref_shared_first", "/standard/shared", {
       label: "Ref Shared First",
@@ -1032,6 +1219,143 @@ describe("VariablesPanel", () => {
       }),
     );
     expect(screen.queryByText("Variable Copy Mapping")).toBeNull();
+  });
+
+  it("bulk copy reuses a destination created earlier in the same queue run", () => {
+    const sourceFirst = makeInput("ref_shared_first", "/standard/shared", {
+      label: "Ref Shared First",
+      defaultValue: 0.2,
+    });
+    const sourceSecond = makeInput("ref_shared_second", "/standard/shared", {
+      label: "Ref Shared Second",
+      defaultValue: 0.7,
+    });
+    const createdShared = makeInput("main_shared", "/standard/shared", {
+      label: "Ref Shared First",
+      defaultValue: 0.2,
+    });
+
+    referenceFaceState.standardInputs = [sourceFirst, sourceSecond];
+    referenceFaceState.standardInputsById = new Map([
+      [sourceFirst.id, sourceFirst],
+      [sourceSecond.id, sourceSecond],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog([
+      sourceFirst,
+      sourceSecond,
+    ]);
+
+    bindingState.managedStandardInputs = [];
+    bindingState.standardInputsById = new Map();
+    bindingState.standardInputsByPath = new Map();
+    bindingState.handleCreateCustomStandardInput.mockImplementation((path) => {
+      if (path !== createdShared.path) {
+        return undefined;
+      }
+      if (bindingState.standardInputsByPath.has(path)) {
+        return undefined;
+      }
+      // Simulate a lagging catalog snapshot: the path/index updates immediately,
+      // but managedStandardInputs does not refresh before the next queued item.
+      bindingState.standardInputsById.set(createdShared.id, createdShared);
+      bindingState.standardInputsByPath.set(createdShared.path, createdShared);
+      return createdShared;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/" },
+      },
+    );
+    screen
+      .getAllByRole("checkbox", { name: "Bulk" })
+      .forEach((checkbox) => fireEvent.click(checkbox));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (2)" }));
+
+    expect(bindingState.handleCreateCustomStandardInput).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      createdShared.id,
+      expect.objectContaining({
+        defaultValue: sourceFirst.defaultValue,
+      }),
+    );
+    expect(bindingState.handleUpdateStandardInput).toHaveBeenCalledWith(
+      createdShared.id,
+      expect.objectContaining({
+        defaultValue: sourceSecond.defaultValue,
+      }),
+    );
+    expect(screen.queryByText("Variable Copy Mapping")).toBeNull();
+  });
+
+  it("bulk copy re-resolves relationship mappings against current main-face state before confirm", () => {
+    const sourceParent = makeInput("ref_brow_up", "/standard/brow/up", {
+      label: "Ref Brow Up",
+    });
+    const sourceChild = makeInput("ref_blink", "/standard/eyes/blink", {
+      label: "Ref Blink",
+      defaultValue: 0.4,
+    });
+    const destinationParent = makeInput("main_brow_up", "/standard/brow/up", {
+      label: "Main Brow Up",
+    });
+    const createdChild = makeInput("main_blink", "/standard/eyes/blink", {
+      label: "Ref Blink",
+      defaultValue: 0.4,
+    });
+
+    referenceFaceState.standardInputs = [sourceParent, sourceChild];
+    referenceFaceState.standardInputsById = new Map([
+      [sourceParent.id, sourceParent],
+      [sourceChild.id, sourceChild],
+    ]);
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceParent, sourceChild],
+      [
+        {
+          parentInputId: sourceParent.id,
+          childInputId: sourceChild.id,
+        },
+      ],
+    );
+
+    bindingState.handleCreateCustomStandardInput.mockImplementation((path) => {
+      return path === createdChild.path ? createdChild : null;
+    });
+
+    const view = render(<VariablesPanel />);
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search drivers..."),
+      {
+        target: { value: "standard/eyes/blink" },
+      },
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bulk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref (1)" }));
+
+    expect(screen.getByText("Variable Copy Mapping")).toBeTruthy();
+
+    bindingState.standardInputsById.set(
+      destinationParent.id,
+      destinationParent,
+    );
+    bindingState.standardInputsByPath.set(
+      destinationParent.path,
+      destinationParent,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+
+    expect(screen.queryByText("Variable Copy Mapping")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
+      destinationParent.id,
+      createdChild.id,
+    );
   });
 
   it("bulk pose copy processes the final selected pose against fresh state", () => {
@@ -1147,6 +1471,7 @@ describe("VariablesPanel", () => {
       "/propsrig/left_eye/lid_lower",
       {
         label: "Main Child Prop",
+        defaultValue: 0.42,
       },
     );
 
@@ -1220,6 +1545,7 @@ describe("VariablesPanel", () => {
       "/propsrig/left_eye/lid_lower",
       {
         label: "Main Child Prop",
+        defaultValue: 0.42,
       },
     );
 
@@ -1271,7 +1597,7 @@ describe("VariablesPanel", () => {
 
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
     expect(screen.getByText(/Use current scale \(1.000\)/)).toBeTruthy();
-    expect(screen.getByText(/Use current offset \(0.000\)/)).toBeTruthy();
+    expect(screen.getByText(/Use current offset \(0.420\)/)).toBeTruthy();
   });
 
   it("defaults mapping rows to apply and auto-maps unique fuzzy destination matches", () => {
@@ -1455,10 +1781,128 @@ describe("VariablesPanel", () => {
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getAllByTitle("Copy pose to main face")[0]!,
     );
 
     expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+  });
+
+  it("groups reference poses by folder metadata and supports folder bulk-select", () => {
+    const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          group: "emotion/upper",
+          targets: [{ inputId: sourceInput.id, value: 0.7 }],
+        },
+        {
+          id: "ref_pose_frown",
+          name: "Ref Frown",
+          group: "emotion/upper",
+          targets: [{ inputId: sourceInput.id, value: 0.2 }],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(
+      within(view.container).getByTitle(
+        "Select all reference poses in this folder for bulk copy",
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy Ref Pose (2)" }),
+    ).toBeTruthy();
+  });
+
+  it("renders shared poses as a single row in the poses tree", () => {
+    poseRigState.poses = [
+      {
+        id: "pose_shared_smile",
+        name: "Shared Smile",
+        group: "emotion/upper",
+        values: {},
+        createdAt: "now",
+        updatedAt: "now",
+      },
+    ];
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [],
+      [],
+      [
+        {
+          id: "pose_shared_smile",
+          name: "Shared Smile",
+          group: "emotion/upper",
+          targets: [],
+        },
+      ],
+    );
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Shared Smile" },
+      },
+    );
+
+    expect(within(view.container).getAllByTitle("Shared Smile")).toHaveLength(
+      1,
+    );
+  });
+
+  it("selects reference poses for inspector routing", () => {
+    const sourceInput = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceInput],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceInput.id, value: 0.7 }],
+        },
+      ],
+    );
+    const onSelectPose = vi.fn();
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        onSelectPose={onSelectPose}
+      />,
+    );
+    fireEvent.change(
+      within(view.container).getByPlaceholderText("Search poses..."),
+      {
+        target: { value: "Ref Smile" },
+      },
+    );
+
+    fireEvent.click(within(view.container).getByTitle("Ref Smile"));
+    expect(onSelectPose).toHaveBeenCalledWith("ref_pose_smile");
   });
 
   it("plays and resets reference poses on the reference face runtime", () => {
@@ -2021,6 +2465,11 @@ describe("VariablesPanel", () => {
           name: "Ref Smile",
           targets: [{ inputId: sourceSmile.id, value: 0.73 }],
         },
+        {
+          id: "ref_pose_smile_alt",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceSmile.id, value: 0.12 }],
+        },
       ],
     );
     bindingState.managedStandardInputs = [
@@ -2035,7 +2484,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getAllByTitle("Copy pose to main face")[0]!,
     );
     fireEvent.click(
       screen.getByRole("button", { name: /Use current pose value/i }),
@@ -2130,6 +2579,30 @@ describe("VariablesPanel", () => {
         slots: [{ inputId: source.id }],
       },
     };
+    bindingState.pipelineConfigByInputId = {
+      [source.id]: {
+        inputId: source.id,
+        parents: [
+          {
+            inputId: parent.id,
+            linkId: "link/parent->source",
+            scale: 0.25,
+            offset: 0.4,
+          },
+        ],
+      },
+      [child.id]: {
+        inputId: child.id,
+        parents: [
+          {
+            inputId: source.id,
+            linkId: "link/source->child",
+            scale: 0.8,
+            offset: -0.2,
+          },
+        ],
+      },
+    };
     bindingState.handleCloneStandardInputs.mockReturnValue(
       new Map([[source.id, "source_copy"]]),
     );
@@ -2150,16 +2623,10 @@ describe("VariablesPanel", () => {
       {
         labelSuffix: " Copy",
         pathSuffix: "_copy",
+        cloneRelationships: true,
       },
     );
-    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
-      parent.id,
-      "source_copy",
-    );
-    expect(bindingState.handleLinkChildInput).toHaveBeenCalledWith(
-      "source_copy",
-      child.id,
-    );
+    expect(bindingState.handleLinkChildInput).not.toHaveBeenCalled();
     expect(onSelectRig).toHaveBeenCalledWith("source_copy");
   });
 
@@ -2224,7 +2691,7 @@ describe("VariablesPanel", () => {
     expect(onSelectRig).toHaveBeenCalledWith(linkedMain.id);
   });
 
-  it("clears rig selection when selecting unlinked reference variable", () => {
+  it("selects the reference driver id when selecting an unlinked reference variable", () => {
     const referenceOnly = makeInput("ref_brow", "/standard/brow/up", {
       label: "Ref Brow Up",
     });
@@ -2246,7 +2713,7 @@ describe("VariablesPanel", () => {
       within(view.container).getAllByTitle("standard/brow/up")[0]!,
     );
 
-    expect(onSelectRig).toHaveBeenCalledWith(null);
+    expect(onSelectRig).toHaveBeenCalledWith(referenceOnly.id);
   });
 
   it("shows all standard and propsrig inputs on the Inputs surface", () => {
@@ -2484,28 +2951,14 @@ describe("VariablesPanel", () => {
 
     fireEvent.change(search, { target: { value: "Pose Weight Smile" } });
     expect(scoped.getByTitle("Pose Weight Smile")).toBeTruthy();
-    expect(scoped.getByText("pose-weight")).toBeTruthy();
-    expect(scoped.getByText("pose:Smile")).toBeTruthy();
 
     fireEvent.change(search, { target: { value: "Group Output · emotion" } });
-    expect(scoped.getByTitle("Group Output · emotion")).toBeTruthy();
-    expect(scoped.getByText("group-output")).toBeTruthy();
-    expect(
-      scoped.getByText("group:emotion; mode:average; poses:0"),
-    ).toBeTruthy();
-    expect(scoped.getByText("Derived control (read-only)")).toBeTruthy();
+    expect(scoped.queryByTitle("Group Output · emotion")).toBeNull();
+    expect(scoped.getByText("No results")).toBeTruthy();
 
     fireEvent.change(search, { target: { value: "Stage Output · Base" } });
     expect(scoped.getByTitle("Stage Output · Base")).toBeTruthy();
-    expect(scoped.getByText("stage-output")).toBeTruthy();
-    expect(
-      scoped.getByText("stage:stage_base; mode:add; sources:group:emotion"),
-    ).toBeTruthy();
     expect(scoped.getByText("Derived control (read-only)")).toBeTruthy();
-
-    fireEvent.change(search, { target: { value: "Group Output · emotion" } });
-    fireEvent.click(scoped.getByTitle("Group Output · emotion"));
-    expect(onSelectRig).not.toHaveBeenCalled();
 
     fireEvent.change(search, { target: { value: "Pose Weight Smile" } });
     fireEvent.click(scoped.getByTitle("Pose Weight Smile"));
@@ -3147,7 +3600,7 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Outputs 0/4")).toBeTruthy();
+    expect(screen.getByText("Outputs 0/3")).toBeTruthy();
 
     const search = screen.getByPlaceholderText("Search inputs...");
     fireEvent.change(search, {

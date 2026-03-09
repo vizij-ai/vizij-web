@@ -17,6 +17,7 @@ import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../../hooks/useAnimationTransport";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
+import { formatPlaybackClock } from "../../utils/animationTimeDisplay";
 import { buildVisibleInputCatalog, type InputCatalogRow } from "./inputCatalog";
 
 function resolveManagedSource(
@@ -86,16 +87,6 @@ function collectLockedPropsRigComponentIds(
   return lockedComponentIds;
 }
 
-function formatTime(seconds: number): string {
-  const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-  const mins = Math.floor(safe / 60);
-  const secs = Math.floor(safe % 60);
-  const ms = Math.floor((safe % 1) * 100);
-  return `${mins.toString().padStart(2, "0")}:${secs
-    .toString()
-    .padStart(2, "0")}:${ms.toString().padStart(2, "0")}`;
-}
-
 export function AnimationPanel() {
   const {
     isPlaying,
@@ -107,6 +98,8 @@ export function AnimationPanel() {
     addTrack,
     removeTrack,
     selectedTrackId,
+    timeDisplayMode,
+    setTimeDisplayMode,
   } = useAnimationStore();
   const transport = useAnimationTransport();
 
@@ -241,7 +234,7 @@ export function AnimationPanel() {
       description="Author and preview animation clips through runtime transport."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
-      badge={formatTime(currentTime)}
+      badge={formatPlaybackClock(currentTime, timeDisplayMode)}
     >
       <div className="flex h-full flex-col gap-2 p-1">
         <div className="flex items-center gap-2 px-1">
@@ -285,13 +278,13 @@ export function AnimationPanel() {
           <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-800/50">
             <div className="flex items-baseline gap-1 font-mono text-zinc-300">
               <span className="text-sm font-bold tracking-tight">
-                {formatTime(currentTime)}
+                {formatPlaybackClock(currentTime, timeDisplayMode)}
               </span>
               <span className="text-[10px] text-zinc-600 font-bold mx-1">
                 /
               </span>
               <span className="text-xs text-zinc-500">
-                {formatTime(duration)}
+                {formatPlaybackClock(duration, timeDisplayMode)}
               </span>
             </div>
           </div>
@@ -319,9 +312,39 @@ export function AnimationPanel() {
             <option value="1.5">1.5x</option>
             <option value="2">2.0x</option>
           </select>
+          <div className="grid grid-cols-2 gap-1 rounded border border-zinc-800/70 bg-zinc-900/40 p-0.5">
+            <Button
+              variant={timeDisplayMode === "seconds" ? "primary" : "subtle"}
+              size="sm"
+              className={`h-6 px-2 text-[10px] ${
+                timeDisplayMode === "seconds" ? "disabled:opacity-100" : ""
+              }`}
+              onClick={() => setTimeDisplayMode("seconds")}
+              disabled={timeDisplayMode === "seconds"}
+              title="Show timeline time in seconds"
+            >
+              Seconds
+            </Button>
+            <Button
+              variant={timeDisplayMode === "frames" ? "primary" : "subtle"}
+              size="sm"
+              className={`h-6 px-2 text-[10px] ${
+                timeDisplayMode === "frames" ? "disabled:opacity-100" : ""
+              }`}
+              onClick={() => setTimeDisplayMode("frames")}
+              disabled={timeDisplayMode === "frames"}
+              title="Show timeline time in frames (32 fps)"
+            >
+              Frames
+            </Button>
+          </div>
         </div>
 
-        <TimelineEditor onSeek={transport.seek} />
+        <TimelineEditor
+          onSeek={transport.seek}
+          onPause={transport.pause}
+          timeDisplayMode={timeDisplayMode}
+        />
         <div className="rounded-md border border-border-default/60 bg-bg-panel/40 px-2 py-1 text-[10px] text-text-muted">
           Select a track or keyframe to edit it from the Inspector panel.
         </div>
