@@ -95,6 +95,7 @@ import {
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
 import { createEditFocusPanelVisibility } from "./state/editFocusPanels";
+import { shouldShowAssetInspector } from "./utils/inspectorSelection";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
@@ -2914,6 +2915,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     handleClearSelection,
   } = useUnifiedSelection();
   const selectedSceneId = selectedId;
+  const showAssetInspector = shouldShowAssetInspector({
+    selectedSceneId: selectedId,
+    selectedRigId,
+    selectedPoseId,
+    selectedMaterialId,
+    selectedMotionGraphNodeId,
+  });
   const clearPoseGraphInspectorSelection = useCallback(() => {
     setSelectedPoseGroup(null);
     setSelectedBlendStage(null);
@@ -3690,7 +3698,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
                     selectedBlendStage={selectedBlendStage}
                     onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-                    selectedAnimationTarget={selectedAnimationInspectorTarget}
+                    selectedAnimationTarget={
+                      showAssetInspector
+                        ? selectedAnimationInspectorTarget
+                        : null
+                    }
                     onRenameAnimationTarget={handleRenameAnimationTarget}
                     onUpdateAnimationTargetDuration={
                       handleUpdateAnimationTargetDuration
@@ -3701,7 +3713,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                     onInspectAnimationInput={
                       handleInspectInputFromAuthoringInspector
                     }
-                    selectedProgramTarget={selectedProgramInspectorTarget}
+                    selectedProgramTarget={
+                      showAssetInspector ? selectedProgramInspectorTarget : null
+                    }
                     onRenameProgramTarget={handleRenameProgramTarget}
                     onInspectProgramNode={handleInspectProgramNodeFromInspector}
                     onInspectProgramInput={

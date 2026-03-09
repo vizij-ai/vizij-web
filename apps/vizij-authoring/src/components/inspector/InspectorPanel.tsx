@@ -1031,15 +1031,18 @@ export function InspectorPanel({
   const showMotionGraphInspector =
     inspectorMode === "motiongraph" && !isDedicatedInspectorMode;
   const showAnimationInspector =
+    !hasCompetingInspectorSelection &&
     !isDedicatedInspectorMode &&
     !showMotionGraphInspector &&
     Boolean(selectedAnimationTrack);
   const showAnimationTargetInspector =
+    !hasCompetingInspectorSelection &&
     !isDedicatedInspectorMode &&
     !showMotionGraphInspector &&
     !showAnimationInspector &&
     Boolean(selectedAnimationTarget);
   const showProgramTargetInspector =
+    !hasCompetingInspectorSelection &&
     !isDedicatedInspectorMode &&
     !showMotionGraphInspector &&
     !showAnimationInspector &&
