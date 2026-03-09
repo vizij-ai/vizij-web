@@ -2979,6 +2979,7 @@ export function VariablesPanel({
 }: VariablesPanelProps) {
   const {
     poses,
+    neutralInputs,
     applyPose,
     selectPose,
     selectedPoseId: selectedPoseIdFromAuthoring,
@@ -3370,6 +3371,7 @@ export function VariablesPanel({
   );
   const referenceFace = useReferenceFace();
   const pendingPoseSelectionRef = useRef(false);
+  const pendingCapturedPoseWeightSoloIdRef = useRef<string | null>(null);
   const allSurfaces = useMemo(
     () => availableSurfaces ?? DEFAULT_SURFACES,
     [availableSurfaces],
@@ -5211,6 +5213,20 @@ export function VariablesPanel({
     onSelectRig?.(null);
   }, [onSelectPose, onSelectRig, selectPose, selectedPoseId]);
 
+  useEffect(() => {
+    const pendingPoseId = pendingCapturedPoseWeightSoloIdRef.current;
+    if (!pendingPoseId) {
+      return;
+    }
+    if (!poseWeightInputIdByPoseId.has(pendingPoseId)) {
+      return;
+    }
+    if (!setPoseWeightSolo(pendingPoseId)) {
+      return;
+    }
+    pendingCapturedPoseWeightSoloIdRef.current = null;
+  }, [poseWeightInputIdByPoseId, setPoseWeightSolo]);
+
   const handleToggle = (id: string) => {
     const newExpanded = new Set(expandedIds);
     if (newExpanded.has(id)) {
@@ -5803,7 +5819,9 @@ export function VariablesPanel({
 
   const handleCaptureCurrentPose = () => {
     pendingPoseSelectionRef.current = true;
-    createPoseFromSnapshot();
+    const createdPoseId = createPoseFromSnapshot();
+    pendingCapturedPoseWeightSoloIdRef.current = createdPoseId;
+    applyStandardInputBatch(neutralInputs);
   };
 
   const handleDuplicateSelectedPose = () => {

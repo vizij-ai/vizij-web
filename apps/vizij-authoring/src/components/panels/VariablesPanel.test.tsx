@@ -4,10 +4,12 @@ import {
   fireEvent,
   within,
   cleanup,
+  waitFor,
 } from "@testing-library/react";
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, PoseRigConfigFile } from "../../poseRig/types";
+import { buildPoseWeightInputSourceId } from "../../poseRig/utils";
 import type { BlendStageInspectorSelection } from "../../types/poseGroupInspector";
 import type {
   ReferenceCatalog,
@@ -105,10 +107,12 @@ function makeReferenceCatalog(
 
 const poseRigState = {
   poses: [] as PoseDefinition[],
+  neutralInputs: {} as Record<string, number>,
   applyPose: vi.fn(),
   selectPose: vi.fn(),
   selectedPoseId: null as string | null,
   createPose: vi.fn(),
+  createPoseFromSnapshot: vi.fn(() => "pose_capture"),
   addPoseInput: vi.fn(),
   duplicatePose: vi.fn(),
   createPoseGroup: vi.fn(),
@@ -240,10 +244,13 @@ function makeInput(
 describe("VariablesPanel", () => {
   beforeEach(() => {
     poseRigState.poses = [];
+    poseRigState.neutralInputs = {};
     poseRigState.selectedPoseId = null;
     poseRigState.applyPose.mockReset();
     poseRigState.selectPose.mockReset();
     poseRigState.createPose.mockReset();
+    poseRigState.createPoseFromSnapshot.mockReset();
+    poseRigState.createPoseFromSnapshot.mockReturnValue("pose_capture");
     poseRigState.addPoseInput.mockReset();
     poseRigState.duplicatePose.mockReset();
     poseRigState.createPoseGroup.mockReset();
@@ -458,6 +465,91 @@ describe("VariablesPanel", () => {
       smileInput.id,
       0.42,
     );
+  });
+
+  it("resets inputs and solos the captured pose weight after capture", async () => {
+    const existingPose: PoseDefinition = {
+      id: "pose_existing",
+      name: "Existing",
+      values: {},
+      createdAt: "2026-03-08T00:00:00.000Z",
+      updatedAt: "2026-03-08T00:00:00.000Z",
+    };
+    const capturedPose: PoseDefinition = {
+      id: "pose_capture",
+      name: "Captured",
+      values: {},
+      createdAt: "2026-03-08T00:00:00.000Z",
+      updatedAt: "2026-03-08T00:00:00.000Z",
+    };
+
+    poseRigState.poses = [existingPose];
+    poseRigState.neutralInputs = { smile: 0, brow_raise: 0 };
+    poseRigState.createPoseFromSnapshot.mockReturnValue(capturedPose.id);
+    bindingState.managedStandardInputs = [
+      {
+        input: makeInput(
+          "pose_existing_weight",
+          "/poses/pose_existing.weight",
+          {
+            label: "Pose Weight - Existing",
+            sourceId: buildPoseWeightInputSourceId(existingPose.id),
+          },
+        ),
+        source: "custom",
+      },
+    ];
+
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("variables-inputs-capture-current"));
+
+    expect(poseRigState.createPoseFromSnapshot).toHaveBeenCalledTimes(1);
+    expect(bindingState.applyStandardInputBatch).toHaveBeenNthCalledWith(1, {
+      smile: 0,
+      brow_raise: 0,
+    });
+
+    poseRigState.poses = [existingPose, capturedPose];
+    bindingState.managedStandardInputs = [
+      {
+        input: makeInput(
+          "pose_existing_weight",
+          "/poses/pose_existing.weight",
+          {
+            label: "Pose Weight - Existing",
+            sourceId: buildPoseWeightInputSourceId(existingPose.id),
+          },
+        ),
+        source: "custom",
+      },
+      {
+        input: makeInput("pose_capture_weight", "/poses/pose_capture.weight", {
+          label: "Pose Weight - Captured",
+          sourceId: buildPoseWeightInputSourceId(capturedPose.id),
+        }),
+        source: "custom",
+      },
+    ];
+
+    view.rerender(
+      <VariablesPanel
+        availableSurfaces={["inputs"]}
+        activeSurfaceOverride="inputs"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(bindingState.applyStandardInputBatch).toHaveBeenNthCalledWith(2, {
+        pose_existing_weight: 0,
+        pose_capture_weight: 1,
+      });
+    });
   });
 
   it("filters out /rig/element variables from the variables panel", () => {

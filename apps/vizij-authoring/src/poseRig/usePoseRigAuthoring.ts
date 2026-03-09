@@ -95,7 +95,7 @@ export interface UsePoseRigAuthoringResult {
     poseIds: Iterable<string>,
     group: string | null | undefined,
   ) => void;
-  createPoseFromSnapshot: (name?: string) => void;
+  createPoseFromSnapshot: (name?: string) => string;
   capturePose: (poseId: string) => void;
   clearPose: (poseId: string) => void;
   updatePoseValue: (poseId: string, inputId: string, value: number) => void;
@@ -348,6 +348,7 @@ export function usePoseRigAuthoring(
         },
       );
       store.addPose(snapshot);
+      return snapshot.id;
     },
     [currentValues, defaultNewPoseGroup, neutralInputs, store, poses.length],
   );
