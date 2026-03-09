@@ -3,13 +3,24 @@ import { Button } from "../ui";
 
 export type RuntimeFaceControlsOverlayProps = {
   onResetInputs?: () => void;
+  onPlayActiveRuntime?: () => void;
+  onPauseActiveRuntime?: () => void;
   onStopActiveRuntime?: () => void;
   onToggleSplit?: () => void;
   splitVertical?: boolean;
   showReadyFlag?: boolean;
+  runtimeStatusLabel?: string;
+  runtimeStatusTestId?: string;
+  playbackControlsDisabled?: boolean;
   resetButtonLabel?: string;
   resetButtonTitle?: string;
   resetButtonTestId?: string;
+  playButtonLabel?: string;
+  playButtonTitle?: string;
+  playButtonTestId?: string;
+  pauseButtonLabel?: string;
+  pauseButtonTitle?: string;
+  pauseButtonTestId?: string;
   stopButtonLabel?: string;
   stopButtonTitle?: string;
   stopButtonTestId?: string;
@@ -18,13 +29,24 @@ export type RuntimeFaceControlsOverlayProps = {
 
 export function RuntimeFaceControlsOverlay({
   onResetInputs,
+  onPlayActiveRuntime,
+  onPauseActiveRuntime,
   onStopActiveRuntime,
   onToggleSplit,
   splitVertical = false,
   showReadyFlag = true,
+  runtimeStatusLabel,
+  runtimeStatusTestId,
+  playbackControlsDisabled = false,
   resetButtonLabel = "Reset Inputs",
   resetButtonTitle = "Reset graph inputs to their default values",
   resetButtonTestId,
+  playButtonLabel = "Play Active Runtime",
+  playButtonTitle = "Play the active authored runtime source",
+  playButtonTestId,
+  pauseButtonLabel = "Pause Active Runtime",
+  pauseButtonTitle = "Pause the active authored runtime source",
+  pauseButtonTestId,
   stopButtonLabel = "Stop Active Runtime",
   stopButtonTitle = "Stop the active authored runtime source",
   stopButtonTestId,
@@ -52,6 +74,14 @@ export function RuntimeFaceControlsOverlay({
       <div className="rounded bg-black/60 px-2 py-1 text-[10px] text-white">
         FPS: {formattedFps}
       </div>
+      {runtimeStatusLabel ? (
+        <div
+          data-testid={runtimeStatusTestId}
+          className="rounded bg-black/60 px-2 py-1 text-[10px] text-white"
+        >
+          {runtimeStatusLabel}
+        </div>
+      ) : null}
       {onResetInputs && (
         <Button
           data-testid={resetButtonTestId}
@@ -63,11 +93,36 @@ export function RuntimeFaceControlsOverlay({
           {resetButtonLabel}
         </Button>
       )}
+      {onPlayActiveRuntime && (
+        <Button
+          data-testid={playButtonTestId}
+          variant="secondary"
+          size="sm"
+          disabled={playbackControlsDisabled}
+          onClick={onPlayActiveRuntime}
+          title={playButtonTitle}
+        >
+          {playButtonLabel}
+        </Button>
+      )}
+      {onPauseActiveRuntime && (
+        <Button
+          data-testid={pauseButtonTestId}
+          variant="secondary"
+          size="sm"
+          disabled={playbackControlsDisabled}
+          onClick={onPauseActiveRuntime}
+          title={pauseButtonTitle}
+        >
+          {pauseButtonLabel}
+        </Button>
+      )}
       {onStopActiveRuntime && (
         <Button
           data-testid={stopButtonTestId}
           variant="secondary"
           size="sm"
+          disabled={playbackControlsDisabled}
           onClick={onStopActiveRuntime}
           title={stopButtonTitle}
         >

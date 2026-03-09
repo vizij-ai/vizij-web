@@ -3992,7 +3992,6 @@ describe("VariablesPanel", () => {
           "animations",
           "programs",
         ]}
-        headerContent={<div>Runtime Source Controls</div>}
         animationTargets={[
           {
             id: "animation:wave",
@@ -4012,7 +4011,6 @@ describe("VariablesPanel", () => {
 
     expect(screen.getByTestId("control-authoring-tab-animations")).toBeTruthy();
     expect(screen.getByTestId("control-authoring-tab-programs")).toBeTruthy();
-    expect(screen.getByText("Runtime Source Controls")).toBeTruthy();
 
     const tablist = view.container.querySelector('[role="tablist"]');
     expect(tablist?.className).toContain("flex-wrap");

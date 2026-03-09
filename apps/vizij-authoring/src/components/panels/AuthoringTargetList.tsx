@@ -119,24 +119,18 @@ export function AuthoringTargetList({
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                role="button"
-                tabIndex={0}
                 className={cn(
-                  "group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                  "group flex w-full scroll-mt-24 flex-col gap-2 rounded-xl border px-3 py-2.5 transition-colors sm:flex-row sm:items-center sm:gap-3",
                   item.selected
                     ? "border-accent/60 bg-accent/10"
                     : "border-border-default/70 bg-bg-panel/60 hover:border-border-hover hover:bg-bg-hover",
                 )}
-                onClick={() => onSelect(item.id)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") {
-                    return;
-                  }
-                  event.preventDefault();
-                  onSelect(item.id);
-                }}
               >
-                <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  className="flex w-full min-w-0 flex-1 cursor-pointer flex-col items-start justify-center text-left"
+                  onClick={() => onSelect(item.id)}
+                >
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-semibold text-text-primary">
                       {item.label}
@@ -155,8 +149,8 @@ export function AuthoringTargetList({
                       {item.meta}
                     </p>
                   ) : null}
-                </div>
-                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                </button>
+                <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:justify-end sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                   {onPlay ? (
                     <Button
                       variant="ghost"

@@ -24,7 +24,6 @@ import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
 import { OrientationConfirmationDialog } from "./components/app/OrientationConfirmationDialog";
-import { RuntimeSourceToolbar } from "./components/app/RuntimeSourceToolbar";
 import {
   FACE_PRESET_GRID_OPTIONS,
   type FacePresetAssetOption,
@@ -56,7 +55,6 @@ import {
   useAuthoringUiActions,
   useAuthoringUiState,
   type EditFocus,
-  type RuntimeAuthoringSource,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
@@ -358,17 +356,6 @@ type CenterAuthoringMode =
   | "animation"
   | "reference-face"
   | "none";
-const RUNTIME_SOURCE_OPTIONS: Array<{
-  value: RuntimeAuthoringSource;
-  label: string;
-}> = [
-  { value: "none", label: "Default" },
-  { value: "animation", label: "Animation" },
-  {
-    value: "procedural-animation-programming",
-    label: "Procedural Animation",
-  },
-];
 
 function applyEditFocusPanelDefaults(
   focus: EditFocus,
@@ -1190,80 +1177,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedAnimationTargetId,
   ]);
 
-  const handleRenameAnimationTarget = useCallback(
-    (nextName: string) => {
-      const normalizedName =
-        nextName.trim().length > 0 ? nextName.trim() : "Untitled Clip";
-      const authoredClipId = parseAuthoredAnimationTargetValue(
-        selectedAnimationTargetId,
-      );
-      if (!authoredClipId) {
-        if (
-          selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
-        ) {
-          setBundleAnimationNameOverrides((previous) => ({
-            ...previous,
-            [selectedAnimationTargetId]: normalizedName,
-          }));
-        }
-        return;
-      }
-      setAuthoredAnimationTargets((previous) =>
-        previous.map((target) =>
-          target.targetId === selectedAnimationTargetId
-            ? {
-                ...target,
-                name: normalizedName,
-                clip: {
-                  ...target.clip,
-                  name: normalizedName,
-                },
-              }
-            : target,
-        ),
-      );
-    },
-    [selectedAnimationTargetId],
-  );
-
-  const handleUpdateSelectedAnimationDuration = useCallback(
-    (nextDuration: number) => {
-      if (!Number.isFinite(nextDuration)) {
-        return;
-      }
-      const normalizedDuration = Math.max(0, nextDuration);
-      setAnimationDuration(normalizedDuration);
-      const authoredClipId = parseAuthoredAnimationTargetValue(
-        selectedAnimationTargetId,
-      );
-      if (!authoredClipId) {
-        if (
-          selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
-        ) {
-          setBundleAnimationDurationOverrides((previous) => ({
-            ...previous,
-            [selectedAnimationTargetId]: normalizedDuration,
-          }));
-        }
-        return;
-      }
-      setAuthoredAnimationTargets((previous) =>
-        previous.map((target) =>
-          target.targetId === selectedAnimationTargetId
-            ? {
-                ...target,
-                clip: {
-                  ...target.clip,
-                  duration: normalizedDuration,
-                },
-              }
-            : target,
-        ),
-      );
-    },
-    [selectedAnimationTargetId, setAnimationDuration],
-  );
-
   const deleteAnimationTargetById = useCallback(
     (deletingTargetId: string) => {
       const authoredClipId =
@@ -1363,10 +1276,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setAnimationDuration,
     ],
   );
-  const handleDeleteAnimationTarget = useCallback(() => {
-    deleteAnimationTargetById(selectedAnimationTargetId);
-  }, [deleteAnimationTargetById, selectedAnimationTargetId]);
-
   const authoredAnimationClipsForExport = useMemo(() => {
     const authoredClipId = parseAuthoredAnimationTargetValue(
       selectedAnimationTargetId,
@@ -1497,38 +1406,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     hydrateProceduralEditorState(nextTarget.snapshot);
   }, [authoredProceduralTargets, selectedProceduralTargetId]);
 
-  const handleRenameProceduralTarget = useCallback(
-    (nextName: string) => {
-      const normalizedName =
-        nextName.trim().length > 0 ? nextName.trim() : "Untitled Program";
-      const authoredProgramId = parseAuthoredProceduralTargetValue(
-        selectedProceduralTargetId,
-      );
-      if (!authoredProgramId) {
-        if (
-          selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
-        ) {
-          setBundleProceduralNameOverrides((previous) => ({
-            ...previous,
-            [selectedProceduralTargetId]: normalizedName,
-          }));
-        }
-        return;
-      }
-      setAuthoredProceduralTargets((previous) =>
-        previous.map((target) =>
-          target.targetId === selectedProceduralTargetId
-            ? {
-                ...target,
-                name: normalizedName,
-              }
-            : target,
-        ),
-      );
-    },
-    [selectedProceduralTargetId],
-  );
-
   const deleteProceduralTargetById = useCallback(
     (deletingTargetId: string) => {
       const authoredProgramId =
@@ -1616,9 +1493,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setHiddenBundleProceduralTargetIds,
     ],
   );
-  const handleDeleteProceduralTarget = useCallback(() => {
-    deleteProceduralTargetById(selectedProceduralTargetId);
-  }, [deleteProceduralTargetById, selectedProceduralTargetId]);
   const handleInspectAnimationTarget = useCallback(
     (targetId: string) => {
       setWorkspacePanelVisibility("animation", true);
@@ -2004,94 +1878,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       : referenceFacePanelVisible
         ? "reference-face"
         : "none";
-  const runtimeSourceOptions = RUNTIME_SOURCE_OPTIONS;
-  const runtimeTargetConfig = useMemo(() => {
-    if (activeRuntimeSource === "animation") {
-      const selectedTargetLabel =
-        animationTargetOptions.find(
-          (option) => option.value === selectedAnimationTargetId,
-        )?.label ?? selectedAnimationTargetId;
-      return {
-        targetLabel: "Animation Clip",
-        targetValue: selectedAnimationTargetId,
-        targetOptions: animationTargetOptions,
-        onTargetChange: handleSelectAnimationTarget,
-        targetTypeLabel: "Animation Clip",
-        targetName:
-          selectedAuthoredAnimationTarget?.name ?? selectedTargetLabel,
-        onTargetNameChange: handleRenameAnimationTarget,
-        targetNumericLabel: "Duration (seconds)",
-        targetNumericValue: animationDuration,
-        targetNumericStep: 0.1,
-        targetNumericMin: 0,
-        onTargetNumericValueChange: handleUpdateSelectedAnimationDuration,
-        targetStats: [
-          { label: "Tracks", value: animationTracks.length.toString() },
-          { label: "Duration", value: `${animationDuration.toFixed(2)}s` },
-        ],
-        onDeleteTarget: handleDeleteAnimationTarget,
-        deleteTargetLabel: "Delete Clip",
-        onCreateTarget: handleCreateAnimationTarget,
-        createTargetLabel: "New Clip",
-      };
-    }
-    if (activeRuntimeSource === "procedural-animation-programming") {
-      const selectedTargetLabel =
-        proceduralTargetOptions.find(
-          (option) => option.value === selectedProceduralTargetId,
-        )?.label ?? selectedProceduralTargetId;
-      return {
-        targetLabel: "Procedural Program",
-        targetValue: selectedProceduralTargetId,
-        targetOptions: proceduralTargetOptions,
-        onTargetChange: handleSelectProceduralTarget,
-        targetTypeLabel: "Procedural Program",
-        targetName:
-          selectedAuthoredProceduralTarget?.name ?? selectedTargetLabel,
-        onTargetNameChange: handleRenameProceduralTarget,
-        targetStats: [
-          { label: "Nodes", value: selectedProceduralMetrics.nodes.toString() },
-          { label: "Edges", value: selectedProceduralMetrics.edges.toString() },
-          {
-            label: "Inputs",
-            value: selectedProceduralMetrics.inputs.toString(),
-          },
-          {
-            label: "Outputs",
-            value: selectedProceduralMetrics.outputs.toString(),
-          },
-        ],
-        onDeleteTarget: handleDeleteProceduralTarget,
-        deleteTargetLabel: "Delete Program",
-        onCreateTarget: handleCreateProceduralTarget,
-        createTargetLabel: "New Program",
-      };
-    }
-    return null;
-  }, [
-    activeRuntimeSource,
-    animationDuration,
-    animationTracks.length,
-    animationTargetOptions,
-    handleCreateAnimationTarget,
-    handleCreateProceduralTarget,
-    handleDeleteAnimationTarget,
-    handleDeleteProceduralTarget,
-    handleRenameAnimationTarget,
-    handleRenameProceduralTarget,
-    handleSelectAnimationTarget,
-    handleSelectProceduralTarget,
-    handleUpdateSelectedAnimationDuration,
-    proceduralTargetOptions,
-    selectedProceduralMetrics.edges,
-    selectedProceduralMetrics.inputs,
-    selectedProceduralMetrics.nodes,
-    selectedProceduralMetrics.outputs,
-    selectedAuthoredAnimationTarget,
-    selectedAuthoredProceduralTarget,
-    selectedAnimationTargetId,
-    selectedProceduralTargetId,
-  ]);
   const runtimePlaybackConfig = useMemo(() => {
     if (activeRuntimeSource === "animation") {
       return {
@@ -2144,6 +1930,31 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationSourceActive = activeRuntimeSource === "animation";
   const motionGraphSourceActive =
     activeRuntimeSource === "procedural-animation-programming";
+  const runtimeStatusLabel = useMemo(() => {
+    if (activeRuntimeSource === "animation") {
+      return `Animation: ${
+        runtimePlaybackConfig.playbackState === "playing"
+          ? "Playing"
+          : runtimePlaybackConfig.playbackState === "paused"
+            ? "Paused"
+            : "Idle"
+      }`;
+    }
+    if (activeRuntimeSource === "procedural-animation-programming") {
+      return `Program: ${
+        runtimePlaybackConfig.playbackState === "playing"
+          ? "Playing"
+          : runtimePlaybackConfig.playbackState === "paused"
+            ? "Paused"
+            : "Idle"
+      }`;
+    }
+    return "Runtime: Idle";
+  }, [activeRuntimeSource, runtimePlaybackConfig.playbackState]);
+  const onPlayActiveRuntime =
+    activeRuntimeSource === "none" ? undefined : runtimePlaybackConfig.onPlay;
+  const onPauseActiveRuntime =
+    activeRuntimeSource === "none" ? undefined : runtimePlaybackConfig.onPause;
   const onStopActiveRuntime = useMemo(() => {
     if (
       activeRuntimeSource === "procedural-animation-programming" &&
@@ -2162,18 +1973,42 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     stopAnimationTransport,
     stopPapGraph,
   ]);
+  const playActiveRuntimeLabel =
+    activeRuntimeSource === "procedural-animation-programming"
+      ? "Play Program"
+      : activeRuntimeSource === "animation"
+        ? "Play Animation"
+        : undefined;
+  const playActiveRuntimeTitle =
+    activeRuntimeSource === "procedural-animation-programming"
+      ? "Play the active procedural program"
+      : activeRuntimeSource === "animation"
+        ? "Play the active animation"
+        : undefined;
+  const pauseActiveRuntimeLabel =
+    activeRuntimeSource === "procedural-animation-programming"
+      ? "Pause Program"
+      : activeRuntimeSource === "animation"
+        ? "Pause Animation"
+        : undefined;
+  const pauseActiveRuntimeTitle =
+    activeRuntimeSource === "procedural-animation-programming"
+      ? "Pause the active procedural program"
+      : activeRuntimeSource === "animation"
+        ? "Pause the active animation"
+        : undefined;
   const stopActiveRuntimeLabel =
     activeRuntimeSource === "procedural-animation-programming"
-      ? "Stop Active Program"
+      ? "Stop Program"
       : activeRuntimeSource === "animation"
-        ? "Stop Active Animation"
-        : "Stop Active Animation/Program";
+        ? "Stop Animation"
+        : undefined;
   const stopActiveRuntimeTitle =
     activeRuntimeSource === "procedural-animation-programming"
       ? "Stop the active procedural program"
       : activeRuntimeSource === "animation"
         ? "Stop the active animation"
-        : "Stop the active animation or program";
+        : undefined;
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -2767,7 +2602,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 motionGraphSourceActive={
                   motionGraphSourceActive && papPlaybackActive
                 }
+                runtimeStatusLabel={runtimeStatusLabel}
+                playbackControlsDisabled={
+                  runtimePlaybackConfig.playbackDisabled
+                }
+                onPlayActiveRuntime={onPlayActiveRuntime}
+                onPauseActiveRuntime={onPauseActiveRuntime}
                 onStopActiveRuntime={onStopActiveRuntime}
+                playActiveRuntimeLabel={playActiveRuntimeLabel}
+                playActiveRuntimeTitle={playActiveRuntimeTitle}
+                pauseActiveRuntimeLabel={pauseActiveRuntimeLabel}
+                pauseActiveRuntimeTitle={pauseActiveRuntimeTitle}
                 stopActiveRuntimeLabel={stopActiveRuntimeLabel}
                 stopActiveRuntimeTitle={stopActiveRuntimeTitle}
                 selectedSceneId={selectedSceneId}
@@ -2826,7 +2671,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             motionGraphSourceActive={
               motionGraphSourceActive && papPlaybackActive
             }
+            runtimeStatusLabel={runtimeStatusLabel}
+            playbackControlsDisabled={runtimePlaybackConfig.playbackDisabled}
+            onPlayActiveRuntime={onPlayActiveRuntime}
+            onPauseActiveRuntime={onPauseActiveRuntime}
             onStopActiveRuntime={onStopActiveRuntime}
+            playActiveRuntimeLabel={playActiveRuntimeLabel}
+            playActiveRuntimeTitle={playActiveRuntimeTitle}
+            pauseActiveRuntimeLabel={pauseActiveRuntimeLabel}
+            pauseActiveRuntimeTitle={pauseActiveRuntimeTitle}
             stopActiveRuntimeLabel={stopActiveRuntimeLabel}
             stopActiveRuntimeTitle={stopActiveRuntimeTitle}
             selectedSceneId={selectedSceneId}
@@ -2926,39 +2779,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onStopProgramTarget={handleStopProgramTarget}
               panelTitle="Authoring"
               panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
-              headerContent={
-                <RuntimeSourceToolbar
-                  layout="embedded"
-                  mode={centerAuthoringMode}
-                  activeSource={activeRuntimeSource}
-                  options={runtimeSourceOptions}
-                  onChange={uiActions.setActiveRuntimeSource}
-                  playbackState={runtimePlaybackConfig.playbackState}
-                  playbackDisabled={runtimePlaybackConfig.playbackDisabled}
-                  onPlay={runtimePlaybackConfig.onPlay}
-                  onPause={runtimePlaybackConfig.onPause}
-                  onStop={runtimePlaybackConfig.onStop}
-                  targetLabel={runtimeTargetConfig?.targetLabel}
-                  targetValue={runtimeTargetConfig?.targetValue}
-                  targetOptions={runtimeTargetConfig?.targetOptions}
-                  onTargetChange={runtimeTargetConfig?.onTargetChange}
-                  targetTypeLabel={runtimeTargetConfig?.targetTypeLabel}
-                  targetName={runtimeTargetConfig?.targetName}
-                  onTargetNameChange={runtimeTargetConfig?.onTargetNameChange}
-                  targetStats={runtimeTargetConfig?.targetStats}
-                  targetNumericLabel={runtimeTargetConfig?.targetNumericLabel}
-                  targetNumericValue={runtimeTargetConfig?.targetNumericValue}
-                  targetNumericStep={runtimeTargetConfig?.targetNumericStep}
-                  targetNumericMin={runtimeTargetConfig?.targetNumericMin}
-                  onTargetNumericValueChange={
-                    runtimeTargetConfig?.onTargetNumericValueChange
-                  }
-                  onDeleteTarget={runtimeTargetConfig?.onDeleteTarget}
-                  deleteTargetLabel={runtimeTargetConfig?.deleteTargetLabel}
-                  onCreateTarget={runtimeTargetConfig?.onCreateTarget}
-                  createTargetLabel={runtimeTargetConfig?.createTargetLabel}
-                />
-              }
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={animationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}

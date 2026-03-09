@@ -2962,7 +2962,6 @@ interface VariablesPanelProps {
   availableSurfaces?: SurfaceTab[];
   panelTitle?: string;
   panelDescription?: string;
-  headerContent?: ReactNode;
   onClosePanel?: () => void;
   motionGraphActive?: boolean;
   animationActive?: boolean;
@@ -3002,7 +3001,6 @@ export function VariablesPanel({
   availableSurfaces,
   panelTitle = "Control Elements",
   panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
-  headerContent,
   onClosePanel,
   motionGraphActive = false,
   animationActive = false,
@@ -6546,9 +6544,6 @@ export function VariablesPanel({
         badge={`${totalCount}`}
       >
         <div className="flex flex-1 min-h-0 flex-col gap-3">
-          {headerContent ? (
-            <div className="shrink-0 px-2 pt-2">{headerContent}</div>
-          ) : null}
           <Tabs
             className="flex-1 min-h-0"
             fillPanels

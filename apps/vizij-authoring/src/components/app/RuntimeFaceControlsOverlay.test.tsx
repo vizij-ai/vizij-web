@@ -40,17 +40,28 @@ describe("RuntimeFaceControlsOverlay", () => {
   });
 
   it("renders the active-runtime stop action when provided", () => {
+    const onPlayActiveRuntime = vi.fn();
+    const onPauseActiveRuntime = vi.fn();
     const onStopActiveRuntime = vi.fn();
     const view = render(
       <RuntimeFaceControlsOverlay
+        runtimeStatusLabel="Program: Playing"
+        onPlayActiveRuntime={onPlayActiveRuntime}
+        onPauseActiveRuntime={onPauseActiveRuntime}
         onStopActiveRuntime={onStopActiveRuntime}
-        stopButtonLabel="Stop Active Animation/Program"
+        playButtonLabel="Play Program"
+        pauseButtonLabel="Pause Program"
+        stopButtonLabel="Stop Program"
       />,
     );
 
-    fireEvent.click(
-      view.getByRole("button", { name: "Stop Active Animation/Program" }),
-    );
+    expect(view.getByText("Program: Playing")).toBeTruthy();
+    fireEvent.click(view.getByRole("button", { name: "Play Program" }));
+    fireEvent.click(view.getByRole("button", { name: "Pause Program" }));
+    fireEvent.click(view.getByRole("button", { name: "Stop Program" }));
+
+    expect(onPlayActiveRuntime).toHaveBeenCalledTimes(1);
+    expect(onPauseActiveRuntime).toHaveBeenCalledTimes(1);
     expect(onStopActiveRuntime).toHaveBeenCalledTimes(1);
   });
 });
