@@ -38,7 +38,7 @@ The Standard Feature Spaces Editor enables you to define and configure standard 
 
 **Path Structure:**
 
-```
+```text
 /standard/{namespace}/{channel}/{track}/{attribute}
 ```
 

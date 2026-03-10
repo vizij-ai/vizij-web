@@ -64,7 +64,7 @@ The executable is self-contained and requires no additional runtime dependencies
 
 ## Command Line Options
 
-```
+```text
 vizij-standalone [OPTIONS]
 vizij-standalone <COMMAND>
 ```
@@ -219,7 +219,7 @@ Note: `wscat` sends one WebSocket message per line. The JSON examples below are 
 
 ### Test with Websocketking
 
-Send JSON messages using e.g. https://websocketking.com/.
+Send JSON messages using e.g. <https://websocketking.com/>.
 
 - Local machine: `ws://localhost:9000`
 - Another device on the same Wi-Fi: `ws://<HOST_LAN_IP>:9000` (example: `ws://192.168.1.42:9000`)
@@ -363,7 +363,7 @@ Click the **Debug** button in the app to see all available paths for your loaded
 
 The app uses a layered architecture where the `arora-websocket` library handles protocol logic, and the Tauri app bridges WebSocket messages to the React frontend:
 
-```
+```text
 ┌─────────────────┐     WebSocket      ┌───────────────────────┐
 │  External       │ ──────────────────>│  arora-websocket      │
 │  Client         │    JSON messages   │  (Rust library)       │
@@ -415,7 +415,7 @@ This separation allows:
 
 The app uses the `AroraConnection` trait from the `arora-connection` crate to abstract the communication protocol. This allows different transport mechanisms to be used without changing the application logic.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  arora-connection (trait)                               │
 │  • AroraConnection trait                                │

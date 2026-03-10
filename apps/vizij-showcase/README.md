@@ -24,15 +24,21 @@ Restart Vite whenever you change the env file.
 
 1. From the repo root, make sure dependencies are installed (`pnpm install`) and packages are built if you changed any shared libraries (`pnpm run build:packages`).
 2. Build the showcase bundle in production mode:
+
    ```bash
    pnpm --filter vizij-showcase build
    ```
+
    This writes the static assets to `apps/vizij-showcase/dist`.
+
 3. Serve that production output locally using Vite preview (same compression + asset handling you get in production):
+
    ```bash
    pnpm --filter vizij-showcase preview -- --host 127.0.0.1 --port 4173
    ```
+
    The flag section after `--` goes straight to Vite, so adjust host/port as needed. Visit `http://127.0.0.1:4173` to confirm the production build.
+
 4. If you prefer a different static file server, point it at `apps/vizij-showcase/dist` after the build step (for example, `python -m http.server 4173 --directory apps/vizij-showcase/dist`).
 
 Because `vite preview` consumes the already-built files, rerun the build step whenever you change source and want those updates reflected in the production preview.
