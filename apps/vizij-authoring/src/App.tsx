@@ -532,32 +532,64 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
     useState<string | null>(null);
   const exportGlbHandlerRef = useRef<(() => Promise<void>) | null>(null);
+  const pendingMainAssetFetchRef = useRef<AbortController | null>(null);
   const setWorkspacePanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
+  );
+
+  const cancelPendingMainAssetFetch = useCallback(() => {
+    pendingMainAssetFetchRef.current?.abort();
+    pendingMainAssetFetchRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      cancelPendingMainAssetFetch();
+    },
+    [cancelPendingMainAssetFetch],
   );
 
   // Reference Face State
 
   const handleLoadAssetFromUrl = useCallback(
     async (url: string, filename: string) => {
+      const sessionToken = beginImportFlow(`Preset: ${filename}`);
+      cancelPendingMainAssetFetch();
+      const controller = new AbortController();
+      pendingMainAssetFetchRef.current = controller;
       try {
-        beginImportFlow(`Preset: ${filename}`);
-        markImportFileSelected();
-        const response = await fetch(url);
+        markImportFileSelected({ sessionToken });
+        const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) throw new Error(`Failed to fetch ${url} `);
         const blob = await response.blob();
+        if (controller.signal.aborted) {
+          return;
+        }
         const file = new File([blob], filename, { type: "model/gltf-binary" });
 
-        await loadFromFile(file, () =>
-          loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+        await loadFromFile(
+          file,
+          () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+          { sessionToken },
         );
       } catch (err) {
-        markImportFlowError("load-asset");
+        if (
+          controller.signal.aborted ||
+          (err instanceof DOMException && err.name === "AbortError")
+        ) {
+          return;
+        }
+        markImportFlowError("load-asset", { sessionToken });
         console.error("Failed to load asset from URL:", err);
+      } finally {
+        if (pendingMainAssetFetchRef.current === controller) {
+          pendingMainAssetFetchRef.current = null;
+        }
       }
     },
     [
       beginImportFlow,
+      cancelPendingMainAssetFetch,
       loadFromFile,
       markImportFlowError,
       markImportFileSelected,
@@ -3444,9 +3476,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const skipNextDiscrepancyCheck = useRef(false);
 
   const handleNewClick = useCallback(() => {
+    cancelPendingMainAssetFetch();
     resetAuthoringSessionState();
     loader.reset();
-  }, [loader, resetAuthoringSessionState]);
+  }, [cancelPendingMainAssetFetch, loader, resetAuthoringSessionState]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -3456,8 +3489,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       const skipChecks = skipNextDiscrepancyCheck.current;
-      beginImportFlow(skipChecks ? "File import (skip checks)" : "File import");
-      markImportFileSelected();
+      const sessionToken = beginImportFlow(
+        skipChecks ? "File import (skip checks)" : "File import",
+      );
+      cancelPendingMainAssetFetch();
+      markImportFileSelected({ sessionToken });
 
       if (skipChecks) {
         uiActions.setSkipDiscrepancyCheck(true);
@@ -3466,12 +3502,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       skipNextDiscrepancyCheck.current = false;
 
-      await loadFromFile(file, () =>
-        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+      await loadFromFile(
+        file,
+        () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+        { sessionToken },
       );
       event.target.value = "";
     },
-    [beginImportFlow, loadFromFile, markImportFileSelected, uiActions],
+    [
+      beginImportFlow,
+      cancelPendingMainAssetFetch,
+      loadFromFile,
+      markImportFileSelected,
+      uiActions,
+    ],
   );
 
   const handleImportClick = useCallback(() => {

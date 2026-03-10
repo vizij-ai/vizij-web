@@ -59,6 +59,10 @@ interface FaceLoadOperationUpdate {
   sessionToken?: string | null;
 }
 
+interface FaceLoadSessionOptions {
+  sessionToken?: string | null;
+}
+
 function createDefaultFaceLoadMilestones(): FaceLoadMilestones {
   return {
     "asset-loaded": null,
@@ -389,6 +393,13 @@ export function useVizijAssetLoader() {
     [],
   );
 
+  const isCurrentSessionToken = useCallback(
+    (sessionToken?: string | null) =>
+      sessionToken === undefined ||
+      sessionToken === faceLoadSessionTokenRef.current,
+    [],
+  );
+
   const resetExternalPhaseTrackers = useCallback(() => {
     faceLoadExternalPhaseSequenceRef.current = 0;
     faceLoadExternalPhaseStepOrderRef.current = createFaceLoadStepOrderMap(
@@ -541,11 +552,13 @@ export function useVizijAssetLoader() {
 
   const beginImportFlow = useCallback(
     (sourceLabel: string) => {
+      activeLoadRequestRef.current += 1;
       const sessionToken = createFaceLoadSessionToken();
       const startedAtMs = nowMs();
       faceLoadSessionTokenRef.current = sessionToken;
       faceLoadSessionStartedAtRef.current = startedAtMs;
       setFaceLoadSessionToken(sessionToken);
+      setIsLoading(false);
       resetExternalPhaseTrackers();
       clearFaceLoadOperations("begin-import-flow");
       setIsImportFlowActive(true);
@@ -570,6 +583,7 @@ export function useVizijAssetLoader() {
         ),
       );
       logFaceLoadEvent("session-begin", { sourceLabel });
+      return sessionToken;
     },
     [
       clearFaceLoadOperations,
@@ -579,28 +593,38 @@ export function useVizijAssetLoader() {
     ],
   );
 
-  const markImportFileSelected = useCallback(() => {
-    logFaceLoadEvent("file-selected");
-    setFaceLoadProgress((current) => (current < 0.08 ? 0.08 : current));
-    setFaceLoadSteps((previous) =>
-      updateFaceLoadStatus(
-        updateFaceLoadStatus(previous, {
-          stepId: "select-import-source",
-          substepId: "choose-file",
-          substepStatus: "complete",
-        }),
-        {
-          stepId: "select-import-source",
-          stepStatus: "complete",
-        },
-      ),
-    );
-  }, [logFaceLoadEvent]);
+  const markImportFileSelected = useCallback(
+    (options?: FaceLoadSessionOptions) => {
+      if (!isCurrentSessionToken(options?.sessionToken)) {
+        return;
+      }
+      logFaceLoadEvent("file-selected");
+      setFaceLoadProgress((current) => (current < 0.08 ? 0.08 : current));
+      setFaceLoadSteps((previous) =>
+        updateFaceLoadStatus(
+          updateFaceLoadStatus(previous, {
+            stepId: "select-import-source",
+            substepId: "choose-file",
+            substepStatus: "complete",
+          }),
+          {
+            stepId: "select-import-source",
+            stepStatus: "complete",
+          },
+        ),
+      );
+    },
+    [isCurrentSessionToken, logFaceLoadEvent],
+  );
 
   const markImportFlowError = useCallback(
-    (failedStepId: string) => {
+    (failedStepId: string, options?: FaceLoadSessionOptions) => {
+      if (!isCurrentSessionToken(options?.sessionToken)) {
+        return;
+      }
       logFaceLoadEvent("session-error", { failedStepId });
       setIsImportFlowActive(false);
+      setIsLoading(false);
       setFaceLoadSessionCompletedAtMs(nowMs());
       clearFaceLoadOperations("session-error");
       setFaceLoadSteps((previous) =>
@@ -610,7 +634,7 @@ export function useVizijAssetLoader() {
         }),
       );
     },
-    [clearFaceLoadOperations, logFaceLoadEvent],
+    [clearFaceLoadOperations, isCurrentSessionToken, logFaceLoadEvent],
   );
 
   const cancelImportFlow = useCallback(() => {
@@ -636,15 +660,21 @@ export function useVizijAssetLoader() {
     resetFaceLoadMilestones,
   ]);
 
-  const completeImportFlow = useCallback(() => {
-    logFaceLoadEvent("session-complete-requested", {
-      milestones: faceLoadMilestonesRef.current,
-    });
-    clearFaceLoadOperations("session-complete");
-    setIsImportFlowActive(false);
-    setFaceLoadProgress(1);
-    setFaceLoadSessionCompletedAtMs(nowMs());
-  }, [clearFaceLoadOperations, logFaceLoadEvent]);
+  const completeImportFlow = useCallback(
+    (options?: FaceLoadSessionOptions) => {
+      if (!isCurrentSessionToken(options?.sessionToken)) {
+        return;
+      }
+      logFaceLoadEvent("session-complete-requested", {
+        milestones: faceLoadMilestonesRef.current,
+      });
+      clearFaceLoadOperations("session-complete");
+      setIsImportFlowActive(false);
+      setFaceLoadProgress(1);
+      setFaceLoadSessionCompletedAtMs(nowMs());
+    },
+    [clearFaceLoadOperations, isCurrentSessionToken, logFaceLoadEvent],
+  );
 
   const updateExternalPhase = useCallback(
     (update: FaceLoadPhaseUpdate) => {
@@ -768,11 +798,22 @@ export function useVizijAssetLoader() {
   );
 
   const loadVizij = useCallback(
-    async (loader: VizijLoader, label: string) => {
+    async (
+      loader: VizijLoader,
+      label: string,
+      options?: FaceLoadSessionOptions,
+    ) => {
+      const sessionToken = options?.sessionToken;
+      if (!isCurrentSessionToken(sessionToken)) {
+        return;
+      }
       const requestId = activeLoadRequestRef.current + 1;
       activeLoadRequestRef.current = requestId;
       const assertCurrentLoad = () => {
-        if (activeLoadRequestRef.current !== requestId) {
+        if (
+          activeLoadRequestRef.current !== requestId ||
+          !isCurrentSessionToken(sessionToken)
+        ) {
           throw STALE_LOAD_REQUEST;
         }
       };
@@ -974,14 +1015,18 @@ export function useVizijAssetLoader() {
         console.error("demo-vizij-render: failed to load Vizij", err);
         setBundle(null);
         setExportSceneRoot(null);
-        markImportFlowError(activeStepId);
+        markImportFlowError(activeStepId, { sessionToken });
       } finally {
-        if (activeLoadRequestRef.current === requestId) {
+        if (
+          activeLoadRequestRef.current === requestId &&
+          isCurrentSessionToken(sessionToken)
+        ) {
           setIsLoading(false);
         }
       }
     },
     [
+      isCurrentSessionToken,
       addWorldElements,
       markFaceLoadMilestone,
       markImportFlowError,
@@ -990,15 +1035,23 @@ export function useVizijAssetLoader() {
   );
 
   const loadFromFile = useCallback(
-    async (file: File, loader: VizijLoader) => {
-      await loadVizij(loader, file.name);
+    async (
+      file: File,
+      loader: VizijLoader,
+      options?: FaceLoadSessionOptions,
+    ) => {
+      await loadVizij(loader, file.name, options);
     },
     [loadVizij],
   );
 
   const loadFromUrl = useCallback(
-    async (url: string, loader: VizijLoader) => {
-      await loadVizij(loader, url);
+    async (
+      url: string,
+      loader: VizijLoader,
+      options?: FaceLoadSessionOptions,
+    ) => {
+      await loadVizij(loader, url, options);
     },
     [loadVizij],
   );

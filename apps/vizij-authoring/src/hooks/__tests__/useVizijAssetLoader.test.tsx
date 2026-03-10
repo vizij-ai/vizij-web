@@ -136,4 +136,54 @@ describe("useVizijAssetLoader", () => {
     expect(result.current.bundle).toBeNull();
     expect(addWorldElementsMock).not.toHaveBeenCalled();
   });
+
+  it("ignores stale session loads that begin after a newer import flow starts", async () => {
+    const { result } = renderHook(() => useVizijAssetLoader());
+
+    let staleSessionToken!: string;
+    let activeSessionToken!: string;
+    act(() => {
+      staleSessionToken = result.current.beginImportFlow("first preset");
+      activeSessionToken = result.current.beginImportFlow("second preset");
+    });
+
+    await act(async () => {
+      await result.current.loadVizij(
+        () => Promise.resolve(createLoadedAsset("root-stale")),
+        "first.glb",
+        { sessionToken: staleSessionToken },
+      );
+    });
+
+    expect(result.current.faceLoadSessionToken).toBe(activeSessionToken);
+    expect(result.current.rootId).toBeNull();
+    expect(result.current.sourceName).toBeNull();
+    expect(result.current.bundle).toBeNull();
+    expect(addWorldElementsMock).not.toHaveBeenCalled();
+  });
+
+  it("invalidates in-flight loads when a newer import flow starts", async () => {
+    const pending = createDeferred<LoadedVizijAsset>();
+    const { result } = renderHook(() => useVizijAssetLoader());
+
+    let sessionToken!: string;
+    let run!: Promise<void>;
+    act(() => {
+      sessionToken = result.current.beginImportFlow("first preset");
+      run = result.current.loadVizij(() => pending.promise, "first.glb", {
+        sessionToken,
+      });
+      result.current.beginImportFlow("second preset");
+    });
+
+    await act(async () => {
+      pending.resolve(createLoadedAsset("root-stale"));
+      await run;
+    });
+
+    expect(result.current.rootId).toBeNull();
+    expect(result.current.sourceName).toBeNull();
+    expect(result.current.bundle).toBeNull();
+    expect(addWorldElementsMock).not.toHaveBeenCalled();
+  });
 });
