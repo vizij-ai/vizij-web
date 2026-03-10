@@ -1,0 +1,16 @@
+[package]
+name = "arora-ros2"
+version = "0.1.0"
+edition = "2021"
+description = "ROS2 interface for the Arora connection protocol"
+
+[dependencies]
+arora-connection = { path = "../arora-connection" }
+ros2-client = "0.8"
+rustdds = "~0.11.6"
+tokio = { version = "1", features = ["sync", "rt", "macros"] }
+tokio-util = "0.7"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"

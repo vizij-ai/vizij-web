@@ -93,6 +93,16 @@ struct Cli {
     /// Speech mode: "echo" (repeat back) or "conversation" (LLM-powered)
     #[arg(long)]
     speech_mode: Option<String>,
+
+    /// ROS2 domain ID (requires --features ros2)
+    #[cfg(feature = "ros2")]
+    #[arg(long, default_value_t = 0)]
+    ros2_domain_id: u16,
+
+    /// ROS2 namespace for topics and services (requires --features ros2)
+    #[cfg(feature = "ros2")]
+    #[arg(long, default_value = "vizij")]
+    ros2_namespace: String,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -366,6 +376,19 @@ pub fn run() {
             let serve_web_control = !cli.no_web_control;
             let mut manager = ConnectionManager::new();
             manager.add_connection(Arc::new(WsServer::new(port, serve_web_control)));
+
+            #[cfg(feature = "ros2")]
+            {
+                let ros2_node = arora_ros2::AroraRos2Node::new(
+                    &cli.ros2_namespace,
+                    cli.ros2_domain_id,
+                );
+                manager.add_connection(Arc::new(ros2_node));
+                info!(
+                    "ROS2 node configured (domain_id={}, namespace={})",
+                    cli.ros2_domain_id, cli.ros2_namespace
+                );
+            }
 
             let web_port = if serve_web_control {
                 Some(port)
