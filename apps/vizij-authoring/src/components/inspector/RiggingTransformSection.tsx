@@ -14,7 +14,11 @@ import {
   isRotationPropertyKey,
   toRotationDisplayValue,
 } from "../../utils/rotationDisplay";
-import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
+import {
+  CommitOnBlurNumberInput,
+  RiggingPropertyRow,
+  ScrubbableLabel,
+} from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 
@@ -328,75 +332,6 @@ function RiggingVectorRow({
     });
   };
 
-  const handleSaveToDefault = () => {
-    components.forEach((c) => {
-      if (c.isBound && c.inputId) {
-        onUpdateStandardInput(c.inputId, {
-          defaultValue: c.currentValue as number,
-        });
-      }
-      if (onStaticValueChange && (c.targetId || feature.animatableId)) {
-        onStaticValueChange(
-          c.targetId ?? feature.animatableId!,
-          c.currentValue as number,
-          c.componentLabel.toLowerCase(),
-        );
-      }
-    });
-  };
-
-  const hasMinChanged = components.some(
-    (c) => Math.abs((c.currentValue as number) - (c.min as number)) > 0.0001,
-  );
-
-  const hasMaxChanged = components.some(
-    (c) => Math.abs((c.currentValue as number) - (c.max as number)) > 0.0001,
-  );
-
-  const handleSaveToMin = () => {
-    components.forEach((c) => {
-      if (c.isBound && c.inputId) {
-        onUpdateStandardInput(c.inputId, {
-          range: { min: c.currentValue as number },
-        });
-      }
-    });
-
-    if (feature.animatableId) {
-      onConstraintChange(feature.animatableId, (curr) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        const currentVals = { ...(nextConstraints.min || {}) };
-        components.forEach((c) => {
-          currentVals[c.componentLabel.toLowerCase()] = c.currentValue;
-        });
-        nextConstraints.min = currentVals;
-        return { ...curr, constraints: nextConstraints } as any;
-      });
-    }
-  };
-
-  const handleSaveToMax = () => {
-    components.forEach((c) => {
-      if (c.isBound && c.inputId) {
-        onUpdateStandardInput(c.inputId, {
-          range: { max: c.currentValue as number },
-        });
-      }
-    });
-
-    if (feature.animatableId) {
-      onConstraintChange(feature.animatableId, (curr) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        const currentVals = { ...(nextConstraints.max || {}) };
-        components.forEach((c) => {
-          currentVals[c.componentLabel.toLowerCase()] = c.currentValue;
-        });
-        nextConstraints.max = currentVals;
-        return { ...curr, constraints: nextConstraints } as any;
-      });
-    }
-  };
-
   const lockableTargetIds = components
     .map((component) => component.targetId)
     .filter((targetId): targetId is string => Boolean(targetId));
@@ -430,18 +365,18 @@ function RiggingVectorRow({
             canEdit = !c.isLocked && (c.isBound || !!onStaticValueChange);
           } else if (type === "default") {
             val = c.defaultValue;
-            canEdit = c.hasInputMetadata;
+            canEdit = !c.isLocked && c.hasInputMetadata;
           } else if (type === "min") {
             val = c.min as number;
-            canEdit = true;
+            canEdit = !c.isLocked && Boolean(c.inputId || feature.animatableId);
           } else if (type === "max") {
             val = c.max as number;
-            canEdit = true;
+            canEdit = !c.isLocked && Boolean(c.inputId || feature.animatableId);
           }
-          const displayValue =
-            typeof val === "number"
-              ? toRotationDisplayValue(val, rotationDisplayMode)
-              : 0;
+          const toDisplayValue = (nextValue: number) =>
+            useDegreeDisplay
+              ? toRotationDisplayValue(nextValue, rotationDisplayMode)
+              : nextValue;
           const toStoredValue = (nextValue: number) =>
             useDegreeDisplay
               ? fromRotationDisplayValue(nextValue, rotationDisplayMode)
@@ -462,83 +397,92 @@ function RiggingVectorRow({
             >
               <ScrubbableLabel
                 label={c.componentLabel}
-                onScrub={(_, totalDelta) => {
-                  const step = useDegreeDisplay ? 0.5 : 0.05;
-                  const deltaValue = useDegreeDisplay
-                    ? fromRotationDisplayValue(
-                        totalDelta * step,
-                        rotationDisplayMode,
-                      )
-                    : totalDelta * step;
-                  if (type === "current") {
-                    if (c.isLocked) {
-                      return;
-                    }
-                    if (c.isBound && c.inputId) {
-                      const startVal = scrubValuesRef.current[c.inputId] ?? 0;
-                      onValueChange(c.inputId, startVal + deltaValue);
-                    } else if (onStaticValueChange) {
-                      const startValueToUse =
-                        scrubValuesRef.current["current"] ?? 0;
-                      const newVal = startValueToUse + deltaValue;
-                      if (feature.animated && feature.animatableId) {
-                        onStaticValueChange(
-                          feature.animatableId,
-                          newVal,
-                          c.componentLabel.toLowerCase(),
-                        );
-                      } else if (setStaticFeatureValue && node) {
-                        const current = (feature.staticValue as any) || {};
-                        setStaticFeatureValue(node.id, feature.id, {
-                          ...current,
-                          [c.componentLabel.toLowerCase()]: newVal,
-                        });
-                      }
-                    }
-                  } else if (type === "default" && c.inputId) {
-                    const startVal = scrubValuesRef.current[c.inputId] ?? 0;
-                    const nextVal = startVal + deltaValue;
-                    onDefaultChange(c.inputId, nextVal);
-                    if (
-                      onStaticValueChange &&
-                      (c.targetId || feature.animatableId)
-                    ) {
-                      onStaticValueChange(
-                        c.targetId ?? feature.animatableId!,
-                        nextVal,
-                        c.componentLabel.toLowerCase(),
-                      );
-                    }
-                  } else if (
-                    (type === "min" || type === "max") &&
-                    (c.inputId || feature.animatableId)
-                  ) {
-                    const key = c.componentLabel.toLowerCase();
-                    const startVal =
-                      scrubValuesRef.current[`${type}:${key}`] ?? 0;
-                    const nextVal = startVal + deltaValue;
+                onScrub={
+                  canEdit
+                    ? (_, totalDelta) => {
+                        const step = useDegreeDisplay ? 0.5 : 0.05;
+                        const deltaValue = useDegreeDisplay
+                          ? fromRotationDisplayValue(
+                              totalDelta * step,
+                              rotationDisplayMode,
+                            )
+                          : totalDelta * step;
+                        if (type === "current") {
+                          if (c.isBound && c.inputId) {
+                            const startVal =
+                              scrubValuesRef.current[c.inputId] ?? 0;
+                            onValueChange(c.inputId, startVal + deltaValue);
+                          } else if (onStaticValueChange) {
+                            const startValueToUse =
+                              scrubValuesRef.current["current"] ?? 0;
+                            const newVal = startValueToUse + deltaValue;
+                            if (feature.animated && feature.animatableId) {
+                              onStaticValueChange(
+                                feature.animatableId,
+                                newVal,
+                                c.componentLabel.toLowerCase(),
+                              );
+                            } else if (setStaticFeatureValue && node) {
+                              const current =
+                                (feature.staticValue as any) || {};
+                              setStaticFeatureValue(node.id, feature.id, {
+                                ...current,
+                                [c.componentLabel.toLowerCase()]: newVal,
+                              });
+                            }
+                          }
+                        } else if (type === "default" && c.inputId) {
+                          const startVal =
+                            scrubValuesRef.current[c.inputId] ?? 0;
+                          const nextVal = startVal + deltaValue;
+                          onDefaultChange(c.inputId, nextVal);
+                          if (
+                            onStaticValueChange &&
+                            (c.targetId || feature.animatableId)
+                          ) {
+                            onStaticValueChange(
+                              c.targetId ?? feature.animatableId!,
+                              nextVal,
+                              c.componentLabel.toLowerCase(),
+                            );
+                          }
+                        } else if (
+                          (type === "min" || type === "max") &&
+                          (c.inputId || feature.animatableId)
+                        ) {
+                          const key = c.componentLabel.toLowerCase();
+                          const startVal =
+                            scrubValuesRef.current[`${type}:${key}`] ?? 0;
+                          const nextVal = startVal + deltaValue;
 
-                    if (c.inputId) {
-                      onUpdateStandardInput(c.inputId, {
-                        range: { [type]: nextVal },
-                      });
-                    }
-                    if (feature.animatableId) {
-                      onConstraintChange(feature.animatableId, (curr) => {
-                        const nextConstraints = {
-                          ...(curr.constraints || {}),
-                        } as any;
-                        const kind = type === "min" ? "min" : "max";
-                        const currentVal = nextConstraints[kind] || {};
-                        nextConstraints[kind] = {
-                          ...(typeof currentVal === "object" ? currentVal : {}),
-                          [key]: nextVal,
-                        } as any;
-                        return { ...curr, constraints: nextConstraints } as any;
-                      });
-                    }
-                  }
-                }}
+                          if (c.inputId) {
+                            onUpdateStandardInput(c.inputId, {
+                              range: { [type]: nextVal },
+                            });
+                          }
+                          if (feature.animatableId) {
+                            onConstraintChange(feature.animatableId, (curr) => {
+                              const nextConstraints = {
+                                ...(curr.constraints || {}),
+                              } as any;
+                              const kind = type === "min" ? "min" : "max";
+                              const currentVal = nextConstraints[kind] || {};
+                              nextConstraints[kind] = {
+                                ...(typeof currentVal === "object"
+                                  ? currentVal
+                                  : {}),
+                                [key]: nextVal,
+                              } as any;
+                              return {
+                                ...curr,
+                                constraints: nextConstraints,
+                              } as any;
+                            });
+                          }
+                        }
+                      }
+                    : undefined
+                }
                 onScrubStart={() => {
                   if (type === "current") {
                     if (c.isBound && c.inputId)
@@ -567,21 +511,17 @@ function RiggingVectorRow({
                         : "text-text-secondary",
                 )}
               />
-              <input
-                type="number"
-                className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none"
-                value={displayValue}
+              <CommitOnBlurNumberInput
+                value={typeof val === "number" ? val : 0}
                 step={displayStep}
                 disabled={!canEdit}
-                onChange={(e) => {
-                  const num = parseFloat(e.target.value);
-                  if (isNaN(num)) return;
-                  const nextValue = toStoredValue(num);
-
+                formatValue={(nextValue) => String(toDisplayValue(nextValue))}
+                parseValue={(raw) => {
+                  const parsed = Number.parseFloat(raw);
+                  return Number.isFinite(parsed) ? toStoredValue(parsed) : null;
+                }}
+                onCommit={(nextValue) => {
                   if (type === "current") {
-                    if (c.isLocked) {
-                      return;
-                    }
                     if (c.isBound && c.inputId) {
                       onValueChange(c.inputId, nextValue);
                     } else if (onStaticValueChange) {
@@ -684,12 +624,7 @@ function RiggingVectorRow({
     <RiggingPropertyRow
       label={displayLabel}
       hasDifferentDefault={hasDifferentDefault}
-      hasMinChanged={hasMinChanged}
-      hasMaxChanged={hasMaxChanged}
       onResetToDefault={handleReset}
-      onSaveToDefault={handleSaveToDefault}
-      onSaveToMin={handleSaveToMin}
-      onSaveToMax={handleSaveToMax}
       renderMainInput={() => renderInputs("current")}
       renderDefaultInput={() => renderInputs("default")}
       renderMinInput={() => renderInputs("min")}

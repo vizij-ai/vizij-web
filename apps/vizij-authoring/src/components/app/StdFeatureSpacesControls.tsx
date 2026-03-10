@@ -611,6 +611,7 @@ function MatchingInputGroup({
               <RowSlider
                 label={input.label}
                 value={value}
+                defaultValue={input.defaultValue ?? 0}
                 min={input.range.min}
                 max={input.range.max}
                 step={0.01}

@@ -8,7 +8,11 @@ import {
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { RiggingPropertyRow, ScrubbableLabel } from "./RiggingPropertyRow";
+import {
+  CommitOnBlurNumberInput,
+  RiggingPropertyRow,
+  ScrubbableLabel,
+} from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 
@@ -290,50 +294,6 @@ function RiggingScalarRow({
     if (isBound && inputId) onValueChange(inputId, defaultValue as number);
   };
 
-  const handleSaveToDefault = () => {
-    if (isBound && inputId) {
-      onUpdateStandardInput(inputId, { defaultValue: currentValue as number });
-    }
-    if (onStaticValueChange && (targetId || feature.animatableId)) {
-      onStaticValueChange(targetId ?? feature.animatableId!, currentValue);
-    }
-  };
-
-  const hasMinChanged =
-    Math.abs((currentValue as number) - (minVal as number)) > 0.0001;
-  const hasMaxChanged =
-    Math.abs((currentValue as number) - (maxVal as number)) > 0.0001;
-
-  const handleSaveToMin = () => {
-    if (inputId) {
-      onUpdateStandardInput(inputId, {
-        range: { min: currentValue as number },
-      });
-    }
-    if (feature.animatableId) {
-      onConstraintChange(feature.animatableId, (curr: AnimatableValue) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        nextConstraints.min = currentValue;
-        return { ...curr, constraints: nextConstraints } as AnimatableValue;
-      });
-    }
-  };
-
-  const handleSaveToMax = () => {
-    if (inputId) {
-      onUpdateStandardInput(inputId, {
-        range: { max: currentValue as number },
-      });
-    }
-    if (feature.animatableId) {
-      onConstraintChange(feature.animatableId, (curr: AnimatableValue) => {
-        const nextConstraints = { ...(curr.constraints || {}) } as any;
-        nextConstraints.max = currentValue;
-        return { ...curr, constraints: nextConstraints } as AnimatableValue;
-      });
-    }
-  };
-
   const toggleRowLock = () => {
     if (!targetId) {
       return;
@@ -350,13 +310,13 @@ function RiggingScalarRow({
       canEdit = !isChannelLocked && (isBound || !!onStaticValueChange);
     } else if (type === "default") {
       val = defaultValue;
-      canEdit = isBound;
+      canEdit = !isChannelLocked && isBound;
     } else if (type === "min") {
       val = minVal;
-      canEdit = true;
+      canEdit = !isChannelLocked && Boolean(inputId || feature.animatableId);
     } else if (type === "max") {
       val = maxVal;
-      canEdit = true;
+      canEdit = !isChannelLocked && Boolean(inputId || feature.animatableId);
     }
 
     return (
@@ -373,57 +333,67 @@ function RiggingScalarRow({
       >
         <ScrubbableLabel
           label={label}
-          onScrub={(delta: number, totalDelta: number) => {
-            const step = 0.01;
-            if (type === "current") {
-              if (isChannelLocked) {
-                return;
-              }
-              if (isBound && inputId) {
-                const startVal = scrubValuesRef.current[inputId] ?? 0;
-                onValueChange(inputId, startVal + totalDelta * step);
-              } else if (onStaticValueChange) {
-                const startVal = scrubValuesRef.current["current"] ?? 0;
-                const newVal = startVal + totalDelta * step;
-                if (feature.animated && feature.animatableId) {
-                  onStaticValueChange(feature.animatableId, newVal);
-                } else if (setStaticFeatureValue && node) {
-                  setStaticFeatureValue(node.id, feature.id, newVal);
+          onScrub={
+            canEdit
+              ? (_delta: number, totalDelta: number) => {
+                  const step = 0.01;
+                  if (type === "current") {
+                    if (isBound && inputId) {
+                      const startVal = scrubValuesRef.current[inputId] ?? 0;
+                      onValueChange(inputId, startVal + totalDelta * step);
+                    } else if (onStaticValueChange) {
+                      const startVal = scrubValuesRef.current["current"] ?? 0;
+                      const newVal = startVal + totalDelta * step;
+                      if (feature.animated && feature.animatableId) {
+                        onStaticValueChange(feature.animatableId, newVal);
+                      } else if (setStaticFeatureValue && node) {
+                        setStaticFeatureValue(node.id, feature.id, newVal);
+                      }
+                    }
+                  } else if (type === "default" && inputId) {
+                    const startVal = scrubValuesRef.current[inputId] ?? 0;
+                    const nextVal = startVal + totalDelta * step;
+                    onDefaultChange(inputId, nextVal);
+                    if (
+                      onStaticValueChange &&
+                      (targetId || feature.animatableId)
+                    ) {
+                      onStaticValueChange(
+                        targetId ?? feature.animatableId!,
+                        nextVal,
+                      );
+                    }
+                  } else if (
+                    (type === "min" || type === "max") &&
+                    (inputId || feature.animatableId)
+                  ) {
+                    const startVal = scrubValuesRef.current[type] ?? 0;
+                    const nextVal = startVal + totalDelta * step;
+                    if (inputId) {
+                      onUpdateStandardInput(inputId, {
+                        range: { [type]: nextVal },
+                      });
+                    }
+                    if (feature.animatableId) {
+                      onConstraintChange(
+                        feature.animatableId,
+                        (curr: AnimatableValue) => {
+                          const nextConstraints = {
+                            ...(curr.constraints || {}),
+                          } as any;
+                          nextConstraints[type === "min" ? "min" : "max"] =
+                            nextVal;
+                          return {
+                            ...curr,
+                            constraints: nextConstraints,
+                          } as AnimatableValue;
+                        },
+                      );
+                    }
+                  }
                 }
-              }
-            } else if (type === "default" && inputId) {
-              const startVal = scrubValuesRef.current[inputId] ?? 0;
-              const nextVal = startVal + totalDelta * step;
-              onDefaultChange(inputId, nextVal);
-              if (onStaticValueChange && (targetId || feature.animatableId)) {
-                onStaticValueChange(targetId ?? feature.animatableId!, nextVal);
-              }
-            } else if (
-              (type === "min" || type === "max") &&
-              (inputId || feature.animatableId)
-            ) {
-              const startVal = scrubValuesRef.current[type] ?? 0;
-              const nextVal = startVal + totalDelta * step;
-              if (inputId) {
-                onUpdateStandardInput(inputId, { range: { [type]: nextVal } });
-              }
-              if (feature.animatableId) {
-                onConstraintChange(
-                  feature.animatableId,
-                  (curr: AnimatableValue) => {
-                    const nextConstraints = {
-                      ...(curr.constraints || {}),
-                    } as any;
-                    nextConstraints[type === "min" ? "min" : "max"] = nextVal;
-                    return {
-                      ...curr,
-                      constraints: nextConstraints,
-                    } as AnimatableValue;
-                  },
-                );
-              }
-            }
-          }}
+              : undefined
+          }
           onScrubStart={() => {
             if (type === "current") {
               if (isBound && inputId)
@@ -441,20 +411,13 @@ function RiggingScalarRow({
           }}
           className="text-[9px] font-bold px-1 select-none transition-colors text-text-muted"
         />
-        <input
-          type="number"
-          className="w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none pl-1"
+        <CommitOnBlurNumberInput
           value={typeof val === "number" ? val : 0}
           step={0.01}
           disabled={!canEdit}
-          onChange={(e) => {
-            const num = parseFloat(e.target.value);
-            if (isNaN(num)) return;
-
+          className="pl-1"
+          onCommit={(num) => {
             if (type === "current") {
-              if (isChannelLocked) {
-                return;
-              }
               if (isBound && inputId) {
                 onValueChange(inputId, num);
               } else if (onStaticValueChange) {
@@ -502,12 +465,7 @@ function RiggingScalarRow({
     <RiggingPropertyRow
       label={label}
       hasDifferentDefault={hasDifferentDefault}
-      hasMinChanged={hasMinChanged}
-      hasMaxChanged={hasMaxChanged}
       onResetToDefault={handleReset}
-      onSaveToDefault={handleSaveToDefault}
-      onSaveToMin={handleSaveToMin}
-      onSaveToMax={handleSaveToMax}
       renderMainInput={() => renderInput("current")}
       renderDefaultInput={() => renderInput("default")}
       renderMinInput={() => renderInput("min")}

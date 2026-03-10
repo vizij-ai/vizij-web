@@ -2151,6 +2151,7 @@ export function InspectorContent({
                 min={displayMin}
                 max={displayMax}
                 step={step}
+                defaultValue={toDisplayValue(input.defaultValue, input.path)}
                 fillMode="value"
                 className="flex-1"
                 onChange={(nextValue) =>
@@ -2237,6 +2238,7 @@ export function InspectorContent({
               min={displayMin}
               max={displayMax}
               step={step}
+              defaultValue={toDisplayValue(input.defaultValue, input.path)}
               fillMode="value"
               onChange={(nextValue) =>
                 updateReferenceValue(
@@ -4542,6 +4544,7 @@ export function InspectorContent({
                   min={rigDisplayMin}
                   max={rigDisplayMax}
                   step={rigDisplayStep}
+                  defaultValue={rigDisplayDefault}
                   fillMode="value"
                   className="flex-1"
                   onChange={(nextValue) =>
@@ -4802,6 +4805,9 @@ export function InspectorContent({
               onInspect: entry.onClick,
               directControl: {
                 value: entry.parentDirectValue,
+                defaultValue:
+                  standardInputsById.get(entry.inputId)?.defaultValue ??
+                  entry.parentDirectValue,
                 min: entry.parentDirectMin,
                 max: entry.parentDirectMax,
                 path: standardInputsById.get(entry.inputId)?.path ?? null,

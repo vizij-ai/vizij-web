@@ -1664,6 +1664,12 @@ export function InspectorPanel({
                 <div className="flex flex-col gap-1.5">
                   {activePoseGroupPoses.map((pose) => {
                     const weight = clamp01(poseGroupWeights[pose.id] ?? 0);
+                    const poseWeightInputId =
+                      poseWeightInputIdByPoseId.get(pose.id) ?? null;
+                    const poseWeightDefault = poseWeightInputId
+                      ? (authoringInputById.get(poseWeightInputId)
+                          ?.defaultValue ?? 0)
+                      : 0;
                     return (
                       <div
                         key={pose.id}
@@ -1683,6 +1689,7 @@ export function InspectorPanel({
                             max={1}
                             step={0.01}
                             value={weight}
+                            defaultValue={poseWeightDefault}
                             fillMode="value"
                             className="flex-1 min-w-[120px]"
                             onChange={(value) =>
@@ -1893,6 +1900,7 @@ export function InspectorPanel({
                               max={input.range.max}
                               step={0.0001}
                               value={directValue}
+                              defaultValue={input.defaultValue}
                               className="flex-1"
                               fillMode="value"
                               onChange={(value) =>
@@ -2318,6 +2326,7 @@ export function InspectorPanel({
                               max={input.range.max}
                               step={0.0001}
                               value={directValue}
+                              defaultValue={input.defaultValue}
                               className="flex-1"
                               fillMode="value"
                               onChange={(value) =>

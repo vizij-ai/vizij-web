@@ -3163,6 +3163,38 @@ describe("VariablesPanel", () => {
     confirmSpy.mockRestore();
   });
 
+  it("toggles pose folders without opening the pose-group inspector", () => {
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: "emotion",
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    const onSelectPoseGroup = vi.fn();
+    const onSelectPose = vi.fn();
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        onSelectPose={onSelectPose}
+        onSelectPoseGroup={onSelectPoseGroup}
+      />,
+    );
+
+    expect(within(view.container).queryByTitle("Smile")).toBeNull();
+
+    fireEvent.click(within(view.container).getByTitle("emotion"));
+
+    expect(onSelectPoseGroup).not.toHaveBeenCalled();
+    expect(onSelectPose).not.toHaveBeenCalled();
+    expect(within(view.container).getByTitle("Smile")).toBeTruthy();
+  });
+
   it("routes pose play action through canonical pose-weight inputs when available", () => {
     poseRigState.poses = [
       {
@@ -3253,6 +3285,36 @@ describe("VariablesPanel", () => {
         poseIds: [],
       }),
     );
+  });
+
+  it("treats pose folders on the poses surface as folders instead of opening the pose-group inspector", () => {
+    poseRigState.poses = [
+      {
+        id: "pose_smile",
+        name: "Smile",
+        description: "",
+        group: "emotion",
+        groupId: "emotion",
+        groupIds: ["emotion"],
+        values: {},
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const onSelectPoseGroup = vi.fn();
+    const view = render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+        onSelectPoseGroup={onSelectPoseGroup}
+      />,
+    );
+
+    fireEvent.click(within(view.container).getByTitle("emotion"));
+
+    expect(onSelectPoseGroup).not.toHaveBeenCalled();
+    expect(within(view.container).getByTitle("Smile")).toBeTruthy();
   });
 
   it("assigns and unassigns selected pose membership deterministically", () => {

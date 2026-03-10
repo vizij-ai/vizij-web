@@ -27,6 +27,7 @@ export interface PipelineStageLinkItem {
   onParentFormulaChange?: (expression: string) => void;
   directControl?: {
     value: number;
+    defaultValue?: number;
     min: number;
     max: number;
     path?: string | null;
@@ -375,6 +376,15 @@ function ParentDirectControlEditor({
           max={displayMax}
           step={displayStep}
           value={displayValue}
+          defaultValue={
+            typeof directControl.defaultValue === "number"
+              ? toDisplayValue(
+                  directControl.defaultValue,
+                  directControl.path,
+                  rotationDisplayMode,
+                )
+              : undefined
+          }
           onChange={(value) =>
             directControl.onValueChange?.(
               fromDisplayValue(
@@ -970,6 +980,7 @@ export function VariablePipelineStages({
             max={currentDisplayMax}
             step={currentDisplayStep}
             value={currentDisplayValue}
+            defaultValue={currentDisplayDefault}
             onChange={(value) =>
               onDirectValueChange(
                 fromDisplayValue(

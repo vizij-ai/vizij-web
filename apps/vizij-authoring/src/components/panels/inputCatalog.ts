@@ -27,6 +27,7 @@ export interface InputCatalogRow {
   source: InputCatalogSource;
   path: string;
   value: number;
+  defaultValue: number;
   min: number;
   max: number;
   controlKind: "rig-input" | "pose-weight" | "group-output" | "stage-output";
@@ -145,6 +146,7 @@ function buildManagedInputRows(
         source: resolveManagedSource(entry),
         path: normalizedPath,
         value: resolvedValue,
+        defaultValue: entry.input.defaultValue ?? 0,
         min,
         max,
         controlKind,
@@ -189,6 +191,7 @@ function buildDerivedPoseOutputRows(args: {
       source: "auto" as const,
       path,
       value: 0,
+      defaultValue: 0,
       min: 0,
       max: 1,
       controlKind: "group-output" as const,
@@ -220,6 +223,7 @@ function buildDerivedPoseOutputRows(args: {
       source: "auto" as const,
       path,
       value: 0,
+      defaultValue: 0,
       min: 0,
       max: 1,
       controlKind: "stage-output" as const,

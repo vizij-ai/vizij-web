@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Pencil, X, RotateCcw, Save } from "lucide-react";
+import { Pencil, X, RotateCcw } from "lucide-react";
 import { Button as BaseButton } from "@base-ui/react";
 import { cn } from "../../utils/cn";
 
@@ -19,11 +19,6 @@ export interface RiggingPropertyRowProps {
   onScrub?: (delta: number, totalDelta: number) => void;
   onScrubStart?: () => void;
   onScrubEnd?: () => void;
-  onSaveToDefault?: () => void;
-  onSaveToMin?: () => void;
-  onSaveToMax?: () => void;
-  hasMinChanged?: boolean;
-  hasMaxChanged?: boolean;
 
   className?: string;
 
@@ -37,6 +32,78 @@ export interface ScrubbableLabelProps {
   onScrubEnd?: () => void;
   className?: string;
   children?: React.ReactNode;
+}
+
+export interface CommitOnBlurNumberInputProps {
+  value: number;
+  onCommit: (value: number) => void;
+  disabled?: boolean;
+  step?: number | string;
+  min?: number;
+  max?: number;
+  className?: string;
+  formatValue?: (value: number) => string;
+  parseValue?: (raw: string) => number | null;
+}
+
+export function CommitOnBlurNumberInput({
+  value,
+  onCommit,
+  disabled = false,
+  step,
+  min,
+  max,
+  className,
+  formatValue = (nextValue) => String(nextValue),
+  parseValue = (raw) => {
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  },
+}: CommitOnBlurNumberInputProps) {
+  const formattedValue = formatValue(value);
+  const [draftValue, setDraftValue] = useState(formattedValue);
+
+  useEffect(() => {
+    setDraftValue(formattedValue);
+  }, [formattedValue]);
+
+  const commitDraft = () => {
+    const parsed = parseValue(draftValue);
+    if (parsed === null) {
+      setDraftValue(formattedValue);
+      return;
+    }
+    onCommit(parsed);
+  };
+
+  return (
+    <input
+      type="number"
+      className={cn(
+        "w-full bg-transparent border-0 text-[10px] p-0 h-5 focus:ring-0 text-text-primary placeholder-text-muted no-spinners font-mono leading-none",
+        className,
+      )}
+      value={draftValue}
+      step={step}
+      min={min}
+      max={max}
+      disabled={disabled}
+      onChange={(event) => setDraftValue(event.target.value)}
+      onBlur={commitDraft}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setDraftValue(formattedValue);
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
 }
 
 export function ScrubbableLabel({
@@ -135,11 +202,6 @@ export function RiggingPropertyRow({
 
   hasDifferentDefault,
   onResetToDefault,
-  onSaveToDefault,
-  onSaveToMin,
-  onSaveToMax,
-  hasMinChanged,
-  hasMaxChanged,
 
   onScrub,
   onScrubStart,
@@ -258,28 +320,8 @@ export function RiggingPropertyRow({
                 </span>
               </div>
 
-              <div className="flex-1 min-w-0 flex items-center gap-1 w-full @[300px]:w-auto">
-                <div className="flex-1 min-w-0">{renderDefaultInput()}</div>
-
-                {onSaveToDefault && (
-                  <BaseButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onSaveToDefault();
-                    }}
-                    className={cn(
-                      "ml-1 p-1 rounded transition-colors flex-shrink-0",
-                      hasDifferentDefault
-                        ? "text-accent hover:text-accent-hover hover:bg-accent-subtle"
-                        : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
-                    )}
-                    title="Save to default"
-                    disabled={!hasDifferentDefault}
-                  >
-                    <Save size={12} />
-                  </BaseButton>
-                )}
+              <div className="flex-1 min-w-0 w-full @[300px]:w-auto">
+                {renderDefaultInput()}
               </div>
             </div>
           )}
@@ -291,27 +333,8 @@ export function RiggingPropertyRow({
                   Min
                 </span>
               </div>
-              <div className="flex-1 min-w-0 flex items-center gap-1 w-full @[300px]:w-auto">
-                <div className="flex-1 min-w-0">{renderMinInput()}</div>
-                {onSaveToMin && (
-                  <BaseButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onSaveToMin();
-                    }}
-                    className={cn(
-                      "ml-1 p-1 rounded transition-colors flex-shrink-0",
-                      hasMinChanged
-                        ? "text-accent hover:text-accent-hover hover:bg-accent-subtle"
-                        : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
-                    )}
-                    title="Save current to min"
-                    disabled={!hasMinChanged}
-                  >
-                    <Save size={12} />
-                  </BaseButton>
-                )}
+              <div className="flex-1 min-w-0 w-full @[300px]:w-auto">
+                {renderMinInput()}
               </div>
             </div>
           )}
@@ -323,27 +346,8 @@ export function RiggingPropertyRow({
                   Max
                 </span>
               </div>
-              <div className="flex-1 min-w-0 flex items-center gap-1 w-full @[300px]:w-auto">
-                <div className="flex-1 min-w-0">{renderMaxInput()}</div>
-                {onSaveToMax && (
-                  <BaseButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onSaveToMax();
-                    }}
-                    className={cn(
-                      "ml-1 p-1 rounded transition-colors flex-shrink-0",
-                      hasMaxChanged
-                        ? "text-accent hover:text-accent-hover hover:bg-accent-subtle"
-                        : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
-                    )}
-                    title="Save current to max"
-                    disabled={!hasMaxChanged}
-                  >
-                    <Save size={12} />
-                  </BaseButton>
-                )}
+              <div className="flex-1 min-w-0 w-full @[300px]:w-auto">
+                {renderMaxInput()}
               </div>
             </div>
           )}

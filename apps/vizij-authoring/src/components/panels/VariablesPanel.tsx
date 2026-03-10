@@ -1710,25 +1710,6 @@ function collectFolderRigDeletionSummary(node: TreeNode): {
   };
 }
 
-function collectPoseIds(node: TreeNode): string[] {
-  const ids: string[] = [];
-  const visit = (candidate: TreeNode) => {
-    if (candidate.type === "pose") {
-      const poseData = candidate.data as PoseNodeData | undefined;
-      if (
-        (poseData?.source === "main" || poseData?.source === "shared") &&
-        poseData.pose.id
-      ) {
-        ids.push(poseData.pose.id);
-      }
-      return;
-    }
-    candidate.children.forEach((child) => visit(child));
-  };
-  visit(node);
-  return ids;
-}
-
 function collectFolderReferenceRigSelectionIds(node: TreeNode): string[] {
   const ids = new Set<string>();
   const visit = (candidate: TreeNode) => {
@@ -2469,9 +2450,7 @@ function TreeRowWrapper({
       isExpanded={isExpanded}
       isSelected={rowIsSelected}
       onToggle={() => onToggle(node.id)}
-      onSelect={
-        !hasChildren || isPoseGroupFolder ? () => onSelect?.(node) : undefined
-      }
+      onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
       highlightQuery={searchQuery}
       icon={<OwnershipScopeIcon Icon={Icon} scope={nodeOwnershipScope} />}
       actions={
@@ -2776,22 +2755,6 @@ function TreeRowWrapper({
               </label>
             )}
 
-          {node.type === "folder" &&
-            (node.data as PoseGroupNodeData | undefined)?.kind ===
-              "pose-group" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "inspect-pose-group");
-                }}
-                title="Inspect Pose Group"
-              >
-                <Sliders size={10} />
-              </Button>
-            )}
           {canDeleteFolderDrivers ? (
             <Button
               variant="ghost"
@@ -2921,6 +2884,7 @@ function FlatInputControlRow({
         >
           <Slider
             value={value}
+            defaultValue={row.defaultValue}
             min={row.min}
             max={row.max}
             step={0.01}
@@ -5316,29 +5280,6 @@ export function VariablesPanel({
     });
   }, []);
 
-  const openPoseGroupInspector = (node: TreeNode) => {
-    const folderData = node.data as PoseGroupNodeData | undefined;
-    if (!folderData || folderData.kind !== "pose-group") {
-      return;
-    }
-    const poseIds = collectPoseIds(node);
-    if (poseIds.length === 0) {
-      return;
-    }
-    const matchingGroup = poseGroups.find(
-      (group) => group.path === folderData.groupPath,
-    );
-    const nodeId = matchingGroup?.id ?? node.id;
-    onSelectBlendStage?.(null);
-    onSelectPoseGroup?.({
-      groupPath: folderData.groupPath,
-      label: node.label,
-      groupId: matchingGroup?.source === "configured" ? matchingGroup.id : null,
-      poseIds,
-      nodeId,
-    });
-  };
-
   const selectPoseGroup = (group: PoseGroupSummary) => {
     onSelectBlendStage?.(null);
     onSelectPoseGroup?.({
@@ -5573,10 +5514,6 @@ export function VariablesPanel({
       onSelectRig?.(null);
       return;
     }
-    if (node.type === "folder" && action === "inspect-pose-group") {
-      openPoseGroupInspector(node);
-      return;
-    }
     if (node.type === "folder" && action === "delete-folder-drivers") {
       const summary = collectFolderRigDeletionSummary(node);
       if (summary.deletableRigInputIds.length === 0) {
@@ -5625,12 +5562,6 @@ export function VariablesPanel({
       onSelectRig?.(rigData.input.id);
       onSelectPoseGroup?.(null);
       onSelectBlendStage?.(null);
-    } else if (
-      node.type === "folder" &&
-      (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group"
-    ) {
-      openPoseGroupInspector(node);
-      onSelectRig?.(null);
     } else if (node.type === "input") {
       const inputData = node.data as InputCatalogRow;
       onSelectRig?.(inputData.inputId);
@@ -6215,12 +6146,6 @@ export function VariablesPanel({
       };
     }
     if (activeSurface === "poses") {
-      if (selectedPoseGroup?.nodeId) {
-        return {
-          type: "pose-group" as const,
-          id: selectedPoseGroup.nodeId,
-        };
-      }
       if (selectedPoseId) return { type: "pose" as const, id: selectedPoseId };
       return null;
     }
