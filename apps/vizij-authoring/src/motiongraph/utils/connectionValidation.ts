@@ -57,6 +57,85 @@ const NUMERIC_POLYMORPHIC_INPUTS = new Map<
   ["vectorsubtract", { fixed: ["a", "b"] }],
 ]);
 
+type NumericOutputInferenceRule = {
+  outputs: readonly string[];
+  fixed?: readonly string[];
+  variadic?: readonly string[];
+};
+
+const NUMERIC_SCALAR_PASSTHROUGH_OUTPUTS = new Map<
+  string,
+  NumericOutputInferenceRule
+>([
+  ["abs", { outputs: ["out"], fixed: ["in"] }],
+  ["add", { outputs: ["out"], variadic: ["operand"] }],
+  ["centered_remap", { outputs: ["out"], fixed: ["in"] }],
+  ["clamp", { outputs: ["out"], fixed: ["in", "min", "max"] }],
+  ["cos", { outputs: ["out"], fixed: ["in"] }],
+  ["damp", { outputs: ["out"], fixed: ["in"] }],
+  ["divide", { outputs: ["out"], fixed: ["lhs", "rhs"] }],
+  ["log", { outputs: ["out"], fixed: ["value", "base"] }],
+  ["max", { outputs: ["out"], variadic: ["operand"] }],
+  ["min", { outputs: ["out"], variadic: ["operand"] }],
+  ["modulo", { outputs: ["out"], fixed: ["lhs", "rhs"] }],
+  ["multiply", { outputs: ["out"], variadic: ["operand"] }],
+  ["oscillator", { outputs: ["out"], fixed: ["frequency", "phase"] }],
+  ["piecewise_remap", { outputs: ["out"], fixed: ["in"] }],
+  ["power", { outputs: ["out"], fixed: ["base", "exp"] }],
+  [
+    "remap",
+    {
+      outputs: ["out"],
+      fixed: ["in", "in_min", "in_max", "out_min", "out_max"],
+    },
+  ],
+  ["round", { outputs: ["out"], fixed: ["in"] }],
+  ["sign", { outputs: ["out"], fixed: ["in"] }],
+  ["sin", { outputs: ["out"], fixed: ["in"] }],
+  ["slew", { outputs: ["out"], fixed: ["in"] }],
+  ["spring", { outputs: ["out"], fixed: ["in"] }],
+  ["sqrt", { outputs: ["out"], fixed: ["in"] }],
+  ["subtract", { outputs: ["out"], fixed: ["lhs", "rhs"] }],
+  ["tan", { outputs: ["out"], fixed: ["in"] }],
+  ["vectoradd", { outputs: ["out"], fixed: ["a", "b"] }],
+  ["vectormultiply", { outputs: ["out"], fixed: ["a", "b"] }],
+  ["vectornormalize", { outputs: ["out"], fixed: ["in"] }],
+  ["vectorscale", { outputs: ["out"], fixed: ["v", "scalar"] }],
+  ["vectorsubtract", { outputs: ["out"], fixed: ["a", "b"] }],
+]);
+
+type PortsForType = {
+  inputs: PortSpec[];
+  outputs: PortSpec[];
+  variadicInputs?: VariadicSpec | null;
+  variadicOutputs?: VariadicSpec | null;
+};
+
+type Registry = {
+  getPortsForType: (typeId: string) => PortsForType;
+};
+
+type GraphNodeLike = {
+  id: string;
+  type?: string | null;
+  data?: {
+    inputDefaults?: Record<string, unknown>;
+  };
+};
+
+type GraphEdgeLike = {
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+};
+
+type CompatibilityContext = {
+  sourceNodeId?: string | null;
+  nodes?: readonly GraphNodeLike[];
+  edges?: readonly GraphEdgeLike[];
+};
+
 function isVectorFamily(type: string): boolean {
   return VECTOR_TYPES.has(type);
 }
@@ -96,16 +175,44 @@ function allowsNumericShapePolymorphism(
   return matchesPortHandle(targetHandle, config.fixed, config.variadic);
 }
 
-type PortsForType = {
-  inputs: PortSpec[];
-  outputs: PortSpec[];
-  variadicInputs?: VariadicSpec | null;
-  variadicOutputs?: VariadicSpec | null;
-};
+function unwrapDefaultValue(value: unknown): unknown {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  if (keys.length !== 1) {
+    return value;
+  }
+  const inner = (value as Record<string, unknown>)[keys[0]!];
+  return inner == null || typeof inner !== "object" ? inner : value;
+}
 
-type Registry = {
-  getPortsForType: (typeId: string) => PortsForType;
-};
+function inferScalarLikeTypeFromValue(value: unknown): string | null {
+  const unwrapped = unwrapDefaultValue(value);
+  if (typeof unwrapped === "number") {
+    return "float";
+  }
+  if (typeof unwrapped === "string" && unwrapped.trim().length > 0) {
+    return Number.isFinite(Number(unwrapped)) ? "float" : null;
+  }
+  if (typeof unwrapped === "boolean") {
+    return "bool";
+  }
+  return null;
+}
+
+function allowsScalarPassthroughOutput(
+  nodeType: string,
+  outputHandle: string | null,
+): NumericOutputInferenceRule | null {
+  const rule = NUMERIC_SCALAR_PASSTHROUGH_OUTPUTS.get(nodeType.toLowerCase());
+  if (!rule) {
+    return null;
+  }
+  return matchesPortHandle(outputHandle ?? "out", rule.outputs, undefined)
+    ? rule
+    : null;
+}
 
 /**
  * Try to resolve a handle ID as a variadic port instance.
@@ -126,39 +233,153 @@ function resolveVariadicPort(
   return { id: handleId, name: handleId, type: spec.type, direction };
 }
 
+function resolveSourcePorts(
+  registry: Registry,
+  sourceNodeType: string,
+): PortsForType {
+  if (sourceNodeType === INPUT_SOURCE_TYPE) {
+    return {
+      inputs: [],
+      outputs: [
+        {
+          id: INPUT_SOURCE_PORT_ID,
+          name: "output",
+          type: INPUT_SOURCE_PORT_TYPE,
+          direction: "output" as const,
+        },
+      ],
+    };
+  }
+  return registry.getPortsForType(sourceNodeType);
+}
+
+function resolveStaticOutputType(
+  ports: PortsForType,
+  handle: string | null,
+): { id: string | null; type: string } {
+  const port = handle
+    ? (ports.outputs.find((candidate) => candidate.id === handle) ??
+      resolveVariadicPort(ports, handle, "output"))
+    : null;
+  return {
+    id: port?.id ?? handle,
+    type: (port?.type ?? "any").toLowerCase(),
+  };
+}
+
+function resolveEffectiveOutputType(
+  registry: Registry,
+  nodeType: string,
+  handle: string | null,
+  context: CompatibilityContext,
+  visited: Set<string>,
+): string {
+  const ports = resolveSourcePorts(registry, nodeType);
+  const staticOutput = resolveStaticOutputType(ports, handle);
+  if (
+    !isVectorFamily(staticOutput.type) ||
+    !context.sourceNodeId ||
+    !context.nodes ||
+    !context.edges
+  ) {
+    return staticOutput.type;
+  }
+
+  const rule = allowsScalarPassthroughOutput(nodeType, staticOutput.id);
+  if (!rule) {
+    return staticOutput.type;
+  }
+
+  const visitKey = `${context.sourceNodeId}:${staticOutput.id ?? "out"}`;
+  if (visited.has(visitKey)) {
+    return staticOutput.type;
+  }
+
+  visited.add(visitKey);
+  try {
+    const node = context.nodes.find(
+      (candidate) => candidate.id === context.sourceNodeId,
+    );
+    if (!node) {
+      return staticOutput.type;
+    }
+
+    const resolvedInputTypes: string[] = [];
+    context.edges.forEach((edge) => {
+      if (edge.target !== node.id) {
+        return;
+      }
+      if (
+        !matchesPortHandle(edge.targetHandle ?? null, rule.fixed, rule.variadic)
+      ) {
+        return;
+      }
+      const sourceNode = context.nodes?.find(
+        (candidate) => candidate.id === edge.source,
+      );
+      if (!sourceNode?.type) {
+        return;
+      }
+      resolvedInputTypes.push(
+        resolveEffectiveOutputType(
+          registry,
+          String(sourceNode.type),
+          edge.sourceHandle ?? null,
+          {
+            ...context,
+            sourceNodeId: edge.source,
+          },
+          visited,
+        ),
+      );
+    });
+
+    Object.entries(node.data?.inputDefaults ?? {}).forEach(
+      ([portId, value]) => {
+        if (!matchesPortHandle(portId, rule.fixed, rule.variadic)) {
+          return;
+        }
+        const inferred = inferScalarLikeTypeFromValue(value);
+        if (inferred) {
+          resolvedInputTypes.push(inferred);
+        }
+      },
+    );
+
+    if (resolvedInputTypes.length === 0) {
+      return staticOutput.type;
+    }
+    if (resolvedInputTypes.some((type) => isVectorFamily(type))) {
+      return staticOutput.type;
+    }
+    if (resolvedInputTypes.every((type) => isFloatFamily(type))) {
+      return "float";
+    }
+    return staticOutput.type;
+  } finally {
+    visited.delete(visitKey);
+  }
+}
+
 export function checkConnectionCompatibility(
   registry: Registry,
   sourceNodeType: string,
   targetNodeType: string,
   sourceHandle: string | null,
   targetHandle: string | null,
+  context: CompatibilityContext = {},
 ): { ok: boolean; reason?: string } {
-  // Output targets are input-only sinks — they cannot be connection sources
+  // Output targets are input-only sinks - they cannot be connection sources
   if (sourceNodeType === OUTPUT_TARGET_TYPE) {
     return { ok: false, reason: "Output targets cannot be connection sources" };
   }
-  // Input sources are output-only — they cannot be connection targets
+  // Input sources are output-only - they cannot be connection targets
   if (targetNodeType === INPUT_SOURCE_TYPE) {
     return { ok: false, reason: "Input sources cannot be connection targets" };
   }
 
-  // Synthesize port spec for input source nodes (not in the WASM registry)
-  const srcPorts: PortsForType =
-    sourceNodeType === INPUT_SOURCE_TYPE
-      ? {
-          inputs: [],
-          outputs: [
-            {
-              id: INPUT_SOURCE_PORT_ID,
-              name: "output",
-              type: INPUT_SOURCE_PORT_TYPE,
-              direction: "output" as const,
-            },
-          ],
-        }
-      : registry.getPortsForType(sourceNodeType);
+  const srcPorts = resolveSourcePorts(registry, sourceNodeType);
 
-  // Synthesize port spec for output target nodes (not in the WASM registry)
   const tgtPorts: PortsForType =
     targetNodeType === OUTPUT_TARGET_TYPE
       ? {
@@ -183,20 +404,21 @@ export function checkConnectionCompatibility(
       resolveVariadicPort(tgtPorts, targetHandle, "input"))
     : null;
 
-  const srcType = (srcPort?.type ?? "any").toLowerCase();
+  const srcType = resolveEffectiveOutputType(
+    registry,
+    sourceNodeType,
+    srcPort?.id ?? sourceHandle,
+    context,
+    new Set<string>(),
+  );
   const tgtType = (tgtPort?.type ?? "any").toLowerCase();
 
-  // Wildcard: "any" is compatible with everything
   if (srcType === "any" || tgtType === "any") {
     return { ok: true };
   }
-
-  // Exact match
   if (srcType === tgtType) {
     return { ok: true };
   }
-
-  // Type families: aliases within each family are mutually compatible
   if (isFloatFamily(srcType) && isFloatFamily(tgtType)) {
     return { ok: true };
   }
@@ -216,6 +438,6 @@ export function checkConnectionCompatibility(
 
   return {
     ok: false,
-    reason: `Incompatible types: ${srcType} \u2192 ${tgtType}`,
+    reason: `Incompatible types: ${srcType} → ${tgtType}`,
   };
 }

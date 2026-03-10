@@ -59,6 +59,63 @@ const NUMERIC_POLYMORPHIC_INPUTS = new Map<
   ["vectorsubtract", { fixed: ["a", "b"] }],
 ]);
 
+type NumericOutputInferenceRule = {
+  outputs: readonly string[];
+  fixed?: readonly string[];
+  variadic?: readonly string[];
+};
+
+const NUMERIC_SCALAR_PASSTHROUGH_OUTPUTS = new Map<
+  string,
+  NumericOutputInferenceRule
+>([
+  ["abs", { outputs: ["out"], fixed: ["in"] }],
+  ["add", { outputs: ["out"], variadic: ["operand"] }],
+  ["centered_remap", { outputs: ["out"], fixed: ["in"] }],
+  ["clamp", { outputs: ["out"], fixed: ["in", "min", "max"] }],
+  ["cos", { outputs: ["out"], fixed: ["in"] }],
+  ["damp", { outputs: ["out"], fixed: ["in"] }],
+  ["divide", { outputs: ["out"], fixed: ["lhs", "rhs"] }],
+  ["log", { outputs: ["out"], fixed: ["value", "base"] }],
+  ["max", { outputs: ["out"], variadic: ["operand"] }],
+  ["min", { outputs: ["out"], variadic: ["operand"] }],
+  ["modulo", { outputs: ["out"], fixed: ["lhs", "rhs"] }],
+  ["multiply", { outputs: ["out"], variadic: ["operand"] }],
+  ["oscillator", { outputs: ["out"], fixed: ["frequency", "phase"] }],
+  ["piecewise_remap", { outputs: ["out"], fixed: ["in"] }],
+  ["power", { outputs: ["out"], fixed: ["base", "exp"] }],
+  [
+    "remap",
+    {
+      outputs: ["out"],
+      fixed: ["in", "in_min", "in_max", "out_min", "out_max"],
+    },
+  ],
+  ["round", { outputs: ["out"], fixed: ["in"] }],
+  ["sign", { outputs: ["out"], fixed: ["in"] }],
+  ["sin", { outputs: ["out"], fixed: ["in"] }],
+  ["slew", { outputs: ["out"], fixed: ["in"] }],
+  ["spring", { outputs: ["out"], fixed: ["in"] }],
+  ["sqrt", { outputs: ["out"], fixed: ["in"] }],
+  ["subtract", { outputs: ["out"], fixed: ["lhs", "rhs"] }],
+  ["tan", { outputs: ["out"], fixed: ["in"] }],
+  ["vectoradd", { outputs: ["out"], fixed: ["a", "b"] }],
+  ["vectormultiply", { outputs: ["out"], fixed: ["a", "b"] }],
+  ["vectornormalize", { outputs: ["out"], fixed: ["in"] }],
+  ["vectorscale", { outputs: ["out"], fixed: ["v", "scalar"] }],
+  ["vectorsubtract", { outputs: ["out"], fixed: ["a", "b"] }],
+]);
+
+type CompatibilityContext = {
+  nodes?: readonly EditorNode[];
+  edges?: readonly {
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }[];
+};
+
 function isVectorFamily(type: string): boolean {
   return VECTOR_TYPES.has(type);
 }
@@ -121,6 +178,45 @@ function allowsNumericShapePolymorphism(
   return matchesPortHandle(targetHandle, config.fixed, config.variadic);
 }
 
+function unwrapDefaultValue(value: unknown): unknown {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  if (keys.length !== 1) {
+    return value;
+  }
+  const inner = (value as Record<string, unknown>)[keys[0]!];
+  return inner == null || typeof inner !== "object" ? inner : value;
+}
+
+function inferScalarLikeTypeFromValue(value: unknown): string | null {
+  const unwrapped = unwrapDefaultValue(value);
+  if (typeof unwrapped === "number") {
+    return "float";
+  }
+  if (typeof unwrapped === "string" && unwrapped.trim().length > 0) {
+    return Number.isFinite(Number(unwrapped)) ? "float" : null;
+  }
+  if (typeof unwrapped === "boolean") {
+    return "bool";
+  }
+  return null;
+}
+
+function allowsScalarPassthroughOutput(
+  nodeType: string,
+  outputHandle: string | null,
+): NumericOutputInferenceRule | null {
+  const rule = NUMERIC_SCALAR_PASSTHROUGH_OUTPUTS.get(nodeType.toLowerCase());
+  if (!rule) {
+    return null;
+  }
+  return matchesPortHandle(outputHandle ?? "out", rule.outputs, undefined)
+    ? rule
+    : null;
+}
+
 export function isConnectionCompatible(
   sourceNode: EditorNode | undefined,
   targetNode: EditorNode | undefined,
@@ -171,6 +267,7 @@ export function isConnectionCompatibleWithRegistry(
   targetNode: EditorNode | undefined,
   sourceHandle?: string | null,
   targetHandle?: string | null,
+  context: CompatibilityContext = {},
 ): { ok: boolean; reason?: string; suggestions?: Suggestion[] } {
   if (!sourceNode || !targetNode) {
     return { ok: false, reason: "Missing source or target node" };
@@ -241,9 +338,103 @@ export function isConnectionCompatibleWithRegistry(
       }
     }
 
+    const resolveEffectiveOutputType = (
+      node: EditorNode,
+      handle: string | null | undefined,
+      visited: Set<string>,
+    ): string => {
+      const nodeType = (node.type ?? "").toString().toLowerCase();
+      const staticType = ((): string => {
+        if (typeof (registry as any).getPortsForType !== "function") {
+          return (
+            (srcPortType ?? node.type ?? "").toString().toLowerCase() || "any"
+          );
+        }
+        const ports = (registry as any).getPortsForType(nodeType);
+        const port = handle
+          ? ((Array.isArray(ports.outputs)
+              ? ports.outputs.find((candidate: any) => candidate.id === handle)
+              : null) ?? resolveVariadicPort(ports, handle, "output"))
+          : null;
+        return String(port?.type ?? "any").toLowerCase();
+      })();
+
+      if (!isVectorFamily(staticType) || !context.nodes || !context.edges) {
+        return staticType;
+      }
+
+      const rule = allowsScalarPassthroughOutput(nodeType, handle ?? null);
+      if (!rule) {
+        return staticType;
+      }
+
+      const visitKey = `${node.id}:${handle ?? "out"}`;
+      if (visited.has(visitKey)) {
+        return staticType;
+      }
+      visited.add(visitKey);
+      try {
+        const resolvedInputTypes: string[] = [];
+        context.edges.forEach((edge) => {
+          if (edge.target !== node.id) {
+            return;
+          }
+          if (
+            !matchesPortHandle(
+              edge.targetHandle ?? null,
+              rule.fixed,
+              rule.variadic,
+            )
+          ) {
+            return;
+          }
+          const upstream = context.nodes?.find(
+            (candidate) => candidate.id === edge.source,
+          );
+          if (!upstream) {
+            return;
+          }
+          resolvedInputTypes.push(
+            resolveEffectiveOutputType(
+              upstream,
+              edge.sourceHandle ?? null,
+              visited,
+            ),
+          );
+        });
+
+        Object.entries((node.data as any)?.inputDefaults ?? {}).forEach(
+          ([portId, value]) => {
+            if (!matchesPortHandle(portId, rule.fixed, rule.variadic)) {
+              return;
+            }
+            const inferred = inferScalarLikeTypeFromValue(value);
+            if (inferred) {
+              resolvedInputTypes.push(inferred);
+            }
+          },
+        );
+
+        if (resolvedInputTypes.length === 0) {
+          return staticType;
+        }
+        if (resolvedInputTypes.some((type) => isVectorFamily(type))) {
+          return staticType;
+        }
+        if (resolvedInputTypes.every((type) => isFloatFamily(type))) {
+          return "float";
+        }
+        return staticType;
+      } finally {
+        visited.delete(visitKey);
+      }
+    };
+
     // If no explicit handle-level type found, fall back to node type ids
     const finalSrcType =
-      (srcPortType ?? sourceNode.type ?? "").toString().toLowerCase() || "any";
+      resolveEffectiveOutputType(sourceNode, sourceHandle ?? null, new Set()) ||
+      (srcPortType ?? sourceNode.type ?? "").toString().toLowerCase() ||
+      "any";
     const finalTgtType =
       (tgtPortType ?? targetNode.type ?? "").toString().toLowerCase() || "any";
 

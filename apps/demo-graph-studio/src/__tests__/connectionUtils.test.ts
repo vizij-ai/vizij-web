@@ -82,6 +82,25 @@ describe("isConnectionCompatibleWithRegistry", () => {
     ).toBe(true);
   });
 
+  test("allows scalar passthrough outputs from damp into float inputs", () => {
+    const src = { id: "damp_1", type: "damp", data: {} } as any;
+    const tgt = { id: "abs_1", type: "abs" } as any;
+
+    expect(
+      isConnectionCompatibleWithRegistry(registry, src, tgt, "out", "in", {
+        nodes: [{ id: "float_1", type: "float_source", data: {} }, src, tgt],
+        edges: [
+          {
+            source: "float_1",
+            target: "damp_1",
+            sourceHandle: "out",
+            targetHandle: "in",
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+  });
+
   test("allows vector outputs into scalar math inputs that preserve numeric layout", () => {
     const src = { id: "src", type: "vector_source" } as any;
     const tgt = { id: "tgt", type: "abs" } as any;

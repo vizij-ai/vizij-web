@@ -340,6 +340,11 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
         tgtNode.type,
         connection.sourceHandle ?? null,
         connection.targetHandle ?? null,
+        {
+          sourceNodeId: connection.source,
+          nodes: currentNodes,
+          edges: useEditorStore.getState().edges,
+        },
       );
     },
     [],

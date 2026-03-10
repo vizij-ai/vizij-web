@@ -50,6 +50,7 @@ const registry = {
           ],
         };
       case "abs":
+      case "float_sink":
         return {
           inputs: [
             {
@@ -132,6 +133,88 @@ describe("checkConnectionCompatibility", () => {
         "in",
       ).ok,
     ).toBe(true);
+  });
+
+  it("allows scalar passthrough outputs from damp into float inputs", () => {
+    expect(
+      checkConnectionCompatibility(registry, "damp", "abs", "out", "in", {
+        sourceNodeId: "damp_1",
+        nodes: [
+          { id: "float_1", type: "float_source", data: {} },
+          { id: "damp_1", type: "damp", data: {} },
+          { id: "abs_1", type: "abs", data: {} },
+        ],
+        edges: [
+          {
+            source: "float_1",
+            target: "damp_1",
+            sourceHandle: "out",
+            targetHandle: "in",
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("allows scalar passthrough outputs from damp fed by authoring input nodes", () => {
+    expect(
+      checkConnectionCompatibility(registry, "input", "damp", "out", "in").ok,
+    ).toBe(true);
+
+    expect(
+      checkConnectionCompatibility(registry, "damp", "abs", "out", "in", {
+        sourceNodeId: "damp_1",
+        nodes: [
+          { id: "input_1", type: "input", data: {} },
+          { id: "damp_1", type: "damp", data: {} },
+        ],
+        edges: [
+          {
+            source: "input_1",
+            target: "damp_1",
+            sourceHandle: "out",
+            targetHandle: "in",
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("treats numeric input defaults as scalar passthrough inputs", () => {
+    expect(
+      checkConnectionCompatibility(registry, "damp", "abs", "out", "in", {
+        sourceNodeId: "damp_1",
+        nodes: [
+          {
+            id: "damp_1",
+            type: "damp",
+            data: { inputDefaults: { in: "0.5" } },
+          },
+        ],
+        edges: [],
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("keeps damp outputs blocked for float inputs until scalar shape is established", () => {
+    const result = checkConnectionCompatibility(
+      registry,
+      "damp",
+      "float_sink",
+      "out",
+      "in",
+      {
+        sourceNodeId: "damp_1",
+        nodes: [
+          { id: "damp_1", type: "damp", data: {} },
+          { id: "sink_1", type: "float_sink", data: {} },
+        ],
+        edges: [],
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/Incompatible types/);
   });
 
   it("allows vector outputs into scalar math inputs that preserve numeric layout", () => {
