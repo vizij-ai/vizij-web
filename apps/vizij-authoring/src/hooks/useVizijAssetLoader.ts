@@ -20,6 +20,7 @@ const FACE_LOAD_MILESTONE_ORDER: FaceLoadMilestoneName[] = [
   "runtime-ready",
 ];
 const __DEV__ = process.env.NODE_ENV !== "production";
+const STALE_LOAD_REQUEST = Symbol("stale-load-request");
 
 export interface FaceLoadPhaseUpdate {
   stepId: string;
@@ -356,6 +357,7 @@ export function useVizijAssetLoader() {
     createDefaultFaceLoadMilestones(),
   );
   const faceLoadExternalPhaseSequenceRef = useRef(0);
+  const activeLoadRequestRef = useRef(0);
   const faceLoadExternalPhaseStepOrderRef = useRef<Map<string, number>>(
     createFaceLoadStepOrderMap(createDefaultFaceLoadSteps()),
   );
@@ -612,10 +614,12 @@ export function useVizijAssetLoader() {
   );
 
   const cancelImportFlow = useCallback(() => {
+    activeLoadRequestRef.current += 1;
     logFaceLoadEvent("session-cancel");
     faceLoadSessionTokenRef.current = null;
     faceLoadSessionStartedAtRef.current = null;
     setFaceLoadSessionToken(null);
+    setIsLoading(false);
     resetExternalPhaseTrackers();
     clearFaceLoadOperations("session-cancel");
     resetFaceLoadMilestones();
@@ -765,6 +769,13 @@ export function useVizijAssetLoader() {
 
   const loadVizij = useCallback(
     async (loader: VizijLoader, label: string) => {
+      const requestId = activeLoadRequestRef.current + 1;
+      activeLoadRequestRef.current = requestId;
+      const assertCurrentLoad = () => {
+        if (activeLoadRequestRef.current !== requestId) {
+          throw STALE_LOAD_REQUEST;
+        }
+      };
       setIsLoading(true);
       setError(null);
       setRootId(null);
@@ -806,13 +817,16 @@ export function useVizijAssetLoader() {
 
         setFaceLoadProgress(0.18);
         await waitForNextFrame();
+        assertCurrentLoad();
         const {
           world: worldData,
           animatables,
           bundle: loadedBundle,
           scene,
         } = await loader();
+        assertCurrentLoad();
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(
@@ -846,6 +860,7 @@ export function useVizijAssetLoader() {
           throw new Error("Unable to find a Vizij root in the provided asset.");
         }
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(previous, {
@@ -872,6 +887,7 @@ export function useVizijAssetLoader() {
           elementSelection: [],
         });
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(previous, {
@@ -893,8 +909,10 @@ export function useVizijAssetLoader() {
           }),
         );
 
+        assertCurrentLoad();
         addWorldElements(worldData, animatables, true);
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(
@@ -928,6 +946,7 @@ export function useVizijAssetLoader() {
         setBundle(loadedBundle ?? null);
         setExportSceneRoot(scene ?? null);
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(
@@ -947,6 +966,9 @@ export function useVizijAssetLoader() {
         setFaceLoadProgress(0.9);
         markFaceLoadMilestone("asset-loaded");
       } catch (err) {
+        if (err === STALE_LOAD_REQUEST) {
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
         console.error("demo-vizij-render: failed to load Vizij", err);
@@ -954,7 +976,9 @@ export function useVizijAssetLoader() {
         setExportSceneRoot(null);
         markImportFlowError(activeStepId);
       } finally {
-        setIsLoading(false);
+        if (activeLoadRequestRef.current === requestId) {
+          setIsLoading(false);
+        }
       }
     },
     [
@@ -982,10 +1006,12 @@ export function useVizijAssetLoader() {
   const clearError = useCallback(() => setError(null), []);
 
   const reset = useCallback(() => {
+    activeLoadRequestRef.current += 1;
     logFaceLoadEvent("session-reset");
     faceLoadSessionTokenRef.current = null;
     faceLoadSessionStartedAtRef.current = null;
     setFaceLoadSessionToken(null);
+    setIsLoading(false);
     resetExternalPhaseTrackers();
     clearFaceLoadOperations("session-reset");
     resetFaceLoadMilestones();
