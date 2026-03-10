@@ -8,6 +8,7 @@
 //! a compile-time association between Rust structs and their ROS2 type
 //! names (e.g. `"std_msgs/Float64"`).
 
+use ros2_client::Message;
 use serde::{Deserialize, Serialize};
 
 /// A ROS2 message type with a compile-time type name.
@@ -99,6 +100,7 @@ impl_message_type!("std_msgs", String);
 pub struct InvokeRequest {
     pub args: std::string::String,
 }
+impl Message for InvokeRequest {}
 
 /// Generic service response for method invocation.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -109,3 +111,4 @@ pub struct InvokeResponse {
     /// Error message, empty string if success.
     pub message: std::string::String,
 }
+impl Message for InvokeResponse {}

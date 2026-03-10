@@ -13,7 +13,7 @@ use arora_connection::{
   SlotInfo, Value,
 };
 use futures::StreamExt;
-use log::{error, info, warn};
+use log::{info, warn};
 use ros2_client::{
   AService, Context, ContextOptions, Name, Node, NodeName, NodeOptions,
   ServiceMapping, ServiceTypeName, DEFAULT_SUBSCRIPTION_QOS,

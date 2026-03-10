@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use arora_connection::{SetSlotValuesHandler, SlotInfo, Type, Value};
 use futures::stream::unfold;
@@ -116,7 +117,7 @@ fn setup_typed<M: MessageType>(
   node: &mut Node,
   topic_name: &str,
   path: std::string::String,
-  convert: impl Fn(M) -> Value + Send + 'static,
+  convert: impl Fn(M) -> Value + Send + Sync + 'static,
 ) -> Result<SlotValueStream, std::string::String> {
   let ros_name = Name::parse(topic_name)
     .map_err(|e| format!("invalid topic name '{topic_name}': {e}"))?;
@@ -129,8 +130,10 @@ fn setup_typed<M: MessageType>(
     .create_subscription::<M>(&topic, None)
     .map_err(|e| format!("failed to subscribe to {topic_name}: {e:?}"))?;
 
+  let convert = Arc::new(convert);
   let stream = unfold(subscription, move |sub| {
     let path = path.clone();
+    let convert = convert.clone();
     async move {
       match sub.async_take().await {
         Ok((msg, _info)) => {
