@@ -2017,18 +2017,18 @@ function VizijRuntimeProviderInner({
       const basePath = stripNamespace(path, namespaceValue);
       const isTrackedOutput =
         namespacedOutputs.has(path) || baseOutputs.has(basePath);
-      if (
-        isRuntimeDebugEnabled() &&
-        (path.includes("animation/authoring.timeline.main") ||
-          path.toLowerCase().includes("blink"))
-      ) {
-        console.log("[vizij-runtime] frame write", {
-          path,
-          basePath,
-          value: write.value,
-          isTrackedOutput,
-        });
-      }
+      // if (
+      //   isRuntimeDebugEnabled() &&
+      //   (path.includes("animation/authoring.timeline.main") ||
+      //     path.toLowerCase().includes("blink"))
+      // ) {
+      //   console.log("[vizij-runtime] frame write", {
+      //     path,
+      //     basePath,
+      //     value: write.value,
+      //     isTrackedOutput,
+      //   });
+      // }
       if (!isTrackedOutput) {
         return;
       }
