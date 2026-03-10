@@ -96,10 +96,26 @@ export function createNodeRenderer(
       [variadicSpec, variadicCount],
     );
 
+    // ── Variadic outputs ───────────────────────────────────────────
+    const variadicOutputSpec = ports.variadicOutputs;
+    const variadicOutputCount: number = variadicOutputSpec
+      ? typeof data?.variadicOutputCount === "number"
+        ? data.variadicOutputCount
+        : defaultVariadicCount(variadicOutputSpec)
+      : 0;
+
+    const variadicOutputPorts = useMemo(
+      () =>
+        variadicOutputSpec
+          ? buildVariadicPorts(variadicOutputSpec, variadicOutputCount)
+          : [],
+      [variadicOutputSpec, variadicOutputCount],
+    );
+
     // Notify ReactFlow when the number of handles changes
     useEffect(() => {
       updateNodeInternals(id);
-    }, [id, updateNodeInternals, variadicCount]);
+    }, [id, updateNodeInternals, variadicCount, variadicOutputCount]);
 
     // Set of input port IDs that have an incoming edge
     const connectedInputs = useMemo(() => {
@@ -152,14 +168,20 @@ export function createNodeRenderer(
       if (variadicSpec?.max != null && variadicCount >= variadicSpec.max)
         return;
       setNodes((prev) =>
-        prev.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                data: { ...n.data, variadicInputCount: variadicCount + 1 },
-              }
-            : n,
-        ),
+        prev.map((n) => {
+          if (n.id !== id) return n;
+          const newData: typeof n.data = {
+            ...n.data,
+            variadicInputCount: variadicCount + 1,
+          };
+          if (variadicSpec?.keyed) {
+            newData.params = {
+              ...n.data.params,
+              record_keys: [...(n.data.params?.record_keys ?? []), ""],
+            };
+          }
+          return { ...n, data: newData };
+        }),
       );
     }, [id, setNodes, variadicCount, variadicSpec]);
 
@@ -181,6 +203,12 @@ export function createNodeRenderer(
             const { [removedPortId]: _, ...rest } = newData.inputDefaults;
             newData.inputDefaults = rest;
           }
+          if (variadicSpec?.keyed) {
+            newData.params = {
+              ...newData.params,
+              record_keys: (newData.params?.record_keys ?? []).slice(0, -1),
+            };
+          }
           return { ...n, data: newData };
         }),
       );
@@ -193,6 +221,59 @@ export function createNodeRenderer(
           ),
         );
     }, [id, setNodes, variadicCount, variadicSpec]);
+
+    const addVariadicOutput = useCallback(() => {
+      if (variadicOutputSpec?.max != null && variadicOutputCount >= variadicOutputSpec.max)
+        return;
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (n.id !== id) return n;
+          const newData: typeof n.data = {
+            ...n.data,
+            variadicOutputCount: variadicOutputCount + 1,
+          };
+          if (variadicOutputSpec?.keyed) {
+            newData.params = {
+              ...n.data.params,
+              record_keys: [...(n.data.params?.record_keys ?? []), ""],
+            };
+          }
+          return { ...n, data: newData };
+        }),
+      );
+    }, [id, setNodes, variadicOutputCount, variadicOutputSpec]);
+
+    const removeVariadicOutput = useCallback(() => {
+      const minCount = variadicOutputSpec?.min ?? 0;
+      if (variadicOutputCount <= minCount) return;
+
+      const removedPortId = formatVariadicPortId(
+        variadicOutputSpec!.id,
+        variadicOutputCount - 1,
+      );
+
+      setNodes((prev) =>
+        prev.map((n) => {
+          if (n.id !== id) return n;
+          const newData = { ...n.data, variadicOutputCount: variadicOutputCount - 1 };
+          if (variadicOutputSpec?.keyed) {
+            newData.params = {
+              ...newData.params,
+              record_keys: (newData.params?.record_keys ?? []).slice(0, -1),
+            };
+          }
+          return { ...n, data: newData };
+        }),
+      );
+      // Remove edges connected to the removed port
+      useEditorStore
+        .getState()
+        .setEdges((prev) =>
+          prev.filter(
+            (e) => !(e.source === id && e.sourceHandle === removedPortId),
+          ),
+        );
+    }, [id, setNodes, variadicOutputCount, variadicOutputSpec]);
 
     const label =
       data?.label ??
@@ -259,7 +340,7 @@ export function createNodeRenderer(
               );
             })}
             {/* Variadic inputs */}
-            {variadicPorts.map((p) => {
+            {variadicPorts.map((p, i) => {
               const c = getPortColor(p.type);
               const isConnected = connectedInputs.has(p.id);
               return (
@@ -281,7 +362,20 @@ export function createNodeRenderer(
                       {p.type}
                     </span>
                   </span>
-                  {!isConnected && (
+                  {variadicSpec?.keyed && (
+                    <input
+                      type="text"
+                      className="nopan nodrag ml-1 w-16 text-[10px] bg-neutral-700 border border-neutral-600 rounded px-1 py-0.5 text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-blue-500"
+                      placeholder="key"
+                      value={(data?.params?.record_keys ?? [])[i] ?? ""}
+                      onChange={(e) => {
+                        const keys = [...(data?.params?.record_keys ?? [])];
+                        keys[i] = e.target.value;
+                        updateParam("record_keys", keys);
+                      }}
+                    />
+                  )}
+                  {!isConnected && !variadicSpec?.keyed && (
                     <InlinePortDefault
                       portType={p.type}
                       value={data?.inputDefaults?.[p.id]}
@@ -342,6 +436,67 @@ export function createNodeRenderer(
                 </div>
               );
             })}
+            {/* Variadic outputs */}
+            {variadicOutputPorts.map((p, i) => {
+              const c = getPortColor(p.type);
+              return (
+                <div key={p.id} className="flex items-center gap-1.5 relative">
+                  {variadicOutputSpec?.keyed && (
+                    <input
+                      type="text"
+                      className="nopan nodrag mr-1 w-16 text-[10px] bg-neutral-700 border border-neutral-600 rounded px-1 py-0.5 text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-blue-500"
+                      placeholder="key"
+                      value={(data?.params?.record_keys ?? [])[i] ?? ""}
+                      onChange={(e) => {
+                        const keys = [...(data?.params?.record_keys ?? [])];
+                        keys[i] = e.target.value;
+                        updateParam("record_keys", keys);
+                      }}
+                    />
+                  )}
+                  <span className="text-xs text-neutral-400 pr-2">
+                    {p.name}
+                    <span className="ml-1 text-[10px] text-neutral-500">
+                      {p.type}
+                    </span>
+                  </span>
+                  <Handle
+                    id={p.id}
+                    type="source"
+                    position={Position.Right}
+                    style={{
+                      background: c.bg,
+                      border: `2px solid ${c.border}`,
+                      width: 10,
+                      height: 10,
+                    }}
+                  />
+                </div>
+              );
+            })}
+            {variadicOutputSpec && (
+              <div className="flex items-center gap-1 pr-2 mt-0.5 nopan nodrag">
+                <button
+                  onClick={addVariadicOutput}
+                  disabled={
+                    variadicOutputSpec.max != null &&
+                    variadicOutputCount >= variadicOutputSpec.max
+                  }
+                  className="w-5 h-5 rounded text-[11px] font-bold leading-none bg-neutral-700 hover:bg-neutral-600 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Add output"
+                >
+                  +
+                </button>
+                <button
+                  onClick={removeVariadicOutput}
+                  disabled={variadicOutputCount <= (variadicOutputSpec.min ?? 0)}
+                  className="w-5 h-5 rounded text-[11px] font-bold leading-none bg-neutral-700 hover:bg-neutral-600 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Remove output"
+                >
+                  −
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
