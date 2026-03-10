@@ -79,10 +79,7 @@ import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
-import {
-  getVisibleVariablesSurfaces,
-  type VariablesSurfaceTab,
-} from "./components/panels/variablesSurfaceOrder";
+import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 import {
   radiansToRoundedDegrees,
   resolveRootSceneRotationInputs,
@@ -1082,59 +1079,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredProceduralTargets, selectedProceduralTargetId],
   );
-  const selectedBundleProceduralMetrics = useMemo(() => {
-    if (
-      !selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
-    ) {
-      return null;
-    }
-    const rawIndex = selectedProceduralTargetId.slice(
-      BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
-    );
-    const index = Number.parseInt(rawIndex, 10);
-    if (!Number.isFinite(index) || index < 0) {
-      return null;
-    }
-    const entry = bundleProceduralEntries[index];
-    if (!entry?.spec || typeof entry.spec !== "object") {
-      return null;
-    }
-    const parsed = specToEditorState(entry.spec as Record<string, unknown>);
-    return {
-      nodes: parsed.nodes.length,
-      edges: parsed.edges.length,
-      inputs: parsed.enabledInputs.size,
-      outputs: parsed.enabledOutputs.size,
-    };
-  }, [bundleProceduralEntries, selectedProceduralTargetId]);
-  const selectedProceduralMetrics = useMemo(() => {
-    const isAuthored = Boolean(
-      parseAuthoredProceduralTargetValue(selectedProceduralTargetId),
-    );
-    if (isAuthored) {
-      return {
-        nodes: proceduralEditorNodes.length,
-        edges: proceduralEditorEdges.length,
-        inputs: proceduralEditorEnabledInputs.size,
-        outputs: proceduralEditorEnabledOutputs.size,
-      };
-    }
-    return (
-      selectedBundleProceduralMetrics ?? {
-        nodes: proceduralEditorNodes.length,
-        edges: proceduralEditorEdges.length,
-        inputs: proceduralEditorEnabledInputs.size,
-        outputs: proceduralEditorEnabledOutputs.size,
-      }
-    );
-  }, [
-    proceduralEditorEdges.length,
-    proceduralEditorEnabledInputs.size,
-    proceduralEditorEnabledOutputs.size,
-    proceduralEditorNodes.length,
-    selectedBundleProceduralMetrics,
-    selectedProceduralTargetId,
-  ]);
   const selectedAnimationInspectorTarget =
     useMemo<AnimationInspectorSelection | null>(() => {
       if (!selectedAnimationTargetId) {

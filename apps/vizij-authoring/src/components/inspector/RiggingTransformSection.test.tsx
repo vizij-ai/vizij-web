@@ -57,13 +57,11 @@ function createVectorFeature({
   id,
   key,
   label,
-  inputId,
   targetId,
 }: {
   id: string;
   key: string;
   label: string;
-  inputId: string;
   targetId: string;
 }) {
   return {
@@ -125,7 +123,6 @@ describe("RiggingTransformSection", () => {
             id: "feature_position",
             key: "position",
             label: "Position",
-            inputId,
             targetId,
           }),
         )}
@@ -165,7 +162,6 @@ describe("RiggingTransformSection", () => {
             id: "feature_rotation",
             key: "rotation",
             label: "Rotation",
-            inputId,
             targetId,
           }),
         )}

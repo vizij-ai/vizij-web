@@ -367,7 +367,13 @@ function findNestedWorkspaceSymlinks(pkgName) {
     // Walk two levels: dir/<pkg> and dir/<scope>/<pkg>
     for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const candidate = path.join(base, entry.name, "node_modules", "@vizij", pkgName);
+      const candidate = path.join(
+        base,
+        entry.name,
+        "node_modules",
+        "@vizij",
+        pkgName,
+      );
       try {
         const st = fs.lstatSync(candidate);
         if (st.isSymbolicLink()) results.push(candidate);
@@ -379,7 +385,13 @@ function findNestedWorkspaceSymlinks(pkgName) {
       try {
         for (const sub of fs.readdirSync(scoped, { withFileTypes: true })) {
           if (!sub.isDirectory()) continue;
-          const deepCandidate = path.join(scoped, sub.name, "node_modules", "@vizij", pkgName);
+          const deepCandidate = path.join(
+            scoped,
+            sub.name,
+            "node_modules",
+            "@vizij",
+            pkgName,
+          );
           try {
             const st = fs.lstatSync(deepCandidate);
             if (st.isSymbolicLink()) results.push(deepCandidate);
@@ -458,11 +470,15 @@ function unlinkDirect(pkgsToUnlink) {
     for (const nested of findNestedWorkspaceSymlinks(pkgName)) {
       if (!storeTarget) {
         // eslint-disable-next-line no-console
-        console.warn(`[wasm-links] No pnpm store target to restore for ${nested}`);
+        console.warn(
+          `[wasm-links] No pnpm store target to restore for ${nested}`,
+        );
         continue;
       }
       // eslint-disable-next-line no-console
-      console.log(`[wasm-links] Restoring (nested) ${nested} -> ${storeTarget}`);
+      console.log(
+        `[wasm-links] Restoring (nested) ${nested} -> ${storeTarget}`,
+      );
       replaceSymlink(nested, storeTarget);
     }
   }
@@ -529,18 +545,25 @@ if (args.command === "relink") {
       if (!st.isSymbolicLink()) return false;
       const target = fs.readlinkSync(rootLink);
       const localPath = path.join(args.vizijRs, "npm", "@vizij", pkgName);
-      return path.resolve(target).toLowerCase() === path.resolve(localPath).toLowerCase();
+      return (
+        path.resolve(target).toLowerCase() ===
+        path.resolve(localPath).toLowerCase()
+      );
     } catch {
       return false;
     }
   });
   if (locallyLinked.length === 0) {
     // eslint-disable-next-line no-console
-    console.log("[wasm-links] relink: no locally-linked packages detected, skipping.");
+    console.log(
+      "[wasm-links] relink: no locally-linked packages detected, skipping.",
+    );
     process.exit(0);
   }
   // eslint-disable-next-line no-console
-  console.log(`[wasm-links] relink: restoring nested links for: ${locallyLinked.join(", ")}`);
+  console.log(
+    `[wasm-links] relink: restoring nested links for: ${locallyLinked.join(", ")}`,
+  );
   linkDirect(locallyLinked, args.vizijRs);
   process.exit(0);
 }

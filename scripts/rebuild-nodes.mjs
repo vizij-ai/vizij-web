@@ -35,7 +35,9 @@ if (!fs.existsSync(vizijRs)) {
 }
 const npmScope = path.join(vizijRs, "npm", "@vizij");
 if (!fs.existsSync(npmScope)) {
-  console.error(`[rebuild-nodes] Could not find ${npmScope}. Is vizij-rs built?`);
+  console.error(
+    `[rebuild-nodes] Could not find ${npmScope}. Is vizij-rs built?`,
+  );
   process.exit(1);
 }
 
@@ -61,13 +63,24 @@ function findSymlinksForPkg(pkgName) {
   const root = path.join(REPO_ROOT, "node_modules", "@vizij", pkgName);
   try {
     if (fs.lstatSync(root).isSymbolicLink()) results.push(root);
-  } catch { /* not present */ }
+  } catch {
+    /* not present */
+  }
 
   // pnpm virtual store shared link
-  const storeShared = path.join(REPO_ROOT, "node_modules", ".pnpm", "node_modules", "@vizij", pkgName);
+  const storeShared = path.join(
+    REPO_ROOT,
+    "node_modules",
+    ".pnpm",
+    "node_modules",
+    "@vizij",
+    pkgName,
+  );
   try {
     if (fs.lstatSync(storeShared).isSymbolicLink()) results.push(storeShared);
-  } catch { /* not present */ }
+  } catch {
+    /* not present */
+  }
 
   // Nested workspace links (apps/* and packages/*)
   for (const topDir of ["apps", "packages"]) {
@@ -76,21 +89,39 @@ function findSymlinksForPkg(pkgName) {
     for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       // Direct: apps/vizij-authoring/node_modules/@vizij/<pkg>
-      const direct = path.join(base, entry.name, "node_modules", "@vizij", pkgName);
+      const direct = path.join(
+        base,
+        entry.name,
+        "node_modules",
+        "@vizij",
+        pkgName,
+      );
       try {
         if (fs.lstatSync(direct).isSymbolicLink()) results.push(direct);
-      } catch { /* not present */ }
+      } catch {
+        /* not present */
+      }
       // Scoped: packages/@vizij/node-graph-react/node_modules/@vizij/<pkg>
       const scoped = path.join(base, entry.name);
       try {
         for (const sub of fs.readdirSync(scoped, { withFileTypes: true })) {
           if (!sub.isDirectory()) continue;
-          const deep = path.join(scoped, sub.name, "node_modules", "@vizij", pkgName);
+          const deep = path.join(
+            scoped,
+            sub.name,
+            "node_modules",
+            "@vizij",
+            pkgName,
+          );
           try {
             if (fs.lstatSync(deep).isSymbolicLink()) results.push(deep);
-          } catch { /* not present */ }
+          } catch {
+            /* not present */
+          }
         }
-      } catch { /* not a directory */ }
+      } catch {
+        /* not a directory */
+      }
     }
   }
 
@@ -100,9 +131,10 @@ function findSymlinksForPkg(pkgName) {
 // ── 2. Link all available packages ─────────────────────────────────────────
 console.log("\n[rebuild-nodes] Step 1: Re-linking @vizij/* packages\n");
 
-const availablePkgs = fs.readdirSync(npmScope, { withFileTypes: true })
-  .filter(e => e.isDirectory())
-  .map(e => e.name);
+const availablePkgs = fs
+  .readdirSync(npmScope, { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  .map((e) => e.name);
 
 let linkedCount = 0;
 for (const pkgName of availablePkgs) {
@@ -132,7 +164,9 @@ function findViteCaches(dir, results = []) {
         findViteCaches(fullPath, results);
       }
     }
-  } catch { /* permission error or not a dir */ }
+  } catch {
+    /* permission error or not a dir */
+  }
   return results;
 }
 
@@ -147,4 +181,6 @@ if (viteCaches.length === 0) {
 }
 
 // ── Done ───────────────────────────────────────────────────────────────────
-console.log("\n[rebuild-nodes] Done. Restart your dev server to pick up the changes.\n");
+console.log(
+  "\n[rebuild-nodes] Done. Restart your dev server to pick up the changes.\n",
+);
