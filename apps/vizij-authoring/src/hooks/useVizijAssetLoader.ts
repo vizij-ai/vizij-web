@@ -768,6 +768,15 @@ export function useVizijAssetLoader() {
       setIsLoading(true);
       setError(null);
       setRootId(null);
+      setSourceName(null);
+      setBundle(null);
+      setExportSceneRoot(null);
+      setStoreState({
+        world: {},
+        animatables: {},
+        values: new Map(),
+        elementSelection: [],
+      });
       setFaceLoadProgress((current) => (current < 0.1 ? 0.1 : current));
       setFaceLoadSteps((previous) =>
         updateFaceLoadStatus(previous, {
@@ -992,11 +1001,18 @@ export function useVizijAssetLoader() {
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
+    setStoreState({
+      world: {},
+      animatables: {},
+      values: new Map(),
+      elementSelection: [],
+    });
   }, [
     clearFaceLoadOperations,
     logFaceLoadEvent,
     resetExternalPhaseTrackers,
     resetFaceLoadMilestones,
+    setStoreState,
   ]);
 
   const updateBundle = useCallback(
