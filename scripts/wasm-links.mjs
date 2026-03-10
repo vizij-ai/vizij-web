@@ -569,13 +569,7 @@ if (args.command === "relink") {
 }
 
 if (args.command === "link") {
-  if (pkgs.length === 0) {
-    // eslint-disable-next-line no-console
-    console.error(
-      '[wasm-links] No packages specified. Pass --pkgs "node-graph-wasm" or set WASM_PKGS.',
-    );
-    process.exit(2);
-  }
+  if (pkgs.length === 0) pkgs.push(...ALL_PACKAGES);
   assertVizijRsLayout(args.vizijRs);
   linkDirect(pkgs, args.vizijRs);
   maybeRunInstall(args.install);
@@ -585,13 +579,7 @@ if (args.command === "link") {
 }
 
 if (args.command === "unlink") {
-  if (pkgs.length === 0) {
-    // eslint-disable-next-line no-console
-    console.error(
-      '[wasm-links] No packages specified. Pass --pkgs "node-graph-wasm" or set WASM_PKGS.',
-    );
-    process.exit(2);
-  }
+  if (pkgs.length === 0) pkgs.push(...ALL_PACKAGES);
   assertVizijRsLayout(args.vizijRs);
   unlinkDirect(pkgs);
   maybeRunInstall(args.install);

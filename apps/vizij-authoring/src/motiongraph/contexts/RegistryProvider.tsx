@@ -31,6 +31,7 @@ type WasmVariadicSpec = {
   doc?: string;
   min?: number;
   max?: number | null;
+  keyed?: boolean;
 };
 
 type WasmParamSpec = {
@@ -77,6 +78,7 @@ export type VariadicSpec = {
   min?: number;
   max?: number | null;
   doc?: string;
+  keyed?: boolean;
 };
 
 export type ParamSpec = {
@@ -192,6 +194,7 @@ function buildVariadicSpec(
           ? spec.max
           : null,
     doc: spec.doc ?? "",
+    keyed: spec.keyed ?? false,
   };
 }
 

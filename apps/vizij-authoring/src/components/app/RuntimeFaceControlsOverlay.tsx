@@ -1,3 +1,4 @@
+import { Pause, Play } from "lucide-react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../ui";
 
@@ -17,6 +18,9 @@ export type RuntimeFaceControlsOverlayProps = {
   showReadyFlag?: boolean;
   runtimeStatusLabel?: string;
   runtimeStatusTestId?: string;
+  runtimePlaybackState?: "playing" | "paused" | "stopped";
+  onPlayRuntime?: () => void;
+  onPauseRuntime?: () => void;
   resetButtonLabel?: string;
   resetButtonTitle?: string;
   resetButtonTestId?: string;
@@ -31,6 +35,9 @@ export function RuntimeFaceControlsOverlay({
   showReadyFlag = true,
   runtimeStatusLabel,
   runtimeStatusTestId,
+  runtimePlaybackState,
+  onPlayRuntime,
+  onPauseRuntime,
   resetButtonLabel = "Reset Inputs",
   resetButtonTitle = "Reset graph inputs to their default values",
   resetButtonTestId,
@@ -61,9 +68,28 @@ export function RuntimeFaceControlsOverlay({
       {runtimeStatusLabel ? (
         <div
           data-testid={runtimeStatusTestId}
-          className="rounded bg-black/60 px-2 py-1 text-[10px] text-white"
+          className="flex items-center gap-1.5 rounded bg-black/60 px-2 py-1 text-[10px] text-white"
         >
           {runtimeStatusLabel}
+          {runtimePlaybackState === "playing" && onPauseRuntime ? (
+            <button
+              data-testid="main-runtime-pause"
+              onClick={onPauseRuntime}
+              title="Pause"
+              className="flex items-center justify-center rounded hover:bg-white/20 p-0.5 transition-colors"
+            >
+              <Pause className="h-3 w-3 fill-current" />
+            </button>
+          ) : runtimePlaybackState !== "playing" && onPlayRuntime ? (
+            <button
+              data-testid="main-runtime-play"
+              onClick={onPlayRuntime}
+              title="Play"
+              className="flex items-center justify-center rounded hover:bg-white/20 p-0.5 transition-colors"
+            >
+              <Play className="h-3 w-3 fill-current" />
+            </button>
+          ) : null}
         </div>
       ) : null}
       {onResetInputs && (

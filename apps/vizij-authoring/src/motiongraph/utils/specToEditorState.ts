@@ -188,6 +188,25 @@ export function specToEditorState(
     }
   }
 
+  // ── 4b. Infer variadicOutputCount from connected handles ─────────
+
+  for (const edge of editorEdges) {
+    const match = /^(.+)_(\d+)$/.exec(edge.sourceHandle ?? "");
+    if (!match) continue;
+    const node = editorNodes.find((n) => n.id === edge.source);
+    if (
+      !node ||
+      node.type === OUTPUT_TARGET_TYPE ||
+      node.type === INPUT_SOURCE_TYPE
+    )
+      continue;
+    const idx = parseInt(match[2], 10);
+    const current = (node.data?.variadicOutputCount as number) ?? 0;
+    if (idx + 1 > current) {
+      node.data = { ...node.data, variadicOutputCount: idx + 1 };
+    }
+  }
+
   // ── 5. Auto-layout ────────────────────────────────────────────────
 
   applyAutoLayout(editorNodes, editorEdges);

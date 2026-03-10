@@ -3320,6 +3320,91 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       effectiveProgramRuntimePlaybackState,
     ],
   );
+  const viewerRuntimeControlKind = useMemo<
+    "animation" | "program" | null
+  >(() => {
+    if (activeAnimationRuntimeTargetId && activeProgramRuntimeTargetId) {
+      return null;
+    }
+    if (activeProgramRuntimeTargetId) {
+      return "program";
+    }
+    if (activeAnimationRuntimeTargetId) {
+      return "animation";
+    }
+    const canPlayProgram = Boolean(
+      resolvedSelectedProceduralTargetId && selectedProgramRuntimeSnapshot,
+    );
+    const canPlayAnimation = Boolean(resolvedSelectedAnimationTargetId);
+    if (canPlayProgram === canPlayAnimation) {
+      return null;
+    }
+    return canPlayProgram ? "program" : "animation";
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    resolvedSelectedAnimationTargetId,
+    resolvedSelectedProceduralTargetId,
+    selectedProgramRuntimeSnapshot,
+  ]);
+  const viewerRuntimePlaybackState: RuntimePlaybackState | undefined =
+    viewerRuntimeControlKind === "program"
+      ? effectiveProgramRuntimePlaybackState
+      : viewerRuntimeControlKind === "animation"
+        ? effectiveAnimationRuntimePlaybackState
+        : undefined;
+  const handleViewerPlayRuntime = useCallback(() => {
+    if (viewerRuntimeControlKind === "program") {
+      const targetId =
+        activeProgramRuntimeTargetId ?? resolvedSelectedProceduralTargetId;
+      if (targetId) {
+        handlePlayProgramTarget(targetId);
+      }
+      return;
+    }
+    if (viewerRuntimeControlKind === "animation") {
+      const targetId =
+        activeAnimationRuntimeTargetId ?? resolvedSelectedAnimationTargetId;
+      if (targetId) {
+        handlePlayAnimationTarget(targetId);
+      }
+    }
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    handlePlayAnimationTarget,
+    handlePlayProgramTarget,
+    resolvedSelectedAnimationTargetId,
+    resolvedSelectedProceduralTargetId,
+    viewerRuntimeControlKind,
+  ]);
+  const handleViewerPauseRuntime = useCallback(() => {
+    if (
+      viewerRuntimeControlKind === "program" &&
+      activeProgramRuntimeTargetId
+    ) {
+      handlePauseProgramTarget(activeProgramRuntimeTargetId);
+      return;
+    }
+    if (
+      viewerRuntimeControlKind === "animation" &&
+      activeAnimationRuntimeTargetId
+    ) {
+      handlePauseAnimationTarget(activeAnimationRuntimeTargetId);
+    }
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    handlePauseAnimationTarget,
+    handlePauseProgramTarget,
+    viewerRuntimeControlKind,
+  ]);
+  const viewerPlayRuntime =
+    viewerRuntimeControlKind === null ? undefined : handleViewerPlayRuntime;
+  const viewerPauseRuntime =
+    viewerRuntimePlaybackState === "playing"
+      ? handleViewerPauseRuntime
+      : undefined;
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -4025,6 +4110,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         motionGraphRuntimeControllerId={activeProgramRuntimeControllerId}
         motionGraphRuntimeResetValues={activeProgramRuntimeResetValues}
         runtimeStatusLabel={runtimeStatusLabel}
+        runtimePlaybackState={viewerRuntimePlaybackState}
+        onPlayRuntime={viewerPlayRuntime}
+        onPauseRuntime={viewerPauseRuntime}
         runtimeActions={runtimeActions}
         selectedSceneId={selectedSceneId}
         onSelectScene={handleSelectObjectWithInspectorSync}

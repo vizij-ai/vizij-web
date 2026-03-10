@@ -116,6 +116,7 @@ export interface NormalizedRegistryVariadicSpec {
   type: string;
   min: number;
   max?: number;
+  keyed?: boolean;
 }
 
 export interface NormalizedRegistryParamSpec {
@@ -143,6 +144,7 @@ interface RegistryVariadicSpec {
   ty?: string;
   min: number;
   max?: number;
+  keyed?: boolean;
 }
 
 interface RegistryParamSpec {
@@ -468,6 +470,9 @@ function normalizeRegistryVariadicSpec(
   }
   if (typeof spec.max === "number") {
     normalized.max = spec.max;
+  }
+  if (spec.keyed) {
+    normalized.keyed = true;
   }
   return normalized;
 }
