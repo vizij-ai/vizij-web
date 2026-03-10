@@ -506,6 +506,7 @@ export interface ViewerProps {
   bundle: VizijAssetBundle | null;
   animationSourceActive?: boolean;
   animationRuntimeClip?: AnimationClipIR | null;
+  animationTransportSessionKey?: number;
   motionGraphRuntimeNodes?: EditorNode[] | null;
   motionGraphRuntimeEdges?: EditorEdge[] | null;
   motionGraphPlaybackState?: "playing" | "paused" | "stopped";
@@ -538,6 +539,7 @@ export function Viewer({
   bundle,
   animationSourceActive = true,
   animationRuntimeClip = null,
+  animationTransportSessionKey = 0,
   motionGraphRuntimeNodes = null,
   motionGraphRuntimeEdges = null,
   motionGraphPlaybackState = "stopped",
@@ -704,6 +706,7 @@ export function Viewer({
             <AnimationRuntimeBridge
               active={animationSourceActive}
               clip={animationRuntimeClip}
+              transportSessionKey={animationTransportSessionKey}
             />
             <MotionGraphRuntimeBridge
               controllerId={motionGraphRuntimeControllerId}

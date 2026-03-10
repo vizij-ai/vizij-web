@@ -16,8 +16,44 @@ async function clickLocatorViaDom(locator: Locator): Promise<void> {
   });
 }
 
+async function clickSelectedAnimationPanelPlay(page: Page): Promise<void> {
+  await clickLocatorViaDom(
+    page
+      .getByTestId("animation-panel")
+      .locator('button[title="Stop"] + button'),
+  );
+}
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseTrackCount(value: string): number | null {
+  const match = value.match(/(\d+)\s+tracks?/i);
+  return match ? Number.parseInt(match[1]!, 10) : null;
+}
+
+async function sampleInputValues(
+  locator: Locator,
+  durationMs = 600,
+  intervalMs = 25,
+): Promise<string[]> {
+  return locator.evaluate(
+    async (node, options) => {
+      const input = node as HTMLInputElement;
+      const values = new Set<string>();
+      const start = performance.now();
+      while (performance.now() - start < options.durationMs) {
+        values.add(input.value);
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, options.intervalMs),
+        );
+      }
+      values.add(input.value);
+      return Array.from(values.values());
+    },
+    { durationMs, intervalMs },
+  );
 }
 
 test("animation and program runtime sessions stay independent across UI changes @workflow", async ({
@@ -117,8 +153,15 @@ test("switching animation targets stops the active runtime before loading the ne
   const durationField = inspectorPanel.getByRole("textbox", {
     name: "Duration",
   });
+  const primaryTargetButton = page.getByRole("button", {
+    name: /Nonesense IMPORTED STOPPED/i,
+  });
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
+  const primaryTrackCount = parseTrackCount(
+    await primaryTargetButton.innerText(),
+  );
+  expect(primaryTrackCount).not.toBeNull();
   await clickLocatorViaDom(
     page.getByRole("button", {
       name: /New Animation Clip IMPORTED STOPPED/i,
@@ -161,6 +204,11 @@ test("switching animation targets stops the active runtime before loading the ne
   await expect(durationField).toHaveValue(secondaryDuration);
   await page.waitForTimeout(300);
   await expect(durationField).toHaveValue(secondaryDuration);
+  await clickSelectedAnimationPanelPlay(page);
+  await expect(runtimeChip).toContainText("Animation: Playing");
+  await expect(await sampleInputValues(durationField)).toEqual([
+    secondaryDuration,
+  ]);
 
   await clickLocatorViaDom(
     page.getByRole("button", {
@@ -169,4 +217,7 @@ test("switching animation targets stops the active runtime before loading the ne
   );
   await expect(selectedNameField).toHaveValue(activeName);
   await expect(durationField).toHaveValue("12.5");
+  await expect(parseTrackCount(await primaryTargetButton.innerText())).toBe(
+    primaryTrackCount,
+  );
 });

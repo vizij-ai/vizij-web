@@ -261,6 +261,8 @@ interface AnimationState {
   transportEnabled: boolean;
   transportPlaybackState: AnimationTransportPlaybackState;
   runtimeTransportAdapter: AnimationRuntimeTransportAdapter | null;
+  transportSessionKey: number;
+  transportRuntimeReady: boolean;
   timeDisplayMode: AnimationTimeDisplayMode;
 
   // Selection
@@ -290,7 +292,10 @@ interface AnimationState {
         | "transportPlaybackState"
       >
     >,
+    sessionKey?: number,
   ) => void;
+  advanceTransportSessionKey: () => void;
+  setTransportRuntimeReady: (ready: boolean, sessionKey?: number) => void;
   setRuntimeTransportAdapter: (
     adapter: AnimationRuntimeTransportAdapter | null,
   ) => void;
@@ -344,6 +349,8 @@ const INITIAL_STATE: Pick<
   | "transportEnabled"
   | "transportPlaybackState"
   | "runtimeTransportAdapter"
+  | "transportSessionKey"
+  | "transportRuntimeReady"
   | "timeDisplayMode"
   | "selectedTrackId"
   | "selectedKeyframeId"
@@ -360,6 +367,8 @@ const INITIAL_STATE: Pick<
   transportEnabled: true,
   transportPlaybackState: "stopped",
   runtimeTransportAdapter: null,
+  transportSessionKey: 0,
+  transportRuntimeReady: false,
   timeDisplayMode: "seconds",
   selectedTrackId: null,
   selectedKeyframeId: null,
@@ -425,8 +434,14 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           ? playSpeed
           : INITIAL_STATE.playSpeed,
     }),
-  syncTransportState: (updates) =>
+  syncTransportState: (updates, sessionKey) =>
     set((state) => {
+      if (
+        typeof sessionKey === "number" &&
+        sessionKey !== state.transportSessionKey
+      ) {
+        return state;
+      }
       const nextDuration =
         typeof updates.duration === "number" &&
         Number.isFinite(updates.duration)
@@ -476,6 +491,23 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         transportActive: nextTransportActive,
         transportPlaybackState: nextTransportPlaybackState,
       };
+    }),
+  advanceTransportSessionKey: () =>
+    set((state) => ({
+      transportSessionKey: state.transportSessionKey + 1,
+      transportRuntimeReady: false,
+    })),
+  setTransportRuntimeReady: (transportRuntimeReady, sessionKey) =>
+    set((state) => {
+      if (
+        typeof sessionKey === "number" &&
+        sessionKey !== state.transportSessionKey
+      ) {
+        return state;
+      }
+      return state.transportRuntimeReady === transportRuntimeReady
+        ? state
+        : { transportRuntimeReady };
     }),
   setRuntimeTransportAdapter: (runtimeTransportAdapter) =>
     set((state) =>
@@ -789,6 +821,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     set((state) => ({
       ...INITIAL_STATE,
       runtimeTransportAdapter: state.runtimeTransportAdapter,
+      transportSessionKey: state.transportSessionKey,
     })),
 
   tick: (deltaTime) => {

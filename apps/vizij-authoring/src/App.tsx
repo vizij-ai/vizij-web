@@ -831,6 +831,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationRuntimeTransportAdapter = useAnimationStore(
     (state) => state.runtimeTransportAdapter,
   );
+  const animationTransportSessionKey = useAnimationStore(
+    (state) => state.transportSessionKey,
+  );
+  const animationTransportRuntimeReady = useAnimationStore(
+    (state) => state.transportRuntimeReady,
+  );
+  const advanceAnimationTransportSessionKey = useAnimationStore(
+    (state) => state.advanceTransportSessionKey,
+  );
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
   );
@@ -918,13 +927,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const authoringSessionKey =
     rootId ?? faceLoadSessionToken ?? "__no-face-session__";
+  const startAnimationRuntimeSession = useCallback(
+    (targetId: string) => {
+      advanceAnimationTransportSessionKey();
+      setActiveAnimationRuntimeTargetId(targetId);
+      setPendingAnimationRuntimePlayTargetId(targetId);
+    },
+    [advanceAnimationTransportSessionKey],
+  );
   const clearAnimationRuntimeState = useCallback(() => {
+    advanceAnimationTransportSessionKey();
     animationRuntimeTransportAdapter?.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
       clearOutputs: true,
     });
     setPendingAnimationRuntimePlayTargetId(null);
     setActiveAnimationRuntimeTargetId(null);
-  }, [animationRuntimeTransportAdapter]);
+  }, [advanceAnimationTransportSessionKey, animationRuntimeTransportAdapter]);
   const clearProgramRuntimeState = useCallback(() => {
     setProgramRuntimePlaybackState("stopped");
     setActiveProgramRuntimeTargetId(null);
@@ -1485,13 +1503,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
   useEffect(() => {
-    if (!selectedAnimationTargetId) {
+    if (!selectedAnimationTargetId || pendingAnimationTargetSwitchId) {
       return;
     }
     saveAnimationTarget(selectedAnimationTargetId);
   }, [
     animationDuration,
     animationTracks,
+    pendingAnimationTargetSwitchId,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
@@ -2034,9 +2053,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         activeAnimationRuntimeTargetId &&
         activeAnimationRuntimeTargetId !== targetId
       ) {
-        useAnimationStore.getState().reset();
         setPendingAnimationTargetSwitchId(targetId);
         clearAnimationRuntimeState();
+        useAnimationStore.getState().reset();
         return;
       }
       setSelectedAnimationTargetId(targetId);
@@ -2571,11 +2590,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         setPendingAnimationRuntimePlayTargetId(null);
         return;
       }
-      setActiveAnimationRuntimeTargetId(targetId);
-      setPendingAnimationRuntimePlayTargetId(targetId);
+      startAnimationRuntimeSession(targetId);
     },
     [
       activeAnimationRuntimeTargetId,
+      startAnimationRuntimeSession,
       animationCurrentTime,
       animationLoopEnabled,
       animationPlaySpeed,
@@ -2584,8 +2603,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       clearAnimationRuntimeState,
       handleSelectAnimationTarget,
       selectedAnimationTargetId,
-      setWorkspacePanelVisibility,
       uiActions,
+      setWorkspacePanelVisibility,
     ],
   );
   const handlePauseAnimationTarget = useCallback(
@@ -2990,7 +3009,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       !pendingAnimationRuntimePlayTargetId ||
       pendingAnimationRuntimePlayTargetId !== activeAnimationRuntimeTargetId ||
       !activeAnimationRuntimeClip ||
-      !animationRuntimeTransportAdapter
+      !animationRuntimeTransportAdapter ||
+      !animationTransportRuntimeReady
     ) {
       return;
     }
@@ -3048,6 +3068,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [
     activeAnimationRuntimeClip,
     activeAnimationRuntimeTargetId,
+    animationTransportRuntimeReady,
     animationRuntimeTransportAdapter,
     pendingAnimationRuntimePlayTargetId,
   ]);
@@ -4131,6 +4152,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         bundle={rootId ? runtimeBundle : null}
         animationSourceActive={animationSourceActive}
         animationRuntimeClip={activeAnimationRuntimeClip}
+        animationTransportSessionKey={animationTransportSessionKey}
         motionGraphRuntimeNodes={activeProgramRuntimeSnapshot?.nodes}
         motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
         motionGraphPlaybackState={effectiveProgramRuntimePlaybackState}
