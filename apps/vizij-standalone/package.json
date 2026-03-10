@@ -25,6 +25,7 @@
     "@vizij/orchestrator-wasm": "^0.2.9",
     "@vizij/render": "workspace:*",
     "@vizij/runtime-react": "workspace:*",
+    "@vizij/speech-react": "workspace:*",
     "@vizij/utils": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

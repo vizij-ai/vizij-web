@@ -23,6 +23,9 @@ struct AppState {
     port: u16,
     web_port: Option<u16>,
     glb_source: Option<String>,
+    deepgram_key: Option<String>,
+    openai_key: Option<String>,
+    api_url: Option<String>,
 }
 
 /// CLI structure with optional subcommands
@@ -67,6 +70,18 @@ struct Cli {
     /// Keep window always on top
     #[arg(long, default_value_t = false)]
     always_on_top: bool,
+
+    /// Deepgram API key for speech-to-text
+    #[arg(long)]
+    deepgram_key: Option<String>,
+
+    /// OpenAI API key for LLM conversation
+    #[arg(long)]
+    openai_key: Option<String>,
+
+    /// API base URL for TTS service (e.g., http://localhost:3001)
+    #[arg(long)]
+    api_url: Option<String>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -263,6 +278,23 @@ async fn get_web_port(app_handle: tauri::AppHandle) -> Option<u16> {
     state.web_port
 }
 
+/// Get speech-related API keys/URLs from CLI flags
+#[tauri::command]
+async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String> {
+    let state = app_handle.state::<AppState>();
+    let mut keys = HashMap::new();
+    if let Some(ref key) = state.deepgram_key {
+        keys.insert("deepgramKey".to_string(), key.clone());
+    }
+    if let Some(ref key) = state.openai_key {
+        keys.insert("openaiKey".to_string(), key.clone());
+    }
+    if let Some(ref url) = state.api_url {
+        keys.insert("apiUrl".to_string(), url.clone());
+    }
+    keys
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Parse command line arguments
@@ -320,6 +352,9 @@ pub fn run() {
                 port,
                 web_port,
                 glb_source: glb_source.clone(),
+                deepgram_key: cli.deepgram_key.clone(),
+                openai_key: cli.openai_key.clone(),
+                api_url: cli.api_url.clone(),
             });
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -438,6 +473,7 @@ pub fn run() {
             get_glb_source,
             read_glb_file,
             respond_slot_values,
+            get_speech_keys,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

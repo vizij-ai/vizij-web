@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
@@ -8,7 +8,9 @@ import {
   useVizijRuntime,
   type VizijAssetBundle,
 } from "@vizij/runtime-react";
+import type { VizijSpeechConfig } from "@vizij/render";
 import { useWebSocketSync } from "./hooks/useWebSocketSync";
+import { useSpeechController } from "./hooks/useSpeechController";
 
 const DEFAULT_PORT = 9000;
 const NAMESPACE = "vizij-standalone";
@@ -261,6 +263,37 @@ function AppContent({
   // setInput(`rig/${faceId}/${path}`, { float: value });
   const { inputConstraints, namespace, faceId } = useWebSocketSync();
 
+  // Extract speech config from the loaded bundle's metadata
+  const speechConfig = useMemo<VizijSpeechConfig | null>(() => {
+    const meta = runtime.assetBundle?.bundle?.metadata;
+    if (!meta || typeof meta !== "object") return null;
+    const sc = (meta as Record<string, unknown>).speechConfig;
+    if (!sc || typeof sc !== "object") return null;
+    return sc as VizijSpeechConfig;
+  }, [runtime.assetBundle?.bundle?.metadata]);
+
+  // Extract pose data for viseme/emotion group resolution
+  const poses = useMemo(
+    () => runtime.assetBundle?.pose?.config?.poses ?? [],
+    [runtime.assetBundle?.pose?.config?.poses],
+  );
+
+  const poseGroups = useMemo(
+    () => runtime.assetBundle?.pose?.config?.poseGroups ?? [],
+    [runtime.assetBundle?.pose?.config?.poseGroups],
+  );
+
+  // Initialize speech controller (no-op when speechConfig is null)
+  const speech = useSpeechController({
+    speechConfig,
+    faceId: faceId || "face",
+    poses,
+    poseGroups,
+    setInput: runtime.setInput,
+    animateValue: runtime.animateValue,
+    ready: runtime.ready,
+  });
+
   const constraintCount = Object.keys(inputConstraints).length;
 
   return (
@@ -316,6 +349,27 @@ function AppContent({
               <p>Constraints: {constraintCount}</p>
               <p>Outputs: {runtime.outputPaths.length}</p>
               <p className="mt-1">FPS: {runtime.stepHz?.toFixed(0) ?? "-"}</p>
+              {speech.enabled && (
+                <p className="mt-1">
+                  Speech:{" "}
+                  <span
+                    className={
+                      speech.status === "listening"
+                        ? "text-red-400"
+                        : speech.status === "thinking"
+                          ? "text-yellow-400"
+                          : speech.status === "speaking"
+                            ? "text-purple-400"
+                            : "text-neutral-400"
+                    }
+                  >
+                    {speech.status}
+                  </span>
+                  {!speech.keysConfigured && (
+                    <span className="text-yellow-400"> (keys missing)</span>
+                  )}
+                </p>
+              )}
               <p className="mt-1 text-[10px] text-neutral-500">
                 Path: rig/{faceId}/&lt;path&gt;
               </p>
@@ -323,6 +377,31 @@ function AppContent({
           )}
         </div>
       </div>
+
+      {/* Mic toggle button (only when speech is configured in the bundle) */}
+      {speech.enabled && speech.keysConfigured && (
+        <button
+          onClick={speech.toggleMic}
+          className={`absolute bottom-2 right-2 px-4 py-3 rounded-full text-white text-sm font-medium transition-colors ${
+            speech.listening
+              ? "bg-red-600 hover:bg-red-700"
+              : speech.status === "thinking"
+                ? "bg-yellow-600"
+                : speech.status === "speaking"
+                  ? "bg-purple-600"
+                  : "bg-blue-600 hover:bg-blue-700"
+          }`}
+          title={`Speech: ${speech.status}${speech.error ? ` — ${speech.error}` : ""}`}
+        >
+          {speech.listening
+            ? "Stop"
+            : speech.status === "thinking"
+              ? "Thinking..."
+              : speech.status === "speaking"
+                ? "Speaking..."
+                : "Mic"}
+        </button>
+      )}
 
       {/* Debug button */}
       <button
@@ -338,6 +417,8 @@ function AppContent({
             "[vizij-standalone] Output paths:",
             runtime.outputPaths.slice(0, 20),
           );
+          console.log("[vizij-standalone] Speech config:", speechConfig);
+          console.log("[vizij-standalone] Speech status:", speech.status);
         }}
         className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
       >

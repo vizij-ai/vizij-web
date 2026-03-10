@@ -4,6 +4,7 @@ import {
   type VizijBundleAnimationEntry,
   type VizijBundleExtension,
   type VizijPoseRigConfig,
+  type VizijSpeechConfig,
   type VizijData,
 } from "@vizij/render";
 import {
@@ -949,6 +950,7 @@ export function useVizijExport(
           poseGraphSpecForExport,
           poseConfigForExport,
           authoredAnimationClips: normalizedAuthoredAnimationClips,
+          speechConfig: collectSpeechConfigFromLocalStorage(),
         });
       } catch (error) {
         await alertDialog(
@@ -1325,6 +1327,7 @@ interface BuildVizijBundleOptions {
   pipelineConfigByInputId?: PipelineConfigByInputId;
   poseGraphSpecForExport?: GraphSpec | null;
   poseConfigForExport?: PoseRigConfigFile | null;
+  speechConfig?: VizijSpeechConfig | null;
 }
 
 function clonePoseIrForBundle(
@@ -1366,6 +1369,54 @@ function mergeMotionGraphsIntoBundle(
     });
   });
   return cloned;
+}
+
+function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
+  try {
+    const speakingInputPath = localStorage.getItem("vizij_speech_speaking_path");
+    const userSpeakingInputPath = localStorage.getItem(
+      "vizij_speech_user_speaking_path",
+    );
+    const thinkingInputPath = localStorage.getItem("vizij_speech_thinking_path");
+    const agentName = localStorage.getItem("vizij_agent_name");
+    const emotionGroupId = localStorage.getItem("vizij_speech_emotion_group_id");
+    const visemeGroupId = localStorage.getItem("vizij_speech_viseme_group_id");
+    const voice = localStorage.getItem("vizij_speech_voice");
+    const mode = localStorage.getItem("vizij_speech_mode") as
+      | "echo"
+      | "conversation"
+      | null;
+    const systemPrompt = localStorage.getItem("vizij_speech_system_prompt");
+
+    // Only create config if at least one setting has been configured
+    const hasAnyValue =
+      speakingInputPath ||
+      userSpeakingInputPath ||
+      thinkingInputPath ||
+      agentName ||
+      emotionGroupId ||
+      visemeGroupId ||
+      voice ||
+      mode ||
+      systemPrompt;
+
+    if (!hasAnyValue) return null;
+
+    const config: VizijSpeechConfig = {};
+    if (speakingInputPath) config.speakingInputPath = speakingInputPath;
+    if (userSpeakingInputPath)
+      config.userSpeakingInputPath = userSpeakingInputPath;
+    if (thinkingInputPath) config.thinkingInputPath = thinkingInputPath;
+    if (agentName) config.agentName = agentName;
+    if (emotionGroupId) config.emotionGroupId = emotionGroupId;
+    if (visemeGroupId) config.visemeGroupId = visemeGroupId;
+    if (voice) config.voice = voice;
+    if (mode) config.mode = mode;
+    if (systemPrompt) config.systemPrompt = systemPrompt;
+    return config;
+  } catch {
+    return null;
+  }
 }
 
 function buildVizijBundle(
@@ -1572,6 +1623,10 @@ function buildVizijBundle(
   }
   bundleMetadata.authoredAnimationClips = authoredAnimationEntries.length;
   bundleMetadata.animationPayloadCount = mergedAnimations.length;
+
+  if (options.speechConfig) {
+    bundleMetadata.speechConfig = options.speechConfig;
+  }
 
   return {
     version: 1,

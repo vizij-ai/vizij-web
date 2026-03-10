@@ -250,6 +250,20 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
     speakingInputPath,
   });
 
+  // Persist viseme group selection for export
+  useEffect(() => {
+    try {
+      if (speech.selectedGroupId)
+        localStorage.setItem(
+          "vizij_speech_viseme_group_id",
+          speech.selectedGroupId,
+        );
+      else localStorage.removeItem("vizij_speech_viseme_group_id");
+    } catch {
+      /* ignore */
+    }
+  }, [speech.selectedGroupId]);
+
   // --- API keys ---
   const [dgKey, setDgKey] = useState<string | null>(getDeepgramApiKey);
   const [oaiKey, setOaiKey] = useState<string | null>(getOpenaiApiKey);
@@ -258,9 +272,26 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   const [oaiKeyInput, setOaiKeyInput] = useState("");
 
   // --- Mode (smart default based on available keys) ---
-  const [mode, setMode] = useState<SpeechMode>(() =>
+  const [mode, setModeState] = useState<SpeechMode>(() =>
     dgKey && oaiKey ? "conversation" : "echo",
   );
+  const setMode = useCallback((m: SpeechMode) => {
+    setModeState(m);
+    try {
+      localStorage.setItem("vizij_speech_mode", m);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Persist voice selection for export
+  useEffect(() => {
+    try {
+      localStorage.setItem("vizij_speech_voice", speech.selectedVoice);
+    } catch {
+      /* ignore */
+    }
+  }, [speech.selectedVoice]);
 
   // --- Agent name (persisted to localStorage) ---
   const [agentName, setAgentName] = useState(getStoredAgentName);
@@ -275,7 +306,21 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   }, []);
 
   // --- System prompt ---
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [systemPrompt, setSystemPromptState] = useState(() => {
+    try {
+      return localStorage.getItem("vizij_speech_system_prompt") || DEFAULT_SYSTEM_PROMPT;
+    } catch {
+      return DEFAULT_SYSTEM_PROMPT;
+    }
+  });
+  const setSystemPrompt = useCallback((prompt: string) => {
+    setSystemPromptState(prompt);
+    try {
+      localStorage.setItem("vizij_speech_system_prompt", prompt);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // Resolve {{agent_name}} tag in prompt, and append emotion instructions when available
   const resolvedPrompt = useMemo(
