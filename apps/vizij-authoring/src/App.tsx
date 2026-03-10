@@ -108,9 +108,6 @@ const AUTHORED_ANIMATION_TARGET_PREFIX = "authored-animation:";
 const AUTHORED_PROCEDURAL_TARGET_PREFIX = "authored-procedural:";
 const BUNDLE_ANIMATION_TARGET_PREFIX = "bundle-animation:";
 const BUNDLE_PROCEDURAL_TARGET_PREFIX = "bundle-procedural:";
-const AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID = "authoring.motiongraph.main";
-const DEFAULT_NEW_ANIMATION_CLIP_NAME = "New Animation Clip";
-const DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME = "New Procedural Program";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
 function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
   return {
@@ -166,8 +163,13 @@ function authoredAnimationTargetValue(clipId: string): string {
   return `${AUTHORED_ANIMATION_TARGET_PREFIX}${clipId}`;
 }
 
-function parseAuthoredAnimationTargetValue(targetId: string): string | null {
-  if (!targetId.startsWith(AUTHORED_ANIMATION_TARGET_PREFIX)) {
+function parseAuthoredAnimationTargetValue(
+  targetId: string | null | undefined,
+): string | null {
+  if (
+    typeof targetId !== "string" ||
+    !targetId.startsWith(AUTHORED_ANIMATION_TARGET_PREFIX)
+  ) {
     return null;
   }
   const clipId = targetId.slice(AUTHORED_ANIMATION_TARGET_PREFIX.length).trim();
@@ -201,6 +203,10 @@ function createAuthoredAnimationTarget(
   };
 }
 
+function stableValueFingerprint(value: unknown): string {
+  return JSON.stringify(value);
+}
+
 function nextAuthoredAnimationClipOrdinal(
   targets: readonly AuthoredAnimationTarget[],
 ): number {
@@ -223,8 +229,13 @@ function authoredProceduralTargetValue(programId: string): string {
   return `${AUTHORED_PROCEDURAL_TARGET_PREFIX}${programId}`;
 }
 
-function parseAuthoredProceduralTargetValue(targetId: string): string | null {
-  if (!targetId.startsWith(AUTHORED_PROCEDURAL_TARGET_PREFIX)) {
+function parseAuthoredProceduralTargetValue(
+  targetId: string | null | undefined,
+): string | null {
+  if (
+    typeof targetId !== "string" ||
+    !targetId.startsWith(AUTHORED_PROCEDURAL_TARGET_PREFIX)
+  ) {
     return null;
   }
   const programId = targetId
@@ -603,15 +614,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     useState(false);
   const [authoredAnimationTargets, setAuthoredAnimationTargets] = useState<
     AuthoredAnimationTarget[]
-  >(() => [
-    createAuthoredAnimationTarget(
-      AUTHORED_TIMELINE_CLIP_ID,
-      DEFAULT_NEW_ANIMATION_CLIP_NAME,
-    ),
-  ]);
-  const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState(
-    () => authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
-  );
+  >([]);
+  const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState<
+    string | null
+  >(null);
   const [activeAnimationRuntimeTargetId, setActiveAnimationRuntimeTargetId] =
     useState<string | null>(null);
   const [
@@ -622,12 +628,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     useState<AuthoringSurface>("variables");
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
     AuthoredProceduralTarget[]
-  >(() => [
-    createAuthoredProceduralTarget(
-      AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
-      DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
-    ),
-  ]);
+  >([]);
   const [bundleAnimationNameOverrides, setBundleAnimationNameOverrides] =
     useState<Record<string, string>>({});
   const [
@@ -640,14 +641,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     useState<Record<string, true>>({});
   const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
     useState<Record<string, true>>({});
-  const [selectedProceduralTargetId, setSelectedProceduralTargetId] = useState(
-    () => authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
-  );
+  const [selectedProceduralTargetId, setSelectedProceduralTargetId] = useState<
+    string | null
+  >(null);
   const [activeInspectorTarget, setActiveInspectorTarget] =
-    useState<ActiveInspectorTarget | null>(() => ({
-      kind: "animation-target",
-      targetId: authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
-    }));
+    useState<ActiveInspectorTarget | null>(null);
   const [activeProgramRuntimeTargetId, setActiveProgramRuntimeTargetId] =
     useState<string | null>(null);
   const [
@@ -1004,6 +1002,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       selectedProceduralTargetId,
     ],
   );
+  const saveAuthoredProceduralTarget = useCallback((targetId: string) => {
+    const programId = parseAuthoredProceduralTargetValue(targetId);
+    if (!programId) {
+      return;
+    }
+    setAuthoredProceduralTargets((previous) => {
+      const index = previous.findIndex(
+        (target) =>
+          target.targetId === targetId || target.programId === programId,
+      );
+      if (index < 0) {
+        return previous;
+      }
+      const target = previous[index]!;
+      const snapshot = snapshotProceduralEditorState();
+      const updatedTarget: AuthoredProceduralTarget = {
+        ...target,
+        snapshot,
+      };
+      if (
+        updatedTarget.programId === target.programId &&
+        updatedTarget.targetId === target.targetId &&
+        updatedTarget.name === target.name &&
+        stableValueFingerprint(updatedTarget.snapshot) ===
+          stableValueFingerprint(target.snapshot)
+      ) {
+        return previous;
+      }
+      const next = [...previous];
+      next[index] = updatedTarget;
+      return next;
+    });
+  }, []);
 
   const saveAuthoredAnimationTarget = useCallback(
     (targetId: string) => {
@@ -1029,6 +1060,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           targetId: authoredAnimationTargetValue(clip.id),
           clip,
         };
+        if (
+          updatedTarget.clipId === target.clipId &&
+          updatedTarget.targetId === target.targetId &&
+          updatedTarget.name === target.name &&
+          stableValueFingerprint(updatedTarget.clip) ===
+            stableValueFingerprint(target.clip)
+        ) {
+          return previous;
+        }
         const next = [...previous];
         next[index] = updatedTarget;
         return next;
@@ -1044,6 +1084,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
+  useEffect(() => {
+    if (!selectedAuthoredAnimationTarget || !selectedAnimationTargetId) {
+      return;
+    }
+    saveAuthoredAnimationTarget(selectedAnimationTargetId);
+  }, [
+    animationDuration,
+    animationTracks,
+    saveAuthoredAnimationTarget,
+    selectedAnimationTargetId,
+    selectedAuthoredAnimationTarget,
+  ]);
   const authoringAnimationTargets = useMemo(
     () => [
       ...authoredAnimationTargets.map((target) => ({
@@ -1079,6 +1131,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredProceduralTargets, selectedProceduralTargetId],
   );
+  useEffect(() => {
+    if (!selectedAuthoredProceduralTarget || !selectedProceduralTargetId) {
+      return;
+    }
+    saveAuthoredProceduralTarget(selectedProceduralTargetId);
+  }, [
+    proceduralEditorCustomInputPaths,
+    proceduralEditorEdges,
+    proceduralEditorEnabledInputs,
+    proceduralEditorEnabledOutputs,
+    proceduralEditorNodes,
+    saveAuthoredProceduralTarget,
+    selectedAuthoredProceduralTarget,
+    selectedProceduralTargetId,
+  ]);
   const selectedAnimationInspectorTarget =
     useMemo<AnimationInspectorSelection | null>(() => {
       if (!selectedAnimationTargetId) {
@@ -1461,7 +1528,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const currentAuthoredClipId = parseAuthoredAnimationTargetValue(
         selectedAnimationTargetId,
       );
-      if (currentAuthoredClipId) {
+      if (currentAuthoredClipId && selectedAnimationTargetId) {
         saveAuthoredAnimationTarget(selectedAnimationTargetId);
       }
       setSelectedAnimationTargetId(targetId);
@@ -1516,7 +1583,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     const currentAuthoredClipId = parseAuthoredAnimationTargetValue(
       selectedAnimationTargetId,
     );
-    if (currentAuthoredClipId) {
+    if (currentAuthoredClipId && selectedAnimationTargetId) {
       saveAuthoredAnimationTarget(selectedAnimationTargetId);
     }
 
@@ -1677,13 +1744,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         nextAuthoredTargets.length === 0 &&
         remainingBundleTargets.length === 0
       ) {
-        const fallbackTarget = createAuthoredAnimationTarget(
-          AUTHORED_TIMELINE_CLIP_ID,
-          DEFAULT_NEW_ANIMATION_CLIP_NAME,
+        setAuthoredAnimationTargets([]);
+        setSelectedAnimationTargetId(null);
+        setActiveInspectorTarget((previous) =>
+          previous?.kind === "animation-target" ||
+          previous?.kind === "animation-track"
+            ? null
+            : previous,
         );
-        setAuthoredAnimationTargets([fallbackTarget]);
-        setSelectedAnimationTargetId(fallbackTarget.targetId);
-        importAnimationClipIr(fallbackTarget.clip);
+        useAnimationStore.getState().reset();
         return;
       }
 
@@ -1773,23 +1842,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const currentAuthoredProgramId = parseAuthoredProceduralTargetValue(
         selectedProceduralTargetId,
       );
-      if (currentAuthoredProgramId) {
-        setAuthoredProceduralTargets((previous) => {
-          const index = previous.findIndex(
-            (target) =>
-              target.targetId === selectedProceduralTargetId ||
-              target.programId === currentAuthoredProgramId,
-          );
-          if (index < 0) {
-            return previous;
-          }
-          const next = [...previous];
-          next[index] = {
-            ...next[index]!,
-            snapshot: snapshotProceduralEditorState(),
-          };
-          return next;
-        });
+      if (currentAuthoredProgramId && selectedProceduralTargetId) {
+        saveAuthoredProceduralTarget(selectedProceduralTargetId);
       }
 
       setSelectedProceduralTargetId(targetId);
@@ -1825,6 +1879,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       authoredProceduralTargets,
       bundleProceduralEntries,
       importMotionGraph,
+      saveAuthoredProceduralTarget,
       selectedProceduralTargetId,
     ],
   );
@@ -1833,23 +1888,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     const currentAuthoredProgramId = parseAuthoredProceduralTargetValue(
       selectedProceduralTargetId,
     );
-    if (currentAuthoredProgramId) {
-      setAuthoredProceduralTargets((previous) => {
-        const index = previous.findIndex(
-          (target) =>
-            target.targetId === selectedProceduralTargetId ||
-            target.programId === currentAuthoredProgramId,
-        );
-        if (index < 0) {
-          return previous;
-        }
-        const next = [...previous];
-        next[index] = {
-          ...next[index]!,
-          snapshot: snapshotProceduralEditorState(),
-        };
-        return next;
-      });
+    if (currentAuthoredProgramId && selectedProceduralTargetId) {
+      saveAuthoredProceduralTarget(selectedProceduralTargetId);
     }
 
     const nextOrdinal = nextAuthoredProceduralProgramOrdinal(
@@ -1864,7 +1904,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setAuthoredProceduralTargets((previous) => [...previous, nextTarget]);
     setSelectedProceduralTargetId(nextTarget.targetId);
     hydrateProceduralEditorState(nextTarget.snapshot);
-  }, [authoredProceduralTargets, selectedProceduralTargetId]);
+  }, [
+    authoredProceduralTargets,
+    saveAuthoredProceduralTarget,
+    selectedProceduralTargetId,
+  ]);
 
   const handleDuplicateProgramTarget = useCallback(
     (targetId: string) => {
@@ -1987,13 +2031,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         nextAuthoredTargets.length === 0 &&
         remainingBundleTargets.length === 0
       ) {
-        const fallbackTarget = createAuthoredProceduralTarget(
-          AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID,
-          DEFAULT_NEW_PROCEDURAL_PROGRAM_NAME,
+        setAuthoredProceduralTargets([]);
+        setSelectedProceduralTargetId(null);
+        setActiveInspectorTarget((previous) =>
+          previous?.kind === "program-target" ||
+          previous?.kind === "motiongraph-node"
+            ? null
+            : previous,
         );
-        setAuthoredProceduralTargets([fallbackTarget]);
-        setSelectedProceduralTargetId(fallbackTarget.targetId);
-        hydrateProceduralEditorState(fallbackTarget.snapshot);
+        useEditorStore.getState().clear();
         return;
       }
 
@@ -2271,6 +2317,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleInspectAnimationTrackFromInspector = useCallback(
     (trackId: string) => {
+      if (!selectedAnimationTargetId) {
+        return;
+      }
       setActiveAuthoringSurface("animations");
       openInspectorForTarget({
         kind: "animation-track",
@@ -2293,6 +2342,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleInspectAnimationTrackFromTimeline = useCallback(
     (trackId: string) => {
+      if (!selectedAnimationTargetId) {
+        return;
+      }
       setActiveAuthoringSurface("animations");
       openInspectorForTarget({
         kind: "animation-track",
@@ -2472,15 +2524,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ) {
       return;
     }
-    setSelectedAnimationTargetId(
-      authoredAnimationTargets[0]?.targetId ??
-        authoredAnimationTargetValue(AUTHORED_TIMELINE_CLIP_ID),
-    );
-  }, [
-    animationTargetOptions,
-    authoredAnimationTargets,
-    selectedAnimationTargetId,
-  ]);
+    setSelectedAnimationTargetId(animationTargetOptions[0]?.value ?? null);
+  }, [animationTargetOptions, selectedAnimationTargetId]);
 
   useEffect(() => {
     if (
@@ -2490,15 +2535,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ) {
       return;
     }
-    setSelectedProceduralTargetId(
-      authoredProceduralTargets[0]?.targetId ??
-        authoredProceduralTargetValue(AUTHORED_PROCEDURAL_MAIN_PROGRAM_ID),
-    );
-  }, [
-    authoredProceduralTargets,
-    proceduralTargetOptions,
-    selectedProceduralTargetId,
-  ]);
+    setSelectedProceduralTargetId(proceduralTargetOptions[0]?.value ?? null);
+  }, [proceduralTargetOptions, selectedProceduralTargetId]);
   useEffect(() => {
     if (
       !activeAnimationRuntimeTargetId ||
@@ -3130,7 +3168,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleSelectMotionGraphNodeWithInspectorSync = useCallback(
     (id: string | null) => {
-      if (id) {
+      if (id && selectedProceduralTargetId) {
         clearPoseGraphInspectorSelection();
         openInspectorForTarget({
           kind: "motiongraph-node",
