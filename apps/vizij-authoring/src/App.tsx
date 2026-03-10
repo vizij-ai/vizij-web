@@ -2989,25 +2989,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     : "stopped";
   const handlePlayAnimationRuntime = useCallback(() => {
     const targetId =
-      selectedAnimationTargetId ?? activeAnimationRuntimeTargetId;
+      resolvedSelectedAnimationTargetId ?? activeAnimationRuntimeTargetId;
     if (targetId) {
       handlePlayAnimationTarget(targetId);
     }
   }, [
     activeAnimationRuntimeTargetId,
     handlePlayAnimationTarget,
-    selectedAnimationTargetId,
+    resolvedSelectedAnimationTargetId,
   ]);
   const handlePauseAnimationRuntime = useCallback(() => {
     const targetId =
-      activeAnimationRuntimeTargetId ?? selectedAnimationTargetId;
+      activeAnimationRuntimeTargetId ?? resolvedSelectedAnimationTargetId;
     if (targetId) {
       handlePauseAnimationTarget(targetId);
     }
   }, [
     activeAnimationRuntimeTargetId,
     handlePauseAnimationTarget,
-    selectedAnimationTargetId,
+    resolvedSelectedAnimationTargetId,
   ]);
   const handleStopAnimationRuntime = useCallback(() => {
     if (activeAnimationRuntimeTargetId) {
@@ -3015,24 +3015,26 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     }
   }, [activeAnimationRuntimeTargetId, handleStopAnimationTarget]);
   const handlePlayProgramRuntime = useCallback(() => {
-    const targetId = selectedProceduralTargetId ?? activeProgramRuntimeTargetId;
+    const targetId =
+      resolvedSelectedProceduralTargetId ?? activeProgramRuntimeTargetId;
     if (targetId) {
       handlePlayProgramTarget(targetId);
     }
   }, [
     activeProgramRuntimeTargetId,
     handlePlayProgramTarget,
-    selectedProceduralTargetId,
+    resolvedSelectedProceduralTargetId,
   ]);
   const handlePauseProgramRuntime = useCallback(() => {
-    const targetId = activeProgramRuntimeTargetId ?? selectedProceduralTargetId;
+    const targetId =
+      activeProgramRuntimeTargetId ?? resolvedSelectedProceduralTargetId;
     if (targetId) {
       handlePauseProgramTarget(targetId);
     }
   }, [
     activeProgramRuntimeTargetId,
     handlePauseProgramTarget,
-    selectedProceduralTargetId,
+    resolvedSelectedProceduralTargetId,
   ]);
   const handleStopProgramRuntime = useCallback(() => {
     if (activeProgramRuntimeTargetId) {
