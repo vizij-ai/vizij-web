@@ -22,7 +22,7 @@ describe("face inspector channel semantics", () => {
 
     expect(resolved.currentValue).toBe(0.42);
     expect(resolved.sourceKind).toBe("propsrig-channel");
-    expect(resolved.sourceLabel).toBe("/propsrig/face/translation/x");
+    expect(resolved.sourceLabel).toBe("/face/trans/x");
   });
 
   it("falls back to static value for unresolved channel authority", () => {

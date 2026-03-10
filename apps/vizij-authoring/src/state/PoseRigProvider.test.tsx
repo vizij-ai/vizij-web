@@ -121,7 +121,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       "pose_smile_weight",
       "/poses/pose_smile.weight",
       {
-        label: "Pose Weight - Smile",
+        label: "Smile - Pose Weight",
         sourceId: "pose-weight:pose_smile",
       },
     );
@@ -129,7 +129,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       "pose_frown_weight",
       "/poses/pose_frown.weight",
       {
-        label: "Pose Weight - Frown",
+        label: "Frown - Pose Weight",
         sourceId: "pose-weight:pose_frown",
       },
     );
@@ -165,7 +165,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       createdFrownWeight.id,
       {
         path: "/poses/pose_frown.weight",
-        label: "Pose Weight - Frown",
+        label: "Frown - Pose Weight",
         sourceId: "pose-weight:pose_frown",
         defaultValue: 0,
         range: { min: 0, max: 1 },
@@ -189,7 +189,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       "pose_smile_weight",
       "/poses/pose_smile.weight",
       {
-        label: "Pose Weight - Smile",
+        label: "Smile - Pose Weight",
         sourceId: "pose-weight:pose_smile",
       },
     );
@@ -205,7 +205,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       "pose_old_weight",
       "/poses/pose_old.weight",
       {
-        label: "Pose Weight - Old",
+        label: "Old - Pose Weight",
         sourceId: "pose-weight:pose_old",
       },
     );
@@ -213,7 +213,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
       "pose_smile_weight_suffix",
       "/poses/pose_smile.weight_2",
       {
-        label: "Pose Weight - Smile (suffix)",
+        label: "Smile (suffix) - Pose Weight",
       },
     );
 
