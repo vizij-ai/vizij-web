@@ -3907,7 +3907,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       />
     </div>
   );
-  const viewportContent = motionGraphPanelVisible ? (
+  const viewportContent = effectiveMotionGraphPanelVisible ? (
     <PanelGroup
       orientation={motionGraphSplitVertical ? "horizontal" : "vertical"}
     >
@@ -3926,12 +3926,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
           playbackState={programRuntimePlaybackState}
           onPlayTransport={
-            selectedProceduralTargetId || activeProgramRuntimeTargetId
+            resolvedSelectedProceduralTargetId || activeProgramRuntimeTargetId
               ? handlePlayProgramRuntime
               : undefined
           }
           onPauseTransport={
-            selectedProceduralTargetId || activeProgramRuntimeTargetId
+            resolvedSelectedProceduralTargetId || activeProgramRuntimeTargetId
               ? handlePauseProgramRuntime
               : undefined
           }
@@ -3954,7 +3954,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         <WorkspaceLayout
           menuBar={menuBar}
           // Left
-          leftTopVisible={hierarchyPanelVisible}
+          leftTopVisible={effectiveHierarchyPanelVisible}
           leftTopPanel={
             <HierarchyPanel
               showSelectionGlow={showSelectionGlow}
@@ -4003,7 +4003,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelTitle="Authoring"
               panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
               onClosePanel={handleHideControlAuthoringPanel}
-              animationActive={animationPanelVisible}
+              animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
               enableMotionGraphPruning={false}
@@ -4012,7 +4012,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           leftBottomVisible2={false}
           leftBottomVisible3={false}
           leftBottomPanel3={null}
-          leftMiddleVisible={inputControlsPanelVisible}
+          leftMiddleVisible={effectiveInputControlsPanelVisible}
           leftMiddlePanel={
             <VariablesPanel
               selectedRigId={selectedRigId}
@@ -4025,8 +4025,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelTitle="Input Controls"
               panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
               onClosePanel={handleHideInputControlsPanel}
-              motionGraphActive={motionGraphPanelVisible}
-              animationActive={animationPanelVisible}
+              motionGraphActive={effectiveMotionGraphPanelVisible}
+              animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
               enableMotionGraphPruning
@@ -4035,21 +4035,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               }
             />
           }
-          leftBottomVisible={controlAuthoringPanelVisible}
+          leftBottomVisible={effectiveControlAuthoringPanelVisible}
           viewport={viewportContent}
-          bottomVisible={animationPanelVisible}
+          bottomVisible={effectiveAnimationPanelVisible}
           bottomPanel={
             <AnimationPanel
               onClosePanel={handleHideAnimationPanel}
               onInspectTrack={handleInspectAnimationTrackFromTimeline}
               playbackState={animationRuntimePlaybackState}
               onPlayTransport={
-                selectedAnimationTargetId || activeAnimationRuntimeTargetId
+                resolvedSelectedAnimationTargetId ||
+                activeAnimationRuntimeTargetId
                   ? handlePlayAnimationRuntime
                   : undefined
               }
               onPauseTransport={
-                selectedAnimationTargetId || activeAnimationRuntimeTargetId
+                resolvedSelectedAnimationTargetId ||
+                activeAnimationRuntimeTargetId
                   ? handlePauseAnimationRuntime
                   : undefined
               }
@@ -4065,30 +4067,32 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           rightTopVisible={false}
           rightTopPanel={null}
           rightBottomVisible={
-            (motionGraphPanelVisible && motionGraphPalettePanelVisible) ||
-            inspectorPanelVisible ||
-            speechPanelVisible ||
-            debugPanelVisible
+            (effectiveMotionGraphPanelVisible &&
+              effectiveMotionGraphPalettePanelVisible) ||
+            effectiveInspectorPanelVisible ||
+            effectiveSpeechPanelVisible ||
+            effectiveDebugPanelVisible
           }
           rightSidebarDefaultSize={rightSidebarDefaultSize}
           rightSidebarResetKey={rightSidebarResetKey}
           rightBottomPanel={
             <div className="flex h-full min-h-0 flex-col">
-              {motionGraphPanelVisible && motionGraphPalettePanelVisible ? (
+              {effectiveMotionGraphPanelVisible &&
+              effectiveMotionGraphPalettePanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <MotionGraphPalettePanel
                     onClosePanel={handleHideMotionGraphPalettePanel}
                   />
                 </div>
               ) : null}
-              {motionGraphPanelVisible &&
-              motionGraphPalettePanelVisible &&
-              (inspectorPanelVisible ||
-                speechPanelVisible ||
-                debugPanelVisible) ? (
+              {effectiveMotionGraphPanelVisible &&
+              effectiveMotionGraphPalettePanelVisible &&
+              (effectiveInspectorPanelVisible ||
+                effectiveSpeechPanelVisible ||
+                effectiveDebugPanelVisible) ? (
                 <div className="border-t border-border-default/70" />
               ) : null}
-              {inspectorPanelVisible ? (
+              {effectiveInspectorPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <InspectorPanel
                     activeInspectorTarget={activeInspectorTarget}
@@ -4120,12 +4124,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   />
                 </div>
               ) : null}
-              {speechPanelVisible ? (
+              {effectiveSpeechPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
                   <SpeechPanel onClosePanel={handleHideSpeechPanel} />
                 </div>
               ) : null}
-              {debugPanelVisible ? (
+              {effectiveDebugPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
                   <DebugPanel
                     rootId={loader.rootId}
