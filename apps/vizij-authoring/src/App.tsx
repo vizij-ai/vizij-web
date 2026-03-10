@@ -701,6 +701,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pendingAnimationRuntimePlayTargetId,
     setPendingAnimationRuntimePlayTargetId,
   ] = useState<string | null>(null);
+  const [pendingAnimationTargetSwitchId, setPendingAnimationTargetSwitchId] =
+    useState<string | null>(null);
   const [activeAuthoringSurface, setActiveAuthoringSurface] =
     useState<AuthoringSurface>("variables");
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
@@ -930,6 +932,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const resetAuthoringSessionState = useCallback(() => {
     clearAnimationRuntimeState();
     clearProgramRuntimeState();
+    setPendingAnimationTargetSwitchId(null);
     poseRig.resetPoseState();
     setAuthoredAnimationTargets([]);
     setSelectedAnimationTargetId(null);
@@ -1945,6 +1948,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [authoredProceduralTargets, resolveImportedProceduralSnapshot],
   );
+  useEffect(() => {
+    if (!pendingAnimationTargetSwitchId || activeAnimationRuntimeTargetId) {
+      return;
+    }
+    setSelectedAnimationTargetId(pendingAnimationTargetSwitchId);
+    loadSelectedAnimationTarget(pendingAnimationTargetSwitchId);
+    setPendingAnimationTargetSwitchId(null);
+  }, [
+    activeAnimationRuntimeTargetId,
+    loadSelectedAnimationTarget,
+    pendingAnimationTargetSwitchId,
+  ]);
   const resolvedSelectedAnimationTargetId = useManagedTargetLifecycle({
     sessionKey: authoringSessionKey,
     targetOptions: animationTargetOptions,
@@ -2019,7 +2034,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         activeAnimationRuntimeTargetId &&
         activeAnimationRuntimeTargetId !== targetId
       ) {
+        useAnimationStore.getState().reset();
+        setPendingAnimationTargetSwitchId(targetId);
         clearAnimationRuntimeState();
+        return;
       }
       setSelectedAnimationTargetId(targetId);
       loadSelectedAnimationTarget(targetId);
@@ -2030,6 +2048,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       loadSelectedAnimationTarget,
       saveAnimationTarget,
       selectedAnimationTargetId,
+      setPendingAnimationTargetSwitchId,
     ],
   );
 

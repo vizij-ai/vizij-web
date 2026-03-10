@@ -159,6 +159,8 @@ test("switching animation targets stops the active runtime before loading the ne
   await expect(page.getByText(`Currently running: ${activeName}`)).toBeHidden();
   await expect(selectedNameField).toHaveValue(secondaryName);
   await expect(durationField).toHaveValue(secondaryDuration);
+  await page.waitForTimeout(300);
+  await expect(durationField).toHaveValue(secondaryDuration);
 
   await clickLocatorViaDom(
     page.getByRole("button", {
