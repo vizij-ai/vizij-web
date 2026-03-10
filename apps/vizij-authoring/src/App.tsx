@@ -859,7 +859,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
-  const authoringSessionKey = faceLoadSessionToken ?? "__no-face-session__";
+  const authoringSessionKey =
+    rootId ?? faceLoadSessionToken ?? "__no-face-session__";
   const clearAnimationRuntimeState = useCallback(() => {
     animationRuntimeTransportAdapter?.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
       clearOutputs: true,
@@ -1799,8 +1800,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         saveAnimationTarget(selectedAnimationTargetId);
       }
       setSelectedAnimationTargetId(targetId);
+      loadSelectedAnimationTarget(targetId);
     },
-    [saveAnimationTarget, selectedAnimationTargetId],
+    [
+      loadSelectedAnimationTarget,
+      saveAnimationTarget,
+      selectedAnimationTargetId,
+    ],
   );
 
   const handleCreateAnimationTarget = useCallback(() => {
@@ -2066,8 +2072,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
 
       setSelectedProceduralTargetId(targetId);
+      loadSelectedProceduralTarget(targetId);
     },
-    [saveProceduralTarget, selectedProceduralTargetId],
+    [
+      loadSelectedProceduralTarget,
+      saveProceduralTarget,
+      selectedProceduralTargetId,
+    ],
   );
 
   const handleCreateProceduralTarget = useCallback(() => {
@@ -3431,8 +3442,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const skipNextDiscrepancyCheck = useRef(false);
 
   const handleNewClick = useCallback(() => {
+    resetAuthoringSessionState();
     loader.reset();
-  }, [loader]);
+  }, [loader, resetAuthoringSessionState]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -3751,6 +3763,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId,
   ]);
 
+  const sceneLoaded = Boolean(rootId);
+  const effectiveHierarchyPanelVisible = sceneLoaded && hierarchyPanelVisible;
+  const effectiveInputControlsPanelVisible =
+    sceneLoaded && inputControlsPanelVisible;
+  const effectiveControlAuthoringPanelVisible =
+    sceneLoaded && controlAuthoringPanelVisible;
+  const effectiveAnimationPanelVisible = sceneLoaded && animationPanelVisible;
+  const effectiveMotionGraphPanelVisible =
+    sceneLoaded && motionGraphPanelVisible;
+  const effectiveMotionGraphPalettePanelVisible =
+    sceneLoaded && motionGraphPalettePanelVisible;
+  const effectiveReferenceFacePanelVisible =
+    sceneLoaded && referenceFacePanelVisible;
+  const effectiveInspectorPanelVisible = sceneLoaded && inspectorPanelVisible;
+  const effectiveSpeechPanelVisible = sceneLoaded && speechPanelVisible;
+  const effectiveDebugPanelVisible = sceneLoaded && debugPanelVisible;
+
   const viewerContent = (
     <div
       className={
@@ -3760,7 +3789,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       style={{ height: "100%", width: "100%" }}
     >
-      {referenceFacePanelVisible ? (
+      {effectiveReferenceFacePanelVisible ? (
         <PanelGroup
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
