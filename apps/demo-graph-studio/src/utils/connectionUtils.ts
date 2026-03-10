@@ -14,6 +14,113 @@ export type Suggestion = {
   detail?: string;
 };
 
+const VECTOR_TYPES = new Set(["vector", "vec", "vec2", "vec3", "vec4", "quat"]);
+const FLOAT_TYPES = new Set(["f32", "float", "f64", "double"]);
+const NUMERIC_POLYMORPHIC_INPUTS = new Map<
+  string,
+  { fixed?: readonly string[]; variadic?: readonly string[] }
+>([
+  ["abs", { fixed: ["in"] }],
+  ["add", { variadic: ["operand"] }],
+  ["centered_remap", { fixed: ["in"] }],
+  ["clamp", { fixed: ["in", "min", "max"] }],
+  ["cos", { fixed: ["in"] }],
+  ["damp", { fixed: ["in"] }],
+  ["divide", { fixed: ["lhs", "rhs"] }],
+  ["log", { fixed: ["value", "base"] }],
+  ["max", { variadic: ["operand"] }],
+  ["min", { variadic: ["operand"] }],
+  ["modulo", { fixed: ["lhs", "rhs"] }],
+  ["multiply", { variadic: ["operand"] }],
+  ["oscillator", { fixed: ["frequency", "phase"] }],
+  ["piecewise_remap", { fixed: ["in"] }],
+  ["power", { fixed: ["base", "exp"] }],
+  ["remap", { fixed: ["in", "in_min", "in_max", "out_min", "out_max"] }],
+  ["round", { fixed: ["in"] }],
+  ["sign", { fixed: ["in"] }],
+  ["sin", { fixed: ["in"] }],
+  ["slew", { fixed: ["in"] }],
+  ["spring", { fixed: ["in"] }],
+  ["sqrt", { fixed: ["in"] }],
+  ["subtract", { fixed: ["lhs", "rhs"] }],
+  ["tan", { fixed: ["in"] }],
+  ["vectoradd", { fixed: ["a", "b"] }],
+  ["vectordot", { fixed: ["a", "b"] }],
+  ["vectorindex", { fixed: ["v"] }],
+  ["vectorlength", { fixed: ["in"] }],
+  ["vectormax", { fixed: ["in"] }],
+  ["vectormean", { fixed: ["in"] }],
+  ["vectormedian", { fixed: ["in"] }],
+  ["vectormin", { fixed: ["in"] }],
+  ["vectormode", { fixed: ["in"] }],
+  ["vectormultiply", { fixed: ["a", "b"] }],
+  ["vectornormalize", { fixed: ["in"] }],
+  ["vectorscale", { fixed: ["v"] }],
+  ["vectorsubtract", { fixed: ["a", "b"] }],
+]);
+
+function isVectorFamily(type: string): boolean {
+  return VECTOR_TYPES.has(type);
+}
+
+function isFloatFamily(type: string): boolean {
+  return FLOAT_TYPES.has(type);
+}
+
+function matchesPortHandle(
+  handle: string | null | undefined,
+  exactIds: readonly string[] | undefined,
+  variadicIds: readonly string[] | undefined,
+): boolean {
+  const resolvedHandle = (handle ?? "in").toLowerCase();
+  if (exactIds?.some((id) => resolvedHandle === id.toLowerCase())) {
+    return true;
+  }
+  return (
+    variadicIds?.some((id) =>
+      resolvedHandle.startsWith(`${id.toLowerCase()}_`),
+    ) ?? false
+  );
+}
+
+function resolveVariadicPort(
+  ports: {
+    variadicInputs?: { id?: string; type?: string } | null;
+    variadicOutputs?: { id?: string; type?: string } | null;
+  },
+  handleId: string | null | undefined,
+  direction: "input" | "output",
+): string | null {
+  if (!handleId) {
+    return null;
+  }
+  const spec =
+    direction === "input" ? ports.variadicInputs : ports.variadicOutputs;
+  if (!spec?.id) {
+    return null;
+  }
+  const prefix = `${spec.id}_`.toLowerCase();
+  if (!handleId.toLowerCase().startsWith(prefix)) {
+    return null;
+  }
+  const suffix = handleId.slice(prefix.length);
+  if (!/^\d+$/.test(suffix)) {
+    return null;
+  }
+  return String(spec.type ?? "any");
+}
+
+function allowsNumericShapePolymorphism(
+  targetNodeType: string,
+  targetHandle?: string | null,
+): boolean {
+  const config = NUMERIC_POLYMORPHIC_INPUTS.get(targetNodeType.toLowerCase());
+  if (!config) {
+    return false;
+  }
+  return matchesPortHandle(targetHandle, config.fixed, config.variadic);
+}
+
 export function isConnectionCompatible(
   sourceNode: EditorNode | undefined,
   targetNode: EditorNode | undefined,
@@ -85,7 +192,30 @@ export function isConnectionCompatibleWithRegistry(
     let srcPortType: string | null = null;
     let tgtPortType: string | null = null;
 
-    if (nodesSource.length > 0) {
+    if (typeof (registry as any).getPortsForType === "function") {
+      const srcPorts = (registry as any).getPortsForType(typeForSource);
+      const tgtPorts = (registry as any).getPortsForType(typeForTarget);
+      if (sourceHandle && Array.isArray(srcPorts.outputs)) {
+        const p = srcPorts.outputs.find(
+          (o: any) => String(o.id) === String(sourceHandle),
+        );
+        srcPortType = String(
+          p?.type ??
+            resolveVariadicPort(srcPorts, sourceHandle, "output") ??
+            "any",
+        );
+      }
+      if (targetHandle && Array.isArray(tgtPorts.inputs)) {
+        const p = tgtPorts.inputs.find(
+          (i: any) => String(i.id) === String(targetHandle),
+        );
+        tgtPortType = String(
+          p?.type ??
+            resolveVariadicPort(tgtPorts, targetHandle, "input") ??
+            "any",
+        );
+      }
+    } else if (nodesSource.length > 0) {
       // Prefer provider helper shape if provided under registry.nodes
       const findNodeSchema = (typeId: string) =>
         nodesSource.find(
@@ -94,37 +224,20 @@ export function isConnectionCompatibleWithRegistry(
             typeId.toLowerCase(),
         );
 
-      if (typeof (registry as any).getPortsForType === "function") {
-        const srcPorts = (registry as any).getPortsForType(typeForSource);
-        const tgtPorts = (registry as any).getPortsForType(typeForTarget);
-        if (sourceHandle && Array.isArray(srcPorts.outputs)) {
-          const p = srcPorts.outputs.find(
-            (o: any) => String(o.id) === String(sourceHandle),
-          );
-          if (p) srcPortType = String(p.type ?? "any");
-        }
-        if (targetHandle && Array.isArray(tgtPorts.inputs)) {
-          const p = tgtPorts.inputs.find(
-            (i: any) => String(i.id) === String(targetHandle),
-          );
-          if (p) tgtPortType = String(p.type ?? "any");
-        }
-      } else {
-        // Fallback: inspect node schema directly if available
-        const srcSchema = findNodeSchema(typeForSource);
-        const tgtSchema = findNodeSchema(typeForTarget);
-        if (srcSchema && Array.isArray(srcSchema.outputs) && sourceHandle) {
-          const p = srcSchema.outputs.find(
-            (o: any) => String(o.id) === String(sourceHandle),
-          );
-          if (p) srcPortType = String(p.type ?? p.data_type ?? "any");
-        }
-        if (tgtSchema && Array.isArray(tgtSchema.inputs) && targetHandle) {
-          const p = tgtSchema.inputs.find(
-            (i: any) => String(i.id) === String(targetHandle),
-          );
-          if (p) tgtPortType = String(p.type ?? p.data_type ?? "any");
-        }
+      // Fallback: inspect node schema directly if available
+      const srcSchema = findNodeSchema(typeForSource);
+      const tgtSchema = findNodeSchema(typeForTarget);
+      if (srcSchema && Array.isArray(srcSchema.outputs) && sourceHandle) {
+        const p = srcSchema.outputs.find(
+          (o: any) => String(o.id) === String(sourceHandle),
+        );
+        if (p) srcPortType = String(p.type ?? p.data_type ?? "any");
+      }
+      if (tgtSchema && Array.isArray(tgtSchema.inputs) && targetHandle) {
+        const p = tgtSchema.inputs.find(
+          (i: any) => String(i.id) === String(targetHandle),
+        );
+        if (p) tgtPortType = String(p.type ?? p.data_type ?? "any");
       }
     }
 
@@ -153,6 +266,13 @@ export function isConnectionCompatibleWithRegistry(
 
     // identical types ok
     if (finalSrcType === finalTgtType) {
+      return { ok: true };
+    }
+    if (
+      ((isFloatFamily(finalSrcType) && isVectorFamily(finalTgtType)) ||
+        (isVectorFamily(finalSrcType) && isFloatFamily(finalTgtType))) &&
+      allowsNumericShapePolymorphism(typeForTarget, targetHandle)
+    ) {
       return { ok: true };
     }
 

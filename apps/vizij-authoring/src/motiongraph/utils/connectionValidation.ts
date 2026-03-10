@@ -14,6 +14,49 @@ const VECTOR_TYPES = new Set(["vector", "vec", "vec2", "vec3", "vec4", "quat"]);
 const FLOAT_TYPES = new Set(["f32", "float", "f64", "double"]);
 const INT_TYPES = new Set(["i32", "int", "integer"]);
 
+const NUMERIC_POLYMORPHIC_INPUTS = new Map<
+  string,
+  { fixed?: readonly string[]; variadic?: readonly string[] }
+>([
+  ["abs", { fixed: ["in"] }],
+  ["add", { variadic: ["operand"] }],
+  ["centered_remap", { fixed: ["in"] }],
+  ["clamp", { fixed: ["in", "min", "max"] }],
+  ["cos", { fixed: ["in"] }],
+  ["damp", { fixed: ["in"] }],
+  ["divide", { fixed: ["lhs", "rhs"] }],
+  ["log", { fixed: ["value", "base"] }],
+  ["max", { variadic: ["operand"] }],
+  ["min", { variadic: ["operand"] }],
+  ["modulo", { fixed: ["lhs", "rhs"] }],
+  ["multiply", { variadic: ["operand"] }],
+  ["oscillator", { fixed: ["frequency", "phase"] }],
+  ["piecewise_remap", { fixed: ["in"] }],
+  ["power", { fixed: ["base", "exp"] }],
+  ["remap", { fixed: ["in", "in_min", "in_max", "out_min", "out_max"] }],
+  ["round", { fixed: ["in"] }],
+  ["sign", { fixed: ["in"] }],
+  ["sin", { fixed: ["in"] }],
+  ["slew", { fixed: ["in"] }],
+  ["spring", { fixed: ["in"] }],
+  ["sqrt", { fixed: ["in"] }],
+  ["subtract", { fixed: ["lhs", "rhs"] }],
+  ["tan", { fixed: ["in"] }],
+  ["vectoradd", { fixed: ["a", "b"] }],
+  ["vectordot", { fixed: ["a", "b"] }],
+  ["vectorindex", { fixed: ["v"] }],
+  ["vectorlength", { fixed: ["in"] }],
+  ["vectormax", { fixed: ["in"] }],
+  ["vectormean", { fixed: ["in"] }],
+  ["vectormedian", { fixed: ["in"] }],
+  ["vectormin", { fixed: ["in"] }],
+  ["vectormode", { fixed: ["in"] }],
+  ["vectormultiply", { fixed: ["a", "b"] }],
+  ["vectornormalize", { fixed: ["in"] }],
+  ["vectorscale", { fixed: ["v"] }],
+  ["vectorsubtract", { fixed: ["a", "b"] }],
+]);
+
 function isVectorFamily(type: string): boolean {
   return VECTOR_TYPES.has(type);
 }
@@ -24,6 +67,33 @@ function isFloatFamily(type: string): boolean {
 
 function isIntFamily(type: string): boolean {
   return INT_TYPES.has(type);
+}
+
+function matchesPortHandle(
+  handle: string | null,
+  exactIds: readonly string[] | undefined,
+  variadicIds: readonly string[] | undefined,
+): boolean {
+  const resolvedHandle = (handle ?? "in").toLowerCase();
+  if (exactIds?.some((id) => resolvedHandle === id.toLowerCase())) {
+    return true;
+  }
+  return (
+    variadicIds?.some((id) =>
+      resolvedHandle.startsWith(`${id.toLowerCase()}_`),
+    ) ?? false
+  );
+}
+
+function allowsNumericShapePolymorphism(
+  targetNodeType: string,
+  targetHandle: string | null,
+): boolean {
+  const config = NUMERIC_POLYMORPHIC_INPUTS.get(targetNodeType.toLowerCase());
+  if (!config) {
+    return false;
+  }
+  return matchesPortHandle(targetHandle, config.fixed, config.variadic);
 }
 
 type PortsForType = {
@@ -134,6 +204,13 @@ export function checkConnectionCompatibility(
     return { ok: true };
   }
   if (isVectorFamily(srcType) && isVectorFamily(tgtType)) {
+    return { ok: true };
+  }
+  if (
+    ((isFloatFamily(srcType) && isVectorFamily(tgtType)) ||
+      (isVectorFamily(srcType) && isFloatFamily(tgtType))) &&
+    allowsNumericShapePolymorphism(targetNodeType, tgtPort?.id ?? targetHandle)
+  ) {
     return { ok: true };
   }
 
