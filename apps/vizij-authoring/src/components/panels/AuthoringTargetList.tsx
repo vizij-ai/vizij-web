@@ -231,7 +231,7 @@ export function AuthoringTargetList({
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
-                      disabled={!item.isRuntimeActive && !item.selected}
+                      disabled={!item.isRuntimeActive}
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelect(item.id);
@@ -248,7 +248,7 @@ export function AuthoringTargetList({
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 text-[10px] gap-1"
-                      disabled={!item.isRuntimeActive && !item.selected}
+                      disabled={!item.isRuntimeActive}
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelect(item.id);

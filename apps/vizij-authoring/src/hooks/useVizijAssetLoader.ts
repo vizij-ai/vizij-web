@@ -20,6 +20,7 @@ const FACE_LOAD_MILESTONE_ORDER: FaceLoadMilestoneName[] = [
   "runtime-ready",
 ];
 const __DEV__ = process.env.NODE_ENV !== "production";
+const STALE_LOAD_REQUEST = Symbol("stale-load-request");
 
 export interface FaceLoadPhaseUpdate {
   stepId: string;
@@ -55,6 +56,10 @@ interface FaceLoadOperationUpdate {
   stepId?: string;
   substepId?: string;
   label?: string;
+  sessionToken?: string | null;
+}
+
+interface FaceLoadSessionOptions {
   sessionToken?: string | null;
 }
 
@@ -356,6 +361,7 @@ export function useVizijAssetLoader() {
     createDefaultFaceLoadMilestones(),
   );
   const faceLoadExternalPhaseSequenceRef = useRef(0);
+  const activeLoadRequestRef = useRef(0);
   const faceLoadExternalPhaseStepOrderRef = useRef<Map<string, number>>(
     createFaceLoadStepOrderMap(createDefaultFaceLoadSteps()),
   );
@@ -384,6 +390,13 @@ export function useVizijAssetLoader() {
       //   ...(payload ?? {}),
       // });
     },
+    [],
+  );
+
+  const isCurrentSessionToken = useCallback(
+    (sessionToken?: string | null) =>
+      sessionToken === undefined ||
+      sessionToken === faceLoadSessionTokenRef.current,
     [],
   );
 
@@ -539,11 +552,13 @@ export function useVizijAssetLoader() {
 
   const beginImportFlow = useCallback(
     (sourceLabel: string) => {
+      activeLoadRequestRef.current += 1;
       const sessionToken = createFaceLoadSessionToken();
       const startedAtMs = nowMs();
       faceLoadSessionTokenRef.current = sessionToken;
       faceLoadSessionStartedAtRef.current = startedAtMs;
       setFaceLoadSessionToken(sessionToken);
+      setIsLoading(false);
       resetExternalPhaseTrackers();
       clearFaceLoadOperations("begin-import-flow");
       setIsImportFlowActive(true);
@@ -568,6 +583,7 @@ export function useVizijAssetLoader() {
         ),
       );
       logFaceLoadEvent("session-begin", { sourceLabel });
+      return sessionToken;
     },
     [
       clearFaceLoadOperations,
@@ -577,28 +593,38 @@ export function useVizijAssetLoader() {
     ],
   );
 
-  const markImportFileSelected = useCallback(() => {
-    logFaceLoadEvent("file-selected");
-    setFaceLoadProgress((current) => (current < 0.08 ? 0.08 : current));
-    setFaceLoadSteps((previous) =>
-      updateFaceLoadStatus(
-        updateFaceLoadStatus(previous, {
-          stepId: "select-import-source",
-          substepId: "choose-file",
-          substepStatus: "complete",
-        }),
-        {
-          stepId: "select-import-source",
-          stepStatus: "complete",
-        },
-      ),
-    );
-  }, [logFaceLoadEvent]);
+  const markImportFileSelected = useCallback(
+    (options?: FaceLoadSessionOptions) => {
+      if (!isCurrentSessionToken(options?.sessionToken)) {
+        return;
+      }
+      logFaceLoadEvent("file-selected");
+      setFaceLoadProgress((current) => (current < 0.08 ? 0.08 : current));
+      setFaceLoadSteps((previous) =>
+        updateFaceLoadStatus(
+          updateFaceLoadStatus(previous, {
+            stepId: "select-import-source",
+            substepId: "choose-file",
+            substepStatus: "complete",
+          }),
+          {
+            stepId: "select-import-source",
+            stepStatus: "complete",
+          },
+        ),
+      );
+    },
+    [isCurrentSessionToken, logFaceLoadEvent],
+  );
 
   const markImportFlowError = useCallback(
-    (failedStepId: string) => {
+    (failedStepId: string, options?: FaceLoadSessionOptions) => {
+      if (!isCurrentSessionToken(options?.sessionToken)) {
+        return;
+      }
       logFaceLoadEvent("session-error", { failedStepId });
       setIsImportFlowActive(false);
+      setIsLoading(false);
       setFaceLoadSessionCompletedAtMs(nowMs());
       clearFaceLoadOperations("session-error");
       setFaceLoadSteps((previous) =>
@@ -608,14 +634,16 @@ export function useVizijAssetLoader() {
         }),
       );
     },
-    [clearFaceLoadOperations, logFaceLoadEvent],
+    [clearFaceLoadOperations, isCurrentSessionToken, logFaceLoadEvent],
   );
 
   const cancelImportFlow = useCallback(() => {
+    activeLoadRequestRef.current += 1;
     logFaceLoadEvent("session-cancel");
     faceLoadSessionTokenRef.current = null;
     faceLoadSessionStartedAtRef.current = null;
     setFaceLoadSessionToken(null);
+    setIsLoading(false);
     resetExternalPhaseTrackers();
     clearFaceLoadOperations("session-cancel");
     resetFaceLoadMilestones();
@@ -632,15 +660,21 @@ export function useVizijAssetLoader() {
     resetFaceLoadMilestones,
   ]);
 
-  const completeImportFlow = useCallback(() => {
-    logFaceLoadEvent("session-complete-requested", {
-      milestones: faceLoadMilestonesRef.current,
-    });
-    clearFaceLoadOperations("session-complete");
-    setIsImportFlowActive(false);
-    setFaceLoadProgress(1);
-    setFaceLoadSessionCompletedAtMs(nowMs());
-  }, [clearFaceLoadOperations, logFaceLoadEvent]);
+  const completeImportFlow = useCallback(
+    (options?: FaceLoadSessionOptions) => {
+      if (!isCurrentSessionToken(options?.sessionToken)) {
+        return;
+      }
+      logFaceLoadEvent("session-complete-requested", {
+        milestones: faceLoadMilestonesRef.current,
+      });
+      clearFaceLoadOperations("session-complete");
+      setIsImportFlowActive(false);
+      setFaceLoadProgress(1);
+      setFaceLoadSessionCompletedAtMs(nowMs());
+    },
+    [clearFaceLoadOperations, isCurrentSessionToken, logFaceLoadEvent],
+  );
 
   const updateExternalPhase = useCallback(
     (update: FaceLoadPhaseUpdate) => {
@@ -764,10 +798,37 @@ export function useVizijAssetLoader() {
   );
 
   const loadVizij = useCallback(
-    async (loader: VizijLoader, label: string) => {
+    async (
+      loader: VizijLoader,
+      label: string,
+      options?: FaceLoadSessionOptions,
+    ) => {
+      const sessionToken = options?.sessionToken;
+      if (!isCurrentSessionToken(sessionToken)) {
+        return;
+      }
+      const requestId = activeLoadRequestRef.current + 1;
+      activeLoadRequestRef.current = requestId;
+      const assertCurrentLoad = () => {
+        if (
+          activeLoadRequestRef.current !== requestId ||
+          !isCurrentSessionToken(sessionToken)
+        ) {
+          throw STALE_LOAD_REQUEST;
+        }
+      };
       setIsLoading(true);
       setError(null);
       setRootId(null);
+      setSourceName(null);
+      setBundle(null);
+      setExportSceneRoot(null);
+      setStoreState({
+        world: {},
+        animatables: {},
+        values: new Map(),
+        elementSelection: [],
+      });
       setFaceLoadProgress((current) => (current < 0.1 ? 0.1 : current));
       setFaceLoadSteps((previous) =>
         updateFaceLoadStatus(previous, {
@@ -797,13 +858,16 @@ export function useVizijAssetLoader() {
 
         setFaceLoadProgress(0.18);
         await waitForNextFrame();
+        assertCurrentLoad();
         const {
           world: worldData,
           animatables,
           bundle: loadedBundle,
           scene,
         } = await loader();
+        assertCurrentLoad();
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(
@@ -837,6 +901,7 @@ export function useVizijAssetLoader() {
           throw new Error("Unable to find a Vizij root in the provided asset.");
         }
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(previous, {
@@ -863,6 +928,7 @@ export function useVizijAssetLoader() {
           elementSelection: [],
         });
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(previous, {
@@ -884,8 +950,10 @@ export function useVizijAssetLoader() {
           }),
         );
 
+        assertCurrentLoad();
         addWorldElements(worldData, animatables, true);
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(
@@ -919,6 +987,7 @@ export function useVizijAssetLoader() {
         setBundle(loadedBundle ?? null);
         setExportSceneRoot(scene ?? null);
         await waitForNextFrame();
+        assertCurrentLoad();
 
         setFaceLoadSteps((previous) =>
           updateFaceLoadStatus(
@@ -938,17 +1007,26 @@ export function useVizijAssetLoader() {
         setFaceLoadProgress(0.9);
         markFaceLoadMilestone("asset-loaded");
       } catch (err) {
+        if (err === STALE_LOAD_REQUEST) {
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
         console.error("demo-vizij-render: failed to load Vizij", err);
         setBundle(null);
         setExportSceneRoot(null);
-        markImportFlowError(activeStepId);
+        markImportFlowError(activeStepId, { sessionToken });
       } finally {
-        setIsLoading(false);
+        if (
+          activeLoadRequestRef.current === requestId &&
+          isCurrentSessionToken(sessionToken)
+        ) {
+          setIsLoading(false);
+        }
       }
     },
     [
+      isCurrentSessionToken,
       addWorldElements,
       markFaceLoadMilestone,
       markImportFlowError,
@@ -957,15 +1035,23 @@ export function useVizijAssetLoader() {
   );
 
   const loadFromFile = useCallback(
-    async (file: File, loader: VizijLoader) => {
-      await loadVizij(loader, file.name);
+    async (
+      file: File,
+      loader: VizijLoader,
+      options?: FaceLoadSessionOptions,
+    ) => {
+      await loadVizij(loader, file.name, options);
     },
     [loadVizij],
   );
 
   const loadFromUrl = useCallback(
-    async (url: string, loader: VizijLoader) => {
-      await loadVizij(loader, url);
+    async (
+      url: string,
+      loader: VizijLoader,
+      options?: FaceLoadSessionOptions,
+    ) => {
+      await loadVizij(loader, url, options);
     },
     [loadVizij],
   );
@@ -973,10 +1059,12 @@ export function useVizijAssetLoader() {
   const clearError = useCallback(() => setError(null), []);
 
   const reset = useCallback(() => {
+    activeLoadRequestRef.current += 1;
     logFaceLoadEvent("session-reset");
     faceLoadSessionTokenRef.current = null;
     faceLoadSessionStartedAtRef.current = null;
     setFaceLoadSessionToken(null);
+    setIsLoading(false);
     resetExternalPhaseTrackers();
     clearFaceLoadOperations("session-reset");
     resetFaceLoadMilestones();
@@ -992,11 +1080,18 @@ export function useVizijAssetLoader() {
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
+    setStoreState({
+      world: {},
+      animatables: {},
+      values: new Map(),
+      elementSelection: [],
+    });
   }, [
     clearFaceLoadOperations,
     logFaceLoadEvent,
     resetExternalPhaseTrackers,
     resetFaceLoadMilestones,
+    setStoreState,
   ]);
 
   const updateBundle = useCallback(

@@ -78,6 +78,7 @@ import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
 import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
+import { useSessionResetEffect } from "./hooks/authoringSessionLifecycle";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
 import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
 import {
@@ -87,6 +88,7 @@ import {
 } from "./components/app/importOrientation";
 import { useAnimationStore } from "./state/animationStore";
 import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
+import { useManagedTargetLifecycle } from "./hooks/useManagedTargetLifecycle";
 import {
   buildGlbExportDirtySnapshot,
   useExportDirtyState,
@@ -109,6 +111,28 @@ const AUTHORED_PROCEDURAL_TARGET_PREFIX = "authored-procedural:";
 const BUNDLE_ANIMATION_TARGET_PREFIX = "bundle-animation:";
 const BUNDLE_PROCEDURAL_TARGET_PREFIX = "bundle-procedural:";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
+
+function bundleTargetValue(
+  prefix: string,
+  bundleSessionKey: string,
+  index: number,
+): string {
+  return `${prefix}${bundleSessionKey}:${index}`;
+}
+
+function parseBundleTargetIndex(
+  targetId: string,
+  prefix: string,
+): number | null {
+  if (!targetId.startsWith(prefix)) {
+    return null;
+  }
+  const raw = targetId.slice(prefix.length);
+  const rawIndex = raw.split(":").pop() ?? raw;
+  const index = Number.parseInt(rawIndex, 10);
+  return Number.isFinite(index) && index >= 0 ? index : null;
+}
+
 function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
   return {
     rootFilteredBodies: [],
@@ -508,32 +532,64 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [orientationPromptSessionToken, setOrientationPromptSessionToken] =
     useState<string | null>(null);
   const exportGlbHandlerRef = useRef<(() => Promise<void>) | null>(null);
+  const pendingMainAssetFetchRef = useRef<AbortController | null>(null);
   const setWorkspacePanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
+  );
+
+  const cancelPendingMainAssetFetch = useCallback(() => {
+    pendingMainAssetFetchRef.current?.abort();
+    pendingMainAssetFetchRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      cancelPendingMainAssetFetch();
+    },
+    [cancelPendingMainAssetFetch],
   );
 
   // Reference Face State
 
   const handleLoadAssetFromUrl = useCallback(
     async (url: string, filename: string) => {
+      const sessionToken = beginImportFlow(`Preset: ${filename}`);
+      cancelPendingMainAssetFetch();
+      const controller = new AbortController();
+      pendingMainAssetFetchRef.current = controller;
       try {
-        beginImportFlow(`Preset: ${filename}`);
-        markImportFileSelected();
-        const response = await fetch(url);
+        markImportFileSelected({ sessionToken });
+        const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) throw new Error(`Failed to fetch ${url} `);
         const blob = await response.blob();
+        if (controller.signal.aborted) {
+          return;
+        }
         const file = new File([blob], filename, { type: "model/gltf-binary" });
 
-        await loadFromFile(file, () =>
-          loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+        await loadFromFile(
+          file,
+          () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+          { sessionToken },
         );
       } catch (err) {
-        markImportFlowError("load-asset");
+        if (
+          controller.signal.aborted ||
+          (err instanceof DOMException && err.name === "AbortError")
+        ) {
+          return;
+        }
+        markImportFlowError("load-asset", { sessionToken });
         console.error("Failed to load asset from URL:", err);
+      } finally {
+        if (pendingMainAssetFetchRef.current === controller) {
+          pendingMainAssetFetchRef.current = null;
+        }
       }
     },
     [
       beginImportFlow,
+      cancelPendingMainAssetFetch,
       loadFromFile,
       markImportFlowError,
       markImportFileSelected,
@@ -658,7 +714,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pendingProgramRuntimePlayTargetId,
     setPendingProgramRuntimePlayTargetId,
   ] = useState<string | null>(null);
-  const lastMotionGraphImportRootIdRef = useRef<string | null>(null);
   const handleRuntimeExportBodiesChange = useCallback(
     (next: RuntimeExportBodiesSnapshot) => {
       setRuntimeExportBodies((previous) => {
@@ -836,6 +891,48 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleFaceIdChange = useGraphRuntime(
     (state) => state.handleFaceIdChange,
   );
+  const authoringSessionKey =
+    rootId ?? faceLoadSessionToken ?? "__no-face-session__";
+  const clearAnimationRuntimeState = useCallback(() => {
+    animationRuntimeTransportAdapter?.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+      clearOutputs: true,
+    });
+    setPendingAnimationRuntimePlayTargetId(null);
+    setActiveAnimationRuntimeTargetId(null);
+  }, [animationRuntimeTransportAdapter]);
+  const clearProgramRuntimeState = useCallback(() => {
+    stopPapGraph();
+    setPendingProgramRuntimePlayTargetId(null);
+    setActiveProgramRuntimeTargetId(null);
+  }, [stopPapGraph]);
+  const resetAuthoringSessionState = useCallback(() => {
+    clearAnimationRuntimeState();
+    clearProgramRuntimeState();
+    poseRig.resetPoseState();
+    setAuthoredAnimationTargets([]);
+    setSelectedAnimationTargetId(null);
+    setAuthoredProceduralTargets([]);
+    setSelectedProceduralTargetId(null);
+    setBundleAnimationNameOverrides({});
+    setBundleAnimationDurationOverrides({});
+    setBundleAnimationClipOverrides({});
+    setBundleProceduralNameOverrides({});
+    setBundleProceduralSnapshotOverrides({});
+    setHiddenBundleAnimationTargetIds({});
+    setHiddenBundleProceduralTargetIds({});
+    setActiveInspectorTarget(null);
+    uiActions.setActiveRuntimeSource("none");
+    useAnimationStore.getState().reset();
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, [
+    clearAnimationRuntimeState,
+    clearProgramRuntimeState,
+    poseRig,
+    uiActions,
+  ]);
+  useSessionResetEffect(authoringSessionKey, resetAuthoringSessionState);
   const canImportRigGraphFromBundle = useMemo(() => {
     if (!loader.rootId) {
       return false;
@@ -864,45 +961,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleImportGraphSpec = useGraphRuntime(
     (state) => state.handleImportGraphSpec,
   );
-  const importMotionGraph = useCallback(
-    (spec: Record<string, unknown> | null) => {
-      const store = useEditorStore.getState();
-      const currentRootId = loader.rootId ?? null;
-      const rootChanged =
-        lastMotionGraphImportRootIdRef.current !== currentRootId;
-      const clearOnRootChange = () => {
-        if (!rootChanged) {
-          return;
-        }
-        store.clear();
-        lastMotionGraphImportRootIdRef.current = currentRootId;
-      };
-      if (!spec) {
-        clearOnRootChange();
-        return;
-      }
-      const result = specToEditorState(spec);
-      if (result.nodes.length === 0) {
-        clearOnRootChange();
-        return;
-      }
-      store.hydrate(
-        result.nodes,
-        result.edges,
-        result.enabledOutputs,
-        result.enabledInputs,
-        result.customInputPaths,
-      );
-      lastMotionGraphImportRootIdRef.current = currentRootId;
-    },
-    [loader.rootId],
-  );
+  const bundleSessionKey = rootId ?? faceLoadSessionToken ?? "__no-bundle__";
 
   const bundleAnimationTargetOptions = useMemo(() => {
     const entries = loadedBundle?.animations ?? [];
     return entries
       .map((entry, index) => {
-        const targetValue = `${BUNDLE_ANIMATION_TARGET_PREFIX}${index}`;
+        const targetValue = bundleTargetValue(
+          BUNDLE_ANIMATION_TARGET_PREFIX,
+          bundleSessionKey,
+          index,
+        );
         const clipName =
           typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
         const fallbackName =
@@ -915,6 +984,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       })
       .filter((option) => !hiddenBundleAnimationTargetIds[option.value]);
   }, [
+    bundleSessionKey,
     bundleAnimationNameOverrides,
     hiddenBundleAnimationTargetIds,
     loadedBundle?.animations,
@@ -946,7 +1016,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () =>
       bundleProceduralEntries
         .map((entry, index) => {
-          const targetValue = `${BUNDLE_PROCEDURAL_TARGET_PREFIX}${index}`;
+          const targetValue = bundleTargetValue(
+            BUNDLE_PROCEDURAL_TARGET_PREFIX,
+            bundleSessionKey,
+            index,
+          );
           const metadataLabel =
             typeof entry.label === "string" ? entry.label.trim() : "";
           const metadataId =
@@ -960,6 +1034,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         })
         .filter((option) => !hiddenBundleProceduralTargetIds[option.value]),
     [
+      bundleSessionKey,
       bundleProceduralEntries,
       bundleProceduralNameOverrides,
       hiddenBundleProceduralTargetIds,
@@ -984,12 +1059,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const resolveBundleAnimationEntry = useCallback(
     (targetId: string) => {
-      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-        return null;
-      }
-      const rawIndex = targetId.slice(BUNDLE_ANIMATION_TARGET_PREFIX.length);
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
+      const index = parseBundleTargetIndex(
+        targetId,
+        BUNDLE_ANIMATION_TARGET_PREFIX,
+      );
+      if (index === null) {
         return null;
       }
       return loadedBundle?.animations?.[index] ?? null;
@@ -1075,12 +1149,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const resolveBundleProceduralEntry = useCallback(
     (targetId: string) => {
-      if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-        return null;
-      }
-      const rawIndex = targetId.slice(BUNDLE_PROCEDURAL_TARGET_PREFIX.length);
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
+      const index = parseBundleTargetIndex(
+        targetId,
+        BUNDLE_PROCEDURAL_TARGET_PREFIX,
+      );
+      if (index === null) {
         return null;
       }
       return bundleProceduralEntries[index] ?? null;
@@ -1668,6 +1741,87 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
     ]);
+  const loadSelectedAnimationTarget = useCallback(
+    (targetId: string | null) => {
+      if (!targetId) {
+        useAnimationStore.getState().reset();
+        return;
+      }
+      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
+      if (authoredClipId) {
+        const target = authoredAnimationTargets.find(
+          (entry) =>
+            entry.targetId === targetId || entry.clipId === authoredClipId,
+        );
+        if (target) {
+          importAnimationClipIr(target.clip);
+          return;
+        }
+      } else if (targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        const clip = resolveImportedAnimationClip(targetId);
+        if (clip) {
+          importAnimationClipIr(clip);
+          return;
+        }
+      }
+      useAnimationStore.getState().reset();
+    },
+    [
+      authoredAnimationTargets,
+      importAnimationClipIr,
+      resolveImportedAnimationClip,
+    ],
+  );
+  const loadSelectedProceduralTarget = useCallback(
+    (targetId: string | null) => {
+      if (!targetId) {
+        const editorStore = useEditorStore.getState();
+        editorStore.clear();
+        editorStore.setSelected(null);
+        return;
+      }
+      const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
+      if (authoredProgramId) {
+        const authoredTarget = authoredProceduralTargets.find(
+          (target) =>
+            target.targetId === targetId ||
+            target.programId === authoredProgramId,
+        );
+        if (authoredTarget) {
+          hydrateProceduralEditorState(authoredTarget.snapshot);
+          return;
+        }
+      } else if (targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        const snapshot = resolveImportedProceduralSnapshot(targetId);
+        if (snapshot) {
+          hydrateProceduralEditorState(snapshot);
+          return;
+        }
+      }
+      const editorStore = useEditorStore.getState();
+      editorStore.clear();
+      editorStore.setSelected(null);
+    },
+    [authoredProceduralTargets, resolveImportedProceduralSnapshot],
+  );
+  const resolvedSelectedAnimationTargetId = useManagedTargetLifecycle({
+    sessionKey: authoringSessionKey,
+    targetOptions: animationTargetOptions,
+    selectedTargetId: selectedAnimationTargetId,
+    setSelectedTargetId: setSelectedAnimationTargetId,
+    loadSelectedTarget: loadSelectedAnimationTarget,
+    activeRuntimeTargetId: activeAnimationRuntimeTargetId,
+    clearInvalidActiveRuntimeTarget: clearAnimationRuntimeState,
+  });
+  const resolvedSelectedProceduralTargetId = useManagedTargetLifecycle({
+    sessionKey: authoringSessionKey,
+    targetOptions: proceduralTargetOptions,
+    selectedTargetId: selectedProceduralTargetId,
+    setSelectedTargetId: setSelectedProceduralTargetId,
+    loadSelectedTarget: loadSelectedProceduralTarget,
+    activeRuntimeTargetId: activeProgramRuntimeTargetId,
+    clearInvalidActiveRuntimeTarget: clearProgramRuntimeState,
+  });
 
   const handleSelectAnimationTarget = useCallback(
     (targetId: string) => {
@@ -1678,30 +1832,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         saveAnimationTarget(selectedAnimationTargetId);
       }
       setSelectedAnimationTargetId(targetId);
-
-      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
-      if (authoredClipId) {
-        const target = authoredAnimationTargets.find(
-          (entry) =>
-            entry.targetId === targetId || entry.clipId === authoredClipId,
-        );
-        if (target) {
-          importAnimationClipIr(target.clip);
-        }
-        return;
-      }
-      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-        return;
-      }
-      const clip = resolveImportedAnimationClip(targetId);
-      if (clip) {
-        importAnimationClipIr(clip);
-      }
+      loadSelectedAnimationTarget(targetId);
     },
     [
-      authoredAnimationTargets,
-      importAnimationClipIr,
-      resolveImportedAnimationClip,
+      loadSelectedAnimationTarget,
       saveAnimationTarget,
       selectedAnimationTargetId,
     ],
@@ -1724,11 +1858,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
     setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
     setSelectedAnimationTargetId(nextTarget.targetId);
-    importAnimationClipIr(nextTarget.clip);
   }, [
     animationDuration,
     authoredAnimationTargets,
-    importAnimationClipIr,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
@@ -1797,13 +1929,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setWorkspacePanelVisibility("animation", true);
       setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
       setSelectedAnimationTargetId(nextTarget.targetId);
-      importAnimationClipIr(nextClip);
     },
     [
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
-      importAnimationClipIr,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
       setWorkspacePanelVisibility,
@@ -1870,28 +2000,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const nextTargetId =
         nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
       setSelectedAnimationTargetId(nextTargetId);
-      const nextAuthoredTarget = nextAuthoredTargets.find(
-        (target) => target.targetId === nextTargetId,
-      );
-      if (nextAuthoredTarget) {
-        importAnimationClipIr(nextAuthoredTarget.clip);
-        return;
-      }
-      if (nextTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-        const clip = resolveImportedAnimationClip(nextTargetId);
-        if (!clip) {
-          return;
-        }
-        importAnimationClipIr(clip);
-      }
     },
     [
       animationTargetOptions,
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
-      resolveImportedAnimationClip,
       setBundleAnimationClipOverrides,
-      importAnimationClipIr,
       setHiddenBundleAnimationTargetIds,
     ],
   );
@@ -1990,30 +2104,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
 
       setSelectedProceduralTargetId(targetId);
-      const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
-      if (authoredProgramId) {
-        const authoredTarget = authoredProceduralTargets.find(
-          (target) =>
-            target.targetId === targetId ||
-            target.programId === authoredProgramId,
-        );
-        if (authoredTarget) {
-          hydrateProceduralEditorState(authoredTarget.snapshot);
-        }
-        return;
-      }
-      if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-        return;
-      }
-      const snapshot = resolveImportedProceduralSnapshot(targetId);
-      if (snapshot) {
-        hydrateProceduralEditorState(snapshot);
-      }
+      loadSelectedProceduralTarget(targetId);
     },
     [
-      authoredProceduralTargets,
-      hydrateProceduralEditorState,
-      resolveImportedProceduralSnapshot,
+      loadSelectedProceduralTarget,
       saveProceduralTarget,
       selectedProceduralTargetId,
     ],
@@ -2035,7 +2129,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
     setAuthoredProceduralTargets((previous) => [...previous, nextTarget]);
     setSelectedProceduralTargetId(nextTarget.targetId);
-    hydrateProceduralEditorState(nextTarget.snapshot);
   }, [
     authoredProceduralTargets,
     saveProceduralTarget,
@@ -2097,12 +2190,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setWorkspacePanelVisibility("motiongraph", true);
       setAuthoredProceduralTargets((previous) => [...previous, nextTarget]);
       setSelectedProceduralTargetId(nextTarget.targetId);
-      hydrateProceduralEditorState(nextTarget.snapshot);
     },
     [
       authoredProceduralTargets,
       bundleProceduralTargetOptions,
-      hydrateProceduralEditorState,
       resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
       setWorkspacePanelVisibility,
@@ -2169,26 +2260,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const nextTargetId =
         nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
       setSelectedProceduralTargetId(nextTargetId);
-      const nextAuthoredTarget = nextAuthoredTargets.find(
-        (target) => target.targetId === nextTargetId,
-      );
-      if (nextAuthoredTarget) {
-        hydrateProceduralEditorState(nextAuthoredTarget.snapshot);
-        return;
-      }
-      if (nextTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-        const snapshot = resolveImportedProceduralSnapshot(nextTargetId);
-        if (snapshot) {
-          hydrateProceduralEditorState(snapshot);
-        }
-      }
     },
     [
       authoredProceduralTargets,
       bundleProceduralTargetOptions,
-      hydrateProceduralEditorState,
       proceduralTargetOptions,
-      resolveImportedProceduralSnapshot,
       setBundleProceduralSnapshotOverrides,
       setHiddenBundleProceduralTargetIds,
     ],
@@ -2249,22 +2325,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (targetId !== selectedAnimationTargetId) {
         handleSelectAnimationTarget(targetId);
       }
+      if (activeProgramRuntimeTargetId) {
+        clearProgramRuntimeState();
+      }
       if (
-        animationRuntimeTransportAdapter &&
         activeAnimationRuntimeTargetId &&
         activeAnimationRuntimeTargetId !== targetId
       ) {
-        animationRuntimeTransportAdapter.stopAnimation(
-          AUTHORED_TIMELINE_CLIP_ID,
-          { clearOutputs: true },
-        );
+        clearAnimationRuntimeState();
       }
       setActiveAnimationRuntimeTargetId(targetId);
       setPendingAnimationRuntimePlayTargetId(targetId);
     },
     [
       activeAnimationRuntimeTargetId,
-      animationRuntimeTransportAdapter,
+      activeProgramRuntimeTargetId,
+      clearAnimationRuntimeState,
+      clearProgramRuntimeState,
       handleSelectAnimationTarget,
       selectedAnimationTargetId,
       setWorkspacePanelVisibility,
@@ -2301,20 +2378,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       uiActions.setActiveRuntimeSource("animation");
-      animationRuntimeTransportAdapter?.stopAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
-        {
-          clearOutputs: true,
-        },
-      );
-      setPendingAnimationRuntimePlayTargetId(null);
-      setActiveAnimationRuntimeTargetId(null);
+      clearAnimationRuntimeState();
     },
-    [
-      activeAnimationRuntimeTargetId,
-      animationRuntimeTransportAdapter,
-      uiActions,
-    ],
+    [activeAnimationRuntimeTargetId, clearAnimationRuntimeState, uiActions],
   );
   const handlePlayProgramTarget = useCallback(
     (targetId: string) => {
@@ -2323,21 +2389,26 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (targetId !== selectedProceduralTargetId) {
         handleSelectProceduralTarget(targetId);
       }
+      if (activeAnimationRuntimeTargetId) {
+        clearAnimationRuntimeState();
+      }
       if (
         activeProgramRuntimeTargetId &&
         activeProgramRuntimeTargetId !== targetId
       ) {
-        stopPapGraph();
+        clearProgramRuntimeState();
       }
       setActiveProgramRuntimeTargetId(targetId);
       setPendingProgramRuntimePlayTargetId(targetId);
     },
     [
+      activeAnimationRuntimeTargetId,
       activeProgramRuntimeTargetId,
+      clearAnimationRuntimeState,
+      clearProgramRuntimeState,
       handleSelectProceduralTarget,
       selectedProceduralTargetId,
       setWorkspacePanelVisibility,
-      stopPapGraph,
       uiActions,
     ],
   );
@@ -2365,12 +2436,41 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
-      stopPapGraph();
-      setPendingProgramRuntimePlayTargetId(null);
-      setActiveProgramRuntimeTargetId(null);
+      clearProgramRuntimeState();
     },
-    [activeProgramRuntimeTargetId, stopPapGraph, uiActions],
+    [activeProgramRuntimeTargetId, clearProgramRuntimeState, uiActions],
   );
+  useEffect(() => {
+    if (activeRuntimeSource === "animation") {
+      if (activeProgramRuntimeTargetId || pendingProgramRuntimePlayTargetId) {
+        clearProgramRuntimeState();
+      }
+      return;
+    }
+    if (activeRuntimeSource === "procedural-animation-programming") {
+      if (
+        activeAnimationRuntimeTargetId ||
+        pendingAnimationRuntimePlayTargetId
+      ) {
+        clearAnimationRuntimeState();
+      }
+      return;
+    }
+    if (activeAnimationRuntimeTargetId || pendingAnimationRuntimePlayTargetId) {
+      clearAnimationRuntimeState();
+    }
+    if (activeProgramRuntimeTargetId || pendingProgramRuntimePlayTargetId) {
+      clearProgramRuntimeState();
+    }
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    activeRuntimeSource,
+    clearAnimationRuntimeState,
+    clearProgramRuntimeState,
+    pendingAnimationRuntimePlayTargetId,
+    pendingProgramRuntimePlayTargetId,
+  ]);
   const handleRenameAnimationTarget = useCallback(
     (targetId: string, nextName: string) => {
       const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
@@ -2685,51 +2785,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   useEffect(() => {
     if (
-      animationTargetOptions.some(
-        (option) => option.value === selectedAnimationTargetId,
-      )
-    ) {
-      return;
-    }
-    setSelectedAnimationTargetId(animationTargetOptions[0]?.value ?? null);
-  }, [animationTargetOptions, selectedAnimationTargetId]);
-
-  useEffect(() => {
-    if (
-      proceduralTargetOptions.some(
-        (option) => option.value === selectedProceduralTargetId,
-      )
-    ) {
-      return;
-    }
-    setSelectedProceduralTargetId(proceduralTargetOptions[0]?.value ?? null);
-  }, [proceduralTargetOptions, selectedProceduralTargetId]);
-  useEffect(() => {
-    if (
-      !activeAnimationRuntimeTargetId ||
-      animationTargetOptions.some(
-        (option) => option.value === activeAnimationRuntimeTargetId,
-      )
-    ) {
-      return;
-    }
-    setPendingAnimationRuntimePlayTargetId(null);
-    setActiveAnimationRuntimeTargetId(null);
-  }, [activeAnimationRuntimeTargetId, animationTargetOptions]);
-  useEffect(() => {
-    if (
-      !activeProgramRuntimeTargetId ||
-      proceduralTargetOptions.some(
-        (option) => option.value === activeProgramRuntimeTargetId,
-      )
-    ) {
-      return;
-    }
-    setPendingProgramRuntimePlayTargetId(null);
-    setActiveProgramRuntimeTargetId(null);
-  }, [activeProgramRuntimeTargetId, proceduralTargetOptions]);
-  useEffect(() => {
-    if (
       !pendingAnimationRuntimePlayTargetId ||
       pendingAnimationRuntimePlayTargetId !== activeAnimationRuntimeTargetId ||
       !activeAnimationRuntimeClip ||
@@ -2822,7 +2877,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     adoptFaceId: handleFaceIdChange,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
     resetPoseState: poseRig.resetPoseState,
-    importMotionGraph,
     onPhaseChange: onFaceLoadPhaseChange,
   });
 
@@ -2967,25 +3021,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     : "stopped";
   const handlePlayAnimationRuntime = useCallback(() => {
     const targetId =
-      selectedAnimationTargetId ?? activeAnimationRuntimeTargetId;
+      resolvedSelectedAnimationTargetId ?? activeAnimationRuntimeTargetId;
     if (targetId) {
       handlePlayAnimationTarget(targetId);
     }
   }, [
     activeAnimationRuntimeTargetId,
     handlePlayAnimationTarget,
-    selectedAnimationTargetId,
+    resolvedSelectedAnimationTargetId,
   ]);
   const handlePauseAnimationRuntime = useCallback(() => {
     const targetId =
-      activeAnimationRuntimeTargetId ?? selectedAnimationTargetId;
+      activeAnimationRuntimeTargetId ?? resolvedSelectedAnimationTargetId;
     if (targetId) {
       handlePauseAnimationTarget(targetId);
     }
   }, [
     activeAnimationRuntimeTargetId,
     handlePauseAnimationTarget,
-    selectedAnimationTargetId,
+    resolvedSelectedAnimationTargetId,
   ]);
   const handleStopAnimationRuntime = useCallback(() => {
     if (activeAnimationRuntimeTargetId) {
@@ -2993,32 +3047,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     }
   }, [activeAnimationRuntimeTargetId, handleStopAnimationTarget]);
   const handlePlayProgramRuntime = useCallback(() => {
-    const targetId = selectedProceduralTargetId ?? activeProgramRuntimeTargetId;
+    const targetId =
+      resolvedSelectedProceduralTargetId ?? activeProgramRuntimeTargetId;
     if (targetId) {
       handlePlayProgramTarget(targetId);
     }
   }, [
     activeProgramRuntimeTargetId,
     handlePlayProgramTarget,
-    selectedProceduralTargetId,
+    resolvedSelectedProceduralTargetId,
   ]);
   const handlePauseProgramRuntime = useCallback(() => {
-    const targetId = activeProgramRuntimeTargetId ?? selectedProceduralTargetId;
+    const targetId =
+      activeProgramRuntimeTargetId ?? resolvedSelectedProceduralTargetId;
     if (targetId) {
       handlePauseProgramTarget(targetId);
     }
   }, [
     activeProgramRuntimeTargetId,
     handlePauseProgramTarget,
-    selectedProceduralTargetId,
+    resolvedSelectedProceduralTargetId,
   ]);
   const handleStopProgramRuntime = useCallback(() => {
     if (activeProgramRuntimeTargetId) {
       handleStopProgramTarget(activeProgramRuntimeTargetId);
     }
   }, [activeProgramRuntimeTargetId, handleStopProgramTarget]);
-  const animationSourceActive = activeAnimationRuntimeClip !== null;
-  const motionGraphSourceActive = activeProgramRuntimeSnapshot !== null;
+  const animationSourceActive =
+    activeRuntimeSource === "animation" && activeAnimationRuntimeClip !== null;
+  const motionGraphSourceActive =
+    activeRuntimeSource === "procedural-animation-programming" &&
+    activeProgramRuntimeSnapshot !== null;
   const runtimeStatusLabel = useMemo(() => {
     const parts: string[] = [];
     if (activeAnimationRuntimeTargetId) {
@@ -3244,9 +3303,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         selectedMaterialId,
         selectedPoseGroup,
         selectedBlendStage,
-        selectedAnimationTargetId,
+        selectedAnimationTargetId: resolvedSelectedAnimationTargetId,
         selectedAnimationTrackId,
-        selectedProgramTargetId: selectedProceduralTargetId,
+        selectedProgramTargetId: resolvedSelectedProceduralTargetId,
         selectedMotionGraphNodeId,
       });
       return areActiveInspectorTargetsEqual(previous, next) ? previous : next;
@@ -3258,9 +3317,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedMaterialId,
     selectedPoseGroup,
     selectedBlendStage,
-    selectedAnimationTargetId,
+    resolvedSelectedAnimationTargetId,
     selectedAnimationTrackId,
-    selectedProceduralTargetId,
+    resolvedSelectedProceduralTargetId,
     selectedMotionGraphNodeId,
   ]);
   const handleSelectObjectWithInspectorSync = useCallback(
@@ -3461,8 +3520,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const skipNextDiscrepancyCheck = useRef(false);
 
   const handleNewClick = useCallback(() => {
+    cancelPendingMainAssetFetch();
+    resetAuthoringSessionState();
     loader.reset();
-  }, [loader]);
+  }, [cancelPendingMainAssetFetch, loader, resetAuthoringSessionState]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -3472,8 +3533,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       const skipChecks = skipNextDiscrepancyCheck.current;
-      beginImportFlow(skipChecks ? "File import (skip checks)" : "File import");
-      markImportFileSelected();
+      const sessionToken = beginImportFlow(
+        skipChecks ? "File import (skip checks)" : "File import",
+      );
+      cancelPendingMainAssetFetch();
+      markImportFileSelected({ sessionToken });
 
       if (skipChecks) {
         uiActions.setSkipDiscrepancyCheck(true);
@@ -3482,12 +3546,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       skipNextDiscrepancyCheck.current = false;
 
-      await loadFromFile(file, () =>
-        loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+      await loadFromFile(
+        file,
+        () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
+        { sessionToken },
       );
       event.target.value = "";
     },
-    [beginImportFlow, loadFromFile, markImportFileSelected, uiActions],
+    [
+      beginImportFlow,
+      cancelPendingMainAssetFetch,
+      loadFromFile,
+      markImportFileSelected,
+      uiActions,
+    ],
   );
 
   const handleImportClick = useCallback(() => {
@@ -3781,6 +3853,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId,
   ]);
 
+  const sceneLoaded = Boolean(rootId);
+  const effectiveHierarchyPanelVisible = sceneLoaded && hierarchyPanelVisible;
+  const effectiveInputControlsPanelVisible =
+    sceneLoaded && inputControlsPanelVisible;
+  const effectiveControlAuthoringPanelVisible =
+    sceneLoaded && controlAuthoringPanelVisible;
+  const effectiveAnimationPanelVisible = sceneLoaded && animationPanelVisible;
+  const effectiveMotionGraphPanelVisible =
+    sceneLoaded && motionGraphPanelVisible;
+  const effectiveMotionGraphPalettePanelVisible =
+    sceneLoaded && motionGraphPalettePanelVisible;
+  const effectiveReferenceFacePanelVisible =
+    sceneLoaded && referenceFacePanelVisible;
+  const effectiveInspectorPanelVisible = sceneLoaded && inspectorPanelVisible;
+  const effectiveSpeechPanelVisible = sceneLoaded && speechPanelVisible;
+  const effectiveDebugPanelVisible = sceneLoaded && debugPanelVisible;
+
   const viewerContent = (
     <div
       className={
@@ -3790,7 +3879,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       style={{ height: "100%", width: "100%" }}
     >
-      {referenceFacePanelVisible ? (
+      {effectiveReferenceFacePanelVisible ? (
         <PanelGroup
           orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
@@ -3914,7 +4003,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       />
     </div>
   );
-  const viewportContent = motionGraphPanelVisible ? (
+  const viewportContent = effectiveMotionGraphPanelVisible ? (
     <PanelGroup
       orientation={motionGraphSplitVertical ? "horizontal" : "vertical"}
     >
@@ -3933,12 +4022,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
           playbackState={programRuntimePlaybackState}
           onPlayTransport={
-            selectedProceduralTargetId || activeProgramRuntimeTargetId
+            resolvedSelectedProceduralTargetId || activeProgramRuntimeTargetId
               ? handlePlayProgramRuntime
               : undefined
           }
           onPauseTransport={
-            selectedProceduralTargetId || activeProgramRuntimeTargetId
+            resolvedSelectedProceduralTargetId || activeProgramRuntimeTargetId
               ? handlePauseProgramRuntime
               : undefined
           }
@@ -3961,7 +4050,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         <WorkspaceLayout
           menuBar={menuBar}
           // Left
-          leftTopVisible={hierarchyPanelVisible}
+          leftTopVisible={effectiveHierarchyPanelVisible}
           leftTopPanel={
             <HierarchyPanel
               showSelectionGlow={showSelectionGlow}
@@ -4010,7 +4099,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelTitle="Authoring"
               panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
               onClosePanel={handleHideControlAuthoringPanel}
-              animationActive={animationPanelVisible}
+              animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
               enableMotionGraphPruning={false}
@@ -4019,7 +4108,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           leftBottomVisible2={false}
           leftBottomVisible3={false}
           leftBottomPanel3={null}
-          leftMiddleVisible={inputControlsPanelVisible}
+          leftMiddleVisible={effectiveInputControlsPanelVisible}
           leftMiddlePanel={
             <VariablesPanel
               selectedRigId={selectedRigId}
@@ -4032,8 +4121,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               panelTitle="Input Controls"
               panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
               onClosePanel={handleHideInputControlsPanel}
-              motionGraphActive={motionGraphPanelVisible}
-              animationActive={animationPanelVisible}
+              motionGraphActive={effectiveMotionGraphPanelVisible}
+              animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
               enableMotionGraphPruning
@@ -4042,21 +4131,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               }
             />
           }
-          leftBottomVisible={controlAuthoringPanelVisible}
+          leftBottomVisible={effectiveControlAuthoringPanelVisible}
           viewport={viewportContent}
-          bottomVisible={animationPanelVisible}
+          bottomVisible={effectiveAnimationPanelVisible}
           bottomPanel={
             <AnimationPanel
               onClosePanel={handleHideAnimationPanel}
               onInspectTrack={handleInspectAnimationTrackFromTimeline}
               playbackState={animationRuntimePlaybackState}
               onPlayTransport={
-                selectedAnimationTargetId || activeAnimationRuntimeTargetId
+                resolvedSelectedAnimationTargetId ||
+                activeAnimationRuntimeTargetId
                   ? handlePlayAnimationRuntime
                   : undefined
               }
               onPauseTransport={
-                selectedAnimationTargetId || activeAnimationRuntimeTargetId
+                resolvedSelectedAnimationTargetId ||
+                activeAnimationRuntimeTargetId
                   ? handlePauseAnimationRuntime
                   : undefined
               }
@@ -4072,30 +4163,32 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           rightTopVisible={false}
           rightTopPanel={null}
           rightBottomVisible={
-            (motionGraphPanelVisible && motionGraphPalettePanelVisible) ||
-            inspectorPanelVisible ||
-            speechPanelVisible ||
-            debugPanelVisible
+            (effectiveMotionGraphPanelVisible &&
+              effectiveMotionGraphPalettePanelVisible) ||
+            effectiveInspectorPanelVisible ||
+            effectiveSpeechPanelVisible ||
+            effectiveDebugPanelVisible
           }
           rightSidebarDefaultSize={rightSidebarDefaultSize}
           rightSidebarResetKey={rightSidebarResetKey}
           rightBottomPanel={
             <div className="flex h-full min-h-0 flex-col">
-              {motionGraphPanelVisible && motionGraphPalettePanelVisible ? (
+              {effectiveMotionGraphPanelVisible &&
+              effectiveMotionGraphPalettePanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <MotionGraphPalettePanel
                     onClosePanel={handleHideMotionGraphPalettePanel}
                   />
                 </div>
               ) : null}
-              {motionGraphPanelVisible &&
-              motionGraphPalettePanelVisible &&
-              (inspectorPanelVisible ||
-                speechPanelVisible ||
-                debugPanelVisible) ? (
+              {effectiveMotionGraphPanelVisible &&
+              effectiveMotionGraphPalettePanelVisible &&
+              (effectiveInspectorPanelVisible ||
+                effectiveSpeechPanelVisible ||
+                effectiveDebugPanelVisible) ? (
                 <div className="border-t border-border-default/70" />
               ) : null}
-              {inspectorPanelVisible ? (
+              {effectiveInspectorPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <InspectorPanel
                     activeInspectorTarget={activeInspectorTarget}
@@ -4127,12 +4220,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   />
                 </div>
               ) : null}
-              {speechPanelVisible ? (
+              {effectiveSpeechPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
                   <SpeechPanel onClosePanel={handleHideSpeechPanel} />
                 </div>
               ) : null}
-              {debugPanelVisible ? (
+              {effectiveDebugPanelVisible ? (
                 <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
                   <DebugPanel
                     rootId={loader.rootId}

@@ -93,7 +93,7 @@ import {
 } from "../components/inspector/pipelineStages";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
-import { useFeatureLabels } from "./useFeatureLabels";
+import { FEATURE_FLAG_DEFAULTS, useFeatureLabels } from "./useFeatureLabels";
 import { useManagedStandardInputs } from "./useManagedStandardInputs";
 import { useStandardInputCollections } from "./useStandardInputCollections";
 import { useStandardInputSelectionSync } from "./useStandardInputSelectionSync";
@@ -1797,6 +1797,64 @@ export function useRigController(
     maybeAutoAliasSlot,
     debugLog,
   });
+  useEffect(() => {
+    if (rootId) {
+      return;
+    }
+    const emptyLockedInspectorIds = new Set<string>();
+    setAutoInputs(new Map());
+    setCustomInputs([]);
+    setSelectedStandardInputRoots([]);
+    setSelectedStandardInputSubgroups([]);
+    setDisabledStandardInputIds([]);
+    setLockedInspectorTargetIds(emptyLockedInspectorIds);
+    lockedInspectorTargetIdsRef.current = emptyLockedInspectorIds;
+    setStandardInputSchema({ id: "vizij-standard-face", version: "v1" });
+    setHiddenDriverIds(new Set());
+    updateInputValues(() => ({}));
+    setFeatureLabelOverrides({});
+    setFeatureFlags({ ...FEATURE_FLAG_DEFAULTS });
+    setBindings({});
+    setInputBindings({});
+    bindingAuthoringStore.setState({
+      bindingIssues: new Map(),
+      featureLabelOverrides: {},
+      featureFlags: { ...FEATURE_FLAG_DEFAULTS },
+      standardInputSchema: { id: "vizij-standard-face", version: "v1" },
+      managedStandardInputs: [],
+      standardInputRoots: [],
+      selectedStandardInputRoots: [],
+      selectedStandardInputSubgroups: [],
+      standardInputs: [],
+      standardInputsById: new Map(),
+      standardInputsByPath: new Map(),
+      rigOutputLookup: new Map(),
+      validOutputTargets: new Set(),
+      pipelineMetadataV1: null,
+      pipelineConfigByInputId: {},
+      inputValues: {},
+      timelineInputLockActive: false,
+      timelineLockedInputIds: new Set(),
+      bindings: {},
+      inputBindings: {},
+      animatableComponents: [],
+      lockedInspectorTargetIds: emptyLockedInspectorIds,
+      lockedPropsRigInputIds: new Set(),
+      sceneObjects: [],
+      sceneObjectRoots: [],
+      hiddenDriverIds: new Set(),
+      selectedRigId: null,
+      selectedMaterialId: null,
+    });
+  }, [
+    bindingAuthoringStore,
+    rootId,
+    setBindings,
+    setFeatureFlags,
+    setFeatureLabelOverrides,
+    setInputBindings,
+    updateInputValues,
+  ]);
 
   const availablePipelineInputIds = useMemo(() => {
     const next = new Set<string>();
