@@ -23,6 +23,7 @@ function createBaseProps(): VariablePipelineStagesProps {
         expressionVariable: "s1",
         kind: "variable" as const,
         onInspect: vi.fn(),
+        onUnlink: vi.fn(),
         directControl: {
           value: 0.4,
           min: -1,
@@ -221,6 +222,10 @@ describe("VariablePipelineStages", () => {
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
     fireEvent.click(
+      within(parentStage).getAllByRole("button", { name: "Delete" })[0]!,
+    );
+    expect(props.parents[0]?.onUnlink).toHaveBeenCalledTimes(1);
+    fireEvent.click(
       within(parentStage).getByRole("button", { name: "Inspect" }),
     );
     expect(props.parents[0]?.onInspect).toHaveBeenCalledTimes(1);
@@ -229,6 +234,10 @@ describe("VariablePipelineStages", () => {
     fireEvent.click(
       within(childStage).getByRole("button", { name: /mouth child/i }),
     );
+    fireEvent.click(
+      within(childStage).getAllByRole("button", { name: "Delete" })[0]!,
+    );
+    expect(props.children[0]?.onUnlink).toHaveBeenCalledTimes(1);
     fireEvent.click(
       within(childStage).getByRole("button", { name: "Inspect" }),
     );

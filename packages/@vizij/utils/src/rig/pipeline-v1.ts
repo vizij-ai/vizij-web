@@ -88,6 +88,7 @@ export interface RigPipelineV1ResolvedParentEntry {
   linkId: string;
   inputId: string;
   alias: string;
+  storedAlias?: string;
   scale: number;
   offset: number;
   enabled: boolean;
@@ -232,15 +233,141 @@ export function buildRigPipelineV1ParentExpression(alias: string): string {
   return `${resolvedAlias} = parent * scale + offset`;
 }
 
-export function buildRigPipelineV1ParentContributionExpression(
-  parentAliases: readonly string[],
-): string {
-  const aliases = parentAliases.map((alias) => normalizeStringValue(alias));
-  const resolvedAliases = aliases.filter(
-    (alias): alias is string => alias !== null,
+export function extractRigPipelineFormulaAssignedVariable(
+  expression: string | null | undefined,
+): string | null {
+  const normalizedExpression = normalizeStringValue(expression);
+  if (!normalizedExpression) {
+    return null;
+  }
+  const match = normalizedExpression.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+  return match?.[1] ?? null;
+}
+
+export function resolveRigPipelineV1FormulaVariable(params: {
+  alias?: string | null | undefined;
+  expression?: string | null | undefined;
+  fallbackAlias?: string | null | undefined;
+}): string {
+  return (
+    extractRigPipelineFormulaAssignedVariable(params.expression) ??
+    normalizeStringValue(params.alias) ??
+    normalizeStringValue(params.fallbackAlias) ??
+    "P1"
   );
-  const parentTerms = resolvedAliases.join(", ");
+}
+
+export type RigPipelineV1ParentContributionSource =
+  | string
+  | {
+      alias?: string | null | undefined;
+      storedAlias?: string | null | undefined;
+      expression?: string | null | undefined;
+    };
+
+function resolveRigPipelineV1ParentContributionTerm(
+  source: RigPipelineV1ParentContributionSource,
+): string | null {
+  if (typeof source === "string") {
+    return normalizeStringValue(source);
+  }
+  return resolveRigPipelineV1FormulaVariable({
+    alias: source.alias,
+    expression: source.expression,
+  });
+}
+
+function buildRigPipelineV1LegacyAliasContributionExpression(
+  parentSources: readonly RigPipelineV1ParentContributionSource[],
+): string | null {
+  const parentAliases = parentSources
+    .map((source) => {
+      if (typeof source === "string") {
+        return normalizeStringValue(source);
+      }
+      return (
+        normalizeStringValue(source.storedAlias) ??
+        normalizeStringValue(source.alias)
+      );
+    })
+    .filter((alias): alias is string => alias !== null);
+  if (parentAliases.length === 0) {
+    return null;
+  }
+  return `parentContribution = normalizedAdditive([${parentAliases.join(", ")}], baseline=default)`;
+}
+
+function buildRigPipelineV1SlotAliasContributionExpression(
+  parentCount: number,
+): string | null {
+  if (!Number.isFinite(parentCount) || parentCount <= 0) {
+    return null;
+  }
+  const parentAliases = Array.from({ length: parentCount }, (_, index) => {
+    return `s${index + 1}`;
+  });
+  return `parentContribution = normalizedAdditive([${parentAliases.join(", ")}], baseline=default)`;
+}
+
+export function buildRigPipelineV1ParentContributionExpression(
+  parentSources: readonly RigPipelineV1ParentContributionSource[],
+): string {
+  const parentTerms = parentSources
+    .map((source) => resolveRigPipelineV1ParentContributionTerm(source))
+    .filter((term): term is string => term !== null)
+    .join(", ");
   return `parentContribution = normalizedAdditive([${parentTerms}], baseline=default)`;
+}
+
+export function isRigPipelineV1AutoParentContributionExpression(params: {
+  expression: string | null | undefined;
+  parents: readonly RigPipelineV1ParentContributionSource[];
+}): boolean {
+  const normalizedParentExpression = normalizeExpression(params.expression);
+  if (!normalizedParentExpression) {
+    return false;
+  }
+  const defaultExpression = normalizeExpression(
+    buildRigPipelineV1ParentContributionExpression(params.parents),
+  );
+  if (defaultExpression === normalizedParentExpression) {
+    return true;
+  }
+  return (
+    normalizeExpression(
+      buildRigPipelineV1LegacyAliasContributionExpression(params.parents),
+    ) === normalizedParentExpression
+  );
+}
+
+function normalizeRigPipelineV1ParentBlendExpression(params: {
+  expression: string | null | undefined;
+  parents: readonly RigPipelineV1ResolvedParentEntry[];
+}): string | null {
+  const normalizedExpression = normalizeExpression(params.expression);
+  if (!normalizedExpression) {
+    return null;
+  }
+  const enabledParents = params.parents.filter((parent) => parent.enabled);
+  const canonicalExpression = normalizeExpression(
+    buildRigPipelineV1ParentContributionExpression(enabledParents),
+  );
+  if (normalizedExpression === canonicalExpression) {
+    return canonicalExpression;
+  }
+  const legacyAliasExpression = normalizeExpression(
+    buildRigPipelineV1LegacyAliasContributionExpression(enabledParents),
+  );
+  if (normalizedExpression === legacyAliasExpression) {
+    return canonicalExpression;
+  }
+  const slotAliasExpression = normalizeExpression(
+    buildRigPipelineV1SlotAliasContributionExpression(enabledParents.length),
+  );
+  if (normalizedExpression === slotAliasExpression) {
+    return canonicalExpression;
+  }
+  return normalizedExpression;
 }
 
 export function getRigPipelineV1InputConfig(
@@ -298,10 +425,14 @@ export function resolveRigPipelineV1InputConfig({
     if (!parentInputId) {
       return;
     }
-    const alias =
-      normalizeStringValue(entry.alias) ??
-      normalizeStringValue(`P${index + 1}`) ??
-      "P1";
+    const entryExpression = normalizeExpression(entry.expression);
+    const linkExpression = normalizeExpression(linkConfig?.expression);
+    const storedAlias = normalizeStringValue(entry.alias);
+    const alias = resolveRigPipelineV1FormulaVariable({
+      alias: storedAlias,
+      expression: linkExpression ?? entryExpression,
+      fallbackAlias: `P${index + 1}`,
+    });
     const linkScale =
       typeof linkConfig?.scale === "number" && Number.isFinite(linkConfig.scale)
         ? linkConfig.scale
@@ -318,12 +449,13 @@ export function resolveRigPipelineV1InputConfig({
       linkId,
       inputId: parentInputId,
       alias,
+      ...(storedAlias ? { storedAlias } : {}),
       scale: linkScale ?? normalizeFinite(entry.scale, 1),
       offset: linkOffset ?? normalizeFinite(entry.offset, 0),
       enabled: linkEnabled ?? normalizeBoolean(entry.enabled, true),
       expression:
-        normalizeExpression(linkConfig?.expression) ??
-        normalizeExpression(entry.expression) ??
+        linkExpression ??
+        entryExpression ??
         buildRigPipelineV1ParentExpression(alias),
     });
   });
@@ -342,17 +474,20 @@ export function resolveRigPipelineV1InputConfig({
     if (parentLinkIds.has(linkId)) {
       return;
     }
+    const linkExpression = normalizeExpression(link.expression);
+    const alias = resolveRigPipelineV1FormulaVariable({
+      expression: linkExpression,
+      fallbackAlias: `P${parents.length + 1}`,
+    });
     parentLinkIds.add(linkId);
     parents.push({
       linkId,
       inputId: parentInputId,
-      alias: `P${parents.length + 1}`,
+      alias,
       scale: normalizeFinite(link.scale, 1),
       offset: normalizeFinite(link.offset, 0),
       enabled: normalizeBoolean(link.enabled, true),
-      expression:
-        normalizeExpression(link.expression) ??
-        buildRigPipelineV1ParentExpression(`P${parents.length + 1}`),
+      expression: linkExpression ?? buildRigPipelineV1ParentExpression(alias),
     });
   });
 
@@ -410,9 +545,12 @@ export function resolveRigPipelineV1InputConfig({
     ? stagedConfig.parentBlend.mode
     : RIG_PIPELINE_V1_DEFAULT_BLEND_MODE;
   const parentBlendExpression =
-    normalizeExpression(stagedConfig?.parentBlend?.expression) ??
+    normalizeRigPipelineV1ParentBlendExpression({
+      expression: stagedConfig?.parentBlend?.expression,
+      parents,
+    }) ??
     buildRigPipelineV1ParentContributionExpression(
-      parents.filter((parent) => parent.enabled).map((parent) => parent.alias),
+      parents.filter((parent) => parent.enabled),
     );
 
   const defaultValue = Number.isFinite(input.defaultValue)

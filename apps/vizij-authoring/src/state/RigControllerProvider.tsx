@@ -14,6 +14,7 @@ import {
   BindingAuthoringStoreProvider,
   createBindingAuthoringStore,
   useBindingAuthoringStore,
+  useBindingAuthoringStoreApi,
   type BindingAuthoringState,
   type BindingAuthoringStore,
 } from "./bindingAuthoringStore";
@@ -44,6 +45,7 @@ export function useGraphRuntime<T = GraphRuntimeState>(
 }
 
 export { useGraphRuntimeStoreApi };
+export { useBindingAuthoringStoreApi };
 
 export function useBindingAuthoring<T = BindingAuthoringState>(
   selector?: (state: BindingAuthoringState) => T,

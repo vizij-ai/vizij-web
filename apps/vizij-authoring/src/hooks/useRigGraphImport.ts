@@ -12,6 +12,7 @@ import {
   SELF_BINDING_ID,
   createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
+  resolveRigPipelineV1InputConfig,
   resolveStandardRigInputId,
   type AnimatableComponent as AnimComponent,
   type StandardRigInput,
@@ -236,6 +237,99 @@ export function deriveLockedInspectorTargetsFromPipeline(options: {
   return lockedTargets;
 }
 
+export function canonicalizeImportedPipelineMetadataV1(params: {
+  faceId: string;
+  standardInputs: readonly StandardRigInput[];
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined;
+}): VizijPipelineMetadataV1 | null {
+  const { faceId, standardInputs, pipelineMetadataV1 } = params;
+  if (!pipelineMetadataV1) {
+    return null;
+  }
+
+  const standardInputsById = new Map(
+    standardInputs.map((input) => [input.id, input]),
+  );
+  const pipelineConfigByInputId =
+    extractVizijPipelineConfigMapFromMetadata(pipelineMetadataV1);
+  const relevantInputIds = new Set<string>(
+    Object.keys(pipelineConfigByInputId),
+  );
+  const links = asRecord(pipelineMetadataV1.links);
+  if (links) {
+    Object.values(links).forEach((candidate) => {
+      const link = asRecord(candidate);
+      const parentInputId =
+        typeof link?.parentInputId === "string"
+          ? link.parentInputId.trim()
+          : "";
+      const childInputId =
+        typeof link?.childInputId === "string" ? link.childInputId.trim() : "";
+      if (parentInputId.length > 0) {
+        relevantInputIds.add(parentInputId);
+      }
+      if (childInputId.length > 0) {
+        relevantInputIds.add(childInputId);
+      }
+    });
+  }
+
+  const nextByInputId: Record<string, Record<string, unknown>> = {};
+  relevantInputIds.forEach((inputId) => {
+    const input = standardInputsById.get(inputId);
+    if (!input) {
+      return;
+    }
+    const rawConfig = asRecord(pipelineConfigByInputId[inputId]);
+    const rawParentBlend = asRecord(rawConfig?.parentBlend);
+    const resolvedConfig = resolveRigPipelineV1InputConfig({
+      faceId,
+      input,
+      pipelineV1: pipelineMetadataV1 as Parameters<
+        typeof resolveRigPipelineV1InputConfig
+      >[0]["pipelineV1"],
+    });
+    const nextConfig: Record<string, unknown> = {
+      ...(rawConfig ?? {}),
+      inputId,
+    };
+
+    if (resolvedConfig.parents.length > 0) {
+      nextConfig.parents = resolvedConfig.parents.map((parent) => ({
+        linkId: parent.linkId,
+        inputId: parent.inputId,
+        alias: parent.alias,
+        scale: parent.scale,
+        offset: parent.offset,
+        enabled: parent.enabled,
+        expression: parent.expression,
+      }));
+    }
+
+    if (resolvedConfig.children.length > 0) {
+      nextConfig.children = resolvedConfig.children.map((child) => ({
+        linkId: child.linkId,
+        childInputId: child.childInputId,
+      }));
+    }
+
+    if (rawParentBlend || resolvedConfig.parents.length > 0) {
+      nextConfig.parentBlend = {
+        ...(rawParentBlend ?? {}),
+        mode: resolvedConfig.parentBlend.mode,
+        expression: resolvedConfig.parentBlend.expression,
+      };
+    }
+
+    nextByInputId[inputId] = nextConfig;
+  });
+
+  return {
+    ...pipelineMetadataV1,
+    byInputId: nextByInputId,
+  };
+}
+
 export function useRigGraphImport({
   faceId,
   animatables,
@@ -327,7 +421,12 @@ export function useRigGraphImport({
           importedFaceIdRaw && importedFaceIdRaw.trim().length > 0
             ? sanitizeFaceId(importedFaceIdRaw)
             : null;
-        const importedPipelineMetadataV1 = extractVizijPipelineMetadataV1(spec);
+        const importedPipelineMetadataV1 =
+          canonicalizeImportedPipelineMetadataV1({
+            faceId: importedFaceId ?? loadedFaceId ?? "face",
+            standardInputs: rehydrated.standardInputs,
+            pipelineMetadataV1: extractVizijPipelineMetadataV1(spec),
+          });
         const importedPipelineConfigByInputId =
           extractVizijPipelineConfigMapFromMetadata(importedPipelineMetadataV1);
         const importedLockedInspectorTargetIds =
@@ -420,26 +519,38 @@ export function useRigGraphImport({
         if (!loadedFaceId && importedFaceId) {
           setFaceId(importedFaceId);
         }
+        const rebuiltGraph = buildRigGraphSpec(
+          withPipelineConfigBuildOptions(
+            {
+              faceId: resolvedFaceId,
+              animatables,
+              components: animatableComponents,
+              bindings: rehydrated.bindings,
+              inputsById: new Map(
+                rehydrated.standardInputs.map((input) => [input.id, input]),
+              ),
+              inputBindings: rehydrated.inputBindings,
+              inputMetadata: normalizedInputMetadata,
+              inputComposeModesById:
+                buildPoseComposeModeByInputId(poseConfigForRebuild),
+            },
+            importedPipelineConfigByInputId,
+            importedPipelineMetadataV1,
+          ),
+        );
+        const rebuiltIssueEntries = Object.entries(rebuiltGraph.issues.byTarget)
+          .flatMap(([targetId, issues]) =>
+            issues.map((issue) => ({ targetId, issue })),
+          )
+          .slice(0, 8);
+        const rebuiltIssueCount =
+          rebuiltGraph.issues.fatal.length +
+          Object.values(rebuiltGraph.issues.byTarget).reduce(
+            (total, issues) => total + issues.length,
+            0,
+          );
         const rebuiltSpec = withVizijPipelineMetadataV1(
-          buildRigGraphSpec(
-            withPipelineConfigBuildOptions(
-              {
-                faceId: resolvedFaceId,
-                animatables,
-                components: animatableComponents,
-                bindings: rehydrated.bindings,
-                inputsById: new Map(
-                  rehydrated.standardInputs.map((input) => [input.id, input]),
-                ),
-                inputBindings: rehydrated.inputBindings,
-                inputMetadata: normalizedInputMetadata,
-                inputComposeModesById:
-                  buildPoseComposeModeByInputId(poseConfigForRebuild),
-              },
-              importedPipelineConfigByInputId,
-              importedPipelineMetadataV1,
-            ),
-          ).spec,
+          rebuiltGraph.spec,
           importedPipelineMetadataV1,
         ) as GraphSpec;
         await waitForNextFrame();
@@ -560,7 +671,8 @@ export function useRigGraphImport({
         const shouldOpenDiscrepancyWizard =
           !options?.skipDiscrepancyCheck &&
           (importedSignature !== rebuiltSignature ||
-            missingBlueprintPaths.length > 0);
+            missingBlueprintPaths.length > 0 ||
+            rebuiltIssueCount > 0);
 
         const signatureKey = [
           importedSignature.length,
@@ -696,6 +808,14 @@ export function useRigGraphImport({
             if (normalizationDiagnostics.animatableFallbacks.length > 0) {
               mismatchReasons.push(
                 `Unresolved direct animatable bindings explicitly flagged: ${normalizationDiagnostics.animatableFallbacks.length}.`,
+              );
+            }
+            if (rebuiltIssueCount > 0) {
+              const preview = rebuiltIssueEntries
+                .map((entry) => `${entry.targetId}: ${entry.issue}`)
+                .join(" | ");
+              mismatchReasons.push(
+                `Rebuilt graph still reports ${rebuiltIssueCount} compile/validation issue(s). Sample: ${preview}`,
               );
             }
             pendingReviewRef.current = openDiscrepancyReview({

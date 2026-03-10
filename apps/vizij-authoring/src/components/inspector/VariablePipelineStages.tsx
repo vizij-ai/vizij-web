@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Plus, Trash2 } from "lucide-react";
 import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
@@ -12,6 +12,7 @@ import {
 } from "../../utils/rotationDisplay";
 import {
   formatPipelineValue,
+  resolveEffectiveParentExpressionVariable,
   type PipelineDiagnosticsRow,
 } from "./pipelineStages";
 
@@ -57,6 +58,7 @@ interface VariablePipelineStagesProps {
   parentExpressionTitle?: string;
   parentExpressionReadOnly?: boolean;
   parentExpressionReadOnlyReason?: string | null;
+  parentExpressionAttentionKey?: number;
   onParentExpressionChange?: (expression: string) => void;
   onAddParent?: () => void;
   compiledEquation: string;
@@ -230,22 +232,28 @@ function resolveDisplayStep(
 function buildParentVariableFormula(
   parent: Pick<
     PipelineStageLinkItem,
-    "expressionVariable" | "linkControl" | "directControl" | "parentFormula"
+    | "expressionVariable"
+    | "linkControl"
+    | "directControl"
+    | "parentFormula"
+    | "parentFormulaDefault"
   >,
 ): { symbolic: string; expanded: string | null } | null {
   if (!parent.linkControl) {
     return null;
   }
-  const variable =
-    parent.expressionVariable && parent.expressionVariable.trim().length > 0
-      ? parent.expressionVariable.trim()
-      : "s1";
   const scaleText = formatCompactNumber(parent.linkControl.scale);
   const offsetText = formatSignedCompactNumber(parent.linkControl.offset);
   const customFormula =
     parent.parentFormula && parent.parentFormula.trim().length > 0
       ? parent.parentFormula.trim()
       : null;
+  const variable = resolveEffectiveParentExpressionVariable({
+    expressionVariable: parent.expressionVariable,
+    parentFormula: customFormula,
+    parentFormulaDefault: parent.parentFormulaDefault,
+    fallbackVariable: "s1",
+  });
   const symbolic =
     customFormula ?? `${variable} = parent * ${scaleText} ${offsetText}`;
   if (customFormula) {
@@ -418,6 +426,7 @@ export function VariablePipelineStages({
   parentExpressionTitle = "Authored Parent Expression",
   parentExpressionReadOnly = false,
   parentExpressionReadOnlyReason = null,
+  parentExpressionAttentionKey = 0,
   onParentExpressionChange,
   onAddParent,
   compiledEquation,
@@ -503,10 +512,23 @@ export function VariablePipelineStages({
   const [parentFormulaDraftById, setParentFormulaDraftById] = React.useState<
     Record<string, string>
   >({});
+  const parentExpressionEditorRef = React.useRef<HTMLTextAreaElement | null>(
+    null,
+  );
   const parentFormulaSourceByIdRef = React.useRef<Record<string, string>>({});
   React.useEffect(() => {
     setParentExpressionDraft(parentExpression);
   }, [parentExpression]);
+  React.useEffect(() => {
+    if (
+      parentExpressionAttentionKey <= 0 ||
+      !parentExpressionEditorRef.current
+    ) {
+      return;
+    }
+    parentExpressionEditorRef.current.focus();
+    parentExpressionEditorRef.current.select();
+  }, [parentExpressionAttentionKey]);
   React.useEffect(() => {
     setParentFormulaDraftById((previous) => {
       const next = { ...previous };
@@ -628,6 +650,7 @@ export function VariablePipelineStages({
       </div>
 
       <StageSection
+        key={`pipeline-stage-parents-${parentExpressionAttentionKey}`}
         title="Parents"
         hoverText="Upstream drivers that contribute parent math."
         count={parents.length}
@@ -664,6 +687,7 @@ export function VariablePipelineStages({
           {onParentExpressionChange ? (
             <div className="flex flex-col gap-1.5">
               <TextArea
+                ref={parentExpressionEditorRef}
                 value={parentExpressionDraft}
                 onChange={(event) =>
                   setParentExpressionDraft(event.target.value)
@@ -773,6 +797,17 @@ export function VariablePipelineStages({
                         >
                           Inspect
                           <ArrowRight size={11} aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                      {parent.onUnlink ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1.5 text-red-300 hover:text-red-200"
+                          onClick={parent.onUnlink}
+                        >
+                          Delete
+                          <Trash2 size={11} aria-hidden="true" />
                         </Button>
                       ) : null}
                     </>
@@ -1281,6 +1316,17 @@ export function VariablePipelineStages({
                       >
                         Inspect
                         <ArrowRight size={11} aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                    {child.onUnlink ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] gap-1.5 text-red-300 hover:text-red-200"
+                        onClick={child.onUnlink}
+                      >
+                        Delete
+                        <Trash2 size={11} aria-hidden="true" />
                       </Button>
                     ) : null}
                   </>

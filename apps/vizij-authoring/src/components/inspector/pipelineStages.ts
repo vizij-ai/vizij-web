@@ -2,7 +2,14 @@ import {
   buildCanonicalBindingExpression,
   type AnimatableBinding,
 } from "@vizij/node-graph-authoring";
-import { buildRigPipelineV1LinkId, SELF_BINDING_ID } from "@vizij/utils";
+import {
+  buildRigPipelineV1LinkId,
+  buildRigPipelineV1ParentContributionExpression,
+  isRigPipelineV1AutoParentContributionExpression,
+  resolveRigPipelineV1FormulaVariable,
+  type RigPipelineV1ParentContributionSource,
+  SELF_BINDING_ID,
+} from "@vizij/utils";
 
 type JsonObject = Record<string, unknown>;
 
@@ -162,12 +169,75 @@ export function buildDefaultParentVariableFormula(variable: string): string {
 }
 
 export function buildDefaultParentContributionFormula(
-  variables: readonly string[],
+  variables: readonly RigPipelineV1ParentContributionSource[],
 ): string {
-  const terms = variables
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-  return `parentContribution = normalizedAdditive([${terms.join(", ")}], baseline=default)`;
+  return buildRigPipelineV1ParentContributionExpression(variables);
+}
+
+export function isAutoParentBlendExpression(
+  expression: string | null | undefined,
+  parentVariables: readonly RigPipelineV1ParentContributionSource[],
+): boolean {
+  const normalizedExpression =
+    typeof expression === "string" && expression.trim().length > 0
+      ? expression.trim()
+      : null;
+  if (!normalizedExpression) {
+    return true;
+  }
+  return isRigPipelineV1AutoParentContributionExpression({
+    expression: normalizedExpression,
+    parents: parentVariables,
+  });
+}
+
+export function resolveParentBlendExpressionUpdate(params: {
+  previousExpression: string | null | undefined;
+  previousParentVariables: readonly RigPipelineV1ParentContributionSource[];
+  nextParentVariables: readonly RigPipelineV1ParentContributionSource[];
+}): {
+  nextExpression: string | null;
+  requiresManualEdit: boolean;
+} {
+  const normalizedPreviousExpression =
+    typeof params.previousExpression === "string" &&
+    params.previousExpression.trim().length > 0
+      ? params.previousExpression.trim()
+      : null;
+  const nextParentFormula =
+    params.nextParentVariables.length > 0
+      ? buildDefaultParentContributionFormula(params.nextParentVariables)
+      : null;
+  const previousWasAuto = isAutoParentBlendExpression(
+    normalizedPreviousExpression,
+    params.previousParentVariables,
+  );
+  if (previousWasAuto) {
+    return {
+      nextExpression: nextParentFormula,
+      requiresManualEdit: false,
+    };
+  }
+  return {
+    nextExpression: normalizedPreviousExpression,
+    requiresManualEdit:
+      normalizeExpression(
+        buildDefaultParentContributionFormula(params.previousParentVariables),
+      ) !== normalizeExpression(nextParentFormula ?? ""),
+  };
+}
+
+export function resolveEffectiveParentExpressionVariable(params: {
+  expressionVariable?: string | null;
+  parentFormula?: string | null;
+  parentFormulaDefault?: string | null;
+  fallbackVariable?: string | null;
+}): string {
+  return resolveRigPipelineV1FormulaVariable({
+    alias: params.expressionVariable,
+    expression: params.parentFormula ?? params.parentFormulaDefault,
+    fallbackAlias: params.fallbackVariable,
+  });
 }
 
 function normalizeMigrationInputId(
@@ -434,6 +504,7 @@ export function mergePipelineMetadata(
         expression?: string | null;
       }
     >;
+    linkDeletes?: readonly string[];
     parentBlendExpression?: string | null;
     migrationStatus?: "migrated";
     migrationSource?: string;
@@ -522,6 +593,27 @@ export function mergePipelineMetadata(
       }
     });
     nextPipeline.links = nextLinks;
+  }
+
+  if (patch.linkDeletes && patch.linkDeletes.length > 0) {
+    const nextLinks: Record<string, Record<string, unknown>> = {};
+    Object.entries(asObject(nextPipeline.links) ?? {}).forEach(
+      ([key, value]) => {
+        const normalizedValue = asObject(value);
+        if (normalizedValue) {
+          nextLinks[key] = normalizedValue;
+        }
+      },
+    );
+    patch.linkDeletes.forEach((rawLinkId) => {
+      const linkId = rawLinkId.trim();
+      if (!linkId) {
+        return;
+      }
+      delete nextLinks[linkId];
+    });
+    nextPipeline.links =
+      Object.keys(nextLinks).length > 0 ? nextLinks : undefined;
   }
 
   if (patch.parentBlendExpression === null) {
