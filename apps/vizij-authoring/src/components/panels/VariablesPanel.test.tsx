@@ -4148,8 +4148,16 @@ describe("VariablesPanel", () => {
             label: "Wave Clip",
             source: "authored",
             selected: true,
-            isRuntimeActive: true,
+            runtimeState: "stopped",
             meta: "2 tracks",
+          },
+          {
+            id: "animation:live",
+            label: "Live Clip",
+            source: "imported",
+            selected: false,
+            runtimeState: "playing",
+            meta: "1 track",
           },
         ]}
         onSelectAnimationTarget={onSelectAnimationTarget}
@@ -4164,8 +4172,16 @@ describe("VariablesPanel", () => {
             label: "Blink Graph",
             source: "authored",
             selected: true,
-            isRuntimeActive: true,
+            runtimeState: "stopped",
             meta: "3 nodes",
+          },
+          {
+            id: "program:live",
+            label: "Live Graph",
+            source: "imported",
+            selected: false,
+            runtimeState: "playing",
+            meta: "1 node",
           },
         ]}
         onSelectProgramTarget={onSelectProgramTarget}
@@ -4187,16 +4203,16 @@ describe("VariablesPanel", () => {
     fireEvent.click(screen.getByTitle("Play animation"));
     fireEvent.click(screen.getByTitle("Pause animation"));
     fireEvent.click(screen.getByTitle("Stop animation"));
-    fireEvent.click(screen.getByTitle("Delete animation"));
+    fireEvent.click(screen.getAllByTitle("Delete animation")[0]!);
 
     expect(onCreateAnimationTarget).toHaveBeenCalledTimes(1);
     expect(onSelectAnimationTarget).toHaveBeenCalledWith("animation:wave");
     expect(onPlayAnimationTarget).toHaveBeenCalledWith("animation:wave");
-    expect(onPauseAnimationTarget).toHaveBeenCalledWith("animation:wave");
-    expect(onStopAnimationTarget).toHaveBeenCalledWith("animation:wave");
+    expect(onPauseAnimationTarget).toHaveBeenCalledWith("animation:live");
+    expect(onStopAnimationTarget).toHaveBeenCalledWith("animation:live");
     expect(onDeleteAnimationTarget).toHaveBeenCalledWith("animation:wave");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Programs (1)" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Programs (2)" }));
 
     expect(screen.getByPlaceholderText("Search programs...")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "New Program" }));
@@ -4204,13 +4220,13 @@ describe("VariablesPanel", () => {
     fireEvent.click(screen.getByTitle("Play program"));
     fireEvent.click(screen.getByTitle("Pause program"));
     fireEvent.click(screen.getByTitle("Stop program"));
-    fireEvent.click(screen.getByTitle("Delete program"));
+    fireEvent.click(screen.getAllByTitle("Delete program")[0]!);
 
     expect(onCreateProgramTarget).toHaveBeenCalledTimes(1);
     expect(onSelectProgramTarget).toHaveBeenCalledWith("program:blink");
     expect(onPlayProgramTarget).toHaveBeenCalledWith("program:blink");
-    expect(onPauseProgramTarget).toHaveBeenCalledWith("program:blink");
-    expect(onStopProgramTarget).toHaveBeenCalledWith("program:blink");
+    expect(onPauseProgramTarget).toHaveBeenCalledWith("program:live");
+    expect(onStopProgramTarget).toHaveBeenCalledWith("program:live");
     expect(onDeleteProgramTarget).toHaveBeenCalledWith("program:blink");
   });
 

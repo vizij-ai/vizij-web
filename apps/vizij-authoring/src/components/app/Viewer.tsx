@@ -3,7 +3,13 @@ import type {
   RuntimeOutputWrite,
   VizijAssetBundle,
 } from "@vizij/runtime-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
@@ -424,15 +430,87 @@ function RuntimeStatusDebug() {
   );
 }
 
+interface MotionGraphRuntimeResetEntry {
+  path: string;
+  value: number;
+}
+
+function MotionGraphRuntimeBridge({
+  controllerId = null,
+  playbackState = "stopped",
+  nodes,
+  edges,
+  resetValues = [],
+  plotActive = false,
+}: {
+  controllerId?: string | null;
+  playbackState?: "playing" | "paused" | "stopped";
+  nodes?: EditorNode[] | null;
+  edges?: EditorEdge[] | null;
+  resetValues?: readonly MotionGraphRuntimeResetEntry[];
+  plotActive?: boolean;
+}) {
+  const { setInput } = useVizijRuntime();
+  const previousSessionRef = useRef<{
+    controllerId: string | null;
+    playbackState: "playing" | "paused" | "stopped";
+    resetValues: readonly MotionGraphRuntimeResetEntry[];
+  }>({
+    controllerId: null,
+    playbackState: "stopped",
+    resetValues: [],
+  });
+  const active =
+    playbackState === "playing" &&
+    Boolean(controllerId) &&
+    Array.isArray(nodes) &&
+    Array.isArray(edges);
+
+  useLayoutEffect(() => {
+    const previous = previousSessionRef.current;
+    const targetChanged =
+      previous.controllerId !== null && previous.controllerId !== controllerId;
+    const transitionedToStopped =
+      previous.controllerId !== null &&
+      previous.playbackState !== "stopped" &&
+      playbackState === "stopped";
+    if (targetChanged || transitionedToStopped) {
+      previous.resetValues.forEach(({ path, value }) => {
+        setInput(path, { float: Number.isFinite(value) ? value : 0 });
+      });
+    }
+    previousSessionRef.current = {
+      controllerId,
+      playbackState,
+      resetValues,
+    };
+  }, [controllerId, playbackState, resetValues, setInput]);
+
+  return (
+    <>
+      <InputValueBridge active={active} nodes={nodes ?? undefined} />
+      <MotionGraphDriverBridge
+        active={active}
+        controllerId={controllerId ?? undefined}
+        nodes={nodes ?? undefined}
+        edges={edges ?? undefined}
+      />
+      <MotionGraphValueSampler active={active && plotActive} />
+    </>
+  );
+}
+
 export interface ViewerProps {
   rootId: string | null;
   namespace: string;
   bundle: VizijAssetBundle | null;
   animationSourceActive?: boolean;
   animationRuntimeClip?: AnimationClipIR | null;
-  motionGraphSourceActive?: boolean;
   motionGraphRuntimeNodes?: EditorNode[] | null;
   motionGraphRuntimeEdges?: EditorEdge[] | null;
+  motionGraphPlaybackState?: "playing" | "paused" | "stopped";
+  motionGraphRuntimeControllerId?: string | null;
+  motionGraphRuntimeResetValues?: readonly MotionGraphRuntimeResetEntry[];
   runtimeStatusLabel?: string;
   runtimeActions?: RuntimeFaceOverlayAction[];
   selectedSceneId?: string | null;
@@ -457,9 +535,11 @@ export function Viewer({
   bundle,
   animationSourceActive = true,
   animationRuntimeClip = null,
-  motionGraphSourceActive = false,
   motionGraphRuntimeNodes = null,
   motionGraphRuntimeEdges = null,
+  motionGraphPlaybackState = "stopped",
+  motionGraphRuntimeControllerId = null,
+  motionGraphRuntimeResetValues = [],
   runtimeStatusLabel,
   runtimeActions = [],
   selectedSceneId = null,
@@ -619,17 +699,13 @@ export function Viewer({
               active={animationSourceActive}
               clip={animationRuntimeClip}
             />
-            <InputValueBridge
-              active={motionGraphSourceActive}
-              nodes={motionGraphRuntimeNodes ?? undefined}
-            />
-            <MotionGraphDriverBridge
-              active={motionGraphSourceActive}
-              nodes={motionGraphRuntimeNodes ?? undefined}
-              edges={motionGraphRuntimeEdges ?? undefined}
-            />
-            <MotionGraphValueSampler
-              active={motionGraphSourceActive && plotActive}
+            <MotionGraphRuntimeBridge
+              controllerId={motionGraphRuntimeControllerId}
+              playbackState={motionGraphPlaybackState}
+              nodes={motionGraphRuntimeNodes}
+              edges={motionGraphRuntimeEdges}
+              resetValues={motionGraphRuntimeResetValues}
+              plotActive={plotActive}
             />
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay
