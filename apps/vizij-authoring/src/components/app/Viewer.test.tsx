@@ -11,9 +11,11 @@ import {
   createBindingAuthoringStore,
 } from "../../state/bindingAuthoringStore";
 import { useAnimationStore } from "../../state/animationStore";
+import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
 import { Viewer } from "./Viewer";
 
+const motionGraphValueSamplerSpy = vi.hoisted(() => vi.fn());
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const runtimeAssetBundleState: {
@@ -83,6 +85,29 @@ vi.mock("@vizij/runtime-react", () => ({
     getAnimationState: getAnimationStateSpy,
   }),
 }));
+
+vi.mock("../../motiongraph/components/MotionGraphValueSampler", () => ({
+  MotionGraphValueSampler: ({ active }: { active: boolean }) => {
+    motionGraphValueSamplerSpy({ active });
+    return (
+      <div
+        data-testid="motiongraph-value-sampler"
+        data-active={String(active)}
+      />
+    );
+  },
+}));
+
+vi.mock("../../motiongraph/components/InputValueBridge", () => ({
+  InputValueBridge: () => <div data-testid="input-value-bridge" />,
+}));
+
+vi.mock("../../motiongraph/MotionGraphDriverBridge", () => ({
+  MotionGraphDriverBridge: () => (
+    <div data-testid="motiongraph-driver-bridge" />
+  ),
+}));
+
 type ViewerProps = React.ComponentProps<typeof Viewer>;
 
 function renderViewer(props: ViewerProps) {
@@ -123,6 +148,7 @@ describe("Viewer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    motionGraphValueSamplerSpy.mockReset();
     runtimeAssetBundleState.animations = [];
     setVizijStoreSpy.mockReset();
     stopAnimationSpy.mockReset();
@@ -130,6 +156,7 @@ describe("Viewer", () => {
     pauseAnimationSpy.mockReset();
     getAnimationStateSpy.mockClear();
     useAnimationStore.getState().reset();
+    useEditorStore.getState().clear();
   });
 
   it("shows empty scene state when no rootId", () => {
@@ -739,5 +766,41 @@ describe("Viewer", () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it("keeps motion-graph sampling active while plotting a runtime snapshot", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphSourceActive
+            motionGraphRuntimeNodes={[]}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    act(() => {
+      useEditorStore.getState().togglePlot();
+    });
+
+    expect(motionGraphValueSamplerSpy).toHaveBeenLastCalledWith({
+      active: true,
+    });
   });
 });

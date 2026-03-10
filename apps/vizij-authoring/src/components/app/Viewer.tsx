@@ -629,11 +629,7 @@ export function Viewer({
               edges={motionGraphRuntimeEdges ?? undefined}
             />
             <MotionGraphValueSampler
-              active={
-                motionGraphSourceActive &&
-                plotActive &&
-                !motionGraphRuntimeNodes
-              }
+              active={motionGraphSourceActive && plotActive}
             />
             <RuntimeStatusDebug />
             <RuntimeFaceControlsOverlay
