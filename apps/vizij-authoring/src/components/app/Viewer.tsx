@@ -435,6 +435,9 @@ export interface ViewerProps {
   motionGraphRuntimeEdges?: EditorEdge[] | null;
   runtimeStatusLabel?: string;
   runtimeActions?: RuntimeFaceOverlayAction[];
+  runtimePlaybackState?: "playing" | "paused" | "stopped";
+  onPlayRuntime?: () => void;
+  onPauseRuntime?: () => void;
   selectedSceneId?: string | null;
   onSelectScene?: (id: string) => void;
   onRuntimeInputsReady?: (
@@ -462,6 +465,9 @@ export function Viewer({
   motionGraphRuntimeEdges = null,
   runtimeStatusLabel,
   runtimeActions = [],
+  runtimePlaybackState,
+  onPlayRuntime,
+  onPauseRuntime,
   selectedSceneId = null,
   onSelectScene,
   onRuntimeInputsReady,
@@ -636,6 +642,9 @@ export function Viewer({
               onResetInputs={handleResetInputs}
               runtimeStatusLabel={runtimeStatusLabel}
               runtimeStatusTestId="main-runtime-status-chip"
+              runtimePlaybackState={runtimePlaybackState}
+              onPlayRuntime={onPlayRuntime}
+              onPauseRuntime={onPauseRuntime}
               runtimeActions={runtimeActions}
               resetButtonLabel="Reset Main Inputs"
               resetButtonTitle="Reset main-face inputs to their default values"

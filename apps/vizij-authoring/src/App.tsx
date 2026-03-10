@@ -3093,6 +3093,50 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       programRuntimePlaybackState,
     ],
   );
+  const runtimePlaybackState: "playing" | "paused" | "stopped" = useMemo(() => {
+    if (activeProgramRuntimeTargetId) {
+      return programRuntimePlaybackState;
+    }
+    if (activeAnimationRuntimeTargetId) {
+      return animationRuntimePlaybackState;
+    }
+    return "stopped";
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    animationRuntimePlaybackState,
+    programRuntimePlaybackState,
+  ]);
+  const viewerPlayRuntime = useMemo(() => {
+    if (selectedProceduralTargetId || activeProgramRuntimeTargetId) {
+      return handlePlayProgramRuntime;
+    }
+    if (selectedAnimationTargetId || activeAnimationRuntimeTargetId) {
+      return handlePlayAnimationRuntime;
+    }
+    return undefined;
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    handlePlayAnimationRuntime,
+    handlePlayProgramRuntime,
+    selectedAnimationTargetId,
+    selectedProceduralTargetId,
+  ]);
+  const viewerPauseRuntime = useMemo(() => {
+    if (activeProgramRuntimeTargetId) {
+      return handlePauseProgramRuntime;
+    }
+    if (activeAnimationRuntimeTargetId) {
+      return handlePauseAnimationRuntime;
+    }
+    return undefined;
+  }, [
+    activeAnimationRuntimeTargetId,
+    activeProgramRuntimeTargetId,
+    handlePauseAnimationRuntime,
+    handlePauseProgramRuntime,
+  ]);
   const visibleVariablesSurfaces = useMemo(
     () =>
       getVisibleVariablesSurfaces({
@@ -3780,6 +3824,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
                 runtimeStatusLabel={runtimeStatusLabel}
                 runtimeActions={runtimeActions}
+                runtimePlaybackState={runtimePlaybackState}
+                onPlayRuntime={viewerPlayRuntime}
+                onPauseRuntime={viewerPauseRuntime}
                 selectedSceneId={selectedSceneId}
                 onSelectScene={handleSelectObjectWithInspectorSync}
                 onRuntimeInputsReady={handleMainRuntimeInputsReady}
@@ -3839,6 +3886,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
             runtimeStatusLabel={runtimeStatusLabel}
             runtimeActions={runtimeActions}
+            runtimePlaybackState={runtimePlaybackState}
+            onPlayRuntime={viewerPlayRuntime}
+            onPauseRuntime={viewerPauseRuntime}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectObjectWithInspectorSync}
             onRuntimeInputsReady={handleMainRuntimeInputsReady}
