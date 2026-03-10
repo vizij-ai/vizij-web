@@ -2015,10 +2015,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (selectedAnimationTargetId) {
         saveAnimationTarget(selectedAnimationTargetId);
       }
+      if (
+        activeAnimationRuntimeTargetId &&
+        activeAnimationRuntimeTargetId !== targetId
+      ) {
+        clearAnimationRuntimeState();
+      }
       setSelectedAnimationTargetId(targetId);
       loadSelectedAnimationTarget(targetId);
     },
     [
+      activeAnimationRuntimeTargetId,
+      clearAnimationRuntimeState,
       loadSelectedAnimationTarget,
       saveAnimationTarget,
       selectedAnimationTargetId,

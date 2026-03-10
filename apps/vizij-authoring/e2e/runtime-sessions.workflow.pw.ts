@@ -49,14 +49,14 @@ test("animation and program runtime sessions stay independent across UI changes 
     .evaluate((node) => {
       (node as HTMLButtonElement).click();
     });
-  await expect(runtimeChip).toContainText("Animation: Playing");
+  await expect(runtimeChip).not.toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
-  await expect(page.getByText("Currently running: Nonesense")).toBeVisible();
+  await expect(page.getByText("Currently running: Nonesense")).toBeHidden();
   await expect(
     page.getByTestId("bottom-panel").getByTitle("Stop"),
   ).toBeDisabled();
-  await expect(page.getByTitle("Play animation")).toHaveCount(1);
-  await expect(page.getByTitle("Pause animation")).toHaveCount(1);
+  await expect(page.getByTitle("Play animation")).toHaveCount(2);
+  await expect(page.getByTitle("Pause animation")).toHaveCount(0);
 
   await clickViaDom(page, 'button[title="Play animation"]');
   await expect(runtimeChip).toContainText("Animation: Playing");
@@ -105,7 +105,7 @@ test("animation and program runtime sessions stay independent across UI changes 
   await expect(runtimeChip).toHaveText("Runtime: Idle");
 });
 
-test("animation inspector edits stay scoped to the selected target while another runtime target stays active @workflow", async ({
+test("switching animation targets stops the active runtime before loading the next clip @workflow", async ({
   page,
 }) => {
   await bootAuthoring(page);
@@ -119,59 +119,52 @@ test("animation inspector edits stay scoped to the selected target while another
   });
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
-  await clickViaDom(page, 'button[title="Play animation"]');
-  await expect(runtimeChip).toContainText("Animation: Playing");
-
-  const activeName = await selectedNameField.inputValue();
-  const activeDuration = await durationField.inputValue();
-
   await clickLocatorViaDom(
     page.getByRole("button", {
       name: /New Animation Clip IMPORTED STOPPED/i,
     }),
   );
-  await expect(
-    page.getByText(`Currently running: ${activeName}`),
-  ).toBeVisible();
+  const secondaryName = await selectedNameField.inputValue();
+  const secondaryDuration = await durationField.inputValue();
 
-  await selectedNameField.fill("Switch Isolation Clip");
-  await selectedNameField.blur();
+  await clickLocatorViaDom(
+    page.getByRole("button", {
+      name: /Nonesense IMPORTED STOPPED/i,
+    }),
+  );
+  await clickViaDom(page, 'button[title="Play animation"]');
+  await expect(runtimeChip).toContainText("Animation: Playing");
+
+  const activeName = await selectedNameField.inputValue();
+
   await durationField.click();
   await page.keyboard.press("Control+A");
   await page.keyboard.type("12.5");
   await durationField.blur();
+  await clickViaDom(page, 'button[title="Pause animation"]');
+  await expect(runtimeChip).toContainText("Animation: Paused");
 
   await expect(
     page.getByRole("button", {
-      name: /Switch Isolation Clip IMPORTED STOPPED/i,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(`Currently running: ${activeName}`),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", {
-      name: new RegExp(`${escapeRegex(activeName)} IMPORTED PLAYING`, "i"),
+      name: /Nonesense IMPORTED PAUSED/i,
     }),
   ).toBeVisible();
 
   await clickLocatorViaDom(
     page.getByRole("button", {
-      name: new RegExp(`${escapeRegex(activeName)} IMPORTED PLAYING`, "i"),
+      name: new RegExp(`${escapeRegex(secondaryName)} IMPORTED STOPPED`, "i"),
+    }),
+  );
+  await expect(runtimeChip).toHaveText("Runtime: Idle");
+  await expect(page.getByText(`Currently running: ${activeName}`)).toBeHidden();
+  await expect(selectedNameField).toHaveValue(secondaryName);
+  await expect(durationField).toHaveValue(secondaryDuration);
+
+  await clickLocatorViaDom(
+    page.getByRole("button", {
+      name: /Nonesense IMPORTED STOPPED/i,
     }),
   );
   await expect(selectedNameField).toHaveValue(activeName);
-  await expect(durationField).toHaveValue(activeDuration);
-  await expect(page.getByText(`Currently running: ${activeName}`)).toBeHidden();
-
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: /Switch Isolation Clip IMPORTED STOPPED/i,
-    }),
-  );
-  await expect(
-    page.getByText(`Currently running: ${activeName}`),
-  ).toBeVisible();
-  await expect(selectedNameField).toHaveValue("Switch Isolation Clip");
   await expect(durationField).toHaveValue("12.5");
 });
