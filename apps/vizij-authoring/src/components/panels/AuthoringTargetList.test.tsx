@@ -100,4 +100,42 @@ describe("AuthoringTargetList", () => {
     expect(onPause).toHaveBeenCalledWith("program:wave");
     expect(onStop).toHaveBeenCalledWith("program:wave");
   });
+
+  it("disables pause and stop for selected targets that are not live", () => {
+    render(
+      <AuthoringTargetList
+        kindLabel="Program"
+        emptyDescription="Empty"
+        items={[
+          {
+            id: "program:live",
+            label: "Live Program",
+            source: "imported",
+            selected: false,
+            isRuntimeActive: true,
+          },
+          {
+            id: "program:selected",
+            label: "Selected Program",
+            source: "authored",
+            selected: true,
+            isRuntimeActive: false,
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSelect={vi.fn()}
+        onPlay={vi.fn()}
+        onPause={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    );
+
+    const pauseButtons = screen.getAllByTitle("Pause program");
+    const stopButtons = screen.getAllByTitle("Stop program");
+
+    expect((pauseButtons[0] as HTMLButtonElement).disabled).toBe(false);
+    expect((stopButtons[0] as HTMLButtonElement).disabled).toBe(false);
+    expect((pauseButtons[1] as HTMLButtonElement).disabled).toBe(true);
+    expect((stopButtons[1] as HTMLButtonElement).disabled).toBe(true);
+  });
 });
