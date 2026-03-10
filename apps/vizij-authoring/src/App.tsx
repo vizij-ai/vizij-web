@@ -635,8 +635,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     bundleAnimationDurationOverrides,
     setBundleAnimationDurationOverrides,
   ] = useState<Record<string, number>>({});
+  const [bundleAnimationClipOverrides, setBundleAnimationClipOverrides] =
+    useState<Record<string, AnimationClipIR>>({});
   const [bundleProceduralNameOverrides, setBundleProceduralNameOverrides] =
     useState<Record<string, string>>({});
+  const [
+    bundleProceduralSnapshotOverrides,
+    setBundleProceduralSnapshotOverrides,
+  ] = useState<Record<string, ProceduralProgramSnapshot>>({});
   const [hiddenBundleAnimationTargetIds, setHiddenBundleAnimationTargetIds] =
     useState<Record<string, true>>({});
   const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
@@ -685,7 +691,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   useEffect(() => {
     setBundleAnimationNameOverrides({});
     setBundleAnimationDurationOverrides({});
+    setBundleAnimationClipOverrides({});
     setBundleProceduralNameOverrides({});
+    setBundleProceduralSnapshotOverrides({});
     setHiddenBundleAnimationTargetIds({});
     setHiddenBundleProceduralTargetIds({});
   }, [rootId]);
@@ -974,6 +982,138 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ],
     [authoredProceduralTargetOptions, bundleProceduralTargetOptions],
   );
+  const resolveBundleAnimationEntry = useCallback(
+    (targetId: string) => {
+      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        return null;
+      }
+      const rawIndex = targetId.slice(BUNDLE_ANIMATION_TARGET_PREFIX.length);
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return null;
+      }
+      return loadedBundle?.animations?.[index] ?? null;
+    },
+    [loadedBundle?.animations],
+  );
+  const resolveImportedAnimationClip = useCallback(
+    (targetId: string): AnimationClipIR | null => {
+      const entry = resolveBundleAnimationEntry(targetId);
+      if (!entry) {
+        return null;
+      }
+      const baseClip = bundleAnimationEntryToClipIr(entry, {
+        standardInputsById: mainFaceInputsById,
+      });
+      if (!baseClip) {
+        return null;
+      }
+      const overriddenName = bundleAnimationNameOverrides[targetId]?.trim();
+      const overriddenDuration = bundleAnimationDurationOverrides[targetId];
+      const resolvedBaseClip = {
+        ...baseClip,
+        name:
+          overriddenName && overriddenName.length > 0
+            ? overriddenName
+            : baseClip.name,
+        duration: Number.isFinite(overriddenDuration)
+          ? overriddenDuration
+          : baseClip.duration,
+      };
+      const override = bundleAnimationClipOverrides[targetId];
+      const clip = override ? structuredClone(override) : resolvedBaseClip;
+      return {
+        ...clip,
+        name:
+          overriddenName && overriddenName.length > 0
+            ? overriddenName
+            : clip.name,
+        duration: Number.isFinite(overriddenDuration)
+          ? overriddenDuration
+          : clip.duration,
+      };
+    },
+    [
+      bundleAnimationClipOverrides,
+      bundleAnimationDurationOverrides,
+      bundleAnimationNameOverrides,
+      mainFaceInputsById,
+      resolveBundleAnimationEntry,
+    ],
+  );
+  const resolveImportedAnimationBaseClip = useCallback(
+    (targetId: string): AnimationClipIR | null => {
+      const entry = resolveBundleAnimationEntry(targetId);
+      if (!entry) {
+        return null;
+      }
+      const clip = bundleAnimationEntryToClipIr(entry, {
+        standardInputsById: mainFaceInputsById,
+      });
+      if (!clip) {
+        return null;
+      }
+      const overriddenName = bundleAnimationNameOverrides[targetId]?.trim();
+      const overriddenDuration = bundleAnimationDurationOverrides[targetId];
+      return {
+        ...clip,
+        name:
+          overriddenName && overriddenName.length > 0
+            ? overriddenName
+            : clip.name,
+        duration: Number.isFinite(overriddenDuration)
+          ? overriddenDuration
+          : clip.duration,
+      };
+    },
+    [
+      bundleAnimationDurationOverrides,
+      bundleAnimationNameOverrides,
+      mainFaceInputsById,
+      resolveBundleAnimationEntry,
+    ],
+  );
+  const resolveBundleProceduralEntry = useCallback(
+    (targetId: string) => {
+      if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+        return null;
+      }
+      const rawIndex = targetId.slice(BUNDLE_PROCEDURAL_TARGET_PREFIX.length);
+      const index = Number.parseInt(rawIndex, 10);
+      if (!Number.isFinite(index) || index < 0) {
+        return null;
+      }
+      return bundleProceduralEntries[index] ?? null;
+    },
+    [bundleProceduralEntries],
+  );
+  const resolveImportedProceduralBaseSnapshot = useCallback(
+    (targetId: string): ProceduralProgramSnapshot | null => {
+      const entry = resolveBundleProceduralEntry(targetId);
+      if (!entry?.spec || typeof entry.spec !== "object") {
+        return null;
+      }
+      const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+      return {
+        nodes: parsed.nodes,
+        edges: parsed.edges,
+        enabledOutputs: Array.from(parsed.enabledOutputs),
+        enabledInputs: Array.from(parsed.enabledInputs),
+        customInputPaths: [...parsed.customInputPaths],
+      };
+    },
+    [resolveBundleProceduralEntry],
+  );
+  const resolveImportedProceduralSnapshot = useCallback(
+    (targetId: string): ProceduralProgramSnapshot | null => {
+      const override = bundleProceduralSnapshotOverrides[targetId];
+      if (override) {
+        return structuredClone(override);
+      }
+      return resolveImportedProceduralBaseSnapshot(targetId);
+    },
+    [bundleProceduralSnapshotOverrides, resolveImportedProceduralBaseSnapshot],
+  );
   const authoringProgramTargets = useMemo(
     () => [
       ...authoredProceduralTargets.map((target) => ({
@@ -986,95 +1126,174 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           target.snapshot.nodes.length === 1 ? "" : "s"
         }`,
       })),
-      ...bundleProceduralTargetOptions.map((target) => ({
-        id: target.value,
-        label: target.label,
-        source: "imported" as const,
-        selected: target.value === selectedProceduralTargetId,
-        isRuntimeActive: target.value === activeProgramRuntimeTargetId,
-        meta: "Imported program",
-      })),
+      ...bundleProceduralTargetOptions.map((target) => {
+        const snapshot = resolveImportedProceduralSnapshot(target.value);
+        return {
+          id: target.value,
+          label: target.label,
+          source: "imported" as const,
+          selected: target.value === selectedProceduralTargetId,
+          isRuntimeActive: target.value === activeProgramRuntimeTargetId,
+          meta: snapshot
+            ? `${snapshot.nodes.length} node${
+                snapshot.nodes.length === 1 ? "" : "s"
+              }`
+            : "Imported program",
+        };
+      }),
     ],
     [
       activeProgramRuntimeTargetId,
       authoredProceduralTargets,
       bundleProceduralTargetOptions,
+      resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
     ],
   );
-  const saveAuthoredProceduralTarget = useCallback((targetId: string) => {
-    const programId = parseAuthoredProceduralTargetValue(targetId);
-    if (!programId) {
-      return;
-    }
-    setAuthoredProceduralTargets((previous) => {
-      const index = previous.findIndex(
-        (target) =>
-          target.targetId === targetId || target.programId === programId,
-      );
-      if (index < 0) {
-        return previous;
-      }
-      const target = previous[index]!;
-      const snapshot = snapshotProceduralEditorState();
-      const updatedTarget: AuthoredProceduralTarget = {
-        ...target,
-        snapshot,
-      };
-      if (
-        updatedTarget.programId === target.programId &&
-        updatedTarget.targetId === target.targetId &&
-        updatedTarget.name === target.name &&
-        stableValueFingerprint(updatedTarget.snapshot) ===
-          stableValueFingerprint(target.snapshot)
-      ) {
-        return previous;
-      }
-      const next = [...previous];
-      next[index] = updatedTarget;
-      return next;
-    });
-  }, []);
-
-  const saveAuthoredAnimationTarget = useCallback(
+  const saveProceduralTarget = useCallback(
     (targetId: string) => {
-      const clipId = parseAuthoredAnimationTargetValue(targetId);
-      if (!clipId) {
+      const programId = parseAuthoredProceduralTargetValue(targetId);
+      if (!programId && !targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
         return;
       }
-      setAuthoredAnimationTargets((previous) => {
-        const index = previous.findIndex(
-          (target) => target.targetId === targetId || target.clipId === clipId,
-        );
-        if (index < 0) {
-          return previous;
-        }
-        const target = previous[index]!;
-        const clip = exportAnimationClipIr({
-          id: target.clipId,
-          name: target.name,
+      const snapshot = snapshotProceduralEditorState();
+      if (programId) {
+        setAuthoredProceduralTargets((previous) => {
+          const index = previous.findIndex(
+            (target) =>
+              target.targetId === targetId || target.programId === programId,
+          );
+          if (index < 0) {
+            return previous;
+          }
+          const target = previous[index]!;
+          const updatedTarget: AuthoredProceduralTarget = {
+            ...target,
+            snapshot,
+          };
+          if (
+            updatedTarget.programId === target.programId &&
+            updatedTarget.targetId === target.targetId &&
+            updatedTarget.name === target.name &&
+            stableValueFingerprint(updatedTarget.snapshot) ===
+              stableValueFingerprint(target.snapshot)
+          ) {
+            return previous;
+          }
+          const next = [...previous];
+          next[index] = updatedTarget;
+          return next;
         });
-        const updatedTarget: AuthoredAnimationTarget = {
-          ...target,
-          clipId: clip.id,
-          targetId: authoredAnimationTargetValue(clip.id),
-          clip,
-        };
+        return;
+      }
+      const baselineSnapshot = resolveImportedProceduralBaseSnapshot(targetId);
+      if (!baselineSnapshot) {
+        return;
+      }
+      setBundleProceduralSnapshotOverrides((previous) => {
+        const previousSnapshot = previous[targetId];
+        const fingerprint = stableValueFingerprint(snapshot);
+        if (fingerprint === stableValueFingerprint(baselineSnapshot)) {
+          if (!previousSnapshot) {
+            return previous;
+          }
+          const { [targetId]: _removed, ...rest } = previous;
+          return rest;
+        }
         if (
-          updatedTarget.clipId === target.clipId &&
-          updatedTarget.targetId === target.targetId &&
-          updatedTarget.name === target.name &&
-          stableValueFingerprint(updatedTarget.clip) ===
-            stableValueFingerprint(target.clip)
+          previousSnapshot &&
+          fingerprint === stableValueFingerprint(previousSnapshot)
         ) {
           return previous;
         }
-        const next = [...previous];
-        next[index] = updatedTarget;
-        return next;
+        return {
+          ...previous,
+          [targetId]: snapshot,
+        };
       });
     },
-    [exportAnimationClipIr],
+    [resolveImportedProceduralBaseSnapshot],
+  );
+
+  const saveAnimationTarget = useCallback(
+    (targetId: string) => {
+      const clipId = parseAuthoredAnimationTargetValue(targetId);
+      if (!clipId && !targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+        return;
+      }
+      if (clipId) {
+        setAuthoredAnimationTargets((previous) => {
+          const index = previous.findIndex(
+            (target) =>
+              target.targetId === targetId || target.clipId === clipId,
+          );
+          if (index < 0) {
+            return previous;
+          }
+          const target = previous[index]!;
+          const clip = exportAnimationClipIr({
+            id: target.clipId,
+            name: target.name,
+          });
+          const updatedTarget: AuthoredAnimationTarget = {
+            ...target,
+            clipId: clip.id,
+            targetId: authoredAnimationTargetValue(clip.id),
+            clip,
+          };
+          if (
+            updatedTarget.clipId === target.clipId &&
+            updatedTarget.targetId === target.targetId &&
+            updatedTarget.name === target.name &&
+            stableValueFingerprint(updatedTarget.clip) ===
+              stableValueFingerprint(target.clip)
+          ) {
+            return previous;
+          }
+          const next = [...previous];
+          next[index] = updatedTarget;
+          return next;
+        });
+        return;
+      }
+      const baselineClip = resolveImportedAnimationBaseClip(targetId);
+      if (!baselineClip) {
+        return;
+      }
+      const targetName =
+        animationTargetOptions.find((option) => option.value === targetId)
+          ?.label ?? baselineClip.name;
+      const clip = exportAnimationClipIr({
+        id: baselineClip.id,
+        name: targetName,
+      });
+      setBundleAnimationClipOverrides((previous) => {
+        const previousClip = previous[targetId];
+        const fingerprint = stableValueFingerprint(clip);
+        if (fingerprint === stableValueFingerprint(baselineClip)) {
+          if (!previousClip) {
+            return previous;
+          }
+          const { [targetId]: _removed, ...rest } = previous;
+          return rest;
+        }
+        if (
+          previousClip &&
+          fingerprint === stableValueFingerprint(previousClip)
+        ) {
+          return previous;
+        }
+        return {
+          ...previous,
+          [targetId]: clip,
+        };
+      });
+    },
+    [
+      animationTargetOptions,
+      exportAnimationClipIr,
+      resolveImportedAnimationBaseClip,
+    ],
   );
 
   const selectedAuthoredAnimationTarget = useMemo(
@@ -1085,16 +1304,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
   useEffect(() => {
-    if (!selectedAuthoredAnimationTarget || !selectedAnimationTargetId) {
+    if (!selectedAnimationTargetId) {
       return;
     }
-    saveAuthoredAnimationTarget(selectedAnimationTargetId);
+    saveAnimationTarget(selectedAnimationTargetId);
   }, [
     animationDuration,
     animationTracks,
-    saveAuthoredAnimationTarget,
+    saveAnimationTarget,
     selectedAnimationTargetId,
-    selectedAuthoredAnimationTarget,
   ]);
   const authoringAnimationTargets = useMemo(
     () => [
@@ -1108,19 +1326,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           target.clip.tracks.length === 1 ? "" : "s"
         }`,
       })),
-      ...bundleAnimationTargetOptions.map((target) => ({
-        id: target.value,
-        label: target.label,
-        source: "imported" as const,
-        selected: target.value === selectedAnimationTargetId,
-        isRuntimeActive: target.value === activeAnimationRuntimeTargetId,
-        meta: "Imported clip",
-      })),
+      ...bundleAnimationTargetOptions.map((target) => {
+        const clip = resolveImportedAnimationClip(target.value);
+        return {
+          id: target.value,
+          label: target.label,
+          source: "imported" as const,
+          selected: target.value === selectedAnimationTargetId,
+          isRuntimeActive: target.value === activeAnimationRuntimeTargetId,
+          meta: clip
+            ? `${clip.tracks.length} track${
+                clip.tracks.length === 1 ? "" : "s"
+              }`
+            : "Imported clip",
+        };
+      }),
     ],
     [
       activeAnimationRuntimeTargetId,
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
+      resolveImportedAnimationClip,
       selectedAnimationTargetId,
     ],
   );
@@ -1132,18 +1358,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [authoredProceduralTargets, selectedProceduralTargetId],
   );
   useEffect(() => {
-    if (!selectedAuthoredProceduralTarget || !selectedProceduralTargetId) {
+    if (!selectedProceduralTargetId) {
       return;
     }
-    saveAuthoredProceduralTarget(selectedProceduralTargetId);
+    saveProceduralTarget(selectedProceduralTargetId);
   }, [
     proceduralEditorCustomInputPaths,
     proceduralEditorEdges,
     proceduralEditorEnabledInputs,
     proceduralEditorEnabledOutputs,
     proceduralEditorNodes,
-    saveAuthoredProceduralTarget,
-    selectedAuthoredProceduralTarget,
+    saveProceduralTarget,
     selectedProceduralTargetId,
   ]);
   const selectedAnimationInspectorTarget =
@@ -1180,30 +1405,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       } else if (
         selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
       ) {
-        const rawIndex = selectedAnimationTargetId.slice(
-          BUNDLE_ANIMATION_TARGET_PREFIX.length,
-        );
-        const index = Number.parseInt(rawIndex, 10);
-        if (!Number.isFinite(index) || index < 0) {
-          return null;
-        }
-        const entry = loadedBundle?.animations?.[index];
-        if (!entry) {
-          return null;
-        }
-        clip = bundleAnimationEntryToClipIr(entry, {
-          standardInputsById: mainFaceInputsById,
-        });
+        clip = resolveImportedAnimationClip(selectedAnimationTargetId);
         if (!clip) {
           return null;
-        }
-        const overriddenDuration =
-          bundleAnimationDurationOverrides[selectedAnimationTargetId];
-        if (Number.isFinite(overriddenDuration)) {
-          clip = {
-            ...clip,
-            duration: overriddenDuration,
-          };
         }
         targetName =
           bundleAnimationTargetOptions.find(
@@ -1248,11 +1452,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       animationDuration,
       animationTracks,
       authoredAnimationTargets,
-      bundleAnimationDurationOverrides,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
-      loadedBundle?.animations,
       mainFaceInputsById,
+      resolveImportedAnimationClip,
       selectedAnimationTargetId,
       standardInputsByPath,
     ]);
@@ -1290,25 +1493,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       } else if (
         selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
       ) {
-        const rawIndex = selectedProceduralTargetId.slice(
-          BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
+        snapshot = resolveImportedProceduralSnapshot(
+          selectedProceduralTargetId,
         );
-        const index = Number.parseInt(rawIndex, 10);
-        if (!Number.isFinite(index) || index < 0) {
+        if (!snapshot) {
           return null;
         }
-        const entry = bundleProceduralEntries[index];
-        if (!entry?.spec || typeof entry.spec !== "object") {
-          return null;
-        }
-        const parsed = specToEditorState(entry.spec as Record<string, unknown>);
-        snapshot = {
-          nodes: parsed.nodes,
-          edges: parsed.edges,
-          enabledOutputs: Array.from(parsed.enabledOutputs),
-          enabledInputs: Array.from(parsed.enabledInputs),
-          customInputPaths: [...parsed.customInputPaths],
-        };
         targetName =
           bundleProceduralTargetOptions.find(
             (option) => option.value === selectedProceduralTargetId,
@@ -1376,13 +1566,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       };
     }, [
       authoredProceduralTargets,
-      bundleProceduralEntries,
       bundleProceduralTargetOptions,
       proceduralEditorCustomInputPaths,
       proceduralEditorEdges,
       proceduralEditorEnabledInputs,
       proceduralEditorEnabledOutputs,
       proceduralEditorNodes,
+      resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
       standardInputsByPath,
     ]);
@@ -1422,42 +1612,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ) {
       return null;
     }
-    const rawIndex = activeAnimationRuntimeTargetId.slice(
-      BUNDLE_ANIMATION_TARGET_PREFIX.length,
-    );
-    const index = Number.parseInt(rawIndex, 10);
-    if (!Number.isFinite(index) || index < 0) {
-      return null;
-    }
-    const entry = loadedBundle?.animations?.[index];
-    if (!entry) {
-      return null;
-    }
-    const clip = bundleAnimationEntryToClipIr(entry, {
-      standardInputsById: mainFaceInputsById,
-    });
+    const clip = resolveImportedAnimationClip(activeAnimationRuntimeTargetId);
     if (!clip) {
       return null;
     }
-    const overriddenDuration =
-      bundleAnimationDurationOverrides[activeAnimationRuntimeTargetId];
-    return Number.isFinite(overriddenDuration)
-      ? {
-          ...clip,
-          id: AUTHORED_TIMELINE_CLIP_ID,
-          duration: overriddenDuration,
-        }
-      : {
-          ...clip,
-          id: AUTHORED_TIMELINE_CLIP_ID,
-        };
+    return {
+      ...clip,
+      id: AUTHORED_TIMELINE_CLIP_ID,
+    };
   }, [
     activeAnimationRuntimeTargetId,
     authoredAnimationTargets,
-    bundleAnimationDurationOverrides,
     exportAnimationClipIr,
-    loadedBundle?.animations,
-    mainFaceInputsById,
+    resolveImportedAnimationClip,
     selectedAnimationTargetId,
   ]);
   const activeProgramRuntimeSnapshot =
@@ -1489,34 +1656,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) {
         return null;
       }
-      const rawIndex = activeProgramRuntimeTargetId.slice(
-        BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
-      );
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
-        return null;
-      }
-      const entry = bundleProceduralEntries[index];
-      if (!entry?.spec || typeof entry.spec !== "object") {
-        return null;
-      }
-      const parsed = specToEditorState(entry.spec as Record<string, unknown>);
-      return {
-        nodes: parsed.nodes,
-        edges: parsed.edges,
-        enabledOutputs: Array.from(parsed.enabledOutputs),
-        enabledInputs: Array.from(parsed.enabledInputs),
-        customInputPaths: [...parsed.customInputPaths],
-      };
+      return resolveImportedProceduralSnapshot(activeProgramRuntimeTargetId);
     }, [
       activeProgramRuntimeTargetId,
       authoredProceduralTargets,
-      bundleProceduralEntries,
       proceduralEditorCustomInputPaths,
       proceduralEditorEdges,
       proceduralEditorEnabledInputs,
       proceduralEditorEnabledOutputs,
       proceduralEditorNodes,
+      resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
     ]);
 
@@ -1525,11 +1674,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (targetId === selectedAnimationTargetId) {
         return;
       }
-      const currentAuthoredClipId = parseAuthoredAnimationTargetValue(
-        selectedAnimationTargetId,
-      );
-      if (currentAuthoredClipId && selectedAnimationTargetId) {
-        saveAuthoredAnimationTarget(selectedAnimationTargetId);
+      if (selectedAnimationTargetId) {
+        saveAnimationTarget(selectedAnimationTargetId);
       }
       setSelectedAnimationTargetId(targetId);
 
@@ -1547,44 +1693,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
         return;
       }
-      const rawIndex = targetId.slice(BUNDLE_ANIMATION_TARGET_PREFIX.length);
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
-        return;
-      }
-      const entry = loadedBundle?.animations?.[index];
-      if (!entry) {
-        return;
-      }
-      const clip = bundleAnimationEntryToClipIr(entry, {
-        standardInputsById: mainFaceInputsById,
-      });
+      const clip = resolveImportedAnimationClip(targetId);
       if (clip) {
         importAnimationClipIr(clip);
-        const overriddenDuration = bundleAnimationDurationOverrides[targetId];
-        if (Number.isFinite(overriddenDuration)) {
-          setAnimationDuration(overriddenDuration);
-        }
       }
     },
     [
       authoredAnimationTargets,
-      bundleAnimationDurationOverrides,
       importAnimationClipIr,
-      loadedBundle?.animations,
-      mainFaceInputsById,
-      saveAuthoredAnimationTarget,
+      resolveImportedAnimationClip,
+      saveAnimationTarget,
       selectedAnimationTargetId,
-      setAnimationDuration,
     ],
   );
 
   const handleCreateAnimationTarget = useCallback(() => {
-    const currentAuthoredClipId = parseAuthoredAnimationTargetValue(
-      selectedAnimationTargetId,
-    );
-    if (currentAuthoredClipId && selectedAnimationTargetId) {
-      saveAuthoredAnimationTarget(selectedAnimationTargetId);
+    if (selectedAnimationTargetId) {
+      saveAnimationTarget(selectedAnimationTargetId);
     }
 
     const nextOrdinal = nextAuthoredAnimationClipOrdinal(
@@ -1604,7 +1729,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     animationDuration,
     authoredAnimationTargets,
     importAnimationClipIr,
-    saveAuthoredAnimationTarget,
+    saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
 
@@ -1638,28 +1763,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               })
             : structuredClone(authoredTarget.clip);
       } else if (targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-        const rawIndex = targetId.slice(BUNDLE_ANIMATION_TARGET_PREFIX.length);
-        const index = Number.parseInt(rawIndex, 10);
-        if (!Number.isFinite(index) || index < 0) {
-          return;
-        }
-        const entry = loadedBundle?.animations?.[index];
-        if (!entry) {
-          return;
-        }
-        const importedClip = bundleAnimationEntryToClipIr(entry, {
-          standardInputsById: mainFaceInputsById,
-        });
+        const importedClip = resolveImportedAnimationClip(targetId);
         if (!importedClip) {
           return;
         }
-        const overriddenDuration = bundleAnimationDurationOverrides[targetId];
-        sourceClip = {
-          ...importedClip,
-          duration: Number.isFinite(overriddenDuration)
-            ? overriddenDuration
-            : importedClip.duration,
-        };
+        sourceClip = importedClip;
         sourceName =
           bundleAnimationTargetOptions.find(
             (option) => option.value === targetId,
@@ -1693,12 +1801,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       authoredAnimationTargets,
-      bundleAnimationDurationOverrides,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
       importAnimationClipIr,
-      loadedBundle?.animations,
-      mainFaceInputsById,
+      resolveImportedAnimationClip,
       selectedAnimationTargetId,
       setWorkspacePanelVisibility,
     ],
@@ -1734,6 +1840,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           ...previous,
           [deletingTargetId]: true,
         }));
+        setBundleAnimationClipOverrides((previous) => {
+          const { [deletingTargetId]: _removed, ...rest } = previous;
+          return rest;
+        });
       }
 
       const remainingBundleTargets = bundleAnimationTargetOptions.filter(
@@ -1768,47 +1878,32 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       if (nextTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-        const rawIndex = nextTargetId.slice(
-          BUNDLE_ANIMATION_TARGET_PREFIX.length,
-        );
-        const index = Number.parseInt(rawIndex, 10);
-        if (!Number.isFinite(index) || index < 0) {
-          return;
-        }
-        const entry = loadedBundle?.animations?.[index];
-        if (!entry) {
-          return;
-        }
-        const clip = bundleAnimationEntryToClipIr(entry, {
-          standardInputsById: mainFaceInputsById,
-        });
+        const clip = resolveImportedAnimationClip(nextTargetId);
         if (!clip) {
           return;
         }
         importAnimationClipIr(clip);
-        const overriddenDuration =
-          bundleAnimationDurationOverrides[nextTargetId];
-        if (Number.isFinite(overriddenDuration)) {
-          setAnimationDuration(overriddenDuration);
-        }
       }
     },
     [
       animationTargetOptions,
       authoredAnimationTargets,
-      bundleAnimationDurationOverrides,
       bundleAnimationTargetOptions,
+      resolveImportedAnimationClip,
+      setBundleAnimationClipOverrides,
       importAnimationClipIr,
-      loadedBundle?.animations,
-      mainFaceInputsById,
       setHiddenBundleAnimationTargetIds,
-      setAnimationDuration,
     ],
   );
   const authoredAnimationClipsForExport = useMemo(() => {
     const authoredClipId = parseAuthoredAnimationTargetValue(
       selectedAnimationTargetId,
     );
+    const activeImportedTargetId =
+      selectedAnimationTargetId &&
+      selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+        ? selectedAnimationTargetId
+        : null;
     const liveActiveClip =
       authoredClipId && selectedAuthoredAnimationTarget
         ? exportAnimationClipIr({
@@ -1816,7 +1911,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             name: selectedAuthoredAnimationTarget.name,
           })
         : null;
-    return authoredAnimationTargets.map((target) => {
+    const authoredClips = authoredAnimationTargets.map((target) => {
       if (
         liveActiveClip &&
         target.targetId === selectedAuthoredAnimationTarget?.targetId
@@ -1825,11 +1920,62 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       return target.clip;
     });
+    const importedTargetIds = new Set(
+      Object.keys(bundleAnimationClipOverrides),
+    );
+    Object.keys(bundleAnimationNameOverrides).forEach((targetId) =>
+      importedTargetIds.add(targetId),
+    );
+    Object.keys(bundleAnimationDurationOverrides).forEach((targetId) =>
+      importedTargetIds.add(targetId),
+    );
+    if (activeImportedTargetId) {
+      importedTargetIds.add(activeImportedTargetId);
+    }
+    const importedClips = Array.from(importedTargetIds)
+      .map((targetId) =>
+        targetId === activeImportedTargetId
+          ? (() => {
+              const baselineClip = resolveImportedAnimationBaseClip(targetId);
+              if (!baselineClip) {
+                return null;
+              }
+              const targetName =
+                animationTargetOptions.find(
+                  (option) => option.value === targetId,
+                )?.label ?? baselineClip.name;
+              const liveClip = exportAnimationClipIr({
+                id: baselineClip.id,
+                name: targetName,
+              });
+              const matchesBaseline =
+                stableValueFingerprint(liveClip) ===
+                stableValueFingerprint(baselineClip);
+              const hasImportedEdits =
+                Boolean(bundleAnimationClipOverrides[targetId]) ||
+                Boolean(bundleAnimationNameOverrides[targetId]) ||
+                Number.isFinite(bundleAnimationDurationOverrides[targetId]);
+              return matchesBaseline && !hasImportedEdits
+                ? null
+                : matchesBaseline
+                  ? baselineClip
+                  : liveClip;
+            })()
+          : resolveImportedAnimationClip(targetId),
+      )
+      .filter((clip): clip is AnimationClipIR => clip !== null);
+    return [...authoredClips, ...importedClips];
   }, [
     animationDuration,
     animationTracks,
+    animationTargetOptions,
     authoredAnimationTargets,
+    bundleAnimationClipOverrides,
+    bundleAnimationDurationOverrides,
+    bundleAnimationNameOverrides,
     exportAnimationClipIr,
+    resolveImportedAnimationBaseClip,
+    resolveImportedAnimationClip,
     selectedAnimationTargetId,
     selectedAuthoredAnimationTarget,
   ]);
@@ -1839,11 +1985,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (targetId === selectedProceduralTargetId) {
         return;
       }
-      const currentAuthoredProgramId = parseAuthoredProceduralTargetValue(
-        selectedProceduralTargetId,
-      );
-      if (currentAuthoredProgramId && selectedProceduralTargetId) {
-        saveAuthoredProceduralTarget(selectedProceduralTargetId);
+      if (selectedProceduralTargetId) {
+        saveProceduralTarget(selectedProceduralTargetId);
       }
 
       setSelectedProceduralTargetId(targetId);
@@ -1862,34 +2005,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
         return;
       }
-      const rawIndex = targetId.slice(BUNDLE_PROCEDURAL_TARGET_PREFIX.length);
-      const index = Number.parseInt(rawIndex, 10);
-      if (!Number.isFinite(index) || index < 0) {
-        return;
+      const snapshot = resolveImportedProceduralSnapshot(targetId);
+      if (snapshot) {
+        hydrateProceduralEditorState(snapshot);
       }
-      const entry = bundleProceduralEntries[index];
-      if (!entry) {
-        return;
-      }
-      importMotionGraph(
-        entry.spec ? (entry.spec as Record<string, unknown>) : null,
-      );
     },
     [
       authoredProceduralTargets,
-      bundleProceduralEntries,
-      importMotionGraph,
-      saveAuthoredProceduralTarget,
+      hydrateProceduralEditorState,
+      resolveImportedProceduralSnapshot,
+      saveProceduralTarget,
       selectedProceduralTargetId,
     ],
   );
 
   const handleCreateProceduralTarget = useCallback(() => {
-    const currentAuthoredProgramId = parseAuthoredProceduralTargetValue(
-      selectedProceduralTargetId,
-    );
-    if (currentAuthoredProgramId && selectedProceduralTargetId) {
-      saveAuthoredProceduralTarget(selectedProceduralTargetId);
+    if (selectedProceduralTargetId) {
+      saveProceduralTarget(selectedProceduralTargetId);
     }
 
     const nextOrdinal = nextAuthoredProceduralProgramOrdinal(
@@ -1906,7 +2038,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     hydrateProceduralEditorState(nextTarget.snapshot);
   }, [
     authoredProceduralTargets,
-    saveAuthoredProceduralTarget,
+    saveProceduralTarget,
     selectedProceduralTargetId,
   ]);
 
@@ -1938,23 +2070,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             ? snapshotProceduralEditorState()
             : structuredClone(authoredTarget.snapshot);
       } else if (targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-        const rawIndex = targetId.slice(BUNDLE_PROCEDURAL_TARGET_PREFIX.length);
-        const index = Number.parseInt(rawIndex, 10);
-        if (!Number.isFinite(index) || index < 0) {
+        sourceSnapshot = resolveImportedProceduralSnapshot(targetId);
+        if (!sourceSnapshot) {
           return;
         }
-        const entry = bundleProceduralEntries[index];
-        if (!entry?.spec || typeof entry.spec !== "object") {
-          return;
-        }
-        const parsed = specToEditorState(entry.spec as Record<string, unknown>);
-        sourceSnapshot = {
-          nodes: parsed.nodes,
-          edges: parsed.edges,
-          enabledOutputs: Array.from(parsed.enabledOutputs),
-          enabledInputs: Array.from(parsed.enabledInputs),
-          customInputPaths: [...parsed.customInputPaths],
-        };
         sourceName =
           bundleProceduralTargetOptions.find(
             (option) => option.value === targetId,
@@ -1982,12 +2101,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       authoredProceduralTargets,
-      bundleProceduralEntries,
       bundleProceduralTargetOptions,
       hydrateProceduralEditorState,
+      resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
       setWorkspacePanelVisibility,
-      snapshotProceduralEditorState,
     ],
   );
 
@@ -2021,6 +2139,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           ...previous,
           [deletingTargetId]: true,
         }));
+        setBundleProceduralSnapshotOverrides((previous) => {
+          const { [deletingTargetId]: _removed, ...rest } = previous;
+          return rest;
+        });
       }
 
       const remainingBundleTargets = bundleProceduralTargetOptions.filter(
@@ -2055,28 +2177,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       if (nextTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
-        const rawIndex = nextTargetId.slice(
-          BUNDLE_PROCEDURAL_TARGET_PREFIX.length,
-        );
-        const index = Number.parseInt(rawIndex, 10);
-        if (!Number.isFinite(index) || index < 0) {
-          return;
+        const snapshot = resolveImportedProceduralSnapshot(nextTargetId);
+        if (snapshot) {
+          hydrateProceduralEditorState(snapshot);
         }
-        const entry = bundleProceduralEntries[index];
-        if (!entry) {
-          return;
-        }
-        importMotionGraph(
-          entry.spec ? (entry.spec as Record<string, unknown>) : null,
-        );
       }
     },
     [
       authoredProceduralTargets,
-      bundleProceduralEntries,
       bundleProceduralTargetOptions,
-      importMotionGraph,
+      hydrateProceduralEditorState,
       proceduralTargetOptions,
+      resolveImportedProceduralSnapshot,
+      setBundleProceduralSnapshotOverrides,
       setHiddenBundleProceduralTargetIds,
     ],
   );
@@ -2294,7 +2407,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           return;
         }
         setAnimationDuration(normalizedDuration);
-        saveAuthoredAnimationTarget(targetId);
+        saveAnimationTarget(targetId);
         return;
       }
       if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
@@ -2309,7 +2422,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
     },
     [
-      saveAuthoredAnimationTarget,
+      saveAnimationTarget,
       selectedAnimationTargetId,
       setAnimationDuration,
       setBundleAnimationDurationOverrides,
@@ -2390,6 +2503,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     const activeAuthoredProgramId = parseAuthoredProceduralTargetValue(
       selectedProceduralTargetId,
     );
+    const activeImportedProgram =
+      selectedProceduralTargetId &&
+      selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+        ? selectedProceduralTargetId
+        : null;
     const liveActiveSnapshot = activeAuthoredProgramId
       ? {
           nodes: structuredClone(proceduralEditorNodes),
@@ -2399,7 +2517,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           customInputPaths: [...proceduralEditorCustomInputPaths],
         }
       : null;
-    return authoredProceduralTargets
+    const authoredEntries = authoredProceduralTargets
       .map<AuthoredMotionGraphExportEntry | null>((target) => {
         const snapshot =
           liveActiveSnapshot &&
@@ -2420,13 +2538,62 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       .filter(
         (entry): entry is AuthoredMotionGraphExportEntry => entry !== null,
       );
+    const importedEntries = bundleProceduralTargetOptions
+      .map<AuthoredMotionGraphExportEntry | null>((target) => {
+        const entry = resolveBundleProceduralEntry(target.value);
+        if (!entry?.id) {
+          return null;
+        }
+        const originalSnapshot = resolveImportedProceduralBaseSnapshot(
+          target.value,
+        );
+        if (
+          !originalSnapshot ||
+          !entry.spec ||
+          typeof entry.spec !== "object"
+        ) {
+          return null;
+        }
+        const currentSnapshot =
+          activeImportedProgram === target.value
+            ? snapshotProceduralEditorState()
+            : bundleProceduralSnapshotOverrides[target.value]
+              ? structuredClone(
+                  bundleProceduralSnapshotOverrides[target.value]!,
+                )
+              : null;
+        const spec =
+          currentSnapshot &&
+          stableValueFingerprint(currentSnapshot) !==
+            stableValueFingerprint(originalSnapshot)
+            ? buildProceduralExportSpec(currentSnapshot)
+            : structuredClone(
+                entry.spec as { nodes: unknown[]; edges: unknown[] },
+              );
+        if (!spec || !Array.isArray(spec.nodes) || spec.nodes.length === 0) {
+          return null;
+        }
+        return {
+          id: entry.id,
+          label: target.label,
+          spec,
+        };
+      })
+      .filter(
+        (entry): entry is AuthoredMotionGraphExportEntry => entry !== null,
+      );
+    return [...authoredEntries, ...importedEntries];
   }, [
     authoredProceduralTargets,
+    bundleProceduralSnapshotOverrides,
+    bundleProceduralTargetOptions,
     proceduralEditorCustomInputPaths,
     proceduralEditorEdges,
     proceduralEditorEnabledInputs,
     proceduralEditorEnabledOutputs,
     proceduralEditorNodes,
+    resolveBundleProceduralEntry,
+    resolveImportedProceduralBaseSnapshot,
     selectedAuthoredProceduralTarget,
     selectedProceduralTargetId,
   ]);
