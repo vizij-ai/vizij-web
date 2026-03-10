@@ -18,6 +18,10 @@ interface MotionGraphPanelProps {
   splitVertical?: boolean;
   onToggleSplit?: () => void;
   onClosePanel?: () => void;
+  playbackState?: "playing" | "paused" | "stopped";
+  onPlayTransport?: () => void;
+  onPauseTransport?: () => void;
+  onStopTransport?: () => void;
 }
 
 export function MotionGraphPanel({
@@ -25,6 +29,10 @@ export function MotionGraphPanel({
   splitVertical,
   onToggleSplit,
   onClosePanel,
+  playbackState,
+  onPlayTransport,
+  onPauseTransport,
+  onStopTransport,
 }: MotionGraphPanelProps) {
   const graphPlaybackState = useGraphRuntime(
     (state) => state.graphPlaybackState,
@@ -35,26 +43,45 @@ export function MotionGraphPanel({
   const playGraph = useGraphRuntime((state) => state.playGraph);
   const pauseGraph = useGraphRuntime((state) => state.pauseGraph);
   const stopGraph = useGraphRuntime((state) => state.stopGraph);
+  const hasExternalTransportControls =
+    playbackState !== undefined ||
+    onPlayTransport !== undefined ||
+    onPauseTransport !== undefined ||
+    onStopTransport !== undefined;
+  const effectivePlaybackState = playbackState ?? graphPlaybackState;
+  const handlePlay = hasExternalTransportControls ? onPlayTransport : playGraph;
+  const handlePause = hasExternalTransportControls
+    ? onPauseTransport
+    : pauseGraph;
+  const handleStop = hasExternalTransportControls ? onStopTransport : stopGraph;
 
   const actions = (
     <div className="flex items-center gap-2">
       <div className="flex items-center rounded-lg border border-border-default/70 bg-bg-panel/80 p-0.5 shadow-sm">
         <Button
-          variant={graphPlaybackState === "playing" ? "primary" : "ghost"}
+          variant={effectivePlaybackState === "playing" ? "primary" : "ghost"}
           size="sm"
           className="h-7 w-7 p-0"
-          onClick={playGraph}
-          disabled={!graphPlaybackAvailable || graphPlaybackState === "playing"}
+          onClick={handlePlay}
+          disabled={
+            !graphPlaybackAvailable ||
+            effectivePlaybackState === "playing" ||
+            !handlePlay
+          }
           title="Play program"
         >
           <Play className="h-3.5 w-3.5 fill-current" />
         </Button>
         <Button
-          variant={graphPlaybackState === "paused" ? "primary" : "ghost"}
+          variant={effectivePlaybackState === "paused" ? "primary" : "ghost"}
           size="sm"
           className="h-7 w-7 p-0"
-          onClick={pauseGraph}
-          disabled={!graphPlaybackAvailable || graphPlaybackState === "paused"}
+          onClick={handlePause}
+          disabled={
+            !graphPlaybackAvailable ||
+            effectivePlaybackState === "paused" ||
+            !handlePause
+          }
           title="Pause program"
         >
           <Pause className="h-3.5 w-3.5 fill-current" />
@@ -63,8 +90,12 @@ export function MotionGraphPanel({
           variant="ghost"
           size="sm"
           className="h-7 w-7 p-0"
-          onClick={stopGraph}
-          disabled={!graphPlaybackAvailable}
+          onClick={handleStop}
+          disabled={
+            !graphPlaybackAvailable ||
+            effectivePlaybackState === "stopped" ||
+            !handleStop
+          }
           title="Stop program"
         >
           <Square className="h-3.5 w-3.5 fill-current" />

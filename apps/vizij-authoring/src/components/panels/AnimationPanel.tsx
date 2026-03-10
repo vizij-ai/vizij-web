@@ -91,11 +91,19 @@ function collectLockedPropsRigComponentIds(
 interface AnimationPanelProps {
   onClosePanel?: () => void;
   onInspectTrack?: (trackId: string) => void;
+  playbackState?: "playing" | "paused" | "stopped";
+  onPlayTransport?: () => void;
+  onPauseTransport?: () => void;
+  onStopTransport?: () => void;
 }
 
 export function AnimationPanel({
   onClosePanel,
   onInspectTrack,
+  playbackState,
+  onPlayTransport,
+  onPauseTransport,
+  onStopTransport,
 }: AnimationPanelProps) {
   const {
     isPlaying,
@@ -111,6 +119,23 @@ export function AnimationPanel({
     setTimeDisplayMode,
   } = useAnimationStore();
   const transport = useAnimationTransport();
+  const hasExternalTransportControls =
+    playbackState !== undefined ||
+    onPlayTransport !== undefined ||
+    onPauseTransport !== undefined ||
+    onStopTransport !== undefined;
+  const effectivePlaybackState =
+    playbackState ??
+    (isPlaying ? "playing" : transport.active ? "paused" : "stopped");
+  const handlePlay = hasExternalTransportControls
+    ? onPlayTransport
+    : transport.play;
+  const handlePause = hasExternalTransportControls
+    ? onPauseTransport
+    : transport.pause;
+  const handleStop = hasExternalTransportControls
+    ? onStopTransport
+    : transport.stop;
 
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -263,7 +288,8 @@ export function AnimationPanel({
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-              onClick={transport.stop}
+              onClick={handleStop}
+              disabled={!handleStop || effectivePlaybackState === "stopped"}
               title="Stop"
             >
               <Square className="h-3 w-3 fill-current" />
@@ -272,10 +298,16 @@ export function AnimationPanel({
               variant="primary"
               size="sm"
               className="h-6 px-4 rounded-md mx-0.5 text-[10px] uppercase font-bold tracking-wider shadow-sm"
-              onClick={isPlaying ? transport.pause : transport.play}
-              disabled={!transport.active}
+              onClick={
+                effectivePlaybackState === "playing" ? handlePause : handlePlay
+              }
+              disabled={
+                effectivePlaybackState === "playing"
+                  ? !handlePause
+                  : !handlePlay
+              }
             >
-              {isPlaying ? (
+              {effectivePlaybackState === "playing" ? (
                 <Pause className="h-3 w-3 fill-current" />
               ) : (
                 <Play className="h-3 w-3 fill-current ml-0.5" />

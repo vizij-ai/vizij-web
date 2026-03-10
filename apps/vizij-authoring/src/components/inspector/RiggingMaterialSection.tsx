@@ -479,8 +479,8 @@ export function RiggingScalarRow({
           className={cn(
             "p-1 rounded transition-colors",
             isChannelLocked
-              ? "text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
-              : "text-text-muted hover:text-accent hover:bg-accent/10",
+              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
+              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
           )}
           title={isChannelLocked ? `Unlock ${label}` : `Lock ${label}`}
           disabled={!targetId}
@@ -1033,8 +1033,8 @@ export function RiggingColorRow({
           className={cn(
             "p-1 rounded transition-colors",
             areAllLockableTargetsLocked
-              ? "text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
-              : "text-text-muted hover:text-accent hover:bg-accent/10",
+              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
+              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
           )}
           title={
             areAllLockableTargetsLocked

@@ -1,6 +1,9 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CommitOnBlurNumberInput } from "./RiggingPropertyRow";
+import {
+  CommitOnBlurNumberInput,
+  RiggingPropertyRow,
+} from "./RiggingPropertyRow";
 
 afterEach(() => {
   cleanup();
@@ -51,5 +54,46 @@ describe("CommitOnBlurNumberInput", () => {
 
     expect(handleCommit).not.toHaveBeenCalled();
     expect(input.value).toBe("0.25");
+  });
+});
+
+describe("RiggingPropertyRow", () => {
+  it("toggles expanded sections from the row but not from number fields or row actions", () => {
+    const handleCommit = vi.fn();
+    const handleLockClick = vi.fn();
+
+    render(
+      <RiggingPropertyRow
+        label="Position"
+        renderMainInput={() => (
+          <CommitOnBlurNumberInput
+            value={1}
+            step={0.01}
+            onCommit={handleCommit}
+          />
+        )}
+        renderDefaultInput={() => <div>Default Controls</div>}
+        renderRowAction={() => (
+          <button type="button" onClick={handleLockClick}>
+            Lock
+          </button>
+        )}
+      />,
+    );
+
+    const header = screen.getByTitle("Toggle Position edit controls");
+    fireEvent.click(header);
+    expect(screen.getByText("Default Controls")).toBeTruthy();
+
+    const input = requireInput();
+    fireEvent.click(input);
+    expect(screen.getByText("Default Controls")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Lock" }));
+    expect(handleLockClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Default Controls")).toBeTruthy();
+
+    fireEvent.click(header);
+    expect(screen.queryByText("Default Controls")).toBeNull();
   });
 });

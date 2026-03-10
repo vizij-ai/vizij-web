@@ -1,8 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthoringTargetList } from "./AuthoringTargetList";
 
 describe("AuthoringTargetList", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("renders the new action row above search and filters", () => {
     render(
       <AuthoringTargetList
@@ -56,5 +60,44 @@ describe("AuthoringTargetList", () => {
     expect(onDuplicate).toHaveBeenCalledWith("program:wave");
     expect(onDelete).toHaveBeenCalledWith("program:wave");
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("selects the row before invoking transport actions", () => {
+    const onSelect = vi.fn();
+    const onPlay = vi.fn();
+    const onPause = vi.fn();
+    const onStop = vi.fn();
+
+    render(
+      <AuthoringTargetList
+        kindLabel="Program"
+        emptyDescription="Empty"
+        items={[
+          {
+            id: "program:wave",
+            label: "Wave",
+            source: "authored",
+            selected: false,
+            isRuntimeActive: true,
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSelect={onSelect}
+        onPlay={onPlay}
+        onPause={onPause}
+        onStop={onStop}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("Play program"));
+    fireEvent.click(screen.getByTitle("Pause program"));
+    fireEvent.click(screen.getByTitle("Stop program"));
+
+    expect(onSelect).toHaveBeenNthCalledWith(1, "program:wave");
+    expect(onSelect).toHaveBeenNthCalledWith(2, "program:wave");
+    expect(onSelect).toHaveBeenNthCalledWith(3, "program:wave");
+    expect(onPlay).toHaveBeenCalledWith("program:wave");
+    expect(onPause).toHaveBeenCalledWith("program:wave");
+    expect(onStop).toHaveBeenCalledWith("program:wave");
   });
 });

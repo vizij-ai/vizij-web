@@ -827,10 +827,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const faceId = useGraphRuntime((state) => state.faceId);
   const animatables = useGraphRuntime((state) => state.animatables);
   const papPlaybackState = useGraphRuntime((state) => state.graphPlaybackState);
-  const papTimeSeconds = useGraphRuntime((state) => state.graphTimeSeconds);
-  const papPlaybackAvailable = useGraphRuntime(
-    (state) => state.graphPlaybackAvailable,
-  );
   const playPapGraph = useGraphRuntime((state) => state.playGraph);
   const pausePapGraph = useGraphRuntime((state) => state.pauseGraph);
   const stopPapGraph = useGraphRuntime((state) => state.stopGraph);
@@ -2146,6 +2142,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handlePlayAnimationTarget = useCallback(
     (targetId: string) => {
       uiActions.setActiveRuntimeSource("animation");
+      setWorkspacePanelVisibility("animation", true);
+      if (targetId !== selectedAnimationTargetId) {
+        handleSelectAnimationTarget(targetId);
+      }
       if (
         animationRuntimeTransportAdapter &&
         activeAnimationRuntimeTargetId &&
@@ -2162,12 +2162,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       activeAnimationRuntimeTargetId,
       animationRuntimeTransportAdapter,
+      handleSelectAnimationTarget,
+      selectedAnimationTargetId,
+      setWorkspacePanelVisibility,
       uiActions,
     ],
   );
   const handlePauseAnimationTarget = useCallback(
     (targetId: string) => {
-      if (targetId !== activeAnimationRuntimeTargetId) {
+      const runtimeTargetId =
+        targetId === activeAnimationRuntimeTargetId
+          ? targetId
+          : activeAnimationRuntimeTargetId;
+      if (!runtimeTargetId) {
         return;
       }
       uiActions.setActiveRuntimeSource("animation");
@@ -2183,7 +2190,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleStopAnimationTarget = useCallback(
     (targetId: string) => {
-      if (targetId !== activeAnimationRuntimeTargetId) {
+      const runtimeTargetId =
+        targetId === activeAnimationRuntimeTargetId
+          ? targetId
+          : activeAnimationRuntimeTargetId;
+      if (!runtimeTargetId) {
         return;
       }
       uiActions.setActiveRuntimeSource("animation");
@@ -2205,6 +2216,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handlePlayProgramTarget = useCallback(
     (targetId: string) => {
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
+      setWorkspacePanelVisibility("motiongraph", true);
+      if (targetId !== selectedProceduralTargetId) {
+        handleSelectProceduralTarget(targetId);
+      }
       if (
         activeProgramRuntimeTargetId &&
         activeProgramRuntimeTargetId !== targetId
@@ -2214,11 +2229,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setActiveProgramRuntimeTargetId(targetId);
       setPendingProgramRuntimePlayTargetId(targetId);
     },
-    [activeProgramRuntimeTargetId, stopPapGraph, uiActions],
+    [
+      activeProgramRuntimeTargetId,
+      handleSelectProceduralTarget,
+      selectedProceduralTargetId,
+      setWorkspacePanelVisibility,
+      stopPapGraph,
+      uiActions,
+    ],
   );
   const handlePauseProgramTarget = useCallback(
     (targetId: string) => {
-      if (targetId !== activeProgramRuntimeTargetId) {
+      const runtimeTargetId =
+        targetId === activeProgramRuntimeTargetId
+          ? targetId
+          : activeProgramRuntimeTargetId;
+      if (!runtimeTargetId) {
         return;
       }
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
@@ -2228,7 +2254,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleStopProgramTarget = useCallback(
     (targetId: string) => {
-      if (targetId !== activeProgramRuntimeTargetId) {
+      const runtimeTargetId =
+        targetId === activeProgramRuntimeTargetId
+          ? targetId
+          : activeProgramRuntimeTargetId;
+      if (!runtimeTargetId) {
         return;
       }
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
@@ -2783,17 +2813,56 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationRuntimePlaybackState = activeAnimationRuntimeTargetId
     ? animationPlaybackState
     : "stopped";
-  const programRuntimePlaybackState =
-    activeProgramRuntimeTargetId && papPlaybackState === "playing"
-      ? ("playing" as const)
-      : activeProgramRuntimeTargetId && papTimeSeconds > 0
-        ? ("paused" as const)
-        : ("stopped" as const);
+  const programRuntimePlaybackState = activeProgramRuntimeTargetId
+    ? papPlaybackState
+    : "stopped";
+  const handlePlayAnimationRuntime = useCallback(() => {
+    const targetId =
+      selectedAnimationTargetId ?? activeAnimationRuntimeTargetId;
+    if (targetId) {
+      handlePlayAnimationTarget(targetId);
+    }
+  }, [
+    activeAnimationRuntimeTargetId,
+    handlePlayAnimationTarget,
+    selectedAnimationTargetId,
+  ]);
+  const handlePauseAnimationRuntime = useCallback(() => {
+    const targetId =
+      activeAnimationRuntimeTargetId ?? selectedAnimationTargetId;
+    if (targetId) {
+      handlePauseAnimationTarget(targetId);
+    }
+  }, [
+    activeAnimationRuntimeTargetId,
+    handlePauseAnimationTarget,
+    selectedAnimationTargetId,
+  ]);
   const handleStopAnimationRuntime = useCallback(() => {
     if (activeAnimationRuntimeTargetId) {
       handleStopAnimationTarget(activeAnimationRuntimeTargetId);
     }
   }, [activeAnimationRuntimeTargetId, handleStopAnimationTarget]);
+  const handlePlayProgramRuntime = useCallback(() => {
+    const targetId = selectedProceduralTargetId ?? activeProgramRuntimeTargetId;
+    if (targetId) {
+      handlePlayProgramTarget(targetId);
+    }
+  }, [
+    activeProgramRuntimeTargetId,
+    handlePlayProgramTarget,
+    selectedProceduralTargetId,
+  ]);
+  const handlePauseProgramRuntime = useCallback(() => {
+    const targetId = activeProgramRuntimeTargetId ?? selectedProceduralTargetId;
+    if (targetId) {
+      handlePauseProgramTarget(targetId);
+    }
+  }, [
+    activeProgramRuntimeTargetId,
+    handlePauseProgramTarget,
+    selectedProceduralTargetId,
+  ]);
   const handleStopProgramRuntime = useCallback(() => {
     if (activeProgramRuntimeTargetId) {
       handleStopProgramTarget(activeProgramRuntimeTargetId);
@@ -3663,6 +3732,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       <ResizablePanel defaultSize={42} minSize={20}>
         <MotionGraphPanel
           onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
+          playbackState={programRuntimePlaybackState}
+          onPlayTransport={
+            selectedProceduralTargetId || activeProgramRuntimeTargetId
+              ? handlePlayProgramRuntime
+              : undefined
+          }
+          onPauseTransport={
+            selectedProceduralTargetId || activeProgramRuntimeTargetId
+              ? handlePauseProgramRuntime
+              : undefined
+          }
+          onStopTransport={
+            activeProgramRuntimeTargetId ? handleStopProgramRuntime : undefined
+          }
           splitVertical={motionGraphSplitVertical}
           onToggleSplit={() => setMotionGraphSplitVertical((prev) => !prev)}
           onClosePanel={handleHideMotionGraphPanel}
@@ -3767,6 +3850,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             <AnimationPanel
               onClosePanel={handleHideAnimationPanel}
               onInspectTrack={handleInspectAnimationTrackFromTimeline}
+              playbackState={animationRuntimePlaybackState}
+              onPlayTransport={
+                selectedAnimationTargetId || activeAnimationRuntimeTargetId
+                  ? handlePlayAnimationRuntime
+                  : undefined
+              }
+              onPauseTransport={
+                selectedAnimationTargetId || activeAnimationRuntimeTargetId
+                  ? handlePauseAnimationRuntime
+                  : undefined
+              }
+              onStopTransport={
+                activeAnimationRuntimeTargetId
+                  ? handleStopAnimationRuntime
+                  : undefined
+              }
             />
           }
           centerPanelDefaultSize={centerPanelDefaultSize}

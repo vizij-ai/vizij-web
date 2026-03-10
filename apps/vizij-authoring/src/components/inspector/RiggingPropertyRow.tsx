@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Pencil, X, RotateCcw } from "lucide-react";
+import { ChevronRight, RotateCcw } from "lucide-react";
 import { Button as BaseButton } from "@base-ui/react";
 import { cn } from "../../utils/cn";
 
@@ -88,9 +88,13 @@ export function CommitOnBlurNumberInput({
       min={min}
       max={max}
       disabled={disabled}
+      onClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
       onChange={(event) => setDraftValue(event.target.value)}
       onBlur={commitDraft}
       onKeyDown={(event) => {
+        event.stopPropagation();
         if (event.key === "Enter") {
           event.preventDefault();
           event.currentTarget.blur();
@@ -229,22 +233,31 @@ export function RiggingPropertyRow({
         className,
       )}
     >
-      <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-1.5 p-1 pl-1.5 min-h-[32px]">
+      <div
+        className={cn(
+          "flex flex-col @[300px]:flex-row @[300px]:items-center gap-1.5 p-1 pl-1.5 min-h-[32px]",
+          canToggleExpanded && "cursor-pointer",
+        )}
+        onClick={canToggleExpanded ? handleToggle : undefined}
+        title={canToggleExpanded ? `Toggle ${label} edit controls` : undefined}
+      >
         {/* Label Container */}
         <div className="flex items-center gap-2 @[300px]:w-20 w-full flex-shrink-0 min-w-0">
           {canToggleExpanded ? (
-            <BaseButton
-              onClick={(event) => {
-                event.stopPropagation();
-                handleToggle();
-              }}
+            <div
               className={cn(
-                "p-0.5 -ml-1 text-text-secondary hover:text-text-primary transition-colors rounded hover:bg-bg-hover cursor-pointer",
+                "flex h-4 w-4 items-center justify-center rounded text-text-secondary transition-colors",
                 isExpanded && "text-text-primary",
               )}
             >
-              {isExpanded ? <X size={12} /> : <Pencil size={11} />}
-            </BaseButton>
+              <ChevronRight
+                size={12}
+                className={cn(
+                  "transition-transform",
+                  isExpanded && "rotate-90",
+                )}
+              />
+            </div>
           ) : (
             <div className="w-3.5 flex justify-center text-zinc-500">
               {icon}
@@ -256,19 +269,14 @@ export function RiggingPropertyRow({
               <div className="w-1 h-1 rounded-full bg-accent flex-shrink-0" />
             )}
             {canToggleExpanded ? (
-              <BaseButton
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleToggle();
-                }}
+              <span
                 className={cn(
                   "min-w-0 text-left rounded px-0.5 -mx-0.5",
-                  "text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors hover:bg-bg-hover cursor-pointer",
+                  "text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors",
                 )}
-                title={`Toggle ${label} edit controls`}
               >
                 {label}
-              </BaseButton>
+              </span>
             ) : (
               <ScrubbableLabel
                 label={label}
@@ -292,6 +300,8 @@ export function RiggingPropertyRow({
                 e.preventDefault();
                 onResetToDefault();
               }}
+              onMouseDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
               className={cn(
                 "ml-1 p-1 rounded cursor-pointer transition-colors",
                 hasDifferentDefault
@@ -305,7 +315,14 @@ export function RiggingPropertyRow({
             </BaseButton>
           )}
           {renderRowAction && (
-            <div className="ml-1 flex items-center">{renderRowAction()}</div>
+            <div
+              className="ml-1 flex items-center"
+              onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {renderRowAction()}
+            </div>
           )}
         </div>
       </div>

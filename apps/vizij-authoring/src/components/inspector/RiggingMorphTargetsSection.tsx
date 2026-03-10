@@ -132,7 +132,7 @@ export function RiggingMorphTargetsSection({
             type="button"
             className={cn(
               "rounded p-0.5 transition-colors",
-              "text-zinc-500 hover:text-amber-300 hover:bg-amber-500/15",
+              "text-rose-300 hover:text-rose-200 hover:bg-rose-500/15",
             )}
             title="Lock All Morph Targets"
             disabled={!hasLockableMorphTargets || areAllMorphTargetsLocked}
@@ -144,7 +144,7 @@ export function RiggingMorphTargetsSection({
             type="button"
             className={cn(
               "rounded p-0.5 transition-colors",
-              "text-zinc-500 hover:text-accent hover:bg-accent/15",
+              "text-sky-300 hover:text-sky-200 hover:bg-sky-500/15",
             )}
             title="Unlock All Morph Targets"
             disabled={!hasLockableMorphTargets || lockedMorphTargetCount === 0}
@@ -476,8 +476,8 @@ function RiggingScalarRow({
           className={cn(
             "p-1 rounded transition-colors",
             isChannelLocked
-              ? "text-amber-200 hover:text-amber-100 hover:bg-amber-500/20"
-              : "text-text-muted hover:text-accent hover:bg-accent/10",
+              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
+              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
           )}
           title={isChannelLocked ? `Unlock ${label}` : `Lock ${label}`}
           disabled={!targetId}

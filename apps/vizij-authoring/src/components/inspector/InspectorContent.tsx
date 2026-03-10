@@ -603,9 +603,6 @@ export function InspectorContent({
   const inputValues = useBindingAuthoring((state) =>
     shouldSubscribeInputValues ? state.inputValues : EMPTY_INPUT_VALUES,
   );
-  const poseInputValues = useBindingAuthoring((state) =>
-    inspectorMode === "pose" ? state.inputValues : EMPTY_INPUT_VALUES,
-  );
   const pipelineMetadataV1 = useBindingAuthoring(
     (state) => state.pipelineMetadataV1,
   );
@@ -2585,6 +2582,11 @@ export function InspectorContent({
               <Button
                 variant={isElementFullyLocked ? "secondary" : "ghost"}
                 size="sm"
+                className={
+                  isElementFullyLocked
+                    ? "text-rose-300 hover:text-rose-200"
+                    : "text-sky-300 hover:text-sky-200"
+                }
                 onClick={() => {
                   const nextLocked = !isElementFullyLocked;
                   lockableTargetIds.forEach((targetId) => {
@@ -2598,9 +2600,9 @@ export function InspectorContent({
                 }
               >
                 {isElementFullyLocked ? (
-                  <LockOpen size={12} className="mr-1 shrink-0" />
-                ) : (
                   <Lock size={12} className="mr-1 shrink-0" />
+                ) : (
+                  <LockOpen size={12} className="mr-1 shrink-0" />
                 )}
                 {isElementFullyLocked
                   ? "Unlock All Properties"
@@ -2857,26 +2859,6 @@ export function InspectorContent({
         allPoseVariablesExpanded ? new Set() : new Set(poseVariableIds),
       );
     };
-    const handleSetAllCurrentAsTargets = () => {
-      Object.entries(pose.values).forEach(([inputId, currentTargetValue]) => {
-        const base = poseVariableBaseById.get(inputId);
-        const currentDriverValue = poseInputValues[inputId];
-        const fallbackValue =
-          Number.isFinite(currentTargetValue) && currentTargetValue !== null
-            ? currentTargetValue
-            : (base?.neutralVal ?? 0);
-        const resolvedDriverValue =
-          typeof currentDriverValue === "number" &&
-          Number.isFinite(currentDriverValue)
-            ? currentDriverValue
-            : fallbackValue;
-        const nextTargetValue = base
-          ? clampToRange(resolvedDriverValue, base.min, base.max)
-          : resolvedDriverValue;
-        updatePoseValue(pose.id, inputId, nextTargetValue);
-      });
-    };
-
     return (
       <div className="flex flex-col gap-2 p-2 min-h-0 flex-1">
         <InspectorHeader
@@ -3009,7 +2991,7 @@ export function InspectorContent({
           </div>
         ) : null}
         <RiggingPropertyRow
-          label="Contribution Strength"
+          label="Set Pose Percentage:"
           onScrub={(_, totalDelta) => {
             // Blend based on delta (assuming 100px = 100% blend)
             const newAmount = Math.max(
@@ -3019,42 +3001,43 @@ export function InspectorContent({
             handleBlend(newAmount);
           }}
           renderMainInput={() => (
-            <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
-              <Slider
-                min={0}
-                max={1}
-                step={0.01}
-                value={blendAmount}
-                fillMode="value"
-                className="flex-1"
-                onChange={(val) => handleBlend(val as number)}
-              />
-              <span
-                className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
-                title={poseSemanticTooltips.contribution}
-              >
-                Contrib
-              </span>
-              <div className="inspector-numeric-control flex-shrink-0">
-                <Input
+            <div
+              className="flex flex-1 flex-col gap-1.5 group/row inspector-row-hit-target"
+              title={poseSemanticTooltips.contribution}
+            >
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
                   size="sm"
-                  type="text"
-                  value={(blendAmount * 100).toFixed(0) + "%"}
-                  className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
-                  readOnly
+                  className="h-6 w-6 shrink-0 p-0 text-text-muted hover:text-text-primary"
+                  title="Play Pose (100%)"
+                  onClick={() => {
+                    handleBlend(1);
+                  }}
+                >
+                  <Play size={12} fill="currentColor" />
+                </Button>
+                <Slider
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={blendAmount}
+                  fillMode="value"
+                  className="flex-1"
+                  onChange={(val) => handleBlend(val as number)}
                 />
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
-                title="Play Pose (100%)"
-                onClick={() => {
-                  handleBlend(1);
-                }}
-              >
-                <Play size={12} fill="currentColor" />
-              </Button>
+              <div className="pl-8">
+                <div className="inspector-numeric-control w-[84px] flex-shrink-0">
+                  <Input
+                    size="sm"
+                    type="text"
+                    value={(blendAmount * 100).toFixed(0) + "%"}
+                    className="w-full bg-bg-input/80 border-border-default/80 text-right font-mono text-text-muted"
+                    readOnly
+                  />
+                </div>
+              </div>
             </div>
           )}
         />
@@ -3064,23 +3047,15 @@ export function InspectorContent({
             What I Drive · {Object.keys(pose.values).length} Drivers
           </span>
           <div className="h-px bg-border-default flex-1" />
+        </div>
+        <div className="mb-2 flex px-1">
           <Button
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-[10px] whitespace-nowrap"
             onClick={handleToggleAllPoseVariables}
           >
-            {allPoseVariablesExpanded ? "Collapse Channels" : "Expand Channels"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[10px] whitespace-nowrap"
-            onClick={handleSetAllCurrentAsTargets}
-            disabled={Object.keys(pose.values).length === 0}
-            title="Use the current control driver values as targets for every driver in this pose"
-          >
-            Set Current as Target
+            {allPoseVariablesExpanded ? "Collapse All" : "Expand All"}
           </Button>
         </div>
 

@@ -217,6 +217,7 @@ export function AuthoringTargetList({
                       className="h-6 px-2 text-[10px] gap-1"
                       onClick={(event) => {
                         event.stopPropagation();
+                        onSelect(item.id);
                         onPlay(item.id);
                       }}
                       title={`Play ${kindLabel.toLowerCase()}`}
@@ -233,6 +234,7 @@ export function AuthoringTargetList({
                       disabled={!item.isRuntimeActive && !item.selected}
                       onClick={(event) => {
                         event.stopPropagation();
+                        onSelect(item.id);
                         onPause(item.id);
                       }}
                       title={`Pause ${kindLabel.toLowerCase()}`}
@@ -249,6 +251,7 @@ export function AuthoringTargetList({
                       disabled={!item.isRuntimeActive && !item.selected}
                       onClick={(event) => {
                         event.stopPropagation();
+                        onSelect(item.id);
                         onStop(item.id);
                       }}
                       title={`Stop ${kindLabel.toLowerCase()}`}
