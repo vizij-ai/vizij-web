@@ -66,12 +66,44 @@ export async function ensureProceduralAnimationPanelVisible(
   page: Page,
 ): Promise<void> {
   await selectEditMode(page, "procedural-animation");
+  await ensureProgramPanelVisible(page);
+}
+
+export async function ensureAnimationPanelVisible(page: Page): Promise<void> {
+  const panel = page.getByTestId("animation-panel");
+  if (await panel.isVisible().catch(() => false)) {
+    return;
+  }
+  await page.getByTestId("app-menu-view").click();
+  const toggle = page.getByTestId("app-menu-view-center-animation");
+  if ((await toggle.getAttribute("aria-checked")) !== "true") {
+    await toggle.click();
+  }
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeVisible();
+}
+
+export async function ensureProgramPanelVisible(page: Page): Promise<void> {
   const panel = page.getByTestId("motiongraph-panel");
   if (await panel.isVisible().catch(() => false)) {
     return;
   }
   await page.getByTestId("app-menu-view").click();
-  const toggle = page.getByTestId("app-menu-view-procedural-animation");
+  const toggle = page.getByTestId("app-menu-view-center-program");
+  if ((await toggle.getAttribute("aria-checked")) !== "true") {
+    await toggle.click();
+  }
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeVisible();
+}
+
+export async function ensureInspectorPanelVisible(page: Page): Promise<void> {
+  const panel = page.getByTestId("inspector-panel");
+  if (await panel.isVisible().catch(() => false)) {
+    return;
+  }
+  await page.getByTestId("app-menu-view").click();
+  const toggle = page.getByTestId("app-menu-view-right-inspector");
   if ((await toggle.getAttribute("aria-checked")) !== "true") {
     await toggle.click();
   }

@@ -334,6 +334,7 @@ export function AppMenuBar({
         <MenuSeparator />
         <MenuLabel>Center Panel</MenuLabel>
         <MenuCheckboxItem
+          testId="app-menu-view-center-animation"
           checked={animationPanelVisible}
           onCheckedChange={(checked) =>
             setCenterPanelVisibility("animation", checked)
@@ -342,6 +343,7 @@ export function AppMenuBar({
           Animation
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-view-center-program"
           checked={motionGraphPanelVisible}
           onCheckedChange={(checked) =>
             setCenterPanelVisibility("motiongraph", checked)
@@ -360,6 +362,7 @@ export function AppMenuBar({
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
         <MenuCheckboxItem
+          testId="app-menu-view-right-inspector"
           checked={inspectorPanelVisible}
           onCheckedChange={(checked) =>
             setPanelVisibility("inspector", checked)

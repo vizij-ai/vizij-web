@@ -1063,6 +1063,7 @@ export function InspectorPanel({
 
   return (
     <Panel
+      data-testid="inspector-panel"
       title={panelTitle}
       description={panelDescription}
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
