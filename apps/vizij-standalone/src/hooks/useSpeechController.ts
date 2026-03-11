@@ -62,6 +62,8 @@ export interface UseSpeechControllerOptions {
   ready: boolean;
   /** CLI override for auto-activate mic (true/false), or undefined to use bundle config */
   autoMicOverride?: boolean | undefined;
+  /** CLI/env override for speech mode, or undefined to use bundle config */
+  speechModeOverride?: "echo" | "conversation" | undefined;
 }
 
 export interface UseSpeechControllerReturn {
@@ -96,6 +98,7 @@ export function useSpeechController({
   animateValue,
   ready,
   autoMicOverride,
+  speechModeOverride,
 }: UseSpeechControllerOptions): UseSpeechControllerReturn {
   const [dgKey, setDgKey] = useState<string | null>(null);
   const [oaiKey, setOaiKey] = useState<string | null>(null);
@@ -181,8 +184,8 @@ export function useSpeechController({
 
   const faceSegment = faceId?.trim() || "face";
 
-  // Resolve config values
-  const mode = speechConfig?.mode ?? "echo";
+  // Resolve config values: CLI/env > bundle metadata > default
+  const mode = speechModeOverride ?? speechConfig?.mode ?? "echo";
   const agentName = speechConfig?.agentName ?? DEFAULT_AGENT_NAME;
   const speakingInputPath =
     speechConfig?.speakingInputPath ?? "/speech/speaking";

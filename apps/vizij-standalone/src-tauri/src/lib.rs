@@ -27,6 +27,7 @@ struct AppState {
     openai_key: Option<String>,
     api_url: Option<String>,
     auto_mic: Option<bool>,
+    speech_mode: Option<String>,
     mic_muted: std::sync::Mutex<bool>,
 }
 
@@ -88,6 +89,10 @@ struct Cli {
     /// Auto-activate microphone on load (overrides bundle config)
     #[arg(long)]
     auto_mic: Option<bool>,
+
+    /// Speech mode: "echo" (repeat back) or "conversation" (LLM-powered)
+    #[arg(long)]
+    speech_mode: Option<String>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -301,6 +306,9 @@ async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String
     if let Some(auto_mic) = state.auto_mic {
         keys.insert("autoMic".to_string(), auto_mic.to_string());
     }
+    if let Some(ref mode) = state.speech_mode {
+        keys.insert("speechMode".to_string(), mode.clone());
+    }
     keys
 }
 
@@ -386,6 +394,10 @@ pub fn run() {
                     .ok()
                     .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
             });
+            let speech_mode = cli
+                .speech_mode
+                .clone()
+                .or_else(|| std::env::var("SPEECH_MODE").ok());
 
             app.manage(AppState {
                 connection_manager: Arc::new(manager),
@@ -397,6 +409,7 @@ pub fn run() {
                 openai_key,
                 api_url,
                 auto_mic,
+                speech_mode,
                 mic_muted: std::sync::Mutex::new(true),
             });
 

@@ -264,15 +264,24 @@ function AppContent({
   // setInput(`rig/${faceId}/${path}`, { float: value });
   const { inputConstraints, namespace, faceId } = useWebSocketSync();
 
-  // Load CLI auto-mic override
+  // Load CLI/env overrides for speech settings
   const [autoMicOverride, setAutoMicOverride] = useState<boolean | undefined>(
     undefined,
   );
+  const [speechModeOverride, setSpeechModeOverride] = useState<
+    "echo" | "conversation" | undefined
+  >(undefined);
   useEffect(() => {
     invoke<Record<string, string>>("get_speech_keys")
       .then((keys) => {
         if (keys.autoMic !== undefined) {
           setAutoMicOverride(keys.autoMic === "true");
+        }
+        if (
+          keys.speechMode === "echo" ||
+          keys.speechMode === "conversation"
+        ) {
+          setSpeechModeOverride(keys.speechMode);
         }
       })
       .catch(() => {
@@ -310,6 +319,7 @@ function AppContent({
     animateValue: runtime.animateValue,
     ready: runtime.ready,
     autoMicOverride,
+    speechModeOverride,
   });
 
   // Listen for mute-microphone events from WebSocket methods (via Tauri)
