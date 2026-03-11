@@ -180,6 +180,18 @@ function registerMergedGraphMock(config: {
 describe("Graph fixtures and orchestrator guards", () => {
   it("ik graph fixture exposes canonical edges and typed paths", () => {
     expect(() => ensureGraphHasCanonicalEdges(ikGraphSpec)).not.toThrow();
+    const fkNode = ikGraphSpec.nodes.find(
+      (node: { id?: string }) => node.id === "fk",
+    );
+    const ikNode = ikGraphSpec.nodes.find(
+      (node: { id?: string }) => node.id === "ik_solver",
+    );
+    expect((fkNode?.params as any)?.urdf_xml).toBeTruthy();
+    expect((fkNode?.params as any)?.root_link).toBe("base_link");
+    expect((fkNode?.params as any)?.tip_link).toBe("tool");
+    expect((ikNode?.params as any)?.urdf_xml).toBeTruthy();
+    expect((ikNode?.params as any)?.root_link).toBe("base_link");
+    expect((ikNode?.params as any)?.tip_link).toBe("tool");
   });
 
   it("slew graph fixture exposes canonical edges and typed paths", () => {
