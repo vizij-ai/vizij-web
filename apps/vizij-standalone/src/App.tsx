@@ -277,10 +277,7 @@ function AppContent({
         if (keys.autoMic !== undefined) {
           setAutoMicOverride(keys.autoMic === "true");
         }
-        if (
-          keys.speechMode === "echo" ||
-          keys.speechMode === "conversation"
-        ) {
+        if (keys.speechMode === "echo" || keys.speechMode === "conversation") {
           setSpeechModeOverride(keys.speechMode);
         }
       })

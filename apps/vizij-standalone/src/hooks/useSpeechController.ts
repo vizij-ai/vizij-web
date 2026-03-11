@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { VizijSpeechConfig } from "@vizij/render";
-import type {
-  PoseDefinition,
-  PoseGroupDefinition,
-} from "@vizij/runtime-react";
+import type { PoseDefinition, PoseGroupDefinition } from "@vizij/runtime-react";
 import {
   useSpeechRecognition,
   useConversation,
@@ -158,8 +155,12 @@ export function useSpeechController({
       if (mounted) {
         setKeysLoaded(true);
         console.log("[speech] Keys loaded:", {
-          deepgram: resolvedDg ? `set (${resolvedDg.slice(0, 8)}...)` : "missing",
-          openai: resolvedOai ? `set (${resolvedOai.slice(0, 8)}...)` : "missing",
+          deepgram: resolvedDg
+            ? `set (${resolvedDg.slice(0, 8)}...)`
+            : "missing",
+          openai: resolvedOai
+            ? `set (${resolvedOai.slice(0, 8)}...)`
+            : "missing",
           apiUrl: resolvedUrl || "missing",
           autoMic: resolvedAutoMic ?? "not set",
         });
@@ -324,7 +325,12 @@ export function useSpeechController({
           if (parsed) {
             speakText = parsed.text;
             emotion = parsed.emotion;
-            console.log("[speech] Parsed emotion:", emotion, "text:", speakText);
+            console.log(
+              "[speech] Parsed emotion:",
+              emotion,
+              "text:",
+              speakText,
+            );
           }
         }
 
@@ -357,7 +363,13 @@ export function useSpeechController({
       buildRigInputPath(faceSegment, userSpeakingInputPath),
       asr.listening ? 1 : 0,
     );
-  }, [asr.listening, stageRuntimeInput, ready, faceSegment, userSpeakingInputPath]);
+  }, [
+    asr.listening,
+    stageRuntimeInput,
+    ready,
+    faceSegment,
+    userSpeakingInputPath,
+  ]);
 
   // Drive /speech/thinking input
   useEffect(() => {
@@ -366,7 +378,13 @@ export function useSpeechController({
       buildRigInputPath(faceSegment, thinkingInputPath),
       isConversationThinking ? 1 : 0,
     );
-  }, [isConversationThinking, stageRuntimeInput, ready, faceSegment, thinkingInputPath]);
+  }, [
+    isConversationThinking,
+    stageRuntimeInput,
+    ready,
+    faceSegment,
+    thinkingInputPath,
+  ]);
 
   // Toggle mic
   const toggleMic = useCallback(() => {
@@ -390,13 +408,10 @@ export function useSpeechController({
   );
 
   // Speak arbitrary text via TTS
-  const speak = useCallback(
-    (text: string) => {
-      console.log("[speech] speak() called:", text.slice(0, 60));
-      void handleSpeakRef.current(text);
-    },
-    [],
-  );
+  const speak = useCallback((text: string) => {
+    console.log("[speech] speak() called:", text.slice(0, 60));
+    void handleSpeakRef.current(text);
+  }, []);
 
   // Interrupt/stop any ongoing speech
   const interrupt = useCallback(() => {
@@ -421,13 +436,22 @@ export function useSpeechController({
       console.log("[speech] Auto-activating microphone");
       void asr.startListening();
     }
-  }, [enabled, keysConfigured, ready, autoMicOverride, speechConfig?.autoActivateMic, asr]);
+  }, [
+    enabled,
+    keysConfigured,
+    ready,
+    autoMicOverride,
+    speechConfig?.autoActivateMic,
+    asr,
+  ]);
 
   // Log TTS status changes
   const prevSpeechStatusRef = useRef(speech.status);
   useEffect(() => {
     if (prevSpeechStatusRef.current !== speech.status) {
-      console.log(`[speech] TTS status: ${prevSpeechStatusRef.current} → ${speech.status}`);
+      console.log(
+        `[speech] TTS status: ${prevSpeechStatusRef.current} → ${speech.status}`,
+      );
       prevSpeechStatusRef.current = speech.status;
     }
   }, [speech.status]);
@@ -440,7 +464,8 @@ export function useSpeechController({
     if (asr.error) console.error("[speech] ASR error:", asr.error);
   }, [asr.error]);
   useEffect(() => {
-    if (conversation.error) console.error("[speech] LLM error:", conversation.error);
+    if (conversation.error)
+      console.error("[speech] LLM error:", conversation.error);
   }, [conversation.error]);
 
   // Compute overall status

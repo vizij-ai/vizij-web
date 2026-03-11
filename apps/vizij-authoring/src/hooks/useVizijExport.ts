@@ -1373,13 +1373,19 @@ function mergeMotionGraphsIntoBundle(
 
 function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
   try {
-    const speakingInputPath = localStorage.getItem("vizij_speech_speaking_path");
+    const speakingInputPath = localStorage.getItem(
+      "vizij_speech_speaking_path",
+    );
     const userSpeakingInputPath = localStorage.getItem(
       "vizij_speech_user_speaking_path",
     );
-    const thinkingInputPath = localStorage.getItem("vizij_speech_thinking_path");
+    const thinkingInputPath = localStorage.getItem(
+      "vizij_speech_thinking_path",
+    );
     const agentName = localStorage.getItem("vizij_agent_name");
-    const emotionGroupId = localStorage.getItem("vizij_speech_emotion_group_id");
+    const emotionGroupId = localStorage.getItem(
+      "vizij_speech_emotion_group_id",
+    );
     const visemeGroupId = localStorage.getItem("vizij_speech_viseme_group_id");
     const voice = localStorage.getItem("vizij_speech_voice");
     const mode = localStorage.getItem("vizij_speech_mode") as

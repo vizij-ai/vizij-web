@@ -2,19 +2,33 @@
   "name": "@vizij/speech-react",
   "description": "Shared STT/LLM/TTS speech pipeline hooks for Vizij React apps.",
   "version": "0.1.0",
+  "sideEffects": false,
   "type": "module",
-  "main": "src/index.ts",
-  "module": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts",
-      "require": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vizij-ai/vizij-web",
+    "directory": "packages/@vizij/speech-react"
+  },
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsup src/index.ts --format esm,cjs --dts src/index.ts --external react,react-dom",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts src/index.ts --external react,react-dom",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
+    "prepack": "pnpm run build && pnpm run typecheck"
   },
   "dependencies": {
     "@deepgram/sdk": "^5.0.0",
@@ -27,6 +41,10 @@
   "devDependencies": {
     "@types/react": "^19.2.7",
     "react": "^19.2.3",
+    "tsup": "^8.0.1",
     "typescript": "^5.5.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
