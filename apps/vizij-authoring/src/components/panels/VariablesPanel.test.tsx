@@ -119,6 +119,7 @@ const poseRigState = {
   renamePoseGroup: vi.fn(),
   deletePoseGroup: vi.fn(),
   deletePose: vi.fn(),
+  replacePoseTargets: vi.fn(),
   updatePoseValue: vi.fn(),
   blendStages: [] as NonNullable<PoseRigConfigFile["blendStages"]>,
   createBlendStage: vi.fn(),
@@ -257,6 +258,7 @@ describe("VariablesPanel", () => {
     poseRigState.renamePoseGroup.mockReset();
     poseRigState.deletePoseGroup.mockReset();
     poseRigState.deletePose.mockReset();
+    poseRigState.replacePoseTargets.mockReset();
     poseRigState.updatePoseValue.mockReset();
     poseRigState.blendStages = [];
     poseRigState.createBlendStage.mockReset();
@@ -1455,23 +1457,21 @@ describe("VariablesPanel", () => {
       .forEach((checkbox) => fireEvent.click(checkbox));
     fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (2)" }));
 
-    expect(screen.queryByText("Pose Copy Mapping")).toBeNull();
-    expect(poseRigState.createPose).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+    expect(poseRigState.createPose).toHaveBeenCalledTimes(1);
     expect(poseRigState.createPose).toHaveBeenNthCalledWith(1, "Ref Shared");
-    expect(poseRigState.createPose).toHaveBeenNthCalledWith(2, "Ref Shared");
-    expect(poseRigState.updatePoseGroup).toHaveBeenCalledTimes(2);
+    expect(poseRigState.updatePoseGroup).toHaveBeenCalledTimes(1);
     const firstCreatedPoseId = poseRigState.updatePoseGroup.mock.calls[0]?.[0];
-    const secondCreatedPoseId = poseRigState.updatePoseGroup.mock.calls[1]?.[0];
-    expect(firstCreatedPoseId).not.toEqual(secondCreatedPoseId);
     expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
       firstCreatedPoseId,
       destinationSmile.id,
       0.25,
     );
-    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
-      secondCreatedPoseId,
-      destinationSmile.id,
-      0.75,
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite Pose" }));
+
+    expect(poseRigState.replacePoseTargets).toHaveBeenCalledWith(
+      firstCreatedPoseId,
+      { [destinationSmile.id]: 0.75 },
     );
   });
 
@@ -2376,6 +2376,69 @@ describe("VariablesPanel", () => {
     expect(poseRigState.deletePose).not.toHaveBeenCalled();
   });
 
+  it("opens the modal for same-name toolbar copies and can overwrite the existing pose", () => {
+    const sourceSmile = makeInput("ref_smile", "/standard/mouth/smile", {
+      label: "Smile",
+    });
+    const destinationSmile = makeInput("main_smile", "/standard/mouth/smile", {
+      label: "Main Smile",
+    });
+    poseRigState.poses = [
+      {
+        id: "pose_existing",
+        name: "Ref Smile",
+        description: "",
+        group: "emotion/main",
+        values: {
+          stale_target: 0.15,
+          [destinationSmile.id]: 0.21,
+        },
+        composeModes: {
+          [destinationSmile.id]: "average",
+        },
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    ];
+    referenceFaceState.referenceCatalog = makeReferenceCatalog(
+      [sourceSmile],
+      [],
+      [
+        {
+          id: "ref_pose_smile",
+          name: "Ref Smile",
+          targets: [{ inputId: sourceSmile.id, value: 0.73 }],
+        },
+      ],
+    );
+    bindingState.managedStandardInputs = [
+      { input: destinationSmile, source: "custom" },
+    ];
+
+    render(
+      <VariablesPanel
+        availableSurfaces={["poses"]}
+        activeSurfaceOverride="poses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
+
+    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Overwrite Pose" })).toBeTruthy();
+    expect(poseRigState.createPose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite Pose" }));
+
+    expect(poseRigState.replacePoseTargets).toHaveBeenCalledWith(
+      "pose_existing",
+      { [destinationSmile.id]: 0.73 },
+    );
+    expect(poseRigState.createPose).not.toHaveBeenCalled();
+    expect(poseRigState.updatePoseGroup).not.toHaveBeenCalled();
+    expect(poseRigState.updatePoseValue).not.toHaveBeenCalled();
+  });
+
   it("allows pose copy mappings to propsrig destinations", () => {
     const sourceProps = makeInput("ref_prop_target", "/propsrig/jaw/open", {
       label: "Ref Prop Target",
@@ -2523,13 +2586,11 @@ describe("VariablesPanel", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Use current pose value/i }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite Pose" }));
 
-    const createdPoseId = poseRigState.updatePoseGroup.mock.calls[0]?.[0];
-    expect(poseRigState.updatePoseValue).toHaveBeenCalledWith(
-      createdPoseId,
-      destinationSmile.id,
-      0.21,
+    expect(poseRigState.replacePoseTargets).toHaveBeenCalledWith(
+      "pose_existing",
+      { [destinationSmile.id]: 0.21 },
     );
   });
 
