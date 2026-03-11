@@ -10,12 +10,13 @@ use std::sync::{Arc, Mutex};
 use log::{debug, info, warn};
 use tokio::sync::oneshot;
 use tokio::time::{timeout, Duration};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::connection::{
     AroraConnection, CancellationToken, GetSlotValuesHandler, InvokeResult, MethodHandler,
-    MethodInfo, OnClientConnectedHandler, SetSlotValuesHandler, SlotInfo, Value,
+    MethodInfo, MethodParam, OnClientConnectedHandler, SetSlotValuesHandler, SlotInfo, Type, Value,
 };
+use crate::AppState;
 
 /// Manages multiple AroraConnection instances with exclusive client policy.
 ///
@@ -127,6 +128,59 @@ impl ConnectionManager {
                     params: vec![],
                     return_type: None,
                     description: Some("Reset all values to defaults".to_string()),
+                },
+                handler,
+            )
+            .await;
+
+            // Register "mute_microphone" method: mute/unmute the mic
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |args| {
+                let muted = match args.get("muted") {
+                    Some(Value::Boolean(b)) => *b,
+                    _ => true,
+                };
+
+                // Update AppState
+                *app.state::<AppState>().mic_muted.lock().unwrap() = muted;
+
+                match app.emit("mute-microphone", muted) {
+                    Ok(()) => {
+                        info!("Emitted mute-microphone event (muted={})", muted);
+                        InvokeResult::ok()
+                    }
+                    Err(e) => InvokeResult::err(format!("Failed to emit mute-microphone: {}", e)),
+                }
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "mute_microphone".to_string(),
+                    params: vec![MethodParam {
+                        name: "muted".to_string(),
+                        param_type: Type::Boolean,
+                        required: true,
+                        default_value: None,
+                        description: Some("True to mute, false to unmute".to_string()),
+                    }],
+                    return_type: None,
+                    description: Some("Mute or unmute the microphone".to_string()),
+                },
+                handler,
+            )
+            .await;
+
+            // Register "get_mic_muted" method: query current mic state
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |_args| {
+                let muted = *app.state::<AppState>().mic_muted.lock().unwrap();
+                InvokeResult::ok_with_value(Value::Boolean(muted))
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "get_mic_muted".to_string(),
+                    params: vec![],
+                    return_type: Some(Type::Boolean),
+                    description: Some("Get current microphone muted state".to_string()),
                 },
                 handler,
             )

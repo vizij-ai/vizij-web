@@ -60,6 +60,8 @@ export interface UseSpeechControllerOptions {
     options?: { duration?: number },
   ) => Promise<void>;
   ready: boolean;
+  /** CLI override for auto-activate mic (true/false), or undefined to use bundle config */
+  autoMicOverride?: boolean | undefined;
 }
 
 export interface UseSpeechControllerReturn {
@@ -69,12 +71,20 @@ export interface UseSpeechControllerReturn {
   listening: boolean;
   /** Toggle microphone on/off */
   toggleMic: () => void;
+  /** Set mic muted state explicitly (true = muted/stopped, false = unmuted/listening) */
+  setMicMuted: (muted: boolean) => void;
   /** Current speech status */
   status: "idle" | "listening" | "thinking" | "speaking";
   /** Any error message */
   error: string | null;
   /** Whether API keys are configured */
   keysConfigured: boolean;
+  /** Audio element ref — must be attached to a hidden <audio> in the DOM */
+  audioRef: React.RefObject<HTMLAudioElement | null>;
+  /** Audio event handlers — wire to <audio onPlay/onPause/onEnded> */
+  handleAudioPlay: () => void;
+  handleAudioPause: () => void;
+  handleAudioEnded: () => void;
 }
 
 export function useSpeechController({
@@ -85,6 +95,7 @@ export function useSpeechController({
   setInput,
   animateValue,
   ready,
+  autoMicOverride,
 }: UseSpeechControllerOptions): UseSpeechControllerReturn {
   const [dgKey, setDgKey] = useState<string | null>(null);
   const [oaiKey, setOaiKey] = useState<string | null>(null);
@@ -95,35 +106,57 @@ export function useSpeechController({
   useEffect(() => {
     let mounted = true;
     (async () => {
+      let resolvedDg: string | null = null;
+      let resolvedOai: string | null = null;
+      let resolvedUrl: string | null = null;
+      let resolvedAutoMic: string | undefined;
+
       try {
         const keys = await invoke<Record<string, string>>("get_speech_keys");
         if (!mounted) return;
+
+        resolvedAutoMic = keys.autoMic;
 
         // CLI flags take precedence — also persist them to localStorage for the hooks
         if (keys.deepgramKey) {
           setDeepgramApiKey(keys.deepgramKey);
           setDgKey(keys.deepgramKey);
+          resolvedDg = keys.deepgramKey;
         } else {
-          setDgKey(getDeepgramApiKey());
+          resolvedDg = getDeepgramApiKey();
+          setDgKey(resolvedDg);
         }
 
         if (keys.openaiKey) {
           setOpenaiApiKey(keys.openaiKey);
           setOaiKey(keys.openaiKey);
+          resolvedOai = keys.openaiKey;
         } else {
-          setOaiKey(getOpenaiApiKey());
+          resolvedOai = getOpenaiApiKey();
+          setOaiKey(resolvedOai);
         }
 
         if (keys.apiUrl) {
           setApiUrl(keys.apiUrl);
+          resolvedUrl = keys.apiUrl;
         }
       } catch {
         // Tauri command not available — fall back to env/localStorage
         if (!mounted) return;
-        setDgKey(getDeepgramApiKey());
-        setOaiKey(getOpenaiApiKey());
+        resolvedDg = getDeepgramApiKey();
+        resolvedOai = getOpenaiApiKey();
+        setDgKey(resolvedDg);
+        setOaiKey(resolvedOai);
       }
-      if (mounted) setKeysLoaded(true);
+      if (mounted) {
+        setKeysLoaded(true);
+        console.log("[speech] Keys loaded:", {
+          deepgram: resolvedDg ? `set (${resolvedDg.slice(0, 8)}...)` : "missing",
+          openai: resolvedOai ? `set (${resolvedOai.slice(0, 8)}...)` : "missing",
+          apiUrl: resolvedUrl || "missing",
+          autoMic: resolvedAutoMic ?? "not set",
+        });
+      }
     })();
     return () => {
       mounted = false;
@@ -263,11 +296,18 @@ export function useSpeechController({
 
   // ASR final transcript handler
   const onFinalTranscript = useCallback((transcript: string) => {
+    console.log("[speech] ASR final transcript:", transcript);
     if (modeRef.current === "echo") {
+      console.log("[speech] Echo mode → sending to TTS");
       void handleSpeakRef.current(transcript);
     } else {
+      console.log("[speech] Conversation mode → sending to LLM");
       void conversationRef.current.sendMessage(transcript).then((response) => {
-        if (!response) return;
+        if (!response) {
+          console.warn("[speech] LLM returned no response");
+          return;
+        }
+        console.log("[speech] LLM response:", response);
 
         let speakText = response;
         let emotion: string | null = null;
@@ -277,10 +317,12 @@ export function useSpeechController({
           if (parsed) {
             speakText = parsed.text;
             emotion = parsed.emotion;
+            console.log("[speech] Parsed emotion:", emotion, "text:", speakText);
           }
         }
 
         if (emotion) activateEmotionRef.current(emotion);
+        console.log("[speech] Sending to TTS:", speakText);
         void handleSpeakRef.current(speakText);
       });
     }
@@ -291,6 +333,15 @@ export function useSpeechController({
     autoStopSilenceMs: mode === "conversation" ? 1500 : 0,
     onFinalTranscript,
   });
+
+  // Log mic state changes
+  const prevListeningRef = useRef(asr.listening);
+  useEffect(() => {
+    if (prevListeningRef.current !== asr.listening) {
+      console.log(`[speech] Mic ${asr.listening ? "STARTED" : "STOPPED"}`);
+      prevListeningRef.current = asr.listening;
+    }
+  }, [asr.listening]);
 
   // Drive /speech/user_speaking input based on mic state
   useEffect(() => {
@@ -319,6 +370,57 @@ export function useSpeechController({
     }
   }, [asr]);
 
+  // Set mic muted state explicitly
+  const setMicMuted = useCallback(
+    (muted: boolean) => {
+      if (muted && asr.listening) {
+        asr.stopListening();
+      } else if (!muted && !asr.listening) {
+        void asr.startListening();
+      }
+    },
+    [asr],
+  );
+
+  // Auto-activate mic when speech is ready + keys configured + config/CLI says so
+  const hasAutoActivated = useRef(false);
+  useEffect(() => {
+    if (hasAutoActivated.current) return;
+    if (!enabled || !keysConfigured || !ready) return;
+
+    // CLI override takes precedence over bundle config
+    const shouldAutoActivate =
+      autoMicOverride !== undefined
+        ? autoMicOverride
+        : speechConfig?.autoActivateMic === true;
+
+    if (shouldAutoActivate) {
+      hasAutoActivated.current = true;
+      console.log("[speech] Auto-activating microphone");
+      void asr.startListening();
+    }
+  }, [enabled, keysConfigured, ready, autoMicOverride, speechConfig?.autoActivateMic, asr]);
+
+  // Log TTS status changes
+  const prevSpeechStatusRef = useRef(speech.status);
+  useEffect(() => {
+    if (prevSpeechStatusRef.current !== speech.status) {
+      console.log(`[speech] TTS status: ${prevSpeechStatusRef.current} → ${speech.status}`);
+      prevSpeechStatusRef.current = speech.status;
+    }
+  }, [speech.status]);
+
+  // Log errors
+  useEffect(() => {
+    if (speech.error) console.error("[speech] Playback error:", speech.error);
+  }, [speech.error]);
+  useEffect(() => {
+    if (asr.error) console.error("[speech] ASR error:", asr.error);
+  }, [asr.error]);
+  useEffect(() => {
+    if (conversation.error) console.error("[speech] LLM error:", conversation.error);
+  }, [conversation.error]);
+
   // Compute overall status
   const status = asr.listening
     ? "listening"
@@ -334,8 +436,13 @@ export function useSpeechController({
     enabled,
     listening: asr.listening,
     toggleMic,
+    setMicMuted,
     status,
     error,
     keysConfigured,
+    audioRef: speech.audioRef,
+    handleAudioPlay: speech.handleAudioPlay,
+    handleAudioPause: speech.handleAudioPause,
+    handleAudioEnded: speech.handleAudioEnded,
   };
 }

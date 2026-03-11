@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import {
@@ -263,6 +264,22 @@ function AppContent({
   // setInput(`rig/${faceId}/${path}`, { float: value });
   const { inputConstraints, namespace, faceId } = useWebSocketSync();
 
+  // Load CLI auto-mic override
+  const [autoMicOverride, setAutoMicOverride] = useState<boolean | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    invoke<Record<string, string>>("get_speech_keys")
+      .then((keys) => {
+        if (keys.autoMic !== undefined) {
+          setAutoMicOverride(keys.autoMic === "true");
+        }
+      })
+      .catch(() => {
+        // Tauri command not available
+      });
+  }, []);
+
   // Extract speech config from the loaded bundle's metadata
   const speechConfig = useMemo<VizijSpeechConfig | null>(() => {
     const meta = runtime.assetBundle?.bundle?.metadata;
@@ -292,7 +309,25 @@ function AppContent({
     setInput: runtime.setInput,
     animateValue: runtime.animateValue,
     ready: runtime.ready,
+    autoMicOverride,
   });
+
+  // Listen for mute-microphone events from WebSocket methods (via Tauri)
+  useEffect(() => {
+    const unlisten = listen<boolean>("mute-microphone", (event) => {
+      speech.setMicMuted(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [speech.setMicMuted]);
+
+  // Sync mic state back to Rust AppState so get_mic_muted returns the correct value
+  useEffect(() => {
+    invoke("set_mic_muted_state", { muted: !speech.listening }).catch(() => {
+      // Tauri command not available
+    });
+  }, [speech.listening]);
 
   const constraintCount = Object.keys(inputConstraints).length;
 
@@ -302,6 +337,15 @@ function AppContent({
       style={{ backgroundColor: bgColor }}
     >
       <VizijRuntimeFace />
+
+      {/* Hidden audio element for TTS playback */}
+      <audio
+        ref={speech.audioRef}
+        style={{ display: "none" }}
+        onPlay={speech.handleAudioPlay}
+        onPause={speech.handleAudioPause}
+        onEnded={speech.handleAudioEnded}
+      />
 
       {/* Back button */}
       <button

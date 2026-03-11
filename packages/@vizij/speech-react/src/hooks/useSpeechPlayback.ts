@@ -354,9 +354,11 @@ export function useSpeechPlayback({
       stopPlayback(false);
       setStatus("preparing");
       setIsLoading(true);
+      console.log(`[speech-playback] handleSpeak voice=${selectedVoice} text="${trimmed.slice(0, 60)}..." apiBaseUrl=${apiBaseUrl}`);
 
       const cached = speechCacheRef.current.get(cacheKey);
       if (cached) {
+        console.log("[speech-playback] Using cached speech, visemes:", cached.visemeData.visemes.length);
         const audioUrl = URL.createObjectURL(cached.audioBlob);
         audioSrcRef.current = audioUrl;
         updateTimeline(cached.visemeData.visemes);
@@ -364,18 +366,23 @@ export function useSpeechPlayback({
           audioRef.current.src = audioUrl;
           audioRef.current.currentTime = 0;
           autoplayRef.current = true;
-          audioRef.current.play().catch(() => setStatus("idle"));
+          audioRef.current.play().catch((e) => {
+            console.error("[speech-playback] Cached audio play failed:", e);
+            setStatus("idle");
+          });
         }
         setIsLoading(false);
         return;
       }
 
       try {
+        console.log("[speech-playback] Fetching TTS from API...");
         const { visemeData, audioBlob } = await fetchVisemeData(
           trimmed,
           selectedVoice,
           apiBaseUrl,
         );
+        console.log(`[speech-playback] TTS response: ${visemeData.visemes.length} visemes, audio ${audioBlob.size} bytes`);
         speechCacheRef.current.set(cacheKey, { visemeData, audioBlob });
         const audioUrl = URL.createObjectURL(audioBlob);
         audioSrcRef.current = audioUrl;
@@ -384,9 +391,13 @@ export function useSpeechPlayback({
           audioRef.current.src = audioUrl;
           audioRef.current.currentTime = 0;
           autoplayRef.current = true;
-          audioRef.current.play().catch(() => setStatus("idle"));
+          audioRef.current.play().catch((e) => {
+            console.error("[speech-playback] Audio play failed:", e);
+            setStatus("idle");
+          });
         }
       } catch (err) {
+        console.error("[speech-playback] TTS fetch error:", err);
         setError(
           err instanceof Error ? err.message : "Failed to fetch speech data.",
         );
@@ -411,6 +422,7 @@ export function useSpeechPlayback({
   }, [stopPlayback]);
 
   const handleAudioPlay = useCallback(() => {
+    console.log("[speech-playback] Audio playing, timeline entries:", visemeTimelineRef.current.length);
     startRAF();
     setStatus("speaking");
     if (speakingInputPathRef.current && stageRuntimeInput && runtimeReady) {
@@ -429,6 +441,7 @@ export function useSpeechPlayback({
   }, [stopRAF]);
 
   const handleAudioEnded = useCallback(() => {
+    console.log("[speech-playback] Audio ended");
     stopPlayback();
   }, [stopPlayback]);
 

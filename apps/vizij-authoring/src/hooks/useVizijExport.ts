@@ -1405,6 +1405,8 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       | "conversation"
       | null;
     const systemPrompt = localStorage.getItem("vizij_speech_system_prompt");
+    const autoActivateMic =
+      localStorage.getItem("vizij_speech_auto_activate_mic") === "true";
 
     // Only create config if at least one setting has been configured
     const hasAnyValue =
@@ -1416,7 +1418,8 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       visemeGroupId ||
       voice ||
       mode ||
-      systemPrompt;
+      systemPrompt ||
+      autoActivateMic;
 
     if (!hasAnyValue) return null;
 
@@ -1431,6 +1434,7 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
     if (voice) config.voice = voice;
     if (mode) config.mode = mode;
     if (systemPrompt) config.systemPrompt = systemPrompt;
+    if (autoActivateMic) config.autoActivateMic = true;
     return config;
   } catch {
     return null;

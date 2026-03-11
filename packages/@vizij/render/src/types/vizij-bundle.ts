@@ -118,6 +118,8 @@ export interface VizijSpeechConfig {
   emotionGroupId?: string;
   /** TTS API base URL */
   apiBaseUrl?: string;
+  /** Auto-activate microphone when speech is ready (default: false) */
+  autoActivateMic?: boolean;
 }
 
 export interface VizijBundleExtension {

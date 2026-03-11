@@ -59,6 +59,7 @@ const DEFAULT_SPEAKING_PATH = "/speech/speaking";
 const DEFAULT_USER_SPEAKING_PATH = "/speech/user_speaking";
 const DEFAULT_THINKING_PATH = "/speech/thinking";
 const EMOTION_GROUP_KEY = "vizij_speech_emotion_group_id";
+const AUTO_ACTIVATE_MIC_KEY = "vizij_speech_auto_activate_mic";
 
 function getStoredPath(key: string, defaultValue: string): string {
   try {
@@ -268,6 +269,21 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   const [dgKey, setDgKey] = useState<string | null>(getDeepgramApiKey);
   const [oaiKey, setOaiKey] = useState<string | null>(getOpenaiApiKey);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [autoActivateMic, setAutoActivateMic] = useState(() => {
+    try {
+      return localStorage.getItem(AUTO_ACTIVATE_MIC_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const handleAutoActivateMicChange = useCallback((checked: boolean) => {
+    setAutoActivateMic(checked);
+    try {
+      localStorage.setItem(AUTO_ACTIVATE_MIC_KEY, checked ? "true" : "false");
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [dgKeyInput, setDgKeyInput] = useState("");
   const [oaiKeyInput, setOaiKeyInput] = useState("");
 
@@ -907,6 +923,15 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
                 </p>
               )}
             </div>
+            <label className="flex items-center gap-2 text-[10px] text-text-muted cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={autoActivateMic}
+                onChange={(e) => handleAutoActivateMicChange(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border-default/50 accent-accent"
+              />
+              Auto-activate microphone on load
+            </label>
           </div>
         )}
       </div>

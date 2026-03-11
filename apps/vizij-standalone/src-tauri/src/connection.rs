@@ -6,5 +6,5 @@
 // Re-export core types from arora-connection
 pub use arora_connection::{
     AroraConnection, CancellationToken, GetSlotValuesHandler, InvokeResult, MethodHandler,
-    MethodInfo, OnClientConnectedHandler, SetSlotValuesHandler, SlotInfo, Value,
+    MethodInfo, MethodParam, OnClientConnectedHandler, SetSlotValuesHandler, SlotInfo, Type, Value,
 };

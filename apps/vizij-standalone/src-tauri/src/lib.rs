@@ -26,6 +26,8 @@ struct AppState {
     deepgram_key: Option<String>,
     openai_key: Option<String>,
     api_url: Option<String>,
+    auto_mic: Option<bool>,
+    mic_muted: std::sync::Mutex<bool>,
 }
 
 /// CLI structure with optional subcommands
@@ -82,6 +84,10 @@ struct Cli {
     /// API base URL for TTS service (e.g., http://localhost:3001)
     #[arg(long)]
     api_url: Option<String>,
+
+    /// Auto-activate microphone on load (overrides bundle config)
+    #[arg(long)]
+    auto_mic: Option<bool>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -292,11 +298,24 @@ async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String
     if let Some(ref url) = state.api_url {
         keys.insert("apiUrl".to_string(), url.clone());
     }
+    if let Some(auto_mic) = state.auto_mic {
+        keys.insert("autoMic".to_string(), auto_mic.to_string());
+    }
     keys
+}
+
+/// Update the mic muted state (called from frontend to keep Rust state in sync)
+#[tauri::command]
+async fn set_mic_muted_state(app_handle: tauri::AppHandle, muted: bool) {
+    let state = app_handle.state::<AppState>();
+    *state.mic_muted.lock().unwrap() = muted;
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env file (silently ignore if not found)
+    dotenvy::dotenv().ok();
+
     // Parse command line arguments
     let cli = Cli::parse();
 
@@ -346,15 +365,39 @@ pub fn run() {
                 None
             };
 
+            // CLI flags > env vars > VITE_ prefixed env vars (from .env file)
+            let deepgram_key = cli
+                .deepgram_key
+                .clone()
+                .or_else(|| std::env::var("DEEPGRAM_KEY").ok())
+                .or_else(|| std::env::var("VITE_DEEPGRAM_API_KEY").ok());
+            let openai_key = cli
+                .openai_key
+                .clone()
+                .or_else(|| std::env::var("OPENAI_KEY").ok())
+                .or_else(|| std::env::var("VITE_OPENAI_API_KEY").ok());
+            let api_url = cli
+                .api_url
+                .clone()
+                .or_else(|| std::env::var("API_URL").ok())
+                .or_else(|| std::env::var("VITE_API_URL").ok());
+            let auto_mic = cli.auto_mic.or_else(|| {
+                std::env::var("AUTO_MIC")
+                    .ok()
+                    .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            });
+
             app.manage(AppState {
                 connection_manager: Arc::new(manager),
                 cancel_token: Mutex::new(None),
                 port,
                 web_port,
                 glb_source: glb_source.clone(),
-                deepgram_key: cli.deepgram_key.clone(),
-                openai_key: cli.openai_key.clone(),
-                api_url: cli.api_url.clone(),
+                deepgram_key,
+                openai_key,
+                api_url,
+                auto_mic,
+                mic_muted: std::sync::Mutex::new(true),
             });
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -474,6 +517,7 @@ pub fn run() {
             read_glb_file,
             respond_slot_values,
             get_speech_keys,
+            set_mic_muted_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
