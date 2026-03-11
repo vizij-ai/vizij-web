@@ -326,6 +326,35 @@ describe("usePoseRigAuthoring", () => {
     expect(result.current?.currentValues.smile).toBeCloseTo(0.42, 6);
   });
 
+  it("can replace a pose target set in place for overwrite flows", () => {
+    const { result } = hook!;
+    act(() => {
+      result.current?.createPose("Overwrite Pose");
+    });
+    const poseId = result.current?.poses[0]?.id;
+    expect(poseId).toBe("pose_overwrite_pose");
+    if (!poseId) {
+      return;
+    }
+
+    act(() => {
+      result.current?.addPoseInput(poseId, "smile");
+      result.current?.setPoseInputComposeMode(poseId, "smile", "average");
+      result.current?.updatePoseValue(poseId, "smile", 0.42);
+    });
+
+    act(() => {
+      result.current?.replacePoseTargets(poseId, { brow_raise: -0.3 });
+    });
+
+    const updatedPose = result.current?.poses.find(
+      (pose) => pose.id === poseId,
+    );
+    expect(updatedPose?.values).toEqual({ brow_raise: -0.3 });
+    expect(updatedPose?.composeModes).toBeUndefined();
+    expect(updatedPose?.group).toBe("default");
+  });
+
   it("covers MVP pose authoring lifecycle with group assignment and preview", () => {
     const { result } = hook!;
 

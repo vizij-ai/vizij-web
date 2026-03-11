@@ -78,9 +78,11 @@ function muteAnimationClip(
 export function AnimationRuntimeBridge({
   active = true,
   clip = null,
+  transportSessionKey,
 }: {
   active?: boolean;
   clip?: AnimationClipIR | null;
+  transportSessionKey?: number;
 }) {
   const runtime = useVizijRuntime();
   const runtimeRootId = runtime.rootId ?? null;
@@ -102,6 +104,9 @@ export function AnimationRuntimeBridge({
   const exportClipIr = useAnimationStore((state) => state.exportClipIr);
   const syncTransportState = useAnimationStore(
     (state) => state.syncTransportState,
+  );
+  const setTransportRuntimeReady = useAnimationStore(
+    (state) => state.setTransportRuntimeReady,
   );
   const setRuntimeTransportAdapter = useAnimationStore(
     (state) => state.setRuntimeTransportAdapter,
@@ -237,6 +242,93 @@ export function AnimationRuntimeBridge({
   }, [currentTime]);
 
   useEffect(() => {
+    const wasActive = wasActiveRef.current;
+    wasActiveRef.current = active;
+    setTransportEnabled(active);
+    if (!active) {
+      setRuntimeTransportAdapter(null);
+      if (wasActive) {
+        if (typeof runtime.stopAnimation === "function") {
+          runtime.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+            clearOutputs: true,
+          });
+        } else if (typeof runtime.pauseAnimation === "function") {
+          runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+        }
+        if (typeof runtime.setInput === "function") {
+          authoredOutputPaths.forEach((path) => {
+            runtime.setInput(path, { float: 0 });
+          });
+        }
+      }
+      if (typeof runtime.setAnimationActive === "function") {
+        runtime.setAnimationActive(false);
+      }
+      syncTransportState(
+        {
+          isPlaying: false,
+          transportActive: false,
+          transportPlaybackState: "stopped",
+        },
+        transportSessionKey,
+      );
+      setTransportRuntimeReady(false, transportSessionKey);
+      return () => {
+        if (typeof runtime.setAnimationActive === "function") {
+          runtime.setAnimationActive(true);
+        }
+        setTransportEnabled(true);
+      };
+    }
+    if (typeof runtime.setAnimationActive === "function") {
+      runtime.setAnimationActive(true);
+    }
+    if (
+      typeof runtime.playAnimation !== "function" ||
+      typeof runtime.pauseAnimation !== "function" ||
+      typeof runtime.stopAnimation !== "function" ||
+      typeof runtime.seekAnimation !== "function" ||
+      typeof runtime.setAnimationLoop !== "function" ||
+      typeof runtime.getAnimationState !== "function"
+    ) {
+      setRuntimeTransportAdapter(null);
+      setTransportRuntimeReady(false, transportSessionKey);
+      return;
+    }
+    const adapter: AnimationRuntimeTransportAdapter = {
+      playAnimation: runtime.playAnimation,
+      pauseAnimation: runtime.pauseAnimation,
+      stopAnimation: runtime.stopAnimation,
+      seekAnimation: runtime.seekAnimation,
+      setAnimationLoop: runtime.setAnimationLoop,
+      getAnimationState: runtime.getAnimationState,
+    };
+    setRuntimeTransportAdapter(adapter);
+    setTransportRuntimeReady(
+      currentAnimationSignature === mergedAnimationSignature,
+      transportSessionKey,
+    );
+    return () => {
+      setRuntimeTransportAdapter(null);
+      if (typeof runtime.setAnimationActive === "function") {
+        runtime.setAnimationActive(true);
+      }
+      setTransportEnabled(true);
+    };
+  }, [
+    active,
+    authoredOutputPaths,
+    currentAnimationSignature,
+    mergedAnimationSignature,
+    runtime,
+    setRuntimeTransportAdapter,
+    setTransportEnabled,
+    setTransportRuntimeReady,
+    syncTransportState,
+    transportSessionKey,
+  ]);
+
+  useEffect(() => {
     if (
       lastCurrentAnimationSignatureRef.current !== currentAnimationSignature
     ) {
@@ -253,6 +345,7 @@ export function AnimationRuntimeBridge({
       return;
     }
 
+    setTransportRuntimeReady(false, transportSessionKey);
     if (appliedAnimationSignatureRef.current === mergedAnimationSignature) {
       return;
     }
@@ -287,112 +380,52 @@ export function AnimationRuntimeBridge({
     mergedAnimations,
     seekAnimation,
     setGraphBundle,
+    setTransportRuntimeReady,
     transportActive,
-  ]);
-
-  useEffect(() => {
-    const wasActive = wasActiveRef.current;
-    wasActiveRef.current = active;
-    setTransportEnabled(active);
-    if (!active) {
-      setRuntimeTransportAdapter(null);
-      if (wasActive) {
-        if (typeof runtime.stopAnimation === "function") {
-          runtime.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-            clearOutputs: true,
-          });
-        } else if (typeof runtime.pauseAnimation === "function") {
-          runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
-        }
-        if (typeof runtime.setInput === "function") {
-          authoredOutputPaths.forEach((path) => {
-            runtime.setInput(path, { float: 0 });
-          });
-        }
-      }
-      if (typeof runtime.setAnimationActive === "function") {
-        runtime.setAnimationActive(false);
-      }
-      syncTransportState({
-        isPlaying: false,
-        transportActive: false,
-        transportPlaybackState: "stopped",
-      });
-      return () => {
-        if (typeof runtime.setAnimationActive === "function") {
-          runtime.setAnimationActive(true);
-        }
-        setTransportEnabled(true);
-      };
-    }
-    if (typeof runtime.setAnimationActive === "function") {
-      runtime.setAnimationActive(true);
-    }
-    if (
-      typeof runtime.playAnimation !== "function" ||
-      typeof runtime.pauseAnimation !== "function" ||
-      typeof runtime.stopAnimation !== "function" ||
-      typeof runtime.seekAnimation !== "function" ||
-      typeof runtime.setAnimationLoop !== "function" ||
-      typeof runtime.getAnimationState !== "function"
-    ) {
-      setRuntimeTransportAdapter(null);
-      return;
-    }
-    const adapter: AnimationRuntimeTransportAdapter = {
-      playAnimation: runtime.playAnimation,
-      pauseAnimation: runtime.pauseAnimation,
-      stopAnimation: runtime.stopAnimation,
-      seekAnimation: runtime.seekAnimation,
-      setAnimationLoop: runtime.setAnimationLoop,
-      getAnimationState: runtime.getAnimationState,
-    };
-    setRuntimeTransportAdapter(adapter);
-    return () => {
-      setRuntimeTransportAdapter(null);
-      if (typeof runtime.setAnimationActive === "function") {
-        runtime.setAnimationActive(true);
-      }
-      setTransportEnabled(true);
-    };
-  }, [
-    active,
-    authoredOutputPaths,
-    runtime,
-    setRuntimeTransportAdapter,
-    setTransportEnabled,
-    syncTransportState,
+    transportSessionKey,
   ]);
 
   useEffect(() => {
     if (!active) {
-      syncTransportState({
-        isPlaying: false,
-        transportActive: false,
-        transportPlaybackState: "stopped",
-      });
+      syncTransportState(
+        {
+          isPlaying: false,
+          transportActive: false,
+          transportPlaybackState: "stopped",
+        },
+        transportSessionKey,
+      );
+      setTransportRuntimeReady(false, transportSessionKey);
       return;
     }
     let frameHandle = 0;
     const tick = () => {
       const playbackState = getAnimationState?.(AUTHORED_TIMELINE_CLIP_ID);
       if (!playbackState) {
-        syncTransportState({
-          isPlaying: false,
-          transportActive: false,
-          transportPlaybackState: "stopped",
-          currentTime: 0,
-        });
+        syncTransportState(
+          {
+            isPlaying: false,
+            transportActive: false,
+            transportPlaybackState: "stopped",
+            currentTime: 0,
+          },
+          transportSessionKey,
+        );
       } else {
-        syncTransportState({
-          currentTime: playbackState.time,
-          duration: playbackState.duration,
-          isPlaying: playbackState.playing,
-          loop: playbackState.loop,
-          playSpeed: playbackState.speed,
-          transportActive: true,
-          transportPlaybackState: playbackState.playing ? "playing" : "paused",
-        });
+        syncTransportState(
+          {
+            currentTime: playbackState.time,
+            duration: playbackState.duration,
+            isPlaying: playbackState.playing,
+            loop: playbackState.loop,
+            playSpeed: playbackState.speed,
+            transportActive: true,
+            transportPlaybackState: playbackState.playing
+              ? "playing"
+              : "paused",
+          },
+          transportSessionKey,
+        );
       }
       frameHandle = requestAnimationFrame(tick);
     };
@@ -403,7 +436,13 @@ export function AnimationRuntimeBridge({
         cancelAnimationFrame(frameHandle);
       }
     };
-  }, [active, getAnimationState, syncTransportState]);
+  }, [
+    active,
+    getAnimationState,
+    setTransportRuntimeReady,
+    syncTransportState,
+    transportSessionKey,
+  ]);
 
   return null;
 }

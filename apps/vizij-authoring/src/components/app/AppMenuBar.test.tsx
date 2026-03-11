@@ -64,6 +64,9 @@ describe("AppMenuBar", () => {
     expect(screen.getByText("Animation")).toBeTruthy();
     expect(screen.getByText("Program")).toBeTruthy();
     expect(screen.getByText("Reference Face")).toBeTruthy();
+    expect(screen.getByTestId("app-menu-view-center-animation")).toBeTruthy();
+    expect(screen.getByTestId("app-menu-view-center-program")).toBeTruthy();
+    expect(screen.getByTestId("app-menu-view-right-inspector")).toBeTruthy();
     expect(screen.queryByText("Node Palette")).toBeNull();
     expect(screen.queryByText("Hierarchy")).toBeNull();
     expect(screen.queryByText("Runtime Source")).toBeNull();

@@ -783,8 +783,10 @@ describe("Viewer", () => {
               glb: { kind: "world", world: {}, animatables: {}, bundle: null },
               bundle: null,
             }}
-            motionGraphSourceActive
+            motionGraphPlaybackState="playing"
+            motionGraphRuntimeControllerId="graph:test"
             motionGraphRuntimeNodes={[]}
+            motionGraphRuntimeEdges={[]}
             onClearSelection={() => {}}
             showSelectionGlow={false}
             onImportClick={() => {}}
@@ -802,5 +804,71 @@ describe("Viewer", () => {
     expect(motionGraphValueSamplerSpy).toHaveBeenLastCalledWith({
       active: true,
     });
+  });
+
+  it("resets program-owned outputs when the runtime session stops", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const view = render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphPlaybackState="playing"
+            motionGraphRuntimeControllerId="graph:test"
+            motionGraphRuntimeNodes={[]}
+            motionGraphRuntimeEdges={[]}
+            motionGraphRuntimeResetValues={[
+              {
+                path: "rig/face/standard/brow/inner_up",
+                value: 0.35,
+              },
+            ]}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    view.rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphPlaybackState="stopped"
+            motionGraphRuntimeControllerId={null}
+            motionGraphRuntimeNodes={null}
+            motionGraphRuntimeEdges={null}
+            motionGraphRuntimeResetValues={[]}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+            onLoadHugo={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setInputSpy).toHaveBeenCalledWith(
+      "rig/face/standard/brow/inner_up",
+      { float: 0.35 },
+    );
   });
 });

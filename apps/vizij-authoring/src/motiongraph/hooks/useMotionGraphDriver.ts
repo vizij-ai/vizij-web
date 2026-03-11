@@ -7,7 +7,6 @@ import {
 } from "../store/useEditorStore";
 import { buildGraphSpec } from "../utils/buildGraphSpec";
 
-const MOTIONGRAPH_CONTROLLER_ID = "motiongraph-editor";
 const DEBOUNCE_MS = 50;
 
 /**
@@ -24,6 +23,7 @@ const DEBOUNCE_MS = 50;
  */
 export function useMotionGraphDriver(
   namespace: string,
+  controllerId = "motiongraph-editor",
   resyncSignal?: unknown,
   nodesOverride?: EditorNode[],
   edgesOverride?: EditorEdge[],
@@ -57,7 +57,7 @@ export function useMotionGraphDriver(
 
     try {
       const id = registerGraph({
-        id: MOTIONGRAPH_CONTROLLER_ID,
+        id: controllerId,
         spec: built.spec,
         subs: {
           inputs: built.inputPaths,
@@ -77,6 +77,7 @@ export function useMotionGraphDriver(
       registeredIdRef.current = null;
     }
   }, [
+    controllerId,
     edgesOverride,
     namespace,
     nodesOverride,

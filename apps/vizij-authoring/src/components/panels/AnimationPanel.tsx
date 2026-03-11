@@ -95,6 +95,7 @@ interface AnimationPanelProps {
   onPlayTransport?: () => void;
   onPauseTransport?: () => void;
   onStopTransport?: () => void;
+  statusMessage?: string | null;
 }
 
 export function AnimationPanel({
@@ -104,6 +105,7 @@ export function AnimationPanel({
   onPlayTransport,
   onPauseTransport,
   onStopTransport,
+  statusMessage = null,
 }: AnimationPanelProps) {
   const {
     isPlaying,
@@ -111,6 +113,9 @@ export function AnimationPanel({
     duration,
     loop,
     playSpeed,
+    seek,
+    setLoop,
+    setPlaySpeed,
     tracks,
     addTrack,
     removeTrack,
@@ -136,6 +141,27 @@ export function AnimationPanel({
   const handleStop = hasExternalTransportControls
     ? onStopTransport
     : transport.stop;
+  const runtimeTransportBound =
+    !hasExternalTransportControls || effectivePlaybackState !== "stopped";
+  const handleSeek = runtimeTransportBound ? transport.seek : seek;
+  const handleTimelinePause = runtimeTransportBound
+    ? transport.pause
+    : undefined;
+  const handleStep = runtimeTransportBound ? () => transport.step() : undefined;
+  const handleToggleLoop = () => {
+    if (runtimeTransportBound) {
+      transport.setLoop(!loop);
+      return;
+    }
+    setLoop(!loop);
+  };
+  const handlePlaySpeedChange = (value: number) => {
+    if (runtimeTransportBound) {
+      transport.setSpeed(value);
+      return;
+    }
+    setPlaySpeed(value);
+  };
 
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -263,6 +289,7 @@ export function AnimationPanel({
         <Button
           variant="ghost"
           size="icon"
+          data-testid="animation-panel-hide"
           className="h-6 w-6 text-text-secondary hover:text-text-primary"
           onClick={onClosePanel}
           title="Hide panel"
@@ -275,6 +302,7 @@ export function AnimationPanel({
 
   return (
     <Panel
+      data-testid="animation-panel"
       title="Animation"
       description="Author and preview animation clips through runtime transport."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
@@ -317,8 +345,8 @@ export function AnimationPanel({
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-              onClick={() => transport.step()}
-              disabled={!transport.active}
+              onClick={handleStep}
+              disabled={!handleStep}
               title="Step"
             >
               <StepForward className="h-3.5 w-3.5" />
@@ -345,8 +373,7 @@ export function AnimationPanel({
             variant={loop ? "secondary" : "ghost"}
             size="sm"
             className="h-6 text-[10px] px-2"
-            onClick={() => transport.setLoop(!loop)}
-            disabled={!transport.active}
+            onClick={handleToggleLoop}
           >
             Loop
           </Button>
@@ -355,9 +382,8 @@ export function AnimationPanel({
             className="h-6 rounded border border-zinc-800 bg-zinc-900/70 px-2 text-[10px] text-zinc-300"
             value={String(playSpeed)}
             onChange={(event) =>
-              transport.setSpeed(Number.parseFloat(event.target.value))
+              handlePlaySpeedChange(Number.parseFloat(event.target.value))
             }
-            disabled={!transport.active}
           >
             <option value="0.5">0.5x</option>
             <option value="1">1.0x</option>
@@ -392,9 +418,15 @@ export function AnimationPanel({
           </div>
         </div>
 
+        {statusMessage ? (
+          <p className="px-1 text-[11px] text-text-secondary">
+            {statusMessage}
+          </p>
+        ) : null}
+
         <TimelineEditor
-          onSeek={transport.seek}
-          onPause={transport.pause}
+          onSeek={handleSeek}
+          onPause={handleTimelinePause}
           timeDisplayMode={timeDisplayMode}
           onInspectTrack={onInspectTrack}
         />

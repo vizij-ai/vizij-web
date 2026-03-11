@@ -16,14 +16,16 @@ import { Input } from "../ui/Input";
 import { cn } from "../../utils/cn";
 
 export type AuthoringTargetSource = "authored" | "imported";
+export type AuthoringTargetRuntimeState = "playing" | "paused" | "stopped";
 
 export interface AuthoringTargetItem {
   id: string;
   label: string;
   source: AuthoringTargetSource;
   selected?: boolean;
-  isRuntimeActive?: boolean;
   meta?: string;
+  runtimeState?: AuthoringTargetRuntimeState;
+  runtimeTimeLabel?: string | null;
 }
 
 interface AuthoringTargetListProps {
@@ -85,6 +87,14 @@ export function AuthoringTargetList({
       return searchable.includes(normalizedQuery);
     });
   }, [items, searchQuery, sourceFilter]);
+  const runtimeStateBadgeToneByState: Record<
+    AuthoringTargetRuntimeState,
+    "accent" | "info" | "muted"
+  > = {
+    playing: "accent",
+    paused: "info",
+    stopped: "muted",
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2">
@@ -175,124 +185,130 @@ export function AuthoringTargetList({
           />
         ) : (
           <div className="flex flex-col gap-2 pb-2">
-            {filteredItems.map((item) => (
-              <div
-                key={item.id}
-                className={cn(
-                  "group flex w-full scroll-mt-24 flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors",
-                  item.selected
-                    ? "border-accent/60 bg-accent/10"
-                    : "border-border-default/70 bg-bg-panel/60 hover:border-border-hover hover:bg-bg-hover",
-                )}
-              >
-                <button
-                  type="button"
-                  className="flex w-full min-w-0 flex-1 cursor-pointer flex-col items-start justify-center text-left"
-                  onClick={() => onSelect(item.id)}
+            {filteredItems.map((item) => {
+              const runtimeState = item.runtimeState ?? "stopped";
+              const isRuntimeActive = runtimeState !== "stopped";
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "group flex w-full scroll-mt-24 flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors",
+                    item.selected
+                      ? "border-accent/60 bg-accent/10"
+                      : "border-border-default/70 bg-bg-panel/60 hover:border-border-hover hover:bg-bg-hover",
+                  )}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-text-primary">
-                      {item.label}
-                    </span>
-                    <Badge
-                      tone={item.source === "authored" ? "accent" : "info"}
-                    >
-                      {item.source}
-                    </Badge>
-                    {item.isRuntimeActive ? (
-                      <Badge tone="muted">Live</Badge>
+                  <button
+                    type="button"
+                    className="flex w-full min-w-0 flex-1 cursor-pointer flex-col items-start justify-center text-left"
+                    onClick={() => onSelect(item.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-text-primary">
+                        {item.label}
+                      </span>
+                      <Badge
+                        tone={item.source === "authored" ? "accent" : "info"}
+                      >
+                        {item.source}
+                      </Badge>
+                      <Badge tone={runtimeStateBadgeToneByState[runtimeState]}>
+                        {runtimeState}
+                      </Badge>
+                      {item.runtimeTimeLabel ? (
+                        <Badge tone="muted">{item.runtimeTimeLabel}</Badge>
+                      ) : null}
+                    </div>
+                    {item.meta ? (
+                      <p className="truncate pt-1 font-mono text-[10px] text-text-secondary">
+                        {item.meta}
+                      </p>
+                    ) : null}
+                  </button>
+                  <div className="flex w-full flex-wrap items-center gap-1">
+                    {onPlay && !isRuntimeActive ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelect(item.id);
+                          onPlay(item.id);
+                        }}
+                        title={`Play ${kindLabel.toLowerCase()}`}
+                      >
+                        <Play className="h-3 w-3 fill-current" />
+                        Play
+                      </Button>
+                    ) : null}
+                    {onPause && isRuntimeActive ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        disabled={runtimeState !== "playing"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelect(item.id);
+                          onPause(item.id);
+                        }}
+                        title={`Pause ${kindLabel.toLowerCase()}`}
+                      >
+                        <Pause className="h-3 w-3 fill-current" />
+                        Pause
+                      </Button>
+                    ) : null}
+                    {onStop && isRuntimeActive ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelect(item.id);
+                          onStop(item.id);
+                        }}
+                        title={`Stop ${kindLabel.toLowerCase()}`}
+                      >
+                        <Square className="h-3 w-3 fill-current" />
+                        Stop
+                      </Button>
+                    ) : null}
+                    {onDuplicate ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDuplicate(item.id);
+                        }}
+                        title={`Copy ${kindLabel.toLowerCase()}`}
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    ) : null}
+                    {onDelete ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDelete(item.id);
+                        }}
+                        title={`Delete ${kindLabel.toLowerCase()}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Delete
+                      </Button>
                     ) : null}
                   </div>
-                  {item.meta ? (
-                    <p className="truncate pt-1 font-mono text-[10px] text-text-secondary">
-                      {item.meta}
-                    </p>
-                  ) : null}
-                </button>
-                <div className="flex w-full flex-wrap items-center gap-1">
-                  {onPlay ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelect(item.id);
-                        onPlay(item.id);
-                      }}
-                      title={`Play ${kindLabel.toLowerCase()}`}
-                    >
-                      <Play className="h-3 w-3 fill-current" />
-                      Play
-                    </Button>
-                  ) : null}
-                  {onPause ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      disabled={!item.isRuntimeActive}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelect(item.id);
-                        onPause(item.id);
-                      }}
-                      title={`Pause ${kindLabel.toLowerCase()}`}
-                    >
-                      <Pause className="h-3 w-3 fill-current" />
-                      Pause
-                    </Button>
-                  ) : null}
-                  {onStop ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      disabled={!item.isRuntimeActive}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelect(item.id);
-                        onStop(item.id);
-                      }}
-                      title={`Stop ${kindLabel.toLowerCase()}`}
-                    >
-                      <Square className="h-3 w-3 fill-current" />
-                      Stop
-                    </Button>
-                  ) : null}
-                  {onDuplicate ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDuplicate(item.id);
-                      }}
-                      title={`Copy ${kindLabel.toLowerCase()}`}
-                    >
-                      <Copy className="h-3 w-3" />
-                      Copy
-                    </Button>
-                  ) : null}
-                  {onDelete ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(item.id);
-                      }}
-                      title={`Delete ${kindLabel.toLowerCase()}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Delete
-                    </Button>
-                  ) : null}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

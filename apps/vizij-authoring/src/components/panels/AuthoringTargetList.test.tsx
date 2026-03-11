@@ -40,7 +40,7 @@ describe("AuthoringTargetList", () => {
             label: "Wave",
             source: "authored",
             selected: true,
-            isRuntimeActive: true,
+            runtimeState: "playing",
             meta: "4 nodes",
           },
         ]}
@@ -74,11 +74,18 @@ describe("AuthoringTargetList", () => {
         emptyDescription="Empty"
         items={[
           {
-            id: "program:wave",
-            label: "Wave",
+            id: "program:queued",
+            label: "Queued",
             source: "authored",
             selected: false,
-            isRuntimeActive: true,
+            runtimeState: "stopped",
+          },
+          {
+            id: "program:live",
+            label: "Live",
+            source: "imported",
+            selected: false,
+            runtimeState: "playing",
           },
         ]}
         onCreate={vi.fn()}
@@ -93,15 +100,15 @@ describe("AuthoringTargetList", () => {
     fireEvent.click(screen.getByTitle("Pause program"));
     fireEvent.click(screen.getByTitle("Stop program"));
 
-    expect(onSelect).toHaveBeenNthCalledWith(1, "program:wave");
-    expect(onSelect).toHaveBeenNthCalledWith(2, "program:wave");
-    expect(onSelect).toHaveBeenNthCalledWith(3, "program:wave");
-    expect(onPlay).toHaveBeenCalledWith("program:wave");
-    expect(onPause).toHaveBeenCalledWith("program:wave");
-    expect(onStop).toHaveBeenCalledWith("program:wave");
+    expect(onSelect).toHaveBeenNthCalledWith(1, "program:queued");
+    expect(onSelect).toHaveBeenNthCalledWith(2, "program:live");
+    expect(onSelect).toHaveBeenNthCalledWith(3, "program:live");
+    expect(onPlay).toHaveBeenCalledWith("program:queued");
+    expect(onPause).toHaveBeenCalledWith("program:live");
+    expect(onStop).toHaveBeenCalledWith("program:live");
   });
 
-  it("disables pause and stop for selected targets that are not live", () => {
+  it("shows play for stopped rows and pause/stop only for the active row", () => {
     render(
       <AuthoringTargetList
         kindLabel="Program"
@@ -112,14 +119,14 @@ describe("AuthoringTargetList", () => {
             label: "Live Program",
             source: "imported",
             selected: false,
-            isRuntimeActive: true,
+            runtimeState: "playing",
           },
           {
             id: "program:selected",
             label: "Selected Program",
             source: "authored",
             selected: true,
-            isRuntimeActive: false,
+            runtimeState: "stopped",
           },
         ]}
         onCreate={vi.fn()}
@@ -130,12 +137,40 @@ describe("AuthoringTargetList", () => {
       />,
     );
 
-    const pauseButtons = screen.getAllByTitle("Pause program");
-    const stopButtons = screen.getAllByTitle("Stop program");
+    expect(screen.getAllByTitle("Play program")).toHaveLength(1);
+    expect(screen.getAllByTitle("Pause program")).toHaveLength(1);
+    expect(screen.getAllByTitle("Stop program")).toHaveLength(1);
+    expect(screen.getByText("playing")).toBeTruthy();
+    expect(screen.getByText("stopped")).toBeTruthy();
+  });
 
-    expect((pauseButtons[0] as HTMLButtonElement).disabled).toBe(false);
-    expect((stopButtons[0] as HTMLButtonElement).disabled).toBe(false);
-    expect((pauseButtons[1] as HTMLButtonElement).disabled).toBe(true);
-    expect((stopButtons[1] as HTMLButtonElement).disabled).toBe(true);
+  it("disables pause while the active row is already paused", () => {
+    render(
+      <AuthoringTargetList
+        kindLabel="Program"
+        emptyDescription="Empty"
+        items={[
+          {
+            id: "program:paused",
+            label: "Paused Program",
+            source: "authored",
+            selected: true,
+            runtimeState: "paused",
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSelect={vi.fn()}
+        onPlay={vi.fn()}
+        onPause={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    );
+
+    expect(
+      (screen.getByTitle("Pause program") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByTitle("Stop program") as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 });

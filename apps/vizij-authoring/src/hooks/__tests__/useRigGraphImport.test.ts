@@ -3,6 +3,7 @@ import type { BindingMap } from "@vizij/node-graph-authoring";
 import { createStandardRigInputFromPath } from "@vizij/utils";
 import type { GraphDiffResult } from "../../types/discrepancy";
 import {
+  canonicalizeImportedPipelineMetadataV1,
   deriveLockedInspectorTargetsFromPipeline,
   filterBenignGeneratedNodeIdDiffs,
   isBenignGeneratedNodeIdDiff,
@@ -140,6 +141,63 @@ describe("generated node-id diff filtering", () => {
     expect(filteredDiff.entries).toHaveLength(1);
     expect(filteredDiff.entries[0]?.id).toBe(
       "mismatch:2:spec.nodes[n1].params.path",
+    );
+  });
+});
+
+describe("canonicalizeImportedPipelineMetadataV1", () => {
+  it("normalizes legacy slot aliases to resolved parent variables", () => {
+    const childInput = createStandardRigInputFromPath("/propsrig/jaw_open");
+    const chinInput = createStandardRigInputFromPath("/custom/chin");
+    const jawUdInput = createStandardRigInputFromPath("/custom/jaw_ud");
+
+    const canonical = canonicalizeImportedPipelineMetadataV1({
+      faceId: "robot",
+      standardInputs: [childInput, chinInput, jawUdInput],
+      pipelineMetadataV1: {
+        links: {
+          [`link/${chinInput.id}->${childInput.id}`]: {
+            linkId: `link/${chinInput.id}->${childInput.id}`,
+            parentInputId: chinInput.id,
+            childInputId: childInput.id,
+            scale: 1,
+            offset: 0,
+            enabled: true,
+            expression: "value = parent * scale + offset",
+          },
+          [`link/${jawUdInput.id}->${childInput.id}`]: {
+            linkId: `link/${jawUdInput.id}->${childInput.id}`,
+            parentInputId: jawUdInput.id,
+            childInputId: childInput.id,
+            scale: 1,
+            offset: 0,
+            enabled: true,
+          },
+        },
+        byInputId: {
+          [childInput.id]: {
+            inputId: childInput.id,
+            parentBlend: {
+              expression:
+                "parentContribution = normalizedAdditive([s1, s2], baseline=default)",
+            },
+          },
+        },
+      },
+    });
+
+    const childConfig = canonical?.byInputId?.[childInput.id] as
+      | {
+          parents?: Array<{ alias?: string }>;
+          parentBlend?: { expression?: string };
+        }
+      | undefined;
+    expect(childConfig?.parents?.map((parent) => parent.alias)).toEqual([
+      "value",
+      "P2",
+    ]);
+    expect(childConfig?.parentBlend?.expression).toBe(
+      "parentContribution = normalizedAdditive([value, P2], baseline=default)",
     );
   });
 });

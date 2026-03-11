@@ -22,6 +22,8 @@ interface MotionGraphPanelProps {
   onPlayTransport?: () => void;
   onPauseTransport?: () => void;
   onStopTransport?: () => void;
+  playbackAvailable?: boolean;
+  statusMessage?: string | null;
 }
 
 export function MotionGraphPanel({
@@ -33,6 +35,8 @@ export function MotionGraphPanel({
   onPlayTransport,
   onPauseTransport,
   onStopTransport,
+  playbackAvailable,
+  statusMessage = null,
 }: MotionGraphPanelProps) {
   const graphPlaybackState = useGraphRuntime(
     (state) => state.graphPlaybackState,
@@ -49,6 +53,8 @@ export function MotionGraphPanel({
     onPauseTransport !== undefined ||
     onStopTransport !== undefined;
   const effectivePlaybackState = playbackState ?? graphPlaybackState;
+  const effectivePlaybackAvailable =
+    playbackAvailable ?? graphPlaybackAvailable;
   const handlePlay = hasExternalTransportControls ? onPlayTransport : playGraph;
   const handlePause = hasExternalTransportControls
     ? onPauseTransport
@@ -64,7 +70,7 @@ export function MotionGraphPanel({
           className="h-7 w-7 p-0"
           onClick={handlePlay}
           disabled={
-            !graphPlaybackAvailable ||
+            !effectivePlaybackAvailable ||
             effectivePlaybackState === "playing" ||
             !handlePlay
           }
@@ -78,7 +84,7 @@ export function MotionGraphPanel({
           className="h-7 w-7 p-0"
           onClick={handlePause}
           disabled={
-            !graphPlaybackAvailable ||
+            !effectivePlaybackAvailable ||
             effectivePlaybackState === "paused" ||
             !handlePause
           }
@@ -92,7 +98,7 @@ export function MotionGraphPanel({
           className="h-7 w-7 p-0"
           onClick={handleStop}
           disabled={
-            !graphPlaybackAvailable ||
+            !effectivePlaybackAvailable ||
             effectivePlaybackState === "stopped" ||
             !handleStop
           }
@@ -125,6 +131,7 @@ export function MotionGraphPanel({
         <Button
           variant="ghost"
           size="icon"
+          data-testid="motiongraph-panel-hide"
           className="h-8 w-8 text-text-secondary hover:text-text-primary"
           onClick={onClosePanel}
           title="Hide panel"
@@ -136,11 +143,17 @@ export function MotionGraphPanel({
   );
   return (
     <Panel
+      data-testid="motiongraph-panel-shell"
       title="Program"
       description="Author procedural animation programs in the workspace canvas."
       className="h-full min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
     >
+      {statusMessage ? (
+        <p className="px-1 pb-2 text-[11px] text-text-secondary">
+          {statusMessage}
+        </p>
+      ) : null}
       <div
         data-testid="motiongraph-panel"
         className="h-full min-h-0 rounded border border-border-default/60 bg-bg-panel/40 overflow-hidden"

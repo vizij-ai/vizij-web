@@ -9,6 +9,8 @@ import {
   buildParentContributionDisplayExpression,
   computePipelineDiagnostics,
   mergePipelineMetadata,
+  resolveEffectiveParentExpressionVariable,
+  resolveParentBlendExpressionUpdate,
   resolvePipelineStageSettings,
 } from "./pipelineStages";
 
@@ -125,6 +127,75 @@ describe("pipelineStages", () => {
     expect(buildDefaultParentContributionFormula(["P1", "P2"])).toBe(
       "parentContribution = normalizedAdditive([P1, P2], baseline=default)",
     );
+    expect(
+      buildDefaultParentContributionFormula([
+        {
+          alias: "new_driver",
+          expression: "value = parent * scale + offset",
+        },
+        "jaw",
+      ]),
+    ).toBe(
+      "parentContribution = normalizedAdditive([value, jaw], baseline=default)",
+    );
+  });
+
+  it("resolves the effective parent variable from the assigned parent formula", () => {
+    expect(
+      resolveEffectiveParentExpressionVariable({
+        expressionVariable: "new_driver",
+        parentFormula: "value = parent * scale + offset",
+        parentFormulaDefault: "new_driver = parent * scale + offset",
+      }),
+    ).toBe("value");
+  });
+
+  it("rewrites auto parent-blend expressions and preserves custom ones", () => {
+    expect(
+      resolveParentBlendExpressionUpdate({
+        previousExpression:
+          "parentContribution = normalizedAdditive([new_driver], baseline=default)",
+        previousParentVariables: [
+          {
+            alias: "new_driver",
+            expression: "value = parent * scale + offset",
+          },
+        ],
+        nextParentVariables: [
+          {
+            alias: "new_driver",
+            expression: "value = parent * scale + offset",
+          },
+          "jaw",
+        ],
+      }),
+    ).toEqual({
+      nextExpression:
+        "parentContribution = normalizedAdditive([value, jaw], baseline=default)",
+      requiresManualEdit: false,
+    });
+
+    expect(
+      resolveParentBlendExpressionUpdate({
+        previousExpression: "parentContribution = value * 0.5 + default",
+        previousParentVariables: [
+          {
+            alias: "new_driver",
+            expression: "value = parent * scale + offset",
+          },
+        ],
+        nextParentVariables: [
+          {
+            alias: "new_driver",
+            expression: "value = parent * scale + offset",
+          },
+          "jaw",
+        ],
+      }),
+    ).toEqual({
+      nextExpression: "parentContribution = value * 0.5 + default",
+      requiresManualEdit: true,
+    });
   });
 
   it("merges parent formulas into pipeline metadata", () => {
@@ -149,6 +220,38 @@ describe("pipelineStages", () => {
     expect(pipeline.links?.["link/p1"]?.expression).toBe(
       "P1 = parent * scale + offset * 2",
     );
+  });
+
+  it("deletes pipeline links from metadata when requested", () => {
+    const merged = mergePipelineMetadata(
+      {
+        vizij: {
+          pipelineV1: {
+            links: {
+              "link/p1": {
+                linkId: "link/p1",
+                parentInputId: "parent",
+                childInputId: "child",
+              },
+              "link/p2": {
+                linkId: "link/p2",
+                parentInputId: "parent2",
+                childInputId: "child",
+              },
+            },
+          },
+        },
+      },
+      {
+        linkDeletes: ["link/p1"],
+      },
+    );
+
+    const pipeline = (merged.vizij as { pipelineV1?: unknown }).pipelineV1 as {
+      links?: Record<string, unknown>;
+    };
+    expect(pipeline.links).not.toHaveProperty("link/p1");
+    expect(pipeline.links).toHaveProperty("link/p2");
   });
 
   it("uses variable default as migrated parent-link offset", () => {

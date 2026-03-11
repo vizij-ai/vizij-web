@@ -98,6 +98,10 @@ export interface UsePoseRigAuthoringResult {
   createPoseFromSnapshot: (name?: string) => string;
   capturePose: (poseId: string) => void;
   clearPose: (poseId: string) => void;
+  replacePoseTargets: (
+    poseId: string,
+    values: Record<StandardInputId, number>,
+  ) => void;
   updatePoseValue: (poseId: string, inputId: string, value: number) => void;
   addPoseInput: (poseId: string, inputId: string) => void;
   removePoseInput: (poseId: string, inputId: string) => void;
@@ -355,7 +359,28 @@ export function usePoseRigAuthoring(
 
   const clearPose = useCallback(
     (poseId: string) => {
-      store.updatePose(poseId, (p) => ({ ...p, values: {} }));
+      store.clearPose(poseId);
+    },
+    [store],
+  );
+
+  const replacePoseTargets = useCallback(
+    (poseId: string, values: Record<StandardInputId, number>) => {
+      const allowedInputIds = new Set(
+        store.standardInputs.map((input) => input.id),
+      );
+      const nextValues = Object.fromEntries(
+        Object.entries(values).filter(
+          ([inputId, value]) =>
+            allowedInputIds.has(inputId) && Number.isFinite(value),
+        ),
+      ) as Record<StandardInputId, number>;
+      store.updatePose(poseId, (pose) => ({
+        ...pose,
+        values: nextValues,
+        composeModes: undefined,
+        updatedAt: new Date().toISOString(),
+      }));
     },
     [store],
   );
@@ -635,6 +660,7 @@ export function usePoseRigAuthoring(
     createPoseFromSnapshot,
     capturePose,
     clearPose,
+    replacePoseTargets,
     updatePoseValue,
     addPoseInput,
     removePoseInput,

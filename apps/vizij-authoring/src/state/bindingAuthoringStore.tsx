@@ -350,7 +350,7 @@ export function BindingAuthoringStoreProvider({
   );
 }
 
-function useBindingAuthoringStoreApi(): BindingAuthoringStore {
+export function useBindingAuthoringStoreApi(): BindingAuthoringStore {
   const store = useContext(BindingAuthoringStoreContext);
   if (!store) {
     throw new Error(

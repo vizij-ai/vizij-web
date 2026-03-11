@@ -223,7 +223,10 @@ export function createNodeRenderer(
     }, [id, setNodes, variadicCount, variadicSpec]);
 
     const addVariadicOutput = useCallback(() => {
-      if (variadicOutputSpec?.max != null && variadicOutputCount >= variadicOutputSpec.max)
+      if (
+        variadicOutputSpec?.max != null &&
+        variadicOutputCount >= variadicOutputSpec.max
+      )
         return;
       setNodes((prev) =>
         prev.map((n) => {
@@ -255,7 +258,10 @@ export function createNodeRenderer(
       setNodes((prev) =>
         prev.map((n) => {
           if (n.id !== id) return n;
-          const newData = { ...n.data, variadicOutputCount: variadicOutputCount - 1 };
+          const newData = {
+            ...n.data,
+            variadicOutputCount: variadicOutputCount - 1,
+          };
           if (variadicOutputSpec?.keyed) {
             newData.params = {
               ...newData.params,
@@ -489,7 +495,9 @@ export function createNodeRenderer(
                 </button>
                 <button
                   onClick={removeVariadicOutput}
-                  disabled={variadicOutputCount <= (variadicOutputSpec.min ?? 0)}
+                  disabled={
+                    variadicOutputCount <= (variadicOutputSpec.min ?? 0)
+                  }
                   className="w-5 h-5 rounded text-[11px] font-bold leading-none bg-neutral-700 hover:bg-neutral-600 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   title="Remove output"
                 >

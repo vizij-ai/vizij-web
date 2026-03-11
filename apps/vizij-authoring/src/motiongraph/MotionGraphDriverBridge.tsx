@@ -4,23 +4,33 @@ import { useMotionGraphDriver } from "./hooks/useMotionGraphDriver";
 
 interface MotionGraphDriverBridgeProps {
   active: boolean;
+  controllerId?: string;
   nodes?: EditorNode[];
   edges?: EditorEdge[];
 }
 
 export function MotionGraphDriverBridge({
   active,
+  controllerId,
   nodes,
   edges,
 }: MotionGraphDriverBridgeProps) {
   if (!active) return null;
-  return <MotionGraphDriverInner nodes={nodes} edges={edges} />;
+  return (
+    <MotionGraphDriverInner
+      controllerId={controllerId}
+      nodes={nodes}
+      edges={edges}
+    />
+  );
 }
 
 function MotionGraphDriverInner({
+  controllerId,
   nodes,
   edges,
 }: {
+  controllerId?: string;
   nodes?: EditorNode[];
   edges?: EditorEdge[];
 }) {
@@ -30,6 +40,6 @@ function MotionGraphDriverInner({
   // graph whenever VizijRuntimeProvider clears and re-registers its own
   // controllers (rig/pose graphs).
   const { namespace, controllers } = useVizijRuntime();
-  useMotionGraphDriver(namespace, controllers, nodes, edges);
+  useMotionGraphDriver(namespace, controllerId, controllers, nodes, edges);
   return null;
 }

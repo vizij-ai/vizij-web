@@ -61,7 +61,23 @@ interface VizijPipelineV1LinkConfig {
   expression?: string;
 }
 
+interface VizijPipelineV1ParentConfig {
+  linkId?: string;
+  inputId?: string;
+  alias?: string;
+  scale?: number;
+  offset?: number;
+  enabled?: boolean;
+  expression?: string;
+}
+
+interface VizijPipelineV1InputConfig {
+  inputId?: string;
+  parents?: VizijPipelineV1ParentConfig[];
+}
+
 interface VizijPipelineV1Metadata {
+  byInputId?: Record<string, VizijPipelineV1InputConfig>;
   links?: Record<string, VizijPipelineV1LinkConfig>;
 }
 
@@ -219,7 +235,15 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
   knownInputIds: ReadonlySet<string>;
 }): GraphBindingSummary[] {
   const links = params.pipelineV1?.links;
-  if (!links || Object.keys(links).length === 0) {
+  const byInputId = params.pipelineV1?.byInputId;
+  const hasLinks = Boolean(links && Object.keys(links).length > 0);
+  const hasParentConfigs = Boolean(
+    byInputId &&
+      Object.values(byInputId).some(
+        (config) => Array.isArray(config?.parents) && config.parents.length > 0,
+      ),
+  );
+  if (!hasLinks && !hasParentConfigs) {
     return [...params.summaries];
   }
 
@@ -244,6 +268,7 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
       linkId: string;
       parentInputId: string;
       childInputId: string;
+      slotAlias: string | null;
       scale: number | null;
       offset: number | null;
       enabled: boolean | null;
@@ -251,7 +276,36 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
     }>
   >();
 
-  Object.entries(links).forEach(([rawLinkId, rawConfig]) => {
+  const queuePending = (entry: {
+    linkId: string;
+    parentInputId: string;
+    childInputId: string;
+    slotAlias: string | null;
+    scale: number | null;
+    offset: number | null;
+    enabled: boolean | null;
+    expression: string | null;
+  }) => {
+    if (
+      !params.knownInputIds.has(entry.parentInputId) ||
+      !params.knownInputIds.has(entry.childInputId)
+    ) {
+      return;
+    }
+    const pairKey = buildInputPairKey(entry.parentInputId, entry.childInputId);
+    if (existingPairs.has(pairKey)) {
+      return;
+    }
+    existingPairs.add(pairKey);
+    const current = pendingByChild.get(entry.childInputId);
+    if (current) {
+      current.push(entry);
+    } else {
+      pendingByChild.set(entry.childInputId, [entry]);
+    }
+  };
+
+  Object.entries(links ?? {}).forEach(([rawLinkId, rawConfig]) => {
     if (!rawConfig || typeof rawConfig !== "object") {
       return;
     }
@@ -261,38 +315,56 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
     if (!parentInputId || !childInputId) {
       return;
     }
-    if (
-      !params.knownInputIds.has(parentInputId) ||
-      !params.knownInputIds.has(childInputId)
-    ) {
-      return;
-    }
-
-    const pairKey = buildInputPairKey(parentInputId, childInputId);
-    if (existingPairs.has(pairKey)) {
-      return;
-    }
-    existingPairs.add(pairKey);
-
-    const linkId =
-      normalizeStringValue(record.linkId) ??
-      normalizeStringValue(rawLinkId) ??
-      `link/${encodeURIComponent(parentInputId)}->${encodeURIComponent(childInputId)}`;
-    const entry = {
-      linkId,
+    queuePending({
+      linkId:
+        normalizeStringValue(record.linkId) ??
+        normalizeStringValue(rawLinkId) ??
+        `link/${encodeURIComponent(parentInputId)}->${encodeURIComponent(childInputId)}`,
       parentInputId,
       childInputId,
+      slotAlias: null,
       scale: normalizeFiniteValue(record.scale),
       offset: normalizeFiniteValue(record.offset),
       enabled: normalizeBooleanValue(record.enabled),
       expression: normalizeStringValue(record.expression),
-    };
-    const current = pendingByChild.get(childInputId);
-    if (current) {
-      current.push(entry);
-    } else {
-      pendingByChild.set(childInputId, [entry]);
+    });
+  });
+
+  Object.entries(byInputId ?? {}).forEach(([rawChildInputId, rawConfig]) => {
+    if (!rawConfig || typeof rawConfig !== "object") {
+      return;
     }
+    const childInputId =
+      normalizeStringValue((rawConfig as { inputId?: unknown }).inputId) ??
+      normalizeStringValue(rawChildInputId);
+    if (!childInputId) {
+      return;
+    }
+    const parents = Array.isArray((rawConfig as { parents?: unknown }).parents)
+      ? ((rawConfig as { parents: unknown[] }).parents as unknown[])
+      : [];
+    parents.forEach((rawParent) => {
+      if (!rawParent || typeof rawParent !== "object") {
+        return;
+      }
+      const record = rawParent as Record<string, unknown>;
+      const parentInputId = normalizeStringValue(record.inputId);
+      if (!parentInputId) {
+        return;
+      }
+      queuePending({
+        linkId:
+          normalizeStringValue(record.linkId) ??
+          `link/${encodeURIComponent(parentInputId)}->${encodeURIComponent(childInputId)}`,
+        parentInputId,
+        childInputId,
+        slotAlias: normalizeStringValue(record.alias),
+        scale: normalizeFiniteValue(record.scale),
+        offset: normalizeFiniteValue(record.offset),
+        enabled: normalizeBooleanValue(record.enabled),
+        expression: normalizeStringValue(record.expression),
+      });
+    });
   });
 
   if (pendingByChild.size === 0) {
@@ -301,16 +373,11 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
 
   const nextSummaries = [...params.summaries];
   pendingByChild.forEach((entries, childInputId) => {
-    const sortedEntries = [...entries].sort((left, right) => {
-      const byParent = left.parentInputId.localeCompare(right.parentInputId);
-      if (byParent !== 0) {
-        return byParent;
-      }
-      return left.linkId.localeCompare(right.linkId);
-    });
-    const expression = sortedEntries
-      .map((_, index) => `s${(index + 1).toString(10)}`)
-      .join(" + ");
+    const sortedEntries = [...entries];
+    const slotAliases = sortedEntries.map(
+      (entry, index) => entry.slotAlias ?? `s${(index + 1).toString(10)}`,
+    );
+    const expression = slotAliases.join(" + ");
     const linkMetadata: Record<string, Record<string, unknown>> = {};
     sortedEntries.forEach((entry) => {
       linkMetadata[entry.linkId] = {
@@ -326,12 +393,13 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
 
     sortedEntries.forEach((entry, index) => {
       const slotId = `s${(index + 1).toString(10)}`;
+      const slotAlias = slotAliases[index] ?? slotId;
       nextSummaries.push({
         targetId: childInputId,
         animatableId: childInputId,
         component: undefined,
         slotId,
-        slotAlias: slotId,
+        slotAlias,
         inputId: entry.parentInputId,
         expression,
         valueType: "scalar",

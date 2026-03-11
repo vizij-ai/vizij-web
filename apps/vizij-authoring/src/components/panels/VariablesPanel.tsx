@@ -397,6 +397,7 @@ interface PoseCopyModalState {
   destinationCatalog: ReferenceCatalog;
   launchSource: "row-action" | "toolbar";
   destinationPoseName: string;
+  overwriteExistingPose: boolean;
   targetRowDrafts: Record<string, PoseCopyTargetRowDraft>;
 }
 
@@ -458,6 +459,22 @@ function stripReferenceInputTokenPrefix(
 
 function normalizeComboboxPathQuery(value: string): string {
   return value.toLowerCase().replace(/\s+/g, "");
+}
+
+function normalizePoseName(value: string | null | undefined): string {
+  return value?.trim() ?? "";
+}
+
+function findMatchingPosesByName<
+  TPose extends Pick<PoseDefinition, "id" | "name">,
+>(poses: readonly TPose[], name: string): TPose[] {
+  const normalizedTargetName = normalizePoseName(name);
+  if (!normalizedTargetName) {
+    return [];
+  }
+  return poses.filter(
+    (pose) => normalizePoseName(pose.name) === normalizedTargetName,
+  );
 }
 
 function filterCatalogInputsByPathQuery<
@@ -1259,6 +1276,7 @@ function createPoseCopyModalState(params: {
   proposal: PoseCopyProposal;
   destinationCatalog: ReferenceCatalog;
   launchSource: PoseCopyModalState["launchSource"];
+  overwriteExistingPose?: boolean;
 }): PoseCopyModalState {
   const targetRowDrafts: Record<string, PoseCopyTargetRowDraft> = {};
   const destinationInputs = [...params.destinationCatalog.inputs];
@@ -1275,6 +1293,7 @@ function createPoseCopyModalState(params: {
     launchSource: params.launchSource,
     destinationPoseName:
       params.proposal.destinationPoseName || params.sourcePose.name,
+    overwriteExistingPose: params.overwriteExistingPose ?? false,
     targetRowDrafts,
   };
 }
@@ -3011,6 +3030,7 @@ export function VariablesPanel({
     renamePoseGroup,
     deletePoseGroup,
     deletePose,
+    replacePoseTargets,
     updatePoseGroup,
     addPoseInput,
     updatePoseValue,
@@ -3393,6 +3413,9 @@ export function VariablesPanel({
   const referenceFace = useReferenceFace();
   const pendingPoseSelectionRef = useRef(false);
   const pendingCapturedPoseWeightSoloIdRef = useRef<string | null>(null);
+  const pendingPoseCopyExistingPoseSnapshotRef = useRef<
+    Array<Pick<PoseDefinition, "id" | "name">>
+  >([]);
   const allSurfaces = useMemo(
     () => availableSurfaces ?? DEFAULT_SURFACES,
     [availableSurfaces],
@@ -4778,6 +4801,10 @@ export function VariablesPanel({
     (
       sourcePose: ReferencePoseDefinition,
       launchSource: PoseCopyModalState["launchSource"],
+      overwriteCandidates: readonly Pick<
+        PoseDefinition,
+        "id" | "name"
+      >[] = poses,
     ): PoseCopyModalState | null => {
       let proposal: PoseCopyProposal;
       try {
@@ -4790,14 +4817,19 @@ export function VariablesPanel({
       } catch {
         return null;
       }
+      const matchingPoses = findMatchingPosesByName(
+        overwriteCandidates,
+        proposal.destinationPoseName || sourcePose.name,
+      );
       return createPoseCopyModalState({
         sourcePose,
         proposal,
         destinationCatalog: mainFaceCopyTargetReferenceCatalog,
         launchSource,
+        overwriteExistingPose: matchingPoses.length === 1,
       });
     },
-    [mainFaceCopyTargetReferenceCatalog, referenceFace.referenceCatalog],
+    [mainFaceCopyTargetReferenceCatalog, poses, referenceFace.referenceCatalog],
   );
 
   const openPoseCopyModalForPose = useCallback(
@@ -4827,12 +4859,27 @@ export function VariablesPanel({
       modalState: PoseCopyModalState,
       options?: { selectAfterCommit?: boolean },
     ):
-      | { ok: true; createdPoseId: string }
+      | { ok: true; poseId: string }
       | { ok: false; blockingMessages: string[] } => {
       const blockingMessages: string[] = [];
       const destinationPoseName = modalState.destinationPoseName.trim();
       if (!destinationPoseName) {
         blockingMessages.push("Destination pose name is required.");
+      }
+      const matchingPoses = findMatchingPosesByName(poses, destinationPoseName);
+      const overwriteTargetPose =
+        modalState.overwriteExistingPose && matchingPoses.length === 1
+          ? matchingPoses[0]!
+          : null;
+      if (modalState.overwriteExistingPose && matchingPoses.length === 0) {
+        blockingMessages.push(
+          `No existing main pose named "${destinationPoseName}" is available to overwrite.`,
+        );
+      }
+      if (modalState.overwriteExistingPose && matchingPoses.length > 1) {
+        blockingMessages.push(
+          `Multiple main poses named "${destinationPoseName}" exist. Rename the destination or resolve the duplicate names before overwriting.`,
+        );
       }
 
       const targetRowsWithDrafts = modalState.proposal.targetRows.map((row) => {
@@ -4911,31 +4958,46 @@ export function VariablesPanel({
       }
 
       const previousSelectedPoseId = selectedPoseId;
-      const createdPoseId = resolveDeterministicPoseId({
-        existingIds: poses.map((pose) => pose.id),
-        name: destinationPoseName,
-        reservedIds: ["__pose_rig_neutral__"],
-      });
+      const nextTargetValues = Object.fromEntries(
+        targetRowsWithDrafts.flatMap((entry) =>
+          entry.row.destinationInputId
+            ? [[entry.row.destinationInputId, entry.value] as const]
+            : [],
+        ),
+      );
+      const createdPoseId = overwriteTargetPose
+        ? overwriteTargetPose.id
+        : resolveDeterministicPoseId({
+            existingIds: poses.map((pose) => pose.id),
+            name: destinationPoseName,
+            reservedIds: ["__pose_rig_neutral__"],
+          });
 
       try {
-        createPose(destinationPoseName);
-        updatePoseGroup(createdPoseId, null);
-        targetRowsWithDrafts.forEach((entry) => {
-          if (!entry.row.destinationInputId) {
-            return;
-          }
-          updatePoseValue(
-            createdPoseId,
-            entry.row.destinationInputId,
-            entry.value,
-          );
-        });
+        if (overwriteTargetPose) {
+          replacePoseTargets(overwriteTargetPose.id, nextTargetValues);
+        } else {
+          createPose(destinationPoseName);
+          updatePoseGroup(createdPoseId, null);
+          targetRowsWithDrafts.forEach((entry) => {
+            if (!entry.row.destinationInputId) {
+              return;
+            }
+            updatePoseValue(
+              createdPoseId,
+              entry.row.destinationInputId,
+              entry.value,
+            );
+          });
+        }
       } catch (error) {
         let rollbackFailed = false;
-        try {
-          deletePose(createdPoseId);
-        } catch {
-          rollbackFailed = true;
+        if (!overwriteTargetPose) {
+          try {
+            deletePose(createdPoseId);
+          } catch {
+            rollbackFailed = true;
+          }
         }
         if (previousSelectedPoseId) {
           if (onSelectPose) {
@@ -4952,9 +5014,11 @@ export function VariablesPanel({
         return {
           ok: false,
           blockingMessages: [
-            rollbackFailed
-              ? `Pose copy failed and rollback was incomplete. ${detail}`
-              : `Pose copy failed. Changes were rolled back. ${detail}`,
+            overwriteTargetPose
+              ? `Pose overwrite failed. ${detail}`
+              : rollbackFailed
+                ? `Pose copy failed and rollback was incomplete. ${detail}`
+                : `Pose copy failed. Changes were rolled back. ${detail}`,
           ],
         };
       }
@@ -4972,7 +5036,7 @@ export function VariablesPanel({
 
       return {
         ok: true,
-        createdPoseId,
+        poseId: createdPoseId,
       };
     },
     [
@@ -4983,6 +5047,7 @@ export function VariablesPanel({
       onSelectPoseGroup,
       onSelectRig,
       poses,
+      replacePoseTargets,
       selectPose,
       selectedPoseId,
       updatePoseGroup,
@@ -5023,8 +5088,27 @@ export function VariablesPanel({
       setPendingPoseCopyQueueIds(remainingQueue);
       return;
     }
-    const modalState = preparePoseCopyModalState(sourcePose, "toolbar");
+    const overwriteCandidates =
+      pendingPoseCopyExistingPoseSnapshotRef.current.length > 0
+        ? pendingPoseCopyExistingPoseSnapshotRef.current
+        : poses;
+    const modalState = preparePoseCopyModalState(
+      sourcePose,
+      "toolbar",
+      overwriteCandidates,
+    );
     if (!modalState) {
+      setPendingPoseCopyQueueIds(remainingQueue);
+      return;
+    }
+    if (
+      findMatchingPosesByName(
+        overwriteCandidates,
+        modalState.destinationPoseName,
+      ).length
+    ) {
+      setPoseCopyBlockingMessages([]);
+      setPoseCopyModal(modalState);
       setPendingPoseCopyQueueIds(remainingQueue);
       return;
     }
@@ -5042,6 +5126,7 @@ export function VariablesPanel({
     commitPoseCopyModal,
     pendingPoseCopyQueueIds,
     poseCopyModal,
+    poses,
     preparePoseCopyModalState,
     referencePoseById,
   ]);
@@ -5854,13 +5939,17 @@ export function VariablesPanel({
     if (sourceIds.length === 0) {
       return;
     }
+    pendingPoseCopyExistingPoseSnapshotRef.current = poses.map((pose) => ({
+      id: pose.id,
+      name: pose.name,
+    }));
     setPendingPoseCopyQueueIds(sourceIds);
     setSelectedReferencePoseIds((current) =>
       current.size > 0 ? new Set() : current,
     );
     setPoseCopyBlockingMessages([]);
     setPoseCopyModal(null);
-  }, [referencePoseEntries, selectedReferencePoseIds]);
+  }, [poses, referencePoseEntries, selectedReferencePoseIds]);
 
   const handleCreatePoseGroup = () => {
     const value = window.prompt("Create pose group", "");
@@ -6459,6 +6548,17 @@ export function VariablesPanel({
       })),
     [poseCopyDestinationOptions],
   );
+  const poseCopyMatchingExistingPoses = useMemo(
+    () =>
+      poseCopyModal
+        ? findMatchingPosesByName(poses, poseCopyModal.destinationPoseName)
+        : [],
+    [poseCopyModal, poses],
+  );
+  const poseCopyUniqueExistingPoseMatch =
+    poseCopyMatchingExistingPoses.length === 1
+      ? poseCopyMatchingExistingPoses[0]!
+      : null;
   const poseCopyUnresolvedCount = poseCopyModal
     ? poseCopyModal.proposal.targetRows.filter((row) => {
         const draft = poseCopyModal.targetRowDrafts[row.rowId];
@@ -8416,11 +8516,20 @@ export function VariablesPanel({
                   value={poseCopyModal.destinationPoseName}
                   onChange={(event) => {
                     setPoseCopyBlockingMessages([]);
+                    const nextName = event.target.value;
+                    const nextMatchingPoses = findMatchingPosesByName(
+                      poses,
+                      nextName,
+                    );
                     setPoseCopyModal((current) =>
                       current
                         ? {
                             ...current,
-                            destinationPoseName: event.target.value,
+                            destinationPoseName: nextName,
+                            overwriteExistingPose:
+                              nextMatchingPoses.length === 1
+                                ? current.overwriteExistingPose
+                                : false,
                           }
                         : current,
                     );
@@ -8428,6 +8537,40 @@ export function VariablesPanel({
                   className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
                 />
               </label>
+              {poseCopyUniqueExistingPoseMatch ? (
+                <label className="flex items-start gap-2 rounded border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-50">
+                  <input
+                    type="checkbox"
+                    checked={poseCopyModal.overwriteExistingPose}
+                    onChange={(event) => {
+                      setPoseCopyBlockingMessages([]);
+                      setPoseCopyModal((current) =>
+                        current
+                          ? {
+                              ...current,
+                              overwriteExistingPose: event.target.checked,
+                            }
+                          : current,
+                      );
+                    }}
+                  />
+                  <span className="space-y-1">
+                    <span className="block font-medium text-cyan-100">
+                      Matching main pose found
+                    </span>
+                    <span className="block text-[11px] text-cyan-50/80">
+                      Overwrite "{poseCopyUniqueExistingPoseMatch.name}" in
+                      place and replace its current target values instead of
+                      creating a duplicate.
+                    </span>
+                  </span>
+                </label>
+              ) : poseCopyMatchingExistingPoses.length > 1 ? (
+                <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  Multiple main poses already use this name. Overwrite is
+                  disabled until the destination name resolves to a single pose.
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
@@ -8454,18 +8597,12 @@ export function VariablesPanel({
                     : null;
                   const mappedStatus = mappedInput ? "resolved" : "unmapped";
                   const existingPoseValue =
-                    mappedInput &&
-                    poseCopyModal.destinationPoseName.trim().length > 0
+                    mappedInput && poseCopyUniqueExistingPoseMatch
                       ? (() => {
-                          const existingPose = poses.find(
-                            (pose) =>
-                              pose.name.trim() ===
-                              poseCopyModal.destinationPoseName.trim(),
-                          );
-                          if (!existingPose) {
-                            return null;
-                          }
-                          const value = existingPose.values?.[mappedInput.id];
+                          const value =
+                            poseCopyUniqueExistingPoseMatch.values?.[
+                              mappedInput.id
+                            ];
                           return isFiniteNumber(value) ? value : null;
                         })()
                       : null;
@@ -8617,7 +8754,9 @@ export function VariablesPanel({
                 className="h-8 px-3 text-xs"
                 onClick={handleConfirmPoseCopyModal}
               >
-                Confirm Copy
+                {poseCopyModal.overwriteExistingPose
+                  ? "Overwrite Pose"
+                  : "Confirm Copy"}
               </Button>
             </div>
           </div>

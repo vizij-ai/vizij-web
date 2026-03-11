@@ -65,6 +65,21 @@ function makeSpec(options: {
   inputs: Array<ReturnType<typeof makeInput>>;
   bindings: GraphBindingSummary[];
   pipelineV1?: {
+    byInputId?: Record<
+      string,
+      {
+        inputId?: string;
+        parents?: Array<{
+          linkId?: string;
+          inputId?: string;
+          alias?: string;
+          scale?: number;
+          offset?: number;
+          enabled?: boolean;
+          expression?: string;
+        }>;
+      }
+    >;
     links?: Record<
       string,
       {
@@ -661,5 +676,77 @@ describe("rehydrateRigDataFromGraph", () => {
       )?.vizij?.pipelineV1?.links?.["link/blink->propsrig_ltlid_lidcurve_value"]
         ?.expression,
     ).toBe("s1 = sin(parent * scale) + offset");
+  });
+
+  it("rehydrates input parent-child links from byInputId parent configs when links are absent", () => {
+    const spec = makeSpec({
+      faceId: "legacy_face",
+      inputs: [
+        makeInput({
+          id: "gaze_left_right",
+          path: "/rig/control/eyes/gaze_left_right",
+          group: "custom",
+        }),
+        makeInput({
+          id: "gaze_left_right_copy",
+          path: "/rig/control/eyes/gaze_left_right_copy",
+          group: "custom",
+        }),
+        makeInput({
+          id: "propsrig_l_eye_translation_x",
+          path: "/propsrig/l_eye/translation/x",
+          group: "eyes",
+        }),
+      ],
+      bindings: [],
+      pipelineV1: {
+        byInputId: {
+          propsrig_l_eye_translation_x: {
+            inputId: "propsrig_l_eye_translation_x",
+            parents: [
+              {
+                linkId: "link/gaze_left_right->propsrig_l_eye_translation_x",
+                inputId: "gaze_left_right",
+                alias: "s1",
+                expression: "left_right = parent * scale + offset",
+              },
+              {
+                linkId:
+                  "link/gaze_left_right_copy->propsrig_l_eye_translation_x",
+                inputId: "gaze_left_right_copy",
+                alias: "s2",
+                expression: "s3 = parent * scale + offset",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const result = rehydrateRigDataFromGraph(spec, {
+      faceId: "robot",
+      animatables: {},
+      components: [makeComponent()],
+    });
+
+    const binding = result.inputBindings.propsrig_l_eye_translation_x;
+    expect(binding).toBeDefined();
+    expect(binding?.slots.map((slot) => slot.inputId)).toEqual([
+      "gaze_left_right",
+      "gaze_left_right_copy",
+    ]);
+    expect(binding?.slots.map((slot) => slot.alias)).toEqual(["s1", "s2"]);
+    expect(binding?.expression).toBe("s1 + s2");
+    const parent = result.standardInputs.find(
+      (input) => input.id === "gaze_left_right",
+    );
+    expect(parent?.derivedChildren).toContain("propsrig_l_eye_translation_x");
+    const child = result.standardInputs.find(
+      (input) => input.id === "propsrig_l_eye_translation_x",
+    );
+    expect(child?.parentBinding?.slots?.map((slot) => slot.inputId)).toEqual([
+      "gaze_left_right",
+      "gaze_left_right_copy",
+    ]);
   });
 });

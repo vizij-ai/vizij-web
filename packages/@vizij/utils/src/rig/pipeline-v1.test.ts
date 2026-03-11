@@ -3,9 +3,11 @@ import {
   buildRigPipelineV1ParentContributionExpression,
   buildRigPipelineV1ParentExpression,
   buildRigPipelineV1DirectValuePath,
+  extractRigPipelineFormulaAssignedVariable,
   buildRigPipelineV1OverrideEnabledPath,
   buildRigPipelineV1OverrideValuePath,
   hasRigPipelineV1InputConfig,
+  resolveRigPipelineV1FormulaVariable,
   resolveRigPipelineV1InputConfig,
   type RigPipelineV1Metadata,
 } from "./pipeline-v1";
@@ -37,6 +39,31 @@ describe("pipeline-v1 formula helpers", () => {
     );
     expect(buildRigPipelineV1ParentContributionExpression(["P1", "P2"])).toBe(
       "parentContribution = normalizedAdditive([P1, P2], baseline=default)",
+    );
+  });
+
+  it("prefers the assigned variable from custom parent formulas", () => {
+    expect(
+      extractRigPipelineFormulaAssignedVariable(
+        "value = parent * scale + offset",
+      ),
+    ).toBe("value");
+    expect(
+      resolveRigPipelineV1FormulaVariable({
+        alias: "new_driver",
+        expression: "value = parent * scale + offset",
+      }),
+    ).toBe("value");
+    expect(
+      buildRigPipelineV1ParentContributionExpression([
+        {
+          alias: "new_driver",
+          expression: "value = parent * scale + offset",
+        },
+        "jaw",
+      ]),
+    ).toBe(
+      "parentContribution = normalizedAdditive([value, jaw], baseline=default)",
     );
   });
 });
@@ -157,6 +184,158 @@ describe("resolveRigPipelineV1InputConfig", () => {
     );
     expect(resolved.override.valuePath).toBe(
       "rig/robot/override/jaw_open/value",
+    );
+  });
+
+  it("uses custom parent-formula assignment variables in parent contribution defaults", () => {
+    const pipelineV1: RigPipelineV1Metadata = {
+      version: 1,
+      links: {
+        "link/chin->jaw_open": {
+          linkId: "link/chin->jaw_open",
+          parentInputId: "chin",
+          childInputId: TEST_INPUT.id,
+          scale: 1,
+          offset: 0,
+          enabled: true,
+          expression: "value = parent * scale + offset",
+        },
+      },
+      byInputId: {
+        [TEST_INPUT.id]: {
+          inputId: TEST_INPUT.id,
+          parents: [
+            {
+              inputId: "chin",
+              linkId: "link/chin->jaw_open",
+              alias: "new_driver",
+            },
+          ],
+        },
+      },
+    };
+
+    const resolved = resolveRigPipelineV1InputConfig({
+      faceId: "robot",
+      input: TEST_INPUT,
+      pipelineV1,
+    });
+
+    expect(resolved.parents).toHaveLength(1);
+    expect(resolved.parents[0]).toMatchObject({
+      inputId: "chin",
+      alias: "value",
+      expression: "value = parent * scale + offset",
+    });
+    expect(resolved.parentBlend.expression).toBe(
+      "parentContribution = normalizedAdditive([value], baseline=default)",
+    );
+  });
+
+  it("normalizes legacy slot-style parent contribution formulas to resolved aliases", () => {
+    const pipelineV1: RigPipelineV1Metadata = {
+      version: 1,
+      links: {
+        "link/chin->jaw_open": {
+          linkId: "link/chin->jaw_open",
+          parentInputId: "chin",
+          childInputId: TEST_INPUT.id,
+          scale: 1,
+          offset: 0,
+          enabled: true,
+          expression: "value = parent * scale + offset",
+        },
+        "link/jaw_ud->jaw_open": {
+          linkId: "link/jaw_ud->jaw_open",
+          parentInputId: "jaw_ud",
+          childInputId: TEST_INPUT.id,
+          scale: 1,
+          offset: 0,
+          enabled: true,
+        },
+      },
+      byInputId: {
+        [TEST_INPUT.id]: {
+          inputId: TEST_INPUT.id,
+          parentBlend: {
+            expression:
+              "parentContribution = normalizedAdditive([s1, s2], baseline=default)",
+          },
+        },
+      },
+    };
+
+    const resolved = resolveRigPipelineV1InputConfig({
+      faceId: "robot",
+      input: TEST_INPUT,
+      pipelineV1,
+    });
+
+    expect(resolved.parents).toHaveLength(2);
+    expect(resolved.parents[0]).toMatchObject({
+      inputId: "chin",
+      alias: "value",
+    });
+    expect(resolved.parents[1]).toMatchObject({
+      inputId: "jaw_ud",
+      alias: "P2",
+    });
+    expect(resolved.parentBlend.expression).toBe(
+      "parentContribution = normalizedAdditive([value, P2], baseline=default)",
+    );
+  });
+
+  it("normalizes mixed stored aliases to resolved assignment variables", () => {
+    const pipelineV1: RigPipelineV1Metadata = {
+      version: 1,
+      byInputId: {
+        [TEST_INPUT.id]: {
+          inputId: TEST_INPUT.id,
+          parents: [
+            {
+              inputId: "gaze_left_right",
+              alias: "s1",
+              expression: "left_right = parent * scale + offset",
+            },
+            {
+              inputId: "gaze_left_right_copy",
+              alias: "s2",
+              expression: "s3 = parent * scale + offset",
+            },
+            {
+              inputId: "standard_vizij_left_eye_pos_x",
+              alias: "x",
+              expression: "x = parent * scale + offset",
+            },
+            {
+              inputId: "standard_vizij_right_eye_pos_x",
+              alias: "x_2",
+              enabled: false,
+              expression: "x_2 = parent * scale + offset",
+            },
+          ],
+          parentBlend: {
+            expression:
+              "parentContribution = normalizedAdditive([s1, s2, x], baseline=default)",
+          },
+        },
+      },
+    };
+
+    const resolved = resolveRigPipelineV1InputConfig({
+      faceId: "robot",
+      input: TEST_INPUT,
+      pipelineV1,
+    });
+
+    expect(resolved.parents.map((entry) => entry.alias)).toEqual([
+      "left_right",
+      "s3",
+      "x",
+      "x_2",
+    ]);
+    expect(resolved.parentBlend.expression).toBe(
+      "parentContribution = normalizedAdditive([left_right, s3, x], baseline=default)",
     );
   });
 });

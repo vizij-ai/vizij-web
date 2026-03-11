@@ -32,6 +32,10 @@ import {
   buildRigPipelineV1OverrideValuePath,
   formatStandardRigInputDisplayPath,
   normalizeStandardRigInputPath,
+  resolveRigPipelineV1FormulaVariable,
+  resolveRigPipelineV1InputConfig,
+  type RigPipelineV1Metadata,
+  type RigPipelineV1ParentContributionSource,
   SELF_BINDING_ID,
 } from "@vizij/utils";
 import { Button } from "../ui/Button";
@@ -45,6 +49,7 @@ import { usePoseRig } from "../../state/PoseRigProvider";
 import {
   useBindingAuthoring,
   useGraphRuntime,
+  useBindingAuthoringStoreApi,
 } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
@@ -97,12 +102,13 @@ import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
 import {
   assessLegacyBindingMigration,
   buildLegacyMigrationLinkUpserts,
-  buildDefaultParentContributionFormula,
   buildDefaultParentVariableFormula,
   buildCompiledPipelineEquation,
   computePipelineDiagnostics,
   computePoseContribution,
+  isAutoParentBlendExpression,
   mergePipelineMetadata,
+  resolveParentBlendExpressionUpdate,
   resolvePipelineStageSettings,
 } from "./pipelineStages";
 
@@ -293,6 +299,19 @@ function toFinite(value: unknown, fallback: number): number {
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function readParentBlendExpressionFromPipelineMetadata(
+  pipelineMetadataV1: Record<string, unknown> | null | undefined,
+  inputId: string,
+): string | null {
+  const byInputContainer = asObject(pipelineMetadataV1?.byInputId);
+  const entry = asObject(byInputContainer?.[inputId]);
+  const parentBlend = asObject(entry?.parentBlend);
+  const expression = parentBlend?.expression;
+  return typeof expression === "string" && expression.trim().length > 0
+    ? expression.trim()
+    : null;
 }
 
 function formatDraftNumber(value: number): string {
@@ -503,6 +522,11 @@ export function InspectorContent({
   const [rigPathDraft, setRigPathDraft] = useState("");
   const [rigLifecycleMessage, setRigLifecycleMessage] =
     useState<RigLifecycleMessage | null>(null);
+  const [parentExpressionAttention, setParentExpressionAttention] = useState<{
+    inputId: string;
+    nonce: number;
+    message: string;
+  } | null>(null);
   const [rigInspectorScope, setRigInspectorScope] = useState<
     "main" | "reference"
   >("main");
@@ -606,6 +630,7 @@ export function InspectorContent({
   const pipelineMetadataV1 = useBindingAuthoring(
     (state) => state.pipelineMetadataV1,
   );
+  const bindingAuthoringStore = useBindingAuthoringStoreApi();
   const bindings = useBindingAuthoring((state) => state.bindings);
   const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
@@ -633,9 +658,6 @@ export function InspectorContent({
   const handleBindingInputChange = useBindingAuthoring(
     (state) => state.handleBindingInputChange,
   );
-  const handleParentBindingInputChange = useBindingAuthoring(
-    (state) => state.handleParentBindingInputChange,
-  );
   const handleParentBindingExpressionChange = useBindingAuthoring(
     (state) => state.handleParentBindingExpressionChange,
   );
@@ -644,6 +666,9 @@ export function InspectorContent({
   );
   const handleCreateParentDriverBinding = useBindingAuthoring(
     (state) => state.handleCreateParentDriverBinding,
+  );
+  const handleUnlinkChildInput = useBindingAuthoring(
+    (state) => state.handleUnlinkChildInput,
   );
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsById = useBindingAuthoring(
@@ -909,43 +934,6 @@ export function InspectorContent({
     return next;
   }, [pipelineMetadataV1]);
 
-  const pipelineConfigByInputId = useMemo(() => {
-    const byInputContainer = asObject(pipelineMetadataV1?.byInputId);
-    if (!byInputContainer) {
-      return new Map<
-        string,
-        {
-          parentBlendExpression: string | null;
-        }
-      >();
-    }
-    const next = new Map<
-      string,
-      {
-        parentBlendExpression: string | null;
-      }
-    >();
-    Object.entries(byInputContainer).forEach(([rawInputId, rawEntry]) => {
-      const inputId =
-        typeof rawInputId === "string" && rawInputId.trim().length > 0
-          ? rawInputId
-          : null;
-      const entry = asObject(rawEntry);
-      if (!inputId || !entry) {
-        return;
-      }
-      const parentBlend = asObject(entry.parentBlend);
-      next.set(inputId, {
-        parentBlendExpression:
-          typeof parentBlend?.expression === "string" &&
-          parentBlend.expression.trim().length > 0
-            ? parentBlend.expression.trim()
-            : null,
-      });
-    });
-    return next;
-  }, [pipelineMetadataV1]);
-
   const selectedPoseWeightInputId =
     inspectorMode === "pose" &&
     selectedPoseId &&
@@ -1026,6 +1014,25 @@ export function InspectorContent({
     setRigPathDraft(input.path ?? "");
     setRigLifecycleMessage(null);
   }, [formatDraftDisplayNumber, inspectorMode, selectedManagedRigEntry]);
+
+  useEffect(() => {
+    if (
+      inspectorMode !== "rig" ||
+      !selectedManagedRigEntry ||
+      !parentExpressionAttention
+    ) {
+      return;
+    }
+    if (
+      selectedManagedRigEntry.input.id !== parentExpressionAttention.inputId
+    ) {
+      return;
+    }
+    setRigLifecycleMessage({
+      tone: "info",
+      text: parentExpressionAttention.message,
+    });
+  }, [inspectorMode, parentExpressionAttention, selectedManagedRigEntry]);
 
   const targetOwnerById = useMemo(() => {
     const targetOwners = new Map<string, string>();
@@ -1963,6 +1970,21 @@ export function InspectorContent({
       () => handleSelectRig(rigId),
     );
   };
+
+  const promptManualParentFormulaEdit = useCallback(
+    (inputId: string, label: string, action: "add" | "remove") => {
+      openRigInspector(inputId);
+      setParentExpressionAttention({
+        inputId,
+        nonce: Date.now(),
+        message:
+          action === "add"
+            ? `Parent contribution formula for "${label}" is custom. Add the new parent term manually.`
+            : `Parent contribution formula for "${label}" is custom. Remove the deleted parent term manually.`,
+      });
+    },
+    [openRigInspector],
+  );
 
   const resolveRigInputIdForTarget = useCallback(
     (targetId: string): string | null => {
@@ -3376,6 +3398,238 @@ export function InspectorContent({
           ? count + 1
           : count;
       }, 0);
+      type PipelineMetadataPatch = {
+        directInputEnabled?: boolean;
+        overrideEnabled?: boolean;
+        overrideValue?: number;
+        clampEnabled?: boolean;
+        parentBlendExpression?: string | null;
+        linkUpserts?: Record<
+          string,
+          {
+            parentInputId?: string;
+            childInputId?: string;
+            scale?: number;
+            offset?: number;
+            enabled?: boolean;
+            expression?: string | null;
+          }
+        >;
+        linkDeletes?: readonly string[];
+        migrationStatus?: "migrated";
+        migrationSource?: string;
+        migrationExpression?: string;
+        legacyReadOnly?: boolean;
+        legacyReadOnlyReason?: string;
+      };
+      const resolvePatchedPipelineMetadata = (
+        pipelineMetadata:
+          | Record<string, unknown>
+          | RigPipelineV1Metadata
+          | null
+          | undefined,
+        patch?: PipelineMetadataPatch,
+      ): RigPipelineV1Metadata | null => {
+        if (!patch) {
+          return (
+            (pipelineMetadata as RigPipelineV1Metadata | null | undefined) ??
+            null
+          );
+        }
+        const merged = mergePipelineMetadata(
+          pipelineMetadata
+            ? {
+                vizij: {
+                  pipelineV1: pipelineMetadata as Record<string, unknown>,
+                },
+              }
+            : undefined,
+          patch,
+        );
+        return (
+          (asObject(
+            asObject(merged.vizij)?.pipelineV1,
+          ) as RigPipelineV1Metadata | null) ?? null
+        );
+      };
+      const resolveParentContributionSourcesForInput = (params: {
+        childInputId: string;
+        pipelineMetadata:
+          | Record<string, unknown>
+          | RigPipelineV1Metadata
+          | null
+          | undefined;
+        patch?: PipelineMetadataPatch;
+      }): RigPipelineV1ParentContributionSource[] => {
+        const childInput = standardInputsById.get(params.childInputId);
+        if (!childInput) {
+          return [];
+        }
+        const resolvedConfig = resolveRigPipelineV1InputConfig({
+          faceId: runtimeFaceId?.trim() || "robot",
+          input: childInput,
+          pipelineV1:
+            resolvePatchedPipelineMetadata(
+              params.pipelineMetadata,
+              params.patch,
+            ) ?? undefined,
+        });
+        return resolvedConfig.parents
+          .filter((parent) => parent.enabled)
+          .map((parent) => ({
+            alias: parent.alias,
+            expression: parent.expression,
+          }));
+      };
+      const queueParentBlendExpressionSync = (params: {
+        childInputId: string;
+        previousParentVariables: readonly RigPipelineV1ParentContributionSource[];
+        linkUpserts?: PipelineMetadataPatch["linkUpserts"];
+        linkDeletes?: readonly string[];
+        manualNotice?: string | null;
+      }) => {
+        const currentState = bindingAuthoringStore.getState();
+        const previousExpression =
+          readParentBlendExpressionFromPipelineMetadata(
+            currentState.pipelineMetadataV1 as
+              | Record<string, unknown>
+              | null
+              | undefined,
+            params.childInputId,
+          );
+        const rewriteParentBlend = isAutoParentBlendExpression(
+          previousExpression,
+          params.previousParentVariables,
+        );
+        applyInputBindingPatch((previous) => {
+          const childInput = standardInputsById.get(params.childInputId);
+          if (!childInput) {
+            return previous;
+          }
+          const existingBinding =
+            previous[params.childInputId] ??
+            createDefaultParentBinding(bindingTargetFromInput(childInput));
+          const nextParentVariables = resolveParentContributionSourcesForInput({
+            childInputId: params.childInputId,
+            pipelineMetadata: currentState.pipelineMetadataV1,
+            patch: {
+              ...(params.linkUpserts
+                ? { linkUpserts: params.linkUpserts }
+                : {}),
+              ...(params.linkDeletes && params.linkDeletes.length > 0
+                ? { linkDeletes: params.linkDeletes }
+                : {}),
+            },
+          });
+          const nextExpression = rewriteParentBlend
+            ? resolveParentBlendExpressionUpdate({
+                previousExpression,
+                previousParentVariables: params.previousParentVariables,
+                nextParentVariables,
+              }).nextExpression
+            : previousExpression;
+          const nextMetadata = mergePipelineMetadata(
+            (existingBinding.metadata ?? undefined) as
+              | Record<string, unknown>
+              | undefined,
+            {
+              ...(params.linkDeletes && params.linkDeletes.length > 0
+                ? { linkDeletes: params.linkDeletes }
+                : {}),
+              ...(rewriteParentBlend
+                ? { parentBlendExpression: nextExpression }
+                : {}),
+            },
+          );
+          const previousMetadataSignature = JSON.stringify(
+            existingBinding.metadata ?? null,
+          );
+          const nextMetadataSignature = JSON.stringify(nextMetadata);
+          if (
+            previous[params.childInputId] &&
+            previousMetadataSignature === nextMetadataSignature
+          ) {
+            return previous;
+          }
+          return {
+            ...previous,
+            [params.childInputId]: {
+              ...existingBinding,
+              metadata: nextMetadata,
+            },
+          };
+        });
+        if (!rewriteParentBlend && params.manualNotice) {
+          const childLabel =
+            standardInputsById.get(params.childInputId)?.label ??
+            params.childInputId;
+          promptManualParentFormulaEdit(
+            params.childInputId,
+            childLabel,
+            params.linkDeletes && params.linkDeletes.length > 0
+              ? "remove"
+              : "add",
+          );
+        }
+      };
+      const addParentLinkForInput = (
+        childInputId: string,
+        parentInputId: string,
+      ) => {
+        const currentState = bindingAuthoringStore.getState();
+        const previousParentVariables =
+          resolveParentContributionSourcesForInput({
+            childInputId,
+            pipelineMetadata: currentState.pipelineMetadataV1,
+          });
+        const childInput = currentState.standardInputsById.get(childInputId);
+        const defaultOffset =
+          childInput && Number.isFinite(childInput.defaultValue)
+            ? childInput.defaultValue
+            : 0;
+        const linkId = buildRigPipelineV1LinkId(parentInputId, childInputId);
+        const linkUpserts = {
+          [linkId]: {
+            parentInputId,
+            childInputId,
+            scale: 1,
+            offset: defaultOffset,
+            enabled: true,
+          },
+        };
+        handleCreateParentDriverBinding(childInputId, parentInputId);
+        applyPipelineMetadataPatchForInput(childInputId, {
+          linkUpserts,
+          migrationStatus: "migrated",
+          migrationSource: "staged-link-authoring",
+        });
+        queueParentBlendExpressionSync({
+          childInputId,
+          previousParentVariables,
+          linkUpserts,
+          manualNotice:
+            "Parent contribution formula uses a custom expression and was not rewritten. Update the formula above to include the new parent variable.",
+        });
+      };
+      const removeParentLinkForInput = (
+        childInputId: string,
+        parentInputId: string,
+      ) => {
+        const currentState = bindingAuthoringStore.getState();
+        const previousParentVariables =
+          resolveParentContributionSourcesForInput({
+            childInputId,
+            pipelineMetadata: currentState.pipelineMetadataV1,
+          });
+        handleUnlinkChildInput(parentInputId, childInputId);
+        queueParentBlendExpressionSync({
+          childInputId,
+          previousParentVariables,
+          linkDeletes: [buildRigPipelineV1LinkId(parentInputId, childInputId)],
+          manualNotice:
+            "Parent contribution formula uses a custom expression and was not rewritten. Update the formula above to remove the deleted parent variable.",
+        });
+      };
 
       const parseDraftNumber = (valueText: string, label: string) => {
         const trimmed = valueText.trim();
@@ -3619,14 +3873,7 @@ export function InspectorContent({
               skippedExisting += 1;
               return;
             }
-            handleCreateParentDriverBinding(
-              resolvedChildInputId,
-              resolvedSelectedRigId,
-            );
-            applyPipelineMetadataPatchForInput(resolvedChildInputId, {
-              migrationStatus: "migrated",
-              migrationSource: "staged-link-authoring",
-            });
+            addParentLinkForInput(resolvedChildInputId, resolvedSelectedRigId);
             linkedCount += 1;
             lastLinkedInputId = resolvedChildInputId;
           });
@@ -3759,14 +4006,10 @@ export function InspectorContent({
             if (alreadyLinked) {
               return;
             }
-            handleCreateParentDriverBinding(
+            addParentLinkForInput(
               resolvedPropsRigInputId,
               resolvedSelectedRigId,
             );
-            applyPipelineMetadataPatchForInput(resolvedPropsRigInputId, {
-              migrationStatus: "migrated",
-              migrationSource: "staged-link-authoring",
-            });
             linkedCount += 1;
           });
           if (
@@ -3848,14 +4091,7 @@ export function InspectorContent({
               skippedExisting += 1;
               return;
             }
-            handleCreateParentDriverBinding(
-              resolvedSelectedRigId,
-              parentInputId,
-            );
-            applyPipelineMetadataPatchForInput(resolvedSelectedRigId, {
-              migrationStatus: "migrated",
-              migrationSource: "staged-link-authoring",
-            });
+            addParentLinkForInput(resolvedSelectedRigId, parentInputId);
             linkedCount += 1;
           });
 
@@ -3915,18 +4151,9 @@ export function InspectorContent({
             if (hasParentBindingInput(existingBinding, parentInputId)) {
               return;
             }
-            handleCreateParentDriverBinding(
-              resolvedSelectedRigId,
-              parentInputId,
-            );
+            addParentLinkForInput(resolvedSelectedRigId, parentInputId);
             linkedCount += 1;
           });
-          if (linkedCount > 0) {
-            applyPipelineMetadataPatchForInput(resolvedSelectedRigId, {
-              migrationStatus: "migrated",
-              migrationSource: "staged-link-authoring",
-            });
-          }
           if (linkedCount === 0) {
             alertDialog(
               "Selected properties are already linked as parents for this driver.",
@@ -3957,9 +4184,19 @@ export function InspectorContent({
           max,
         };
       };
+      const resolvedCurrentPipelineConfig = resolveRigPipelineV1InputConfig({
+        faceId: runtimeFaceId?.trim() || "robot",
+        input,
+        pipelineV1:
+          resolvePatchedPipelineMetadata(pipelineMetadataV1) ?? undefined,
+      });
       const expressionVariableByInputId = (() => {
         const aliasesByInputId = new Map<string, string>();
         const usedAliases = new Set<string>();
+        resolvedCurrentPipelineConfig.parents.forEach((parent) => {
+          aliasesByInputId.set(parent.inputId, parent.alias);
+          usedAliases.add(parent.alias.toLowerCase());
+        });
         (parentBinding?.slots ?? []).forEach((slot, index) => {
           const rawInputId = slot.inputId?.trim() ?? "";
           if (!rawInputId || rawInputId === SELF_BINDING_ID) {
@@ -3969,11 +4206,18 @@ export function InspectorContent({
             rawInputId,
             standardInputsById,
           );
-          const alias = resolveBindingSlotAlias(slot, index);
-          const normalizedAlias = alias.toLowerCase();
           if (aliasesByInputId.has(resolvedInputId)) {
             return;
           }
+          const alias = resolveRigPipelineV1FormulaVariable({
+            alias: resolveBindingSlotAlias(slot, index),
+            expression:
+              pipelineLinksById.get(
+                buildRigPipelineV1LinkId(resolvedInputId, input.id),
+              )?.expression ?? null,
+            fallbackAlias: `s${index + 1}`,
+          });
+          const normalizedAlias = alias.toLowerCase();
           aliasesByInputId.set(resolvedInputId, alias);
           usedAliases.add(normalizedAlias);
         });
@@ -4085,28 +4329,7 @@ export function InspectorContent({
       }> = [];
       const seenDrivenKeys = new Set<string>();
       const removeDrivenVariableLink = (drivenInputId: string) => {
-        const drivenBinding = inputBindings[drivenInputId];
-        if (!drivenBinding) {
-          return;
-        }
-        const slotsToClear = new Set<string>();
-        drivenBinding.slots.forEach((slot) => {
-          if (matchesRigInputId(slot.inputId, resolvedSelectedRigId)) {
-            slotsToClear.add(slot.id);
-          }
-        });
-        if (
-          slotsToClear.size === 0 &&
-          matchesRigInputId(drivenBinding.inputId, resolvedSelectedRigId)
-        ) {
-          const primarySlotId = drivenBinding.slots[0]?.id;
-          if (primarySlotId) {
-            slotsToClear.add(primarySlotId);
-          }
-        }
-        slotsToClear.forEach((slotId) => {
-          handleParentBindingInputChange(drivenInputId, null, slotId);
-        });
+        removeParentLinkForInput(drivenInputId, resolvedSelectedRigId);
       };
       downstreamInputs.forEach((entry) => {
         const linkId = buildRigPipelineV1LinkId(input.id, entry.id);
@@ -4291,39 +4514,11 @@ export function InspectorContent({
       const parentExpressionTitle = isMigratedBinding
         ? "Parent Contribution Formula"
         : "Authored Parent Expression";
-      const stagedPipelineConfig = pipelineConfigByInputId.get(input.id);
       const defaultParentContributionExpression =
-        buildDefaultParentContributionFormula(
-          parentRigChainItems.map((entry) => entry.expressionVariable),
-        );
+        resolvedCurrentPipelineConfig.parentBlend.expression;
       const displayedParentExpression = isMigratedBinding
-        ? (stagedPipelineConfig?.parentBlendExpression ??
-          defaultParentContributionExpression)
+        ? defaultParentContributionExpression
         : (parentBinding?.expression ?? "");
-
-      type PipelineMetadataPatch = {
-        directInputEnabled?: boolean;
-        overrideEnabled?: boolean;
-        overrideValue?: number;
-        clampEnabled?: boolean;
-        parentBlendExpression?: string | null;
-        linkUpserts?: Record<
-          string,
-          {
-            parentInputId?: string;
-            childInputId?: string;
-            scale?: number;
-            offset?: number;
-            enabled?: boolean;
-            expression?: string | null;
-          }
-        >;
-        migrationStatus?: "migrated";
-        migrationSource?: string;
-        migrationExpression?: string;
-        legacyReadOnly?: boolean;
-        legacyReadOnlyReason?: string;
-      };
 
       const applyPipelineMetadataPatchForInput = (
         targetInputId: string,
@@ -4417,16 +4612,53 @@ export function InspectorContent({
           expression?: string | null;
         },
       ) => {
+        const normalizedExpression =
+          patch.expression === undefined
+            ? undefined
+            : patch.expression && patch.expression.trim().length > 0
+              ? patch.expression.trim()
+              : null;
+        const currentState = bindingAuthoringStore.getState();
+        const previousParentVariables =
+          resolveParentContributionSourcesForInput({
+            childInputId,
+            pipelineMetadata: currentState.pipelineMetadataV1,
+          });
+        const currentVariable =
+          expressionVariableByInputId.get(parentInputId) ?? "P1";
+        const nextVariable =
+          normalizedExpression !== undefined
+            ? resolveRigPipelineV1FormulaVariable({
+                alias: currentVariable,
+                expression: normalizedExpression,
+                fallbackAlias: currentVariable,
+              })
+            : currentVariable;
+        const linkUpserts = {
+          [linkId]: {
+            parentInputId,
+            childInputId,
+            ...patch,
+            ...(normalizedExpression !== undefined
+              ? { expression: normalizedExpression }
+              : {}),
+          },
+        };
         // Link records are owned by child input to avoid conflicting duplicates.
         applyPipelineMetadataPatchForInput(childInputId, {
-          linkUpserts: {
-            [linkId]: {
-              parentInputId,
-              childInputId,
-              ...patch,
-            },
-          },
+          linkUpserts,
         });
+        if (normalizedExpression !== undefined) {
+          queueParentBlendExpressionSync({
+            childInputId,
+            previousParentVariables,
+            linkUpserts,
+            manualNotice:
+              currentVariable !== nextVariable
+                ? "Parent contribution formula uses a custom expression and was not rewritten. Update the formula above to reflect the renamed parent variable."
+                : null,
+          });
+        }
       };
       const handleMigrateLegacyBinding = () => {
         if (legacyMigrationAssessment.kind !== "convertible") {
@@ -4761,6 +4993,11 @@ export function InspectorContent({
             parentExpressionReadOnlyReason={
               isLegacyReadOnlyBinding ? legacyMigrationAssessment.reason : null
             }
+            parentExpressionAttentionKey={
+              parentExpressionAttention?.inputId === input.id
+                ? parentExpressionAttention.nonce
+                : 0
+            }
             onParentExpressionChange={
               isMigratedBinding
                 ? handlePipelineParentContributionExpressionChange
@@ -4778,6 +5015,17 @@ export function InspectorContent({
               expressionVariable: entry.expressionVariable,
               kind: entry.kind,
               onInspect: entry.onClick,
+              onUnlink: () => {
+                const shouldDelete =
+                  typeof window === "undefined" ||
+                  window.confirm(
+                    `Delete parent link "${entry.label}"?\n\nThis removes the connection and cleans staged pipeline metadata.`,
+                  );
+                if (!shouldDelete) {
+                  return;
+                }
+                removeParentLinkForInput(input.id, entry.inputId);
+              },
               directControl: {
                 value: entry.parentDirectValue,
                 defaultValue:
@@ -4834,6 +5082,14 @@ export function InspectorContent({
                 ? () => {
                     const drivenInputId = entry.drivenInputId;
                     if (drivenInputId) {
+                      const shouldDelete =
+                        typeof window === "undefined" ||
+                        window.confirm(
+                          `Delete child link "${entry.label}"?\n\nThis removes the connection and cleans staged pipeline metadata.`,
+                        );
+                      if (!shouldDelete) {
+                        return;
+                      }
                       removeDrivenVariableLink(drivenInputId);
                     }
                   }
