@@ -47,7 +47,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck"
   },
   "dependencies": {
-    "@vizij/node-graph-wasm": "^0.6.0",
+    "@vizij/node-graph-wasm": "^0.6.1",
     "@vizij/utils": "workspace:*"
   },
   "devDependencies": {
