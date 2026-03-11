@@ -332,6 +332,26 @@ function AppContent({
     };
   }, [speech.setMicMuted]);
 
+  // Listen for speak events from WebSocket methods (via Tauri)
+  useEffect(() => {
+    const unlisten = listen<string>("speak", (event) => {
+      speech.speak(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [speech.speak]);
+
+  // Listen for interrupt events from WebSocket methods (via Tauri)
+  useEffect(() => {
+    const unlisten = listen("interrupt-speech", () => {
+      speech.interrupt();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [speech.interrupt]);
+
   // Sync mic state back to Rust AppState so get_mic_muted returns the correct value
   useEffect(() => {
     invoke("set_mic_muted_state", { muted: !speech.listening }).catch(() => {

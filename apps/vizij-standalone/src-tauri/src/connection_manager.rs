@@ -186,6 +186,61 @@ impl ConnectionManager {
             )
             .await;
 
+            // Register "speak" method: send text to TTS
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |args| {
+                let text = match args.get("text") {
+                    Some(Value::String(s)) => s.clone(),
+                    _ => return InvokeResult::err("Missing 'text' parameter".to_string()),
+                };
+
+                match app.emit("speak", &text) {
+                    Ok(()) => {
+                        info!("Emitted speak event: \"{}\"", &text[..text.len().min(60)]);
+                        InvokeResult::ok()
+                    }
+                    Err(e) => InvokeResult::err(format!("Failed to emit speak: {}", e)),
+                }
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "speak".to_string(),
+                    params: vec![MethodParam {
+                        name: "text".to_string(),
+                        param_type: Type::String,
+                        required: true,
+                        default_value: None,
+                        description: Some("Text to speak via TTS".to_string()),
+                    }],
+                    return_type: None,
+                    description: Some("Speak the given text via TTS".to_string()),
+                },
+                handler,
+            )
+            .await;
+
+            // Register "interrupt" method: stop any ongoing speech
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |_args| {
+                match app.emit("interrupt-speech", ()) {
+                    Ok(()) => {
+                        info!("Emitted interrupt-speech event");
+                        InvokeResult::ok()
+                    }
+                    Err(e) => InvokeResult::err(format!("Failed to emit interrupt-speech: {}", e)),
+                }
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "interrupt".to_string(),
+                    params: vec![],
+                    return_type: None,
+                    description: Some("Interrupt any ongoing speech playback".to_string()),
+                },
+                handler,
+            )
+            .await;
+
             // Exclusive client handler: disconnect all OTHER connections when a client connects here
             let others: Vec<Arc<dyn AroraConnection>> = self
                 .connections

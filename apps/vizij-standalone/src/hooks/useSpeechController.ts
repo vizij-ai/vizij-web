@@ -81,6 +81,10 @@ export interface UseSpeechControllerReturn {
   error: string | null;
   /** Whether API keys are configured */
   keysConfigured: boolean;
+  /** Speak arbitrary text via TTS */
+  speak: (text: string) => void;
+  /** Stop/interrupt any ongoing speech */
+  interrupt: () => void;
   /** Audio element ref — must be attached to a hidden <audio> in the DOM */
   audioRef: React.RefObject<HTMLAudioElement | null>;
   /** Audio event handlers — wire to <audio onPlay/onPause/onEnded> */
@@ -385,6 +389,21 @@ export function useSpeechController({
     [asr],
   );
 
+  // Speak arbitrary text via TTS
+  const speak = useCallback(
+    (text: string) => {
+      console.log("[speech] speak() called:", text.slice(0, 60));
+      void handleSpeakRef.current(text);
+    },
+    [],
+  );
+
+  // Interrupt/stop any ongoing speech
+  const interrupt = useCallback(() => {
+    console.log("[speech] interrupt() called");
+    speech.handleStop();
+  }, [speech]);
+
   // Auto-activate mic when speech is ready + keys configured + config/CLI says so
   const hasAutoActivated = useRef(false);
   useEffect(() => {
@@ -440,6 +459,8 @@ export function useSpeechController({
     listening: asr.listening,
     toggleMic,
     setMicMuted,
+    speak,
+    interrupt,
     status,
     error,
     keysConfigured,

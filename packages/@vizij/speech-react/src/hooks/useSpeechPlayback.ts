@@ -251,13 +251,22 @@ export function useSpeechPlayback({
   }, []);
 
   const clearVisemeInputs = useCallback(() => {
-    if (!runtimeReady || !stageRuntimeInput) {
+    if (!runtimeReady) {
       lastVisemePathRef.current = null;
       return;
     }
-    visemePathsRef.current.forEach((path) => stageRuntimeInput(path, 0));
+    // Use animateRuntimeValue to override any in-flight animations;
+    // fall back to stageRuntimeInput if animate is not available.
+    const reset = animateRuntimeValue
+      ? (path: string) => animateRuntimeValue(path, 0, 0.05)
+      : stageRuntimeInput
+        ? (path: string) => stageRuntimeInput(path, 0)
+        : null;
+    if (reset) {
+      visemePathsRef.current.forEach(reset);
+    }
     lastVisemePathRef.current = null;
-  }, [runtimeReady, stageRuntimeInput]);
+  }, [runtimeReady, stageRuntimeInput, animateRuntimeValue]);
 
   const revokeAudioSrc = useCallback(() => {
     if (audioSrcRef.current) {
