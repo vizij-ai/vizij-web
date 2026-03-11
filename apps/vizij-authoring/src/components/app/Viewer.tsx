@@ -797,7 +797,7 @@ export function Viewer({
                     Load Quori
                   </Button>
                   <Button
-                    data-testid="main-preset-hugo-legacy"
+                    data-testid="main-preset-hugo-latest"
                     variant="secondary"
                     onClick={onLoadHugo}
                     size="md"

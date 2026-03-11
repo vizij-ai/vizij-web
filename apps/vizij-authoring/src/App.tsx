@@ -625,7 +625,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadHugo = useCallback(() => {
-    handleLoadAssetFromUrl("/assets/Hugo_Legacy.glb", "Hugo_Legacy.glb");
+    handleLoadAssetFromUrl(
+      "/assets/Hugo_Current_Extended.glb",
+      "Hugo_Current_Extended.glb",
+    );
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadPresetAsset = useCallback(

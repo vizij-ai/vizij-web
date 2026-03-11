@@ -1,9 +1,5 @@
 export type FacePresetCharacterId = "quori" | "hugo" | "toasty";
-export type FacePresetVariantId =
-  | "blender-export"
-  | "basic"
-  | "latest"
-  | "legacy";
+export type FacePresetVariantId = "blender-export" | "basic" | "latest";
 
 interface FacePresetDefinition {
   variantId: FacePresetVariantId;
@@ -65,9 +61,9 @@ const FACE_PRESET_ROWS: readonly {
         filename: "Hugo_Current.glb",
       },
       {
-        variantId: "legacy",
-        variantLabel: "Legacy",
-        filename: "Hugo_Legacy.glb",
+        variantId: "latest",
+        variantLabel: "Latest",
+        filename: "Hugo_Current_Extended.glb",
       },
     ],
   },
@@ -96,7 +92,7 @@ const AVAILABLE_PRESET_FILENAMES = new Set<string>([
   "Quori_Current_Extended.glb",
   "Hugo_Latest_Blender_Export.glb",
   "Hugo_Current.glb",
-  "Hugo_Legacy.glb",
+  "Hugo_Current_Extended.glb",
   "Toasty_Latest_Blender_Export.glb",
   "Toasty_Current.glb",
 ]);
@@ -106,7 +102,7 @@ const REFERENCE_COMPATIBLE_PRESET_FILENAMES = new Set<string>([
   "Quori_Current.glb",
   "Quori_Current_Extended.glb",
   "Hugo_Current.glb",
-  "Hugo_Legacy.glb",
+  "Hugo_Current_Extended.glb",
   "Toasty_Current.glb",
 ]);
 

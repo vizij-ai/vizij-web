@@ -4,7 +4,7 @@ import { bootAuthoring, loadMainPreset, loadReferencePreset } from "./helpers";
 test("reference face compare, copy, and reset @smoke", async ({ page }) => {
   await bootAuthoring(page);
   await loadMainPreset(page, "quori:latest");
-  await loadReferencePreset(page, "hugo:legacy");
+  await loadReferencePreset(page, "hugo:latest");
 
   const posesTab = page.getByTestId("control-authoring-tab-poses");
   await posesTab.click();
