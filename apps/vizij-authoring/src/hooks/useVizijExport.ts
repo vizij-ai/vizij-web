@@ -141,6 +141,7 @@ interface UseVizijExportOptions {
   alertDialog: (message: string) => Promise<void> | void;
   poseRig: PoseRigExportState;
   authoredMotionGraphs?: MotionGraphExportEntry[];
+  activeMotionGraphId?: string | null;
   getMotionGraphSpec?: () => { nodes: unknown[]; edges: unknown[] } | null;
   onExportGlbComplete?: () => void;
 }
@@ -592,6 +593,7 @@ export function useVizijExport(
     alertDialog,
     poseRig,
     authoredMotionGraphs,
+    activeMotionGraphId,
     getMotionGraphSpec,
     onExportGlbComplete,
   } = options;
@@ -985,6 +987,22 @@ export function useVizijExport(
                 spec: motionGraphSpec,
               },
             ]);
+          }
+        }
+
+        // Record which motion graph(s) should auto-play when loaded
+        const motionGraphIds = (bundle.graphs ?? [])
+          .filter((g) => g.kind === "motiongraph")
+          .map((g) => g.id);
+        if (motionGraphIds.length > 0) {
+          if (!bundle.metadata || typeof bundle.metadata !== "object") {
+            bundle.metadata = {};
+          }
+          const meta = bundle.metadata as Record<string, unknown>;
+          if (activeMotionGraphId && motionGraphIds.includes(activeMotionGraphId)) {
+            meta.activeMotionGraphIds = [activeMotionGraphId];
+          } else {
+            meta.activeMotionGraphIds = motionGraphIds;
           }
         }
       }

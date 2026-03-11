@@ -419,6 +419,11 @@ function AppContent({
           );
           console.log("[vizij-standalone] Speech config:", speechConfig);
           console.log("[vizij-standalone] Speech status:", speech.status);
+          console.log("[vizij-standalone] Motion graphs:", runtime.assetBundle?.motionGraphs);
+          const graphKinds = (runtime.assetBundle?.bundle?.graphs ?? []).map((g: any) => `${g.id}[kind=${g.kind}]`);
+          console.log("[vizij-standalone] Bundle graph kinds:", graphKinds.join(", "));
+          console.log("[vizij-standalone] Bundle graphs:", runtime.assetBundle?.bundle?.graphs?.map((g: any) => ({ id: g.id, kind: g.kind, hasSpec: Boolean(g.spec), hasIr: Boolean(g.ir) })));
+          console.log("[vizij-standalone] Bundle metadata:", runtime.assetBundle?.bundle?.metadata);
         }}
         className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
       >

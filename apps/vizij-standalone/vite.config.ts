@@ -16,6 +16,10 @@ export default defineConfig(async () => ({
         workspaceRoot,
         "packages/@vizij/node-graph-authoring/src",
       ),
+      "@vizij/runtime-react": resolve(
+        workspaceRoot,
+        "packages/@vizij/runtime-react/src",
+      ),
     },
   },
   server: {
@@ -52,13 +56,16 @@ export default defineConfig(async () => ({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/orchestrator-wasm", "@vizij/node-graph-wasm"],
+    exclude: [
+      "@vizij/orchestrator-wasm",
+      "@vizij/node-graph-wasm",
+      "@vizij/runtime-react",
+    ],
     include: [
       "@vizij/orchestrator-react",
       "@vizij/node-graph-react",
       "@vizij/node-graph-authoring",
       "@vizij/render",
-      "@vizij/runtime-react",
     ],
     force: true,
   },

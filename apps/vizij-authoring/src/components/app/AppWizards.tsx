@@ -26,6 +26,7 @@ interface AppWizardsProps {
   loadedBundle: any;
   authoredAnimationClips: AnimationClipIR[];
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
+  activeMotionGraphId?: string | null;
   canExport: boolean;
   handleImportPoseGraphFile: (file: File) => Promise<void>;
   poseGraphRemap: any;
@@ -45,6 +46,7 @@ export function AppWizards({
   loadedBundle,
   authoredAnimationClips,
   authoredProceduralPrograms,
+  activeMotionGraphId,
   canExport,
   handleImportPoseGraphFile,
   poseGraphRemap,
@@ -89,6 +91,7 @@ export function AppWizards({
         loadedBundle={loadedBundle}
         authoredAnimationClips={authoredAnimationClips}
         authoredProceduralPrograms={authoredProceduralPrograms}
+        activeMotionGraphId={activeMotionGraphId}
         canExport={canExport}
         onImportPoseGraph={handleImportPoseGraphFile}
         onExportGlbComplete={onExportGlbComplete}
