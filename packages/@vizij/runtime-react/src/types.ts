@@ -133,7 +133,6 @@ export type VizijAssetBundle = {
     stageNeutralFilter?: (id: string, path: string) => boolean;
   };
   animations?: VizijAnimationAsset[];
-  motionGraphs?: VizijGraphAsset[];
   initialInputs?: Record<string, ValueJSON>;
   metadata?: Record<string, unknown>;
   bundle?: VizijBundleExtension | null;

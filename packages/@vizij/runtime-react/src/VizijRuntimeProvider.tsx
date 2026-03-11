@@ -433,17 +433,6 @@ function pickBundleGraph(
   return null;
 }
 
-function pickBundleMotionGraphs(
-  bundle: VizijBundleExtension | null,
-): VizijBundleGraphEntry[] {
-  if (!bundle?.graphs || bundle.graphs.length === 0) {
-    return [];
-  }
-  return bundle.graphs.filter(
-    (entry) => entry && normaliseBundleKind(entry.kind) === "motiongraph",
-  );
-}
-
 function extractIrGraph(payload: unknown): IrGraph | undefined {
   if (!payload || typeof payload !== "object") {
     return undefined;
@@ -911,37 +900,6 @@ function mergeAssetBundle(
     );
   }
 
-  // Extract motion graphs from bundle
-  const motionGraphEntriesFromBundle =
-    pickBundleMotionGraphs(resolvedBundle);
-  const motionGraphsFromBundle = motionGraphEntriesFromBundle
-    .map(convertBundleGraph)
-    .filter((g): g is VizijGraphAsset => g !== null);
-  if (isRuntimeDebugEnabled()) {
-    console.log("[vizij-runtime] mergeAssetBundle motion graphs", {
-      bundleGraphCount: resolvedBundle?.graphs?.length ?? 0,
-      bundleGraphKinds: (resolvedBundle?.graphs ?? []).map((g) => g.kind),
-      motionGraphEntries: motionGraphEntriesFromBundle.length,
-      motionGraphIds: motionGraphEntriesFromBundle.map((e) => e.id),
-      convertedCount: motionGraphsFromBundle.length,
-    });
-  }
-  const activeMotionGraphIds =
-    resolvedBundle?.metadata &&
-    typeof resolvedBundle.metadata === "object" &&
-    Array.isArray(
-      (resolvedBundle.metadata as Record<string, unknown>)
-        .activeMotionGraphIds,
-    )
-      ? ((resolvedBundle.metadata as Record<string, unknown>)
-          .activeMotionGraphIds as string[])
-      : null;
-  const resolvedMotionGraphs = activeMotionGraphIds
-    ? motionGraphsFromBundle.filter((g) =>
-        activeMotionGraphIds.includes(g.id),
-      )
-    : motionGraphsFromBundle;
-
   const merged: VizijAssetBundle = {
     ...base,
   };
@@ -954,9 +912,6 @@ function mergeAssetBundle(
 
   merged.pose = resolvedPose;
   merged.animations = resolvedAnimations;
-  merged.motionGraphs =
-    base.motionGraphs ??
-    (resolvedMotionGraphs.length > 0 ? resolvedMotionGraphs : undefined);
   merged.bundle = resolvedBundle;
 
   return merged;
@@ -1766,7 +1721,6 @@ function VizijRuntimeProviderInner({
         hasPose: Boolean(assetBundle.pose?.graph),
         animationCount: assetBundle.animations?.length ?? 0,
         animationIds: (assetBundle.animations ?? []).map((anim) => anim.id),
-        motionGraphCount: assetBundle.motionGraphs?.length ?? 0,
         namespace,
       });
     }
@@ -1898,37 +1852,6 @@ function VizijRuntimeProviderInner({
         });
       }
       recordOutputs(bridgeOutputs);
-    }
-
-    // Register motion graphs
-    console.log("[vizij-runtime] motion graphs to register", {
-      count: assetBundle.motionGraphs?.length ?? 0,
-      ids: (assetBundle.motionGraphs ?? []).map((g) => g.id),
-    });
-    for (const motionGraph of assetBundle.motionGraphs ?? []) {
-      const mgSpec = resolveGraphSpec(
-        motionGraph,
-        `${motionGraph.id ?? "motiongraph"} graph`,
-      );
-      if (!mgSpec) {
-        console.warn(
-          `[vizij-runtime] Motion graph "${motionGraph.id}" has no usable spec`,
-          { hasSpec: Boolean(motionGraph.spec), hasIr: Boolean(motionGraph.ir) },
-        );
-        continue;
-      }
-      const mgOutputs = collectOutputPaths(mgSpec);
-      const mgInputs = collectInputPaths(mgSpec);
-      recordOutputs(mgOutputs);
-      const mgSubs = motionGraph.subscriptions ?? {
-        inputs: mgInputs,
-        outputs: mgOutputs,
-      };
-      graphConfigs.push({
-        id: namespaceControllerId(motionGraph.id, namespace, "graph"),
-        spec: stripNulls(namespaceGraphSpec(mgSpec, namespace)),
-        subs: namespaceSubscriptions(mgSubs, namespace),
-      });
     }
 
     outputPathsRef.current = namespacedOutputPaths;
