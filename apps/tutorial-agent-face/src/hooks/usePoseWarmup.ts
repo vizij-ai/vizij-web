@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import type { PoseHotkeyBinding } from "./usePoseHotkeys";
 
+const DEFAULT_POSE_WEIGHT = 0.75;
+
 export function usePoseWarmup(
   bindings: PoseHotkeyBinding[],
   enabled: boolean,
@@ -21,7 +23,11 @@ export function usePoseWarmup(
       for (const binding of bindings) {
         if (cancelled) return;
         const path = binding.weightPath;
-        await animateValue(path, { float: 1 }, { duration: 0.05 });
+        await animateValue(
+          path,
+          { float: DEFAULT_POSE_WEIGHT },
+          { duration: 0.05 },
+        );
         await animateValue(path, { float: 0 }, { duration: 0.05 });
       }
       if (!cancelled) setWarming(false);

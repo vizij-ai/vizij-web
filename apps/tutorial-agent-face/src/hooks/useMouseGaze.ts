@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-
-const STANDARD_PATHS = {
-  leftX: "standard/left_eye/pos/x",
-  leftY: "standard/left_eye/pos/y",
-  rightX: "standard/right_eye/pos/x",
-  rightY: "standard/right_eye/pos/y",
-} as const;
+import {
+  mapNormalizedControlValue,
+  resolveFaceControls,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 
 const POINTER_IDLE_TIMEOUT_MS = 1400;
 
@@ -21,12 +18,20 @@ export type MouseGazeHandle = {
 };
 
 export function useMouseGaze(enabled: boolean): MouseGazeHandle {
-  const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
-  const faceId = (runtimeFaceId ?? "face").toLowerCase();
+  const {
+    setInput,
+    faceId: runtimeFaceId,
+    assetBundle,
+    inputConstraints,
+  } = useVizijRuntime();
   const ref = useRef<HTMLDivElement>(null);
   const [isPointerActive, setPointerActive] = useState(false);
   const pointerActiveRef = useRef(false);
   const idleTimeoutRef = useRef<number | null>(null);
+  const controls = useMemo(
+    () => resolveFaceControls(assetBundle, runtimeFaceId, inputConstraints),
+    [assetBundle, inputConstraints, runtimeFaceId],
+  );
 
   const updatePointerActive = (next: boolean) => {
     if (pointerActiveRef.current === next) return;
@@ -59,9 +64,14 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
       }, POINTER_IDLE_TIMEOUT_MS);
     };
 
-    const setEye = (path: string, value: number) => {
-      const fullPath = `rig/${faceId}/${path}`;
-      setInput(fullPath, { float: clamp(value) });
+    const setEye = (path: keyof typeof controls.eyes, value: number) => {
+      const control = controls.eyes[path];
+      if (!control) {
+        return;
+      }
+      setInput(control.path, {
+        float: mapNormalizedControlValue(control, clamp(value)),
+      });
     };
 
     const handlePointer = (event: PointerEvent) => {
@@ -72,21 +82,21 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
       const xRatio = (event.clientX - rect.left) / rect.width;
       const yRatio = (event.clientY - rect.top) / rect.height;
       const normalizedX = clamp(xRatio * 2 - 1);
-      const normalizedY = ((1 - yRatio) * 2 - 1) * 3;
+      const normalizedY = clamp((1 - yRatio) * 2 - 1);
 
-      setEye(STANDARD_PATHS.leftX, normalizedX);
-      setEye(STANDARD_PATHS.rightX, normalizedX);
-      setEye(STANDARD_PATHS.leftY, normalizedY);
-      setEye(STANDARD_PATHS.rightY, normalizedY);
+      setEye("leftX", normalizedX);
+      setEye("rightX", normalizedX);
+      setEye("leftY", normalizedY);
+      setEye("rightY", normalizedY);
       updatePointerActive(true);
       scheduleIdleTimeout();
     };
 
     const reset = () => {
-      setEye(STANDARD_PATHS.leftX, 0);
-      setEye(STANDARD_PATHS.leftY, 0);
-      setEye(STANDARD_PATHS.rightX, 0);
-      setEye(STANDARD_PATHS.rightY, 0);
+      setEye("leftX", 0);
+      setEye("leftY", 0);
+      setEye("rightX", 0);
+      setEye("rightY", 0);
       updatePointerActive(false);
       clearIdleTimeout();
     };
@@ -104,6 +114,7 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
       clearIdleTimeout();
       updatePointerActive(false);
     };
-  }, [enabled, faceId, setInput]);
+  }, [controls, enabled, setInput]);
+
   return { ref, isPointerActive };
 }
