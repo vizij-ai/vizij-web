@@ -1,544 +1,150 @@
-# Vizij Standalone App
+# Vizij Standalone
 
-A standalone desktop application that renders Vizij avatars and accepts real-time control via WebSocket. Perfect for integrating facial animation into robotics, VTubing, games, or any application that needs programmatic avatar control.
+`vizij-standalone` is the desktop runtime app. It wraps `@vizij/runtime-react` in a Tauri shell, loads one face bundle at a time, exposes the runtime inputs over a local WebSocket/Arora control surface, and optionally layers speech behavior on top when the loaded bundle includes `speechConfig`.
+
+## Current Runtime Flow
+
+At runtime the app:
+
+1. loads a GLB from a CLI `--glb` source or the file picker
+2. builds a `VizijAssetBundle` from either a URL or a local file blob
+3. mounts `VizijRuntimeProvider` with `autostart` and `driveOrchestrator={true}`
+4. mirrors runtime `inputConstraints` and transport inventory back to the Rust side
+5. applies incoming WebSocket control messages through `setInput()`
+
+Relevant files:
+
+- [`src/App.tsx`](./src/App.tsx): runtime bootstrap + desktop UI shell
+- [`src/hooks/useWebSocketSync.ts`](./src/hooks/useWebSocketSync.ts): runtime input sync with the Rust transport layer
+- [`src/hooks/useSpeechController.ts`](./src/hooks/useSpeechController.ts): `@vizij/speech-react` integration on top of runtime-react
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs): CLI flags and Tauri-side connection startup
 
 ## Features
 
-- Load any Vizij-compatible GLB avatar file
-- Real-time WebSocket server on configurable port (default `ws://localhost:9000`, localhost-only)
-- Control facial features, eye gaze, expressions via simple JSON messages
-- Cross-platform (Windows, macOS, Linux)
-- Fullscreen and multi-monitor support
-- Kiosk mode for installations
-- Built-in web control panel for remote control from a phone or tablet
+- load a bundled GLB from a path, URL, or interactive file picker
+- runtime-react rendering via `VizijRuntimeFace`
+- local WebSocket control server
+- optional same-port web control panel unless disabled with `--no-web-control`
+- transport inventory for bundled animations and procedural programs
+- optional speech pipeline driven by bundle metadata plus CLI/env keys
 
----
+## CLI
 
-## Web Control Panel
-
-The app includes a built-in web control panel served on the same port as the WebSocket server. This lets you control the avatar from any device with a browser (e.g., your phone) without installing anything.
-
-### How to Use
-
-1. Start the app on your computer (e.g., `vizij-standalone.exe --glb avatar.glb`)
-2. Find your computer's local IP address (e.g., `192.168.1.5`)
-3. On your phone, open a browser and navigate to `http://<IP>:9000/` (use your configured port if not 9000)
-4. Enter the IP address and tap **Connect**
-5. Use the sliders to control the avatar in real-time
-
-### Features
-
-- **Auto-discovery**: On connect, the panel fetches all available slots and builds the UI dynamically
-- **Tabbed layout**: Slots are organized by standard (e.g., "vizij"), with collapsible panels for each channel (e.g., "left eye", "mouth")
-- **Real-time control**: Slider changes are batched and sent over WebSocket with minimal latency
-- **Reset button**: Invokes the "reset" method to return all values to defaults
-- **Mobile-friendly**: Designed for touch interaction with large slider targets
-
-### Architecture
-
-The control panel is served as a single self-contained HTML page (no external dependencies) directly from the WebSocket server port. When a browser makes a regular HTTP request, the server serves the HTML page. When the page establishes a WebSocket connection, it uses the same arora protocol as any other client.
-
-This means the control panel is treated as a regular WebSocket client and the exclusive client policy applies: connecting from the control panel will disconnect any other active client, and vice versa.
-
-### Disabling
-
-To disable the web control panel, use `--no-web-control`:
-
-```bash
-vizij-standalone.exe --glb avatar.glb --no-web-control
-```
-
----
-
-## Workflow
-
-This app is designed to be **built once and deployed as a standalone executable**. The typical workflow is:
-
-1. **Build** the application on your development machine
-2. **Copy** the resulting executable to your target machine
-3. **Run** with command line arguments to configure behavior
-
-The executable is self-contained and requires no additional runtime dependencies.
-
----
-
-## Command Line Options
-
-```
+```text
 vizij-standalone [OPTIONS]
-vizij-standalone <COMMAND>
+vizij-standalone list-displays
 ```
 
-### Subcommands
+Main options:
 
-| Command         | Description                               |
-| --------------- | ----------------------------------------- |
-| `list-displays` | List available displays/monitors and exit |
+- `--glb`, `-g`: load a GLB path or URL on startup
+- `--port`, `-p`: local control server port, default `9000`
+- `--no-web-control`: disable the web control panel served on the same port
+- `--fullscreen`, `-f`
+- `--display`, `-d`
+- `--width`, `-W`
+- `--height`, `-H`
+- `--no-decorations`
+- `--always-on-top`
+- `--deepgram-key`
+- `--openai-key`
+- `--api-url`
+- `--auto-mic`
+- `--speech-mode`
 
-### Options
+Use `list-displays` to inspect monitor indices before launching fullscreen on a specific display.
 
-| Option              | Short | Description                         | Default                  |
-| ------------------- | ----- | ----------------------------------- | ------------------------ |
-| `--glb <PATH>`      | `-g`  | Path or URL to GLB/GLTF avatar file | None (shows file picker) |
-| `--port <PORT>`     | `-p`  | WebSocket server port               | 9000                     |
-| `--no-web-control`  |       | Disable the web control panel       | false (panel enabled)    |
-| `--fullscreen`      | `-f`  | Launch in fullscreen mode           | false                    |
-| `--display <INDEX>` | `-d`  | Monitor index (0 = primary)         | Primary monitor          |
-| `--width <PIXELS>`  | `-W`  | Window width                        | 800                      |
-| `--height <PIXELS>` | `-H`  | Window height                       | 600                      |
-| `--no-decorations`  |       | Remove window title bar and borders | false                    |
-| `--always-on-top`   |       | Keep window above other windows     | false                    |
+## Local Control Surface
 
----
+The app starts a local control endpoint on `ws://127.0.0.1:<port>` and, unless disabled, serves the browser control panel on `http://127.0.0.1:<port>/`.
 
-## Build Prerequisites
+The frontend runtime layer publishes:
 
-### Node.js (v18 or later)
+- available slots from `inputConstraints`
+- current transport catalog for animations/programs
+- speech state updates
 
-**Windows:**
+The Rust connection manager then exposes those over the Arora protocol surface.
 
-```bash
-winget install OpenJS.NodeJS.LTS
-```
+For protocol details, inspect:
 
-**macOS:**
+- [`src-tauri/src/connection_manager.rs`](./src-tauri/src/connection_manager.rs)
+- [`packages/@vizij/arora-types`](../../packages/@vizij/arora-types)
 
-```bash
-brew install node
-```
+## Speech Support
 
-**Linux (Ubuntu/Debian):**
+Speech is optional and bundle-driven.
 
-```bash
-curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
+When the loaded face bundle exposes `bundle.metadata.speechConfig`, the app can layer on:
 
-### pnpm
+- Deepgram STT
+- optional OpenAI conversation turns
+- TTS/viseme playback through `@vizij/speech-react`
+- runtime input writes for speaking, thinking, and emotion channels
 
-```bash
-npm install -g pnpm
-```
+### Speech key and config precedence
 
-### Rust
+The app resolves speech-related configuration from multiple layers. Current precedence is:
 
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+1. CLI flags from Tauri startup:
+   - `--deepgram-key`
+   - `--openai-key`
+   - `--api-url`
+   - `--auto-mic`
+   - `--speech-mode`
+2. Browser env/local persistence used by the React hooks:
+   - `VITE_DEEPGRAM_API_KEY` or stored localStorage key for Deepgram
+   - `VITE_OPENAI_API_KEY` or stored localStorage key for OpenAI
+   - `VITE_API_URL` for the TTS API base URL
+3. Bundle metadata from `bundle.metadata.speechConfig`
+4. Hook defaults
 
-**Windows:** Also install [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++".
+Practical interpretation:
 
-### Linux-only dependencies
+- CLI flags win when present and are also persisted into localStorage for the browser-side hooks.
+- Deepgram and OpenAI keys fall back to `VITE_DEEPGRAM_API_KEY` / `VITE_OPENAI_API_KEY`, then to the stored browser values.
+- API base URL resolves as CLI `--api-url`, then `speechConfig.apiBaseUrl`, then `VITE_API_URL`.
+- Speech mode resolves as CLI `--speech-mode`, then `speechConfig.mode`, then `"echo"`.
+- Auto-mic resolves from CLI `--auto-mic` when provided, otherwise from `speechConfig.autoActivateMic`.
 
-```bash
-sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-```
-
----
+If speech looks half-configured, check both the Tauri CLI flags and the browser-side env/localStorage state before debugging the runtime layer itself.
 
 ## Development
 
-For testing and development within the monorepo:
+From the repo root:
 
 ```bash
-# Clone and install
-git clone https://github.com/vizij-ai/vizij-web.git
-cd vizij-web
 pnpm install
-
-# Run in dev mode
-pnpm run dev:vizij-standalone
-
-# Pass CLI arguments
-pnpm run dev:vizij-standalone -- -- -- --glb /path/to/avatar.glb --fullscreen
+pnpm --filter vizij-standalone dev
 ```
 
----
-
-## Deployment
-
-### Building
+Passing CLI arguments through `pnpm tauri dev`:
 
 ```bash
-cd apps/vizij-standalone
-pnpm install
-pnpm tauri build
+pnpm --filter vizij-standalone dev -- -- --glb /path/to/avatar.glb --fullscreen
 ```
 
-Output locations:
-
-- **Windows:** `src-tauri/target/release/vizij-standalone.exe`
-- **macOS:** `src-tauri/target/release/bundle/macos/Vizij Standalone.app`
-- **Linux:** `src-tauri/target/release/vizij-standalone`
-
-### Running
-
-Copy the executable to your target machine and run. On Windows PowerShell, use `.\` prefix:
+Example with explicit speech flags:
 
 ```bash
-# Basic usage
-.\vizij-standalone.exe --glb C:\path\to\avatar.glb
-
-# Fullscreen on second monitor
-.\vizij-standalone.exe --glb avatar.glb --fullscreen --display 1
-
-# Kiosk mode
-.\vizij-standalone.exe --glb avatar.glb --fullscreen --no-decorations --always-on-top
-
-# Custom WebSocket port
-.\vizij-standalone.exe --glb avatar.glb --port 8080
-
-# List available displays
-.\vizij-standalone.exe list-displays
+pnpm --filter vizij-standalone dev -- -- \
+  --glb /path/to/avatar.glb \
+  --deepgram-key YOUR_DEEPGRAM_KEY \
+  --openai-key YOUR_OPENAI_KEY \
+  --api-url http://localhost:3001 \
+  --speech-mode conversation
 ```
 
-On Linux/macOS:
+## Build
 
 ```bash
-./vizij-standalone --glb /path/to/avatar.glb
+pnpm --filter vizij-standalone build
+pnpm --filter vizij-standalone tauri build
 ```
 
----
+Build outputs land under `apps/vizij-standalone/src-tauri/target/`.
 
-## WebSocket Protocol
+## Notes
 
-Connect to `ws://localhost:9000` (or your configured port) and send JSON messages.
-The server binds to `0.0.0.0` by default, so it accepts connections from other devices on your LAN/Wi-Fi.
-
-Messages use **arora-types** format for type-safe value serialization. This format ensures compatibility with the Rust backend and provides explicit type information for each value.
-
-### Test with wscat
-
-```bash
-npx wscat -c ws://localhost:9000
-```
-
-Then paste one of the JSON payloads below and press Enter.
-
-Note: `wscat` sends one WebSocket message per line. The JSON examples below are formatted across multiple lines for readability, so you’ll need to paste them as a single line (no newlines) when sending from the terminal.
-
-### Test with Websocketking
-
-Send JSON messages using e.g. https://websocketking.com/.
-
-- Local machine: `ws://localhost:9000`
-- Another device on the same Wi-Fi: `ws://<HOST_LAN_IP>:9000` (example: `ws://192.168.1.42:9000`)
-
-Note: browser-based clients served over `https://` may fail to connect to `ws://` due to mixed-content rules.
-If you expose this on Wi-Fi/LAN, treat it as a control endpoint: use trusted networks and firewall rules.
-
----
-
-### Arora-Types Value Format
-
-Values are wrapped in type-annotated objects rather than sent as raw primitives:
-
-| Type             | Format                | Example                                            |
-| ---------------- | --------------------- | -------------------------------------------------- |
-| Float (64-bit)   | `{"f64": <number>}`   | `{"f64": 0.5}`                                     |
-| Float (32-bit)   | `{"f32": <number>}`   | `{"f32": 0.5}`                                     |
-| Integer (32-bit) | `{"i32": <number>}`   | `{"i32": 42}`                                      |
-| Boolean          | `{"bool": <boolean>}` | `{"bool": true}`                                   |
-| String           | `{"str": "<string>"}` | `{"str": "hello"}`                                 |
-| UUID             | `{"uuid": "<uuid>"}`  | `{"uuid": "550e8400-e29b-41d4-a716-446655440000"}` |
-| Unit             | `"unit"`              | `"unit"`                                           |
-| Option (some)    | `{"v?": <value>}`     | `{"v?": {"f64": 1.0}}`                             |
-| Option (none)    | `{"v?": null}`        | `{"v?": null}`                                     |
-
-For animation control, most values are `f64` (64-bit floats).
-
----
-
-### Message Types
-
-#### Set Slot Values
-
-Send new values to control avatar features:
-
-```json
-{
-  "type": "set_slot_values",
-  "values": {
-    "standard/vizij/left_eye/pos/x": { "f64": 0.5 },
-    "standard/vizij/left_eye/pos/y": { "f64": 0.3 },
-    "standard/vizij/right_eye/pos/x": { "f64": 0.5 },
-    "standard/vizij/right_eye/pos/y": { "f64": 0.3 }
-  }
-}
-```
-
-**Response:**
-
-```json
-{ "type": "set_slot_values_resp", "success": true }
-```
-
-If a path is invalid:
-
-```json
-{
-  "type": "set_slot_values_resp",
-  "success": false,
-  "message": "Unknown input path: invalid/path"
-}
-```
-
-#### Invoke Reset Method
-
-Reset all values to their defaults using method invocation:
-
-```json
-{
-  "type": "invoke",
-  "method": "reset",
-  "request_id": "req-1"
-}
-```
-
-**Response:**
-
-```json
-{
-  "type": "invoke_resp",
-  "success": true,
-  "request_id": "req-1"
-}
-```
-
-#### List Slots
-
-Query available input slots (optionally filtered by path prefix):
-
-```json
-{
-  "type": "list_slots",
-  "path": "standard/vizij/left_eye"
-}
-```
-
-**Response:**
-
-```json
-{
-  "type": "list_slots_resp",
-  "slots": [
-    {
-      "path": "standard/vizij/left_eye/pos/x",
-      "kind": "input",
-      "value_type": "f64",
-      "min": -1.0,
-      "max": 1.0,
-      "default_value": { "f64": 0.0 }
-    },
-    {
-      "path": "standard/vizij/left_eye/pos/y",
-      "kind": "input",
-      "value_type": "f64",
-      "min": -1.0,
-      "max": 1.0,
-      "default_value": { "f64": 0.0 }
-    }
-  ]
-}
-```
-
-### Path Format
-
-Paths follow the Vizij rig convention. The app automatically prefixes paths with `rig/{faceId}/`, so you only need to send the feature path.
-
-**Common eye gaze paths:**
-
-| Path                             | Description          | Range                  |
-| -------------------------------- | -------------------- | ---------------------- |
-| `standard/vizij/left_eye/pos/x`  | Left eye horizontal  | -1 (left) to 1 (right) |
-| `standard/vizij/left_eye/pos/y`  | Left eye vertical    | -1 (down) to 1 (up)    |
-| `standard/vizij/right_eye/pos/x` | Right eye horizontal | -1 (left) to 1 (right) |
-| `standard/vizij/right_eye/pos/y` | Right eye vertical   | -1 (down) to 1 (up)    |
-
-Click the **Debug** button in the app to see all available paths for your loaded avatar.
-
----
-
-## Architecture / Internal Data Flow
-
-The app uses a layered architecture where the `arora-websocket` library handles protocol logic, and the Tauri app bridges WebSocket messages to the React frontend:
-
-```
-┌─────────────────┐     WebSocket      ┌───────────────────────┐
-│  External       │ ──────────────────>│  arora-websocket      │
-│  Client         │    JSON messages   │  (Rust library)       │
-│  (Python, etc.) │                    │                       │
-└─────────────────┘                    │  • Parses messages    │
-                                       │  • Validates paths    │
-                                       │  • Dispatches to      │
-                                       │    handlers           │
-                                       └───────────┬───────────┘
-                                                   │
-                                                   │ Callback
-                                                   ▼
-                                       ┌───────────────────────┐
-                                       │  Tauri App            │
-                                       │  (ws_server.rs)       │
-                                       │                       │
-                                       │  SetSlotValueHandler  │
-                                       │  calls app.emit()     │
-                                       └───────────┬───────────┘
-                                                   │
-                                                   │ Tauri Event
-                                                   │ "update-values"
-                                                   ▼
-                                       ┌───────────────────────┐
-                                       │  React Frontend       │
-                                       │                       │
-                                       │  listen("update-      │
-                                       │    values", callback) │
-                                       │                       │
-                                       │  Applies values to    │
-                                       │  Vizij runtime        │
-                                       └───────────────────────┘
-```
-
-### Data Flow Steps
-
-1. **External client** sends a WebSocket message (e.g., `{"type": "set_slot_values", "values": {...}}`)
-2. **arora-websocket** parses the JSON, validates paths against registered input nodes, and calls the registered `SetSlotValueHandler`
-3. **Tauri app** receives the callback and emits a Tauri event using `app.emit("update-values", &values)`
-4. **React frontend** listens for the event via `listen("update-values", callback)` and applies the values to the Vizij runtime
-
-This separation allows:
-
-- **arora-websocket** to be reused in any Rust WebSocket server (not just Tauri)
-- **Tauri app** to handle app-specific concerns (events, file loading, window management)
-- **Frontend** to remain decoupled from WebSocket implementation details
-
-### Connection Abstraction
-
-The app uses the `AroraConnection` trait from the `arora-connection` crate to abstract the communication protocol. This allows different transport mechanisms to be used without changing the application logic.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  arora-connection (trait)                               │
-│  • AroraConnection trait                                │
-│  • SlotInfo, MethodInfo, InvokeResult types             │
-│  • Handler type definitions                             │
-└─────────────────────────────────────────────────────────┘
-                          ▲
-                          │ implements
-          ┌───────────────┼───────────────┐
-          │               │               │
-┌─────────┴─────┐ ┌───────┴───────┐ ┌─────┴─────────┐
-│ arora-        │ │ Future:       │ │ Future:       │
-│ websocket     │ │ arora-ros2    │ │ arora-grpc    │
-│ (WebSocket)   │ │ (ROS2 node)   │ │ (gRPC/HTTP2)  │
-└───────────────┘ └───────────────┘ └───────────────┘
-```
-
-**To add a new protocol:**
-
-1. Create a new crate (e.g., `arora-ipc`) that depends on `arora-connection`
-2. Implement the `AroraConnection` trait for your transport
-3. Optionally implement `AroraConnectionTauriExt` for Tauri event integration
-4. Update the app to use your implementation instead of (or alongside) `WsServer`
-
-The trait methods handle slot registration, value updates, method invocation, and lifecycle management—see `packages/arora-connection/src/traits.rs` for the full interface.
-
----
-
-## TypeScript Client Integration
-
-For TypeScript/JavaScript clients, use the `@vizij/arora-types` package for type-safe message construction:
-
-```bash
-npm install @vizij/arora-types
-```
-
-### Usage Example
-
-```typescript
-import {
-  f64,
-  createSetSlotValues,
-  createInvoke,
-  createListSlots,
-  extractNumericValue,
-  type Incoming,
-  type Outgoing,
-  type SlotInfo,
-} from "@vizij/arora-types";
-
-// Connect to WebSocket
-const ws = new WebSocket("ws://localhost:9000");
-
-// Send update using helper functions
-function sendEyeGaze(x: number, y: number) {
-  const msg: Incoming = createSetSlotValues({
-    "standard/vizij/left_eye/pos/x": f64(x),
-    "standard/vizij/left_eye/pos/y": f64(y),
-    "standard/vizij/right_eye/pos/x": f64(x),
-    "standard/vizij/right_eye/pos/y": f64(y),
-  });
-  ws.send(JSON.stringify(msg));
-}
-
-// Invoke a method (e.g., reset)
-function reset() {
-  const msg: Incoming = createInvoke("reset", {}, "req-1");
-  ws.send(JSON.stringify(msg));
-}
-
-// Handle responses
-ws.onmessage = (event) => {
-  const response: Outgoing = JSON.parse(event.data);
-
-  if (response.type === "list_slots_resp") {
-    console.log("Available slots:", response.slots);
-  } else if (response.type === "invoke_resp") {
-    console.log("Invoke result:", response.success, response.message);
-  }
-};
-
-// Extract values from slot info
-function handleSlotInfo(slot: SlotInfo) {
-  if (slot.default_value) {
-    const value = extractNumericValue(slot.default_value);
-    console.log("Default:", value); // e.g., 0.0
-  }
-}
-```
-
-### Available Helpers
-
-**Value Constructors:**
-
-- `f64(n)`, `f32(n)`, `i64(n)`, `i32(n)`, `u64(n)`, `u32(n)` — Numeric values
-- `str(s)`, `bool(b)`, `uuid(id)` — Scalar values
-- `unit()`, `some(value)`, `none()` — Special values
-
-**Value Extractors:**
-
-- `extractNumericValue(v)` — Get number from any numeric arora value
-- `extractStringValue(v)` — Get string value
-- `extractBooleanValue(v)` — Get boolean value
-
-**Message Constructors:**
-
-- `createSetSlotValues(values)` — Create a slot update message
-- `createGetSlotValues(slots)` — Create a slot value query
-- `createListSlots(path?)` — Create a list slots query
-- `createListMethods(path?)` — Create a list methods query
-- `createInvoke(method, args?, request_id?)` — Create a method invocation
-
-**Response Type Guards:**
-
-- `isSetSlotValuesResp(msg)` — Check if response is a slot update acknowledgment
-- `isGetSlotValuesResp(msg)` — Check if response is a slot values response
-- `isListSlotsResp(msg)` — Check if response is a slot list
-- `isListMethodsResp(msg)` — Check if response is a method list
-- `isInvokeResp(msg)` — Check if response is an invocation result
-- `isError(msg)` — Check if response is an error
-
----
-
-## License
-
-See the repository root for license information.
+- The standalone app is currently a runtime consumer, not a separate runtime implementation.
+- If runtime-react contracts change, this app usually needs README and transport-layer updates together.

@@ -1,104 +1,112 @@
 # vizij-authoring
 
-The `vizij-authoring` app is a runtime-truthful authoring surface for Vizij assets. It provides a
-fast end-to-end workflow to load `.glb` files (or authored graphs), inspect hierarchy and bindings,
-author expressions and poses, validate against the runtime, and export bundled outputs.
+`vizij-authoring` is the runtime-truthful authoring surface for Vizij assets. It lets you load a face, author bindings/poses/graphs, validate them against the same runtime stack used by downstream apps, and export the resulting bundled GLB.
 
-## Available interactions
+## Why `runtime-truthful`
 
-- **Load** – Choose a local GLB file, paste a URL, import a GraphSpec JSON/IR, or open a bundled GLB.
-- **Inspect** – Hover over any rendered element to see its metadata, animatable properties,
-  and current values.
-- **Export** – Download a bundled GLB (primary) that includes GraphSpec + IR + assets.
-- **Export (legacy)** – Download raw graph JSONs and pose config files when required.
-- **Author expressions** – Combine multiple control slots with `+`, `-`, `*`, `/`, parentheses, comparisons (`>`, `<`, `==`, `!=`), boolean logic (`&&`, `||`), and unary negation (`!`); the canvas reflects changes immediately and highlights invalid math.
-- **Curate labels** – Rename features inline, reset to the original asset label with a click, and see overrides at-a-glance.
-- **Refine slots** – Add additional slot inputs, rename their aliases, and manage per-slot remaps without leaving the feature inspector.
-- **Vector-ready bindings** – Slots now retain whether they represent scalar or vector values, paving the way for richer vector editing workflows and more accurate export summaries.
-- **Auto-generated drivers** – Every animatable feature automatically receives a standard input. Drivers can be disabled (bindings drop away but metadata is preserved), filtered by root/subgroup, and re-enabled without rebuilding the rig. Exports now embed `source`/`root` metadata so imports restore the exact driver hierarchy.
-- **Pose rig workflow** – Assign each pose to a group in the Pose Editor (or multi-select poses from the library to batch-apply a group), review grouped/collapsible sections, and export a pose-driver graph per group. Pose-weight controls now follow canonical paths `rig/{face}/poses/{poseId}.weight`, so one stable input controls each pose regardless of group membership.
-- **Rig graph import safety** – Importing `.graph.json` files now checks the embedded face id; when it disagrees with the loaded GLB you can remap the graph to the current face instead of juggling multiple assets.
+The app is built around `@vizij/runtime-react`, not a separate preview-only renderer path.
 
-### Standard Feature Spaces Editor
+That matters because the main viewer is exercising the same runtime contracts that downstream consumers rely on:
 
-The Standard Feature Spaces Editor enables you to define and configure standard input channels for facial rigs. This provides a unified naming convention that enables interoperability between different face rigs and animation systems.
+- bundle-first face loading
+- canonical rig input paths
+- pose-driver and animation registration
+- renderer output bridging
+- transport behavior for authored clips/programs
 
-**Workflow:**
+In practice, authoring uses runtime-react in more advanced ways than the simpler demos:
 
-1. Load a **main face** GLB that needs standard input configuration
-2. Optionally load a **reference face** GLB with complete bindings as a visual guide
-3. Use the **Channels tab** to view/edit the standard input hierarchy
-4. Use the **Mapping tab** to configure bindings by comparing faces side-by-side
+- `setGraphBundle()` hot-swaps rig/pose/animation/program payloads without always reloading the underlying GLB
+- `transformOutputWrite()` filters/remaps runtime outputs before they hit the renderer store
+- reference-face surfaces use shared orchestrator mode rather than isolated runtimes
 
-**Tab Overview:**
+See [`src/components/app/Viewer.tsx`](./src/components/app/Viewer.tsx) and [`src/components/app/ReferenceFaceRuntime.tsx`](./src/components/app/ReferenceFaceRuntime.tsx).
 
-- **Setup Tab**: Load reference faces, export configurations
-- **Channels Tab**: Hierarchical tree editor for managing namespace → channel → track → attribute structure
-- **Mapping Tab**: Group-centric binding editor with synchronized sliders for both faces
+## Core Workflows
 
-**Path Structure:**
+- load a local GLB, URL, bundled GLB, or imported graph payload
+- inspect hierarchy, properties, bindings, and live runtime values
+- author expressions, drivers, and pose rigs
+- validate authored output against runtime behavior
+- export a bundled GLB as the primary runtime target
 
-```
+## Notable Current Features
+
+- expression authoring with arithmetic, boolean logic, and validation feedback
+- inline label curation and slot remapping
+- auto-generated standard-input drivers with enable/disable and round-trip metadata
+- grouped pose workflow with canonical pose-weight paths: `rig/{face}/poses/{poseId}.weight`
+- graph import face-id safety and remapping
+- live IR stats and report export hooks
+
+## Standard Feature Spaces Editor
+
+The Standard Feature Spaces Editor is the main interoperability workflow for standard inputs.
+
+High-level flow:
+
+1. load the main face
+2. optionally load a reference face
+3. manage the standard channel hierarchy in the Channels tab
+4. author bindings in the Mapping tab
+
+Path shape:
+
+```text
 /standard/{namespace}/{channel}/{track}/{attribute}
 ```
 
-Example: `/standard/semio/left_eye/pos/x`
+Example:
 
-See [STD_FACE_MAPPING_SPEC.md](src/components/app/STD_FACE_MAPPING_SPEC.md) for detailed technical documentation.
+```text
+/standard/semio/left_eye/pos/x
+```
 
-### Driver authoring tips
+## Export Model
 
-- Toggle drivers via the `Enable/Disable` pill in the Drivers panel; disabled entries are greyed out and can be surfaced with the `Show disabled` toolbar control.
-- Parent/child mappings are frozen while a driver is disabled; re-enable to edit the mapping or restore cached parent bindings.
-- Graph exports (`GLB + graph`) include the enriched metadata, so round-tripping through `File → Import graph` keeps auto/custom drivers aligned with their source renderables.
+Primary target:
 
-## IR tooling
-
-- The Drivers panel surfaces live IR stats (binding counts, issue totals, registry version) and links directly into the IR inspector so you can review machine reports or diff snapshots without leaving the app.
-- Each binding slot now shows its expression variable, upstream machine-report nodes, and CASE metadata inline, which makes it easier to validate how expressions travel through the compiled IR graph.
-- The IR inspector adds a “Prep vizij-ir-report diff” button that downloads the current machine report and copies a ready-to-run CLI command, keeping parity checks one click away.
-
-### Refreshing IR parity fixtures
-
-1. Update the stacked-operator inline snapshot with `pnpm --filter @vizij/node-graph-authoring vitest src/__tests__/irParity.test.ts --run --update`.
-2. Regenerate `src/__tests__/__fixtures__/graphSpecParity.ts` via the helper snippet documented in `packages/@vizij/node-graph-authoring/README.md#updating-ir-parity-fixtures`.
-3. Re-run `pnpm --filter @vizij/node-graph-authoring test` and `pnpm --filter vizij-authoring typecheck` to confirm the refreshed fixtures stay in sync.
-
-## Export workflow (runtime-truthful)
-
-Primary export target:
-
-- **Bundled GLB** that includes GraphSpec + IR + assets (recommended for runtime).
+- bundled GLB with GraphSpec + IR + assets for runtime consumers
 
 Additional exports:
 
-- Graphs / subgraphs as JSON
-- IR snapshots as JSON
+- graph/subgraph JSON
+- IR snapshots
 
 Validation rules:
 
-- Export is **blocked when GraphSpec is invalid** (fatal build issues or failed normalization).
-- Export is **allowed even if IR is broken**, but the runtime will continue using the last-known-good GraphSpec.
+- export is blocked when GraphSpec normalization/build fails
+- export may proceed when IR is unhealthy, but the runtime keeps using the last known good graph payload
 
 ## Scripts
 
 ```bash
-pnpm --filter vizij-authoring dev      # Start Vite in development mode
-pnpm --filter vizij-authoring build    # Build the tool for production
-pnpm --filter vizij-authoring preview  # Preview the production build
+pnpm --filter vizij-authoring dev
+pnpm --filter vizij-authoring build
+pnpm --filter vizij-authoring preview
 pnpm --filter vizij-authoring typecheck
+pnpm --filter vizij-authoring lint
+pnpm --filter vizij-authoring test
+pnpm --filter vizij-authoring validate
+pnpm --filter vizij-authoring test:e2e:smoke
 ```
 
-The app expects Vizij-compatible GLB files (e.g. assets produced via the Vizij pipeline or the
-sample included in `public/samples`).
+The checked-in sample assets currently live under [`public/assets`](./public/assets).
+
+## Docs
+
+- Docs index: [`docs/README.md`](./docs/README.md)
+- Runtime/truth contracts: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- UI behavior contract: [`docs/UI_DESIGN.md`](./docs/UI_DESIGN.md)
+- Program planning/status: [`docs/plans/ROADMAP.md`](./docs/plans/ROADMAP.md), [`docs/plans/TRACKER.md`](./docs/plans/TRACKER.md)
 
 ## Deployment
 
-### Firebase Hosting
+Firebase hosting commands:
 
-1. Install the Firebase CLI (`pnpm exec firebase --version`) and authenticate once with `pnpm exec firebase login`.
-2. Build the production bundle locally when you want to validate changes: `pnpm --filter vizij-authoring build`. The deploy command triggers the same build via a predeploy hook.
-3. For a temporary preview URL run `pnpm --dir apps/vizij-authoring exec firebase hosting:channel:deploy staging --only hosting:vizij-authoring`.
-4. Promote to production with `pnpm --dir apps/vizij-authoring exec firebase deploy --only hosting:vizij-workspace`.
+```bash
+pnpm --dir apps/vizij-authoring exec firebase hosting:channel:deploy staging --only hosting:vizij-authoring
+pnpm --dir apps/vizij-authoring exec firebase deploy --only hosting:vizij-workspace
+```
 
-The Firebase config files live beside this app (`firebase.json`, `.firebaserc`). They point Hosting at the `dist/` output, apply the COOP/COEP headers required for the WASM runtime, and rewrite all routes to `index.html` for SPA routing. The optional `apphosting.yaml` is unused unless we switch to Firebase App Hosting/Cloud Run in the future.
+The app’s Firebase config points Hosting at `dist/`, keeps the wasm-related headers in place, and rewrites routes to `index.html`.

@@ -14,6 +14,8 @@ Bundle-first showcase for Vizij face exports. Load one bundled GLB, inspect the 
 
 If you want to build your own runtime-react surface, this app is the closest end-to-end example in the workspace.
 
+It is intentionally the canonical "reference consumer" for runtime-react in this repo. The package README explains the API; this app shows what the API looks like when it is driving a real bundle-first UI.
+
 ## Documentation
 
 - Full walkthrough: [`docs/runtime-react-walkthrough.md`](./docs/runtime-react-walkthrough.md)
@@ -26,6 +28,14 @@ The walkthrough covers:
 - how the demo derives pose, animation, program, and face-control surfaces
 - what the diagnostics panel is actually telling you
 - how the embedded runtime API call examples map to the transport UI
+
+## Key Files
+
+- [`src/App.tsx`](./src/App.tsx): runtime provider + workspace shell
+- [`src/data/samples.ts`](./src/data/samples.ts): sample-to-bundle mapping
+- [`src/components/PosePanel.tsx`](./src/components/PosePanel.tsx): canonical pose-weight controls
+- [`src/components/FaceControlsPanel.tsx`](./src/components/FaceControlsPanel.tsx): metadata-driven controls via runtime helpers
+- [`src/components/DiagnosticsPanel.tsx`](./src/components/DiagnosticsPanel.tsx): runtime status/error/controller surfaces
 
 ## Scripts
 

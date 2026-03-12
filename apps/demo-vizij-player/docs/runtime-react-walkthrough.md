@@ -32,6 +32,8 @@ The demo player is deliberately thin on top of that. It mostly does three things
 - constructs a `VizijAssetBundle`
 - builds UI panels from the runtime context
 
+One detail worth keeping explicit: runtime-react does not impose one global namespace scheme. Each app chooses its own namespace strategy. In this demo, every loaded source gets a per-source namespace such as `demo-vizij-player-quori-current-extended`, which keeps each loaded runtime isolated and predictable.
+
 ## 2. What `VizijRuntimeProvider` Expects
 
 At minimum, runtime-react needs a `VizijAssetBundle` with a `glb` field.
@@ -124,6 +126,12 @@ There are two important details here:
 
 - `namespace` ensures this runtime instance gets a stable identity in the orchestrator and renderer layers.
 - `stageNeutralFilter` tells `stagePoseNeutral()` to restore neutral pose channels without stomping color inputs.
+
+The namespace here is intentionally app-specific. Other apps in this repo use different patterns:
+
+- `tutorial-fullscreen-face` uses one fixed namespace
+- `vizij-showcase` generates one namespace per surface in shared mode
+- `vizij-authoring` can keep the face asset stable while swapping runtime graph payloads
 
 ## 4. How The App Boots The Runtime
 

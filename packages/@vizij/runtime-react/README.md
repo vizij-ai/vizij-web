@@ -1,182 +1,395 @@
 # @vizij/runtime-react
 
-High-level runtime harness that combines the Vizij renderer with orchestrator controllers for React apps. Drop in an asset bundle and the provider wires loading, orchestration, and rendering for you.
+`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, registers rig/pose/program/animation controllers with the orchestrator, mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
 
-> **Status:** experimental. Surface area may change ahead of the first stable release.
+The package is intentionally aimed at app authors. If your app wants to render a Vizij face and drive it through authored rig inputs, this is the layer to build on.
+
+> Status: experimental. Public API is still moving with the runtime/export pipeline.
+
+## What It Handles
+
+- load a face from a GLB URL, a `Blob`, or an already loaded world
+- extract the embedded `VIZIJ_bundle` payload when present
+- merge explicit `rig`, `pose`, `animations`, and `programs` with discovered bundle content
+- register controllers with either an isolated orchestrator or a shared parent orchestrator
+- expose runtime status, controls, diagnostics, and update hooks through React context
+- render the resolved face with `VizijRuntimeFace`
 
 ## Installation
 
 ```bash
-pnpm add @vizij/runtime-react @vizij/render @vizij/orchestrator-react react react-dom
+pnpm add @vizij/runtime-react react react-dom
 ```
 
-Those three Vizij packages must stay in lock-step; always upgrade them together.
+If your app also imports lower-level renderer or orchestrator APIs directly, install those packages too:
 
-> **Bundler configuration:** The runtime depends on `@vizij/orchestrator-wasm`, `@vizij/node-graph-wasm`, and `@vizij/animation-wasm`, all of which emit `.wasm` assets. Enable async WebAssembly and treat `.wasm` files as emitted resources in your bundler. For Next.js:
->
-> ```js
-> // next.config.js
-> module.exports = {
->   webpack: (config) => {
->     config.experiments = {
->       ...(config.experiments ?? {}),
->       asyncWebAssembly: true,
->     };
->     config.module.rules.push({
->       test: /\.wasm$/,
->       type: "asset/resource",
->     });
->     return config;
->   },
-> };
-> ```
+```bash
+pnpm add @vizij/render @vizij/orchestrator-react
+```
 
-When overriding the default wasm location, pass string URLs to the underlying `init()` helpers so Webpack doesn’t wrap them in `RelativeURL`.
+`@vizij/runtime-react`, `@vizij/render`, and `@vizij/orchestrator-react` should stay on the same workspace/release line.
 
-## Getting Started
+### Bundler Notes
+
+The runtime depends on Vizij wasm packages transitively. Your bundler needs to emit `.wasm` assets and allow async wasm loading.
+
+Example `next.config.js`:
+
+```js
+module.exports = {
+  webpack: (config) => {
+    config.experiments = {
+      ...(config.experiments ?? {}),
+      asyncWebAssembly: true,
+    };
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource",
+    });
+    return config;
+  },
+};
+```
+
+If you override wasm URLs manually, pass plain string URLs to the underlying init helpers. Avoid wrappers that turn them into `RelativeURL` objects.
+
+## Quick Start
 
 ```tsx
 import {
   VizijRuntimeFace,
   VizijRuntimeProvider,
   useVizijRuntime,
+  type VizijAssetBundle,
 } from "@vizij/runtime-react";
 
-import rigGraph from "./rig.graph.json";
+const faceAssetUrl = new URL("./face.glb", import.meta.url).href;
 
-const assetBundle = {
-  namespace: "demo",
-  glb: { kind: "url", src: new URL("./face.glb", import.meta.url).href },
-  rig: { id: "rig:demo", spec: rigGraph },
-  initialInputs: {
-    "pose/blinkLeft": { float: 0.2 },
-    "pose/blinkRight": { float: 0.2 },
+const assetBundle: VizijAssetBundle = {
+  namespace: "demo-face",
+  glb: {
+    kind: "url",
+    src: faceAssetUrl,
+    aggressiveImport: true,
+  },
+  pose: {
+    stageNeutralFilter: (_id, path) => !path.includes("/color/"),
   },
 };
 
 export function App() {
   return (
     <VizijRuntimeProvider assetBundle={assetBundle} autostart>
-      <RuntimeHud />
-      <VizijRuntimeFace />
+      <RuntimeStage />
     </VizijRuntimeProvider>
   );
 }
 
-function RuntimeHud() {
-  const { loading, error, namespace } = useVizijRuntime();
-  if (loading) return <p>Loading bundle...</p>;
-  if (error) return <p>Failed to load runtime: {error.message}</p>;
-  return <p>Runtime online for namespace {namespace}</p>;
+function RuntimeStage() {
+  const { loading, ready, error, stagePoseNeutral } = useVizijRuntime();
+
+  if (loading) return <p>Loading face…</p>;
+  if (error) return <p>Runtime failed: {error.message}</p>;
+  if (!ready) return <p>Preparing runtime…</p>;
+
+  return (
+    <div>
+      <button onClick={() => stagePoseNeutral(true)}>Reset pose</button>
+      <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
+    </div>
+  );
 }
 ```
 
-The provider creates a renderer store, boots the orchestrator, registers the supplied bundle, then renders the face once bounds are available.
+The provider resolves the face bundle, creates or reuses an orchestrator, registers the relevant controllers, and publishes the merged runtime state through `useVizijRuntime()`.
 
-### Sharing one orchestrator across multiple faces
+## Core Concepts
 
-Wrap your app in a single `<OrchestratorProvider>` and give each `VizijRuntimeProvider` a unique `namespace`. The runtime will automatically reuse a parent orchestrator provider (instead of spinning up one per face), prefix graph inputs/outputs with that namespace inside the wasm blackboard, and strip the prefix again before values reach the renderer store. Set `orchestratorScope="shared"` when you want to enforce reuse; leave it at the default `"auto"` to reuse when available and fall back to an isolated provider otherwise.
+### Bundle-first runtime
 
-## Asset Bundle Anatomy
+The main contract is `VizijAssetBundle`. In the default workflow you hand the runtime one GLB and let it discover as much as possible from the embedded `VIZIJ_bundle`.
 
-`VizijRuntimeProvider` expects a `VizijAssetBundle`:
+Explicit overrides still work. If you provide `rig`, `pose`, `animations`, or `programs`, the runtime merges them with embedded bundle data and deduplicates animations/programs by id.
 
-- `glb`: required. Either `{ kind: "url", src }`, `{ kind: "blob", blob }`, or `{ kind: "world", world, animatables, bundle? }`. URL/blob variants can opt into `aggressiveImport` for tooling builds and provide `rootBounds` overrides when the GLB lacks metadata.
-- `rig`: optional. When omitted, the runtime looks for a `VIZIJ_bundle` extension inside the GLB and registers the first rig graph it finds.
-- `pose`: optional. Provide your own pose graph/config or just a `stageNeutralFilter`; bundled pose data is pulled from the GLB when present.
-- `animations`: optional array. Explicit entries merge with animations discovered in the GLB bundle (deduped by id). Use `playAnimation` to trigger them.
-- `programs`: optional array. Explicit entries merge with bundled `motiongraph` programs (deduped by id). Use `playProgram` / `pauseProgram` / `stopProgram` to control them.
-- `initialInputs`: optional map of ValueJSON that seeds inputs before autostart.
-- `metadata`: free-form dictionary you can read back through `useVizijRuntime().assetBundle.metadata`.
-- `bundle`: optional. Supply pre-parsed bundle metadata when you manage world loading yourself. When loading from GLB/Blob the runtime fills this with the extracted `VizijBundleExtension`.
+### Shared or isolated orchestration
 
-Namespace defaults to `assetBundle.namespace ?? "default"`. Face id falls back to the bundle pose config when omitted.
+`VizijRuntimeProvider` can:
+
+- create its own isolated orchestrator
+- reuse a parent `OrchestratorProvider`
+- require a shared parent and warn/fallback if one is missing
+
+This is how `vizij-showcase` and `vizij-authoring` host multiple runtime surfaces without every face spinning up its own orchestrator loop.
+
+### Asset reloads vs graph re-registration
+
+When you swap the `assetBundle` prop, the runtime decides whether it needs to reload assets or only re-register controllers. That behavior is controlled by `updateTier` and is also exposed as `resolveRuntimeUpdatePlan()`.
+
+This matters for tooling apps like `vizij-authoring`, where graphs/animations can change without replacing the face asset itself.
+
+## `VizijAssetBundle`
+
+```ts
+type VizijAssetBundle = {
+  namespace?: string;
+  faceId?: string;
+  glb: VizijGlbAsset;
+  rig?: VizijGraphAsset;
+  pose?: {
+    graph?: VizijGraphAsset;
+    config?: PoseRigConfig;
+    stageNeutralFilter?: (id: string, path: string) => boolean;
+  };
+  animations?: VizijAnimationAsset[];
+  programs?: VizijProgramAsset[];
+  initialInputs?: Record<string, ValueJSON>;
+  metadata?: Record<string, unknown>;
+  bundle?: VizijBundleExtension | null;
+};
+```
+
+### `glb`
+
+Required. One of:
+
+- `{ kind: "url", src, aggressiveImport?, rootBounds? }`
+- `{ kind: "blob", blob, aggressiveImport?, rootBounds? }`
+- `{ kind: "world", world, animatables, bundle? }`
+
+Use `kind: "world"` when your app already loaded the scene and wants runtime-react to wire only the orchestration/runtime layer.
+
+### `rig`
+
+Optional `VizijGraphAsset` for the main rig graph. When omitted, the runtime looks for a compatible graph in the embedded bundle.
+
+### `pose`
+
+Optional pose graph/config surface:
+
+- `graph`: pose-driver graph override
+- `config`: `PoseRigConfig` used by pose-aware UIs
+- `stageNeutralFilter`: lets you skip specific neutral writes, for example baked color channels
+
+### `animations`
+
+Optional authored clips. These merge with embedded bundle animations and extracted GLTF animation clips.
+
+### `programs`
+
+Optional procedural programs. These merge with embedded bundle `motiongraph` entries.
+
+### `initialInputs`
+
+Optional `ValueJSON` map staged before autostart/manual stepping.
+
+### `metadata`
+
+Arbitrary app metadata. The runtime keeps it attached to the resolved `assetBundle`.
+
+### `bundle`
+
+Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bundle metadata yourself.
 
 ## Provider Props
 
-- `assetBundle`: bundle described above.
-- `namespace` / `faceId`: override bundle values to reuse the same assets under multiple namespaces or faces.
-- `autoCreate` + `createOptions`: forwarded to `OrchestratorProvider`. Leave `autoCreate` enabled unless you need manual control over WASM creation.
-- `autostart`: when true, the orchestrator starts ticking as soon as assets register.
-- `driveOrchestrator`: defaults to `true`. In shared orchestrator setups, set this to `false` on non-driver runtimes so only one loop calls `stepRuntime` while others continue to stage inputs/animations.
-- `mergeStrategy`: orchestrator merge strategy, defaults to additive for outputs/intermediate values.
-- `orchestratorScope`: control orchestrator reuse. `"auto"` (default) reuses a parent `OrchestratorProvider` when present, `"shared"` requires one, and `"isolated"` always spins up a dedicated instance.
-- `onRegisterControllers(ids)`: observe graph and animation controller ids that were registered.
-- `onStatusChange(status)`: gets every status update (loading events, errors, controller updates).
+`VizijRuntimeProviderProps`:
 
-Inputs are staged in a per-frame buffer and flushed together before each `step()`, minimizing wasm boundary crossings even when multiple drivers write in the same tick.
+- `assetBundle`: required runtime bundle
+- `namespace`, `faceId`: override resolved ids without mutating the incoming bundle
+- `updateTier`: `"auto"` (default), `"assets"`, or `"graphs"`
+- `autoCreate`, `createOptions`: forwarded to orchestrator creation when this provider owns the orchestrator
+- `autostart`: start the runtime loop automatically after registration
+- `driveOrchestrator`: whether this runtime instance should call `step()` during its loop
+- `mergeStrategy`: forwarded to graph/animation registration
+- `orchestratorScope`: `"auto"`, `"shared"`, or `"isolated"`
+- `transformOutputWrite(write)`: intercept or drop output writes before they hit the renderer store
+- `onRegisterControllers(ids)`: receive registered graph/animation ids
+- `onStatusChange(status)`: subscribe to runtime status changes
 
-The provider exposes context via `useVizijRuntime()` once `loading` flips to `false`.
+### Important runtime flags
 
-## Hooks and Helpers
+- `autostart` controls whether the orchestrator begins stepping automatically once ready.
+- `driveOrchestrator={false}` is useful for non-driver faces in shared-orchestrator layouts.
+- `orchestratorScope="shared"` is the strict mode for apps that expect an outer `OrchestratorProvider`.
+- `transformOutputWrite` is the hook to remap or suppress specific runtime outputs before they update renderer state.
 
-- `useVizijRuntime()`: returns the full runtime context (status, setters, animation helpers, and the original asset bundle). Common properties:
-  - `loading`, `ready`, `error`, `errors`: lifecycle state.
-  - `namespace`, `faceId`, `rootId`: resolved IDs the renderer/orchestrator share.
-  - `outputPaths`: namespaced output signal paths detected in the registered graphs (matches orchestrator write keys).
-  - `controllers`: `{ graphs, anims }` that were installed.
-  - `setInput(path, value)`, `setValue(id, namespace, value)`: talk directly to the orchestrator or renderer store.
-  - `stagePoseNeutral(force)`: restore the neutral pose captured at export.
-  - `animateValue(path, target, options)`, `cancelAnimation(path)`: tween rig values with built-in easing.
-  - `playAnimation(id, options)`, `stopAnimation(id)`: drive bundle animations that were provided in `animations`.
-  - `playProgram(id)`, `pauseProgram(id)`, `stopProgram(id)`: drive bundled procedural programs discovered from `motiongraph` bundle entries or supplied via `programs`.
-  - `step(dt)` / `advanceAnimations(dt)`: manually tick the orchestrator if you run outside `autostart`.
-- `useRigInput(path)`: returns `[value, setter]` for a single rig input. The setter writes through the orchestrator while the value mirrors the renderer store.
-- `useVizijOutputs(paths)`: subscribes to renderer output paths (`RawValue` map) for UI or logging.
-- `registerInputDriver(id, factory)`: attach custom drivers (speech-to-anim, sensors). The factory receives `setInput` and `setRendererValue` helpers and must return `{ start, stop, dispose }`.
+## Runtime Context API
+
+Use `useVizijRuntime()` inside the provider tree.
+
+### Status and identity
+
+- `loading`, `ready`
+- `error`, `errors`
+- `namespace`, `faceId`, `rootId`
+- `controllers.graphs`, `controllers.anims`
+- `outputPaths`
+- `stepHz`
+- `assetBundle`
+- `inputConstraints`
+
+`inputConstraints` is built from graph metadata and is the right source for slider defaults/ranges in tooling UIs.
+
+### Input and renderer writes
+
+- `setInput(path, value, shape?)`
+- `setValue(id, namespace, value)`
+- `stagePoseNeutral(force?)`
+
+### Runtime graph updates
+
+- `setGraphBundle(bundle, options?)`
+
+`setGraphBundle()` lets you swap `rig`, `pose`, `animations`, and `programs` at runtime. This is the API that tooling apps use when the face asset stays the same but the authored runtime bundle changes.
+
+### Value animation helpers
+
+- `animateValue(path, target, options?)`
+- `cancelAnimation(path)`
+- `setAnimationActive(active)`
+- `isAnimationActive()`
+
+`animateValue()` is the simple way to tween a single rig input path with built-in easing.
+
+### Clip transport
+
+- `playAnimation(id, options?)`
+- `pauseAnimation(id)`
+- `seekAnimation(id, timeSeconds)`
+- `setAnimationLoop(id, enabled)`
+- `getAnimationState(id)`
+- `stopAnimation(id, options?)`
+
+### Program transport
+
+- `playProgram(id)`
+- `pauseProgram(id)`
+- `stopProgram(id, options?)`
+- `getProgramState(id)`
+
+### Manual stepping
+
+- `step(dt, opts?)`
+- `advanceAnimations(dt)`
+
+Use manual stepping when you do not want the provider to own the runtime loop or when hidden/shared faces need low-frequency background stepping.
+
+### Driver registration
+
+- `registerInputDriver(id, factory)`
+
+Custom input drivers receive:
+
+- `setInput(path, value, shape?)`
+- `setRendererValue(id, namespace, valueOrUpdater)`
+- `namespace`
+- `faceId`
+
+Return `{ start, stop, dispose }`.
+
+## Hooks
+
+### `useVizijRuntime()`
+
+Throws when used outside the provider.
+
+### `useOptionalVizijRuntime()`
+
+Returns `null` when no provider is present. This is useful for shared components that can operate with or without a runtime.
+
+### `useRigInput(path)`
+
+Returns `[value, setValue]` for a single runtime input path. The setter writes through the orchestrator, while the value mirrors the renderer store.
+
+### `useVizijOutputs(paths)`
+
+Subscribes to renderer output values for the current namespace and returns a path-to-value map.
 
 ## Components
 
-- `<VizijRuntimeFace />`: renders a `<Vizij>` once `rootId` is known. Pass any renderer props (camera controls, overlays, etc.). Use `namespaceOverride` to inspect another namespace while keeping the runtime context intact.
-- Compose your own UI with the renderer primitives exported from `@vizij/render`. The runtime only handles wiring and state.
+### `VizijRuntimeFace`
 
-## Error Handling
+`VizijRuntimeFace` renders the resolved face using the current runtime namespace and root id.
 
-Errors are captured with phase metadata. `status.error` is the most recent failure; `status.errors` keeps history for observability panels. Typical phases:
+It accepts normal `Vizij` renderer props except `rootId` and `namespace`, which are owned by the runtime. It also supports `namespaceOverride` when you need to inspect another namespace while keeping the current runtime context.
 
-- `assets`: bundle loading issues (bad GLB URL, malformed rig spec).
-- `registration`: orchestrator graph registration problems.
-- `driver`: input driver lifecycle exceptions.
-- `animation`: failures while sampling clip tracks.
+## Exported Utilities
 
-Watch `onStatusChange` for realtime updates and implement retries or fallbacks in your UI.
+### Pose path helpers
 
-## Working With Animations
+- `buildRigInputPath(faceId, path)`
+- `buildPoseWeightInputPathSegment(poseId)`
+- `buildPoseWeightRelativePath(poseId)`
+- `buildPoseWeightPathMap(poses, faceId)`
 
-Animations are defined alongside rig inputs. Each track maps to an input path (`animation/<id>/<channel>`). When `playAnimation` runs, the runtime schedules frames and writes values back through the orchestrator merge strategy. Use `options.reset` to restart clips, `options.weight` to blend multiple clips, and `stopAnimation` to cut a clip immediately.
+These are the canonical helpers for pose-weight paths. The current runtime/export contract is:
 
-## Working With Procedural Programs
-
-Bundled procedural programs are discovered from `motiongraph` graph entries in the embedded `VIZIJ_bundle`. `playProgram(id)` registers the graph and lets it own any output paths it writes. `pauseProgram(id)` unregisters it without resetting its last written values. `stopProgram(id)` unregisters it and restores owned inputs to their default values when available.
-
-For ad-hoc gestures, use `animateValue` with duration/easing. If you need custom easing, pass a function `(t) => number`.
-
-## Asset Bundling Workflow
-
-1. Export an authoring scene to GLB with Vizij metadata intact (bounds, animatable ids). Enable “Embed Vizij bundle” in vizij-authoring to persist rig graphs, pose rig data, animations, and procedural programs inside the GLB.
-2. Drop the GLB into a `VizijAssetBundle` and let the runtime extract rig/pose/animation/program data automatically.
-3. Optionally override or extend bundle contents by setting `rig`, `pose`, `animations`, or `programs` manually (useful for tooling builds or custom staging).
-4. Host GLB URLs or include them via bundler asset imports (`new URL("./face.glb", import.meta.url).href`).
-
-The runtime tolerates incremental bundles; swap `assetBundle` props to hot-reload assets in dev builds.
-
-## Development Scripts
-
-```bash
-pnpm --filter "@vizij/runtime-react" build      # tsup compile to dist/
-pnpm --filter "@vizij/runtime-react" test       # vitest
-pnpm --filter "@vizij/runtime-react" typecheck  # tsc --noEmit
-pnpm --filter "@vizij/runtime-react" lint       # eslint
-pnpm --filter "@vizij/runtime-react" dev        # tsup watch build
+```text
+rig/{faceId}/poses/{poseId}.weight
 ```
 
-Changes to orchestrator or renderer packages often require coordinated updates here; run the fullscreen tutorial app (`apps/tutorial-fullscreen-face`) to validate.
+### Pose semantics helpers
 
-## Publishing
+- `normalizePoseSemanticKey()`
+- `getPoseSemanticKey()`
+- `resolvePoseMembership()`
+- `resolvePoseSemantics()`
+- `filterPosesBySemanticKind()`
+- `buildSemanticPoseWeightPathMap()`
+- constants such as `VISEME_POSE_KEYS`, `EMOTION_POSE_KEYS`, and `EXPRESSIVE_EMOTION_POSE_KEYS`
 
-When ready to publish:
+These helpers are what the fullscreen/tutorial/showcase apps use to order emotion and viseme hotkeys without hard-coding face-specific pose names.
 
-1. `pnpm changeset` and follow the prompts.
-2. `pnpm version:packages` and `pnpm install` to sync lockfiles.
-3. Build, test, and pack the runtime filter (`pnpm --filter "@vizij/runtime-react" build`, `pnpm --filter "@vizij/runtime-react" test`, `pnpm --filter "@vizij/runtime-react" exec npm pack --dry-run`).
-4. Push a tag named `npm-runtime-react-vX.Y.Z`. The shared GitHub Action handles `npm publish`.
+### Face control helpers
+
+- `resolveFaceControls(assetBundle, runtimeFaceId?, inputConstraints?)`
+- `mapNormalizedControlValue(control, value)`
+- `mapUnitControlValue(control, value)`
+
+Use these when you want to build gaze/blink/eyelid controls from runtime metadata rather than hard-coded paths.
+
+### Update policy helpers
+
+- `resolveRuntimeUpdatePlan(previous, next, tier)`
+
+This is the same policy used internally by the provider to decide between:
+
+- reloading assets
+- only re-registering graphs/animations/programs
+- doing nothing
+
+## Common Patterns
+
+### Shared orchestrator across multiple faces
+
+Wrap the outer app in `OrchestratorProvider`, then mount each runtime with `orchestratorScope="shared"`. Only one visible/driver face should normally have `driveOrchestrator={true}`.
+
+### Bundle-first player
+
+See [`apps/demo-vizij-player`](../../apps/demo-vizij-player/README.md) for the reference “one bundled GLB in, runtime UI out” flow.
+
+### Fullscreen face tutorials
+
+See:
+
+- [`apps/tutorial-fullscreen-face/tutorial.md`](../../apps/tutorial-fullscreen-face/tutorial.md)
+- [`apps/tutorial-agent-face/tutorial.md`](../../apps/tutorial-agent-face/tutorial.md)
+
+### Runtime-truthful authoring
+
+See [`apps/vizij-authoring/README.md`](../../apps/vizij-authoring/README.md) for the `setGraphBundle()` and `transformOutputWrite()` tooling workflow.
+
+## Development
+
+```bash
+pnpm --filter "@vizij/runtime-react" build
+pnpm --filter "@vizij/runtime-react" test
+pnpm --filter "@vizij/runtime-react" typecheck
+pnpm --filter "@vizij/runtime-react" lint
+pnpm --filter "@vizij/runtime-react" dev
+```
+
+When you change runtime behavior, validate at least one bundle-first app and one shared-runtime app. In this repo the fastest pair is usually:
+
+- `demo-vizij-player`
+- `vizij-showcase` or `vizij-authoring`
