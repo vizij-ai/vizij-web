@@ -18,6 +18,7 @@ export type PoseDefinition = {
   description?: string;
   group?: string | null;
   groupId?: string | null;
+  groupIds?: string[];
   values: Record<string, number | undefined>;
 };
 
