@@ -7,7 +7,7 @@ import {
 } from "@vizij/runtime-react";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { useIdleGazeBehavior } from "./hooks/useIdleGazeBehavior";
-import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
+import { usePoseHotkeys, POSE_HOTKEY_LAYOUT } from "./hooks/usePoseHotkeys";
 import { usePoseWarmup } from "./hooks/usePoseWarmup";
 import { useGeminiLive } from "./hooks/useGeminiLive";
 import { useVisemeMouth } from "./hooks/useVisemeMouth";
@@ -74,14 +74,12 @@ function AgentFaceRuntime() {
   }, [ready, stagePoseNeutral]);
 
   const hotkeyHints = useMemo(() => {
-    if (!poseConfig) return [];
-    return poseConfig.poses
-      .slice(0, POSE_HOTKEY_ORDER.length)
-      .map((pose, idx) => ({
-        key: POSE_HOTKEY_ORDER[idx],
-        label: pose.name ?? `Pose ${idx + 1}`,
-      }));
-  }, [poseConfig]);
+    if (!poseConfig || bindings.length === 0) return [];
+    return bindings.slice(0, POSE_HOTKEY_LAYOUT.length).map((binding, idx) => ({
+      key: POSE_HOTKEY_LAYOUT[idx]?.label ?? `${idx + 1}`,
+      label: binding.pose.name ?? `Pose ${idx + 1}`,
+    }));
+  }, [bindings, poseConfig]);
 
   const audioManager = useMemo(() => new AudioManager(), []);
   const [mouthMode, setMouthMode] = useState<"baseline" | "synth" | "align">(
@@ -313,12 +311,12 @@ function AgentFaceRuntime() {
       {showHints && (
         <div className="hint">
           <div>Move the mouse to steer gaze.</div>
-          <div>Press the number keys to trigger poses:</div>
+          <div>Press the hotkeys to trigger poses:</div>
           {hotkeyHints.length > 0 ? (
             <ul>
               {hotkeyHints.map((entry) => (
                 <li key={entry.key}>
-                  <kbd>{entry.key.replace("Digit", "")}</kbd> → {entry.label}
+                  <kbd>{entry.key}</kbd> → {entry.label}
                 </li>
               ))}
             </ul>
