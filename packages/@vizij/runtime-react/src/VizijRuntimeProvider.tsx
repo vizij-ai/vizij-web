@@ -67,14 +67,21 @@ import {
   collectInputPaths,
   collectOutputPaths,
 } from "./utils/graph";
+import { buildPoseWeightPathMap, buildRigInputPath } from "./utils/posePaths";
+import {
+  resolvePoseControlInputPath,
+  shouldUseLegacyPoseWeightFallback,
+} from "./utils/poseRuntime";
 import {
   advanceClipTime,
   clampAnimationTime,
   resolveClipDurationSeconds,
-  resolveTrackInputPath,
-  sampleClipAtTime,
 } from "./utils/clipPlayback";
-import { resolveAnimationBridgeOutputPaths } from "./utils/animationBridge";
+import {
+  collectAnimationClipOutputPaths,
+  diffAnimationAggregateValues,
+  sampleAnimationClipOutputValues,
+} from "./utils/animationBridge";
 import { valueJSONToRaw } from "./utils/valueConversion";
 import type { VizijInputMetadata } from "./types";
 
@@ -1051,101 +1058,6 @@ function toStoredAnimationClip(
   };
 }
 
-function buildAnimationBridgeGraphConfig(
-  animation: VizijAnimationAsset,
-  namespace: string,
-  faceId?: string,
-  rigInputMap?: Record<string, string>,
-): GraphRegistrationConfig | null {
-  const rawTracks = Array.isArray(animation.clip?.tracks)
-    ? (animation.clip.tracks as AnimationTrackLike[])
-    : [];
-  if (rawTracks.length === 0) {
-    return null;
-  }
-
-  const channels = Array.from(
-    new Set(
-      rawTracks
-        .map((track) =>
-          typeof track.channel === "string"
-            ? track.channel.trim().replace(/^\/+/, "")
-            : "",
-        )
-        .filter((channel) => channel.length > 0),
-    ),
-  ).sort((left, right) => left.localeCompare(right));
-
-  if (channels.length === 0) {
-    return null;
-  }
-
-  const nodes: GraphNodeSpec[] = [];
-  const inputs: string[] = [];
-  const outputs: string[] = [];
-
-  channels.forEach((channel, index) => {
-    const inputNodeId = `anim_in_${index.toString().padStart(4, "0")}`;
-    const animationPath = `animation/${animation.id}/${channel}`;
-    const outputPaths = resolveAnimationBridgeOutputPaths(
-      channel,
-      faceId,
-      rigInputMap,
-    );
-    inputs.push(animationPath);
-    nodes.push({
-      id: inputNodeId,
-      type: "input",
-      params: {
-        path: animationPath,
-        value: { float: 0 },
-      },
-    } as GraphNodeSpec);
-    outputPaths.forEach((outputPath, outputIndex) => {
-      const outputNodeId = `anim_out_${index
-        .toString()
-        .padStart(4, "0")}_${outputIndex.toString().padStart(2, "0")}`;
-      outputs.push(outputPath);
-      nodes.push({
-        id: outputNodeId,
-        type: "output",
-        params: {
-          path: outputPath,
-        },
-        inputs: {
-          in: inputNodeId,
-        },
-      } as GraphNodeSpec);
-    });
-  });
-
-  const namespacedSpec = stripNulls(
-    namespaceGraphSpec(
-      {
-        nodes,
-        edges: [],
-      },
-      namespace,
-    ),
-  );
-
-  return {
-    id: namespaceControllerId(
-      `animation-bridge-${animation.id}`,
-      namespace,
-      "graph",
-    ),
-    spec: namespacedSpec,
-    subs: namespaceSubscriptions(
-      {
-        inputs,
-        outputs,
-      },
-      namespace,
-    ),
-  } satisfies GraphRegistrationConfig;
-}
-
 export function VizijRuntimeProvider({
   assetBundle,
   children,
@@ -1336,6 +1248,7 @@ function VizijRuntimeProviderInner({
     registerAnimation,
     removeGraph,
     removeAnimation,
+    removeInput,
     listControllers,
     setInput: orchestratorSetInput,
     getPathSnapshot,
@@ -1378,6 +1291,34 @@ function VizijRuntimeProviderInner({
   const registeredAnimationsRef = useRef<string[]>([]);
   const mergedGraphRef = useRef<string | null>(null);
   const poseControlBridgeValuesRef = useRef<Map<string, number>>(new Map());
+  const poseWeightFallbackMap = useMemo(() => {
+    const map = new Map<string, Record<string, number>>();
+    const poseConfig = assetBundle.pose?.config;
+    if (!poseConfig) {
+      return map;
+    }
+    const posePaths = buildPoseWeightPathMap(
+      poseConfig.poses ?? [],
+      poseConfig.faceId ?? faceId ?? "face",
+    );
+    (poseConfig.poses ?? []).forEach((pose) => {
+      const posePath = posePaths.get(pose.id);
+      if (!posePath) {
+        return;
+      }
+      const values = Object.fromEntries(
+        Object.entries(pose.values ?? {}).filter(([, value]) =>
+          Number.isFinite(value),
+        ),
+      ) as Record<string, number>;
+      map.set(posePath, values);
+    });
+    return map;
+  }, [assetBundle.pose?.config, faceId]);
+  const useLegacyPoseWeightFallback = useMemo(
+    () => shouldUseLegacyPoseWeightFallback(Boolean(assetBundle.pose?.graph)),
+    [assetBundle.pose?.graph],
+  );
   const [inputConstraints, setInputConstraints] = useState<
     Record<string, { min?: number; max?: number; defaultValue?: number }>
   >({});
@@ -1385,6 +1326,10 @@ function VizijRuntimeProviderInner({
 
   const animationTweensRef = useRef<Map<string, AnimationState>>(new Map());
   const clipPlaybackRef = useRef<Map<string, ClipPlaybackState>>(new Map());
+  const clipOutputValuesRef = useRef<Map<string, Map<string, number>>>(
+    new Map(),
+  );
+  const clipAggregateValuesRef = useRef<Map<string, number>>(new Map());
   const animationSystemActiveRef = useRef(true);
   const stagedInputsRef = useRef<
     Map<string, { value: ValueJSON; shape?: ShapeJSON }>
@@ -1471,6 +1416,36 @@ function VizijRuntimeProviderInner({
 
   const setInput = useCallback(
     (path: string, value: ValueJSON, shape?: ShapeJSON) => {
+      const numericValue = valueAsNumber(value);
+      const basePath = stripNamespace(
+        normalisePath(path),
+        namespaceRef.current,
+      );
+      const poseValues =
+        useLegacyPoseWeightFallback && numericValue != null
+          ? poseWeightFallbackMap.get(basePath)
+          : undefined;
+      if (poseValues && numericValue != null) {
+        const poseFaceId = assetBundle.pose?.config?.faceId ?? faceId ?? "face";
+        const rigMap = rigInputMapRef.current;
+        Object.entries(poseValues).forEach(([inputId, poseValue]) => {
+          if (!Number.isFinite(poseValue)) {
+            return;
+          }
+          const controlPath =
+            resolvePoseControlInputPath({
+              inputId,
+              basePath: buildRigInputPath(
+                poseFaceId,
+                `/pose/control/${inputId}`,
+              ),
+              rigInputPathMap: rigMap,
+              hasNativePoseControlInput: true,
+            }) ?? buildRigInputPath(poseFaceId, `/pose/control/${inputId}`);
+          setInput(controlPath, { float: Number(poseValue) * numericValue });
+        });
+        return;
+      }
       markActivity();
       const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
       if (
@@ -1486,7 +1461,13 @@ function VizijRuntimeProviderInner({
       }
       stagedInputsRef.current.set(namespacedPath, { value, shape });
     },
-    [markActivity],
+    [
+      assetBundle.pose?.config?.faceId,
+      faceId,
+      markActivity,
+      poseWeightFallbackMap,
+      useLegacyPoseWeightFallback,
+    ],
   );
 
   const reportStatus = useCallback(
@@ -1560,6 +1541,8 @@ function VizijRuntimeProviderInner({
     baseOutputPathsRef.current = new Set();
     namespacedOutputPathsRef.current = new Set();
     rigPoseControlInputIdsRef.current = new Set();
+    clipOutputValuesRef.current.clear();
+    clipAggregateValuesRef.current.clear();
   }, [listControllers, removeAnimation, removeGraph, pushError]);
 
   useEffect(() => {
@@ -1827,26 +1810,14 @@ function VizijRuntimeProviderInner({
     }
 
     for (const animation of assetBundle.animations ?? []) {
-      const bridgeConfig = buildAnimationBridgeGraphConfig(
-        animation,
-        namespace,
+      const bridgeOutputs = collectAnimationClipOutputPaths(
+        animation.clip as AnimationClipLike,
         faceId ?? undefined,
         rigInputMapRef.current,
       );
-      if (!bridgeConfig) {
-        continue;
-      }
-      graphConfigs.push(bridgeConfig);
-      const bridgeOutputs =
-        bridgeConfig.subs && Array.isArray(bridgeConfig.subs.outputs)
-          ? bridgeConfig.subs.outputs.map((path) =>
-              stripNamespace(path, namespace),
-            )
-          : [];
       if (isRuntimeDebugEnabled()) {
-        console.log("[vizij-runtime] animation bridge config", {
+        console.log("[vizij-runtime] animation output routing", {
           animationId: animation.id,
-          bridgeInputs: bridgeConfig.subs?.inputs ?? [],
           bridgeOutputs,
           bridgeOutputsText: bridgeOutputs.join(" | "),
         });
@@ -2041,15 +2012,21 @@ function VizijRuntimeProviderInner({
       );
       if (poseControlMatch && typeof raw === "number" && Number.isFinite(raw)) {
         const inputId = (poseControlMatch[1] ?? "").trim();
-        // Bridge pose-control outputs only when the rig graph does not expose
-        // a native pose-control input for this channel. This keeps legacy
-        // bundles working without double-applying pose contributions.
         const hasNativePoseControlInput =
           inputId.length > 0 && rigPoseControlInputIds.has(inputId);
+        // Merged graphs do not automatically recycle pose-driver outputs into
+        // sibling rig inputs, so native pose-control channels still need to be
+        // restaged as runtime inputs on the next frame. Prefer explicit rig
+        // input mappings first, then fall back to the native pose-control path.
         const mappedInputPath =
-          !hasNativePoseControlInput && inputId
-            ? rigInputPathMap[inputId]
-            : undefined;
+          inputId.length === 0
+            ? undefined
+            : resolvePoseControlInputPath({
+                inputId,
+                basePath,
+                rigInputPathMap,
+                hasNativePoseControlInput,
+              });
         if (mappedInputPath) {
           const bridgeKey = `${namespaceValue}:${mappedInputPath}`;
           const previousValue =
@@ -2208,6 +2185,66 @@ function VizijRuntimeProviderInner({
     [orchestratorSetInput, setInput],
   );
 
+  const clearAnimationInput = useCallback(
+    (path: string) => {
+      const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
+      stagedInputsRef.current.delete(namespacedPath);
+      removeInput(namespacedPath);
+    },
+    [removeInput],
+  );
+
+  const buildClipOutputValues = useCallback(
+    (
+      clip: VizijAnimationAsset,
+      state: ClipPlaybackState,
+    ): Map<string, number> =>
+      sampleAnimationClipOutputValues(
+        clip.clip as AnimationClipLike,
+        state.time,
+        state.weight,
+        faceId ?? undefined,
+        rigInputMapRef.current,
+      ),
+    [faceId],
+  );
+
+  const computeClipAggregateValues = useCallback((): Map<string, number> => {
+    const aggregate = new Map<string, number>();
+    clipOutputValuesRef.current.forEach((outputValues) => {
+      outputValues.forEach((value, path) => {
+        aggregate.set(path, (aggregate.get(path) ?? 0) + value);
+      });
+    });
+    return aggregate;
+  }, []);
+
+  const stageClipAggregateValues = useCallback(
+    (nextAggregate: Map<string, number>, options?: { immediate?: boolean }) => {
+      diffAnimationAggregateValues(
+        clipAggregateValuesRef.current,
+        nextAggregate,
+        POSE_CONTROL_BRIDGE_EPSILON,
+      ).forEach((operation) => {
+        if (operation.kind === "clear") {
+          clearAnimationInput(operation.path);
+          return;
+        }
+        setAnimationInput(operation.path, operation.value, options);
+      });
+
+      clipAggregateValuesRef.current = nextAggregate;
+    },
+    [clearAnimationInput, setAnimationInput],
+  );
+
+  const syncClipOutputs = useCallback(
+    (options?: { immediate?: boolean }) => {
+      stageClipAggregateValues(computeClipAggregateValues(), options);
+    },
+    [computeClipAggregateValues, stageClipAggregateValues],
+  );
+
   const writeClipOutputs = useCallback(
     (
       clip: VizijAnimationAsset,
@@ -2217,34 +2254,24 @@ function VizijRuntimeProviderInner({
       if (!animationSystemActiveRef.current) {
         return;
       }
-      const samples = sampleClipAtTime(
+      clipOutputValuesRef.current.set(
         clip.id,
-        clip.clip as AnimationClipLike,
-        state.time,
-        state.weight,
+        buildClipOutputValues(clip, state),
       );
-      samples.forEach((sample) => {
-        setAnimationInput(sample.path, sample.value, options);
-      });
+      syncClipOutputs(options);
     },
-    [setAnimationInput],
+    [buildClipOutputValues, syncClipOutputs],
   );
 
   const clearClipOutputs = useCallback(
-    (clip: VizijAnimationAsset) => {
-      const clipData: AnimationClipLike = clip.clip;
-      const tracks = Array.isArray(clipData?.tracks)
-        ? (clipData.tracks as AnimationTrackLike[])
-        : [];
-      tracks.forEach((track) => {
-        const path = resolveTrackInputPath(clip.id, track);
-        if (!path) {
-          return;
-        }
-        setInput(path, { float: 0 });
-      });
+    (clipId: string, options?: { immediate?: boolean }) => {
+      if (!clipOutputValuesRef.current.has(clipId)) {
+        return;
+      }
+      clipOutputValuesRef.current.delete(clipId);
+      syncClipOutputs(options);
     },
-    [setInput],
+    [syncClipOutputs],
   );
 
   const createClipPlaybackState = useCallback(
@@ -2334,9 +2361,8 @@ function VizijRuntimeProviderInner({
 
       toDelete.forEach((key) => {
         clipPlaybackRef.current.delete(key);
-        const clip = resolveClipById(key);
-        if (clip && animationSystemActiveRef.current) {
-          clearClipOutputs(clip);
+        if (animationSystemActiveRef.current) {
+          clearClipOutputs(key);
         }
       });
     },
@@ -2344,7 +2370,48 @@ function VizijRuntimeProviderInner({
   );
 
   const animateValue = useCallback(
-    (path: string, target: ValueJSON, options?: AnimateValueOptions) => {
+    (
+      path: string,
+      target: ValueJSON,
+      options?: AnimateValueOptions,
+    ): Promise<void> => {
+      const targetValue = valueAsNumber(target);
+      const basePath = stripNamespace(
+        normalisePath(path),
+        namespaceRef.current,
+      );
+      const poseValues =
+        useLegacyPoseWeightFallback && targetValue != null
+          ? poseWeightFallbackMap.get(basePath)
+          : undefined;
+      if (poseValues && targetValue != null) {
+        const poseFaceId = assetBundle.pose?.config?.faceId ?? faceId ?? "face";
+        const rigMap = rigInputMapRef.current;
+        return Promise.all(
+          Object.entries(poseValues).flatMap(([inputId, poseValue]) => {
+            if (!Number.isFinite(poseValue)) {
+              return [];
+            }
+            const controlPath =
+              resolvePoseControlInputPath({
+                inputId,
+                basePath: buildRigInputPath(
+                  poseFaceId,
+                  `/pose/control/${inputId}`,
+                ),
+                rigInputPathMap: rigMap,
+                hasNativePoseControlInput: true,
+              }) ?? buildRigInputPath(poseFaceId, `/pose/control/${inputId}`);
+            return [
+              animateValue(
+                controlPath,
+                { float: Number(poseValue) * targetValue },
+                options,
+              ),
+            ];
+          }),
+        ).then(() => undefined);
+      }
       const easing = resolveEasing(options?.easing);
       const duration = Math.max(0, options?.duration ?? DEFAULT_DURATION);
       cancelAnimation(path);
@@ -2361,7 +2428,9 @@ function VizijRuntimeProviderInner({
 
       return new Promise<void>((resolve) => {
         animationTweensRef.current.set(path, {
-          path: namespacedPath,
+          // Keep the raw path here so tween updates go through setInput() once
+          // and pick up the active namespace exactly once.
+          path,
           from: fromValue,
           to: toValue,
           duration,
@@ -2372,7 +2441,16 @@ function VizijRuntimeProviderInner({
         markActivity();
       });
     },
-    [cancelAnimation, getPathSnapshot, markActivity, setInput],
+    [
+      assetBundle.pose?.config?.faceId,
+      cancelAnimation,
+      faceId,
+      getPathSnapshot,
+      markActivity,
+      poseWeightFallbackMap,
+      setInput,
+      useLegacyPoseWeightFallback,
+    ],
   );
 
   const playAnimation = useCallback(
@@ -2473,19 +2551,18 @@ function VizijRuntimeProviderInner({
 
   const stopAnimation = useCallback(
     (id: string, options?: StopAnimationOptions) => {
-      const clip = resolveClipById(id);
       const state = clipPlaybackRef.current.get(id);
       if (state) {
         clipPlaybackRef.current.delete(id);
         state.playing = false;
         resolveClipPromise(state);
       }
-      if (clip && options?.clearOutputs !== false) {
-        clearClipOutputs(clip);
+      if (options?.clearOutputs !== false) {
+        clearClipOutputs(id);
       }
       updateLoopMode();
     },
-    [clearClipOutputs, resolveClipById, resolveClipPromise, updateLoopMode],
+    [clearClipOutputs, resolveClipPromise, updateLoopMode],
   );
 
   const setAnimationActive = useCallback(
@@ -2659,6 +2736,8 @@ function VizijRuntimeProviderInner({
     return () => {
       animationTweensRef.current.clear();
       clipPlaybackRef.current.clear();
+      clipOutputValuesRef.current.clear();
+      clipAggregateValuesRef.current.clear();
     };
   }, []);
 
