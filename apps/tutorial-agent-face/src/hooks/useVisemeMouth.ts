@@ -16,7 +16,7 @@ import {
 import type { AudioManager } from "../utils/audioManager";
 import { FACE_VISEME_SEGMENTS, mapPollyViseme } from "../visemeMapping";
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+const DEFAULT_POSE_WEIGHT = 0.7;
 
 export function useVisemeMouth({
   audioManager,

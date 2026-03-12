@@ -43,12 +43,17 @@ type GazeArgs = {
 type EmotionArgs = {
   emotion?: string;
   name?: string;
+  percent?: number;
+  percentage?: number;
   intensity?: number;
+  lengthSeconds?: number;
   holdSeconds?: number;
   durationSeconds?: number;
 };
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+const DEFAULT_POSE_WEIGHT = 0.7;
+const DEFAULT_NEUTRAL_WEIGHT = 0.7;
+const EMOTION_ATTACK_SECONDS = 0.25;
 
 const GAZE_DECLARATION: FunctionDeclaration = {
   name: "set_gaze",
@@ -105,19 +110,24 @@ function buildEmotionDeclaration(options: string[]): FunctionDeclaration {
       type: Type.OBJECT,
       properties: {
         emotion: emotionProperty,
+        percent: {
+          type: Type.NUMBER,
+          description:
+            "How strongly to feel the emotion as a percentage. You can use 0..100 or 0..1. The app normalizes this to its 0.7 pose cap.",
+        },
         intensity: {
           type: Type.NUMBER,
           description:
-            "Strength of the expression (0..0.75). Defaults to 0.75.",
+            "Legacy alias for percent. You can pass 0..100 or 0..1; the app normalizes it to its 0.7 pose cap.",
+        },
+        lengthSeconds: {
+          type: Type.NUMBER,
+          description:
+            "How long the emotion should ease back to neutral after it peaks. Defaults to 2 seconds.",
         },
         holdSeconds: {
           type: Type.NUMBER,
-          description:
-            "How long to keep the emotion before easing out (seconds). Defaults to 2.",
-        },
-        durationSeconds: {
-          type: Type.NUMBER,
-          description: "How quickly to blend the expression on (seconds).",
+          description: "Legacy alias for lengthSeconds.",
         },
       },
       required: ["emotion"],
@@ -133,6 +143,14 @@ function toNumber(value: unknown, fallback: number) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizePercent(value: unknown, fallback = 100) {
+  const numeric = toNumber(value, fallback);
+  if (numeric <= 1) {
+    return clamp(numeric, 0, 1);
+  }
+  return clamp(numeric / 100, 0, 1);
 }
 
 export function useAgentFaceTools({
@@ -158,6 +176,14 @@ export function useAgentFaceTools({
     [bindings],
   );
   const hasEmotionBindings = emotionBindings.length > 0;
+  const neutralBinding = useMemo(
+    () =>
+      emotionBindings.find(
+        (binding) =>
+          canonicalEmotionName(binding.semanticKey ?? "") === "neutral",
+      ) ?? null,
+    [emotionBindings],
+  );
 
   const availableEmotionOptions = useMemo(
     () =>
@@ -326,6 +352,26 @@ export function useAgentFaceTools({
     [emotionBindings],
   );
 
+  const clearEmotionTimers = useCallback(() => {
+    emotionTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+    emotionTimeoutsRef.current = [];
+  }, []);
+
+  const resetNonNeutralEmotions = useCallback(
+    (activeBinding: PoseHotkeyBinding | null, duration: number) => {
+      const clampedDuration = clamp(duration, 0.05, 2);
+      emotionBindings.forEach((binding) => {
+        if (binding === neutralBinding || binding === activeBinding) return;
+        void animateValue(
+          binding.weightPath,
+          { float: 0 },
+          { duration: clampedDuration, easing: "easeInOut" },
+        );
+      });
+    },
+    [animateValue, emotionBindings, neutralBinding],
+  );
+
   const applyEmotion = useCallback(
     async (rawArgs: EmotionArgs) => {
       if (!enabled) throw new Error("Face rig not ready yet.");
@@ -339,42 +385,70 @@ export function useAgentFaceTools({
       }
       const { binding, canonical } = resolved;
 
-      const intensity = clamp(
-        toNumber(rawArgs.intensity ?? DEFAULT_POSE_WEIGHT, DEFAULT_POSE_WEIGHT),
-        0,
-        DEFAULT_POSE_WEIGHT,
+      clearEmotionTimers();
+      resetNonNeutralEmotions(binding, 0.12);
+
+      const requestedPercent = normalizePercent(
+        rawArgs.percent ?? rawArgs.percentage ?? rawArgs.intensity ?? 100,
       );
-      const holdSeconds = clamp(toNumber(rawArgs.holdSeconds ?? 2, 2), 0.2, 8);
-      const duration = clamp(
-        toNumber(rawArgs.durationSeconds ?? 0.22, 0.22),
-        0.05,
-        1.5,
+      const peakWeight = requestedPercent * DEFAULT_POSE_WEIGHT;
+      const lengthSeconds = clamp(
+        toNumber(rawArgs.lengthSeconds ?? rawArgs.holdSeconds ?? 2, 2),
+        0.2,
+        8,
       );
 
-      await animateValue(
-        binding.weightPath,
-        { float: intensity },
-        { duration, easing: "easeOut" },
-      );
+      await Promise.all([
+        animateValue(
+          binding.weightPath,
+          { float: peakWeight },
+          { duration: EMOTION_ATTACK_SECONDS, easing: "easeOut" },
+        ),
+        neutralBinding && neutralBinding !== binding
+          ? animateValue(
+              neutralBinding.weightPath,
+              { float: 0 },
+              { duration: EMOTION_ATTACK_SECONDS, easing: "easeInOut" },
+            )
+          : Promise.resolve(),
+      ]);
 
-      const timer = window.setTimeout(() => {
+      const decayTimer = window.setTimeout(() => {
         void animateValue(
           binding.weightPath,
           { float: 0 },
-          { duration: Math.max(duration, 0.28), easing: "easeInOut" },
+          { duration: lengthSeconds, easing: "easeInOut" },
         );
-      }, holdSeconds * 1000);
-      emotionTimeoutsRef.current.push(timer);
+        if (neutralBinding && neutralBinding !== binding) {
+          void animateValue(
+            neutralBinding.weightPath,
+            { float: DEFAULT_NEUTRAL_WEIGHT },
+            { duration: lengthSeconds, easing: "easeInOut" },
+          );
+        }
+      }, EMOTION_ATTACK_SECONDS * 1000);
+      emotionTimeoutsRef.current.push(decayTimer);
 
       return {
         emotion: canonical,
         poseId: binding.pose.id,
         displayName: binding.pose.name ?? binding.pose.id,
-        intensity,
-        holdSeconds,
+        peakWeight,
+        percent: requestedPercent,
+        lengthSeconds,
+        attackSeconds: EMOTION_ATTACK_SECONDS,
+        neutralPoseId: neutralBinding?.pose.id ?? null,
       };
     },
-    [animateValue, enabled, resolveEmotionBinding, availableEmotionOptions],
+    [
+      animateValue,
+      availableEmotionOptions,
+      clearEmotionTimers,
+      enabled,
+      neutralBinding,
+      resetNonNeutralEmotions,
+      resolveEmotionBinding,
+    ],
   );
 
   const handleFunctionCalls = useCallback(
@@ -415,14 +489,24 @@ export function useAgentFaceTools({
   );
 
   useEffect(() => {
+    if (!enabled || !neutralBinding?.weightPath) {
+      return;
+    }
+    void animateValue(
+      neutralBinding.weightPath,
+      { float: DEFAULT_NEUTRAL_WEIGHT },
+      { duration: 0.2, easing: "easeInOut" },
+    );
+  }, [animateValue, enabled, neutralBinding]);
+
+  useEffect(() => {
     return () => {
       if (gazeTimeoutRef.current) {
         window.clearTimeout(gazeTimeoutRef.current);
       }
-      emotionTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
-      emotionTimeoutsRef.current = [];
+      clearEmotionTimers();
     };
-  }, []);
+  }, [clearEmotionTimers]);
 
   return { tools, handleFunctionCalls, gazeActive };
 }

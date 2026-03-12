@@ -6,7 +6,7 @@ import {
 import { usePoseHotkeys } from "../hooks/usePoseHotkeys";
 import { isEmotionBinding } from "../utils/emotions";
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+const DEFAULT_POSE_WEIGHT = 0.7;
 
 export function EmotionButtons() {
   const { ready, assetBundle, animateValue } = useVizijRuntime();

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import type { PoseHotkeyBinding } from "./usePoseHotkeys";
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+const DEFAULT_POSE_WEIGHT = 0.7;
 
 export function usePoseWarmup(
   bindings: PoseHotkeyBinding[],

@@ -53,7 +53,7 @@ const HOTKEY_LAYOUT = [
 export const POSE_HOTKEY_ORDER = HOTKEY_LAYOUT.map((entry) => entry.code);
 export const POSE_HOTKEY_LAYOUT = HOTKEY_LAYOUT;
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+const DEFAULT_POSE_WEIGHT = 0.7;
 
 function clampPoseWeight(weight: number) {
   return Math.min(DEFAULT_POSE_WEIGHT, Math.max(0, weight));
