@@ -5,6 +5,7 @@ import {
   persistState,
 } from "./storage";
 import {
+  DEFAULT_THEME,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_PLAYBACK_SELECTION,
   type PersistedDemoPlayerState,
@@ -29,6 +30,7 @@ describe("demo-vizij-player storage", () => {
       },
       DEFAULT_PLAYBACK_SELECTION,
       DEFAULT_PANEL_VISIBILITY,
+      DEFAULT_THEME,
     );
 
     expect(persisted.source).toBeNull();
@@ -65,15 +67,17 @@ describe("demo-vizij-player storage", () => {
         programs: false,
         diagnostics: false,
       },
+      theme: "dark",
     };
 
     persistState(state);
     localStorageMock.setItem(
-      "demo-vizij-player/v3/state",
+      "demo-vizij-player/v4/state",
       JSON.stringify({
         source: { kind: "invalid", id: "bad" },
         playbackSelection: { animationId: 42 },
         panels: { overview: "nope" },
+        theme: "nope",
       }),
     );
 
@@ -85,6 +89,7 @@ describe("demo-vizij-player storage", () => {
         poseGroupId: null,
       },
       panels: DEFAULT_PANEL_VISIBILITY,
+      theme: DEFAULT_THEME,
     });
   });
 });

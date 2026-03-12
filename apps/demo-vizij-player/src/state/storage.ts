@@ -1,7 +1,9 @@
 import {
+  DEFAULT_THEME,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_PLAYBACK_SELECTION,
   type DemoSampleId,
+  type DemoTheme,
   type DemoFaceSource,
   type DemoPanelVisibility,
   type DemoPlaybackSelection,
@@ -9,12 +11,13 @@ import {
   type PersistedDemoPlayerState,
 } from "./types";
 
-const STORAGE_VERSION = "v3";
+const STORAGE_VERSION = "v4";
 const STORAGE_KEY = `demo-vizij-player/${STORAGE_VERSION}/state`;
 const SAMPLE_IDS = new Set<DemoSampleId>([
   "quori-current-extended",
   "hugo-current-extended",
 ]);
+const THEMES = new Set<DemoTheme>(["light", "dark"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -22,6 +25,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isStringOrNull(value: unknown): value is string | null {
   return value === null || typeof value === "string";
+}
+
+function sanitizeTheme(value: unknown): DemoTheme {
+  return typeof value === "string" && THEMES.has(value as DemoTheme)
+    ? (value as DemoTheme)
+    : DEFAULT_THEME;
 }
 
 function sanitizePanels(value: unknown): DemoPanelVisibility {
@@ -92,6 +101,7 @@ export function createPersistedState(
   source: DemoFaceSource | null,
   playbackSelection: DemoPlaybackSelection,
   panels: DemoPanelVisibility,
+  theme: DemoTheme,
 ): PersistedDemoPlayerState {
   return {
     source:
@@ -103,6 +113,7 @@ export function createPersistedState(
         : null,
     playbackSelection,
     panels,
+    theme,
   };
 }
 
@@ -112,6 +123,7 @@ export function loadPersistedState(): PersistedDemoPlayerState {
       source: null,
       playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
       panels: { ...DEFAULT_PANEL_VISIBILITY },
+      theme: DEFAULT_THEME,
     };
   }
 
@@ -122,6 +134,7 @@ export function loadPersistedState(): PersistedDemoPlayerState {
         source: null,
         playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
         panels: { ...DEFAULT_PANEL_VISIBILITY },
+        theme: DEFAULT_THEME,
       };
     }
 
@@ -134,6 +147,7 @@ export function loadPersistedState(): PersistedDemoPlayerState {
       source: sanitizeSource(parsed.source),
       playbackSelection: sanitizePlaybackSelection(parsed.playbackSelection),
       panels: sanitizePanels(parsed.panels),
+      theme: sanitizeTheme(parsed.theme),
     };
   } catch (error) {
     console.warn("demo-vizij-player: failed to load persisted state", error);
@@ -141,6 +155,7 @@ export function loadPersistedState(): PersistedDemoPlayerState {
       source: null,
       playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
       panels: { ...DEFAULT_PANEL_VISIBILITY },
+      theme: DEFAULT_THEME,
     };
   }
 }

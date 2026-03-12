@@ -14,10 +14,84 @@
   --accent-soft: rgba(80, 196, 182, 0.18);
   --glow-teal: rgba(80, 196, 182, 0.4);
   --glow-coral: rgba(255, 179, 107, 0.35);
+  --page-glow-a: rgba(80, 196, 182, 0.25);
+  --page-glow-b: rgba(255, 188, 140, 0.35);
+  --page-glow-c: rgba(255, 255, 255, 0.85);
+  --card-gradient: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96),
+    rgba(255, 248, 241, 0.9)
+  );
+  --badge-bg: rgba(19, 44, 42, 0.07);
+  --badge-muted-bg: rgba(19, 44, 42, 0.05);
+  --badge-muted-text: rgba(19, 44, 42, 0.45);
+  --viewer-stage-bg: radial-gradient(
+    circle at 50% 20%,
+    rgba(80, 196, 182, 0.35),
+    rgba(255, 255, 255, 0.9)
+  );
+  --viewer-stage-border: rgba(80, 196, 182, 0.25);
+  --viewer-overlay-bg: rgba(255, 255, 255, 0.88);
+  --viewer-overlay-border: rgba(80, 196, 182, 0.25);
+  --viewer-overlay-error-bg: rgba(255, 240, 230, 0.95);
+  --viewer-overlay-error-text: #b45309;
+  --runtime-loading-bg: rgba(255, 190, 109, 0.18);
+  --runtime-loading-text: #b45309;
+  --runtime-error-bg: rgba(255, 101, 101, 0.2);
+  --runtime-error-text: #b45309;
+  --disclosure-bg: rgba(255, 255, 255, 0.52);
+  --panel-shadow: rgba(19, 44, 42, 0.12);
+  --panel-inset: rgba(255, 255, 255, 0.22);
   --panel: var(--bg-panel);
   --panel-border: var(--border-soft);
   --soft: var(--text-muted);
   --face-stage-aspect: 12.068108 / 8.769684;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-base: #061114;
+  --bg-panel: rgba(10, 23, 27, 0.86);
+  --bg-panel-strong: rgba(11, 26, 30, 0.95);
+  --bg-highlight: rgba(255, 255, 255, 0.045);
+  --border-soft: rgba(93, 216, 197, 0.16);
+  --border-strong: rgba(93, 216, 197, 0.46);
+  --text-primary: #edf7f4;
+  --text-muted: rgba(237, 247, 244, 0.68);
+  --accent: #5dd8c5;
+  --accent-strong: #ffc177;
+  --accent-hot: #ff9864;
+  --accent-soft: rgba(93, 216, 197, 0.18);
+  --glow-teal: rgba(93, 216, 197, 0.4);
+  --glow-coral: rgba(255, 193, 119, 0.3);
+  --page-glow-a: rgba(93, 216, 197, 0.18);
+  --page-glow-b: rgba(255, 152, 100, 0.16);
+  --page-glow-c: rgba(17, 40, 45, 0.75);
+  --card-gradient: linear-gradient(
+    180deg,
+    rgba(14, 31, 35, 0.96),
+    rgba(9, 20, 23, 0.92)
+  );
+  --badge-bg: rgba(255, 255, 255, 0.08);
+  --badge-muted-bg: rgba(255, 255, 255, 0.05);
+  --badge-muted-text: rgba(237, 247, 244, 0.48);
+  --viewer-stage-bg: radial-gradient(
+    circle at 50% 20%,
+    rgba(93, 216, 197, 0.26),
+    rgba(8, 17, 20, 0.96)
+  );
+  --viewer-stage-border: rgba(93, 216, 197, 0.22);
+  --viewer-overlay-bg: rgba(7, 16, 18, 0.88);
+  --viewer-overlay-border: rgba(93, 216, 197, 0.22);
+  --viewer-overlay-error-bg: rgba(67, 33, 24, 0.92);
+  --viewer-overlay-error-text: #ffc177;
+  --runtime-loading-bg: rgba(255, 193, 119, 0.14);
+  --runtime-loading-text: #ffc177;
+  --runtime-error-bg: rgba(255, 120, 120, 0.14);
+  --runtime-error-text: #ffb4a0;
+  --disclosure-bg: rgba(255, 255, 255, 0.035);
+  --panel-shadow: rgba(0, 0, 0, 0.35);
+  --panel-inset: rgba(255, 255, 255, 0.04);
 }
 
 * {
@@ -41,21 +115,9 @@ body {
     sans-serif;
   color: var(--text-primary);
   background:
-    radial-gradient(
-      circle at 12% 20%,
-      rgba(80, 196, 182, 0.25),
-      transparent 55%
-    ),
-    radial-gradient(
-      circle at 85% 5%,
-      rgba(255, 188, 140, 0.35),
-      transparent 45%
-    ),
-    radial-gradient(
-      circle at 40% 80%,
-      rgba(255, 255, 255, 0.85),
-      transparent 50%
-    ),
+    radial-gradient(circle at 12% 20%, var(--page-glow-a), transparent 55%),
+    radial-gradient(circle at 85% 5%, var(--page-glow-b), transparent 45%),
+    radial-gradient(circle at 40% 80%, var(--page-glow-c), transparent 50%),
     var(--bg-base);
 }
 
@@ -135,9 +197,22 @@ button.secondary {
   margin-bottom: 0.7rem;
 }
 
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .header-copy {
   max-width: 64rem;
   padding: 0.55rem 0.8rem 0.2rem;
+}
+
+.theme-toggle {
+  width: 2.1rem;
+  height: 2.1rem;
+  margin: 0.55rem 0.15rem 0 0;
 }
 
 .eyebrow {
@@ -201,8 +276,8 @@ button.secondary {
   backdrop-filter: blur(18px);
   overflow: hidden;
   box-shadow:
-    0 24px 60px rgba(19, 44, 42, 0.12),
-    0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+    0 24px 60px var(--panel-shadow),
+    0 0 0 1px var(--panel-inset) inset;
 }
 
 .panel-header {
@@ -273,13 +348,7 @@ button.secondary {
 .landing-feature-grid article {
   border-radius: 0.65rem;
   border: 1px solid var(--border-soft);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(255, 248, 241, 0.9)
-    ),
-    var(--bg-panel-strong);
+  background: var(--card-gradient), var(--bg-panel-strong);
   padding: 0.65rem;
 }
 
@@ -356,21 +425,21 @@ button.secondary {
 }
 
 .capability-badge.is-enabled {
-  background: rgba(19, 44, 42, 0.07);
+  background: var(--badge-bg);
 }
 
 .capability-badge.is-muted,
 .soft-badge.is-muted {
-  background: rgba(19, 44, 42, 0.05);
-  color: rgba(19, 44, 42, 0.45);
+  background: var(--badge-muted-bg);
+  color: var(--badge-muted-text);
 }
 
 .soft-badge {
-  background: rgba(19, 44, 42, 0.07);
+  background: var(--badge-bg);
 }
 
 .runtime-chip {
-  background: rgba(19, 44, 42, 0.07);
+  background: var(--badge-bg);
 }
 
 .runtime-chip-ready {
@@ -379,13 +448,13 @@ button.secondary {
 }
 
 .runtime-chip-loading {
-  background: rgba(255, 190, 109, 0.18);
-  color: var(--accent-hot);
+  background: var(--runtime-loading-bg);
+  color: var(--runtime-loading-text);
 }
 
 .runtime-chip-error {
-  background: rgba(255, 101, 101, 0.2);
-  color: #b45309;
+  background: var(--runtime-error-bg);
+  color: var(--runtime-error-text);
 }
 
 .runtime-chip-idle {
@@ -404,12 +473,8 @@ button.secondary {
   aspect-ratio: var(--face-stage-aspect, 4 / 3);
   border-radius: 1rem;
   overflow: hidden;
-  background: radial-gradient(
-    circle at 50% 20%,
-    rgba(80, 196, 182, 0.35),
-    rgba(255, 255, 255, 0.9)
-  );
-  border: 1px solid rgba(80, 196, 182, 0.25);
+  background: var(--viewer-stage-bg);
+  border: 1px solid var(--viewer-stage-border);
 }
 
 .viewer-canvas {
@@ -424,17 +489,17 @@ button.secondary {
   position: absolute;
   inset: auto 0.55rem 0.55rem 0.55rem;
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(80, 196, 182, 0.25);
+  background: var(--viewer-overlay-bg);
+  border: 1px solid var(--viewer-overlay-border);
   padding: 0.5rem 0.6rem;
   color: var(--text-primary);
   font-size: 0.83rem;
-  box-shadow: 0 10px 40px rgba(19, 44, 42, 0.12);
+  box-shadow: 0 10px 40px var(--panel-shadow);
 }
 
 .viewer-overlay.is-error {
-  background: rgba(255, 240, 230, 0.95);
-  color: #b45309;
+  background: var(--viewer-overlay-error-bg);
+  color: var(--viewer-overlay-error-text);
 }
 
 .transport-grid {
@@ -528,6 +593,70 @@ button.secondary {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.runtime-api-disclosure {
+  border-radius: 0.55rem;
+  border: 1px solid var(--border-soft);
+  background: var(--disclosure-bg);
+  overflow: hidden;
+}
+
+.runtime-api-disclosure summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.48rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.runtime-api-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.runtime-api-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0 0.6rem 0.6rem;
+}
+
+.runtime-api-body p {
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.runtime-api-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.runtime-api-card {
+  border-radius: 0.48rem;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-panel-strong);
+  padding: 0.48rem 0.54rem;
+}
+
+.runtime-api-card strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.76rem;
+}
+
+.runtime-api-card pre {
+  margin: 0;
+  overflow-x: auto;
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  white-space: pre;
 }
 
 .select-row,
@@ -704,6 +833,14 @@ input[type="range"] {
 
   .header-copy {
     padding: 0.8rem 0.4rem 0.2rem;
+  }
+
+  .header-row {
+    flex-direction: column;
+  }
+
+  .theme-toggle {
+    margin: 0;
   }
 
   .viewer-panel {

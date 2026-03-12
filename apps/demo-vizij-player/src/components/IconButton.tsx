@@ -1,4 +1,13 @@
-type IconName = "play" | "pause" | "stop" | "loop" | "pulse" | "hold" | "reset";
+type IconName =
+  | "play"
+  | "pause"
+  | "stop"
+  | "loop"
+  | "pulse"
+  | "hold"
+  | "reset"
+  | "sun"
+  | "moon";
 
 type IconButtonProps = {
   icon: IconName;
@@ -65,6 +74,28 @@ function Icon({ icon }: { icon: IconName }) {
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path
             d="M8 3.2a4.8 4.8 0 1 1-3.6 1.6H2V3l2.7.1-.9.9A6 6 0 1 0 8 2c1.8 0 3.4.7 4.6 1.9l-.9.9A4.6 4.6 0 0 0 8 3.2Z"
+            fill="currentColor"
+          />
+        </svg>
+      );
+    case "sun":
+      return (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.7" fill="currentColor" />
+          <path
+            d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M12.6 3.4l-1.3 1.3M4.7 11.3l-1.3 1.3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "moon":
+      return (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            d="M10.9 1.9A5.8 5.8 0 1 0 14 12.2a5.4 5.4 0 0 1-3 .8A5.9 5.9 0 0 1 5.1 7c0-2.1 1.1-4 2.8-5.1a5.7 5.7 0 0 0 3 .8Z"
             fill="currentColor"
           />
         </svg>

@@ -19,6 +19,7 @@ import {
   type DemoPanelId,
   type DemoPlayerState,
   type DemoSampleId,
+  type DemoTheme,
 } from "./types";
 
 function createUploadId(): string {
@@ -35,6 +36,7 @@ type Action =
   | { type: "select-sample"; id: DemoSampleId }
   | { type: "select-upload"; payload: DemoFaceSource & { kind: "upload" } }
   | { type: "clear-source" }
+  | { type: "set-theme"; theme: DemoTheme }
   | { type: "set-animation"; id: string | null }
   | { type: "set-program"; id: string | null }
   | { type: "set-pose-group"; id: string | null }
@@ -59,6 +61,14 @@ function reducer(state: DemoPlayerState, action: Action): DemoPlayerState {
         ...state,
         source: null,
         playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
+      };
+    case "set-theme":
+      if (state.theme === action.theme) {
+        return state;
+      }
+      return {
+        ...state,
+        theme: action.theme,
       };
     case "set-animation":
       if (state.playbackSelection.animationId === action.id) {
@@ -114,6 +124,8 @@ type AppStateContextValue = {
   selectSample: (id: DemoSampleId) => void;
   selectUpload: (file: File) => void;
   clearSource: () => void;
+  setTheme: (theme: DemoTheme) => void;
+  toggleTheme: () => void;
   setSelectedAnimation: (id: string | null) => void;
   setSelectedProgram: (id: string | null) => void;
   setSelectedPoseGroup: (id: string | null) => void;
@@ -129,6 +141,7 @@ function buildInitialState(): DemoPlayerState {
     source: persisted.source,
     playbackSelection: persisted.playbackSelection,
     panels: persisted.panels,
+    theme: persisted.theme,
   };
 }
 
@@ -137,9 +150,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     persistState(
-      createPersistedState(state.source, state.playbackSelection, state.panels),
+      createPersistedState(
+        state.source,
+        state.playbackSelection,
+        state.panels,
+        state.theme,
+      ),
     );
   }, [state]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.dataset.theme = state.theme;
+  }, [state.theme]);
 
   const selectSample = useCallback((id: DemoSampleId) => {
     dispatch({ type: "select-sample", id });
@@ -162,6 +187,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const clearSource = useCallback(() => {
     dispatch({ type: "clear-source" });
   }, []);
+
+  const setTheme = useCallback((theme: DemoTheme) => {
+    dispatch({ type: "set-theme", theme });
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    dispatch({
+      type: "set-theme",
+      theme: state.theme === "dark" ? "light" : "dark",
+    });
+  }, [state.theme]);
 
   const setSelectedAnimation = useCallback((id: string | null) => {
     dispatch({ type: "set-animation", id });
@@ -188,6 +224,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       selectSample,
       selectUpload,
       clearSource,
+      setTheme,
+      toggleTheme,
       setSelectedAnimation,
       setSelectedProgram,
       setSelectedPoseGroup,
@@ -197,11 +235,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearSource,
       selectSample,
       selectUpload,
+      setTheme,
       setPanelVisibility,
       setSelectedAnimation,
       setSelectedPoseGroup,
       setSelectedProgram,
       state,
+      toggleTheme,
     ],
   );
 

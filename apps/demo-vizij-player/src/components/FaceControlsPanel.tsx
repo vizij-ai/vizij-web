@@ -8,6 +8,7 @@ import {
 } from "@vizij/runtime-react";
 import { formatPathLabel } from "../lib/bundleSummary";
 import { IconButton } from "./IconButton";
+import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
 
 type InputMetadataLike = {
   path: string;
@@ -31,6 +32,10 @@ type GenericControl = {
 type RankedGenericControl = GenericControl & {
   priority: number;
 };
+
+function formatExampleNumber(value: number) {
+  return Number(value.toFixed(2)).toString();
+}
 
 function findConstraint(
   inputConstraints: Record<
@@ -266,6 +271,68 @@ export function FaceControlsPanel() {
     !faceControls.blink &&
     genericControls.length === 0;
 
+  const runtimeExamples = useMemo(() => {
+    const examples: Array<{ label: string; code: string }> = [];
+
+    if (faceControls.eyes.leftX || faceControls.eyes.rightX) {
+      const gazeLines = [
+        "const normalized = 0.35;",
+        "// The slider fans out across any resolved horizontal gaze inputs.",
+      ];
+      if (faceControls.eyes.leftX) {
+        gazeLines.push(
+          `setInput(${JSON.stringify(faceControls.eyes.leftX.path)}, {`,
+          "  float: mapNormalizedControlValue(faceControls.eyes.leftX, normalized),",
+          "});",
+        );
+      }
+      if (faceControls.eyes.rightX) {
+        gazeLines.push(
+          `setInput(${JSON.stringify(faceControls.eyes.rightX.path)}, {`,
+          "  float: mapNormalizedControlValue(faceControls.eyes.rightX, normalized),",
+          "});",
+        );
+      }
+      examples.push({
+        label: "Gaze input",
+        code: gazeLines.join("\n"),
+      });
+    }
+
+    if (faceControls.blink) {
+      examples.push({
+        label: "Blink scalar",
+        code: [
+          `const blinkPath = ${JSON.stringify(faceControls.blink.path)};`,
+          `setInput(blinkPath, { float: ${formatExampleNumber(
+            Math.min(
+              faceControls.blink.max,
+              faceControls.blink.defaultValue + 0.35,
+            ),
+          )} });`,
+        ].join("\n"),
+      });
+    }
+
+    if (genericControls[0]) {
+      examples.push({
+        label: "Authored control",
+        code: [
+          `const controlPath = ${JSON.stringify(genericControls[0].absolutePath)};`,
+          `setInput(controlPath, { float: ${formatExampleNumber(
+            Math.min(
+              genericControls[0].max,
+              genericControls[0].defaultValue +
+                (genericControls[0].max - genericControls[0].min) * 0.25,
+            ),
+          )} });`,
+        ].join("\n"),
+      });
+    }
+
+    return examples;
+  }, [faceControls, genericControls]);
+
   return (
     <section className="panel" aria-labelledby="face-controls-title">
       <header className="panel-header">
@@ -396,6 +463,12 @@ export function FaceControlsPanel() {
             </div>
           </div>
         ) : null}
+
+        <RuntimeApiDisclosure
+          title="Runtime control calls"
+          description="Illustrative runtime-react calls for the control types surfaced in this face."
+          examples={runtimeExamples}
+        />
       </div>
     </section>
   );

@@ -5,6 +5,7 @@ import {
 } from "@vizij/runtime-react";
 import { useAppState } from "../state/AppStateContext";
 import { IconButton } from "./IconButton";
+import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
 
 function useAnimationSnapshots(animationIds: string[]) {
   const { getAnimationState } = useVizijRuntime();
@@ -81,6 +82,32 @@ export function AnimationPanel() {
   const selectedState = selectedAnimation
     ? snapshots[selectedAnimation.id]
     : null;
+  const runtimeExamples = useMemo(() => {
+    if (!selectedAnimation) {
+      return [];
+    }
+
+    const duration =
+      selectedAnimation.clip.duration ?? selectedState?.duration ?? 0;
+    const seekTime = Number(
+      Math.min(duration, Math.max(0.25, duration * 0.35)).toFixed(2),
+    );
+
+    return [
+      {
+        label: selectedAnimation.clip.name ?? selectedAnimation.id,
+        code: [
+          `await playAnimation(${JSON.stringify(selectedAnimation.id)}, { reset: true });`,
+          `pauseAnimation(${JSON.stringify(selectedAnimation.id)});`,
+          `seekAnimation(${JSON.stringify(selectedAnimation.id)}, ${seekTime});`,
+          `setAnimationLoop(${JSON.stringify(selectedAnimation.id)}, ${String(
+            !(selectedState?.loop ?? true),
+          )});`,
+          `stopAnimation(${JSON.stringify(selectedAnimation.id)}, { clearOutputs: true });`,
+        ].join("\n"),
+      },
+    ];
+  }, [selectedAnimation, selectedState?.duration, selectedState?.loop]);
 
   return (
     <section className="panel" aria-labelledby="animation-panel-title">
@@ -197,6 +224,11 @@ export function AnimationPanel() {
                 </label>
               </div>
             ) : null}
+            <RuntimeApiDisclosure
+              title="Runtime clip calls"
+              description="The clip transport maps directly to runtime-react animation calls on the selected embedded clip."
+              examples={runtimeExamples}
+            />
           </>
         )}
       </div>

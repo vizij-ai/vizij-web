@@ -6,6 +6,7 @@ import {
 } from "@vizij/runtime-react";
 import { useAppState } from "../state/AppStateContext";
 import { IconButton } from "./IconButton";
+import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
 
 type PoseBucket = {
   id: string;
@@ -107,6 +108,30 @@ export function PosePanel() {
 
   const activeBucket =
     buckets.find((bucket) => bucket.id === poseGroupId) ?? buckets[0] ?? null;
+  const examplePose = activeBucket?.poses[0] ?? null;
+  const examplePosePath = examplePose ? posePathMap.get(examplePose.id) : null;
+  const runtimeExamples = useMemo(() => {
+    if (!examplePose || !examplePosePath) {
+      return [];
+    }
+
+    return [
+      {
+        label: `${examplePose.name ?? examplePose.id} pulse / hold`,
+        code: [
+          `const posePath = ${JSON.stringify(examplePosePath)};`,
+          "",
+          "// Bounce the pose on, then release it after 450ms.",
+          "setInput(posePath, { float: 1 });",
+          "window.setTimeout(() => setInput(posePath, { float: 0 }), 450);",
+          "",
+          "// Hold the pose until the operator releases or resets it.",
+          "stagePoseNeutral(true);",
+          "setInput(posePath, { float: 1 });",
+        ].join("\n"),
+      },
+    ];
+  }, [examplePose, examplePosePath]);
 
   const clearPoseWeights = () => {
     posePathMap.forEach((path) => {
@@ -217,6 +242,11 @@ export function PosePanel() {
                 );
               })}
             </div>
+            <RuntimeApiDisclosure
+              title="Runtime pose calls"
+              description="One concrete pose path from the loaded bundle, showing the pulse versus hold behavior behind the UI."
+              examples={runtimeExamples}
+            />
           </>
         )}
       </div>

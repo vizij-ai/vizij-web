@@ -14,6 +14,7 @@ import { PosePanel } from "./components/PosePanel";
 import { AnimationPanel } from "./components/AnimationPanel";
 import { ProgramsPanel } from "./components/ProgramsPanel";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
+import { IconButton } from "./components/IconButton";
 
 function ViewerPanel() {
   const { loading, ready, error } = useVizijRuntime();
@@ -194,10 +195,11 @@ function LandingPanel() {
 
 export default function App() {
   const {
-    state: { source },
+    state: { source, theme },
     selectSample,
     selectUpload,
     clearSource,
+    toggleTheme,
   } = useAppState();
 
   const selectedSample =
@@ -216,14 +218,24 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="header-copy">
-          <p className="eyebrow">Vizij runtime demo</p>
-          <h1>demo-vizij-player</h1>
-          <p>
-            A bundle-first showcase for the new face exports. Load one asset,
-            inspect the structure it embeds, and drive its authored poses,
-            clips, and procedural programs from one runtime surface.
-          </p>
+        <div className="header-row">
+          <div className="header-copy">
+            <p className="eyebrow">Vizij runtime demo</p>
+            <h1>demo-vizij-player</h1>
+            <p>
+              A bundle-first showcase for the new face exports. Load one asset,
+              inspect the structure it embeds, and drive its authored poses,
+              clips, and procedural programs from one runtime surface.
+            </p>
+          </div>
+          <div className="header-actions">
+            <IconButton
+              icon={theme === "dark" ? "moon" : "sun"}
+              label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              className="theme-toggle"
+              onClick={toggleTheme}
+            />
+          </div>
         </div>
       </header>
 
