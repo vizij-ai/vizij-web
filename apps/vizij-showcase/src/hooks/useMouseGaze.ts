@@ -84,7 +84,7 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
       }
       const xRatio = (event.clientX - rect.left) / rect.width;
       const yRatio = (event.clientY - rect.top) / rect.height;
-      const normalizedX = clamp(-(xRatio * 2 - 1));
+      const normalizedX = clamp(xRatio * 2 - 1);
       const normalizedY = clamp(((1 - yRatio) * 2 - 1) * POINTER_Y_SCALE);
 
       setEye("leftX", normalizedX);
