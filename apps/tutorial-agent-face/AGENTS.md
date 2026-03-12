@@ -10,6 +10,11 @@ Fullscreen Vizij face wired to a live Gemini agent. Mouse steers gaze, number ke
 - Build/preview: `pnpm --filter tutorial-agent-face build` / `pnpm --filter tutorial-agent-face preview`
 - Typecheck: `pnpm --filter tutorial-agent-face typecheck`
 - Env: set `VITE_GEMINI_API_KEY` (Google AI Studio key) before running dev/build.
+- Recommended setup: create `apps/tutorial-agent-face/.env.local` with `VITE_GEMINI_API_KEY=...`, then run from repo root.
+- One-shot examples:
+  `VITE_GEMINI_API_KEY=... pnpm --filter tutorial-agent-face dev`
+  `$env:VITE_GEMINI_API_KEY="..."; pnpm --filter tutorial-agent-face dev`
+- Reader-facing setup instructions live in `README.md`.
 
 ## Integration Tips
 

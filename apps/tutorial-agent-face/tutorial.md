@@ -8,9 +8,43 @@ This guide shows how to stand up a fullscreen Vizij face using the **new `@vizij
 
 - Node.js ≥ 18
 - React + TypeScript project (Vite, CRA, Next, etc.)
+- For the live `tutorial-agent-face` app specifically: a Google AI Studio Gemini API key exposed as `VITE_GEMINI_API_KEY`
 - Vizij export bundle: a GLB exported from vizij-authoring with the **“Embed Vizij bundle”** option enabled (the `VIZIJ_bundle` extension carries rig graphs, pose configs, and animations). Legacy exports with separate JSON files still work if you prefer to supply them manually.
 
 > The tutorial demo stores these files under `src/assets/`. Adjust paths to match your project layout.
+
+### Running `tutorial-agent-face`
+
+The app expects the Gemini key in Vite env. The recommended setup is:
+
+```bash
+cat > .env.local <<'EOF'
+VITE_GEMINI_API_KEY=your_google_ai_studio_key
+EOF
+
+pnpm --filter tutorial-agent-face dev
+```
+
+If you prefer not to create `.env.local`, you can also run it inline:
+
+```bash
+VITE_GEMINI_API_KEY=your_google_ai_studio_key \
+  pnpm --filter tutorial-agent-face dev
+```
+
+Windows PowerShell:
+
+```powershell
+$env:VITE_GEMINI_API_KEY="your_google_ai_studio_key"
+pnpm --filter tutorial-agent-face dev
+```
+
+Build and preview use the same env var:
+
+```bash
+pnpm --filter tutorial-agent-face build
+pnpm --filter tutorial-agent-face preview
+```
 
 ---
 
