@@ -12,6 +12,10 @@
 //! cargo run --example list_topics
 //! # or with a specific domain:
 //! ROS_DOMAIN_ID=42 cargo run --example list_topics
+//! # show raw DDS topic names instead of ROS names:
+//! cargo run --example list_topics -- --dds-names
+//! # also show services, actions, and unknown topics:
+//! cargo run --example list_topics -- --hidden
 //! ```
 
 use std::collections::BTreeMap;
@@ -100,6 +104,10 @@ fn dds_type_to_ros(dds_type: &str) -> String {
 // ---------------------------------------------------------------------------
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let use_dds_names = args.iter().any(|a| a == "--dds-names");
+    let show_hidden = args.iter().any(|a| a == "--hidden");
+
     let domain_id: u16 = env::var("ROS_DOMAIN_ID")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -181,23 +189,46 @@ fn main() {
         thread::sleep(POLL_INTERVAL);
     }
 
-    // Print results.
-    println!("\nDiscovered {} topic(s):\n", topics.len());
+    // Filter topics based on flags.
+    let visible: Vec<_> = topics
+        .iter()
+        .filter(|(_, entry)| match entry.kind {
+            TopicKind::Normal(_) => true,
+            _ => show_hidden,
+        })
+        .collect();
 
-    for (dds_name, entry) in &topics {
+    // Print results.
+    println!("\nDiscovered {} topic(s):\n", visible.len());
+
+    for (dds_name, entry) in &visible {
         let dir = match (entry.has_writers, entry.has_readers) {
             (true, true) => "pub/sub",
             (true, false) => "pub",
             (false, true) => "sub",
             (false, false) => "?",
         };
-        let kind_label = match &entry.kind {
-            TopicKind::Normal(name) => format!("topic  {name}"),
-            TopicKind::ServiceRequest(name) => format!("svc-rq {name}"),
-            TopicKind::ServiceReply(name) => format!("svc-rr {name}"),
-            TopicKind::Action(name) => format!("action {name}"),
-            TopicKind::Unknown => format!("???    {dds_name}"),
+        let display_name = if use_dds_names {
+            dds_name.to_string()
+        } else {
+            match &entry.kind {
+                TopicKind::Normal(name) => name.clone(),
+                TopicKind::ServiceRequest(name) => name.clone(),
+                TopicKind::ServiceReply(name) => name.clone(),
+                TopicKind::Action(name) => name.clone(),
+                TopicKind::Unknown => dds_name.to_string(),
+            }
         };
-        println!("  [{dir:>7}] {kind_label}  ({})", entry.type_name);
+        let kind_label = match &entry.kind {
+            TopicKind::Normal(_) => "topic ",
+            TopicKind::ServiceRequest(_) => "svc-rq",
+            TopicKind::ServiceReply(_) => "svc-rr",
+            TopicKind::Action(_) => "action",
+            TopicKind::Unknown => "???   ",
+        };
+        println!(
+            "  [{dir:>7}] {kind_label} {display_name}  ({})",
+            entry.type_name
+        );
     }
 }
