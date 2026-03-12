@@ -85,6 +85,7 @@ Wrap your app in a single `<OrchestratorProvider>` and give each `VizijRuntimePr
 - `rig`: optional. When omitted, the runtime looks for a `VIZIJ_bundle` extension inside the GLB and registers the first rig graph it finds.
 - `pose`: optional. Provide your own pose graph/config or just a `stageNeutralFilter`; bundled pose data is pulled from the GLB when present.
 - `animations`: optional array. Explicit entries merge with animations discovered in the GLB bundle (deduped by id). Use `playAnimation` to trigger them.
+- `programs`: optional array. Explicit entries merge with bundled `motiongraph` programs (deduped by id). Use `playProgram` / `pauseProgram` / `stopProgram` to control them.
 - `initialInputs`: optional map of ValueJSON that seeds inputs before autostart.
 - `metadata`: free-form dictionary you can read back through `useVizijRuntime().assetBundle.metadata`.
 - `bundle`: optional. Supply pre-parsed bundle metadata when you manage world loading yourself. When loading from GLB/Blob the runtime fills this with the extracted `VizijBundleExtension`.
@@ -118,6 +119,7 @@ The provider exposes context via `useVizijRuntime()` once `loading` flips to `fa
   - `stagePoseNeutral(force)`: restore the neutral pose captured at export.
   - `animateValue(path, target, options)`, `cancelAnimation(path)`: tween rig values with built-in easing.
   - `playAnimation(id, options)`, `stopAnimation(id)`: drive bundle animations that were provided in `animations`.
+  - `playProgram(id)`, `pauseProgram(id)`, `stopProgram(id)`: drive bundled procedural programs discovered from `motiongraph` bundle entries or supplied via `programs`.
   - `step(dt)` / `advanceAnimations(dt)`: manually tick the orchestrator if you run outside `autostart`.
 - `useRigInput(path)`: returns `[value, setter]` for a single rig input. The setter writes through the orchestrator while the value mirrors the renderer store.
 - `useVizijOutputs(paths)`: subscribes to renderer output paths (`RawValue` map) for UI or logging.
@@ -143,13 +145,17 @@ Watch `onStatusChange` for realtime updates and implement retries or fallbacks i
 
 Animations are defined alongside rig inputs. Each track maps to an input path (`animation/<id>/<channel>`). When `playAnimation` runs, the runtime schedules frames and writes values back through the orchestrator merge strategy. Use `options.reset` to restart clips, `options.weight` to blend multiple clips, and `stopAnimation` to cut a clip immediately.
 
+## Working With Procedural Programs
+
+Bundled procedural programs are discovered from `motiongraph` graph entries in the embedded `VIZIJ_bundle`. `playProgram(id)` registers the graph and lets it own any output paths it writes. `pauseProgram(id)` unregisters it without resetting its last written values. `stopProgram(id)` unregisters it and restores owned inputs to their default values when available.
+
 For ad-hoc gestures, use `animateValue` with duration/easing. If you need custom easing, pass a function `(t) => number`.
 
 ## Asset Bundling Workflow
 
-1. Export an authoring scene to GLB with Vizij metadata intact (bounds, animatable ids). Enable “Embed Vizij bundle” in vizij-authoring to persist rig graphs, pose rig data, and animations inside the GLB.
-2. Drop the GLB into a `VizijAssetBundle` and let the runtime extract rig/pose/animation data automatically.
-3. Optionally override or extend bundle contents by setting `rig`, `pose`, or `animations` manually (useful for tooling builds or custom staging).
+1. Export an authoring scene to GLB with Vizij metadata intact (bounds, animatable ids). Enable “Embed Vizij bundle” in vizij-authoring to persist rig graphs, pose rig data, animations, and procedural programs inside the GLB.
+2. Drop the GLB into a `VizijAssetBundle` and let the runtime extract rig/pose/animation/program data automatically.
+3. Optionally override or extend bundle contents by setting `rig`, `pose`, `animations`, or `programs` manually (useful for tooling builds or custom staging).
 4. Host GLB URLs or include them via bundler asset imports (`new URL("./face.glb", import.meta.url).href`).
 
 The runtime tolerates incremental bundles; swap `assetBundle` props to hot-reload assets in dev builds.

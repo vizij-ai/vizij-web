@@ -16,6 +16,27 @@ import { useSpeechController } from "./hooks/useSpeechController";
 const DEFAULT_PORT = 9000;
 const NAMESPACE = "vizij-standalone";
 
+type StandaloneTransportEntry = {
+  id: string;
+  label: string;
+  state: "playing" | "paused" | "stopped";
+};
+
+type StandaloneTransportCatalog = {
+  animations: StandaloneTransportEntry[];
+  programs: StandaloneTransportEntry[];
+};
+
+type StopAnimationEventPayload = {
+  id: string;
+  clearOutputs?: boolean;
+};
+
+type StopProgramEventPayload = {
+  id: string;
+  resetOutputs?: boolean;
+};
+
 function App() {
   const [assetBundle, setAssetBundle] = useState<VizijAssetBundle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -305,6 +326,105 @@ function AppContent({
     () => runtime.assetBundle?.pose?.config?.poseGroups ?? [],
     [runtime.assetBundle?.pose?.config?.poseGroups],
   );
+  const bundledPrograms = useMemo(() => {
+    if (
+      Array.isArray(runtime.assetBundle?.programs) &&
+      runtime.assetBundle.programs.length > 0
+    ) {
+      return runtime.assetBundle.programs;
+    }
+    return (runtime.assetBundle?.bundle?.graphs ?? [])
+      .filter(
+        (entry) =>
+          entry &&
+          typeof entry.id === "string" &&
+          typeof entry.kind === "string" &&
+          entry.kind.toLowerCase() === "motiongraph",
+      )
+      .map((entry) => ({
+        id: entry.id,
+        label: typeof entry.label === "string" ? entry.label : entry.id,
+      }));
+  }, [runtime.assetBundle?.bundle?.graphs, runtime.assetBundle?.programs]);
+
+  const [transportCatalog, setTransportCatalog] =
+    useState<StandaloneTransportCatalog>({
+      animations: [],
+      programs: [],
+    });
+
+  useEffect(() => {
+    const updateCatalog = () => {
+      const animations = (runtime.assetBundle?.animations ?? []).map(
+        (entry) => {
+          const playback = runtime.getAnimationState(entry.id);
+          return {
+            id: entry.id,
+            label:
+              (typeof entry.clip?.name === "string" &&
+                entry.clip.name.trim()) ||
+              entry.id,
+            state: playback
+              ? playback.playing
+                ? "playing"
+                : "paused"
+              : "stopped",
+          } satisfies StandaloneTransportEntry;
+        },
+      );
+
+      const programs = bundledPrograms.map((entry) => {
+        const playback = runtime.getProgramState(entry.id);
+        return {
+          id: entry.id,
+          label:
+            (typeof entry.label === "string" && entry.label.trim()) || entry.id,
+          state: playback?.state ?? "stopped",
+        } satisfies StandaloneTransportEntry;
+      });
+
+      setTransportCatalog((previous) => {
+        const sameAnimations =
+          previous.animations.length === animations.length &&
+          previous.animations.every(
+            (entry, index) =>
+              entry.id === animations[index]?.id &&
+              entry.label === animations[index]?.label &&
+              entry.state === animations[index]?.state,
+          );
+        const samePrograms =
+          previous.programs.length === programs.length &&
+          previous.programs.every(
+            (entry, index) =>
+              entry.id === programs[index]?.id &&
+              entry.label === programs[index]?.label &&
+              entry.state === programs[index]?.state,
+          );
+        return sameAnimations && samePrograms
+          ? previous
+          : {
+              animations,
+              programs,
+            };
+      });
+    };
+
+    updateCatalog();
+    const intervalId = window.setInterval(updateCatalog, 200);
+    return () => window.clearInterval(intervalId);
+  }, [
+    runtime,
+    bundledPrograms,
+    runtime.assetBundle?.animations,
+    runtime.controllers,
+    runtime.ready,
+  ]);
+
+  useEffect(() => {
+    invoke("set_transport_catalog", { catalog: transportCatalog }).catch(() => {
+      // Tauri command not available
+    });
+  }, [transportCatalog]);
 
   // Initialize speech controller (no-op when speechConfig is null)
   const speech = useSpeechController({
@@ -349,6 +469,76 @@ function AppContent({
     };
   }, [speech.interrupt]);
 
+  useEffect(() => {
+    const unlisten = listen<string>("animation-play", (event) => {
+      void runtime.playAnimation(event.payload).catch((error) => {
+        console.error("[vizij-standalone] Failed to play animation:", error);
+      });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [runtime]);
+
+  useEffect(() => {
+    const unlisten = listen<string>("animation-pause", (event) => {
+      runtime.pauseAnimation(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [runtime]);
+
+  useEffect(() => {
+    const unlisten = listen<StopAnimationEventPayload>(
+      "animation-stop",
+      (event) => {
+        runtime.stopAnimation(event.payload.id, {
+          clearOutputs: event.payload.clearOutputs,
+        });
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [runtime]);
+
+  useEffect(() => {
+    const unlisten = listen<string>("program-play", (event) => {
+      try {
+        runtime.playProgram(event.payload);
+      } catch (error) {
+        console.error("[vizij-standalone] Failed to play program:", error);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [runtime]);
+
+  useEffect(() => {
+    const unlisten = listen<string>("program-pause", (event) => {
+      runtime.pauseProgram(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [runtime]);
+
+  useEffect(() => {
+    const unlisten = listen<StopProgramEventPayload>(
+      "program-stop",
+      (event) => {
+        runtime.stopProgram(event.payload.id, {
+          resetOutputs: event.payload.resetOutputs,
+        });
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [runtime]);
+
   // Sync mic state back to Rust AppState so get_mic_muted returns the correct value
   useEffect(() => {
     invoke("set_mic_muted_state", { muted: !speech.listening }).catch(() => {
@@ -357,6 +547,8 @@ function AppContent({
   }, [speech.listening]);
 
   const constraintCount = Object.keys(inputConstraints).length;
+  const transportCount =
+    transportCatalog.animations.length + transportCatalog.programs.length;
 
   return (
     <div
@@ -419,6 +611,7 @@ function AppContent({
               <p>Face ID: {faceId}</p>
               <p>Constraints: {constraintCount}</p>
               <p>Outputs: {runtime.outputPaths.length}</p>
+              <p>Transport: {transportCount}</p>
               <p className="mt-1">FPS: {runtime.stepHz?.toFixed(0) ?? "-"}</p>
               {speech.enabled && (
                 <p className="mt-1">
@@ -444,6 +637,128 @@ function AppContent({
               <p className="mt-1 text-[10px] text-neutral-500">
                 Path: rig/{faceId}/&lt;path&gt;
               </p>
+              {transportCatalog.animations.length > 0 && (
+                <div className="mt-3 border-t border-white/10 pt-2">
+                  <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                    Animations
+                  </p>
+                  <div className="space-y-2">
+                    {transportCatalog.animations.map((entry) => (
+                      <div
+                        key={`anim-${entry.id}`}
+                        className="rounded bg-white/5 p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[11px] text-white">
+                            {entry.label}
+                          </span>
+                          <span
+                            className={
+                              entry.state === "playing"
+                                ? "text-[10px] text-green-400"
+                                : entry.state === "paused"
+                                  ? "text-[10px] text-yellow-400"
+                                  : "text-[10px] text-neutral-400"
+                            }
+                          >
+                            {entry.state}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex gap-1">
+                          <button
+                            onClick={() => {
+                              void runtime
+                                .playAnimation(entry.id)
+                                .catch((error) => {
+                                  console.error(
+                                    "[vizij-standalone] Failed to play animation:",
+                                    error,
+                                  );
+                                });
+                            }}
+                            className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
+                          >
+                            Play
+                          </button>
+                          <button
+                            onClick={() => runtime.pauseAnimation(entry.id)}
+                            className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
+                          >
+                            Pause
+                          </button>
+                          <button
+                            onClick={() => runtime.stopAnimation(entry.id)}
+                            className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
+                          >
+                            Stop
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {transportCatalog.programs.length > 0 && (
+                <div className="mt-3 border-t border-white/10 pt-2">
+                  <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                    Programs
+                  </p>
+                  <div className="space-y-2">
+                    {transportCatalog.programs.map((entry) => (
+                      <div
+                        key={`program-${entry.id}`}
+                        className="rounded bg-white/5 p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[11px] text-white">
+                            {entry.label}
+                          </span>
+                          <span
+                            className={
+                              entry.state === "playing"
+                                ? "text-[10px] text-green-400"
+                                : entry.state === "paused"
+                                  ? "text-[10px] text-yellow-400"
+                                  : "text-[10px] text-neutral-400"
+                            }
+                          >
+                            {entry.state}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex gap-1">
+                          <button
+                            onClick={() => {
+                              try {
+                                runtime.playProgram(entry.id);
+                              } catch (error) {
+                                console.error(
+                                  "[vizij-standalone] Failed to play program:",
+                                  error,
+                                );
+                              }
+                            }}
+                            className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
+                          >
+                            Play
+                          </button>
+                          <button
+                            onClick={() => runtime.pauseProgram(entry.id)}
+                            className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
+                          >
+                            Pause
+                          </button>
+                          <button
+                            onClick={() => runtime.stopProgram(entry.id)}
+                            className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
+                          >
+                            Stop
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

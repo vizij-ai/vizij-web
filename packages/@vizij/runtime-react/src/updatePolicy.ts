@@ -20,6 +20,10 @@ export function applyRuntimeGraphBundle(
     bundle,
     "animations",
   );
+  const hasProgramsOverride = Object.prototype.hasOwnProperty.call(
+    bundle,
+    "programs",
+  );
 
   if (hasRigOverride) {
     if (bundle.rig) {
@@ -40,6 +44,12 @@ export function applyRuntimeGraphBundle(
   if (hasAnimationsOverride) {
     next.animations = Array.isArray(bundle.animations)
       ? bundle.animations
+      : undefined;
+  }
+
+  if (hasProgramsOverride) {
+    next.programs = Array.isArray(bundle.programs)
+      ? bundle.programs
       : undefined;
   }
 
@@ -107,6 +117,25 @@ function animationsSignature(
     .join("|");
 }
 
+function programsSignature(programs?: VizijAssetBundle["programs"]): string {
+  if (!Array.isArray(programs) || programs.length === 0) {
+    return "";
+  }
+  return programs
+    .map((program) => {
+      const id = program.id ?? "";
+      const label = program.label ?? "";
+      const graphId = program.graph?.id ?? "";
+      const graphPayload = normalizeSpecPayload(
+        program.graph?.spec ?? program.graph?.ir ?? null,
+      );
+      const resetValues = normalizeSpecPayload(program.resetValues ?? null);
+      return `${id}:${label}:${graphId}:${graphPayload}:${resetValues}`;
+    })
+    .sort()
+    .join("|");
+}
+
 export function resolveRuntimeUpdatePlan(
   previous: VizijAssetBundle | null,
   next: VizijAssetBundle,
@@ -132,7 +161,10 @@ export function resolveRuntimeUpdatePlan(
   const animationsChanged =
     animationsSignature(previous.animations) !==
     animationsSignature(next.animations);
-  const controllersChanged = graphsChanged || animationsChanged;
+  const programsChanged =
+    programsSignature(previous.programs) !== programsSignature(next.programs);
+  const controllersChanged =
+    graphsChanged || animationsChanged || programsChanged;
 
   if (tier === "assets") {
     return { reloadAssets: true, reregisterGraphs: false };

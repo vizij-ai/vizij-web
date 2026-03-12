@@ -150,4 +150,41 @@ describe("resolveRuntimeUpdatePlan", () => {
     expect(plan.reloadAssets).toBe(false);
     expect(plan.reregisterGraphs).toBe(true);
   });
+
+  it("treats program payload changes as graph re-registration in graphs mode", () => {
+    const prev = makeBundle({
+      programs: [
+        {
+          id: "wave",
+          label: "Wave",
+          graph: {
+            id: "wave",
+            spec: { nodes: [{ id: "out-a", kind: "output" }], edges: [] },
+          },
+        },
+      ],
+    });
+    const next = makeBundle({
+      programs: [
+        {
+          id: "wave",
+          label: "Wave",
+          graph: {
+            id: "wave",
+            spec: {
+              nodes: [
+                { id: "out-a", kind: "output" },
+                { id: "out-b", kind: "output" },
+              ],
+              edges: [],
+            },
+          },
+        },
+      ],
+    });
+
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(false);
+    expect(plan.reregisterGraphs).toBe(true);
+  });
 });

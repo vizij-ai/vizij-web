@@ -241,6 +241,201 @@ impl ConnectionManager {
             )
             .await;
 
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |_args| {
+                let catalog = app.state::<AppState>().transport_catalog.lock().unwrap().clone();
+                match serde_json::to_string(&catalog) {
+                    Ok(serialized) => InvokeResult::ok_with_value(Value::String(serialized)),
+                    Err(error) => InvokeResult::err(format!(
+                        "Failed to serialize transport catalog: {}",
+                        error
+                    )),
+                }
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "transport/list".to_string(),
+                    params: vec![],
+                    return_type: None,
+                    description: Some("List bundled animations and procedural programs".to_string()),
+                },
+                handler,
+            )
+            .await;
+
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |args| {
+                let id = match args.get("id") {
+                    Some(Value::String(id)) => id.clone(),
+                    _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
+                };
+                let kind = match args.get("kind") {
+                    Some(Value::String(kind)) => kind.clone(),
+                    _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
+                };
+                let event_name = if kind == "animation" {
+                    "animation-play"
+                } else if kind == "program" {
+                    "program-play"
+                } else {
+                    return InvokeResult::err("Invalid 'kind' parameter".to_string());
+                };
+
+                match app.emit(event_name, &id) {
+                    Ok(()) => InvokeResult::ok(),
+                    Err(e) => InvokeResult::err(format!("Failed to emit {}: {}", event_name, e)),
+                }
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "transport/play".to_string(),
+                    params: vec![
+                        MethodParam {
+                            name: "kind".to_string(),
+                            param_type: Type::String,
+                            required: true,
+                            default_value: None,
+                            description: Some("Either 'animation' or 'program'".to_string()),
+                        },
+                        MethodParam {
+                            name: "id".to_string(),
+                            param_type: Type::String,
+                            required: true,
+                            default_value: None,
+                            description: Some("Transport identifier".to_string()),
+                        },
+                    ],
+                    return_type: None,
+                    description: Some("Play a bundled animation or procedural program".to_string()),
+                },
+                handler,
+            )
+            .await;
+
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |args| {
+                let id = match args.get("id") {
+                    Some(Value::String(id)) => id.clone(),
+                    _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
+                };
+                let kind = match args.get("kind") {
+                    Some(Value::String(kind)) => kind.clone(),
+                    _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
+                };
+                let event_name = if kind == "animation" {
+                    "animation-pause"
+                } else if kind == "program" {
+                    "program-pause"
+                } else {
+                    return InvokeResult::err("Invalid 'kind' parameter".to_string());
+                };
+
+                match app.emit(event_name, &id) {
+                    Ok(()) => InvokeResult::ok(),
+                    Err(e) => InvokeResult::err(format!("Failed to emit {}: {}", event_name, e)),
+                }
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "transport/pause".to_string(),
+                    params: vec![
+                        MethodParam {
+                            name: "kind".to_string(),
+                            param_type: Type::String,
+                            required: true,
+                            default_value: None,
+                            description: Some("Either 'animation' or 'program'".to_string()),
+                        },
+                        MethodParam {
+                            name: "id".to_string(),
+                            param_type: Type::String,
+                            required: true,
+                            default_value: None,
+                            description: Some("Transport identifier".to_string()),
+                        },
+                    ],
+                    return_type: None,
+                    description: Some("Pause a bundled animation or procedural program".to_string()),
+                },
+                handler,
+            )
+            .await;
+
+            let app = app_handle.clone();
+            let handler: MethodHandler = Arc::new(move |args| {
+                let id = match args.get("id") {
+                    Some(Value::String(id)) => id.clone(),
+                    _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
+                };
+                let kind = match args.get("kind") {
+                    Some(Value::String(kind)) => kind.clone(),
+                    _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
+                };
+
+                if kind == "animation" {
+                    let clear_outputs = match args.get("clear_outputs") {
+                        Some(Value::Boolean(value)) => *value,
+                        _ => true,
+                    };
+                    return match app.emit(
+                        "animation-stop",
+                        serde_json::json!({
+                            "id": id,
+                            "clearOutputs": clear_outputs,
+                        }),
+                    ) {
+                        Ok(()) => InvokeResult::ok(),
+                        Err(e) => {
+                            InvokeResult::err(format!("Failed to emit animation-stop: {}", e))
+                        }
+                    };
+                }
+
+                if kind == "program" {
+                    let reset_outputs = match args.get("reset_outputs") {
+                        Some(Value::Boolean(value)) => *value,
+                        _ => true,
+                    };
+                    return match app.emit(
+                        "program-stop",
+                        serde_json::json!({
+                            "id": id,
+                            "resetOutputs": reset_outputs,
+                        }),
+                    ) {
+                        Ok(()) => InvokeResult::ok(),
+                        Err(e) => InvokeResult::err(format!("Failed to emit program-stop: {}", e)),
+                    };
+                }
+
+                InvokeResult::err("Invalid 'kind' parameter".to_string())
+            });
+            conn.register_method(
+                MethodInfo {
+                    path: "transport/stop".to_string(),
+                    params: vec![
+                        MethodParam {
+                            name: "kind".to_string(),
+                            param_type: Type::String,
+                            required: true,
+                            default_value: None,
+                            description: Some("Either 'animation' or 'program'".to_string()),
+                        },
+                        MethodParam {
+                            name: "id".to_string(),
+                            param_type: Type::String,
+                            required: true,
+                            default_value: None,
+                            description: Some("Transport identifier".to_string()),
+                        },
+                    ],
+                    return_type: None,
+                    description: Some("Stop a bundled animation or procedural program".to_string()),
+                },
+                handler,
+            )
+            .await;
+
             // Exclusive client handler: disconnect all OTHER connections when a client connects here
             let others: Vec<Arc<dyn AroraConnection>> = self
                 .connections

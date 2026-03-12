@@ -1,6 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{Parser, Subcommand};
 use log::{info, LevelFilter};
+use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
@@ -29,6 +30,20 @@ struct AppState {
     auto_mic: Option<bool>,
     speech_mode: Option<String>,
     mic_muted: std::sync::Mutex<bool>,
+    transport_catalog: std::sync::Mutex<TransportCatalog>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct TransportCatalog {
+    animations: Vec<TransportEntry>,
+    programs: Vec<TransportEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TransportEntry {
+    id: String,
+    label: String,
+    state: String,
 }
 
 /// CLI structure with optional subcommands
@@ -319,6 +334,16 @@ async fn set_mic_muted_state(app_handle: tauri::AppHandle, muted: bool) {
     *state.mic_muted.lock().unwrap() = muted;
 }
 
+#[tauri::command]
+async fn set_transport_catalog(
+    app_handle: tauri::AppHandle,
+    catalog: TransportCatalog,
+) -> Result<(), String> {
+    let state = app_handle.state::<AppState>();
+    *state.transport_catalog.lock().unwrap() = catalog;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Load .env file (silently ignore if not found)
@@ -411,6 +436,7 @@ pub fn run() {
                 auto_mic,
                 speech_mode,
                 mic_muted: std::sync::Mutex::new(true),
+                transport_catalog: std::sync::Mutex::new(TransportCatalog::default()),
             });
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -531,6 +557,7 @@ pub fn run() {
             respond_slot_values,
             get_speech_keys,
             set_mic_muted_state,
+            set_transport_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

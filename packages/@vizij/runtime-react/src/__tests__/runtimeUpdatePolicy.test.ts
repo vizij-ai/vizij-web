@@ -65,4 +65,56 @@ describe("applyRuntimeGraphBundle", () => {
       spec: { nodes: [{ id: "rig-2", type: "input" }] },
     });
   });
+
+  it("preserves programs while applying rig overrides", () => {
+    const baseBundle = {
+      ...base,
+      programs: [
+        {
+          id: "wave",
+          label: "Wave",
+          graph: {
+            id: "wave",
+            spec: { nodes: [{ id: "out", type: "output" }], edges: [] },
+          },
+        },
+      ],
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      rig: { id: "rig-v2", spec: { nodes: [{ id: "rig-2", type: "input" }] } },
+    });
+
+    expect(next.programs).toEqual(baseBundle.programs);
+  });
+
+  it("applies program overrides independently from animations", () => {
+    const baseBundle = {
+      ...base,
+      animations: [{ id: "a", clip: { tracks: [] } }],
+      programs: [
+        {
+          id: "wave",
+          graph: { id: "wave", spec: { nodes: [], edges: [] } },
+        },
+      ],
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      programs: [
+        {
+          id: "blink",
+          graph: { id: "blink", spec: { nodes: [{ id: "x" }], edges: [] } },
+        },
+      ],
+    });
+
+    expect(next.animations).toEqual(baseBundle.animations);
+    expect(next.programs).toEqual([
+      {
+        id: "blink",
+        graph: { id: "blink", spec: { nodes: [{ id: "x" }], edges: [] } },
+      },
+    ]);
+  });
 });
