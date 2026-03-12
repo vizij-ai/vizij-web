@@ -19,7 +19,10 @@ import { LiveStatus } from "./phoneme-core";
 import { EmotionButtons } from "./components/EmotionButtons";
 import "./styles.css";
 
-const faceAssetUrl = "/assets/Quori_Live.glb";
+const faceAssetUrl = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
 const assetBundle: VizijAssetBundle = {
   namespace: "tutorial-agent-face",

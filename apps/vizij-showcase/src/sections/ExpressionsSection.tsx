@@ -24,7 +24,7 @@ export function ExpressionsSection() {
       <div className="expression-stack">
         <ShowcaseRuntime
           namespace="expressions-quori"
-          asset="quoriLatest"
+          asset="quoriCurrentExtended"
           active={hasEntered}
           autostart={poseActive && isVisible}
           driveOrchestrator={false}
@@ -40,7 +40,7 @@ export function ExpressionsSection() {
         <div className="expression-face-grid">
           <ShowcaseRuntime
             namespace="expressions-quori-face"
-            asset="quoriLatest"
+            asset="quoriCurrentExtended"
             active={hasEntered}
             autostart={poseActive && isVisible}
             driveOrchestrator
@@ -63,7 +63,7 @@ export function ExpressionsSection() {
           </ShowcaseRuntime>
           <ShowcaseRuntime
             namespace="expressions-hugo-face"
-            asset="hugoLatest"
+            asset="hugoCurrentExtended"
             active={hasEntered}
             autostart={poseActive && isVisible}
             driveOrchestrator={false}

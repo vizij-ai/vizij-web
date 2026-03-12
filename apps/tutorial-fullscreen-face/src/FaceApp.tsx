@@ -9,7 +9,10 @@ import { useMouseGaze } from "./hooks/useMouseGaze";
 import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
 import "./styles.css";
 
-const faceAssetUrl = "/assets/hugo_rigged.glb";
+const faceAssetUrl = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
 const assetBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",
