@@ -1,5 +1,4 @@
 import type { VizijAssetBundle } from "@vizij/runtime-react";
-import { FACE_ROOT_BOUNDS } from "../config/runtimeFace";
 
 const FACE_ASSET_PATHS = {
   hugoCurrentExtended: new URL(
@@ -17,7 +16,6 @@ export type ShowcaseFaceAssetKey = keyof typeof FACE_ASSET_PATHS;
 const FACE_ASSET_GLB_BASE = {
   kind: "url" as const,
   aggressiveImport: true,
-  rootBounds: FACE_ROOT_BOUNDS,
 };
 
 export const faceAssetBundleTemplate: VizijAssetBundle = {
