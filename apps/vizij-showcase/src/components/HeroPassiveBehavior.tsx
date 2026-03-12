@@ -12,12 +12,13 @@ const VIZEME_DURATION_RANGE: readonly [number, number] = [50, 100];
 const VIZEME_COUNT_RANGE: readonly [number, number] = [19, 20];
 const EMOTION_PAUSE_RANGE: readonly [number, number] = [1200, 2600];
 const VIZEME_PAUSE_RANGE: readonly [number, number] = [1000, 4000];
-const DEFAULT_POSE_WEIGHT = 0.75;
-
 export function HeroPassiveBehavior({ enabled = true }: { enabled?: boolean }) {
-  const { ready, assetBundle, animateValue } = useVizijRuntime();
+  const { ready, assetBundle } = useVizijRuntime();
   const poseConfig = assetBundle.pose?.config ?? null;
-  const { bindings } = usePoseHotkeys(poseConfig, ready && enabled);
+  const { bindings, setPoseWeight } = usePoseHotkeys(
+    poseConfig,
+    ready && enabled,
+  );
 
   const emotionBindings = useMemo(
     () => bindings.filter((binding) => binding.semanticKind === "emotion"),
@@ -33,7 +34,7 @@ export function HeroPassiveBehavior({ enabled = true }: { enabled?: boolean }) {
     enabled: ready && enabled,
     emotionBindings,
     vizemeBindings,
-    animateValue,
+    setPoseWeight,
   });
 
   return null;
@@ -43,14 +44,14 @@ type AlternatorOptions = {
   enabled: boolean;
   emotionBindings: PoseHotkeyBinding[];
   vizemeBindings: PoseHotkeyBinding[];
-  animateValue: ReturnType<typeof useVizijRuntime>["animateValue"];
+  setPoseWeight: ReturnType<typeof usePoseHotkeys>["setPoseWeight"];
 };
 
 function useAlternatingEmotionVizemeRoutine({
   enabled,
   emotionBindings,
   vizemeBindings,
-  animateValue,
+  setPoseWeight,
 }: AlternatorOptions) {
   useEffect(() => {
     if (!enabled) {
@@ -98,9 +99,7 @@ function useAlternatingEmotionVizemeRoutine({
       value: number,
       duration: number,
     ) => {
-      const path = binding.weightPath;
-      const nextValue = Math.max(Math.min(value, DEFAULT_POSE_WEIGHT), 0);
-      void animateValue(path, { float: nextValue }, { duration });
+      setPoseWeight(binding, value, duration);
     };
 
     type Stage = "emotion" | "emotionPause" | "vizeme" | "vizemePause";
@@ -165,7 +164,7 @@ function useAlternatingEmotionVizemeRoutine({
         animateBinding(activeEmotion, 0, 0.25);
       }
       activeEmotion = next;
-      animateBinding(next, DEFAULT_POSE_WEIGHT, 0.25);
+      animateBinding(next, 0.75, 0.25);
       const hold = randomRangeMs(EMOTION_DURATION_RANGE);
       schedule(() => {
         if (activeEmotion && activeEmotion.pose.id === next.pose.id) {
@@ -195,7 +194,7 @@ function useAlternatingEmotionVizemeRoutine({
       }
       activeVizeme = next;
       const hold = randomRangeMs(VIZEME_DURATION_RANGE);
-      animateBinding(next, DEFAULT_POSE_WEIGHT, 0.12);
+      animateBinding(next, 0.75, 0.12);
       schedule(() => {
         if (activeVizeme && activeVizeme.pose.id === next.pose.id) {
           animateBinding(next, 0, 0.12);
@@ -213,7 +212,7 @@ function useAlternatingEmotionVizemeRoutine({
           if (cancelled) {
             return;
           }
-          animateBinding(binding, DEFAULT_POSE_WEIGHT, 0.1);
+          animateBinding(binding, 0.75, 0.1);
           schedule(() => {
             animateBinding(binding, 0, 0.1);
           }, 100);
@@ -231,7 +230,7 @@ function useAlternatingEmotionVizemeRoutine({
       stopEmotion(true);
       stopVizeme(true);
     };
-  }, [animateValue, emotionBindings, enabled, vizemeBindings]);
+  }, [emotionBindings, enabled, setPoseWeight, vizemeBindings]);
 }
 
 function randomRangeMs(range: readonly [number, number]) {

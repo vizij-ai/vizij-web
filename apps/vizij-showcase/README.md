@@ -12,7 +12,7 @@ Larger fullscreen Vizij face showcase that layers staging controls, pose hotkeys
 
 ## Environment
 
-Voice/viseme controls require the Vizij API endpoint. Create `apps/vizij-showcase/.env.local` (git-ignored) with:
+Voice/viseme controls default to the staging Vizij API endpoint. Create `apps/vizij-showcase/.env.local` only if you need to override it:
 
 ```bash
 VITE_API_URL="https://your-api-base.example.com"

@@ -100,14 +100,14 @@ export function usePoseHotkeys(
   }, [poseConfig, poseFaceSegment, poseWeightPaths]);
 
   const setPoseWeight = useCallback(
-    (binding: PoseHotkeyBinding, weight: number) => {
+    (binding: PoseHotkeyBinding, weight: number, duration?: number) => {
       if (!binding || !enabled) {
         return;
       }
       void animateValue(
         binding.weightPath,
         { float: clampPoseWeight(weight) },
-        { duration: weight > 0 ? 0.2 : 0.25 },
+        { duration: duration ?? (weight > 0 ? 0.2 : 0.25) },
       );
     },
     [animateValue, enabled],
