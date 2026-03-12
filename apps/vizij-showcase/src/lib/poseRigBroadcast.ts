@@ -1,6 +1,7 @@
-type PoseTriggerEventDetail = {
+export type PoseTriggerEventDetail = {
   poseId?: string;
   relativePath?: string;
+  semanticKey?: string | null;
   weight: number;
 };
 

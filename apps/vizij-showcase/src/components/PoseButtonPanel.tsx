@@ -1,22 +1,48 @@
 import { useMemo, useEffect, useCallback, useRef } from "react";
+import { EXPRESSIVE_EMOTION_POSE_KEYS } from "@vizij/runtime-react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   POSE_HOTKEY_LAYOUT,
   usePoseHotkeys,
   type PoseHotkeyBinding,
 } from "../hooks/usePoseHotkeys";
-import { broadcastPoseTrigger } from "../lib/poseRigBroadcast";
+import {
+  broadcastPoseTrigger,
+  type PoseTriggerEventDetail,
+} from "../lib/poseRigBroadcast";
+
+const DEFAULT_POSE_WEIGHT = 0.75;
 
 type PoseTimerEntry = {
   timeoutId: number;
   binding: PoseHotkeyBinding;
 };
 
-export function PoseButtonPanel() {
+type PoseButtonPanelProps = {
+  onTrigger?: (detail: PoseTriggerEventDetail) => void;
+};
+
+export function PoseButtonPanel({ onTrigger }: PoseButtonPanelProps) {
   const { ready, assetBundle } = useVizijRuntime();
   const poseConfig = assetBundle.pose?.config ?? null;
   const { bindings, setPoseWeight } = usePoseHotkeys(poseConfig, ready);
-  const featuredBindings = useMemo(() => bindings.slice(18, 24), [bindings]);
+  const featuredBindings = useMemo(() => {
+    const emotionsByKey = new Map(
+      bindings
+        .filter(
+          (binding) =>
+            binding.semanticKind === "emotion" && binding.semanticKey,
+        )
+        .map((binding) => [binding.semanticKey, binding] as const),
+    );
+    const ordered = EXPRESSIVE_EMOTION_POSE_KEYS.map((key) =>
+      emotionsByKey.get(key),
+    ).filter((binding): binding is PoseHotkeyBinding => Boolean(binding));
+    if (ordered.length > 0) {
+      return ordered;
+    }
+    return bindings.filter((binding) => binding.semanticKind === "emotion");
+  }, [bindings]);
   const bindingHotkeys = useMemo(() => {
     return featuredBindings.map((binding, index) => ({
       binding,
@@ -25,20 +51,29 @@ export function PoseButtonPanel() {
   }, [featuredBindings]);
   const timersRef = useRef<Map<string, PoseTimerEntry>>(new Map());
 
+  const emitTrigger = useCallback(
+    (detail: PoseTriggerEventDetail) => {
+      broadcastPoseTrigger(detail);
+      onTrigger?.(detail);
+    },
+    [onTrigger],
+  );
+
   useEffect(() => {
     return () => {
       timersRef.current.forEach(({ timeoutId, binding }) => {
         window.clearTimeout(timeoutId);
         setPoseWeight(binding, 0);
-        broadcastPoseTrigger({
+        emitTrigger({
           poseId: binding.pose.id,
           relativePath: binding.relativePath,
+          semanticKey: binding.semanticKey,
           weight: 0,
         });
       });
       timersRef.current.clear();
     };
-  }, [setPoseWeight]);
+  }, [emitTrigger, setPoseWeight]);
 
   const clearBindingTimer = useCallback((poseId: string) => {
     const timers = timersRef.current;
@@ -59,30 +94,33 @@ export function PoseButtonPanel() {
       const clearedBinding = clearBindingTimer(binding.pose.id);
       if (clearedBinding) {
         setPoseWeight(clearedBinding, 0);
-        broadcastPoseTrigger({
+        emitTrigger({
           poseId: clearedBinding.pose.id,
           relativePath: clearedBinding.relativePath,
+          semanticKey: clearedBinding.semanticKey,
           weight: 0,
         });
       }
-      setPoseWeight(binding, 1);
-      broadcastPoseTrigger({
+      setPoseWeight(binding, DEFAULT_POSE_WEIGHT);
+      emitTrigger({
         poseId: binding.pose.id,
         relativePath: binding.relativePath,
-        weight: 1,
+        semanticKey: binding.semanticKey,
+        weight: DEFAULT_POSE_WEIGHT,
       });
       const timeoutId = window.setTimeout(() => {
         setPoseWeight(binding, 0);
-        broadcastPoseTrigger({
+        emitTrigger({
           poseId: binding.pose.id,
           relativePath: binding.relativePath,
+          semanticKey: binding.semanticKey,
           weight: 0,
         });
         timersRef.current.delete(binding.pose.id);
       }, 650);
       timersRef.current.set(binding.pose.id, { timeoutId, binding });
     },
-    [clearBindingTimer, ready, setPoseWeight],
+    [clearBindingTimer, emitTrigger, ready, setPoseWeight],
   );
 
   useEffect(() => {
@@ -111,17 +149,19 @@ export function PoseButtonPanel() {
       const clearedBinding = clearBindingTimer(binding.pose.id);
       if (clearedBinding) {
         setPoseWeight(clearedBinding, 0);
-        broadcastPoseTrigger({
+        emitTrigger({
           poseId: clearedBinding.pose.id,
           relativePath: clearedBinding.relativePath,
+          semanticKey: clearedBinding.semanticKey,
           weight: 0,
         });
       }
-      setPoseWeight(binding, 1);
-      broadcastPoseTrigger({
+      setPoseWeight(binding, DEFAULT_POSE_WEIGHT);
+      emitTrigger({
         poseId: binding.pose.id,
         relativePath: binding.relativePath,
-        weight: 1,
+        semanticKey: binding.semanticKey,
+        weight: DEFAULT_POSE_WEIGHT,
       });
     };
 
@@ -132,9 +172,10 @@ export function PoseButtonPanel() {
       }
       activeKeys.delete(event.code);
       setPoseWeight(binding, 0);
-      broadcastPoseTrigger({
+      emitTrigger({
         poseId: binding.pose.id,
         relativePath: binding.relativePath,
+        semanticKey: binding.semanticKey,
         weight: 0,
       });
     };
@@ -147,15 +188,16 @@ export function PoseButtonPanel() {
       window.removeEventListener("keyup", handleKeyUp);
       keyBindings.forEach((binding) => {
         setPoseWeight(binding, 0);
-        broadcastPoseTrigger({
+        emitTrigger({
           poseId: binding.pose.id,
           relativePath: binding.relativePath,
+          semanticKey: binding.semanticKey,
           weight: 0,
         });
       });
       activeKeys.clear();
     };
-  }, [bindingHotkeys, clearBindingTimer, ready, setPoseWeight]);
+  }, [bindingHotkeys, clearBindingTimer, emitTrigger, ready, setPoseWeight]);
 
   if (featuredBindings.length === 0) {
     return (

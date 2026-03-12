@@ -1,5 +1,7 @@
 const FACE_VISEME_SEGMENTS = [
-  "pose_pzzzfnvy",
+  "at",
+  "b",
+  "m",
   "p",
   "t",
   "t_2",
@@ -8,8 +10,8 @@ const FACE_VISEME_SEGMENTS = [
   "k",
   "i",
   "r",
-  "u",
   "a",
+  "u",
   "e",
   "e_2",
   "o",
@@ -19,7 +21,9 @@ const FACE_VISEME_SEGMENTS = [
 export type FaceVisemeSegment = (typeof FACE_VISEME_SEGMENTS)[number];
 
 const FACE_VISEME_LABELS: Record<FaceVisemeSegment, string> = {
-  pose_pzzzfnvy: "@",
+  at: "@",
+  b: "b",
+  m: "m",
   p: "p",
   t: "t",
   t_2: "th",
@@ -71,7 +75,7 @@ const POLLY_TO_FACE_SEGMENT: Record<PollyVisemeCode, PollyMapping> = {
   f: { segment: "f" },
   k: { segment: "k" },
   a: { segment: "a" },
-  "@": { segment: "pose_pzzzfnvy" },
+  "@": { segment: "at" },
   e: { segment: "e_2" },
   E: { segment: "e" },
   i: { segment: "i" },
