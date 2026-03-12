@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Authoring surface for facial rigs that combines `@vizij/animation-react`, `@vizij/orchestrator-react`, and `@vizij/render` to stage animations, merge controller writes, and preview results.
+Bundle-first showcase surface for facial exports built on `@vizij/runtime-react`. It demonstrates how a single GLB can embed rig graphs, pose data, animation clips, and procedural motiongraph programs.
 
 ## Runbook
 
@@ -12,7 +12,8 @@ Authoring surface for facial rigs that combines `@vizij/animation-react`, `@vizi
 
 ## Integration Tips
 
-- Coordinate orchestrator or animation API changes with the relevant packages and rebuild them before testing.
-- State persistence lives under `src/state`; update storage versioning whenever breaking changes land.
+- Coordinate runtime-react, render, or orchestrator API changes with the relevant packages and rebuild them before testing.
+- State persistence lives under `src/state`; bump storage versioning whenever the persisted source or panel model changes.
 - Maintain logging prefixes (`demo-vizij-player:`) so console output stays searchable.
-- Document any new panel flows or assets in the README for QA coverage.
+- Keep the curated sample catalog aligned with the bundle-rich assets that actually exist in `apps/vizij-authoring/public/assets`.
+- Document any new showcase panels or asset expectations in the README for QA coverage.

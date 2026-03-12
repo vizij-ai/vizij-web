@@ -150,21 +150,9 @@ importers:
 
   apps/demo-vizij-player:
     dependencies:
-      '@vizij/animation-react':
+      '@vizij/runtime-react':
         specifier: workspace:*
-        version: link:../../packages/@vizij/animation-react
-      '@vizij/orchestrator-react':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/orchestrator-react
-      '@vizij/render':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/render
-      '@vizij/utils':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/utils
-      '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        version: link:../../packages/@vizij/runtime-react
       react:
         specifier: ^19.2.3
         version: 19.2.3

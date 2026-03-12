@@ -1,0 +1,122 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  useVizijRuntime,
+  type ProgramPlaybackState,
+} from "@vizij/runtime-react";
+import { useAppState } from "../state/AppStateContext";
+import { IconButton } from "./IconButton";
+
+function useProgramSnapshots(programIds: string[]) {
+  const { getProgramState } = useVizijRuntime();
+  const [snapshots, setSnapshots] = useState<
+    Record<string, ProgramPlaybackState | null>
+  >({});
+  const programIdsKey = programIds.join("|");
+
+  useEffect(() => {
+    if (programIds.length === 0) {
+      setSnapshots({});
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setSnapshots(
+        Object.fromEntries(programIds.map((id) => [id, getProgramState(id)])),
+      );
+    }, 150);
+    return () => window.clearInterval(timer);
+  }, [getProgramState, programIds, programIdsKey]);
+
+  return snapshots;
+}
+
+export function ProgramsPanel() {
+  const { assetBundle, playProgram, pauseProgram, stopProgram } =
+    useVizijRuntime();
+  const {
+    state: {
+      playbackSelection: { programId },
+    },
+    setSelectedProgram,
+  } = useAppState();
+  const programs = assetBundle.programs ?? [];
+  const programIds = useMemo(
+    () => programs.map((program) => program.id),
+    [programs],
+  );
+  const programIdsKey = programIds.join("|");
+  const snapshots = useProgramSnapshots(programIds);
+
+  useEffect(() => {
+    if (!programs.length) {
+      setSelectedProgram(null);
+      return;
+    }
+    if (!programId || !programs.some((program) => program.id === programId)) {
+      setSelectedProgram(programs[0]!.id);
+    }
+  }, [programId, programIdsKey, programs, setSelectedProgram]);
+
+  return (
+    <section className="panel" aria-labelledby="program-panel-title">
+      <header className="panel-header">
+        <div>
+          <p className="eyebrow">Procedural motiongraph</p>
+          <h2 id="program-panel-title">Programs</h2>
+        </div>
+      </header>
+      <div className="panel-body">
+        {programs.length === 0 ? (
+          <div className="panel-empty">
+            No bundled procedural programs were discovered in this face.
+          </div>
+        ) : (
+          <div className="list-stack">
+            {programs.map((program) => {
+              const state = snapshots[program.id];
+              const active = program.id === programId;
+              return (
+                <article
+                  key={program.id}
+                  className={`program-card ${active ? "is-active" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className="program-card-select"
+                    onClick={() => setSelectedProgram(program.id)}
+                  >
+                    <span>
+                      <strong>{program.label ?? program.id}</strong>
+                      <small>{program.id}</small>
+                    </span>
+                    <span className="soft-badge">
+                      {state?.state ?? "stopped"}
+                    </span>
+                  </button>
+                  <div className="transport-actions">
+                    <IconButton
+                      icon="play"
+                      label={`Play ${program.label ?? program.id}`}
+                      onClick={() => playProgram(program.id)}
+                    />
+                    <IconButton
+                      icon="pause"
+                      label={`Pause ${program.label ?? program.id}`}
+                      onClick={() => pauseProgram(program.id)}
+                    />
+                    <IconButton
+                      icon="stop"
+                      label={`Stop ${program.label ?? program.id}`}
+                      onClick={() =>
+                        stopProgram(program.id, { resetOutputs: true })
+                      }
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

@@ -1,35 +1,90 @@
-import { describe, expect, it } from "vitest";
-import { computeBundleKey } from "./storage";
-import type { GlbAsset, GraphAsset } from "./types";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  createPersistedState,
+  loadPersistedState,
+  persistState,
+} from "./storage";
+import {
+  DEFAULT_PANEL_VISIBILITY,
+  DEFAULT_PLAYBACK_SELECTION,
+  type PersistedDemoPlayerState,
+} from "./types";
 
-describe("storage helpers", () => {
-  const glb: GlbAsset = {
-    id: "glb-1",
-    label: "Face A",
-    fileName: "face.glb",
-    dataUrl: "data://stub",
-    size: 1024,
-    updatedAt: "2024-01-01T00:00:00.000Z",
-  };
-
-  const low: GraphAsset = {
-    id: "low-1",
-    label: "Low Rig",
-    fileName: "low.json",
-    spec: { nodes: [], edges: [] },
-    updatedAt: "2024-01-01T00:00:00.000Z",
-  };
-
-  it("computes stable bundle keys", () => {
-    const first = computeBundleKey(glb, low);
-    const second = computeBundleKey({ ...glb }, { ...low });
-    expect(first).toBe(second);
+describe("demo-vizij-player storage", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it("changes key when inputs differ", () => {
-    const alteredGlb = { ...glb, label: "Face B" };
-    expect(computeBundleKey(glb, low)).not.toBe(
-      computeBundleKey(alteredGlb, low),
+  it("drops uploaded sources from persisted state", () => {
+    const file = new File(["hello"], "face.glb", {
+      type: "model/gltf-binary",
+    });
+    const persisted = createPersistedState(
+      {
+        kind: "upload",
+        id: "upload-face",
+        label: "Upload Face",
+        fileName: file.name,
+        file,
+      },
+      DEFAULT_PLAYBACK_SELECTION,
+      DEFAULT_PANEL_VISIBILITY,
     );
+
+    expect(persisted.source).toBeNull();
+  });
+
+  it("loads sanitized defaults from malformed storage payloads", () => {
+    const store = new Map<string, string>();
+    const localStorageMock = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
+    };
+    vi.stubGlobal("window", { localStorage: localStorageMock });
+
+    const state: PersistedDemoPlayerState = {
+      source: { kind: "sample", id: "quori-current-extended" },
+      playbackSelection: {
+        animationId: "anim",
+        programId: "program",
+        poseGroupId: "group",
+      },
+      panels: {
+        overview: false,
+        controls: false,
+        poses: false,
+        animations: false,
+        programs: false,
+        diagnostics: false,
+      },
+    };
+
+    persistState(state);
+    localStorageMock.setItem(
+      "demo-vizij-player/v3/state",
+      JSON.stringify({
+        source: { kind: "invalid", id: "bad" },
+        playbackSelection: { animationId: 42 },
+        panels: { overview: "nope" },
+      }),
+    );
+
+    expect(loadPersistedState()).toEqual({
+      source: null,
+      playbackSelection: {
+        animationId: null,
+        programId: null,
+        poseGroupId: null,
+      },
+      panels: DEFAULT_PANEL_VISIBILITY,
+    });
   });
 });
