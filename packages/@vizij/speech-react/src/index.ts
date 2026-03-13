@@ -51,8 +51,4 @@ export {
 export { POLLY_VOICES, type PollyVoice } from "./data/pollyVoices";
 
 // Types
-export type {
-  SpeechMark,
-  SpeechMarkType,
-  VisemeData,
-} from "./types/polly";
+export type { SpeechMark, SpeechMarkType, VisemeData } from "./types/polly";

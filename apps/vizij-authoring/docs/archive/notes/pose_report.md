@@ -117,7 +117,6 @@ Gating logic is in `apps/vizij-authoring/src/hooks/runtimeGraphSpec.ts:15` and c
    - Repro: `pnpm --filter vizij-authoring test -- src/utils/__tests__/runtimeBundle.test.ts` fails with `buildRuntimeBundle is not a function`.
 
 2. Viewer tests fail against current `RuntimeStatusDebug` assumptions.
-
    - `apps/vizij-authoring/src/components/app/Viewer.tsx:80` reads `outputPaths.length` unguarded.
    - Repro: `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx` -> 3 failures (`Cannot read properties of undefined (reading 'length')`).
 

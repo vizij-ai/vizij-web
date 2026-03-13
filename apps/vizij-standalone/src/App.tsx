@@ -277,10 +277,7 @@ function AppContent({
         if (keys.autoMic !== undefined) {
           setAutoMicOverride(keys.autoMic === "true");
         }
-        if (
-          keys.speechMode === "echo" ||
-          keys.speechMode === "conversation"
-        ) {
+        if (keys.speechMode === "echo" || keys.speechMode === "conversation") {
           setSpeechModeOverride(keys.speechMode);
         }
       })
@@ -420,12 +417,15 @@ function AppContent({
           {runtime.errors.length > 0 && (
             <details className="mt-1 text-red-400">
               <summary className="cursor-pointer">
-                {runtime.errors.length} error{runtime.errors.length > 1 ? "s" : ""}
+                {runtime.errors.length} error
+                {runtime.errors.length > 1 ? "s" : ""}
               </summary>
               <ul className="ml-2 mt-1 text-[10px] text-red-300">
                 {runtime.errors.map((err, i) => (
                   <li key={i}>
-                    {err.phase && <span className="text-red-500">[{err.phase}] </span>}
+                    {err.phase && (
+                      <span className="text-red-500">[{err.phase}] </span>
+                    )}
                     {err.message}
                   </li>
                 ))}

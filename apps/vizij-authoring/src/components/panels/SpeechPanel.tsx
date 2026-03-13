@@ -324,7 +324,10 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   // --- System prompt ---
   const [systemPrompt, setSystemPromptState] = useState(() => {
     try {
-      return localStorage.getItem("vizij_speech_system_prompt") || DEFAULT_SYSTEM_PROMPT;
+      return (
+        localStorage.getItem("vizij_speech_system_prompt") ||
+        DEFAULT_SYSTEM_PROMPT
+      );
     } catch {
       return DEFAULT_SYSTEM_PROMPT;
     }

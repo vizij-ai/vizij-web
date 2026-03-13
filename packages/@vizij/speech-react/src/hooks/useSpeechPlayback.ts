@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  PoseDefinition,
-  PoseGroupDefinition,
-} from "@vizij/runtime-react";
+import type { PoseDefinition, PoseGroupDefinition } from "@vizij/runtime-react";
 import type { PollyVoice } from "../data/pollyVoices";
 import type { VisemeData } from "../types/polly";
 import { fetchVisemeData } from "../services/pollyApi";
@@ -363,11 +360,16 @@ export function useSpeechPlayback({
       stopPlayback(false);
       setStatus("preparing");
       setIsLoading(true);
-      console.log(`[speech-playback] handleSpeak voice=${selectedVoice} text="${trimmed.slice(0, 60)}..." apiBaseUrl=${apiBaseUrl}`);
+      console.log(
+        `[speech-playback] handleSpeak voice=${selectedVoice} text="${trimmed.slice(0, 60)}..." apiBaseUrl=${apiBaseUrl}`,
+      );
 
       const cached = speechCacheRef.current.get(cacheKey);
       if (cached) {
-        console.log("[speech-playback] Using cached speech, visemes:", cached.visemeData.visemes.length);
+        console.log(
+          "[speech-playback] Using cached speech, visemes:",
+          cached.visemeData.visemes.length,
+        );
         const audioUrl = URL.createObjectURL(cached.audioBlob);
         audioSrcRef.current = audioUrl;
         updateTimeline(cached.visemeData.visemes);
@@ -391,7 +393,9 @@ export function useSpeechPlayback({
           selectedVoice,
           apiBaseUrl,
         );
-        console.log(`[speech-playback] TTS response: ${visemeData.visemes.length} visemes, audio ${audioBlob.size} bytes`);
+        console.log(
+          `[speech-playback] TTS response: ${visemeData.visemes.length} visemes, audio ${audioBlob.size} bytes`,
+        );
         speechCacheRef.current.set(cacheKey, { visemeData, audioBlob });
         const audioUrl = URL.createObjectURL(audioBlob);
         audioSrcRef.current = audioUrl;
@@ -431,7 +435,10 @@ export function useSpeechPlayback({
   }, [stopPlayback]);
 
   const handleAudioPlay = useCallback(() => {
-    console.log("[speech-playback] Audio playing, timeline entries:", visemeTimelineRef.current.length);
+    console.log(
+      "[speech-playback] Audio playing, timeline entries:",
+      visemeTimelineRef.current.length,
+    );
     startRAF();
     setStatus("speaking");
     if (speakingInputPathRef.current && stageRuntimeInput && runtimeReady) {

@@ -374,22 +374,35 @@
       </div>
     </header>
     <nav id="tabs"></nav>
-    <div id="speech-pane" class="speech-panel" style="display:none">
+    <div id="speech-pane" class="speech-panel" style="display: none">
       <div class="speech-section">
         <h3>Microphone</h3>
         <div class="speech-row">
-          <button id="mic-btn" class="btn-mic-off" onclick="toggleMic()" disabled>
+          <button
+            id="mic-btn"
+            class="btn-mic-off"
+            onclick="toggleMic()"
+            disabled
+          >
             Mic Off
           </button>
-          <span class="speech-status">Status: <span class="val" id="mic-status">unknown</span></span>
+          <span class="speech-status"
+            >Status: <span class="val" id="mic-status">unknown</span></span
+          >
         </div>
       </div>
       <div class="speech-section">
         <h3>Speak Text</h3>
-        <textarea id="speak-text" class="speech-textarea" placeholder="Type text to speak..."></textarea>
-        <div class="speech-row" style="margin-top:8px">
+        <textarea
+          id="speak-text"
+          class="speech-textarea"
+          placeholder="Type text to speak..."
+        ></textarea>
+        <div class="speech-row" style="margin-top: 8px">
           <button class="btn-on" onclick="invokeSpeakText()">Speak</button>
-          <button class="btn-warn" onclick="invokeInterrupt()">Interrupt</button>
+          <button class="btn-warn" onclick="invokeInterrupt()">
+            Interrupt
+          </button>
         </div>
       </div>
     </div>
@@ -1002,43 +1015,54 @@
       function toggleMic() {
         if (!ws || ws.readyState !== 1) return;
         const newMuted = !micMuted;
-        ws.send(JSON.stringify({
-          type: "invoke",
-          method: "mute_microphone",
-          request_id: "mic-" + Date.now(),
-          args: { muted: { bool: newMuted } },
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "invoke",
+            method: "mute_microphone",
+            request_id: "mic-" + Date.now(),
+            args: { muted: { bool: newMuted } },
+          }),
+        );
         updateMicUI(newMuted);
       }
 
       function pollMicState() {
         if (!ws || ws.readyState !== 1) return;
-        ws.send(JSON.stringify({
-          type: "invoke",
-          method: "get_mic_muted",
-          request_id: "mic-poll-" + Date.now(),
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "invoke",
+            method: "get_mic_muted",
+            request_id: "mic-poll-" + Date.now(),
+          }),
+        );
       }
 
       function invokeSpeakText() {
         if (!ws || ws.readyState !== 1) return;
         const text = speakTextEl.value.trim();
-        if (!text) { speakTextEl.focus(); return; }
-        ws.send(JSON.stringify({
-          type: "invoke",
-          method: "speak",
-          request_id: "speak-" + Date.now(),
-          args: { text: { str: text } },
-        }));
+        if (!text) {
+          speakTextEl.focus();
+          return;
+        }
+        ws.send(
+          JSON.stringify({
+            type: "invoke",
+            method: "speak",
+            request_id: "speak-" + Date.now(),
+            args: { text: { str: text } },
+          }),
+        );
       }
 
       function invokeInterrupt() {
         if (!ws || ws.readyState !== 1) return;
-        ws.send(JSON.stringify({
-          type: "invoke",
-          method: "interrupt",
-          request_id: "interrupt-" + Date.now(),
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "invoke",
+            method: "interrupt",
+            request_id: "interrupt-" + Date.now(),
+          }),
+        );
       }
 
       function showSpeechTab() {
@@ -1057,7 +1081,7 @@
 
       // Override setNamespace to handle speech tab
       const _origSetNamespace = setNamespace;
-      setNamespace = function(name) {
+      setNamespace = function (name) {
         if (name === "__speech__") {
           showSpeechTab();
         } else {
@@ -1068,10 +1092,11 @@
 
       // Extend buildNamespaceTabs to prepend Speech tab
       const _origBuildTabs = buildNamespaceTabs;
-      buildNamespaceTabs = function(namespaces) {
+      buildNamespaceTabs = function (namespaces) {
         _origBuildTabs(namespaces);
         // Prepend Speech tab
-        const speechTab = '<div class="tab ' +
+        const speechTab =
+          '<div class="tab ' +
           (namespaceFilter === "__speech__" ? "active" : "") +
           '" data-namespace="__speech__" onclick="setNamespace(\'__speech__\')">Speech</div>';
         tabsEl.innerHTML = speechTab + tabsEl.innerHTML;

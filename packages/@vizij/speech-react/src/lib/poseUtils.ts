@@ -92,14 +92,14 @@ function buildPoseGroupLookup(
     const humanizedName =
       typeof group.name === "string" && group.name.trim().length > 0
         ? group.name.trim()
-        : path
+        : (path
             .split("/")
             .filter(Boolean)
             .pop()
             ?.split(/[_-]+/)
             .filter(Boolean)
             .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(" ") ?? path;
+            .join(" ") ?? path);
 
     const normalized: PoseGroupDefinition = {
       ...group,
