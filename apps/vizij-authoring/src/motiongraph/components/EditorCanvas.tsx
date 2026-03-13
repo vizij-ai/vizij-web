@@ -353,7 +353,11 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   );
 
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
+    (event: React.MouseEvent, node: Node) => {
+      // When shift is held, let ReactFlow handle multi-selection natively
+      // and don't override the store's inspector selection.
+      if (event.shiftKey) return;
+
       if (onSelectNode) {
         onSelectNode(node.id);
         return;
@@ -627,6 +631,8 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             onPaneClick={onPaneClick}
             onEdgeDoubleClick={onEdgeDoubleClick}
             onNodesDelete={onNodesDelete}
+            selectionKeyCode="Shift"
+            multiSelectionKeyCode="Shift"
             deleteKeyCode={["Backspace", "Delete"]}
             nodeTypes={nodeTypes}
             isValidConnection={isValidConnection}
