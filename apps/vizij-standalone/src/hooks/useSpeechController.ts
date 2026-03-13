@@ -61,6 +61,8 @@ export interface UseSpeechControllerOptions {
   autoMicOverride?: boolean | undefined;
   /** CLI/env override for speech mode, or undefined to use bundle config */
   speechModeOverride?: "echo" | "conversation" | undefined;
+  /** CLI/env override for VAD silence duration in ms before auto-stopping mic. 0 = disabled. */
+  silenceMsOverride?: number | undefined;
 }
 
 export interface UseSpeechControllerReturn {
@@ -100,6 +102,7 @@ export function useSpeechController({
   ready,
   autoMicOverride,
   speechModeOverride,
+  silenceMsOverride,
 }: UseSpeechControllerOptions): UseSpeechControllerReturn {
   const [dgKey, setDgKey] = useState<string | null>(null);
   const [oaiKey, setOaiKey] = useState<string | null>(null);
@@ -341,9 +344,16 @@ export function useSpeechController({
     }
   }, []);
 
+  const autoStopSilenceMs =
+    silenceMsOverride !== undefined
+      ? silenceMsOverride
+      : mode === "conversation"
+        ? 1000
+        : 0;
+
   const asr = useSpeechRecognition({
     apiKey: enabled ? dgKey : null,
-    autoStopSilenceMs: mode === "conversation" ? 1500 : 0,
+    autoStopSilenceMs,
     onFinalTranscript,
   });
 
@@ -423,13 +433,14 @@ export function useSpeechController({
   const hasAutoActivated = useRef(false);
   useEffect(() => {
     if (hasAutoActivated.current) return;
-    if (!enabled || !keysConfigured || !ready) return;
+    if (!keysConfigured || !ready) return;
 
-    // CLI override takes precedence over bundle config
+    // CLI override takes precedence over bundle config.
+    // When autoMicOverride is set via CLI, bypass the bundle speechConfig requirement.
     const shouldAutoActivate =
       autoMicOverride !== undefined
         ? autoMicOverride
-        : speechConfig?.autoActivateMic === true;
+        : enabled && speechConfig?.autoActivateMic === true;
 
     if (shouldAutoActivate) {
       hasAutoActivated.current = true;
@@ -445,16 +456,28 @@ export function useSpeechController({
     asr,
   ]);
 
-  // Log TTS status changes
+  // Log TTS status changes + re-activate mic in auto-mic mode after speaking finishes
   const prevSpeechStatusRef = useRef(speech.status);
   useEffect(() => {
-    if (prevSpeechStatusRef.current !== speech.status) {
-      console.log(
-        `[speech] TTS status: ${prevSpeechStatusRef.current} → ${speech.status}`,
-      );
+    const prev = prevSpeechStatusRef.current;
+    if (prev !== speech.status) {
+      console.log(`[speech] TTS status: ${prev} → ${speech.status}`);
+
+      // When speaking finishes, re-activate mic if auto-mic is on
+      if (prev === "speaking" && speech.status === "idle") {
+        const shouldAutoActivate =
+          autoMicOverride !== undefined
+            ? autoMicOverride
+            : enabled && speechConfig?.autoActivateMic === true;
+        if (shouldAutoActivate && keysConfigured && !asr.listening) {
+          console.log("[speech] Auto-reactivating microphone after speech");
+          void asr.startListening();
+        }
+      }
+
       prevSpeechStatusRef.current = speech.status;
     }
-  }, [speech.status]);
+  }, [speech.status, autoMicOverride, speechConfig?.autoActivateMic, enabled, keysConfigured, asr]);
 
   // Log errors
   useEffect(() => {

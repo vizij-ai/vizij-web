@@ -292,6 +292,9 @@ function AppContent({
   const [speechModeOverride, setSpeechModeOverride] = useState<
     "echo" | "conversation" | undefined
   >(undefined);
+  const [silenceMsOverride, setSilenceMsOverride] = useState<
+    number | undefined
+  >(undefined);
   useEffect(() => {
     invoke<Record<string, string>>("get_speech_keys")
       .then((keys) => {
@@ -300,6 +303,9 @@ function AppContent({
         }
         if (keys.speechMode === "echo" || keys.speechMode === "conversation") {
           setSpeechModeOverride(keys.speechMode);
+        }
+        if (keys.silenceMs !== undefined) {
+          setSilenceMsOverride(Number(keys.silenceMs));
         }
       })
       .catch(() => {
@@ -465,6 +471,7 @@ function AppContent({
     ready: runtime.ready,
     autoMicOverride,
     speechModeOverride,
+    silenceMsOverride,
   });
 
   // Listen for mute-microphone events from WebSocket methods (via Tauri)

@@ -29,6 +29,7 @@ struct AppState {
     api_url: Option<String>,
     auto_mic: Option<bool>,
     speech_mode: Option<String>,
+    silence_ms: Option<u32>,
     mic_muted: std::sync::Mutex<bool>,
     transport_catalog: std::sync::Mutex<TransportCatalog>,
 }
@@ -108,6 +109,11 @@ struct Cli {
     /// Speech mode: "echo" (repeat back) or "conversation" (LLM-powered)
     #[arg(long)]
     speech_mode: Option<String>,
+
+    /// Silence duration in milliseconds before auto-stopping the microphone (server-side VAD).
+    /// Defaults to 1500ms in conversation mode. Set to 0 to disable.
+    #[arg(long)]
+    silence_ms: Option<u32>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -324,6 +330,9 @@ async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String
     if let Some(ref mode) = state.speech_mode {
         keys.insert("speechMode".to_string(), mode.clone());
     }
+    if let Some(silence_ms) = state.silence_ms {
+        keys.insert("silenceMs".to_string(), silence_ms.to_string());
+    }
     keys
 }
 
@@ -423,6 +432,11 @@ pub fn run() {
                 .speech_mode
                 .clone()
                 .or_else(|| std::env::var("SPEECH_MODE").ok());
+            let silence_ms = cli.silence_ms.or_else(|| {
+                std::env::var("SILENCE_MS")
+                    .ok()
+                    .and_then(|v| v.parse::<u32>().ok())
+            });
 
             app.manage(AppState {
                 connection_manager: Arc::new(manager),
@@ -435,6 +449,7 @@ pub fn run() {
                 api_url,
                 auto_mic,
                 speech_mode,
+                silence_ms,
                 mic_muted: std::sync::Mutex::new(true),
                 transport_catalog: std::sync::Mutex::new(TransportCatalog::default()),
             });
