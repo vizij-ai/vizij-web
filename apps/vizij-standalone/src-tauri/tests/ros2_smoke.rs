@@ -31,12 +31,15 @@ use ros2_client::{
 const FRONTEND_PORT: u16 = 1420;
 
 /// RAII guard that kills the child process on drop.
-struct AppProcess(Child);
+struct AppProcess {
+    child: Child,
+    log_path: PathBuf,
+}
 
 impl Drop for AppProcess {
     fn drop(&mut self) {
-        let _ = self.0.kill();
-        let _ = self.0.wait();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 }
 
@@ -119,18 +122,73 @@ fn random_domain_id() -> u16 {
     rand::rng().random_range(100..250)
 }
 
+fn reserve_free_port() -> u16 {
+    TcpListener::bind(("127.0.0.1", 0))
+        .expect("failed to reserve a free TCP port")
+        .local_addr()
+        .expect("reserved listener should have a local address")
+        .port()
+}
+
+fn app_log_path(namespace: &str, domain_id: u16, port: u16) -> PathBuf {
+    let mut sanitized = namespace.replace('/', "_");
+    sanitized.retain(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    std::env::temp_dir().join(format!(
+        "vizij-standalone-smoke-{sanitized}-{domain_id}-{port}.log"
+    ))
+}
+
+fn read_log_tail(path: &Path) -> String {
+    const MAX_BYTES: usize = 24 * 1024;
+
+    match fs::read(path) {
+        Ok(bytes) => {
+            let slice = if bytes.len() > MAX_BYTES {
+                &bytes[bytes.len() - MAX_BYTES..]
+            } else {
+                &bytes
+            };
+            String::from_utf8_lossy(slice).into_owned()
+        }
+        Err(error) => format!("failed to read app log {}: {error}", path.display()),
+    }
+}
+
 fn start_app(domain_id: u16, namespace: &str, port: u16) -> AppProcess {
     let bin = env!("CARGO_BIN_EXE_vizij-standalone");
+    let log_path = app_log_path(namespace, domain_id, port);
+    let log_file =
+        fs::File::create(&log_path).expect("failed to create standalone smoke-test log file");
+    let log_file_err = log_file
+        .try_clone()
+        .expect("failed to clone standalone smoke-test log file handle");
     let child = Command::new(bin)
         .args(["--port", &port.to_string()])
         .args(["--no-web-control"])
         .args(["--ros2-domain-id", &domain_id.to_string()])
         .args(["--ros2-namespace", namespace])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .env("RUST_LOG", "info")
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(log_file_err))
         .spawn()
         .expect("failed to start vizij-standalone");
-    AppProcess(child)
+    AppProcess { child, log_path }
+}
+
+fn assert_app_running(app: &mut AppProcess, context: &str) {
+    match app.child.try_wait() {
+        Ok(Some(status)) => {
+            panic!(
+                "vizij-standalone exited early while {context} (status: {status})\napp log: {}\n{}",
+                app.log_path.display(),
+                read_log_tail(&app.log_path)
+            );
+        }
+        Ok(None) => {}
+        Err(error) => {
+            panic!("failed to query vizij-standalone process state while {context}: {error}");
+        }
+    }
 }
 
 fn create_client_node(domain_id: u16, suffix: &str) -> (Context, ros2_client::Node) {
@@ -241,10 +299,10 @@ fn content_type_for(path: &Path) -> &'static str {
 async fn test_reset_service_via_app() {
     let domain_id = random_domain_id();
     let namespace = "smoke_test";
-    let port: u16 = rand::rng().random_range(19000..20000);
+    let port = reserve_free_port();
 
     let _frontend = FrontendServer::start();
-    let _app = start_app(domain_id, namespace, port);
+    let mut app = start_app(domain_id, namespace, port);
 
     let (_ctx, mut node) = create_client_node(domain_id, "smoke");
 
@@ -264,13 +322,19 @@ async fn test_reset_service_via_app() {
     // start_ws_server, ROS2 node starts. Give it a generous timeout.
     let found = tokio::time::timeout(Duration::from_secs(30), async {
         loop {
+            assert_app_running(&mut app, "waiting for reset service discovery");
             client.wait_for_service(&node).await;
             break;
         }
     })
     .await;
 
-    assert!(found.is_ok(), "reset service not discovered within 30s");
+    assert!(
+        found.is_ok(),
+        "reset service not discovered within 30s\napp log: {}\n{}",
+        app.log_path.display(),
+        read_log_tail(&app.log_path)
+    );
 
     // DDS discovery stabilisation.
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -278,8 +342,13 @@ async fn test_reset_service_via_app() {
     // Call reset with a retry loop (DDS response channel race).
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
     let response = loop {
+        assert_app_running(&mut app, "waiting for reset service response");
         if tokio::time::Instant::now() >= deadline {
-            panic!("timed out waiting for reset response");
+            panic!(
+                "timed out waiting for reset response\napp log: {}\n{}",
+                app.log_path.display(),
+                read_log_tail(&app.log_path)
+            );
         }
         let req_id = client
             .async_send_request(InvokeRequest {
