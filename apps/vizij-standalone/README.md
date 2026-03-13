@@ -157,6 +157,11 @@ pnpm install
 pnpm --filter vizij-standalone dev
 ```
 
+`pnpm --filter vizij-standalone dev` is the normal development entry point because
+Tauri dev mode loads the React frontend from `http://localhost:1420`.
+That frontend server is started automatically by the `beforeDevCommand` in
+[`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json).
+
 Passing CLI arguments through `pnpm tauri dev`:
 
 ```bash
@@ -198,6 +203,35 @@ cargo test --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features
 ```
 
 The smoke test requires a built frontend and a display because it launches the Tauri app.
+
+Direct `cargo run` note:
+
+- running `cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml ...`
+  launches the Tauri Rust binary directly
+- in debug/dev mode that binary still expects the frontend at `http://localhost:1420`
+- `--no-web-control` only disables the separate browser control panel on the Arora port;
+  it does not disable the main Tauri window frontend
+- if you want to use direct `cargo run`, start a frontend server first, for example:
+
+```bash
+pnpm --filter vizij-standalone build
+python3 -m http.server 1420 -d apps/vizij-standalone/dist
+
+RUST_LOG=info cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features ros2 -- \
+  --no-web-control \
+  --ros2-domain-id 201 \
+  --ros2-namespace smoke_debug \
+  --port 19191
+```
+
+If you only need the app with the correct frontend wiring, prefer:
+
+```bash
+pnpm --filter vizij-standalone dev -- -- \
+  --ros2-domain-id 201 \
+  --ros2-namespace smoke_debug \
+  --port 19191
+```
 
 ## Notes
 
