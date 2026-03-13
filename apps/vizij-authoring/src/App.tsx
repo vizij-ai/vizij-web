@@ -3015,6 +3015,30 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedProceduralTargetId,
   ]);
 
+  const activeMotionGraphIdForExport = useMemo<string | null>(() => {
+    if (
+      effectiveProgramRuntimePlaybackState !== "playing" ||
+      !activeProgramRuntimeTargetId
+    ) {
+      return null;
+    }
+    const authored = authoredProceduralTargets.find(
+      (t) => t.targetId === activeProgramRuntimeTargetId,
+    );
+    if (authored) {
+      return authored.programId;
+    }
+    const importedEntry = resolveBundleProceduralEntry(
+      activeProgramRuntimeTargetId,
+    );
+    return importedEntry?.id ?? null;
+  }, [
+    effectiveProgramRuntimePlaybackState,
+    activeProgramRuntimeTargetId,
+    authoredProceduralTargets,
+    resolveBundleProceduralEntry,
+  ]);
+
   const loadingSessionActive =
     loader.faceLoadSessionStartedAtMs !== null &&
     loader.faceLoadSessionCompletedAtMs === null;
@@ -4585,6 +4609,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         loadedBundle={loadedBundle}
         authoredAnimationClips={authoredAnimationClipsForExport}
         authoredProceduralPrograms={authoredProceduralProgramsForExport}
+        activeMotionGraphId={activeMotionGraphIdForExport}
         canExport={canExport}
         handleImportPoseGraphFile={handleImportPoseGraphFile}
         poseGraphRemap={poseGraphRemap}

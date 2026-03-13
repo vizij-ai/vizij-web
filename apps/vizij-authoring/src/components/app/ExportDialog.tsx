@@ -61,6 +61,7 @@ interface ExportDialogProps {
   loadedBundle: VizijBundleExtension | null;
   authoredAnimationClips: AnimationClipIR[];
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
+  activeMotionGraphId?: string | null;
   canExport: boolean;
   onImportPoseGraph: (file: File) => Promise<void>;
   runtimeExportBodies?: RuntimeExportBodies;
@@ -77,6 +78,7 @@ export function ExportDialog({
   loadedBundle,
   authoredAnimationClips,
   authoredProceduralPrograms,
+  activeMotionGraphId,
   canExport,
   onImportPoseGraph,
   runtimeExportBodies,
@@ -235,6 +237,7 @@ export function ExportDialog({
       crossGroupBlendMode: poseRig.crossGroupBlendMode,
     },
     authoredMotionGraphs: authoredProceduralPrograms,
+    activeMotionGraphId,
     onExportGlbComplete,
   });
 

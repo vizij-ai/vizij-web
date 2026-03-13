@@ -316,6 +316,34 @@ function AppContent({
     return sc as VizijSpeechConfig;
   }, [runtime.assetBundle?.bundle?.metadata]);
 
+  // Auto-play the motion graph that was active when the GLB was exported
+  const autoPlayTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!runtime.ready || runtime.loading) return;
+    if (autoPlayTriggeredRef.current) return;
+    const meta = runtime.assetBundle?.bundle?.metadata as
+      | Record<string, unknown>
+      | undefined;
+    const activeId: string | undefined =
+      typeof meta?.activeMotionGraphId === "string"
+        ? meta.activeMotionGraphId
+        : Array.isArray(meta?.activeMotionGraphIds) &&
+            typeof (meta.activeMotionGraphIds as unknown[])[0] === "string"
+          ? ((meta.activeMotionGraphIds as unknown[])[0] as string)
+          : undefined;
+    if (!activeId) return;
+    const match = (runtime.assetBundle?.programs ?? []).find(
+      (p) => p.id === activeId,
+    );
+    if (!match) return;
+    try {
+      runtime.playProgram(activeId);
+      autoPlayTriggeredRef.current = true;
+    } catch {
+      // will retry on next render cycle
+    }
+  }, [runtime.ready, runtime.loading, runtime.assetBundle, runtime.playProgram]);
+
   // Extract pose data for viseme/emotion group resolution
   const poses = useMemo(
     () => runtime.assetBundle?.pose?.config?.poses ?? [],
@@ -574,8 +602,8 @@ function AppContent({
         Back
       </button>
 
-      {/* Settings panel */}
-      <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
+      {/* Settings panel — dev only */}
+      {import.meta.env.DEV && <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
         <div className="mb-2">
           <label className="block text-xs text-neutral-400 mb-1">
             Background
@@ -805,6 +833,21 @@ function AppContent({
           );
           console.log("[vizij-standalone] Speech config:", speechConfig);
           console.log("[vizij-standalone] Speech status:", speech.status);
+          console.log(
+            "[vizij-standalone] Bundle metadata:",
+            runtime.assetBundle?.bundle?.metadata ?? null,
+          );
+          const bundleGraphs = runtime.assetBundle?.bundle?.graphs ?? [];
+          console.log(
+            "[vizij-standalone] Bundle graphs (" + bundleGraphs.length + "):",
+            bundleGraphs.map((g) => g.kind + ":" + g.id).join(", "),
+          );
+          const programs = runtime.assetBundle?.programs ?? [];
+          console.log(
+            "[vizij-standalone] Programs (" + programs.length + "):",
+            programs.map((p) => p.id).join(", "),
+          );
+          const meta = runtime.assetBundle?.bundle?.metadata;
         }}
         className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
       >
