@@ -375,8 +375,9 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
     }
   }, [onSelectNode, setSelected]);
 
-  // Attach a native click listener directly on the react-flow__pane element so
-  // we reliably capture the exact screen position of every canvas click.
+  // Record the IO-add position on pointerdown so it captures both simple
+  // clicks and click-drag pans (the browser's "click" event doesn't fire
+  // after a drag).
   useEffect(() => {
     const wrapper = reactFlowWrapper.current;
     if (!wrapper || !rfInstance) return;
@@ -384,7 +385,8 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
     const pane = wrapper.querySelector<HTMLElement>(".react-flow__pane");
     if (!pane) return;
 
-    const handler = (event: MouseEvent) => {
+    const handler = (event: PointerEvent) => {
+      if (event.button !== 0) return; // only primary button
       const pos = rfInstance.screenToFlowPosition
         ? rfInstance.screenToFlowPosition({
             x: event.clientX,
@@ -402,8 +404,8 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       ioAddPositionRef.current = pos;
     };
 
-    pane.addEventListener("click", handler);
-    return () => pane.removeEventListener("click", handler);
+    pane.addEventListener("pointerdown", handler);
+    return () => pane.removeEventListener("pointerdown", handler);
   }, [rfInstance]);
 
   /** After a node is dragged/dropped, set the IO add position just below it. */
@@ -490,6 +492,141 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       setSelected,
     ],
   );
+
+  // --- Copy / Paste selected nodes (Ctrl+C / Ctrl+V) ---
+
+  const clipboardRef = useRef<{
+    nodes: Node[];
+    edges: Edge[];
+    /** Position of the IO-add cursor at copy time (to detect later clicks). */
+    ioPositionAtCopy: { x: number; y: number } | null;
+  } | null>(null);
+
+  const copySelectedNodes = useCallback(() => {
+    const currentNodes = useEditorStore.getState().nodes;
+    const currentEdges = useEditorStore.getState().edges;
+
+    const selected = currentNodes.filter((n) => n.selected);
+    if (selected.length === 0) return;
+
+    const selectedIds = new Set(selected.map((n) => n.id));
+
+    // Keep only edges where both source and target are in the selection
+    const internalEdges = currentEdges.filter(
+      (e) => selectedIds.has(e.source) && selectedIds.has(e.target),
+    );
+
+    clipboardRef.current = {
+      nodes: selected.map((n) => ({ ...n })),
+      edges: internalEdges.map((e) => ({ ...e })),
+      ioPositionAtCopy: ioAddPositionRef.current
+        ? { ...ioAddPositionRef.current }
+        : null,
+    };
+  }, []);
+
+  const pasteNodes = useCallback(() => {
+    const clip = clipboardRef.current;
+    if (!clip || clip.nodes.length === 0) return;
+
+    // Build old-id → new-id mapping
+    const idMap = new Map<string, string>();
+    const ts = Date.now();
+    clip.nodes.forEach((n, i) => {
+      idMap.set(
+        n.id,
+        `node_${ts}_${i}_${Math.floor(Math.random() * 1_000)}`,
+      );
+    });
+
+    const PASTE_OFFSET = 40;
+
+    // Check if the user clicked on the canvas after copying
+    const cur = ioAddPositionRef.current;
+    const atCopy = clip.ioPositionAtCopy;
+    const clickedAfterCopy =
+      cur != null &&
+      (atCopy == null || cur.x !== atCopy.x || cur.y !== atCopy.y);
+
+    let newNodes: Node[];
+
+    if (clickedAfterCopy) {
+      // Paste at the clicked location, preserving relative layout
+      const minX = Math.min(...clip.nodes.map((n) => n.position.x));
+      const minY = Math.min(...clip.nodes.map((n) => n.position.y));
+
+      newNodes = clip.nodes.map((n) => ({
+        ...n,
+        id: idMap.get(n.id)!,
+        position: {
+          x: cur!.x + (n.position.x - minX),
+          y: cur!.y + (n.position.y - minY),
+        },
+        selected: true,
+        data: { ...n.data },
+      }));
+    } else {
+      // No click since copy — use a simple offset from originals
+      newNodes = clip.nodes.map((n) => ({
+        ...n,
+        id: idMap.get(n.id)!,
+        position: {
+          x: n.position.x + PASTE_OFFSET,
+          y: n.position.y + PASTE_OFFSET,
+        },
+        selected: true,
+        data: { ...n.data },
+      }));
+    }
+
+    // Remap edges to new node IDs
+    const newEdges: Edge[] = clip.edges.map((e) => ({
+      ...e,
+      id: `e-${idMap.get(e.source)}-${idMap.get(e.target)}-${e.sourceHandle ?? "out"}-${e.targetHandle ?? "in"}`,
+      source: idMap.get(e.source)!,
+      target: idMap.get(e.target)!,
+    }));
+
+    // Deselect existing nodes, then add the pasted ones (selected)
+    setNodes((prev) => [
+      ...prev.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      ...newNodes,
+    ]);
+    setEdges((prev) => [...prev, ...newEdges]);
+
+    // For repeated pastes without another click, offset from the just-pasted
+    // positions so they don't stack on top of each other.
+    clipboardRef.current = {
+      nodes: newNodes.map((n) => ({
+        ...n,
+        // restore original IDs so the next paste remaps fresh
+        id: clip.nodes[clip.nodes.findIndex((c) => idMap.get(c.id) === n.id)]
+          ?.id ?? n.id,
+      })),
+      edges: clip.edges,
+      ioPositionAtCopy: ioAddPositionRef.current
+        ? { ...ioAddPositionRef.current }
+        : null,
+    };
+  }, [setNodes, setEdges]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key === "c") {
+        copySelectedNodes();
+      } else if (mod && e.key === "v") {
+        pasteNodes();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [copySelectedNodes, pasteNodes]);
 
   const onInit = useCallback(
     (instance: ReactFlowInstance) => {

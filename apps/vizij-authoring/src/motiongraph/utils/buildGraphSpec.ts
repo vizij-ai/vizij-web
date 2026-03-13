@@ -22,7 +22,11 @@ interface SpecEdge {
 }
 
 export interface BuiltGraphSpec {
-  spec: { nodes: SpecNode[]; edges: SpecEdge[] };
+  spec: {
+    nodes: SpecNode[];
+    edges: SpecEdge[];
+    layout?: Record<string, { x: number; y: number }>;
+  };
   /** Namespaced output paths written by this graph. */
   outputPaths: string[];
   /** Namespaced input paths read by this graph (from Input nodes). */
@@ -279,8 +283,15 @@ function buildGraphSpecInternal(
     .filter((n) => n.type === "input" && typeof n.params?.path === "string")
     .map((n) => n.params!.path as string);
 
+  // 7. Persist node positions so the authored layout survives roundtrips.
+  const layout: Record<string, { x: number; y: number }> = {};
+  for (const node of nodes) {
+    if (!specNodeIds.has(node.id)) continue;
+    layout[node.id] = { x: node.position.x, y: node.position.y };
+  }
+
   return {
-    spec: { nodes: specNodes, edges: specEdges },
+    spec: { nodes: specNodes, edges: specEdges, layout },
     outputPaths,
     inputPaths,
     hasConnectedOutputs: outputPaths.length > 0,
