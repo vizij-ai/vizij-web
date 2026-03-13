@@ -19,7 +19,7 @@ use ros2_client::{
   ServiceMapping, ServiceTypeName, DEFAULT_SUBSCRIPTION_QOS,
 };
 use tokio::sync::{watch, RwLock};
-use tokio::task::AbortHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 
 use crate::conversions::{drive_slot_streams, setup_slot_subscriber};
 use crate::msg_types::{InvokeRequest, InvokeResponse};
@@ -170,8 +170,12 @@ impl AroraConnection for AroraRos2Node {
       // ── 6. React to slot changes (hot-reload) ────────────────────
       // The slot subscription driver task is (re-)spawned whenever
       // set_slots() delivers a new list via the watch channel.
+      // We keep the full JoinHandle so that before creating new DDS
+      // subscriptions we can await the previous task's completion,
+      // ensuring old Subscription objects (and their DDS DataReaders)
+      // are fully dropped and deregistered from the node.
       let mut slots_rx = self.slots_rx.clone();
-      let mut slot_driver_abort: Option<AbortHandle> = None;
+      let mut slot_driver_handle: Option<JoinHandle<()>> = None;
 
       loop {
         tokio::select! {
@@ -182,9 +186,18 @@ impl AroraConnection for AroraRos2Node {
               break;
             }
 
-            // Abort the previous slot driver if any.
-            if let Some(prev) = slot_driver_abort.take() {
+            // Abort the previous slot driver and await its completion
+            // so that the old DDS subscriptions are fully cleaned up
+            // before new ones are created on the same node.
+            if let Some(prev) = slot_driver_handle.take() {
               prev.abort();
+              // Wait for the task to finish, handling cancellation so
+              // we don't block shutdown.
+              tokio::select! {
+                biased;
+                _ = cancel_token.cancelled() => break,
+                _ = prev => {},
+              }
             }
 
             let slots = slots_rx.borrow_and_update().clone();
@@ -220,10 +233,9 @@ impl AroraConnection for AroraRos2Node {
 
               if !streams.is_empty() {
                 let handler = handler.clone();
-                slot_driver_abort = Some(
-                  tokio::spawn(drive_slot_streams(streams, handler))
-                    .abort_handle(),
-                );
+                slot_driver_handle = Some(tokio::spawn(drive_slot_streams(
+                  streams, handler,
+                )));
               }
             }
           }
@@ -234,8 +246,9 @@ impl AroraConnection for AroraRos2Node {
       info!("ROS2 node shutting down");
       *self.is_running.write().await = false;
 
-      if let Some(abort) = slot_driver_abort {
-        abort.abort();
+      if let Some(handle) = slot_driver_handle {
+        handle.abort();
+        let _ = handle.await;
       }
       for handle in abort_handles {
         handle.abort();
