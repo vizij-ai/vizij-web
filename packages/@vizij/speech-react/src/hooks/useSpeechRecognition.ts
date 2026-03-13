@@ -11,6 +11,8 @@ export interface UseSpeechRecognitionOptions {
 
 export interface UseSpeechRecognitionReturn {
   listening: boolean;
+  /** True when Deepgram VAD detects the user is actively speaking (more accurate than `listening`). */
+  userSpeaking: boolean;
   interimTranscript: string;
   error: string | null;
   startListening: () => Promise<void>;
@@ -25,6 +27,7 @@ export function useSpeechRecognition({
   onFinalTranscript,
 }: UseSpeechRecognitionOptions): UseSpeechRecognitionReturn {
   const [listening, setListening] = useState(false);
+  const [userSpeaking, setUserSpeaking] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -89,6 +92,7 @@ export function useSpeechRecognition({
     finalAccRef.current = "";
     displayedRef.current = "";
     setInterimTranscript("");
+    setUserSpeaking(false);
     setListening(false);
 
     if (socketRef.current) {
@@ -166,9 +170,9 @@ export function useSpeechRecognition({
         punctuate: "true",
         interim_results: "true",
         smart_format: "true",
+        vad_events: "true",
         ...(autoStopSilenceMs > 0 && {
           utterance_end_ms: String(autoStopSilenceMs),
-          vad_events: "true",
         }),
         Authorization: `Token ${apiKey}`,
       });
@@ -210,8 +214,13 @@ export function useSpeechRecognition({
 
     connectedSocket.on("message", (data) => {
       const msgType = (data as { type?: string }).type;
-      if (msgType === "UtteranceEnd" && !stoppingRef.current) {
-        doStopRef.current();
+      if (msgType === "SpeechStarted") {
+        setUserSpeaking(true);
+        return;
+      }
+      if (msgType === "UtteranceEnd") {
+        setUserSpeaking(false);
+        if (!stoppingRef.current) doStopRef.current();
         return;
       }
 
@@ -250,6 +259,7 @@ export function useSpeechRecognition({
     connectedSocket.on("error", (err) => {
       if (!stoppingRef.current) {
         setError(`ASR error: ${err.message || "Connection error"}`);
+        setUserSpeaking(false);
         cleanup();
         setListening(false);
       }
@@ -263,6 +273,7 @@ export function useSpeechRecognition({
       } else {
         const detail = reason || (code ? `code ${code}` : "unexpected close");
         setError(`ASR closed: ${detail}`);
+        setUserSpeaking(false);
         cleanup();
         setListening(false);
       }
@@ -271,6 +282,7 @@ export function useSpeechRecognition({
 
   return {
     listening,
+    userSpeaking,
     interimTranscript,
     error,
     startListening,

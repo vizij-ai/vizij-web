@@ -366,15 +366,15 @@ export function useSpeechController({
     }
   }, [asr.listening]);
 
-  // Drive /speech/user_speaking input based on mic state
+  // Drive /speech/user_speaking input from Deepgram VAD (SpeechStarted/UtteranceEnd)
   useEffect(() => {
     if (!stageRuntimeInput || !ready) return;
     stageRuntimeInput(
       buildRigInputPath(faceSegment, userSpeakingInputPath),
-      asr.listening ? 1 : 0,
+      asr.userSpeaking ? 1 : 0,
     );
   }, [
-    asr.listening,
+    asr.userSpeaking,
     stageRuntimeInput,
     ready,
     faceSegment,
