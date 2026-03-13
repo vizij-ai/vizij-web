@@ -284,6 +284,7 @@ This is why the demo can support pulse and hold behavior without special-case ri
 
 - use `assetBundle.pose?.config` as the source of truth for groups and labels
 - use `buildPoseWeightPathMap()` to get runtime-safe paths
+- keep pose-grouping and blend-strategy information in the pose config; the runtime path still stays `rig/{face}/poses/{poseId}.weight`
 - use `stagePoseNeutral(true)` when changing held pose state
 - keep pose UI stateless relative to the bundle when possible, because the active bundle can change
 

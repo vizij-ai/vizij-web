@@ -167,8 +167,10 @@ Optional `VizijGraphAsset` for the main rig graph. When omitted, the runtime loo
 Optional pose graph/config surface:
 
 - `graph`: pose-driver graph override
-- `config`: `PoseRigConfig` used by pose-aware UIs
+- `config`: `PoseRigConfig` used by pose-aware UIs and pose-blending configuration
 - `stageNeutralFilter`: lets you skip specific neutral writes, for example baked color channels
+
+`PoseRigConfig.poseGroups` defines how subsets of poses are grouped for local blend behavior and wider composition. Group labels such as `viseme` or `emotion` are not runtime path segments. Runtime-facing pose writes still use canonical per-pose paths.
 
 ### `animations`
 
@@ -328,6 +330,8 @@ These are the canonical helpers for pose-weight paths. The current runtime/expor
 rig/{faceId}/poses/{poseId}.weight
 ```
 
+That contract does not change when the pose belongs to a group labeled `viseme` or `emotion`. Group membership exists to control blend behavior, not to build a different input path family.
+
 ### Pose semantics helpers
 
 - `normalizePoseSemanticKey()`
@@ -338,7 +342,23 @@ rig/{faceId}/poses/{poseId}.weight
 - `buildSemanticPoseWeightPathMap()`
 - constants such as `VISEME_POSE_KEYS`, `EMOTION_POSE_KEYS`, and `EXPRESSIVE_EMOTION_POSE_KEYS`
 
-These helpers are what the fullscreen/tutorial/showcase apps use to order emotion and viseme hotkeys without hard-coding face-specific pose names.
+These helpers are convenience utilities for example apps that need to order or match current poses without hard-coding face-specific names. Pose groups themselves still exist to control blending/composition, and these helpers do not introduce paths such as `rig/{faceId}/visemes/...`.
+
+### Automatic input-path detection and pose-control bridging
+
+Runtime-react also auto-detects the actual rig input paths it needs from the registered rig graph:
+
+1. `collectInputPathMap()` scans `input` nodes and records aliases for authored channel ids.
+2. When both direct rig inputs and `pose/control` inputs exist, the direct rig input path is preferred for bare channel ids.
+3. Compiled pose graphs still emit internal pose-control outputs on:
+
+   ```text
+   rig/{faceId}/pose/control/{inputId}
+   ```
+
+4. The provider bridges those internal outputs back onto the detected rig input path when possible and falls back to the native `pose/control` path only when necessary.
+
+This is why dependent apps should prefer runtime-react helpers and resolved metadata over hard-coded face-specific input paths.
 
 ### Face control helpers
 

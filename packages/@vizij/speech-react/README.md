@@ -39,8 +39,8 @@ This package is not a standalone face runtime. It assumes your app already has a
 `@vizij/speech-react` depends on `@vizij/runtime-react` for shared pose/runtime contracts:
 
 - `PoseDefinition` and `PoseGroupDefinition`
-- canonical rig input paths
-- pose-group membership semantics
+- canonical pose-weight and rig input paths
+- the same pose/group config used by the bundle, while still staging per-pose paths rather than group-based paths
 - runtime-ready stage/animate callbacks provided by the host app
 
 The intended layering is:
@@ -107,7 +107,7 @@ function RuntimeSpeechLayer() {
 ### `useSpeechPlayback`
 
 - fetches TTS + viseme timing from the configured API
-- resolves viseme pose paths using canonical runtime pose-weight helpers
+- resolves the current speech-driven pose ids from the available pose data, then stages canonical runtime pose-weight paths
 - drives the host runtime through `stageRuntimeInput` and `animateRuntimeValue`
 - returns speech status, selected voice/group state, hidden audio element wiring, and `handleSpeak()` / `handleStop()`
 
