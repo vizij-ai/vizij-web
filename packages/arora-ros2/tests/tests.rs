@@ -679,6 +679,54 @@ async fn test_method_invocation_with_return_value() {
 // Lifecycle tests
 // =========================================================================
 
+/// Verify that each input slot is discoverable as a distinct DDS topic
+/// by polling `Context::discovered_topics` from a separate observer node.
+#[tokio::test]
+async fn test_slots_discoverable_as_topics() {
+    let _ = env_logger::try_init();
+    let domain_id = random_domain_id();
+    let namespace = format!("test_disc_{domain_id}");
+
+    let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
+    node.set_set_slot_values_handler(Arc::new(|_| Ok(()))).await;
+    node.set_slots(vizij_face_slots()).await;
+
+    let cancel = start_node(&node).await;
+
+    // Create a separate observer context on the same domain to discover topics.
+    let observer_ctx = Context::with_options(ContextOptions::new().domain_id(domain_id))
+        .expect("failed to create observer context");
+
+    // Expected DDS topic names for each input slot.
+    let expected: std::collections::HashSet<String> = vizij_face_slots()
+        .iter()
+        .filter(|s| s.kind.as_deref() == Some("input"))
+        .map(|s| format!("rt/{namespace}/slots/{}", s.path))
+        .collect();
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut discovered = std::collections::HashSet::new();
+
+    while discovered != expected {
+        if tokio::time::Instant::now() >= deadline {
+            let missing: Vec<_> = expected.difference(&discovered).collect();
+            panic!("Timed out waiting for topic discovery. Missing: {missing:?}");
+        }
+
+        for dt in observer_ctx.discovered_topics() {
+            let name = dt.topic_name().clone();
+            if expected.contains(&name) {
+                discovered.insert(name);
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    assert_eq!(discovered, expected);
+    cancel.cancel();
+}
+
 /// Verify that cancelling the token stops the node cleanly.
 #[tokio::test]
 async fn test_node_lifecycle() {

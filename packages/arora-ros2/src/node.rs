@@ -18,7 +18,7 @@ use ros2_client::{
   AService, Context, ContextOptions, Name, Node, NodeName, NodeOptions,
   ServiceMapping, ServiceTypeName, DEFAULT_SUBSCRIPTION_QOS,
 };
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
 use tokio::task::AbortHandle;
 
 use crate::conversions::{drive_slot_streams, setup_slot_subscriber};
@@ -35,7 +35,8 @@ pub struct AroraRos2Node {
   get_slot_values_handler: RwLock<Option<GetSlotValuesHandler>>,
   on_client_connected_handler: RwLock<Option<OnClientConnectedHandler>>,
   methods: RwLock<Vec<(MethodInfo, MethodHandler)>>,
-  slots: RwLock<Vec<SlotInfo>>,
+  slots_tx: watch::Sender<Vec<SlotInfo>>,
+  slots_rx: watch::Receiver<Vec<SlotInfo>>,
   is_running: RwLock<bool>,
 }
 
@@ -44,6 +45,7 @@ impl AroraRos2Node {
   ///
   /// The node is not started until [`AroraConnection::run`] is called.
   pub fn new(namespace: &str, domain_id: u16) -> Self {
+    let (slots_tx, slots_rx) = watch::channel(Vec::new());
     Self {
       namespace: namespace.to_string(),
       domain_id,
@@ -51,7 +53,8 @@ impl AroraRos2Node {
       get_slot_values_handler: RwLock::new(None),
       on_client_connected_handler: RwLock::new(None),
       methods: RwLock::new(Vec::new()),
-      slots: RwLock::new(Vec::new()),
+      slots_tx,
+      slots_rx,
       is_running: RwLock::new(false),
     }
   }
@@ -63,7 +66,7 @@ impl AroraConnection for AroraRos2Node {
     slots: Vec<SlotInfo>,
   ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
     Box::pin(async move {
-      *self.slots.write().await = slots;
+      let _ = self.slots_tx.send(slots);
     })
   }
 
@@ -129,53 +132,7 @@ impl AroraConnection for AroraRos2Node {
       // ── 3. Collect abort handles for cleanup ─────────────────────
       let mut abort_handles: Vec<AbortHandle> = Vec::new();
 
-      // ── 4. Create topic subscriptions for each slot ──────────────
-      let handler = self.set_slot_values_handler.read().await;
-      let slots = self.slots.read().await;
-
-      if let Some(ref handler) = *handler {
-        let mut streams = Vec::new();
-
-        for slot in slots.iter() {
-          // Only subscribe to input slots.
-          if slot.kind.as_deref() != Some("input") {
-            continue;
-          }
-          match setup_slot_subscriber(
-            &mut node,
-            slot,
-            &self.namespace,
-          ) {
-            Ok(stream) => {
-              info!(
-                "ROS2 topic: /{}/slots/{}",
-                self.namespace, slot.path
-              );
-              streams.push(stream);
-            }
-            Err(e) => {
-              warn!(
-                "Failed to create subscriber for slot '{}': {}",
-                slot.path, e
-              );
-            }
-          }
-        }
-
-        if !streams.is_empty() {
-          let handler = handler.clone();
-          let abort = tokio::spawn(
-            drive_slot_streams(streams, handler),
-          )
-          .abort_handle();
-          abort_handles.push(abort);
-        }
-      }
-
-      drop(handler);
-      drop(slots);
-
-      // ── 5. Create service servers for each method ────────────────
+      // ── 4. Create service servers for each method ────────────────
       let methods = self.methods.read().await;
 
       for (info, handler) in methods.iter() {
@@ -203,20 +160,83 @@ impl AroraConnection for AroraRos2Node {
 
       drop(methods);
 
-      // ── 6. Mark as running and wait for cancellation ─────────────
+      // ── 5. Mark as running ───────────────────────────────────────
       *self.is_running.write().await = true;
       info!(
         "ROS2 node started (domain_id={}, namespace={})",
         self.domain_id, self.namespace
       );
 
-      cancel_token.cancelled().await;
+      // ── 6. React to slot changes (hot-reload) ────────────────────
+      // The slot subscription driver task is (re-)spawned whenever
+      // set_slots() delivers a new list via the watch channel.
+      let mut slots_rx = self.slots_rx.clone();
+      let mut slot_driver_abort: Option<AbortHandle> = None;
+
+      loop {
+        tokio::select! {
+          _ = cancel_token.cancelled() => break,
+          result = slots_rx.changed() => {
+            if result.is_err() {
+              // Sender dropped — node is being destroyed.
+              break;
+            }
+
+            // Abort the previous slot driver if any.
+            if let Some(prev) = slot_driver_abort.take() {
+              prev.abort();
+            }
+
+            let slots = slots_rx.borrow_and_update().clone();
+            let handler = self.set_slot_values_handler.read().await;
+
+            if let Some(ref handler) = *handler {
+              let mut streams = Vec::new();
+
+              for slot in slots.iter() {
+                if slot.kind.as_deref() != Some("input") {
+                  continue;
+                }
+                match setup_slot_subscriber(
+                  &mut node,
+                  slot,
+                  &self.namespace,
+                ) {
+                  Ok(stream) => {
+                    info!(
+                      "ROS2 topic: /{}/slots/{}",
+                      self.namespace, slot.path
+                    );
+                    streams.push(stream);
+                  }
+                  Err(e) => {
+                    warn!(
+                      "Failed to create subscriber for slot '{}': {}",
+                      slot.path, e
+                    );
+                  }
+                }
+              }
+
+              if !streams.is_empty() {
+                let handler = handler.clone();
+                slot_driver_abort = Some(
+                  tokio::spawn(drive_slot_streams(streams, handler))
+                    .abort_handle(),
+                );
+              }
+            }
+          }
+        }
+      }
 
       // ── 7. Clean up ──────────────────────────────────────────────
       info!("ROS2 node shutting down");
       *self.is_running.write().await = false;
 
-      // Abort all spawned subscription / service tasks.
+      if let Some(abort) = slot_driver_abort {
+        abort.abort();
+      }
       for handle in abort_handles {
         handle.abort();
       }
