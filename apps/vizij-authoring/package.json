@@ -16,6 +16,8 @@
     "test:e2e": "playwright test --config=playwright.config.ts",
     "test:e2e:smoke": "playwright test --config=playwright.config.ts --project=smoke",
     "test:e2e:debug": "PWDEBUG=1 playwright test --config=playwright.config.ts --project=smoke --project=workflow --headed --trace on --video on",
+    "test:e2e:memory:preview": "VIZIJ_MEMORY_SERVER_MODE=preview playwright test --config=playwright.config.ts e2e/memory-investigation.workflow.pw.ts",
+    "test:e2e:memory:dev": "VIZIJ_E2E_SERVER_MODE=dev VIZIJ_MEMORY_SERVER_MODE=dev playwright test --config=playwright.config.ts e2e/memory-investigation.workflow.pw.ts",
     "perf:inputs-baseline": "VIZIJ_CAPTURE_PERF=1 vitest --run src/components/panels/VariablesPanel.perf.test.tsx --reporter=verbose",
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",

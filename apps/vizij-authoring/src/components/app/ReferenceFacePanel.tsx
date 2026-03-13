@@ -10,12 +10,14 @@ import {
 } from "./facePresetAssets";
 
 export interface ReferenceFacePanelProps {
+  runtimeEnabled?: boolean;
   splitVertical: boolean;
   onToggleSplit: () => void;
   onClosePanel?: () => void;
 }
 
 export function ReferenceFacePanel({
+  runtimeEnabled = true,
   splitVertical,
   onToggleSplit,
   onClosePanel,
@@ -82,7 +84,7 @@ export function ReferenceFacePanel({
       />
 
       <OrchestratorProvider autostart={true}>
-        {referenceFace.file ? (
+        {referenceFace.file && runtimeEnabled ? (
           <ReferenceFaceRuntime
             file={referenceFace.file}
             active={true}
@@ -96,6 +98,19 @@ export function ReferenceFacePanel({
             splitVertical={splitVertical}
             onToggleSplit={onToggleSplit}
           />
+        ) : referenceFace.file ? (
+          <div
+            data-testid="reference-face-runtime-disabled-state"
+            className="flex h-full w-full items-center justify-center p-8 text-center text-text-primary"
+          >
+            <div className="flex max-w-sm flex-col gap-2">
+              <p className="text-lg font-medium">Reference Runtime Disabled</p>
+              <p className="text-sm text-text-muted">
+                Memory investigation mode kept the reference face file loaded
+                without mounting its runtime.
+              </p>
+            </div>
+          </div>
         ) : (
           <div
             data-testid="reference-face-empty-state"

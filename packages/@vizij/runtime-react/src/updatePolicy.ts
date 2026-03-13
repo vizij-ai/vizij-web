@@ -7,6 +7,21 @@ import type {
 
 export type { RuntimeUpdateTier, RuntimeUpdatePlan, RuntimeGraphBundle };
 
+const blobIdentityMap = new WeakMap<Blob, number>();
+let nextBlobIdentity = 0;
+
+function getBlobIdentity(blob: Blob | undefined): string {
+  if (!blob) {
+    return "missing";
+  }
+  let identity = blobIdentityMap.get(blob);
+  if (identity === undefined) {
+    identity = nextBlobIdentity++;
+    blobIdentityMap.set(blob, identity);
+  }
+  return `${identity}:${blob.size}:${blob.type}`;
+}
+
 export function applyRuntimeGraphBundle(
   base: VizijAssetBundle,
   bundle: RuntimeGraphBundle,
@@ -26,19 +41,11 @@ export function applyRuntimeGraphBundle(
   );
 
   if (hasRigOverride) {
-    if (bundle.rig) {
-      next.rig = bundle.rig;
-    } else {
-      delete next.rig;
-    }
+    next.rig = bundle.rig;
   }
 
   if (hasPoseOverride) {
-    if (bundle.pose) {
-      next.pose = bundle.pose;
-    } else {
-      delete next.pose;
-    }
+    next.pose = bundle.pose;
   }
 
   if (hasAnimationsOverride) {
@@ -69,10 +76,18 @@ function normalizeSpecPayload(value: unknown): string {
 
 function glbSignature(glb: VizijAssetBundle["glb"]): string {
   if (glb.kind === "url") {
-    return `url:${glb.src}`;
+    const importOptions = normalizeSpecPayload({
+      aggressiveImport: glb.aggressiveImport ?? false,
+      rootBounds: glb.rootBounds ?? null,
+    });
+    return `url:${glb.src}:${importOptions}`;
   }
   if (glb.kind === "blob") {
-    return `blob:${glb.blob?.size ?? 0}`;
+    const importOptions = normalizeSpecPayload({
+      aggressiveImport: glb.aggressiveImport ?? false,
+      rootBounds: glb.rootBounds ?? null,
+    });
+    return `blob:${getBlobIdentity(glb.blob)}:${importOptions}`;
   }
   return `world:${normalizeSpecPayload(glb.world)}`;
 }

@@ -13,8 +13,8 @@ export function sanitizePresetId(presetId: string): string {
   return presetId.replace(/[:/]/g, "-");
 }
 
-export async function bootAuthoring(page: Page): Promise<void> {
-  await page.goto("/");
+export async function bootAuthoring(page: Page, path = "/"): Promise<void> {
+  await page.goto(path);
   await expect(page).toHaveTitle(/Vizij Authoring Tool/i);
   await expect(page.getByTestId("main-viewer")).toBeVisible();
   await expect(page.getByTestId("main-viewer-empty-state")).toBeVisible();

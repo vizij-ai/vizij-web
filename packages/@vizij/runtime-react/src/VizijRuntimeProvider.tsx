@@ -37,6 +37,10 @@ import { valueAsNumber } from "@vizij/value-json";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
 import {
+  clearRuntimeDebugState,
+  setRuntimeDebugState,
+} from "./memoryInvestigation";
+import {
   applyRuntimeGraphBundle,
   resolveRuntimeUpdatePlan,
   type RuntimeGraphBundle,
@@ -130,6 +134,7 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 
 const DEFAULT_DURATION = 0.35;
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
+let runtimeDebugInstanceSequence = 0;
 const DEV_MODE = (() => {
   const nodeEnv = (globalThis as { process?: { env?: { NODE_ENV?: string } } })
     .process?.env?.NODE_ENV;
@@ -805,13 +810,17 @@ function pickExtractedAnimations(
 
 function mergeAnimationLists(
   explicit: VizijAnimationAsset[] | undefined,
+  hasExplicitOverride: boolean,
   fromBundle: VizijAnimationAsset[],
 ): VizijAnimationAsset[] | undefined {
-  if (!explicit?.length && fromBundle.length === 0) {
+  if (!hasExplicitOverride) {
+    return fromBundle.length > 0 ? fromBundle : undefined;
+  }
+  if (!Array.isArray(explicit)) {
     return undefined;
   }
-  if (!explicit?.length) {
-    return fromBundle.length > 0 ? fromBundle : undefined;
+  if (explicit.length === 0) {
+    return [];
   }
   if (fromBundle.length === 0) {
     return explicit;
@@ -877,15 +886,87 @@ function convertBundlePrograms(
     .filter(Boolean) as VizijProgramAsset[];
 }
 
+export function deriveProgramInputSeedValues(args: {
+  program: VizijProgramAsset;
+  namespace: string;
+  inputConstraints: Record<
+    string,
+    { min?: number; max?: number; defaultValue?: number }
+  >;
+  getPathSnapshot: (path: string) => ValueJSON | undefined;
+  stagedInputs: Map<string, { value: ValueJSON; shape?: ShapeJSON }>;
+}): Array<{ path: string; value: ValueJSON }> {
+  const resolveConstraintDefault = (path: string): number | undefined => {
+    const trimmed = path.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const stripped = stripRigFacePrefix(trimmed);
+    const relativePath = stripped ? `/${stripped}` : "";
+    const candidates = [
+      namespaceTypedPath(trimmed, args.namespace),
+      trimmed,
+      stripped ? namespaceTypedPath(stripped, args.namespace) : undefined,
+      stripped || undefined,
+      relativePath || undefined,
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate) {
+        continue;
+      }
+      const defaultValue = args.inputConstraints[candidate]?.defaultValue;
+      if (Number.isFinite(defaultValue)) {
+        return Number(defaultValue);
+      }
+    }
+
+    return undefined;
+  };
+
+  const graphSpec = resolveGraphSpec(
+    args.program.graph,
+    `${args.program.id ?? "program"} graph (seed defaults)`,
+  );
+  if (!graphSpec) {
+    return [];
+  }
+
+  return collectInputPaths(graphSpec)
+    .map((path) => path.trim())
+    .filter((path) => path.length > 0)
+    .flatMap((path) => {
+      const namespacedPath = namespaceTypedPath(path, args.namespace);
+      if (args.stagedInputs.has(namespacedPath)) {
+        return [];
+      }
+      if (args.getPathSnapshot(namespacedPath) !== undefined) {
+        return [];
+      }
+
+      const defaultValue = resolveConstraintDefault(path);
+      if (!Number.isFinite(defaultValue)) {
+        return [];
+      }
+
+      return [{ path, value: { float: Number(defaultValue) } }];
+    });
+}
+
 function mergeProgramLists(
   explicit: VizijProgramAsset[] | undefined,
+  hasExplicitOverride: boolean,
   fromBundle: VizijProgramAsset[],
 ): VizijProgramAsset[] | undefined {
-  if (!explicit?.length && fromBundle.length === 0) {
+  if (!hasExplicitOverride) {
+    return fromBundle.length > 0 ? fromBundle : undefined;
+  }
+  if (!Array.isArray(explicit)) {
     return undefined;
   }
-  if (!explicit?.length) {
-    return fromBundle.length > 0 ? fromBundle : undefined;
+  if (explicit.length === 0) {
+    return [];
   }
   if (fromBundle.length === 0) {
     return explicit;
@@ -904,17 +985,32 @@ function mergeProgramLists(
   return changed ? merged : explicit;
 }
 
-function mergeAssetBundle(
+export function mergeAssetBundle(
   base: VizijAssetBundle,
   extracted: VizijBundleExtension | null,
   extractedAnimations: VizijAnimationAsset[] | undefined,
 ): VizijAssetBundle {
   const resolvedBundle = base.bundle ?? extracted ?? null;
+  const hasBaseRigOverride = Object.prototype.hasOwnProperty.call(base, "rig");
+  const hasBasePoseOverride = Object.prototype.hasOwnProperty.call(
+    base,
+    "pose",
+  );
+  const hasBaseAnimationsOverride = Object.prototype.hasOwnProperty.call(
+    base,
+    "animations",
+  );
+  const hasBaseProgramsOverride = Object.prototype.hasOwnProperty.call(
+    base,
+    "programs",
+  );
 
   const rigFromBundle = convertBundleGraph(
     pickBundleGraph(resolvedBundle, ["rig"]),
   );
-  const resolvedRig = base.rig ?? rigFromBundle ?? undefined;
+  const resolvedRig = hasBaseRigOverride
+    ? base.rig
+    : (base.rig ?? rigFromBundle ?? undefined);
 
   const basePose = base.pose;
   const hasBasePoseGraphOverride = Boolean(
@@ -924,11 +1020,14 @@ function mergeAssetBundle(
     basePose && Object.prototype.hasOwnProperty.call(basePose, "config"),
   );
   const poseStageFilter = basePose?.stageNeutralFilter;
-  const poseGraphFromBundle = hasBasePoseGraphOverride
-    ? null
-    : convertBundleGraph(
-        pickBundleGraph(resolvedBundle, ["pose-driver", "pose"]),
-      );
+  const poseGraphFromBundle =
+    hasBasePoseOverride && !basePose
+      ? null
+      : hasBasePoseGraphOverride
+        ? null
+        : convertBundleGraph(
+            pickBundleGraph(resolvedBundle, ["pose-driver", "pose"]),
+          );
   const resolvedPoseGraph = hasBasePoseGraphOverride
     ? basePose?.graph
     : (basePose?.graph ?? poseGraphFromBundle ?? undefined);
@@ -939,7 +1038,9 @@ function mergeAssetBundle(
       undefined);
 
   let resolvedPose = basePose;
-  if (basePose) {
+  if (hasBasePoseOverride && !basePose) {
+    resolvedPose = undefined;
+  } else if (basePose) {
     const nextPose: typeof basePose = { ...basePose };
     let changed = false;
     if (resolvedPoseGraph && basePose.graph !== resolvedPoseGraph) {
@@ -976,6 +1077,7 @@ function mergeAssetBundle(
   );
   let resolvedAnimations = mergeAnimationLists(
     base.animations,
+    hasBaseAnimationsOverride,
     animationsFromBundle,
   );
   const animationsFromAsset =
@@ -985,11 +1087,13 @@ function mergeAssetBundle(
   if (animationsFromAsset.length > 0) {
     resolvedAnimations = mergeAnimationLists(
       resolvedAnimations,
+      true,
       animationsFromAsset,
     );
   }
   const programsFromBundle = mergeProgramLists(
     base.programs,
+    hasBaseProgramsOverride,
     convertBundlePrograms(resolvedBundle?.graphs),
   );
 
@@ -1364,6 +1468,9 @@ function VizijRuntimeProviderInner({
     controllers: { graphs: [], anims: [] },
   });
 
+  const runtimeDebugInstanceIdRef = useRef(
+    `vizij-runtime:${runtimeDebugInstanceSequence++}`,
+  );
   const errorsRef = useRef<RuntimeError[]>([]);
   // namespaced output paths exposed via status
   const outputPathsRef = useRef<Set<string>>(new Set());
@@ -1420,6 +1527,7 @@ function VizijRuntimeProviderInner({
     Record<string, { min?: number; max?: number; defaultValue?: number }>
   >({});
   const avgStepDtRef = useRef<number | null>(null);
+  const inputDriverIdsRef = useRef<Set<string>>(new Set());
 
   const animationTweensRef = useRef<Map<string, AnimationState>>(new Map());
   const clipPlaybackRef = useRef<Map<string, ClipPlaybackState>>(new Map());
@@ -1448,6 +1556,61 @@ function VizijRuntimeProviderInner({
       runtimeMountedRef.current = false;
     };
   }, []);
+
+  const publishRuntimeDebugState = useCallback(() => {
+    const storeState = store.getState();
+    setRuntimeDebugState(runtimeDebugInstanceIdRef.current, {
+      namespace,
+      faceId: faceId ?? null,
+      rootId: status.rootId,
+      ready: status.ready,
+      loading: status.loading,
+      autostart,
+      driveOrchestrator,
+      loopMode,
+      outputCount: status.outputPaths.length,
+      graphControllerCount: status.controllers.graphs.length,
+      animationControllerCount: status.controllers.anims.length,
+      registeredGraphCount: registeredGraphsRef.current.length,
+      registeredAnimationCount: registeredAnimationsRef.current.length,
+      programControllerCount: programControllerIdsRef.current.size,
+      animationTweenCount: animationTweensRef.current.size,
+      clipPlaybackCount: clipPlaybackRef.current.size,
+      programPlaybackCount: programPlaybackRef.current.size,
+      stagedInputCount: stagedInputsRef.current.size,
+      activeDriverCount: inputDriverIdsRef.current.size,
+      worldEntryCount: Object.keys(storeState.world ?? {}).length,
+      animatableCount: Object.keys(storeState.animatables ?? {}).length,
+      valuesSize:
+        storeState.values instanceof Map ? storeState.values.size : null,
+      stepHz: status.stepHz ?? null,
+    });
+  }, [
+    autostart,
+    driveOrchestrator,
+    faceId,
+    loopMode,
+    namespace,
+    status.controllers.anims.length,
+    status.controllers.graphs.length,
+    status.loading,
+    status.outputPaths.length,
+    status.ready,
+    status.rootId,
+    status.stepHz,
+    store,
+  ]);
+
+  useEffect(() => {
+    publishRuntimeDebugState();
+    const unsubscribe = store.subscribe(() => {
+      publishRuntimeDebugState();
+    });
+    return () => {
+      unsubscribe();
+      clearRuntimeDebugState(runtimeDebugInstanceIdRef.current);
+    };
+  }, [publishRuntimeDebugState, store]);
 
   useEffect(() => {
     const rigAsset = assetBundle.rig;
@@ -2862,11 +3025,21 @@ function VizijRuntimeProviderInner({
 
   const playProgram = useCallback(
     (id: string) => {
-      if (!resolveProgramById(id)) {
+      const program = resolveProgramById(id);
+      if (!program) {
         throw new Error(
           `Program ${id} is not part of the current asset bundle.`,
         );
       }
+      deriveProgramInputSeedValues({
+        program,
+        namespace,
+        inputConstraints: inputConstraintsRef.current,
+        getPathSnapshot,
+        stagedInputs: stagedInputsRef.current,
+      }).forEach(({ path, value }) => {
+        setInput(path, value);
+      });
       programPlaybackRef.current.set(id, {
         id,
         state: "playing",
@@ -2874,7 +3047,14 @@ function VizijRuntimeProviderInner({
       syncProgramPlaybackControllers();
       markActivity();
     },
-    [markActivity, resolveProgramById, syncProgramPlaybackControllers],
+    [
+      getPathSnapshot,
+      markActivity,
+      namespace,
+      resolveProgramById,
+      setInput,
+      syncProgramPlaybackControllers,
+    ],
   );
 
   const pauseProgram = useCallback(
@@ -2980,6 +3160,7 @@ function VizijRuntimeProviderInner({
 
   const registerInputDriver = useCallback(
     (id: string, factory: InputDriverFactory): InputDriverLifecycle => {
+      inputDriverIdsRef.current.add(id);
       const driver = factory({
         setInput,
         setRendererValue,
@@ -3021,6 +3202,8 @@ function VizijRuntimeProviderInner({
               phase: "driver",
               timestamp: performance.now(),
             });
+          } finally {
+            inputDriverIdsRef.current.delete(id);
           }
         },
       };
