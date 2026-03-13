@@ -1,7 +1,7 @@
 //! List all ROS 2 topics discovered via DDS.
 //!
-//! Uses DDS endpoint detection events (`WriterDetected` / `ReaderDetected`)
-//! from the node's status receiver to enumerate topics as they appear.
+//! Uses [`Context::discovered_topics`] to enumerate topics found by the
+//! DDS discovery protocol.
 //!
 //! Exits when no new topic has been found for 1 second after the first
 //! discovery, or after 10 seconds if nothing is discovered at all.
@@ -22,8 +22,7 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 use std::{env, thread};
 
-use ros2_client::rustdds::DomainParticipantStatusEvent;
-use ros2_client::{Context, ContextOptions, NodeEvent, NodeName, NodeOptions};
+use ros2_client::{Context, ContextOptions, NodeName, NodeOptions};
 
 /// Maximum time to wait when no topics are discovered at all.
 const NO_TOPIC_TIMEOUT: Duration = Duration::from_secs(10);
@@ -39,8 +38,6 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 struct TopicEntry {
     type_name: String,
     kind: TopicKind,
-    has_writers: bool,
-    has_readers: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +119,6 @@ fn main() {
         .expect("failed to create ROS node");
 
     let spinner = node.spinner().expect("failed to create spinner");
-    let event_rx = node.status_receiver();
 
     // Spin the node in a background thread so DDS discovery runs.
     thread::Builder::new()
@@ -142,38 +138,16 @@ fn main() {
     let mut last_new_topic = None::<Instant>;
 
     loop {
-        // Drain all pending events.
-        while let Ok(event) = event_rx.try_recv() {
-            let NodeEvent::DDS(dds_event) = event else {
-                continue;
-            };
-            match dds_event {
-                DomainParticipantStatusEvent::WriterDetected { writer } => {
-                    let entry = topics.entry(writer.topic_name.clone()).or_insert_with(|| {
-                        last_new_topic = Some(Instant::now());
-                        TopicEntry {
-                            type_name: dds_type_to_ros(&writer.type_name),
-                            kind: topic_kind(&writer.topic_name),
-                            has_writers: false,
-                            has_readers: false,
-                        }
-                    });
-                    entry.has_writers = true;
+        // Poll discovered topics and merge into our map.
+        for dt in ctx.discovered_topics() {
+            let dds_name = dt.topic_name().clone();
+            topics.entry(dds_name.clone()).or_insert_with(|| {
+                last_new_topic = Some(Instant::now());
+                TopicEntry {
+                    type_name: dds_type_to_ros(dt.type_name()),
+                    kind: topic_kind(&dds_name),
                 }
-                DomainParticipantStatusEvent::ReaderDetected { reader } => {
-                    let entry = topics.entry(reader.topic_name.clone()).or_insert_with(|| {
-                        last_new_topic = Some(Instant::now());
-                        TopicEntry {
-                            type_name: dds_type_to_ros(&reader.type_name),
-                            kind: topic_kind(&reader.topic_name),
-                            has_writers: false,
-                            has_readers: false,
-                        }
-                    });
-                    entry.has_readers = true;
-                }
-                _ => {}
-            }
+            });
         }
 
         // Check timeouts.
@@ -202,12 +176,6 @@ fn main() {
     println!("\nDiscovered {} topic(s):\n", visible.len());
 
     for (dds_name, entry) in &visible {
-        let dir = match (entry.has_writers, entry.has_readers) {
-            (true, true) => "pub/sub",
-            (true, false) => "pub",
-            (false, true) => "sub",
-            (false, false) => "?",
-        };
         let display_name = if use_dds_names {
             dds_name.to_string()
         } else {
@@ -226,9 +194,6 @@ fn main() {
             TopicKind::Action(_) => "action",
             TopicKind::Unknown => "???   ",
         };
-        println!(
-            "  [{dir:>7}] {kind_label} {display_name}  ({})",
-            entry.type_name
-        );
+        println!("  {kind_label} {display_name}  ({})", entry.type_name);
     }
 }
