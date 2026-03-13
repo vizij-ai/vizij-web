@@ -40,7 +40,7 @@ The rig graph then combines:
 
 using per-channel compose mode (`add` or `average`), then clamps.
 
-**References**
+#### References
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md#pose-ir-and-compile-pipeline)
 - [ARCHITECTURE.md](./ARCHITECTURE.md#canonical-path-and-identity-contracts)
@@ -60,7 +60,7 @@ It produces an internal signal that the rig graph composes with direct controls.
 
 This keeps the runtime contract explicit and supports future policy extension without forcing all logic into one monolithic authoring surface.
 
-**References**
+#### References
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md#runtime-graph-packaging)
 - [ARCHITECTURE.md](./ARCHITECTURE.md#pose-ir-and-compile-pipeline)
@@ -79,7 +79,7 @@ The app mounts two `VariablesPanel` instances:
 
 This means Inputs are visually separated from the authoring tabs for poses/groups, even though both are powered by the same panel component.
 
-**References**
+#### References
 
 - [App.tsx](../src/App.tsx#L1022)
 - [App.tsx](../src/App.tsx#L1040)
@@ -104,7 +104,7 @@ In pose inspector you also get membership editing:
 
 Under the hood, membership is identity-driven (`groupIds`) and legacy fields (`group`, `groupId`) are normalized for compatibility.
 
-**References**
+#### References
 
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L2334)
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L3391)
@@ -128,7 +128,7 @@ You can:
 
 The UI runs topology checks before committing sensitive actions like reorder/source edits and shows inline block reasons.
 
-**References**
+#### References
 
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L139)
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L2383)
@@ -151,7 +151,7 @@ In expanded controls, each channel also shows:
 2. `Control Target` row (pose target).
 3. Numeric fields with fixed 4-decimal formatting.
 
-**References**
+#### References
 
 - [InspectorContent.tsx](../src/components/inspector/InspectorContent.tsx#L2109)
 - [InspectorContent.tsx](../src/components/inspector/InspectorContent.tsx#L379)
@@ -175,7 +175,7 @@ Current preview math is neutral-relative:
 
 This makes it easy to test group-level behavior without opening every pose one by one, while still showing the same baseline behavior the compiler uses.
 
-**References**
+#### References
 
 - [InspectorPanel.tsx](../src/components/inspector/InspectorPanel.tsx#L257)
 - [InspectorPanel.tsx](../src/components/inspector/InspectorPanel.tsx#L278)
@@ -198,7 +198,7 @@ Kernel value for users:
 
 This keeps Inputs useful as a runtime monitor while avoiding confusion about it being an authoring surface for neutral.
 
-**References**
+#### References
 
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L1518)
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L1577)
@@ -225,7 +225,7 @@ Recommended inspector structure:
 
 Note on sampling: fixed checkpoints like `0/25/50/75/100` are not the right default for multi-source authoring, because source weights are not guaranteed to move uniformly. The inspector should show live composition for the current authored source weights, with optional user-defined probes later if needed.
 
-**References**
+#### References
 
 - [InspectorPanel.tsx](../src/components/inspector/InspectorPanel.tsx)
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L2891)
@@ -248,7 +248,7 @@ Key contract concepts:
 
 These contracts are the basis for normalization, diagnostics, and compiler assumptions.
 
-**References**
+#### References
 
 - [types.ts](../src/poseRig/types.ts#L5)
 - [types.ts](../src/poseRig/types.ts#L10)
@@ -271,7 +271,7 @@ When relevant fields change, store rebuilds drafts:
 
 This gives deterministic derived state for export, runtime sync, and diagnostics.
 
-**References**
+#### References
 
 - [store.tsx](../src/poseRig/store.tsx#L471)
 - [store.tsx](../src/poseRig/store.tsx#L659)
@@ -289,7 +289,7 @@ Membership normalization does three important things:
 
 This prevents random group-order jitter and preserves compatibility with older imports.
 
-**References**
+#### References
 
 - [groupMembership.ts](../src/poseRig/groupMembership.ts#L3)
 - [groupMembership.ts](../src/poseRig/groupMembership.ts#L77)
@@ -313,7 +313,7 @@ Per channel, compiler:
 
 Compiler also rejects unexpected authored input nodes in pose graph, enforcing synthetic/internal boundary.
 
-**References**
+#### References
 
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L898)
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L1090)
@@ -333,7 +333,7 @@ For composed channels, it creates a pose-control input path and then:
 
 Staged pipeline path follows same principle but can include parent contributions and override logic.
 
-**References**
+#### References
 
 - [rigGraphCompiler.ts](../src/hooks/rigController/rigGraphCompiler.ts#L95)
 - [rigGraphCompiler.ts](../src/hooks/rigController/rigGraphCompiler.ts#L144)
@@ -347,7 +347,7 @@ That means internal pose signals are not treated as normal external inputs.
 
 Queued runtime writes are deduped with `Object.is` so unchanged values do not churn runtime input staging.
 
-**References**
+#### References
 
 - [runtimeInputRoutes.ts](../src/hooks/rigController/runtimeInputRoutes.ts#L120)
 - [runtimeInputStaging.ts](../src/hooks/rigController/runtimeInputStaging.ts#L16)
@@ -371,7 +371,7 @@ Current neutral behavior:
 
 This is why neutral is a workflow-critical baseline, not just a static import/export field.
 
-**References**
+#### References
 
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L49)
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L983)
@@ -396,7 +396,7 @@ Authorable controls include:
 7. Neutral mode (`explicit` vs `face-default`).
 8. Global neutral channel map (`neutralInputs`), shared across groups/stages.
 
-**References**
+#### References
 
 - [types.ts](../src/poseRig/types.ts#L183)
 - [types.ts](../src/poseRig/types.ts#L74)
@@ -423,7 +423,7 @@ So stage chains override legacy cross-group composition path.
 Per-channel compose mode is downstream and separate from group/stage policy.  
 Neutral baseline affects additive and overlay-average behavior in current compiler semantics.
 
-**References**
+#### References
 
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L49)
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L1106)
@@ -441,7 +441,7 @@ Topology/contract guardrails appear in both UI and services:
 4. Canonical target contract enforced during IR-based pose graph build.
 5. Explicit-neutral gaps produce warnings when targeted channels are missing neutral values.
 
-**References**
+#### References
 
 - [VariablesPanel.tsx](../src/components/panels/VariablesPanel.tsx#L139)
 - [store.tsx](../src/poseRig/store.tsx#L182)
@@ -471,7 +471,7 @@ Blend strategy direction:
 
 This layering preserves current compatibility while giving authors context-specific baselines where additive behavior needs it most.
 
-**References**
+#### References
 
 - [types.ts](../src/poseRig/types.ts)
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts)
@@ -502,7 +502,7 @@ IR import:
 
 This keeps data valid even when payloads come from older schemas or mismatched IDs.
 
-**References**
+#### References
 
 - [usePoseRigAuthoring.ts](../src/poseRig/usePoseRigAuthoring.ts#L402)
 - [store.tsx](../src/poseRig/store.tsx#L1664)
@@ -521,7 +521,7 @@ Export prefers config resolved from IR when IR is present, and includes:
 
 This preserves authoring intent plus machine-facing evidence for downstream review.
 
-**References**
+#### References
 
 - [useVizijExport.ts](../src/hooks/useVizijExport.ts#L183)
 - [useVizijExport.ts](../src/hooks/useVizijExport.ts#L856)
@@ -542,7 +542,7 @@ Aligned:
 4. Support for per-channel cross-group overrides including `priority`.
 5. Direct+pose effective value contract.
 
-**References**
+#### References
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md#pose-ir-and-compile-pipeline)
 - [ARCHITECTURE.md](./ARCHITECTURE.md#canonical-path-and-identity-contracts)
@@ -564,7 +564,7 @@ Drift points:
 7. Docs describe neutral strategy at global level, but do not define planned stage/group neutral authoring semantics (pose reference + direct channel values in inspector).
 8. Docs do not explicitly lock that current `average` behavior is overlay-average relative to neutral.
 
-**References**
+#### References
 
 - [Authoring_Blueprint.md](./Authoring_Blueprint.md#72-inputs-surface-replaces-drivers-pane)
 - [Authoring_Blueprint.md](./Authoring_Blueprint.md#75-wiring-model-no-dedicated-drivers-pane)
@@ -591,7 +591,7 @@ Recommended order:
 6. Optionally clarify `UI_DESIGN.md` channel-row language to reflect current expandable layout.
 7. Decide whether to rename `materials` visibility key to a pose-group-native key in workspace panel state docs/code.
 
-**References**
+#### References
 
 - [docs/README.md](./README.md#update-rules)
 - [Authoring_Blueprint.md](./Authoring_Blueprint.md)
@@ -615,7 +615,7 @@ Direction to implement:
 5. Put neutral editing in stage/group inspectors.
 6. Keep Inputs as read-only composition observability.
 
-**References**
+#### References
 
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L1033)
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts#L1218)
@@ -637,7 +637,7 @@ Suggested file touchpoints:
 2. Config normalization/projection services.
 3. Store patch/rebuild pipeline.
 
-**References**
+#### References
 
 - [types.ts](../src/poseRig/types.ts)
 - [poseConfigService.ts](../src/poseRig/services/poseConfigService.ts)
@@ -657,7 +657,7 @@ Phase 2 implementation goals:
 3. Preserve stage topology and cross-group override behavior.
 4. Emit diagnostics for invalid neutral references (unknown pose, missing target channels, partial values).
 
-**References**
+#### References
 
 - [graphBuilder.ts](../src/poseRig/graphBuilder.ts)
 - [poseIrService.ts](../src/poseRig/services/poseIrService.ts#L1300)
@@ -678,7 +678,7 @@ Phase 3 implementation goals:
    - source contribution breakdown.
 4. Avoid fixed uniform checkpoints by default; show current live source weights and runtime result.
 
-**References**
+#### References
 
 - [InspectorPanel.tsx](../src/components/inspector/InspectorPanel.tsx)
 - [InspectorContent.tsx](../src/components/inspector/InspectorContent.tsx)
@@ -694,7 +694,7 @@ Phase 4 implementation goals:
 3. Surface clear diagnostics for fallback behavior and bad neutral references.
 4. Keep deterministic normalization/project-back behavior for round trips.
 
-**References**
+#### References
 
 - [usePoseRigAuthoring.ts](../src/poseRig/usePoseRigAuthoring.ts)
 - [store.tsx](../src/poseRig/store.tsx#L1664)
@@ -711,7 +711,7 @@ Phase 5 implementation goals:
 3. Update UI and architecture contracts to include scoped neutral behavior and overlay-average semantics.
 4. Update explainer and app README examples.
 
-**References**
+#### References
 
 - [docs/README.md](./README.md#update-rules)
 - [UI_DESIGN.md](./UI_DESIGN.md)

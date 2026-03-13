@@ -10,7 +10,7 @@ This report evaluates replacing the current `self` slider model with an explicit
 
 This analysis was run with parallel sub-agents across UI/state, graph compiler/IR/export, pose graph pipeline, and canonical docs in `vizij-docs`.
 
-**References**
+### References
 
 - `apps/vizij-authoring/src/components/binding/BindingEditor.tsx`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts`
@@ -30,7 +30,7 @@ Recommended direction:
 
 Main risk is compatibility with existing graphs that use `self` in non-canonical expressions. Those must be detected and either converted safely or left in legacy mode with warnings.
 
-**References**
+### References
 
 - `packages/@vizij/node-graph-authoring/src/state.ts:225`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1576`
@@ -56,7 +56,7 @@ flowchart LR
   B --> D[Derived input value]
 ```
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/state.ts:225`
 - `packages/@vizij/node-graph-authoring/src/state.ts:710`
@@ -73,7 +73,7 @@ Compiler behavior today:
 
 This is implemented in `evaluateBinding(...)` plus `ensureInputNode(...)`.
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:158`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:214`
@@ -94,7 +94,7 @@ So override semantics must be represented in a way that round-trips through:
 3. IR compile,
 4. metadata export/import.
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:444`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1906`
@@ -108,7 +108,7 @@ Runtime input updates are ID-based in authoring (`handleInputValueChange`), then
 
 Important detail: route snapshot intentionally skips pose-control paths, keeping them internal and out of user-facing standard-input controls.
 
-**References**
+#### References
 
 - `apps/vizij-authoring/src/hooks/useRigController.ts:1608`
 - `apps/vizij-authoring/src/hooks/useRigController.ts:1641`
@@ -131,7 +131,7 @@ flowchart LR
   D --> E[Effective input driving components]
 ```
 
-**References**
+#### References
 
 - `apps/vizij-authoring/src/poseRig/graphBuilder.ts:1090`
 - `apps/vizij-authoring/src/poseRig/utils.ts:274`
@@ -178,7 +178,7 @@ Rationale:
 2. keeps overrides clearly authoring/runtime-control scoped,
 3. allows UI to expose override controls contextually in inspector instead of globally.
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1576`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1496`
@@ -233,7 +233,7 @@ Cons:
 
 Recommendation: Option A.
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1437`
 - `packages/@vizij/node-graph-authoring/src/ir/compiler.ts:18`
@@ -263,7 +263,7 @@ Where to extend:
 2. `GraphBindingSummary.metadata` emission
 3. `vizijMetadata.bindings` serialization path
 
-**References**
+#### References
 
 - `packages/@vizij/utils/src/rig/standard-inputs.ts:37`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:444`
@@ -280,7 +280,7 @@ In derived-input compile path (`ensureInputNode`):
 
 Do not route pose-control through this branch.
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1576`
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1603`
@@ -297,7 +297,7 @@ Replace "self as slot" UX with explicit override controls in inspector:
 
 Keep legacy `self` view/read support temporarily for imported data.
 
-**References**
+#### References
 
 - `apps/vizij-authoring/src/components/binding/BindingEditor.tsx:1043`
 - `apps/vizij-authoring/src/hooks/useBindingManager.ts:527`
@@ -312,7 +312,7 @@ Either:
 
 Do not expose pose-control paths as regular user sliders.
 
-**References**
+#### References
 
 - `apps/vizij-authoring/src/hooks/useRigController.ts:1608`
 - `apps/vizij-authoring/src/hooks/rigController/runtimeInputRoutes.ts:88`
@@ -326,7 +326,7 @@ Import should support:
 
 Export should continue embedding IR + GraphSpec + metadata consistently in `vizij` envelope.
 
-**References**
+#### References
 
 - `apps/vizij-authoring/src/utils/graphImport.ts:63`
 - `packages/@vizij/node-graph-authoring/src/ir/compiler.ts:45`
@@ -356,7 +356,7 @@ Export should continue embedding IR + GraphSpec + metadata consistently in `vizi
 1. deprecate `SELF_BINDING_ID` for new content,
 2. keep read compatibility for historical bundles.
 
-**References**
+#### References
 
 - `packages/@vizij/node-graph-authoring/src/__tests__/graphBuilder.test.ts:1321`
 - `packages/@vizij/node-graph-authoring/src/__tests__/irSnapshots.test.ts:248`
@@ -381,7 +381,7 @@ Export should continue embedding IR + GraphSpec + metadata consistently in `vizi
 
 Important note: always materializing override nodes for every derived input can increase runtime graph cost. If needed, use lazy node materialization while preserving logical defaults in metadata.
 
-**References**
+#### References
 
 - `apps/vizij-authoring/src/hooks/__tests__/rigGraphCompiler.test.ts:35`
 - `packages/@vizij/node-graph-authoring/src/__tests__/graphBuilder.test.ts:1335`
@@ -399,7 +399,7 @@ Important note: always materializing override nodes for every derived input can 
 4. Physical node strategy:
    - always compile override nodes vs lazy compile.
 
-**References**
+### References
 
 - `packages/@vizij/node-graph-authoring/src/graphBuilder.ts:1483`
 - `apps/vizij-authoring/src/poseRig/graphBuilder.ts:1090`
