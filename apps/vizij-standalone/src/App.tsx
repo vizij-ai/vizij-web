@@ -790,7 +790,7 @@ function AppContent({
             </>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Mic toggle button (only when speech is configured in the bundle) */}
       {speech.enabled && speech.keysConfigured && (
