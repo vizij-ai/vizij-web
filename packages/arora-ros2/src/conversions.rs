@@ -13,6 +13,7 @@ use futures::stream::unfold;
 use futures::{Stream, StreamExt};
 use log::warn;
 use ros2_client::{DEFAULT_SUBSCRIPTION_QOS, Name, Node};
+use tokio::time::{Duration, sleep};
 
 use crate::msg_types::{self, MessageType};
 
@@ -111,6 +112,12 @@ pub async fn drive_slot_streams(
   }
 }
 
+/// Maximum number of consecutive `async_take` errors before the stream is
+/// terminated. After each error the stream waits for an exponentially growing
+/// delay (starting at 100 ms) before retrying, so the total wait before
+/// termination is bounded even though the limit is low.
+const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+
 /// Create a typed subscription and return a stream that converts messages
 /// to `HashMap<String, Value>`.
 fn setup_typed<M: MessageType>(
@@ -131,7 +138,7 @@ fn setup_typed<M: MessageType>(
     .map_err(|e| format!("failed to subscribe to {topic_name}: {e:?}"))?;
 
   let convert = Arc::new(convert);
-  let stream = unfold(subscription, move |sub| {
+  let stream = unfold((subscription, 0u32), move |(sub, consecutive_errors)| {
     let path = path.clone();
     let convert = convert.clone();
     async move {
@@ -139,10 +146,24 @@ fn setup_typed<M: MessageType>(
         Ok((msg, _info)) => {
           let value = convert(msg);
           let values = HashMap::from([(path, value)]);
-          Some((Ok(values), sub))
+          Some((Ok(values), (sub, 0)))
         }
         Err(e) => {
-          Some((Err(format!("{e:?}")), sub))
+          let next_count = consecutive_errors + 1;
+          if next_count >= MAX_CONSECUTIVE_ERRORS {
+            warn!(
+              "Subscription for slot '{}' failed {} consecutive times, terminating stream",
+              path, MAX_CONSECUTIVE_ERRORS
+            );
+            return None;
+          }
+          // Cap the shift to 62 so `1u64 << shift` cannot overflow if
+          // MAX_CONSECUTIVE_ERRORS is raised in the future. saturating_mul
+          // guards the subsequent multiplication.
+          let shift = consecutive_errors.min(62) as u64;
+          let delay = Duration::from_millis(100u64.saturating_mul(1u64 << shift));
+          sleep(delay).await;
+          Some((Err(format!("{e:?}")), (sub, next_count)))
         }
       }
     }
