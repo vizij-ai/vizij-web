@@ -197,18 +197,18 @@ fn warn_if_snap_env() {
     }
 }
 
-/// Start connection servers
-#[tauri::command]
-async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
+async fn start_connection_servers_internal(
+    app_handle: tauri::AppHandle,
+    emit_started_event: bool,
+) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
     let port = state.port;
     let addr = format!("127.0.0.1:{}", port);
 
-    // Check if already running
     {
         let cancel_token = state.cancel_token.lock().await;
         if cancel_token.is_some() {
-            return Err("Connection servers are already running".to_string());
+            return Ok(());
         }
     }
 
@@ -218,7 +218,6 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
 
     let cancel_token = CancellationToken::new();
 
-    // Store the cancel token
     {
         let mut token_guard = state.cancel_token.lock().await;
         *token_guard = Some(cancel_token.clone());
@@ -227,13 +226,9 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
     let manager = state.connection_manager.clone();
     let app_handle_clone = app_handle.clone();
 
-    // Setup Tauri event handlers for all connections
     manager.setup_all(app_handle.clone()).await;
-
-    // Spawn all connection servers
     let handles = manager.run_all(cancel_token);
 
-    // Monitor and emit stopped event when all connections finish
     tokio::spawn(async move {
         for handle in handles {
             let _ = handle.await;
@@ -241,13 +236,20 @@ async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
         let _ = app_handle_clone.emit("ws:stopped", ());
     });
 
-    // Emit server started event with port
-    app_handle
-        .emit("ws:started", port)
-        .map_err(|e| e.to_string())?;
+    if emit_started_event {
+        app_handle
+            .emit("ws:started", port)
+            .map_err(|e| e.to_string())?;
+    }
 
     info!("Connection servers started (WS port: {})", port);
     Ok(())
+}
+
+/// Start connection servers
+#[tauri::command]
+async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
+    start_connection_servers_internal(app_handle, true).await
 }
 
 /// Stop connection servers
@@ -475,6 +477,16 @@ pub fn run() {
                 silence_ms,
                 mic_muted: std::sync::Mutex::new(true),
                 transport_catalog: std::sync::Mutex::new(TransportCatalog::default()),
+            });
+
+            let startup_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = start_connection_servers_internal(startup_handle, false).await {
+                    log::error!(
+                        "Failed to start connection servers during app setup: {}",
+                        error
+                    );
+                }
             });
 
             info!("Vizij Standalone App initialized with WS port {}", port);
