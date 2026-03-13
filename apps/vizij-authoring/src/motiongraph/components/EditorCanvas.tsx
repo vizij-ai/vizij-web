@@ -409,17 +409,15 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   }, [rfInstance]);
 
   /** After a node is dragged/dropped, set the IO add position just below it. */
-  const updateIoPositionBelowNode = useCallback(
-    (node: Node) => {
-      // Use the node's measured height if available, otherwise estimate
-      const nodeHeight = (node as any).height ?? (node as any).measured?.height ?? 60;
-      ioAddPositionRef.current = {
-        x: node.position.x,
-        y: node.position.y + nodeHeight + IO_NODE_GAP,
-      };
-    },
-    [],
-  );
+  const updateIoPositionBelowNode = useCallback((node: Node) => {
+    // Use the node's measured height if available, otherwise estimate
+    const nodeHeight =
+      (node as any).height ?? (node as any).measured?.height ?? 60;
+    ioAddPositionRef.current = {
+      x: node.position.x,
+      y: node.position.y + nodeHeight + IO_NODE_GAP,
+    };
+  }, []);
 
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node) => {
@@ -533,10 +531,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
     const idMap = new Map<string, string>();
     const ts = Date.now();
     clip.nodes.forEach((n, i) => {
-      idMap.set(
-        n.id,
-        `node_${ts}_${i}_${Math.floor(Math.random() * 1_000)}`,
-      );
+      idMap.set(n.id, `node_${ts}_${i}_${Math.floor(Math.random() * 1_000)}`);
     });
 
     const PASTE_OFFSET = 40;
@@ -600,8 +595,9 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       nodes: newNodes.map((n) => ({
         ...n,
         // restore original IDs so the next paste remaps fresh
-        id: clip.nodes[clip.nodes.findIndex((c) => idMap.get(c.id) === n.id)]
-          ?.id ?? n.id,
+        id:
+          clip.nodes[clip.nodes.findIndex((c) => idMap.get(c.id) === n.id)]
+            ?.id ?? n.id,
       })),
       edges: clip.edges,
       ioPositionAtCopy: ioAddPositionRef.current
@@ -628,25 +624,22 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [copySelectedNodes, pasteNodes]);
 
-  const onInit = useCallback(
-    (instance: ReactFlowInstance) => {
-      setRfInstance(instance);
-      // Initialize IO add position to center of the viewport
-      if (reactFlowWrapper.current) {
-        const bounds = reactFlowWrapper.current.getBoundingClientRect();
-        const center = instance.screenToFlowPosition
-          ? instance.screenToFlowPosition({
-              x: bounds.left + bounds.width / 2,
-              y: bounds.top + bounds.height / 2,
-            })
-          : instance.project
-            ? instance.project({ x: bounds.width / 2, y: bounds.height / 2 })
-            : { x: bounds.width / 2, y: bounds.height / 2 };
-        ioAddPositionRef.current = center;
-      }
-    },
-    [],
-  );
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    setRfInstance(instance);
+    // Initialize IO add position to center of the viewport
+    if (reactFlowWrapper.current) {
+      const bounds = reactFlowWrapper.current.getBoundingClientRect();
+      const center = instance.screenToFlowPosition
+        ? instance.screenToFlowPosition({
+            x: bounds.left + bounds.width / 2,
+            y: bounds.top + bounds.height / 2,
+          })
+        : instance.project
+          ? instance.project({ x: bounds.width / 2, y: bounds.height / 2 })
+          : { x: bounds.width / 2, y: bounds.height / 2 };
+      ioAddPositionRef.current = center;
+    }
+  }, []);
 
   useEffect(() => {
     if (!rfInstance || hasAutoFitOnOpenRef.current || nodes.length === 0) {
