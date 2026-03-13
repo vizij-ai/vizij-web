@@ -53,6 +53,10 @@ function loadAssetBundleFixture(relativePath: string): VizijAssetBundle {
   };
 }
 
+function getInputMetadata(bundle: VizijAssetBundle, path: string) {
+  return (bundle.rig?.inputMetadata ?? []).find((entry) => entry.path === path);
+}
+
 describe("faceControls", () => {
   it("resolves Quori gaze controls from the actual extended export", () => {
     const assetBundle = loadAssetBundleFixture(
@@ -76,6 +80,11 @@ describe("faceControls", () => {
     const assetBundle = loadAssetBundleFixture(
       "apps/vizij-authoring/public/assets/Hugo_Current_Extended.glb",
     );
+    const leftXMetadata = getInputMetadata(
+      assetBundle,
+      "/propsrig/l_eye/translation/x",
+    );
+    const blinkMetadata = getInputMetadata(assetBundle, "/lids/blink");
 
     const controls = resolveFaceControls(assetBundle);
 
@@ -84,10 +93,24 @@ describe("faceControls", () => {
     expect(controls.eyes.leftX?.path).toBe(
       "rig/hugo_latest_blender_export/propsrig/l_eye/translation/x",
     );
-    expect(controls.eyes.leftX?.defaultValue).toBeCloseTo(-3.3484723568, 6);
-    expect(controls.eyes.leftX?.min).toBeCloseTo(-6.6969447136, 6);
-    expect(controls.eyes.leftX?.max).toBeCloseTo(0, 6);
-    expect(controls.blink?.path).toBe("rig/hugo_latest_blender_export/blink");
+    expect(leftXMetadata).toBeTruthy();
+    expect(controls.eyes.leftX?.defaultValue).toBeCloseTo(
+      leftXMetadata?.defaultValue ?? 0,
+      6,
+    );
+    expect(controls.eyes.leftX?.min).toBeCloseTo(
+      leftXMetadata?.range?.min ?? 0,
+      6,
+    );
+    expect(controls.eyes.leftX?.max).toBeCloseTo(
+      leftXMetadata?.range?.max ?? 0,
+      6,
+    );
+    expect(blinkMetadata).toBeTruthy();
+    expect(controls.blinkSource).toBe("lids");
+    expect(controls.blink?.path).toBe(
+      "rig/hugo_latest_blender_export/lids/blink",
+    );
   });
 
   it("maps normalized values around the authored default and range", () => {
