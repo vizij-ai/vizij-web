@@ -348,7 +348,12 @@ function AppContent({
     } catch {
       // will retry on next render cycle
     }
-  }, [runtime.ready, runtime.loading, runtime.assetBundle, runtime.playProgram]);
+  }, [
+    runtime.ready,
+    runtime.loading,
+    runtime.assetBundle,
+    runtime.playProgram,
+  ]);
 
   // Extract pose data for viseme/emotion group resolution
   const poses = useMemo(
@@ -610,212 +615,218 @@ function AppContent({
       </button>
 
       {/* Settings panel — dev only */}
-      {import.meta.env.DEV && <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
-        <div className="mb-2">
-          <label className="block text-xs text-neutral-400 mb-1">
-            Background
-          </label>
-          <input
-            type="color"
-            value={bgColor}
-            onChange={(e) => setBgColor(e.target.value)}
-            className="w-full h-8 rounded cursor-pointer"
-          />
-        </div>
-        <div className="text-xs text-neutral-400">
-          <p>WS: ws://localhost:{port}</p>
-          <p className={wsConnected ? "text-green-400" : "text-yellow-400"}>
-            {wsConnected ? "Connected" : "Connecting..."}
-          </p>
-          <p className="mt-1">
-            Runtime:{" "}
-            <span
-              className={
-                runtime.ready
-                  ? "text-green-400"
+      {import.meta.env.DEV && (
+        <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
+          <div className="mb-2">
+            <label className="block text-xs text-neutral-400 mb-1">
+              Background
+            </label>
+            <input
+              type="color"
+              value={bgColor}
+              onChange={(e) => setBgColor(e.target.value)}
+              className="w-full h-8 rounded cursor-pointer"
+            />
+          </div>
+          <div className="text-xs text-neutral-400">
+            <p>WS: ws://localhost:{port}</p>
+            <p className={wsConnected ? "text-green-400" : "text-yellow-400"}>
+              {wsConnected ? "Connected" : "Connecting..."}
+            </p>
+            <p className="mt-1">
+              Runtime:{" "}
+              <span
+                className={
+                  runtime.ready
+                    ? "text-green-400"
+                    : runtime.loading
+                      ? "text-yellow-400"
+                      : "text-red-400"
+                }
+              >
+                {runtime.ready
+                  ? "ready"
                   : runtime.loading
-                    ? "text-yellow-400"
-                    : "text-red-400"
-              }
-            >
-              {runtime.ready ? "ready" : runtime.loading ? "loading" : "error"}
-            </span>
-          </p>
-          {runtime.errors.length > 0 && (
-            <details className="mt-1 text-red-400">
-              <summary className="cursor-pointer">
-                {runtime.errors.length} error
-                {runtime.errors.length > 1 ? "s" : ""}
-              </summary>
-              <ul className="ml-2 mt-1 text-[10px] text-red-300">
-                {runtime.errors.map((err, i) => (
-                  <li key={i}>
-                    {err.phase && (
-                      <span className="text-red-500">[{err.phase}] </span>
+                    ? "loading"
+                    : "error"}
+              </span>
+            </p>
+            {runtime.errors.length > 0 && (
+              <details className="mt-1 text-red-400">
+                <summary className="cursor-pointer">
+                  {runtime.errors.length} error
+                  {runtime.errors.length > 1 ? "s" : ""}
+                </summary>
+                <ul className="ml-2 mt-1 text-[10px] text-red-300">
+                  {runtime.errors.map((err, i) => (
+                    <li key={i}>
+                      {err.phase && (
+                        <span className="text-red-500">[{err.phase}] </span>
+                      )}
+                      {err.message}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {runtime.ready && (
+              <>
+                <p>Face ID: {faceId}</p>
+                <p>Constraints: {constraintCount}</p>
+                <p>Outputs: {runtime.outputPaths.length}</p>
+                <p>Transport: {transportCount}</p>
+                <p className="mt-1">FPS: {runtime.stepHz?.toFixed(0) ?? "-"}</p>
+                {speech.enabled && (
+                  <p className="mt-1">
+                    Speech:{" "}
+                    <span
+                      className={
+                        speech.status === "listening"
+                          ? "text-red-400"
+                          : speech.status === "thinking"
+                            ? "text-yellow-400"
+                            : speech.status === "speaking"
+                              ? "text-purple-400"
+                              : "text-neutral-400"
+                      }
+                    >
+                      {speech.status}
+                    </span>
+                    {!speech.keysConfigured && (
+                      <span className="text-yellow-400"> (keys missing)</span>
                     )}
-                    {err.message}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-          {runtime.ready && (
-            <>
-              <p>Face ID: {faceId}</p>
-              <p>Constraints: {constraintCount}</p>
-              <p>Outputs: {runtime.outputPaths.length}</p>
-              <p>Transport: {transportCount}</p>
-              <p className="mt-1">FPS: {runtime.stepHz?.toFixed(0) ?? "-"}</p>
-              {speech.enabled && (
-                <p className="mt-1">
-                  Speech:{" "}
-                  <span
-                    className={
-                      speech.status === "listening"
-                        ? "text-red-400"
-                        : speech.status === "thinking"
-                          ? "text-yellow-400"
-                          : speech.status === "speaking"
-                            ? "text-purple-400"
-                            : "text-neutral-400"
-                    }
-                  >
-                    {speech.status}
-                  </span>
-                  {!speech.keysConfigured && (
-                    <span className="text-yellow-400"> (keys missing)</span>
-                  )}
-                </p>
-              )}
-              <p className="mt-1 text-[10px] text-neutral-500">
-                Path: rig/{faceId}/&lt;path&gt;
-              </p>
-              {transportCatalog.animations.length > 0 && (
-                <div className="mt-3 border-t border-white/10 pt-2">
-                  <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                    Animations
                   </p>
-                  <div className="space-y-2">
-                    {transportCatalog.animations.map((entry) => (
-                      <div
-                        key={`anim-${entry.id}`}
-                        className="rounded bg-white/5 p-2"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[11px] text-white">
-                            {entry.label}
-                          </span>
-                          <span
-                            className={
-                              entry.state === "playing"
-                                ? "text-[10px] text-green-400"
-                                : entry.state === "paused"
-                                  ? "text-[10px] text-yellow-400"
-                                  : "text-[10px] text-neutral-400"
-                            }
-                          >
-                            {entry.state}
-                          </span>
+                )}
+                <p className="mt-1 text-[10px] text-neutral-500">
+                  Path: rig/{faceId}/&lt;path&gt;
+                </p>
+                {transportCatalog.animations.length > 0 && (
+                  <div className="mt-3 border-t border-white/10 pt-2">
+                    <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                      Animations
+                    </p>
+                    <div className="space-y-2">
+                      {transportCatalog.animations.map((entry) => (
+                        <div
+                          key={`anim-${entry.id}`}
+                          className="rounded bg-white/5 p-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-[11px] text-white">
+                              {entry.label}
+                            </span>
+                            <span
+                              className={
+                                entry.state === "playing"
+                                  ? "text-[10px] text-green-400"
+                                  : entry.state === "paused"
+                                    ? "text-[10px] text-yellow-400"
+                                    : "text-[10px] text-neutral-400"
+                              }
+                            >
+                              {entry.state}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex gap-1">
+                            <button
+                              onClick={() => {
+                                void runtime
+                                  .playAnimation(entry.id)
+                                  .catch((error) => {
+                                    console.error(
+                                      "[vizij-standalone] Failed to play animation:",
+                                      error,
+                                    );
+                                  });
+                              }}
+                              className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
+                            >
+                              Play
+                            </button>
+                            <button
+                              onClick={() => runtime.pauseAnimation(entry.id)}
+                              className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
+                            >
+                              Pause
+                            </button>
+                            <button
+                              onClick={() => runtime.stopAnimation(entry.id)}
+                              className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
+                            >
+                              Stop
+                            </button>
+                          </div>
                         </div>
-                        <div className="mt-2 flex gap-1">
-                          <button
-                            onClick={() => {
-                              void runtime
-                                .playAnimation(entry.id)
-                                .catch((error) => {
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {transportCatalog.programs.length > 0 && (
+                  <div className="mt-3 border-t border-white/10 pt-2">
+                    <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
+                      Programs
+                    </p>
+                    <div className="space-y-2">
+                      {transportCatalog.programs.map((entry) => (
+                        <div
+                          key={`program-${entry.id}`}
+                          className="rounded bg-white/5 p-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-[11px] text-white">
+                              {entry.label}
+                            </span>
+                            <span
+                              className={
+                                entry.state === "playing"
+                                  ? "text-[10px] text-green-400"
+                                  : entry.state === "paused"
+                                    ? "text-[10px] text-yellow-400"
+                                    : "text-[10px] text-neutral-400"
+                              }
+                            >
+                              {entry.state}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex gap-1">
+                            <button
+                              onClick={() => {
+                                try {
+                                  runtime.playProgram(entry.id);
+                                } catch (error) {
                                   console.error(
-                                    "[vizij-standalone] Failed to play animation:",
+                                    "[vizij-standalone] Failed to play program:",
                                     error,
                                   );
-                                });
-                            }}
-                            className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
-                          >
-                            Play
-                          </button>
-                          <button
-                            onClick={() => runtime.pauseAnimation(entry.id)}
-                            className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
-                          >
-                            Pause
-                          </button>
-                          <button
-                            onClick={() => runtime.stopAnimation(entry.id)}
-                            className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
-                          >
-                            Stop
-                          </button>
+                                }
+                              }}
+                              className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
+                            >
+                              Play
+                            </button>
+                            <button
+                              onClick={() => runtime.pauseProgram(entry.id)}
+                              className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
+                            >
+                              Pause
+                            </button>
+                            <button
+                              onClick={() => runtime.stopProgram(entry.id)}
+                              className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
+                            >
+                              Stop
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {transportCatalog.programs.length > 0 && (
-                <div className="mt-3 border-t border-white/10 pt-2">
-                  <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                    Programs
-                  </p>
-                  <div className="space-y-2">
-                    {transportCatalog.programs.map((entry) => (
-                      <div
-                        key={`program-${entry.id}`}
-                        className="rounded bg-white/5 p-2"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[11px] text-white">
-                            {entry.label}
-                          </span>
-                          <span
-                            className={
-                              entry.state === "playing"
-                                ? "text-[10px] text-green-400"
-                                : entry.state === "paused"
-                                  ? "text-[10px] text-yellow-400"
-                                  : "text-[10px] text-neutral-400"
-                            }
-                          >
-                            {entry.state}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex gap-1">
-                          <button
-                            onClick={() => {
-                              try {
-                                runtime.playProgram(entry.id);
-                              } catch (error) {
-                                console.error(
-                                  "[vizij-standalone] Failed to play program:",
-                                  error,
-                                );
-                              }
-                            }}
-                            className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
-                          >
-                            Play
-                          </button>
-                          <button
-                            onClick={() => runtime.pauseProgram(entry.id)}
-                            className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
-                          >
-                            Pause
-                          </button>
-                          <button
-                            onClick={() => runtime.stopProgram(entry.id)}
-                            className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
-                          >
-                            Stop
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>}
+      )}
 
       {/* Mic toggle button (only when speech is configured in the bundle) */}
       {speech.enabled && speech.keysConfigured && (
