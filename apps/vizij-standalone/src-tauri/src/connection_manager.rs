@@ -59,9 +59,20 @@ impl ConnectionManager {
             // Handler for SetSlotValues: emit to frontend
             let app = app_handle.clone();
             let set_handler: SetSlotValuesHandler = Arc::new(move |values| {
+                debug!(
+                    "SetSlotValues handler fired with {} path(s): {:?}",
+                    values.len(),
+                    values.keys().collect::<Vec<_>>()
+                );
                 match app.emit("update-values", &values) {
-                    Ok(()) => Ok(()),
-                    Err(e) => Err(format!("Failed to emit: {}", e)),
+                    Ok(()) => {
+                        debug!("Emitted update-values event successfully");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        warn!("Failed to emit update-values: {}", e);
+                        Err(format!("Failed to emit: {}", e))
+                    }
                 }
             });
             conn.set_set_slot_values_handler(set_handler).await;
@@ -481,6 +492,10 @@ impl ConnectionManager {
 
     /// Propagate slot definitions to all connections.
     pub async fn set_slots(&self, slots: Vec<SlotInfo>) {
+        debug!(
+            "ConnectionManager::set_slots called with {} slot(s)",
+            slots.len()
+        );
         for conn in &self.connections {
             conn.set_slots(slots.clone()).await;
         }
