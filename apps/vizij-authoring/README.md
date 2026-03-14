@@ -105,7 +105,7 @@ The checked-in sample assets currently live under [`public/assets`](./public/ass
 Firebase hosting commands:
 
 ```bash
-pnpm --dir apps/vizij-authoring exec firebase hosting:channel:deploy staging --only hosting:vizij-authoring
+pnpm --dir apps/vizij-authoring exec firebase hosting:channel:deploy staging --only hosting:vizij-workspace
 pnpm --dir apps/vizij-authoring exec firebase deploy --only hosting:vizij-workspace
 ```
 

@@ -80,7 +80,7 @@ Row 1 (identity + mapping):
 
 1. Channel name.
 2. Contribution strength.
-3. Compose mode selector (`Additive` default, `Average` optional) for direct+pose channel combination.
+3. Compose mode selector (UI labels: `Additive` (default) and `Average`; canonical enum values: `add` and `average`) for direct+pose channel combination.
 4. Link/reference to the target variable.
 5. Remove-channel action.
 
@@ -123,6 +123,9 @@ Direct+pose effective-channel contract:
 1. For each driven channel, authoring configures how direct control and pose-control signals combine before binding.
 2. Effective value uses `effective_i = clamp(compose(direct_i, pose_i), min_i, max_i)`.
 3. MVP `compose` options are `add` and `average`, with `add` as default.
+   - Canonical enum identifiers: `add`, `average`.
+   - UI labels: `Additive` → `add`, `Average` → `average`.
+   - Any new compose modes must define both their enum identifier and UI label mapping in this document.
 
 ## Neutral and Value Semantics
 
