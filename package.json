@@ -23,13 +23,15 @@
     "build": "pnpm run build:packages && pnpm run build:apps",
     "build:packages": "pnpm --filter \"./packages/**\" run --if-present build",
     "build:apps": "pnpm --filter \"./apps/**\" run --if-present build",
-    "format": "pnpm exec prettier --write .",
-    "format:check": "pnpm exec prettier --check .",
+    "format": "pnpm run markdown:fix && pnpm exec prettier --write .",
+    "format:check": "pnpm run markdown:check && pnpm exec prettier --check .",
+    "markdown:fix": "pnpm exec markdownlint --fix \"**/*.md\"",
+    "markdown:check": "pnpm exec markdownlint \"**/*.md\"",
     "prep": "pnpm run format && pnpm run validate",
     "prep:all": "pnpm run format && pnpm run validate:all",
     "prep:push": "pnpm run format && pnpm run clean && pnpm run build && pnpm run validate:all",
-    "lint": "./scripts/run-affected.sh lint",
-    "lint:all": "pnpm -r run --if-present lint",
+    "lint": "pnpm run markdown:check && ./scripts/run-affected.sh lint",
+    "lint:all": "pnpm run markdown:check && pnpm -r run --if-present lint",
     "test": "./scripts/run-affected.sh test",
     "test:all": "pnpm -r run --if-present test",
     "typecheck": "./scripts/run-affected.sh typecheck",
@@ -62,10 +64,12 @@
     "eslint-plugin-react-refresh": "^0.4.18",
     "globals": "^15.14.0",
     "lint-staged": "^15.2.10",
+    "markdownlint-cli": "^0.48.0",
     "prettier": "^3.4.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.22.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "ws": "^8.18.0"
   },
   "pnpm": {
     "overrides": {

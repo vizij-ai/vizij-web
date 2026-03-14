@@ -4,6 +4,7 @@
 - Keep this package aligned with `@vizij/orchestrator-wasm`. When the WASM crate changes ABI versions, update dependency ranges, helpers, and docs together.
 - Check orchestrator-focused demos (`apps/demo-vizij-player`, `apps/minimal-demo-orchestrator`) after modifying hooks or provider behaviour.
 - Before publishing, run:
+
   ```bash
   pnpm changeset
   pnpm version:packages
@@ -13,4 +14,5 @@
   pnpm --filter "@vizij/orchestrator-react" typecheck
   pnpm --filter "@vizij/orchestrator-react" exec npm pack --dry-run
   ```
+
 - Push tags as `npm-orchestrator-react-vX.Y.Z`; the shared GitHub Action handles the npm publish.

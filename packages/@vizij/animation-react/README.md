@@ -211,11 +211,14 @@ Vitest mocks the wasm binding to keep tests fast; end-to-end checks can be exerc
 This package is published via the repository-wide workflow at [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml). To cut a release:
 
 1. Generate a changeset and apply version bumps:
+
    ```bash
    pnpm changeset
    pnpm version:packages
    ```
+
 2. Verify the package locally:
+
    ```bash
    pnpm install
    pnpm --filter "@vizij/animation-react" build
@@ -223,7 +226,9 @@ This package is published via the repository-wide workflow at [`.github/workflow
    pnpm --filter "@vizij/animation-react" typecheck
    pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
    ```
+
 3. Tag the commit using the `npm-animation-react-vX.Y.Z` pattern and push the tag:
+
    ```bash
    git tag npm-animation-react-v0.3.0
    git push origin npm-animation-react-v0.3.0

@@ -1,6 +1,6 @@
 # Vizij Standalone
 
-`vizij-standalone` is the desktop runtime app. It wraps `@vizij/runtime-react` in a Tauri shell, loads one face bundle at a time, exposes the runtime inputs over a local WebSocket/Arora control surface, and optionally layers speech behavior on top when the loaded bundle includes `speechConfig`.
+`vizij-standalone` is the desktop runtime app. It wraps `@vizij/runtime-react` in a Tauri shell, loads one face bundle at a time, exposes the runtime over local control surfaces, and optionally layers speech behavior on top when the loaded bundle includes `speechConfig`.
 
 ## Current Runtime Flow
 
@@ -9,15 +9,15 @@ At runtime the app:
 1. loads a GLB from a CLI `--glb` source or the file picker
 2. builds a `VizijAssetBundle` from either a URL or a local file blob
 3. mounts `VizijRuntimeProvider` with `autostart` and `driveOrchestrator={true}`
-4. mirrors runtime `inputConstraints` and transport inventory back to the Rust side
-5. applies incoming WebSocket control messages through `setInput()`
+4. mirrors runtime `inputConstraints`, speech state, and transport inventory back to the Rust side
+5. applies incoming WebSocket or ROS2 control messages through the shared connection manager
 
 Relevant files:
 
 - [`src/App.tsx`](./src/App.tsx): runtime bootstrap + desktop UI shell
 - [`src/hooks/useWebSocketSync.ts`](./src/hooks/useWebSocketSync.ts): runtime input sync with the Rust transport layer
 - [`src/hooks/useSpeechController.ts`](./src/hooks/useSpeechController.ts): `@vizij/speech-react` integration on top of runtime-react
-- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs): CLI flags and Tauri-side connection startup
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs): CLI flags and transport startup
 
 ## Features
 
@@ -26,6 +26,7 @@ Relevant files:
 - local WebSocket control server
 - optional same-port web control panel unless disabled with `--no-web-control`
 - transport inventory for bundled animations and procedural programs
+- optional ROS2 control surface when built with the default `ros2` feature
 - optional speech pipeline driven by bundle metadata plus CLI/env keys
 
 ## CLI
@@ -51,8 +52,23 @@ Main options:
 - `--api-url`
 - `--auto-mic`
 - `--speech-mode`
+- `--ros2-domain-id`: DDS domain ID for the ROS2 surface
+- `--ros2-namespace`: ROS2 namespace prefix for topics and services
 
 Use `list-displays` to inspect monitor indices before launching fullscreen on a specific display.
+
+## Web Control Panel
+
+The app includes a built-in browser control panel served on the same port as the WebSocket server. That makes it easy to control the avatar from another machine or a phone without installing extra tooling.
+
+Behavior highlights:
+
+- auto-discovers available slots and builds the UI dynamically
+- exposes speech controls when the corresponding methods are available
+- exposes transport controls when bundled animations or programs are published
+- follows the same exclusive-client policy as any other Arora client
+
+To disable the panel, launch with `--no-web-control`.
 
 ## Local Control Surface
 
@@ -64,12 +80,35 @@ The frontend runtime layer publishes:
 - current transport catalog for animations/programs
 - speech state updates
 
-The Rust connection manager then exposes those over the Arora protocol surface.
-
-For protocol details, inspect:
+The Rust connection manager then exposes those over the Arora protocol surface. For protocol details, inspect:
 
 - [`src-tauri/src/connection_manager.rs`](./src-tauri/src/connection_manager.rs)
 - [`packages/@vizij/arora-types`](../../packages/@vizij/arora-types)
+
+For quick manual testing:
+
+```bash
+npx wscat -c ws://localhost:9000
+```
+
+The server binds to `0.0.0.0`, so LAN clients can connect as well; treat it as a local-control endpoint and only expose it on trusted networks.
+
+## ROS2 Control Surface
+
+When built with the default `ros2` feature, the Tauri app also starts an `AroraRos2Node` alongside the WebSocket server.
+
+Current behavior:
+
+- input slots are exposed as ROS2 topics under `/{namespace}/slots/...`
+- methods are exposed as ROS2 services under `/{namespace}/methods/...`
+- the namespace defaults to `vizij`
+- the DDS domain defaults to `0`
+
+Relevant files:
+
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs)
+- [`src-tauri/tests/ros2_smoke.rs`](./src-tauri/tests/ros2_smoke.rs)
+- [`../../../packages/arora-ros2/src/lib.rs`](../../../packages/arora-ros2/src/lib.rs)
 
 ## Speech Support
 
@@ -118,6 +157,11 @@ pnpm install
 pnpm --filter vizij-standalone dev
 ```
 
+`pnpm --filter vizij-standalone dev` is the normal development entry point because
+Tauri dev mode loads the React frontend from `http://localhost:1420`.
+That frontend server is started automatically by the `beforeDevCommand` in
+[`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json).
+
 Passing CLI arguments through `pnpm tauri dev`:
 
 ```bash
@@ -143,6 +187,51 @@ pnpm --filter vizij-standalone tauri build
 ```
 
 Build outputs land under `apps/vizij-standalone/src-tauri/target/`.
+
+## Manual Checks
+
+WebSocket/manual panel checks:
+
+- launch the app with a known GLB and verify the browser control panel lists slots
+- call `reset` from the panel or `wscat`
+- if a bundle contains transport items, verify the Transport tab can list, play, pause, and stop them
+
+ROS2 smoke check:
+
+```bash
+cargo test --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features ros2 --test ros2_smoke -- --ignored
+```
+
+The smoke test requires a built frontend and a display because it launches the Tauri app.
+
+Direct `cargo run` note:
+
+- running `cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml ...`
+  launches the Tauri Rust binary directly
+- in debug/dev mode that binary still expects the frontend at `http://localhost:1420`
+- `--no-web-control` only disables the separate browser control panel on the Arora port;
+  it does not disable the main Tauri window frontend
+- if you want to use direct `cargo run`, start a frontend server first, for example:
+
+```bash
+pnpm --filter vizij-standalone build
+python3 -m http.server 1420 -d apps/vizij-standalone/dist
+
+RUST_LOG=info cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features ros2 -- \
+  --no-web-control \
+  --ros2-domain-id 201 \
+  --ros2-namespace smoke_debug \
+  --port 19191
+```
+
+If you only need the app with the correct frontend wiring, prefer:
+
+```bash
+pnpm --filter vizij-standalone dev -- -- \
+  --ros2-domain-id 201 \
+  --ros2-namespace smoke_debug \
+  --port 19191
+```
 
 ## Notes
 

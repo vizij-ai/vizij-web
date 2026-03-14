@@ -474,10 +474,16 @@ export function useSpeechController({
           void asr.startListening();
         }
       }
-
       prevSpeechStatusRef.current = speech.status;
     }
-  }, [speech.status, autoMicOverride, speechConfig?.autoActivateMic, enabled, keysConfigured, asr]);
+  }, [
+    speech.status,
+    autoMicOverride,
+    speechConfig?.autoActivateMic,
+    enabled,
+    keysConfigured,
+    asr,
+  ]);
 
   // Log errors
   useEffect(() => {

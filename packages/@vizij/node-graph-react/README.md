@@ -220,11 +220,14 @@ Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise t
 Publishing uses the shared workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
 
 1. Run a changeset and apply version bumps:
+
    ```bash
    pnpm changeset
    pnpm version:packages
    ```
+
 2. Validate locally:
+
    ```bash
    pnpm install
    pnpm --filter "@vizij/node-graph-react" build
@@ -232,7 +235,9 @@ Publishing uses the shared workflow in [`.github/workflows/publish-npm.yml`](../
    pnpm --filter "@vizij/node-graph-react" typecheck
    pnpm --filter "@vizij/node-graph-react" exec npm pack --dry-run
    ```
+
 3. Push a tag matching `npm-node-graph-react-vX.Y.Z`:
+
    ```bash
    git tag npm-node-graph-react-v0.3.0
    git push origin npm-node-graph-react-v0.3.0

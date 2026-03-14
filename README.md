@@ -16,7 +16,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 6. [Local WASM Development](#local-wasm-development)
 7. [Development Tips](#development-tips)
 8. [Validation Workflow](#validation-workflow)
-9. [Publishing Packages](#publishing-packages)
+9. [Publishing & Versioning](#publishing--versioning)
 10. [Related Repositories](#related-repositories)
 
 ---
@@ -94,7 +94,7 @@ The `vizij-authoring` app is the primary tool for creating and configuring Vizij
 
 Standard Feature Spaces provide a unified naming convention for rig inputs, enabling interoperability between different face rigs and animation systems. Each standard input follows a hierarchical path:
 
-```
+```text
 /standard/{namespace}/{channel}/{track}/{attribute}
 ```
 
@@ -132,19 +132,26 @@ When linking local WASM builds you’ll also need the Rust toolchain from [`vizi
 ## First-Time Setup
 
 1. Install dependencies:
+
    ```bash
    pnpm install
    ```
+
 2. Build packages so apps receive compiled outputs:
+
    ```bash
    pnpm run build:packages
    ```
+
    To bundle renderer/utilities specifically:
+
    ```bash
    pnpm --filter "@vizij/render" build
    pnpm --filter "@vizij/utils" build
    ```
+
 3. Start a dev server:
+
    ```bash
    pnpm run dev:demo-animation-studio
    # or start any other app via pnpm --filter "<workspace>" dev
@@ -178,10 +185,12 @@ Use `pnpm --filter "<workspace>" <script>` when you want to target a specific pa
 When you need edits from the Rust workspace:
 
 1. In `vizij-rs`:
+
    ```bash
    pnpm run link:wasm
    # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
    ```
+
 2. Back in this repo, link the packages you want (and verify status):
 
    ```bash
@@ -195,6 +204,7 @@ When you need edits from the Rust workspace:
    ```
 
 3. Optionally, reinstall to refresh workspace symlinks / resolution:
+
    ```bash
    pnpm install
    ```
@@ -204,6 +214,7 @@ Tips:
 - Restart Vite dev servers after linking so they pick up new symlinks.
 - Keep crate/npm versions aligned to avoid ABI mismatch errors (`expected 2, got 1`). Rebuild when they diverge.
 - When you want to revert to published packages:
+
   ```bash
   pnpm run wasm:unlink -- --pkgs all
   pnpm install
@@ -283,11 +294,14 @@ Legacy workflow (kept as a break-glass option): [`.github/workflows/release-tag_
    - Merge the feature branch into `main`. The changeset files stay unversioned until the release cut.
 2. **Tag a release commit**
    - From a clean local checkout of the branch you want to release (usually `main`):
+
      ```bash
      git tag -a "npm-pub-$(date -u '+%Y%m%d-%H%M%S')" -m "Trigger npm publish"
      git push origin --follow-tags
      ```
+
    - CI will determine the branch containing the tag commit and check it out.
+
 3. **CI versions and publishes**
    - The `publish-npm` workflow installs dependencies, runs `pnpm ci:version` (Changesets versioning), commits the generated changes, runs `pnpm run verify:packages` (build + lint + tests scoped to `@vizij/*` packages), and finally executes `pnpm ci:publish`.
    - `pnpm ci:publish` runs `scripts/ci-publish.mjs`, which temporarily rewrites `workspace:*` dependency ranges to real versions during the publish step and restores manifests afterward.

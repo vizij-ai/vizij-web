@@ -113,44 +113,37 @@ Gating logic is in `apps/vizij-authoring/src/hooks/runtimeGraphSpec.ts:15` and c
 ### 4.1 Verified regressions
 
 1. Runtime bundle test is broken.
-
-- `apps/vizij-authoring/src/utils/__tests__/runtimeBundle.test.ts:2` imports `buildRuntimeBundle`, but `apps/vizij-authoring/src/utils/runtimeBundle.ts:28` only exports `buildRuntimeBaseBundle`/`buildRuntimeGraphBundle`.
-- Repro: `pnpm --filter vizij-authoring test -- src/utils/__tests__/runtimeBundle.test.ts` fails with `buildRuntimeBundle is not a function`.
+   - `apps/vizij-authoring/src/utils/__tests__/runtimeBundle.test.ts:2` imports `buildRuntimeBundle`, but `apps/vizij-authoring/src/utils/runtimeBundle.ts:28` only exports `buildRuntimeBaseBundle`/`buildRuntimeGraphBundle`.
+   - Repro: `pnpm --filter vizij-authoring test -- src/utils/__tests__/runtimeBundle.test.ts` fails with `buildRuntimeBundle is not a function`.
 
 2. Viewer tests fail against current `RuntimeStatusDebug` assumptions.
-
-- `apps/vizij-authoring/src/components/app/Viewer.tsx:80` reads `outputPaths.length` unguarded.
-- Repro: `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx` -> 3 failures (`Cannot read properties of undefined (reading 'length')`).
+   - `apps/vizij-authoring/src/components/app/Viewer.tsx:80` reads `outputPaths.length` unguarded.
+   - Repro: `pnpm --filter vizij-authoring test -- src/components/app/Viewer.test.tsx` -> 3 failures (`Cannot read properties of undefined (reading 'length')`).
 
 3. `vizij-authoring` typecheck currently fails.
-
-- Repro: `pnpm --filter vizij-authoring typecheck`.
-- Major issues include:
-  - `Viewer.tsx` pose config type mismatch at `apps/vizij-authoring/src/components/app/Viewer.tsx:60`.
-  - `runtimeBundle.ts` pose config type mismatch at `apps/vizij-authoring/src/utils/runtimeBundle.ts:61`.
-  - Test type mismatches in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
-  - Missing export in `apps/vizij-authoring/src/utils/__tests__/runtimeBundle.test.ts:2`.
+   - Repro: `pnpm --filter vizij-authoring typecheck`.
+   - Major issues include:
+     - `Viewer.tsx` pose config type mismatch at `apps/vizij-authoring/src/components/app/Viewer.tsx:60`.
+     - `runtimeBundle.ts` pose config type mismatch at `apps/vizij-authoring/src/utils/runtimeBundle.ts:61`.
+     - Test type mismatches in `apps/vizij-authoring/src/hooks/__tests__/useVizijExport.test.tsx`.
+     - Missing export in `apps/vizij-authoring/src/utils/__tests__/runtimeBundle.test.ts:2`.
 
 ### 4.2 Integration risks
 
 1. `stageRuntimeInput` is read non-reactively in `useRigController`.
-
-- `const stageRuntimeInput = graphRuntimeStore.getState().stageRuntimeInput;` at `apps/vizij-authoring/src/hooks/useRigController.ts:210`.
-- Since this is not selected from the store, callbacks can capture stale `undefined` until a re-render occurs for unrelated reasons.
+   - `const stageRuntimeInput = graphRuntimeStore.getState().stageRuntimeInput;` at `apps/vizij-authoring/src/hooks/useRigController.ts:210`.
+   - Since this is not selected from the store, callbacks can capture stale `undefined` until a re-render occurs for unrelated reasons.
 
 2. Playback controls are now no-op in `useRigController`.
-
-- `playGraph/pauseGraph/stopGraph/stepGraph` are placeholders at `apps/vizij-authoring/src/hooks/useRigController.ts:1396`.
-- Debug panel still renders playback controls (`apps/vizij-authoring/src/components/panels/DebugPanel.tsx:259` onward), so UX currently advertises controls that do not drive runtime.
+   - `playGraph/pauseGraph/stopGraph/stepGraph` are placeholders at `apps/vizij-authoring/src/hooks/useRigController.ts:1396`.
+   - Debug panel still renders playback controls (`apps/vizij-authoring/src/components/panels/DebugPanel.tsx:259` onward), so UX currently advertises controls that do not drive runtime.
 
 3. Pose graph import UI appears disconnected from active dialog.
-
-- `PoseRigImportPanel` exists and supports graph/config imports in `apps/vizij-authoring/src/components/app/PoseRigPanels.tsx:24`.
-- `ExportDialog` receives but ignores `onImportPoseGraph` (`apps/vizij-authoring/src/components/app/ExportDialog.tsx:42`) and only renders `PoseRigExportPanel` (`apps/vizij-authoring/src/components/app/ExportDialog.tsx:249`).
+   - `PoseRigImportPanel` exists and supports graph/config imports in `apps/vizij-authoring/src/components/app/PoseRigPanels.tsx:24`.
+   - `ExportDialog` receives but ignores `onImportPoseGraph` (`apps/vizij-authoring/src/components/app/ExportDialog.tsx:42`) and only renders `PoseRigExportPanel` (`apps/vizij-authoring/src/components/app/ExportDialog.tsx:249`).
 
 4. Pose summary generation API is still incomplete.
-
-- `PoseGraphService.generateSummary` throws by design in `apps/vizij-authoring/src/poseRig/services/poseGraphService.ts:55`.
+   - `PoseGraphService.generateSummary` throws by design in `apps/vizij-authoring/src/poseRig/services/poseGraphService.ts:55`.
 
 ## 5) What is working well in staged changes
 

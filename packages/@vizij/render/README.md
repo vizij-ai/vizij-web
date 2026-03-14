@@ -135,11 +135,14 @@ pnpm --filter "@vizij/render" size
 Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../.github/workflows/publish-npm.yml).
 
 1. Align dependency versions (`three`, `@react-three/*`, `zustand`, Vizij packages) and generate a changeset:
+
    ```bash
    pnpm changeset
    pnpm version:packages
    ```
+
 2. Validate locally:
+
    ```bash
    pnpm install
    pnpm --filter "@vizij/render" build
@@ -148,6 +151,7 @@ Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../.github/w
    pnpm --filter "@vizij/render" lint
    pnpm --filter "@vizij/render" exec npm pack --dry-run
    ```
+
 3. Tag the release as `npm-render-vX.Y.Z` and push the tag. The workflow will publish with provenance metadata.
 
 ---

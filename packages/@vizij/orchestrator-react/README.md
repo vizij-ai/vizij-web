@@ -207,11 +207,14 @@ Vitest tests mock the wasm binding to keep execution fast. When you want end-to-
 The tag-driven workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml) publishes this package.
 
 1. Create a changeset and apply the version bump:
+
    ```bash
    pnpm changeset
    pnpm version:packages
    ```
+
 2. Validate locally:
+
    ```bash
    pnpm install
    pnpm --filter "@vizij/orchestrator-react" build
@@ -219,7 +222,9 @@ The tag-driven workflow in [`.github/workflows/publish-npm.yml`](../../../.githu
    pnpm --filter "@vizij/orchestrator-react" typecheck
    pnpm --filter "@vizij/orchestrator-react" exec npm pack --dry-run
    ```
+
 3. Push a tag of the form `npm-orchestrator-react-vX.Y.Z`:
+
    ```bash
    git tag npm-orchestrator-react-v0.3.0
    git push origin npm-orchestrator-react-v0.3.0

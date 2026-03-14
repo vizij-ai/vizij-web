@@ -4,6 +4,7 @@
 - Treat this package as the source of truth for shared value types. Coordinate changes with `@vizij/render`, `@vizij/animation-react`, `@vizij/node-graph-react`, and `@vizij/orchestrator-react` before renaming or reshaping interfaces.
 - Avoid adding React-specific code here—keep utilities framework agnostic.
 - Prior to publishing, run:
+
   ```bash
   pnpm changeset
   pnpm version:packages
@@ -13,4 +14,5 @@
   pnpm --filter "@vizij/utils" typecheck
   pnpm --filter "@vizij/utils" exec npm pack --dry-run
   ```
+
 - Release tags follow `npm-utils-vX.Y.Z`. The shared GitHub Action will publish once the tag is pushed.

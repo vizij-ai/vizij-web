@@ -65,7 +65,7 @@ As soon as the runtime is ready, the app calls `stagePoseNeutral()` so all later
 ### Pose hotkeys + warmup
 
 - [`usePoseHotkeys`](./src/hooks/usePoseHotkeys.ts) derives canonical pose-weight paths with `buildPoseWeightPathMap()`.
-- It also uses runtime-react semantic helpers to prioritize meaningful emotion poses.
+- It also uses runtime-react helper utilities to prioritize current emotion-style poses without hard-coding face-specific names.
 - [`usePoseWarmup`](./src/hooks/usePoseWarmup.ts) briefly touches the resolved bindings so the face is ready before a conversation begins.
 
 ### Speech and mouth behavior
@@ -139,7 +139,9 @@ Instead it relies on runtime-resolved data:
 
 - `assetBundle.pose?.config` for pose metadata
 - `buildPoseWeightPathMap()` for canonical pose input paths
+- pose groups as blend-group structure, not as path segments
 - `resolveFaceControls()` plus `inputConstraints` for gaze/blink discovery
+- runtime-react rig-input alias detection for pose-control bridging when the exported graph shape changes
 
 That is the main documentation takeaway for dependent apps:
 

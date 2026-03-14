@@ -71,10 +71,13 @@ pnpm --filter vizij-showcase lint
 1. Install deps from the repo root with `pnpm install`.
 2. If you changed shared packages, rebuild them before checking the showcase.
 3. Build with:
+
    ```bash
    pnpm --filter vizij-showcase build
    ```
+
 4. Preview locally with:
+
    ```bash
    pnpm --filter vizij-showcase preview -- --host 127.0.0.1 --port 4173
    ```
