@@ -79,8 +79,7 @@ async fn start_node(node: &Arc<AroraRos2Node>) -> CancellationToken {
 fn create_test_node(domain_id: u16, name_suffix: &str) -> (Context, ros2_client::Node) {
     let ctx = Context::with_options(ContextOptions::new().domain_id(domain_id))
         .expect("failed to create test context");
-    let node_name = NodeName::new("/", &format!("test_{name_suffix}"))
-        .expect("valid node name");
+    let node_name = NodeName::new("/", &format!("test_{name_suffix}")).expect("valid node name");
     let mut node = ctx
         .new_node(node_name, NodeOptions::new())
         .expect("failed to create test node");
@@ -128,8 +127,8 @@ async fn test_slot_subscription_f64() {
     // Create publisher on a separate node.
     let (_ctx, mut pub_node) = create_test_node(domain_id, &format!("pub_f64_{domain_id}"));
 
-    let topic_name = Name::parse(&format!("/{namespace}/slots/face/mouth/open"))
-        .expect("valid topic name");
+    let topic_name =
+        Name::parse(&format!("/{namespace}/slots/face/mouth/open")).expect("valid topic name");
     let pub_topic = pub_node
         .create_topic(
             &topic_name,
@@ -195,8 +194,7 @@ async fn test_slot_subscription_bool() {
     let cancel = start_node(&node).await;
 
     let (_ctx, mut pub_node) = create_test_node(domain_id, &format!("pub_bool_{domain_id}"));
-    let topic_name =
-        Name::parse(&format!("/{namespace}/slots/enabled")).expect("valid topic name");
+    let topic_name = Name::parse(&format!("/{namespace}/slots/enabled")).expect("valid topic name");
     let pub_topic = pub_node
         .create_topic(
             &topic_name,
@@ -257,8 +255,7 @@ async fn test_slot_subscription_string() {
     let cancel = start_node(&node).await;
 
     let (_ctx, mut pub_node) = create_test_node(domain_id, &format!("pub_str_{domain_id}"));
-    let topic_name =
-        Name::parse(&format!("/{namespace}/slots/status")).expect("valid topic name");
+    let topic_name = Name::parse(&format!("/{namespace}/slots/status")).expect("valid topic name");
     let pub_topic = pub_node
         .create_topic(
             &topic_name,
@@ -371,9 +368,7 @@ async fn test_multiple_face_morph_slots() {
 
     while !(seen_mouth && seen_eye) {
         if tokio::time::Instant::now() >= deadline {
-            panic!(
-                "Timed out. seen_mouth={seen_mouth}, seen_eye={seen_eye}"
-            );
+            panic!("Timed out. seen_mouth={seen_mouth}, seen_eye={seen_eye}");
         }
         match tokio::time::timeout(Duration::from_secs(5), rx.recv()).await {
             Ok(Some(values)) => {
@@ -440,8 +435,7 @@ async fn test_output_slots_ignored() {
     let (_ctx, mut pub_node) = create_test_node(domain_id, &format!("pub_out_{domain_id}"));
 
     // Publish to the input slot — should be received.
-    let input_topic_name =
-        Name::parse(&format!("/{namespace}/slots/input_slot")).expect("parse");
+    let input_topic_name = Name::parse(&format!("/{namespace}/slots/input_slot")).expect("parse");
     let input_topic = pub_node
         .create_topic(
             &input_topic_name,
@@ -515,8 +509,7 @@ async fn test_method_invocation_reset() {
     let cancel = start_node(&node).await;
 
     // Create a service client on a separate node.
-    let (_ctx, mut client_node) =
-        create_test_node(domain_id, &format!("client_reset_{domain_id}"));
+    let (_ctx, mut client_node) = create_test_node(domain_id, &format!("client_reset_{domain_id}"));
 
     let service_name =
         Name::parse(&format!("/{namespace}/methods/reset")).expect("valid service name");
@@ -580,12 +573,10 @@ async fn test_method_invocation_with_return_value() {
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
 
     // Method that echoes an arg back as the return value.
-    let handler = Arc::new(
-        move |args: HashMap<String, Value>| match args.get("name") {
-            Some(v) => InvokeResult::ok_with_value(v.clone()),
-            None => InvokeResult::err("missing 'name' argument"),
-        },
-    );
+    let handler = Arc::new(move |args: HashMap<String, Value>| match args.get("name") {
+        Some(v) => InvokeResult::ok_with_value(v.clone()),
+        None => InvokeResult::err("missing 'name' argument"),
+    });
     node.register_method(
         MethodInfo {
             path: "echo".to_string(),
@@ -602,8 +593,7 @@ async fn test_method_invocation_with_return_value() {
 
     let cancel = start_node(&node).await;
 
-    let (_ctx, mut client_node) =
-        create_test_node(domain_id, &format!("client_echo_{domain_id}"));
+    let (_ctx, mut client_node) = create_test_node(domain_id, &format!("client_echo_{domain_id}"));
 
     let service_name =
         Name::parse(&format!("/{namespace}/methods/echo")).expect("valid service name");
@@ -623,8 +613,7 @@ async fn test_method_invocation_with_return_value() {
 
     // Send request with a "name" arg.
     let args_json =
-        serde_json::to_string(&HashMap::from([("name", Value::String("world".into()))]))
-            .unwrap();
+        serde_json::to_string(&HashMap::from([("name", Value::String("world".into()))])).unwrap();
     println!("Sending args JSON: {args_json}");
 
     // Use a retry loop: send repeatedly and check for any response.
@@ -664,8 +653,8 @@ async fn test_method_invocation_with_return_value() {
     // A resent request (without "name") would fail with an error message.
     // Either way, we received a response proving the round-trip works.
     if response.success {
-        let returned: Value = serde_json::from_str(&response.value)
-            .expect("failed to parse response value JSON");
+        let returned: Value =
+            serde_json::from_str(&response.value).expect("failed to parse response value JSON");
         assert_eq!(returned, Value::String("world".into()));
     } else {
         // Resent request was accepted — still validates the service works.
@@ -727,6 +716,369 @@ async fn test_slots_discoverable_as_topics() {
     cancel.cancel();
 }
 
+/// Stress test: register many slots (like a real vizij model), publish to
+/// one of them, and verify the message is received. This validates that
+/// rustdds can handle many simultaneous subscriptions without dropping any.
+#[tokio::test]
+async fn test_many_slots_still_receive() {
+    let _ = env_logger::try_init();
+    let domain_id = random_domain_id();
+    let namespace = format!("test_many_{domain_id}");
+
+    let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(64);
+
+    let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
+    node.set_set_slot_values_handler(Arc::new(move |values| {
+        let _ = tx.try_send(values);
+        Ok(())
+    }))
+    .await;
+
+    // Generate 270+ input slots (similar to a real vizij model).
+    let mut slots: Vec<SlotInfo> = Vec::new();
+    let prefixes = [
+        "propsrig/background",
+        "propsrig/face_tran_rot_c",
+        "propsrig/innerface",
+        "propsrig/l_eye",
+        "propsrig/r_eye",
+        "propsrig/mouth",
+        "propsrig/nose",
+        "propsrig/head",
+        "propsrig/neck",
+        "propsrig/torso",
+    ];
+    let suffixes = [
+        "rotation/x",
+        "rotation/y",
+        "rotation/z",
+        "scale/x",
+        "scale/y",
+        "scale/z",
+        "translation/x",
+        "translation/y",
+        "translation/z",
+        "color/r",
+        "color/g",
+        "color/b",
+        "opacity/value",
+    ];
+
+    for prefix in &prefixes {
+        for suffix in &suffixes {
+            for i in 0..2 {
+                slots.push(SlotInfo {
+                    path: format!("{prefix}/{i}/{suffix}"),
+                    kind: Some("input".to_string()),
+                    value_type: Some(arora_connection::Type::F64),
+                    min: Some(0.0),
+                    max: Some(1.0),
+                    default_value: None,
+                    description: None,
+                });
+            }
+        }
+    }
+
+    // Add the target slot.
+    slots.push(SlotInfo {
+        path: "blink".to_string(),
+        kind: Some("input".to_string()),
+        value_type: Some(arora_connection::Type::F64),
+        min: Some(0.0),
+        max: Some(1.0),
+        default_value: None,
+        description: None,
+    });
+
+    let slot_count = slots.len();
+    eprintln!("Registering {slot_count} slots");
+    node.set_slots(slots).await;
+
+    let cancel = start_node(&node).await;
+
+    // Create publisher targeting the "blink" slot.
+    let (_ctx, mut pub_node) = create_test_node(domain_id, &format!("pub_many_{domain_id}"));
+    let topic_name = Name::parse(&format!("/{namespace}/slots/blink")).expect("valid topic name");
+    let pub_topic = pub_node
+        .create_topic(
+            &topic_name,
+            msg_types::Float64::message_type_name(),
+            &DEFAULT_PUBLISHER_QOS,
+        )
+        .expect("create topic");
+    let publisher = pub_node
+        .create_publisher::<msg_types::Float64>(&pub_topic, None)
+        .expect("create publisher");
+
+    publisher.wait_for_subscription(&pub_node).await;
+    eprintln!("Subscriber found for blink topic");
+
+    let msg = msg_types::Float64 { data: 0.42 };
+    tokio::spawn(async move {
+        loop {
+            let _ = publisher.async_publish(msg.clone()).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    });
+
+    let values = tokio::time::timeout(Duration::from_secs(15), rx.recv())
+        .await
+        .expect("timed out waiting for blink value with many slots")
+        .expect("channel closed");
+
+    assert_eq!(
+        values.get("blink"),
+        Some(&Value::F64(0.42)),
+        "Expected F64(0.42) for blink, got: {values:?}"
+    );
+
+    cancel.cancel();
+}
+
+/// Cross-process integration test: use `ros2 topic pub` from a Docker
+/// container (CycloneDDS) to publish to the AroraRos2Node and verify the
+/// handler fires. This tests real cross-implementation DDS communication.
+///
+/// Requires Docker and uses domain 0 + `--net=host`.
+/// Ignored by default; run explicitly with `--ignored`.
+#[tokio::test]
+#[ignore]
+async fn test_cross_process_ros2_topic_pub() {
+    let _ = env_logger::try_init();
+    // Docker on macOS with --net=host still operates inside a Linux VM,
+    // so we must use domain 0 for the best multicast compatibility.
+    let namespace = "vizij";
+
+    let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(64);
+
+    let node = Arc::new(AroraRos2Node::new(namespace, 0));
+    node.set_set_slot_values_handler(Arc::new(move |values| {
+        let _ = tx.try_send(values);
+        Ok(())
+    }))
+    .await;
+
+    node.set_slots(vec![SlotInfo {
+        path: "blink".to_string(),
+        kind: Some("input".to_string()),
+        value_type: Some(arora_connection::Type::F64),
+        min: Some(0.0),
+        max: Some(1.0),
+        default_value: None,
+        description: None,
+    }])
+    .await;
+
+    let cancel = start_node(&node).await;
+
+    // Spawn Docker ros2 topic pub (BestEffort to match subscriber QoS).
+    let docker = tokio::process::Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "--net=host",
+            "ros:jazzy",
+            "bash",
+            "-c",
+            "ros2 topic pub -r 10 -t 200 -w 0 --qos-reliability best_effort \
+             /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.99}'",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to start docker container (is Docker running?)");
+
+    // Wait for a value through the handler.
+    let values = tokio::time::timeout(Duration::from_secs(30), rx.recv())
+        .await
+        .expect("timed out waiting for ros2 topic pub value")
+        .expect("channel closed");
+
+    assert_eq!(
+        values.get("blink"),
+        Some(&Value::F64(0.99)),
+        "Expected F64(0.99) for blink from Docker, got: {values:?}"
+    );
+
+    // Clean up.
+    cancel.cancel();
+    drop(docker);
+}
+
+/// Cross-process test with many slots (like the real vizij app).
+/// Verifies that external ROS 2 publishers still reach the handler when
+/// there are 270+ subscription streams in select_all.
+#[tokio::test]
+#[ignore]
+async fn test_cross_process_many_slots() {
+    let _ = env_logger::try_init();
+    let namespace = "vizij";
+
+    let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(64);
+
+    let node = Arc::new(AroraRos2Node::new(namespace, 0));
+    node.set_set_slot_values_handler(Arc::new(move |values| {
+        let _ = tx.try_send(values);
+        Ok(())
+    }))
+    .await;
+
+    // Generate 270+ slots like the real app does.
+    let mut slots: Vec<SlotInfo> = Vec::new();
+    let prefixes = [
+        "propsrig/background",
+        "propsrig/face_tran_rot_c",
+        "propsrig/innerface",
+        "propsrig/l_eye",
+        "propsrig/r_eye",
+        "propsrig/mouth",
+        "propsrig/nose",
+        "propsrig/head",
+        "propsrig/neck",
+        "propsrig/torso",
+    ];
+    let suffixes = [
+        "rotation/x",
+        "rotation/y",
+        "rotation/z",
+        "scale/x",
+        "scale/y",
+        "scale/z",
+        "translation/x",
+        "translation/y",
+        "translation/z",
+        "color/r",
+        "color/g",
+        "color/b",
+        "opacity/value",
+    ];
+    for prefix in &prefixes {
+        for suffix in &suffixes {
+            for i in 0..2 {
+                slots.push(SlotInfo {
+                    path: format!("{prefix}/{i}/{suffix}"),
+                    kind: Some("input".to_string()),
+                    value_type: Some(arora_connection::Type::F64),
+                    min: Some(0.0),
+                    max: Some(1.0),
+                    default_value: None,
+                    description: None,
+                });
+            }
+        }
+    }
+    slots.push(SlotInfo {
+        path: "blink".to_string(),
+        kind: Some("input".to_string()),
+        value_type: Some(arora_connection::Type::F64),
+        min: Some(0.0),
+        max: Some(1.0),
+        default_value: None,
+        description: None,
+    });
+
+    eprintln!("Registering {} slots", slots.len());
+    node.set_slots(slots).await;
+
+    let cancel = start_node(&node).await;
+
+    // Give DDS extra time to set up 270+ subscriptions.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let docker = tokio::process::Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "--net=host",
+            "ros:jazzy",
+            "bash",
+            "-c",
+            "ros2 topic pub -r 10 -t 200 -w 0 --qos-reliability best_effort \
+             /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.77}'",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to start docker container");
+
+    let values = tokio::time::timeout(Duration::from_secs(30), rx.recv())
+        .await
+        .expect("timed out: many slots may be starving the blink subscription")
+        .expect("channel closed");
+
+    assert_eq!(
+        values.get("blink"),
+        Some(&Value::F64(0.77)),
+        "Expected F64(0.77) for blink with many slots, got: {values:?}"
+    );
+
+    cancel.cancel();
+    drop(docker);
+}
+
+/// Same as above but with the default Reliable QoS (what `ros2 topic pub`
+/// uses by default without --qos-reliability flags).
+#[tokio::test]
+#[ignore]
+async fn test_cross_process_ros2_topic_pub_reliable() {
+    let _ = env_logger::try_init();
+    let namespace = "vizij";
+
+    let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(64);
+
+    let node = Arc::new(AroraRos2Node::new(namespace, 0));
+    node.set_set_slot_values_handler(Arc::new(move |values| {
+        let _ = tx.try_send(values);
+        Ok(())
+    }))
+    .await;
+
+    node.set_slots(vec![SlotInfo {
+        path: "blink".to_string(),
+        kind: Some("input".to_string()),
+        value_type: Some(arora_connection::Type::F64),
+        min: Some(0.0),
+        max: Some(1.0),
+        default_value: None,
+        description: None,
+    }])
+    .await;
+
+    let cancel = start_node(&node).await;
+
+    // Default ros2 topic pub uses Reliable QoS.
+    let docker = tokio::process::Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "--net=host",
+            "ros:jazzy",
+            "bash",
+            "-c",
+            "ros2 topic pub -r 10 -t 200 -w 0 \
+             /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.88}'",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to start docker container");
+
+    let values = tokio::time::timeout(Duration::from_secs(30), rx.recv())
+        .await
+        .expect("timed out waiting for Reliable ros2 topic pub value")
+        .expect("channel closed");
+
+    assert_eq!(
+        values.get("blink"),
+        Some(&Value::F64(0.88)),
+        "Expected F64(0.88) for blink from Reliable pub, got: {values:?}"
+    );
+
+    cancel.cancel();
+    drop(docker);
+}
+
 /// Verify that cancelling the token stops the node cleanly.
 #[tokio::test]
 async fn test_node_lifecycle() {
@@ -757,5 +1109,8 @@ async fn test_node_lifecycle() {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
-    assert!(!node.is_running().await, "Should not be running after cancel");
+    assert!(
+        !node.is_running().await,
+        "Should not be running after cancel"
+    );
 }
