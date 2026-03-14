@@ -284,7 +284,6 @@ export function useSpeechRecognition({
     connectedSocket.on("close", (event) => {
       const code = (event as { code?: number }).code;
       const reason = (event as { reason?: string }).reason;
-      console.warn("[ASR] WebSocket closed:", { code, reason });
       if (stoppingRef.current) {
         // Deepgram finished processing — deliver the full transcript
         finishStop();

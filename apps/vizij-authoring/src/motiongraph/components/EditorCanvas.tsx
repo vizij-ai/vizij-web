@@ -767,6 +767,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             nodeTypes={nodeTypes}
             isValidConnection={isValidConnection}
             fitView
+            minZoom={0.05}
             onInit={onInit}
           >
             <Background gap={20} size={1} color="rgba(148, 163, 184, 0.24)" />

@@ -856,9 +856,10 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
               <TextArea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
+                onBlur={conversation.clearHistory}
                 rows={2}
                 placeholder="System prompt for the LLM..."
-                className="text-[11px]"
+                className="text-[11px] resize-y"
               />
             </div>
             {/* PAP Input Mapping */}
