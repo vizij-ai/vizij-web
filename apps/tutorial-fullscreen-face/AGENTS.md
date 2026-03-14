@@ -12,6 +12,6 @@ Showcase a fullscreen Vizij face controlled by orchestrator graphs. Mouse positi
 
 ## Integration Tips
 
-- The app loads assets from `tutorial_data/`; update imports if you rename or relocate the exported rig bundle.
+- The app loads Quori from `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb`; update the `FaceApp.tsx` import if the canonical sample rig moves.
 - The renderer namespace is `fullscreen-face`; keep it stable so orchestration and gaze hooks keep working.
 - Extend `usePoseHotkeys` if you add more poses—remember to update the UI hint and keyboard bindings together.

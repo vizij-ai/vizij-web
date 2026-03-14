@@ -18,6 +18,7 @@ export type PoseDefinition = {
   description?: string;
   group?: string | null;
   groupId?: string | null;
+  groupIds?: string[];
   values: Record<string, number | undefined>;
 };
 
@@ -122,6 +123,14 @@ export type VizijAnimationAsset = {
   weight?: number;
 };
 
+export type VizijProgramAsset = {
+  id: string;
+  label?: string;
+  graph: VizijGraphAsset;
+  resetValues?: Record<string, number>;
+  metadata?: Record<string, unknown>;
+};
+
 export type VizijAssetBundle = {
   namespace?: string;
   faceId?: string;
@@ -133,6 +142,7 @@ export type VizijAssetBundle = {
     stageNeutralFilter?: (id: string, path: string) => boolean;
   };
   animations?: VizijAnimationAsset[];
+  programs?: VizijProgramAsset[];
   initialInputs?: Record<string, ValueJSON>;
   metadata?: Record<string, unknown>;
   bundle?: VizijBundleExtension | null;
@@ -200,6 +210,14 @@ export type AnimationPlaybackState = {
   speed: number;
 };
 
+export type StopProgramOptions = {
+  resetOutputs?: boolean;
+};
+
+export type ProgramPlaybackState = {
+  state: "playing" | "paused" | "stopped";
+};
+
 export type InputDriverLifecycle = {
   start: () => void;
   stop: () => void;
@@ -261,6 +279,10 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   setAnimationLoop: (id: string, enabled: boolean) => void;
   getAnimationState: (id: string) => AnimationPlaybackState | null;
   stopAnimation: (id: string, options?: StopAnimationOptions) => void;
+  playProgram: (id: string) => void;
+  pauseProgram: (id: string) => void;
+  stopProgram: (id: string, options?: StopProgramOptions) => void;
+  getProgramState: (id: string) => ProgramPlaybackState | null;
   setAnimationActive: (active: boolean) => void;
   isAnimationActive: () => boolean;
   step: (dt: number, opts?: { forceRuntime?: boolean }) => void;
@@ -301,4 +323,5 @@ export type RuntimeGraphBundle = {
   rig?: VizijGraphAsset;
   pose?: VizijAssetBundle["pose"];
   animations?: VizijAnimationAsset[];
+  programs?: VizijProgramAsset[];
 };

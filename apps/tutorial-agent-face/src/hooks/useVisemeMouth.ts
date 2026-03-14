@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
+import {
+  buildSemanticPoseWeightPathMap,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 import {
   PHONEME_TO_VISEME,
   buildPhonemeTimeline,
@@ -12,6 +15,8 @@ import {
 } from "../phoneme-core";
 import type { AudioManager } from "../utils/audioManager";
 import { FACE_VISEME_SEGMENTS, mapPollyViseme } from "../visemeMapping";
+
+const DEFAULT_POSE_WEIGHT = 0.7;
 
 export function useVisemeMouth({
   audioManager,
@@ -28,7 +33,7 @@ export function useVisemeMouth({
   transitionMs: number; // ms for crossfade
   leadMs: number; // ms to lead visemes (positive = earlier)
 }) {
-  const { setInput, animateValue, faceId } = useVizijRuntime();
+  const { setInput, animateValue, faceId, assetBundle } = useVizijRuntime();
   const outputRef = useRef(currentOutput);
 
   const ALIGN_MAX_RUN_MS = 30;
@@ -41,11 +46,20 @@ export function useVisemeMouth({
     if (!enabled) return;
     let raf: number;
 
-    const resolvedFaceId = (faceId ?? "face").toLowerCase();
-    const visemeBase = `rig/${resolvedFaceId}/visemes`;
-    const visemePaths = FACE_VISEME_SEGMENTS.map(
-      (segment) => `${visemeBase}/${segment}.weight`,
+    const poseConfig = assetBundle.pose?.config ?? null;
+    const poseWeightPaths = buildSemanticPoseWeightPathMap(
+      poseConfig?.poses ?? [],
+      poseConfig?.poseGroups,
+      poseConfig?.faceId ?? faceId ?? "face",
+      "viseme",
     );
+    const resolveSegmentPath = (segment: string) =>
+      poseWeightPaths.get(segment) ??
+      poseWeightPaths.get(`pose_${segment}`) ??
+      null;
+    const visemePaths = FACE_VISEME_SEGMENTS.map(resolveSegmentPath).filter(
+      Boolean,
+    ) as string[];
 
     let lastFrameCount = -1;
     let lastFeatureCount = -1;
@@ -133,7 +147,11 @@ export function useVisemeMouth({
         void animateValue(activePath, { float: 0 }, { duration: dur });
       }
       if (nextPath && nextPath !== activePath) {
-        void animateValue(nextPath, { float: 1 }, { duration: dur });
+        void animateValue(
+          nextPath,
+          { float: DEFAULT_POSE_WEIGHT },
+          { duration: dur },
+        );
       }
       activePath = nextPath;
     };
@@ -154,9 +172,7 @@ export function useVisemeMouth({
       const idx = findKeyframeIndex(keyframes, t);
       const viseme = idx >= 0 ? keyframes[idx].viseme : "sil";
       const targetSegment = mapPollyViseme(viseme)?.segment ?? null;
-      const nextPath = targetSegment
-        ? `${visemeBase}/${targetSegment}.weight`
-        : null;
+      const nextPath = targetSegment ? resolveSegmentPath(targetSegment) : null;
       animateSwitch(nextPath);
 
       raf = requestAnimationFrame(tick);
@@ -172,6 +188,7 @@ export function useVisemeMouth({
   }, [
     animateValue,
     audioManager,
+    assetBundle.pose?.config,
     enabled,
     faceId,
     leadMs,

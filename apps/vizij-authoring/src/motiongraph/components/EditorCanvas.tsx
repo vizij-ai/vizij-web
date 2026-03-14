@@ -52,6 +52,15 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
   const hasAutoFitOnOpenRef = useRef(false);
 
+  // Tracks where the next IO node should be placed.
+  // Updated on: canvas init (center), pane click, node drop, node drag-stop.
+  const ioAddPositionRef = useRef<{ x: number; y: number } | null>(null);
+
+  /** Height estimate for IO nodes (px in flow coords). */
+  const IO_NODE_HEIGHT = 32;
+  /** Vertical gap between stacked IO nodes. */
+  const IO_NODE_GAP = 12;
+
   const { nodesByType, getPortsForType } = useRegistry();
 
   // Keep a ref so callbacks always see the latest registry (avoids stale closures)
@@ -109,7 +118,6 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   const enabledOutputs = useEditorStore((s) => s.enabledOutputs);
 
   useEffect(() => {
-    let addedOutputNodes = 0;
     const viewportBounds = getVisibleFlowBounds();
     setNodes((prev) => {
       // Remove output target nodes that are no longer enabled
@@ -131,37 +139,20 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       const newPaths = sortedPaths.filter((p) => !existingPaths.has(p));
 
       if (newPaths.length > 0) {
-        // Place new outputs within the current view, preferring the right side.
-        let startX = 600;
-        let startY = 40;
-        if (viewportBounds) {
-          const NODE_WIDTH_ESTIMATE = 230;
-          startX = viewportBounds.maxX - NODE_WIDTH_ESTIMATE - 24;
-          startY = viewportBounds.minY + 32;
-          const existingOutputs = filtered.filter(
-            (n) => n.type === OUTPUT_TARGET_TYPE,
-          );
-          if (existingOutputs.length > 0) {
-            startY = Math.min(
-              viewportBounds.maxY - 48,
-              Math.max(...existingOutputs.map((n) => n.position.y)) + 50,
-            );
-          }
-        } else if (filtered.length > 0) {
-          const NODE_WIDTH_ESTIMATE = 250;
-          startX =
-            Math.max(...filtered.map((n) => n.position.x)) +
-            NODE_WIDTH_ESTIMATE +
-            60;
-          // Stack below existing output targets at that x, or start at top
-          const existingOutputs = filtered.filter(
-            (n) => n.type === OUTPUT_TARGET_TYPE,
-          );
-          if (existingOutputs.length > 0) {
-            startY = Math.max(...existingOutputs.map((n) => n.position.y)) + 50;
-          }
+        // Use the tracked IO add position, falling back to viewport-based placement.
+        let startX: number;
+        let startY: number;
+
+        if (ioAddPositionRef.current) {
+          startX = ioAddPositionRef.current.x;
+          startY = ioAddPositionRef.current.y;
+        } else if (viewportBounds) {
+          startX = (viewportBounds.minX + viewportBounds.maxX) / 2;
+          startY = (viewportBounds.minY + viewportBounds.maxY) / 2;
+        } else {
+          startX = 600;
+          startY = 40;
         }
-        addedOutputNodes = newPaths.length;
 
         for (let i = 0; i < newPaths.length; i++) {
           const path = newPaths[i];
@@ -169,10 +160,11 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
           const label =
             path.replace(/^rig\/[^/]+\/standard\//, "").replace(/\//g, ".") ||
             path;
+          const y = startY + i * (IO_NODE_HEIGHT + IO_NODE_GAP);
           toAdd.push({
             id: `__output_target_${path}`,
             type: OUTPUT_TARGET_TYPE,
-            position: { x: startX, y: startY + i * 50 },
+            position: { x: startX, y },
             selectable: true,
             deletable: true,
             data: {
@@ -181,6 +173,12 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             },
           });
         }
+
+        // Advance the stored position below the last added node
+        ioAddPositionRef.current = {
+          x: startX,
+          y: startY + newPaths.length * (IO_NODE_HEIGHT + IO_NODE_GAP),
+        };
       }
 
       if (toAdd.length === 0 && filtered.length === prev.length) {
@@ -201,23 +199,13 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
           validTargetIds.has(e.target),
       ),
     );
-    if (addedOutputNodes > 0 && rfInstance) {
-      requestAnimationFrame(() => {
-        void rfInstance.fitView({
-          padding: 0.2,
-          duration: 240,
-          includeHiddenNodes: true,
-        });
-      });
-    }
-  }, [enabledOutputs, getVisibleFlowBounds, rfInstance, setNodes, setEdges]);
+  }, [enabledOutputs, getVisibleFlowBounds, setNodes, setEdges]);
 
   // --- Sync input source nodes with enabledInputs ---
 
   const enabledInputs = useEditorStore((s) => s.enabledInputs);
 
   useEffect(() => {
-    let addedInputNodes = 0;
     const viewportBounds = getVisibleFlowBounds();
     setNodes((prev) => {
       // Remove input source nodes that are no longer enabled
@@ -239,40 +227,29 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       const newPaths = sortedPaths.filter((p) => !existingPaths.has(p));
 
       if (newPaths.length > 0) {
-        // Place new inputs within the current view, preferring the left side.
-        let startX = -200;
-        let startY = 40;
-        if (viewportBounds) {
-          startX = viewportBounds.minX + 24;
-          startY = viewportBounds.minY + 32;
-          const existingInputNodes = filtered.filter(
-            (n) => n.type === INPUT_SOURCE_TYPE,
-          );
-          if (existingInputNodes.length > 0) {
-            startY = Math.min(
-              viewportBounds.maxY - 48,
-              Math.max(...existingInputNodes.map((n) => n.position.y)) + 50,
-            );
-          }
-        } else if (filtered.length > 0) {
-          startX = Math.min(...filtered.map((n) => n.position.x)) - 250;
-          const existingInputNodes = filtered.filter(
-            (n) => n.type === INPUT_SOURCE_TYPE,
-          );
-          if (existingInputNodes.length > 0) {
-            startY =
-              Math.max(...existingInputNodes.map((n) => n.position.y)) + 50;
-          }
+        // Use the tracked IO add position, falling back to viewport-based placement.
+        let startX: number;
+        let startY: number;
+
+        if (ioAddPositionRef.current) {
+          startX = ioAddPositionRef.current.x;
+          startY = ioAddPositionRef.current.y;
+        } else if (viewportBounds) {
+          startX = (viewportBounds.minX + viewportBounds.maxX) / 2;
+          startY = (viewportBounds.minY + viewportBounds.maxY) / 2;
+        } else {
+          startX = -200;
+          startY = 40;
         }
-        addedInputNodes = newPaths.length;
 
         for (let i = 0; i < newPaths.length; i++) {
           const path = newPaths[i];
           const label = path.replace(/\//g, ".") || path;
+          const y = startY + i * (IO_NODE_HEIGHT + IO_NODE_GAP);
           toAdd.push({
             id: `__input_source_${path}`,
             type: INPUT_SOURCE_TYPE,
-            position: { x: startX, y: startY + i * 50 },
+            position: { x: startX, y },
             selectable: true,
             deletable: true,
             data: {
@@ -281,6 +258,12 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             },
           });
         }
+
+        // Advance the stored position below the last added node
+        ioAddPositionRef.current = {
+          x: startX,
+          y: startY + newPaths.length * (IO_NODE_HEIGHT + IO_NODE_GAP),
+        };
       }
 
       if (toAdd.length === 0 && filtered.length === prev.length) {
@@ -301,16 +284,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
           validSourceIds.has(e.source),
       ),
     );
-    if (addedInputNodes > 0 && rfInstance) {
-      requestAnimationFrame(() => {
-        void rfInstance.fitView({
-          padding: 0.2,
-          duration: 240,
-          includeHiddenNodes: true,
-        });
-      });
-    }
-  }, [enabledInputs, getVisibleFlowBounds, rfInstance, setNodes, setEdges]);
+  }, [enabledInputs, getVisibleFlowBounds, setNodes, setEdges]);
 
   // --- React Flow callbacks ---
 
@@ -379,7 +353,11 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   );
 
   const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
+    (event: React.MouseEvent, node: Node) => {
+      // When shift is held, let ReactFlow handle multi-selection natively
+      // and don't override the store's inspector selection.
+      if (event.shiftKey) return;
+
       if (onSelectNode) {
         onSelectNode(node.id);
         return;
@@ -392,10 +370,61 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
   const onPaneClick = useCallback(() => {
     if (onSelectNode) {
       onSelectNode(null);
-      return;
+    } else {
+      setSelected(null);
     }
-    setSelected(null);
   }, [onSelectNode, setSelected]);
+
+  // Record the IO-add position on pointerdown so it captures both simple
+  // clicks and click-drag pans (the browser's "click" event doesn't fire
+  // after a drag).
+  useEffect(() => {
+    const wrapper = reactFlowWrapper.current;
+    if (!wrapper || !rfInstance) return;
+
+    const pane = wrapper.querySelector<HTMLElement>(".react-flow__pane");
+    if (!pane) return;
+
+    const handler = (event: PointerEvent) => {
+      if (event.button !== 0) return; // only primary button
+      const pos = rfInstance.screenToFlowPosition
+        ? rfInstance.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          })
+        : rfInstance.project
+          ? (() => {
+              const bounds = wrapper.getBoundingClientRect();
+              return rfInstance.project({
+                x: event.clientX - bounds.left,
+                y: event.clientY - bounds.top,
+              });
+            })()
+          : { x: event.clientX, y: event.clientY };
+      ioAddPositionRef.current = pos;
+    };
+
+    pane.addEventListener("pointerdown", handler);
+    return () => pane.removeEventListener("pointerdown", handler);
+  }, [rfInstance]);
+
+  /** After a node is dragged/dropped, set the IO add position just below it. */
+  const updateIoPositionBelowNode = useCallback((node: Node) => {
+    // Use the node's measured height if available, otherwise estimate
+    const nodeHeight =
+      (node as any).height ?? (node as any).measured?.height ?? 60;
+    ioAddPositionRef.current = {
+      x: node.position.x,
+      y: node.position.y + nodeHeight + IO_NODE_GAP,
+    };
+  }, []);
+
+  const onNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      updateIoPositionBelowNode(node);
+    },
+    [updateIoPositionBelowNode],
+  );
 
   const onEdgeDoubleClick = useCallback(
     (_event: React.MouseEvent, edge: Edge) => {
@@ -462,8 +491,154 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
     ],
   );
 
+  // --- Copy / Paste selected nodes (Ctrl+C / Ctrl+V) ---
+
+  const clipboardRef = useRef<{
+    nodes: Node[];
+    edges: Edge[];
+    /** Position of the IO-add cursor at copy time (to detect later clicks). */
+    ioPositionAtCopy: { x: number; y: number } | null;
+  } | null>(null);
+
+  const copySelectedNodes = useCallback(() => {
+    const currentNodes = useEditorStore.getState().nodes;
+    const currentEdges = useEditorStore.getState().edges;
+
+    const selected = currentNodes.filter((n) => n.selected);
+    if (selected.length === 0) return;
+
+    const selectedIds = new Set(selected.map((n) => n.id));
+
+    // Keep only edges where both source and target are in the selection
+    const internalEdges = currentEdges.filter(
+      (e) => selectedIds.has(e.source) && selectedIds.has(e.target),
+    );
+
+    clipboardRef.current = {
+      nodes: selected.map((n) => ({ ...n })),
+      edges: internalEdges.map((e) => ({ ...e })),
+      ioPositionAtCopy: ioAddPositionRef.current
+        ? { ...ioAddPositionRef.current }
+        : null,
+    };
+  }, []);
+
+  const pasteNodes = useCallback(() => {
+    const clip = clipboardRef.current;
+    if (!clip || clip.nodes.length === 0) return;
+
+    // Build old-id → new-id mapping
+    const idMap = new Map<string, string>();
+    const ts = Date.now();
+    clip.nodes.forEach((n, i) => {
+      idMap.set(n.id, `node_${ts}_${i}_${Math.floor(Math.random() * 1_000)}`);
+    });
+
+    const PASTE_OFFSET = 40;
+
+    // Check if the user clicked on the canvas after copying
+    const cur = ioAddPositionRef.current;
+    const atCopy = clip.ioPositionAtCopy;
+    const clickedAfterCopy =
+      cur != null &&
+      (atCopy == null || cur.x !== atCopy.x || cur.y !== atCopy.y);
+
+    let newNodes: Node[];
+
+    if (clickedAfterCopy) {
+      // Paste at the clicked location, preserving relative layout
+      const minX = Math.min(...clip.nodes.map((n) => n.position.x));
+      const minY = Math.min(...clip.nodes.map((n) => n.position.y));
+
+      newNodes = clip.nodes.map((n) => ({
+        ...n,
+        id: idMap.get(n.id)!,
+        position: {
+          x: cur!.x + (n.position.x - minX),
+          y: cur!.y + (n.position.y - minY),
+        },
+        selected: true,
+        data: { ...n.data },
+      }));
+    } else {
+      // No click since copy — use a simple offset from originals
+      newNodes = clip.nodes.map((n) => ({
+        ...n,
+        id: idMap.get(n.id)!,
+        position: {
+          x: n.position.x + PASTE_OFFSET,
+          y: n.position.y + PASTE_OFFSET,
+        },
+        selected: true,
+        data: { ...n.data },
+      }));
+    }
+
+    // Remap edges to new node IDs
+    const newEdges: Edge[] = clip.edges.map((e) => ({
+      ...e,
+      id: `e-${idMap.get(e.source)}-${idMap.get(e.target)}-${e.sourceHandle ?? "out"}-${e.targetHandle ?? "in"}`,
+      source: idMap.get(e.source)!,
+      target: idMap.get(e.target)!,
+    }));
+
+    // Deselect existing nodes, then add the pasted ones (selected)
+    setNodes((prev) => [
+      ...prev.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      ...newNodes,
+    ]);
+    setEdges((prev) => [...prev, ...newEdges]);
+
+    // For repeated pastes without another click, offset from the just-pasted
+    // positions so they don't stack on top of each other.
+    clipboardRef.current = {
+      nodes: newNodes.map((n) => ({
+        ...n,
+        // restore original IDs so the next paste remaps fresh
+        id:
+          clip.nodes[clip.nodes.findIndex((c) => idMap.get(c.id) === n.id)]
+            ?.id ?? n.id,
+      })),
+      edges: clip.edges,
+      ioPositionAtCopy: ioAddPositionRef.current
+        ? { ...ioAddPositionRef.current }
+        : null,
+    };
+  }, [setNodes, setEdges]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key === "c") {
+        copySelectedNodes();
+      } else if (mod && e.key === "v") {
+        pasteNodes();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [copySelectedNodes, pasteNodes]);
+
   const onInit = useCallback((instance: ReactFlowInstance) => {
     setRfInstance(instance);
+    // Initialize IO add position to center of the viewport
+    if (reactFlowWrapper.current) {
+      const bounds = reactFlowWrapper.current.getBoundingClientRect();
+      const center = instance.screenToFlowPosition
+        ? instance.screenToFlowPosition({
+            x: bounds.left + bounds.width / 2,
+            y: bounds.top + bounds.height / 2,
+          })
+        : instance.project
+          ? instance.project({ x: bounds.width / 2, y: bounds.height / 2 })
+          : { x: bounds.width / 2, y: bounds.height / 2 };
+      ioAddPositionRef.current = center;
+    }
   }, []);
 
   useEffect(() => {
@@ -551,6 +726,13 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       };
 
       setNodes((prev) => [...prev, newNode] as any);
+
+      // Set IO add position just below the dropped node
+      const estimatedHeight = 60;
+      ioAddPositionRef.current = {
+        x: position.x,
+        y: position.y + estimatedHeight + IO_NODE_GAP,
+      };
     },
     [nodesByType, rfInstance, setNodes],
   );
@@ -575,9 +757,12 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
+            onNodeDragStop={onNodeDragStop}
             onPaneClick={onPaneClick}
             onEdgeDoubleClick={onEdgeDoubleClick}
             onNodesDelete={onNodesDelete}
+            selectionKeyCode="Shift"
+            multiSelectionKeyCode="Shift"
             deleteKeyCode={["Backspace", "Delete"]}
             nodeTypes={nodeTypes}
             isValidConnection={isValidConnection}

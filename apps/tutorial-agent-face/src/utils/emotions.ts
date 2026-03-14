@@ -69,6 +69,9 @@ export function canonicalEmotionName(raw: string): string {
 }
 
 export function isEmotionBinding(binding: PoseHotkeyBinding): boolean {
+  if (binding.semanticKind === "emotion") {
+    return true;
+  }
   const target = [binding.pose.group, binding.pose.name, binding.pose.id]
     .filter(Boolean)
     .map((value) => value?.toLowerCase() ?? "")
@@ -82,6 +85,7 @@ export function scoreEmotionBinding(
 ): number {
   if (!targetSlug) return 0;
   const pieces = [
+    slugifyEmotion(binding.semanticKey ?? ""),
     slugifyEmotion(binding.pose.name ?? ""),
     slugifyEmotion(binding.pose.id ?? ""),
     slugifyEmotion(binding.pose.group ?? ""),

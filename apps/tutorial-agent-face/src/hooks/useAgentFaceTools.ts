@@ -5,7 +5,12 @@ import type {
   FunctionResponse,
 } from "@google/genai";
 import { Type, type Tool } from "@google/genai";
-import { useVizijRuntime } from "@vizij/runtime-react";
+import {
+  mapNormalizedControlValue,
+  mapUnitControlValue,
+  resolveFaceControls,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 import {
   canonicalEmotionName,
   isEmotionBinding,
@@ -38,10 +43,17 @@ type GazeArgs = {
 type EmotionArgs = {
   emotion?: string;
   name?: string;
+  percent?: number;
+  percentage?: number;
   intensity?: number;
+  lengthSeconds?: number;
   holdSeconds?: number;
   durationSeconds?: number;
 };
+
+const DEFAULT_POSE_WEIGHT = 0.7;
+const DEFAULT_NEUTRAL_WEIGHT = 0.7;
+const EMOTION_ATTACK_SECONDS = 0.25;
 
 const GAZE_DECLARATION: FunctionDeclaration = {
   name: "set_gaze",
@@ -98,18 +110,24 @@ function buildEmotionDeclaration(options: string[]): FunctionDeclaration {
       type: Type.OBJECT,
       properties: {
         emotion: emotionProperty,
+        percent: {
+          type: Type.NUMBER,
+          description:
+            "How strongly to feel the emotion as a percentage. You can use 0..100 or 0..1. The app normalizes this to its 0.7 pose cap.",
+        },
         intensity: {
           type: Type.NUMBER,
-          description: "Strength of the expression (0..1). Defaults to 1.",
+          description:
+            "Legacy alias for percent. You can pass 0..100 or 0..1; the app normalizes it to its 0.7 pose cap.",
+        },
+        lengthSeconds: {
+          type: Type.NUMBER,
+          description:
+            "How long the emotion should ease back to neutral after it peaks. Defaults to 2 seconds.",
         },
         holdSeconds: {
           type: Type.NUMBER,
-          description:
-            "How long to keep the emotion before easing out (seconds). Defaults to 2.",
-        },
-        durationSeconds: {
-          type: Type.NUMBER,
-          description: "How quickly to blend the expression on (seconds).",
+          description: "Legacy alias for lengthSeconds.",
         },
       },
       required: ["emotion"],
@@ -127,36 +145,45 @@ function toNumber(value: unknown, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizePercent(value: unknown, fallback = 100) {
+  const numeric = toNumber(value, fallback);
+  if (numeric <= 1) {
+    return clamp(numeric, 0, 1);
+  }
+  return clamp(numeric / 100, 0, 1);
+}
+
 export function useAgentFaceTools({
   enabled,
   bindings,
 }: AgentFaceToolsOptions): AgentFaceTools {
-  const { animateValue, faceId: runtimeFaceId } = useVizijRuntime();
-  const faceId = (runtimeFaceId ?? "face").toLowerCase();
+  const {
+    animateValue,
+    faceId: runtimeFaceId,
+    assetBundle,
+    inputConstraints,
+  } = useVizijRuntime();
   const [gazeActive, setGazeActive] = useState(false);
   const gazeTimeoutRef = useRef<number | null>(null);
   const emotionTimeoutsRef = useRef<number[]>([]);
-
-  const gazePaths = useMemo(() => {
-    const prefix = `rig/${faceId}/`;
-    return {
-      leftX: `${prefix}standard/left_eye/pos/x`,
-      leftY: `${prefix}standard/left_eye/pos/y`,
-      rightX: `${prefix}standard/right_eye/pos/x`,
-      rightY: `${prefix}standard/right_eye/pos/y`,
-      blink: `${prefix}blink`,
-      eyelids: {
-        leftUpper: `${prefix}standard/left_eye_top_eyelid/pos/y`,
-        rightUpper: `${prefix}standard/right_eye_top_eyelid/pos/y`,
-      },
-    };
-  }, [faceId]);
+  const gazeControls = useMemo(
+    () => resolveFaceControls(assetBundle, runtimeFaceId, inputConstraints),
+    [assetBundle, inputConstraints, runtimeFaceId],
+  );
 
   const emotionBindings = useMemo(
     () => bindings.filter((binding) => isEmotionBinding(binding)),
     [bindings],
   );
   const hasEmotionBindings = emotionBindings.length > 0;
+  const neutralBinding = useMemo(
+    () =>
+      emotionBindings.find(
+        (binding) =>
+          canonicalEmotionName(binding.semanticKey ?? "") === "neutral",
+      ) ?? null,
+    [emotionBindings],
+  );
 
   const availableEmotionOptions = useMemo(
     () =>
@@ -183,13 +210,53 @@ export function useAgentFaceTools({
     [toolDeclarations],
   );
 
+  const animateSigned = useCallback(
+    (
+      control: (typeof gazeControls.eyes)[keyof typeof gazeControls.eyes],
+      value: number,
+      duration: number,
+      easing: "linear" | "easeIn" | "easeOut" | "easeInOut",
+    ) => {
+      if (!control) {
+        return;
+      }
+      void animateValue(
+        control.path,
+        { float: mapNormalizedControlValue(control, value) },
+        { duration, easing },
+      );
+    },
+    [animateValue, gazeControls.eyes],
+  );
+
+  const animateUnit = useCallback(
+    (
+      control:
+        | (typeof gazeControls.eyelids)[keyof typeof gazeControls.eyelids]
+        | typeof gazeControls.blink,
+      value: number,
+      duration: number,
+      easing: "linear" | "easeIn" | "easeOut" | "easeInOut",
+    ) => {
+      if (!control) {
+        return;
+      }
+      void animateValue(
+        control.path,
+        { float: mapUnitControlValue(control, value) },
+        { duration, easing },
+      );
+    },
+    [animateValue, gazeControls.blink, gazeControls.eyelids],
+  );
+
   const resetGaze = useCallback(() => {
-    void animateValue(gazePaths.leftX, { float: 0 }, { duration: 0.2 });
-    void animateValue(gazePaths.rightX, { float: 0 }, { duration: 0.2 });
-    void animateValue(gazePaths.leftY, { float: 0 }, { duration: 0.2 });
-    void animateValue(gazePaths.rightY, { float: 0 }, { duration: 0.2 });
+    animateSigned(gazeControls.eyes.leftX, 0, 0.2, "easeInOut");
+    animateSigned(gazeControls.eyes.rightX, 0, 0.2, "easeInOut");
+    animateSigned(gazeControls.eyes.leftY, 0, 0.2, "easeInOut");
+    animateSigned(gazeControls.eyes.rightY, 0, 0.2, "easeInOut");
     setGazeActive(false);
-  }, [animateValue, gazePaths]);
+  }, [animateSigned, gazeControls.eyes]);
 
   const applyGaze = useCallback(
     async (rawArgs: GazeArgs) => {
@@ -211,62 +278,40 @@ export function useAgentFaceTools({
         window.clearTimeout(gazeTimeoutRef.current);
       }
 
-      await Promise.all([
-        animateValue(
-          gazePaths.leftX,
-          { float: clamp(x - offset, -1, 1) },
-          { duration, easing: "easeInOut" },
-        ),
-        animateValue(
-          gazePaths.rightX,
-          { float: clamp(x + offset, -1, 1) },
-          { duration, easing: "easeInOut" },
-        ),
-        animateValue(
-          gazePaths.leftY,
-          { float: y },
-          { duration, easing: "easeInOut" },
-        ),
-        animateValue(
-          gazePaths.rightY,
-          { float: y },
-          { duration, easing: "easeInOut" },
-        ),
-      ]);
+      animateSigned(
+        gazeControls.eyes.leftX,
+        clamp(x - offset, -1, 1),
+        duration,
+        "easeInOut",
+      );
+      animateSigned(
+        gazeControls.eyes.rightX,
+        clamp(x + offset, -1, 1),
+        duration,
+        "easeInOut",
+      );
+      animateSigned(gazeControls.eyes.leftY, y, duration, "easeInOut");
+      animateSigned(gazeControls.eyes.rightY, y, duration, "easeInOut");
 
       if (blink > 0.01) {
         const closeDuration = Math.min(duration, 0.2);
-        void animateValue(
-          gazePaths.blink,
-          { float: blink },
-          { duration: closeDuration, easing: "easeIn" },
+        animateUnit(gazeControls.blink, blink, closeDuration, "easeIn");
+        animateUnit(
+          gazeControls.eyelids.leftUpper,
+          blink,
+          closeDuration,
+          "easeIn",
         );
-        void animateValue(
-          gazePaths.eyelids.leftUpper,
-          { float: blink },
-          { duration: closeDuration, easing: "easeIn" },
-        );
-        void animateValue(
-          gazePaths.eyelids.rightUpper,
-          { float: blink },
-          { duration: closeDuration, easing: "easeIn" },
+        animateUnit(
+          gazeControls.eyelids.rightUpper,
+          blink,
+          closeDuration,
+          "easeIn",
         );
         window.setTimeout(() => {
-          void animateValue(
-            gazePaths.blink,
-            { float: 0 },
-            { duration: 0.12, easing: "easeOut" },
-          );
-          void animateValue(
-            gazePaths.eyelids.leftUpper,
-            { float: 0 },
-            { duration: 0.12, easing: "easeOut" },
-          );
-          void animateValue(
-            gazePaths.eyelids.rightUpper,
-            { float: 0 },
-            { duration: 0.12, easing: "easeOut" },
-          );
+          animateUnit(gazeControls.blink, 0, 0.12, "easeOut");
+          animateUnit(gazeControls.eyelids.leftUpper, 0, 0.12, "easeOut");
+          animateUnit(gazeControls.eyelids.rightUpper, 0, 0.12, "easeOut");
         }, 120);
       }
 
@@ -281,7 +326,7 @@ export function useAgentFaceTools({
         blink,
       };
     },
-    [animateValue, enabled, gazePaths, resetGaze],
+    [animateSigned, animateUnit, enabled, gazeControls, resetGaze],
   );
 
   const resolveEmotionBinding = useCallback(
@@ -307,6 +352,26 @@ export function useAgentFaceTools({
     [emotionBindings],
   );
 
+  const clearEmotionTimers = useCallback(() => {
+    emotionTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+    emotionTimeoutsRef.current = [];
+  }, []);
+
+  const resetNonNeutralEmotions = useCallback(
+    (activeBinding: PoseHotkeyBinding | null, duration: number) => {
+      const clampedDuration = clamp(duration, 0.05, 2);
+      emotionBindings.forEach((binding) => {
+        if (binding === neutralBinding || binding === activeBinding) return;
+        void animateValue(
+          binding.weightPath,
+          { float: 0 },
+          { duration: clampedDuration, easing: "easeInOut" },
+        );
+      });
+    },
+    [animateValue, emotionBindings, neutralBinding],
+  );
+
   const applyEmotion = useCallback(
     async (rawArgs: EmotionArgs) => {
       if (!enabled) throw new Error("Face rig not ready yet.");
@@ -320,38 +385,70 @@ export function useAgentFaceTools({
       }
       const { binding, canonical } = resolved;
 
-      const intensity = clamp(toNumber(rawArgs.intensity ?? 1, 1), 0, 1);
-      const holdSeconds = clamp(toNumber(rawArgs.holdSeconds ?? 2, 2), 0.2, 8);
-      const duration = clamp(
-        toNumber(rawArgs.durationSeconds ?? 0.22, 0.22),
-        0.05,
-        1.5,
+      clearEmotionTimers();
+      resetNonNeutralEmotions(binding, 0.12);
+
+      const requestedPercent = normalizePercent(
+        rawArgs.percent ?? rawArgs.percentage ?? rawArgs.intensity ?? 100,
+      );
+      const peakWeight = requestedPercent * DEFAULT_POSE_WEIGHT;
+      const lengthSeconds = clamp(
+        toNumber(rawArgs.lengthSeconds ?? rawArgs.holdSeconds ?? 2, 2),
+        0.2,
+        8,
       );
 
-      await animateValue(
-        binding.weightPath,
-        { float: intensity },
-        { duration, easing: "easeOut" },
-      );
+      await Promise.all([
+        animateValue(
+          binding.weightPath,
+          { float: peakWeight },
+          { duration: EMOTION_ATTACK_SECONDS, easing: "easeOut" },
+        ),
+        neutralBinding && neutralBinding !== binding
+          ? animateValue(
+              neutralBinding.weightPath,
+              { float: 0 },
+              { duration: EMOTION_ATTACK_SECONDS, easing: "easeInOut" },
+            )
+          : Promise.resolve(),
+      ]);
 
-      const timer = window.setTimeout(() => {
+      const decayTimer = window.setTimeout(() => {
         void animateValue(
           binding.weightPath,
           { float: 0 },
-          { duration: Math.max(duration, 0.28), easing: "easeInOut" },
+          { duration: lengthSeconds, easing: "easeInOut" },
         );
-      }, holdSeconds * 1000);
-      emotionTimeoutsRef.current.push(timer);
+        if (neutralBinding && neutralBinding !== binding) {
+          void animateValue(
+            neutralBinding.weightPath,
+            { float: DEFAULT_NEUTRAL_WEIGHT },
+            { duration: lengthSeconds, easing: "easeInOut" },
+          );
+        }
+      }, EMOTION_ATTACK_SECONDS * 1000);
+      emotionTimeoutsRef.current.push(decayTimer);
 
       return {
         emotion: canonical,
         poseId: binding.pose.id,
         displayName: binding.pose.name ?? binding.pose.id,
-        intensity,
-        holdSeconds,
+        peakWeight,
+        percent: requestedPercent,
+        lengthSeconds,
+        attackSeconds: EMOTION_ATTACK_SECONDS,
+        neutralPoseId: neutralBinding?.pose.id ?? null,
       };
     },
-    [animateValue, enabled, resolveEmotionBinding, availableEmotionOptions],
+    [
+      animateValue,
+      availableEmotionOptions,
+      clearEmotionTimers,
+      enabled,
+      neutralBinding,
+      resetNonNeutralEmotions,
+      resolveEmotionBinding,
+    ],
   );
 
   const handleFunctionCalls = useCallback(
@@ -392,14 +489,24 @@ export function useAgentFaceTools({
   );
 
   useEffect(() => {
+    if (!enabled || !neutralBinding?.weightPath) {
+      return;
+    }
+    void animateValue(
+      neutralBinding.weightPath,
+      { float: DEFAULT_NEUTRAL_WEIGHT },
+      { duration: 0.2, easing: "easeInOut" },
+    );
+  }, [animateValue, enabled, neutralBinding]);
+
+  useEffect(() => {
     return () => {
       if (gazeTimeoutRef.current) {
         window.clearTimeout(gazeTimeoutRef.current);
       }
-      emotionTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
-      emotionTimeoutsRef.current = [];
+      clearEmotionTimers();
     };
-  }, []);
+  }, [clearEmotionTimers]);
 
   return { tools, handleFunctionCalls, gazeActive };
 }

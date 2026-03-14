@@ -1,6 +1,6 @@
-// Use live model variant that supports function calling; native-audio preview currently
-// rejects tool use and closes the websocket with 1011.
-export const MODEL_NAME = "gemini-2.0-flash-live-001";
+// Use the current Live API native-audio model because this app depends on
+// streamed audio output plus function calling for gaze/emotion tools.
+export const MODEL_NAME = "gemini-2.5-flash-native-audio-preview-12-2025";
 
 export const INPUT_SAMPLE_RATE = 16000;
 export const OUTPUT_SAMPLE_RATE = 24000;

@@ -16,6 +16,7 @@ import type {
   VizijStoreGetter,
   VizijStoreSetter,
 } from "./store-types";
+import { recordRenderCounter } from "./memoryInvestigation";
 import { createAnimatable } from "./functions/create-animatable";
 import { selectExportableGroupEntries } from "./functions/exportable-bodies";
 import type { RenderableFeature } from "./types/renderable-feature";
@@ -367,6 +368,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     );
   },
   setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => {
+    recordRenderCounter("rootReplacementCount");
     set({
       world: scene,
       animatables,
@@ -378,6 +380,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     replace?: boolean,
   ) {
     if (replace) {
+      recordRenderCounter("rootReplacementCount");
       set({ world, animatables });
     } else {
       set((state) => ({

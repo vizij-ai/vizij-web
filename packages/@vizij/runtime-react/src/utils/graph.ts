@@ -60,6 +60,12 @@ export function collectInputPathMap(
   spec: GraphRegistrationConfig["spec"],
 ): Record<string, string> {
   const map: Record<string, string> = {};
+  const addVariant = (key: string, path: string, force = false) => {
+    if (!key || (!force && map[key])) {
+      return;
+    }
+    map[key] = path;
+  };
   const nodes = getNodes(spec);
   nodes.forEach((node) => {
     if (String(node.type ?? "").toLowerCase() !== "input") {
@@ -73,7 +79,14 @@ export function collectInputPathMap(
     const key = id.startsWith("input_")
       ? id.slice("input_".length)
       : id || path.trim();
-    map[key] = path.trim();
+    const trimmedPath = path.trim();
+    addVariant(key, trimmedPath);
+    if (key.startsWith("direct_")) {
+      addVariant(key.slice("direct_".length), trimmedPath, true);
+    }
+    if (key.startsWith("pose_control_")) {
+      addVariant(key.slice("pose_control_".length), trimmedPath);
+    }
   });
   return map;
 }

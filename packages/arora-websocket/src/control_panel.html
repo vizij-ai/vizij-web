@@ -406,12 +406,22 @@
         </div>
       </div>
     </div>
+    <div id="transport-pane" class="speech-panel" style="display: none">
+      <div class="speech-section">
+        <h3>Transport</h3>
+        <div id="transport-list" class="speech-status">
+          No transport loaded.
+        </div>
+      </div>
+    </div>
     <main id="main"></main>
 
     <script>
       let ws = null;
       let controls = [];
       let controlByPath = new Map();
+      let availableMethods = new Set();
+      let transportCatalog = { animations: [], programs: [] };
       let namespaceFilter = "all";
       let searchFilter = "";
       let pending = {};
@@ -946,6 +956,7 @@
           micBtn.disabled = false;
           searchInput.value = "";
           ws.send(JSON.stringify({ type: "list_slots" }));
+          ws.send(JSON.stringify({ type: "list_methods" }));
           requestValuesForCurrentControls();
         };
         ws.onmessage = (event) => {
@@ -960,6 +971,16 @@
             setControls(deriveControls(message.slots || []));
             rebuildUI();
             requestValuesForCurrentControls();
+          } else if (message.type === "list_methods_resp") {
+            availableMethods = new Set(
+              (message.methods || [])
+                .map((method) =>
+                  method && method.path ? String(method.path) : "",
+                )
+                .filter(Boolean),
+            );
+            rebuildUI();
+            requestTransportList();
           } else if (message.type === "invoke_resp") {
             handleInvokeResponse(message);
           } else if (message.type === "get_slot_values_resp") {
@@ -984,9 +1005,7 @@
           rbtn.disabled = true;
           micBtn.disabled = true;
           ws = null;
-          controls = [];
-          controlByPath = new Map();
-          rebuildUI();
+          resetUI();
         };
         ws.onerror = (err) => {
           console.error("[vizij] WebSocket error:", err);
@@ -1004,6 +1023,8 @@
       const micBtn = $("mic-btn");
       const micStatus = $("mic-status");
       const speakTextEl = $("speak-text");
+      const transportPane = $("transport-pane");
+      const transportListEl = $("transport-list");
 
       function updateMicUI(muted) {
         micMuted = muted;
@@ -1065,10 +1086,136 @@
         );
       }
 
+      function hasTransportMethods() {
+        return (
+          availableMethods.has("transport/list") &&
+          availableMethods.has("transport/play") &&
+          availableMethods.has("transport/pause") &&
+          availableMethods.has("transport/stop")
+        );
+      }
+
+      function requestTransportList() {
+        if (!ws || ws.readyState !== 1) {
+          return;
+        }
+        ws.send(
+          JSON.stringify({
+            type: "invoke",
+            method: "transport/list",
+            request_id: "transport-list-" + Date.now(),
+          }),
+        );
+      }
+
+      function renderTransportPane() {
+        const sections = [
+          {
+            kind: "animation",
+            label: "Animations",
+            items: transportCatalog.animations || [],
+          },
+          {
+            kind: "program",
+            label: "Programs",
+            items: transportCatalog.programs || [],
+          },
+        ].filter((section) => section.items.length > 0);
+
+        if (!sections.length) {
+          transportListEl.innerHTML = "No bundled animations or programs.";
+          return;
+        }
+
+        transportListEl.innerHTML = sections
+          .map((section) => {
+            const rows = section.items
+              .map((item) => {
+                const state = String(item.state || "stopped");
+                const itemId = String(item.id || "")
+                  .replace(/\\/g, "\\\\")
+                  .replace(/'/g, "\\'");
+                return (
+                  '<div class="panel" style="margin-bottom: 10px">' +
+                  '<div class="panel-hdr" style="cursor: default">' +
+                  "<span>" +
+                  String(item.label || item.id) +
+                  '</span><span class="speech-status"><span class="val">' +
+                  state +
+                  "</span></span>" +
+                  "</div>" +
+                  '<div class="panel-body" style="display: block">' +
+                  '<div class="speech-row">' +
+                  '<button class="btn-on" type="button" onclick="invokeTransportAction(\'' +
+                  section.kind +
+                  "','" +
+                  itemId +
+                  "','play')\">Play</button>" +
+                  '<button class="btn-warn" type="button" onclick="invokeTransportAction(\'' +
+                  section.kind +
+                  "','" +
+                  itemId +
+                  "','pause')\">Pause</button>" +
+                  '<button class="btn-muted" type="button" onclick="invokeTransportAction(\'' +
+                  section.kind +
+                  "','" +
+                  itemId +
+                  "','stop')\">Stop</button>" +
+                  "</div>" +
+                  "</div>" +
+                  "</div>"
+                );
+              })
+              .join("");
+
+            return (
+              '<div class="speech-section">' +
+              "<h3>" +
+              section.label +
+              "</h3>" +
+              rows +
+              "</div>"
+            );
+          })
+          .join("");
+      }
+
+      function invokeTransportAction(kind, id, action) {
+        if (!ws || ws.readyState !== 1) {
+          return;
+        }
+        ws.send(
+          JSON.stringify({
+            type: "invoke",
+            method: "transport/" + action,
+            request_id: "transport-" + action + "-" + Date.now(),
+            args: {
+              kind: { str: kind },
+              id: { str: id },
+            },
+          }),
+        );
+      }
+
+      function showTransportTab() {
+        if (namespaceFilter === "__transport__") return;
+        namespaceFilter = "__transport__";
+        transportPane.style.display = "block";
+        speechPane.style.display = "none";
+        mainEl.style.display = "none";
+        rebuildUI();
+        requestTransportList();
+      }
+
+      function hideTransportTab() {
+        transportPane.style.display = "none";
+      }
+
       function showSpeechTab() {
         if (namespaceFilter === "__speech__") return;
         namespaceFilter = "__speech__";
         speechPane.style.display = "block";
+        transportPane.style.display = "none";
         mainEl.style.display = "none";
         rebuildUI();
         pollMicState();
@@ -1084,8 +1231,11 @@
       setNamespace = function (name) {
         if (name === "__speech__") {
           showSpeechTab();
+        } else if (name === "__transport__") {
+          showTransportTab();
         } else {
           hideSpeechTab();
+          hideTransportTab();
           _origSetNamespace(name);
         }
       };
@@ -1094,35 +1244,84 @@
       const _origBuildTabs = buildNamespaceTabs;
       buildNamespaceTabs = function (namespaces) {
         _origBuildTabs(namespaces);
-        // Prepend Speech tab
+        const extraTabs = [];
         const speechTab =
           '<div class="tab ' +
           (namespaceFilter === "__speech__" ? "active" : "") +
           '" data-namespace="__speech__" onclick="setNamespace(\'__speech__\')">Speech</div>';
-        tabsEl.innerHTML = speechTab + tabsEl.innerHTML;
+        extraTabs.push(speechTab);
+        extraTabs.push(
+          '<div class="tab ' +
+            (namespaceFilter === "__transport__" ? "active" : "") +
+            '" data-namespace="__transport__" onclick="setNamespace(\'__transport__\')">Transport</div>',
+        );
+        tabsEl.innerHTML = extraTabs.join("") + tabsEl.innerHTML;
       };
 
       // Handle invoke responses for mic state polling
       const _origOnMessage = ws ? ws.onmessage : null;
       function handleInvokeResponse(message) {
         if (message.type === "invoke_resp" && message.request_id) {
-          if (message.request_id.startsWith("mic-poll-") && message.result) {
-            const val = message.result.bool;
+          const value = message.value ?? message.result;
+          if (message.request_id.startsWith("mic-poll-")) {
+            const val =
+              typeof value === "boolean"
+                ? value
+                : value && typeof value === "object"
+                  ? value.bool
+                  : undefined;
             if (typeof val === "boolean") {
               updateMicUI(val);
             }
+          } else if (message.request_id.startsWith("transport-list-")) {
+            const rawCatalog =
+              value &&
+              typeof value === "object" &&
+              typeof value.str === "string"
+                ? value.str
+                : typeof value === "string"
+                  ? value
+                  : "";
+            if (rawCatalog) {
+              try {
+                const parsed = JSON.parse(rawCatalog);
+                transportCatalog = {
+                  animations: Array.isArray(parsed.animations)
+                    ? parsed.animations
+                    : [],
+                  programs: Array.isArray(parsed.programs)
+                    ? parsed.programs
+                    : [],
+                };
+              } catch (error) {
+                console.error(
+                  "[vizij] Failed to parse transport catalog:",
+                  error,
+                );
+                transportCatalog = { animations: [], programs: [] };
+              }
+            } else {
+              transportCatalog = { animations: [], programs: [] };
+            }
+            renderTransportPane();
+          } else if (message.request_id.startsWith("transport-")) {
+            requestTransportList();
           }
         }
       }
 
       function resetUI() {
         controls = [];
+        availableMethods = new Set();
+        transportCatalog = { animations: [], programs: [] };
         namespaceFilter = "all";
         searchFilter = "";
         searchInput.value = "";
         controlByPath = new Map();
         pending = {};
         hideSpeechTab();
+        hideTransportTab();
+        renderTransportPane();
         rebuildUI();
       }
 

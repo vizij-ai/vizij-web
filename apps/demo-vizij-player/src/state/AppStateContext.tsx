@@ -5,518 +5,243 @@ import {
   useEffect,
   useMemo,
   useReducer,
-  useRef,
 } from "react";
 import type { ReactNode } from "react";
 import {
-  clearPersistedState,
   loadPersistedState,
   persistState,
+  createPersistedState,
 } from "./storage";
 import {
-  DEFAULT_APP_STATE,
-  type AnimationAsset,
-  type AnimationTrack,
-  type AppState,
-  type GlbAsset,
-  type GraphAsset,
-  type RigPreset,
-  type SimpleAnimationClip,
+  DEFAULT_PLAYBACK_SELECTION,
+  DEFAULT_PLAYER_STATE,
+  type DemoFaceSource,
+  type DemoPanelId,
+  type DemoPlayerState,
+  type DemoSampleId,
+  type DemoTheme,
 } from "./types";
 
-function createId(): string {
+function createUploadId(): string {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
   ) {
     return crypto.randomUUID();
   }
-  return `asset-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
-function requestLabel(message: string, defaultLabel: string): string {
-  if (typeof window === "undefined") {
-    return defaultLabel;
-  }
-  const response = window.prompt(message, defaultLabel);
-  const trimmed = response?.trim();
-  return trimmed ? trimmed : defaultLabel;
-}
-
-async function fileToDataUrl(file: File): Promise<string> {
-  const reader = new FileReader();
-  return await new Promise((resolve, reject) => {
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function fileToJson<T>(file: File): Promise<T> {
-  const text = await file.text();
-  return JSON.parse(text) as T;
-}
-
-function normaliseAnimationClip(
-  payload: unknown,
-  fallbackName: string,
-): Omit<SimpleAnimationClip, "id"> {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Invalid animation clip payload.");
-  }
-  const raw = payload as Record<string, unknown>;
-  const trackEntries = Array.isArray((raw as any).tracks)
-    ? ((raw as any).tracks as unknown[])
-    : [];
-  const tracks: AnimationTrack[] = trackEntries
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-      const track = entry as Record<string, unknown>;
-      const channel = typeof track.channel === "string" ? track.channel : null;
-      const keyframesRaw = Array.isArray(track.keyframes)
-        ? (track.keyframes as unknown[])
-        : [];
-      if (!channel) {
-        return null;
-      }
-      const keyframes = keyframesRaw
-        .map((kf) => {
-          if (!kf || typeof kf !== "object") {
-            return null;
-          }
-          const snapshot = kf as Record<string, unknown>;
-          const time = Number(snapshot.time);
-          const value = Number(snapshot.value);
-          if (!Number.isFinite(time) || !Number.isFinite(value)) {
-            return null;
-          }
-          return { time, value };
-        })
-        .filter((kf): kf is AnimationTrack["keyframes"][number] => Boolean(kf))
-        .sort((a, b) => a.time - b.time);
-      if (!keyframes.length) {
-        return null;
-      }
-      return {
-        channel,
-        keyframes,
-      };
-    })
-    .filter((track): track is AnimationTrack => Boolean(track));
-
-  const explicitDuration = Number((raw as any).duration);
-  const computedDuration = tracks.reduce(
-    (max, track) =>
-      Math.max(max, track.keyframes[track.keyframes.length - 1]?.time ?? 0),
-    0,
-  );
-  const duration =
-    Number.isFinite(explicitDuration) && explicitDuration > 0
-      ? explicitDuration
-      : computedDuration || 1;
-
-  const name =
-    typeof (raw as any).name === "string"
-      ? ((raw as any).name as string)
-      : fallbackName.replace(/\.[^.]+$/, "");
-
-  return {
-    name,
-    duration,
-    tracks,
-  };
-}
-
-const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 type Action =
-  | { type: "set-glb"; payload: GlbAsset | null }
-  | { type: "set-low-level"; payload: GraphAsset | null }
-  | { type: "add-high-level"; payload: GraphAsset }
-  | { type: "remove-high-level"; id: string }
-  | { type: "set-rig-selection"; id: string; selected: boolean }
-  | { type: "set-slider"; path: string; value: number }
-  | { type: "reset-rig-sliders"; paths: string[] }
-  | { type: "add-animation"; payload: AnimationAsset }
-  | { type: "update-animation"; payload: AnimationAsset }
-  | { type: "remove-animation"; id: string }
-  | { type: "set-selected-animation"; id: string | null }
-  | { type: "set-animation-weight"; id: string; weight: number }
-  | { type: "add-rig-preset"; rigId: string; preset: RigPreset }
-  | { type: "remove-rig-preset"; rigId: string; presetId: string }
-  | { type: "clear" };
+  | { type: "select-sample"; id: DemoSampleId }
+  | { type: "select-upload"; payload: DemoFaceSource & { kind: "upload" } }
+  | { type: "clear-source" }
+  | { type: "set-theme"; theme: DemoTheme }
+  | { type: "set-animation"; id: string | null }
+  | { type: "set-program"; id: string | null }
+  | { type: "set-pose-group"; id: string | null }
+  | { type: "set-panel"; panel: DemoPanelId; visible: boolean };
 
-function reducer(state: AppState, action: Action): AppState {
+function reducer(state: DemoPlayerState, action: Action): DemoPlayerState {
   switch (action.type) {
-    case "set-glb":
-      return { ...state, glb: action.payload };
-    case "set-low-level":
-      return { ...state, lowLevel: action.payload };
-    case "add-high-level": {
-      const exists = state.highLevel.some(
-        (entry) => entry.id === action.payload.id,
-      );
-      const nextHighLevel = exists
-        ? state.highLevel.map((entry) =>
-            entry.id === action.payload.id ? action.payload : entry,
-          )
-        : [...state.highLevel, action.payload];
-      const nextSelection = exists
-        ? state.selectedRigIds
-        : [...state.selectedRigIds, action.payload.id];
+    case "select-sample":
       return {
         ...state,
-        highLevel: nextHighLevel,
-        selectedRigIds: Array.from(new Set(nextSelection)),
-        rigPresets: {
-          ...state.rigPresets,
-          [action.payload.id]: state.rigPresets[action.payload.id] ?? [],
-        },
+        source: { kind: "sample", id: action.id },
+        playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
       };
-    }
-    case "remove-high-level": {
-      const remaining = state.highLevel.filter(
-        (entry) => entry.id !== action.id,
-      );
-      const nextSliderValues = { ...state.sliderValues };
-      Object.keys(nextSliderValues).forEach((key) => {
-        if (key.startsWith(`ui/${action.id}/`)) {
-          delete nextSliderValues[key];
-        }
-      });
-      const { [action.id]: _removedPresets, ...restPresets } = state.rigPresets;
+    case "select-upload":
       return {
         ...state,
-        highLevel: remaining,
-        selectedRigIds: state.selectedRigIds.filter((id) => id !== action.id),
-        sliderValues: nextSliderValues,
-        rigPresets: restPresets,
+        source: action.payload,
+        playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
       };
-    }
-    case "set-rig-selection": {
-      const isSelected = state.selectedRigIds.includes(action.id);
-      if (action.selected) {
-        if (isSelected) {
-          return state;
-        }
-        return {
-          ...state,
-          selectedRigIds: [...state.selectedRigIds, action.id],
-        };
-      }
-      if (!isSelected) {
+    case "clear-source":
+      return {
+        ...state,
+        source: null,
+        playbackSelection: { ...DEFAULT_PLAYBACK_SELECTION },
+      };
+    case "set-theme":
+      if (state.theme === action.theme) {
         return state;
       }
       return {
         ...state,
-        selectedRigIds: state.selectedRigIds.filter((id) => id !== action.id),
+        theme: action.theme,
       };
-    }
-    case "set-slider":
-      if (state.sliderValues[action.path] === action.value) {
+    case "set-animation":
+      if (state.playbackSelection.animationId === action.id) {
         return state;
       }
       return {
         ...state,
-        sliderValues: { ...state.sliderValues, [action.path]: action.value },
+        playbackSelection: {
+          ...state.playbackSelection,
+          animationId: action.id,
+        },
       };
-    case "reset-rig-sliders": {
-      if (!action.paths.length) {
+    case "set-program":
+      if (state.playbackSelection.programId === action.id) {
         return state;
       }
-      const nextSliderValues = { ...state.sliderValues };
-      action.paths.forEach((path) => {
-        delete nextSliderValues[path];
-      });
       return {
         ...state,
-        sliderValues: nextSliderValues,
-      };
-    }
-    case "add-animation":
-      return {
-        ...state,
-        animations: [...state.animations, action.payload],
-        selectedAnimationId: action.payload.id,
-      };
-    case "update-animation":
-      return {
-        ...state,
-        animations: state.animations.map((entry) =>
-          entry.id === action.payload.id ? action.payload : entry,
-        ),
-      };
-    case "remove-animation": {
-      const remaining = state.animations.filter(
-        (entry) => entry.id !== action.id,
-      );
-      const nextSelected =
-        state.selectedAnimationId === action.id
-          ? (remaining[0]?.id ?? null)
-          : state.selectedAnimationId;
-      return {
-        ...state,
-        animations: remaining,
-        selectedAnimationId: nextSelected,
-      };
-    }
-    case "set-selected-animation":
-      return {
-        ...state,
-        selectedAnimationId: action.id,
-      };
-    case "set-animation-weight":
-      return {
-        ...state,
-        animations: state.animations.map((entry) =>
-          entry.id === action.id ? { ...entry, weight: action.weight } : entry,
-        ),
-      };
-    case "add-rig-preset":
-      return {
-        ...state,
-        rigPresets: {
-          ...state.rigPresets,
-          [action.rigId]: [
-            ...(state.rigPresets[action.rigId] ?? []),
-            action.preset,
-          ],
+        playbackSelection: {
+          ...state.playbackSelection,
+          programId: action.id,
         },
       };
-    case "remove-rig-preset":
+    case "set-pose-group":
+      if (state.playbackSelection.poseGroupId === action.id) {
+        return state;
+      }
       return {
         ...state,
-        rigPresets: {
-          ...state.rigPresets,
-          [action.rigId]: (state.rigPresets[action.rigId] ?? []).filter(
-            (preset) => preset.id !== action.presetId,
-          ),
+        playbackSelection: {
+          ...state.playbackSelection,
+          poseGroupId: action.id,
         },
       };
-    case "clear":
-      return DEFAULT_APP_STATE;
+    case "set-panel":
+      if (state.panels[action.panel] === action.visible) {
+        return state;
+      }
+      return {
+        ...state,
+        panels: {
+          ...state.panels,
+          [action.panel]: action.visible,
+        },
+      };
     default:
       return state;
   }
 }
 
 type AppStateContextValue = {
-  state: AppState;
-  importGlb: (file: File) => Promise<void>;
-  importLowLevel: (file: File) => Promise<void>;
-  importHighLevel: (file: File) => Promise<void>;
-  removeHighLevel: (id: string) => void;
-  setRigSelection: (id: string, selected: boolean) => void;
-  setSliderValue: (path: string, value: number) => void;
-  resetRigSliders: (paths: string[]) => void;
-  importAnimation: (file: File) => Promise<void>;
-  createAnimation: (clip: SimpleAnimationClip, label: string) => void;
-  removeAnimation: (id: string) => void;
-  updateAnimation: (asset: AnimationAsset) => void;
+  state: DemoPlayerState;
+  selectSample: (id: DemoSampleId) => void;
+  selectUpload: (file: File) => void;
+  clearSource: () => void;
+  setTheme: (theme: DemoTheme) => void;
+  toggleTheme: () => void;
   setSelectedAnimation: (id: string | null) => void;
-  setAnimationWeight: (id: string, weight: number) => void;
-  addRigPreset: (rigId: string, preset: RigPreset) => void;
-  removeRigPreset: (rigId: string, presetId: string) => void;
-  clearAll: () => void;
+  setSelectedProgram: (id: string | null) => void;
+  setSelectedPoseGroup: (id: string | null) => void;
+  setPanelVisibility: (panel: DemoPanelId, visible: boolean) => void;
 };
 
+const AppStateContext = createContext<AppStateContextValue | null>(null);
+
+function buildInitialState(): DemoPlayerState {
+  const persisted = loadPersistedState();
+  return {
+    ...DEFAULT_PLAYER_STATE,
+    source: persisted.source,
+    playbackSelection: persisted.playbackSelection,
+    panels: persisted.panels,
+    theme: persisted.theme,
+  };
+}
+
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const persisted = useMemo(() => loadPersistedState(), []);
-  const [state, dispatch] = useReducer(reducer, persisted.state);
-  const bundleKeyRef = useRef<string | null>(persisted.bundleKey ?? null);
+  const [state, dispatch] = useReducer(reducer, undefined, buildInitialState);
 
   useEffect(() => {
-    const key = persistState(state);
-    if (key) {
-      bundleKeyRef.current = key;
-    }
+    persistState(
+      createPersistedState(
+        state.source,
+        state.playbackSelection,
+        state.panels,
+        state.theme,
+      ),
+    );
   }, [state]);
 
-  const importGlb = useCallback(async (file: File) => {
-    const dataUrl = await fileToDataUrl(file);
-    const defaultLabel = file.name.replace(/\.[^.]+$/, "") || "Face";
-    const label = requestLabel("Enter a label for the GLB asset", defaultLabel);
-    const asset: GlbAsset = {
-      id: createId(),
-      label,
-      fileName: file.name,
-      dataUrl,
-      size: file.size,
-      updatedAt: new Date().toISOString(),
-    };
-    dispatch({ type: "set-glb", payload: asset });
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.dataset.theme = state.theme;
+  }, [state.theme]);
+
+  const selectSample = useCallback((id: DemoSampleId) => {
+    dispatch({ type: "select-sample", id });
   }, []);
 
-  const importLowLevel = useCallback(async (file: File) => {
-    const spec = await fileToJson<Record<string, unknown>>(file);
-    const defaultLabel = file.name.replace(/\.[^.]+$/, "") || "Low-Level Rig";
-    const label = requestLabel(
-      "Enter a label for the low-level rig graph",
-      defaultLabel,
-    );
-    const asset: GraphAsset = {
-      id: createId(),
-      label,
-      fileName: file.name,
-      spec,
-      updatedAt: new Date().toISOString(),
-    };
-    dispatch({ type: "set-low-level", payload: asset });
+  const selectUpload = useCallback((file: File) => {
+    const label = file.name.replace(/\.[^.]+$/, "") || "Uploaded face";
+    dispatch({
+      type: "select-upload",
+      payload: {
+        kind: "upload",
+        id: createUploadId(),
+        label,
+        fileName: file.name,
+        file,
+      },
+    });
   }, []);
 
-  const importHighLevel = useCallback(async (file: File) => {
-    const spec = await fileToJson<Record<string, unknown>>(file);
-    const defaultLabel = file.name.replace(/\.[^.]+$/, "") || "High-Level Rig";
-    const label = requestLabel(
-      "Enter a label for the high-level rig",
-      defaultLabel,
-    );
-    const asset: GraphAsset = {
-      id: createId(),
-      label,
-      fileName: file.name,
-      spec,
-      updatedAt: new Date().toISOString(),
-    };
-    dispatch({ type: "add-high-level", payload: asset });
+  const clearSource = useCallback(() => {
+    dispatch({ type: "clear-source" });
   }, []);
 
-  const removeHighLevel = useCallback((id: string) => {
-    dispatch({ type: "remove-high-level", id });
+  const setTheme = useCallback((theme: DemoTheme) => {
+    dispatch({ type: "set-theme", theme });
   }, []);
 
-  const setRigSelection = useCallback((id: string, selected: boolean) => {
-    dispatch({ type: "set-rig-selection", id, selected });
+  const toggleTheme = useCallback(() => {
+    dispatch({
+      type: "set-theme",
+      theme: state.theme === "dark" ? "light" : "dark",
+    });
+  }, [state.theme]);
+
+  const setSelectedAnimation = useCallback((id: string | null) => {
+    dispatch({ type: "set-animation", id });
   }, []);
 
-  const setSliderValue = useCallback((path: string, value: number) => {
-    dispatch({ type: "set-slider", path, value });
+  const setSelectedProgram = useCallback((id: string | null) => {
+    dispatch({ type: "set-program", id });
   }, []);
 
-  const resetRigSliders = useCallback((paths: string[]) => {
-    dispatch({ type: "reset-rig-sliders", paths });
+  const setSelectedPoseGroup = useCallback((id: string | null) => {
+    dispatch({ type: "set-pose-group", id });
   }, []);
 
-  const importAnimation = useCallback(async (file: File) => {
-    const raw = await fileToJson<unknown>(file);
-    const clipId = createId();
-    const parsed = normaliseAnimationClip(raw, file.name);
-    const defaultLabel =
-      parsed.name || file.name.replace(/\.[^.]+$/, "") || "Animation";
-    const label = requestLabel(
-      "Enter a label for the animation clip",
-      defaultLabel,
-    );
-    const clip: SimpleAnimationClip = {
-      id: clipId,
-      name: label,
-      duration: parsed.duration,
-      tracks: parsed.tracks,
-    };
-    const asset: AnimationAsset = {
-      id: clipId,
-      label,
-      fileName: file.name,
-      clip,
-      weight: 1,
-      updatedAt: new Date().toISOString(),
-    };
-    dispatch({ type: "add-animation", payload: asset });
-  }, []);
-
-  const createAnimation = useCallback(
-    (clip: SimpleAnimationClip, label: string) => {
-      const clipId = clip.id || createId();
-      const resolvedLabel = label || clip.name || "Animation";
-      const safeFileName = `${resolvedLabel.replace(/\s+/g, "_").toLowerCase() || "animation"}.json`;
-      const resolvedClip: SimpleAnimationClip = {
-        ...clip,
-        id: clipId,
-        name: resolvedLabel,
-      };
-      const asset: AnimationAsset = {
-        id: clipId,
-        label: resolvedLabel,
-        fileName: safeFileName,
-        clip: resolvedClip,
-        weight: 1,
-        updatedAt: new Date().toISOString(),
-      };
-      dispatch({ type: "add-animation", payload: asset });
+  const setPanelVisibility = useCallback(
+    (panel: DemoPanelId, visible: boolean) => {
+      dispatch({ type: "set-panel", panel, visible });
     },
     [],
   );
 
-  const removeAnimation = useCallback((id: string) => {
-    dispatch({ type: "remove-animation", id });
-  }, []);
-
-  const updateAnimation = useCallback((asset: AnimationAsset) => {
-    dispatch({ type: "update-animation", payload: asset });
-  }, []);
-
-  const setSelectedAnimation = useCallback((id: string | null) => {
-    dispatch({ type: "set-selected-animation", id });
-  }, []);
-
-  const setAnimationWeight = useCallback((id: string, weight: number) => {
-    dispatch({ type: "set-animation-weight", id, weight });
-  }, []);
-
-  const addRigPreset = useCallback((rigId: string, preset: RigPreset) => {
-    dispatch({ type: "add-rig-preset", rigId, preset });
-  }, []);
-
-  const removeRigPreset = useCallback((rigId: string, presetId: string) => {
-    dispatch({ type: "remove-rig-preset", rigId, presetId });
-  }, []);
-
-  const clearAll = useCallback(() => {
-    dispatch({ type: "clear" });
-    clearPersistedState(bundleKeyRef.current);
-    bundleKeyRef.current = null;
-  }, []);
-
-  const value: AppStateContextValue = useMemo(
+  const value = useMemo<AppStateContextValue>(
     () => ({
       state,
-      importGlb,
-      importLowLevel,
-      importHighLevel,
-      removeHighLevel,
-      setRigSelection,
-      setSliderValue,
-      resetRigSliders,
-      importAnimation,
-      createAnimation,
-      removeAnimation,
-      updateAnimation,
+      selectSample,
+      selectUpload,
+      clearSource,
+      setTheme,
+      toggleTheme,
       setSelectedAnimation,
-      setAnimationWeight,
-      addRigPreset,
-      removeRigPreset,
-      clearAll,
+      setSelectedProgram,
+      setSelectedPoseGroup,
+      setPanelVisibility,
     }),
     [
-      state,
-      importGlb,
-      importLowLevel,
-      importHighLevel,
-      removeHighLevel,
-      setRigSelection,
-      setSliderValue,
-      resetRigSliders,
-      importAnimation,
-      createAnimation,
-      removeAnimation,
-      updateAnimation,
+      clearSource,
+      selectSample,
+      selectUpload,
+      setTheme,
+      setPanelVisibility,
       setSelectedAnimation,
-      setAnimationWeight,
-      addRigPreset,
-      removeRigPreset,
-      clearAll,
+      setSelectedPoseGroup,
+      setSelectedProgram,
+      state,
+      toggleTheme,
     ],
   );
 
@@ -528,9 +253,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAppState(): AppStateContextValue {
-  const ctx = useContext(AppStateContext);
-  if (!ctx) {
+  const context = useContext(AppStateContext);
+  if (!context) {
     throw new Error("useAppState must be used within an AppStateProvider");
   }
-  return ctx;
+  return context;
 }

@@ -19,7 +19,7 @@ export function GazePlaySection() {
       />
       <ShowcaseRuntime
         namespace="gaze"
-        asset="hugoLatest"
+        asset="quoriCurrentExtended"
         active={hasEntered}
         autostart={isVisible}
         driveOrchestrator

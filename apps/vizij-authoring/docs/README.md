@@ -53,7 +53,7 @@ Archived docs are context only; active planning/execution should use the active 
 
 ## Update Rules
 
-1. Keep `ROADMAP.md`, `BACKLOG.md`, and `TRACKER.md synchronized when priorities change.
+1. Keep `ROADMAP.md`, `BACKLOG.md`, and `TRACKER.md` synchronized when priorities change.
 2. If behavior changes, update `UI_DESIGN.md` and `ARCHITECTURE.md` in the same change.
 3. Move superseded one-off planning docs into `docs/archive/`.
 4. Record new validation evidence in `TRACKER.md`.

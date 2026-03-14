@@ -504,6 +504,7 @@ export interface ViewerProps {
   rootId: string | null;
   namespace: string;
   bundle: VizijAssetBundle | null;
+  runtimeEnabled?: boolean;
   animationSourceActive?: boolean;
   animationRuntimeClip?: AnimationClipIR | null;
   animationTransportSessionKey?: number;
@@ -537,6 +538,7 @@ export function Viewer({
   rootId,
   namespace: _namespace,
   bundle,
+  runtimeEnabled = true,
   animationSourceActive = true,
   animationRuntimeClip = null,
   animationTransportSessionKey = 0,
@@ -633,7 +635,7 @@ export function Viewer({
   }, [applyStandardInputBatch, resetInputEntries, stopAnimationTimeline]);
 
   useEffect(() => {
-    if (rootId && bundle) {
+    if (rootId && bundle && runtimeEnabled) {
       return;
     }
     graphRuntimeStore.setState({
@@ -646,7 +648,7 @@ export function Viewer({
       runtimeViewOutputCount: 0,
     });
     onRuntimeInputsReady?.([], new Map());
-  }, [bundle, graphRuntimeStore, onRuntimeInputsReady, rootId]);
+  }, [bundle, graphRuntimeStore, onRuntimeInputsReady, rootId, runtimeEnabled]);
 
   const handleRuntimeControllersRegistered = useCallback(
     (ids: { graphs: string[]; anims: string[] }) => {
@@ -677,7 +679,7 @@ export function Viewer({
         </div>
       )}
       <div className="h-full w-full">
-        {rootId && bundle ? (
+        {rootId && bundle && runtimeEnabled ? (
           <VizijRuntimeProvider
             assetBundle={bundle}
             autostart
@@ -741,6 +743,19 @@ export function Viewer({
               />
             </div>
           </VizijRuntimeProvider>
+        ) : rootId && bundle ? (
+          <div
+            data-testid="main-runtime-disabled-state"
+            className="flex h-full w-full items-center justify-center p-8 text-center"
+          >
+            <div className="flex max-w-md flex-col gap-2 text-text-primary">
+              <p className="text-lg font-medium">Runtime Preview Disabled</p>
+              <p className="text-sm text-text-muted">
+                Memory investigation mode loaded the authoring face without
+                mounting the main runtime preview.
+              </p>
+            </div>
+          </div>
         ) : (
           <div
             data-testid="main-viewer-empty-state"
@@ -797,7 +812,7 @@ export function Viewer({
                     Load Quori
                   </Button>
                   <Button
-                    data-testid="main-preset-hugo-legacy"
+                    data-testid="main-preset-hugo-latest"
                     variant="secondary"
                     onClick={onLoadHugo}
                     size="md"

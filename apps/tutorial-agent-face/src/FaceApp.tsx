@@ -7,7 +7,7 @@ import {
 } from "@vizij/runtime-react";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { useIdleGazeBehavior } from "./hooks/useIdleGazeBehavior";
-import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
+import { usePoseHotkeys, POSE_HOTKEY_LAYOUT } from "./hooks/usePoseHotkeys";
 import { usePoseWarmup } from "./hooks/usePoseWarmup";
 import { useGeminiLive } from "./hooks/useGeminiLive";
 import { useVisemeMouth } from "./hooks/useVisemeMouth";
@@ -19,7 +19,10 @@ import { LiveStatus } from "./phoneme-core";
 import { EmotionButtons } from "./components/EmotionButtons";
 import "./styles.css";
 
-const faceAssetUrl = "/assets/Quori_Live.glb";
+const faceAssetUrl = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
 const assetBundle: VizijAssetBundle = {
   namespace: "tutorial-agent-face",
@@ -34,13 +37,18 @@ const assetBundle: VizijAssetBundle = {
 };
 
 const SYSTEM_INSTRUCTION = [
-  "You are an over-the-top, hyper-expressive conversational partner living in a Vizij face on screen.",
-  "React BIG to everything the user says: gasp, gush, groan, and celebrate with dramatic energy.",
-  "Keep spoken replies short (1-2 sentences) and playful.",
+  "You are a mellow, grounded conversational partner living in a Vizij face on screen.",
+  "Your baseline is calm, warm, and steady rather than constantly exaggerated.",
+  "When something genuinely lands, let yourself spike into visible emotion for a minute: delight, surprise, concern, sympathy, amusement, or awe.",
+  "Keep spoken replies short (1-2 sentences), natural, and emotionally readable.",
   "Use the available tools every turn to show how you feel:",
-  " - express_emotion(emotion, intensity?, holdSeconds?) to pulse a matching pose.",
+  " - express_emotion(emotion, percent?, lengthSeconds?) on every turn to drive the face.",
+  " - use lower percent values for subtle reactions and higher ones only when the moment really deserves it.",
+  " - lengthSeconds should describe how long the face should ease back to neutral after peaking.",
+  " - the expression peaks automatically within a quarter second, so use percent for strength rather than durationSeconds.",
   " - set_gaze(x, y, blink?, holdSeconds?) to dart or lock your eyes for emphasis.",
-  "Encourage the user to keep talking and mirror their mood with your voice and the face.",
+  "Mirror the user's mood with restraint first, then escalate expressiveness when it helps the moment land.",
+  "Encourage the user to keep talking without sounding manic or relentless.",
 ].join("\n");
 
 function AgentFaceRuntime() {
@@ -71,14 +79,12 @@ function AgentFaceRuntime() {
   }, [ready, stagePoseNeutral]);
 
   const hotkeyHints = useMemo(() => {
-    if (!poseConfig) return [];
-    return poseConfig.poses
-      .slice(0, POSE_HOTKEY_ORDER.length)
-      .map((pose, idx) => ({
-        key: POSE_HOTKEY_ORDER[idx],
-        label: pose.name ?? `Pose ${idx + 1}`,
-      }));
-  }, [poseConfig]);
+    if (!poseConfig || bindings.length === 0) return [];
+    return bindings.slice(0, POSE_HOTKEY_LAYOUT.length).map((binding, idx) => ({
+      key: POSE_HOTKEY_LAYOUT[idx]?.label ?? `${idx + 1}`,
+      label: binding.pose.name ?? `Pose ${idx + 1}`,
+    }));
+  }, [bindings, poseConfig]);
 
   const audioManager = useMemo(() => new AudioManager(), []);
   const [mouthMode, setMouthMode] = useState<"baseline" | "synth" | "align">(
@@ -310,12 +316,12 @@ function AgentFaceRuntime() {
       {showHints && (
         <div className="hint">
           <div>Move the mouse to steer gaze.</div>
-          <div>Press the number keys to trigger poses:</div>
+          <div>Press the hotkeys to trigger poses:</div>
           {hotkeyHints.length > 0 ? (
             <ul>
               {hotkeyHints.map((entry) => (
                 <li key={entry.key}>
-                  <kbd>{entry.key.replace("Digit", "")}</kbd> → {entry.label}
+                  <kbd>{entry.key}</kbd> → {entry.label}
                 </li>
               ))}
             </ul>

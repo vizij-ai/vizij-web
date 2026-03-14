@@ -5,6 +5,7 @@ import { GLTFLoader, DRACOLoader } from "three-stdlib";
 import type { AnimatableValue, RawVector2 } from "@vizij/utils";
 import type { World } from "../types/world";
 import type { VizijBundleExtension, VizijAnimationClipData } from "../types";
+import { recordRenderCounter } from "../memoryInvestigation";
 import { traverseThree } from "./gltf-loading/traverse-three";
 import { extractVizijBundle } from "./vizij-bundle";
 import { extractVizijAnimations } from "./gltf-loading/extract-animations";
@@ -29,6 +30,8 @@ type ParserJsonFallbackSource = {
   blob?: Blob;
   arrayBuffer?: ArrayBuffer;
 };
+
+type LoadSourceKind = "url" | "blob";
 
 export function parseGlbJsonChunk(buffer: ArrayBuffer): unknown | undefined {
   if (buffer.byteLength < GLB_HEADER_BYTES + GLB_CHUNK_HEADER_BYTES) {
@@ -120,25 +123,13 @@ export async function loadGLTF(
     size: RawVector2;
   },
 ): Promise<[World, Record<string, AnimatableValue>, VizijAnimationClipData[]]> {
-  const modelLoader = new GLTFLoader();
-  modelLoader.setDRACOLoader(new DRACOLoader());
-
-  const modelData = await modelLoader.loadAsync(url);
-  const parserJson = await resolveParserJson((modelData as any)?.parser?.json, {
+  const asset = await loadGLTFWithBundleInternal(
     url,
-  });
-
-  const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
-
-  const asset = parseScene(
-    modelData.scene,
-    actualizedNamespaces,
+    namespaces,
     aggressiveImport,
     rootBounds,
-    parserJson,
-    modelData.animations,
+    "url",
   );
-
   return [asset.world, asset.animatables, asset.animations];
 }
 
@@ -156,11 +147,12 @@ export async function loadGLTFFromBlob(
   if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
     const objectUrl = URL.createObjectURL(blob);
     try {
-      const asset = await loadGLTFWithBundle(
+      const asset = await loadGLTFWithBundleInternal(
         objectUrl,
         actualizedNamespaces,
         aggressiveImport,
         rootBounds,
+        "blob",
         { blob },
       );
       return [asset.world, asset.animatables, asset.animations];
@@ -175,8 +167,7 @@ export async function loadGLTFFromBlob(
       : await new Response(blob).arrayBuffer();
 
   return new Promise((resolve, reject) => {
-    const loader = new GLTFLoader();
-    loader.setDRACOLoader(new DRACOLoader());
+    const loader = createTrackedGLTFLoader();
 
     loader.parse(
       arrayBuffer,
@@ -253,7 +244,15 @@ function parseScene(
   return { world, animatables, bundle, animations, scene };
 }
 
-export async function loadGLTFWithBundle(
+function createTrackedGLTFLoader() {
+  recordRenderCounter("gltfLoadCount");
+  recordRenderCounter("dracoLoaderCreationCount");
+  const modelLoader = new GLTFLoader();
+  modelLoader.setDRACOLoader(new DRACOLoader());
+  return modelLoader;
+}
+
+async function loadGLTFWithBundleInternal(
   url: string,
   namespaces: string[],
   aggressiveImport = false,
@@ -261,11 +260,16 @@ export async function loadGLTFWithBundle(
     center: RawVector2;
     size: RawVector2;
   },
+  sourceKind: LoadSourceKind = "url",
   parserJsonFallback?: ParserJsonFallbackSource,
 ): Promise<LoadedVizijAsset> {
-  const modelLoader = new GLTFLoader();
-  modelLoader.setDRACOLoader(new DRACOLoader());
+  if (sourceKind === "url") {
+    recordRenderCounter("gltfUrlLoadCount");
+  } else {
+    recordRenderCounter("gltfBlobLoadCount");
+  }
 
+  const modelLoader = createTrackedGLTFLoader();
   const modelData = await modelLoader.loadAsync(url);
   const parserJson = await resolveParserJson((modelData as any)?.parser?.json, {
     url,
@@ -284,6 +288,26 @@ export async function loadGLTFWithBundle(
   );
 }
 
+export async function loadGLTFWithBundle(
+  url: string,
+  namespaces: string[],
+  aggressiveImport = false,
+  rootBounds?: {
+    center: RawVector2;
+    size: RawVector2;
+  },
+  parserJsonFallback?: ParserJsonFallbackSource,
+): Promise<LoadedVizijAsset> {
+  return loadGLTFWithBundleInternal(
+    url,
+    namespaces,
+    aggressiveImport,
+    rootBounds,
+    "url",
+    parserJsonFallback,
+  );
+}
+
 export async function loadGLTFFromBlobWithBundle(
   blob: Blob,
   namespaces: string[],
@@ -298,11 +322,12 @@ export async function loadGLTFFromBlobWithBundle(
   if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
     const objectUrl = URL.createObjectURL(blob);
     try {
-      return await loadGLTFWithBundle(
+      return await loadGLTFWithBundleInternal(
         objectUrl,
         actualizedNamespaces,
         aggressiveImport,
         rootBounds,
+        "blob",
         { blob },
       );
     } finally {
@@ -316,8 +341,7 @@ export async function loadGLTFFromBlobWithBundle(
       : await new Response(blob).arrayBuffer();
 
   return new Promise((resolve, reject) => {
-    const loader = new GLTFLoader();
-    loader.setDRACOLoader(new DRACOLoader());
+    const loader = createTrackedGLTFLoader();
 
     loader.parse(
       arrayBuffer,

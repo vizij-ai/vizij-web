@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useEffectEvent, useMemo } from "react";
 import {
   AnimationProvider,
   useAnimTarget,
@@ -12,7 +12,6 @@ import {
   valueAsVec3,
   valueAsVector,
   useGraphLoaded,
-  useSafeEval,
 } from "@vizij/node-graph-react";
 import { toValueJSON } from "@vizij/value-json";
 import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
@@ -45,7 +44,6 @@ interface FrameSnapshot {
 function IkGraphInner() {
   const runtime = useGraphRuntime();
   const { graphLoaded, waitForGraphReady } = useGraphLoaded();
-  const { stageAndEval } = useSafeEval();
 
   const joint1Anim = useAnimTarget(ikPaths.jointAnimation.joint1);
   const joint2Anim = useAnimTarget(ikPaths.jointAnimation.joint2);
@@ -102,26 +100,31 @@ function IkGraphInner() {
     (prev, next) => prev?.version === next?.version,
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  const syncJointInputs = useEffectEvent(
+    async (nextJointInputs: number[], isCancelled: () => boolean) => {
       try {
         await waitForGraphReady();
-        if (cancelled) return;
-        await stageAndEval(
+        if (isCancelled()) return;
+        runtime.stageInput?.(
           ikPaths.jointInput,
-          toValueJSON(jointInputs),
+          toValueJSON(nextJointInputs),
           undefined,
           false,
         );
+        runtime.evalAll?.();
       } catch (err) {
         console.error("[IkGraphDemo] Failed to stage joint inputs", err);
       }
-    })();
+    },
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void syncJointInputs(jointInputs, () => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [waitForGraphReady, stageAndEval, jointInputs]);
+  }, [jointInputs]);
 
   const handleIkParamsApplied = useCallback(
     (params: IkPanelAppliedParams) => {

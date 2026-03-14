@@ -81,7 +81,7 @@ export function useGeminiLive(
       | string
       | undefined;
     if (!apiKey) {
-      setError("Missing VITE_GEMINI_API_KEY (see README)");
+      setError("Missing VITE_GEMINI_API_KEY (see README.md)");
       setStatus(LiveStatus.ERROR);
       return;
     }

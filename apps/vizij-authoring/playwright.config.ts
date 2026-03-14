@@ -1,5 +1,11 @@
 import { defineConfig } from "@playwright/test";
 
+const serverMode =
+  process.env.VIZIJ_E2E_SERVER_MODE === "dev" ? "dev" : "preview";
+const port = serverMode === "dev" ? 4176 : 4175;
+const host = "127.0.0.1";
+const baseURL = `http://${host}:${port}`;
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.pw.ts",
@@ -12,7 +18,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: "http://127.0.0.1:4175",
+    baseURL,
     browserName: "chromium",
     headless: !process.env.PWDEBUG,
     trace: "on-first-retry",
@@ -31,10 +37,12 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "pnpm --filter vizij-authoring build && pnpm --filter vizij-authoring preview --host 127.0.0.1 --port 4175",
+      serverMode === "dev"
+        ? `NODE_ENV=development pnpm --filter vizij-authoring dev --host ${host} --port ${port}`
+        : `pnpm --filter vizij-authoring build && pnpm --filter vizij-authoring preview --host ${host} --port ${port}`,
     cwd: "../..",
-    url: "http://127.0.0.1:4175",
+    url: baseURL,
     timeout: 120_000,
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
   },
 });

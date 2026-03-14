@@ -1,6 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{Parser, Subcommand};
 use log::{info, LevelFilter};
+use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
@@ -28,7 +29,22 @@ struct AppState {
     api_url: Option<String>,
     auto_mic: Option<bool>,
     speech_mode: Option<String>,
+    silence_ms: Option<u32>,
     mic_muted: std::sync::Mutex<bool>,
+    transport_catalog: std::sync::Mutex<TransportCatalog>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct TransportCatalog {
+    animations: Vec<TransportEntry>,
+    programs: Vec<TransportEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TransportEntry {
+    id: String,
+    label: String,
+    state: String,
 }
 
 /// CLI structure with optional subcommands
@@ -103,6 +119,11 @@ struct Cli {
     #[cfg(feature = "ros2")]
     #[arg(long, default_value = "vizij")]
     ros2_namespace: String,
+
+    /// Silence duration in milliseconds before auto-stopping the microphone (server-side VAD).
+    /// Defaults to 1500ms in conversation mode. Set to 0 to disable.
+    #[arg(long)]
+    silence_ms: Option<u32>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -319,6 +340,9 @@ async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String
     if let Some(ref mode) = state.speech_mode {
         keys.insert("speechMode".to_string(), mode.clone());
     }
+    if let Some(silence_ms) = state.silence_ms {
+        keys.insert("silenceMs".to_string(), silence_ms.to_string());
+    }
     keys
 }
 
@@ -327,6 +351,16 @@ async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String
 async fn set_mic_muted_state(app_handle: tauri::AppHandle, muted: bool) {
     let state = app_handle.state::<AppState>();
     *state.mic_muted.lock().unwrap() = muted;
+}
+
+#[tauri::command]
+async fn set_transport_catalog(
+    app_handle: tauri::AppHandle,
+    catalog: TransportCatalog,
+) -> Result<(), String> {
+    let state = app_handle.state::<AppState>();
+    *state.transport_catalog.lock().unwrap() = catalog;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -421,6 +455,11 @@ pub fn run() {
                 .speech_mode
                 .clone()
                 .or_else(|| std::env::var("SPEECH_MODE").ok());
+            let silence_ms = cli.silence_ms.or_else(|| {
+                std::env::var("SILENCE_MS")
+                    .ok()
+                    .and_then(|v| v.parse::<u32>().ok())
+            });
 
             app.manage(AppState {
                 connection_manager: Arc::new(manager),
@@ -433,7 +472,9 @@ pub fn run() {
                 api_url,
                 auto_mic,
                 speech_mode,
+                silence_ms,
                 mic_muted: std::sync::Mutex::new(true),
+                transport_catalog: std::sync::Mutex::new(TransportCatalog::default()),
             });
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -554,6 +595,7 @@ pub fn run() {
             respond_slot_values,
             get_speech_keys,
             set_mic_muted_state,
+            set_transport_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

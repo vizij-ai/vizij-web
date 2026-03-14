@@ -1,306 +1,165 @@
-# Tutorial: Vizij Runtime React Quickstart
+# `tutorial-fullscreen-face` Runtime Walkthrough
 
-This guide shows how to stand up a fullscreen Vizij face using the **new `@vizij/runtime-react` package**. The runtime bundles the renderer, orchestrator, asset loading, graph merging, and value bridging so you only have to define an asset bundle and render a component.
+`tutorial-fullscreen-face` is the smallest maintained reference app for the current `@vizij/runtime-react` stack. It shows the default bundle-first path without layering on live speech, diagnostics panels, or shared orchestrator coordination.
 
----
+If you want to understand the baseline runtime flow, start here.
 
-## 1. Prerequisites
+## 1. Runtime Shape
 
-- Node.js ≥ 18
-- React + TypeScript project (Vite, CRA, Next, etc.)
-- Vizij export bundle: a GLB exported from vizij-authoring with the **“Embed Vizij bundle”** option enabled (the `VIZIJ_bundle` extension carries rig graphs, pose configs, and animations). Legacy exports with separate JSON files still work if you prefer to supply them manually.
+The app uses one `VizijAssetBundle` and one `VizijRuntimeProvider`.
 
-> The tutorial demo stores these files under `src/assets/`. Adjust paths to match your project layout.
+Current flow:
 
----
+1. load a bundled GLB
+2. let runtime-react extract the embedded `VIZIJ_bundle`
+3. stage the face back to neutral once the runtime is ready
+4. render with `VizijRuntimeFace`
+5. drive gaze and pose weights through `useVizijRuntime()`
 
-## 2. Install dependencies
+The code lives primarily in [`src/FaceApp.tsx`](./src/FaceApp.tsx).
 
-```bash
-pnpm add react react-dom three
-pnpm add @vizij/runtime-react @vizij/render @vizij/utils
-```
+## 2. The Bundle
 
-`@vizij/runtime-react` reuses `@vizij/render`, `@vizij/orchestrator-react`, and `@vizij/value-json` internally, so you don’t have to install them separately unless other parts of your app need them.
+The app points directly at the current Quori reference asset from `vizij-authoring`:
 
----
+```tsx
+const faceAssetUrl = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
-## 3. Define the asset bundle
-
-Create an index alongside your exported files so the bundle stays declarative and type-safe.
-
-```ts
-// src/assets/index.ts
-import faceGlb from "./face.glb";
-
-import type { VizijAssetBundle } from "@vizij/runtime-react";
-
-export const fullscreenFaceBundle: VizijAssetBundle = {
+const assetBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",
   glb: {
     kind: "url",
-    src: faceGlb,
+    src: faceAssetUrl,
     aggressiveImport: true,
   },
   pose: {
-    // Optional: keep GLB colours intact by skipping colour channels
     stageNeutralFilter: (_id, path) => !path.includes("/color/"),
   },
 };
 ```
 
-### Why the filter?
+Important details:
 
-Neutral configs often set every colour channel to `0`. Returning `false` for paths containing `/color/` prevents neutral staging from overwriting the GLB’s baked colours. The runtime fills in the rig + pose data from the embedded bundle automatically.
+- `namespace` gives this runtime a stable identity.
+- `aggressiveImport: true` keeps Vite/asset handling simple for local tutorial use.
+- `stageNeutralFilter` prevents neutral staging from zeroing color channels baked into the GLB.
 
----
+This app does not manually provide `rig`, `pose.graph`, `animations`, or `programs`. It relies on the embedded bundle, which is the current recommended default.
 
-## 4. Wrap your app with the runtime provider
+## 3. Provider Wiring
 
-Replace the old renderer/orchestrator wiring with a single provider + runtime-aware face component.
+The runtime bootstrap is intentionally small:
 
 ```tsx
-// src/FaceApp.tsx
-import { useEffect, useMemo } from "react";
-import {
-  VizijRuntimeProvider,
-  VizijRuntimeFace,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
-
-import { fullscreenFaceBundle } from "./assets";
-import { useMouseGaze } from "./hooks/useMouseGaze";
-import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
-
 export function FaceApp() {
   return (
-    <VizijRuntimeProvider assetBundle={fullscreenFaceBundle} autostart>
+    <VizijRuntimeProvider assetBundle={assetBundle} autostart>
+      <VizijRuntimeHud />
       <FaceRuntime />
     </VizijRuntimeProvider>
   );
 }
-
-function FaceRuntime() {
-  const { ready, loading, error, stagePoseNeutral, assetBundle } =
-    useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const gazeRef = useMouseGaze(ready);
-  usePoseHotkeys(poseConfig, ready);
-
-  useEffect(() => {
-    if (ready) stagePoseNeutral();
-  }, [ready, stagePoseNeutral]);
-
-  const hotkeyHints = useMemo(
-    () =>
-      (poseConfig?.poses ?? [])
-        .slice(0, POSE_HOTKEY_ORDER.length)
-        .map((pose, idx) => ({
-          key: POSE_HOTKEY_ORDER[idx],
-          label: pose.name ?? `Pose ${idx + 1}`,
-        })),
-    [poseConfig],
-  );
-
-  if (loading) return <Status message="Loading face…" />;
-  if (error) return <Status tone="error" message={error.message} />;
-  if (!ready) return <Status message="Initialising orchestrator…" />;
-
-  return (
-    <div className="fullscreen">
-      <div ref={gazeRef} className="canvas-wrapper">
-        <VizijRuntimeFace className="face-canvas" showSafeArea />
-      </div>
-      <Hints hotkeyHints={hotkeyHints} />
-    </div>
-  );
-}
-
-function Status({ message, tone }: { message: string; tone?: "error" }) {
-  const className = tone === "error" ? "status error" : "status";
-  return (
-    <div className="fullscreen">
-      <div className={className}>{message}</div>
-    </div>
-  );
-}
 ```
 
-> `VizijRuntimeFace` automatically discovers the GLB root id and namespace from the provider, so you no longer need the custom `<FaceCanvas />` wrapper.
+What this gives the app:
 
----
+- asset loading
+- orchestrator creation
+- graph/clip/program registration
+- merged runtime status
+- renderer-store bridging
 
-## 5. Optional interaction helpers
+There is no custom `OrchestratorProvider` in this tutorial because it does not need a shared runtime topology.
 
-- **Mouse gaze:** Update rig inputs in response to pointer movement.
-- **Hotkeys:** Stage pose weights with a single button press.
-- **Runtime hooks:** `useVizijRuntime()` exposes `setInput`, `animateValue`, `playAnimation`, and other orchestrator helpers.
+## 4. Ready / Loading / Error Handling
 
-### Mouse gaze example
+`FaceRuntime()` reads the runtime state from `useVizijRuntime()`:
 
 ```tsx
-// src/hooks/useMouseGaze.ts
-import { useEffect, useRef } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-
-const STANDARD_PATHS = {
-  leftX: "standard/left_eye/pos/x",
-  leftY: "standard/left_eye/pos/y",
-  rightX: "standard/right_eye/pos/x",
-  rightY: "standard/right_eye/pos/y",
-} as const;
-
-export function useMouseGaze(enabled: boolean) {
-  const { setInput, faceId } = useVizijRuntime();
-  const ref = useRef<HTMLDivElement>(null);
-  const resolvedFaceId = (faceId ?? "face").toLowerCase();
-
-  useEffect(() => {
-    if (!enabled || !ref.current) return;
-    const node = ref.current;
-
-    const clamp = (value: number) => Math.min(Math.max(value, -1), 1);
-    const setEye = (path: string, value: number) => {
-      setInput(`rig/${resolvedFaceId}/${path}`, { float: clamp(value) });
-    };
-
-    const handlePointer = (event: PointerEvent) => {
-      const rect = node.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      const xRatio = (event.clientX - rect.left) / rect.width;
-      const yRatio = (event.clientY - rect.top) / rect.height;
-      const normalizedX = clamp(xRatio * 2 - 1);
-      const normalizedY = clamp((1 - yRatio) * 2 - 1);
-      setEye(STANDARD_PATHS.leftX, normalizedX);
-      setEye(STANDARD_PATHS.rightX, normalizedX);
-      setEye(STANDARD_PATHS.leftY, normalizedY);
-      setEye(STANDARD_PATHS.rightY, normalizedY);
-    };
-
-    const reset = () => {
-      setEye(STANDARD_PATHS.leftX, 0);
-      setEye(STANDARD_PATHS.leftY, 0);
-      setEye(STANDARD_PATHS.rightX, 0);
-      setEye(STANDARD_PATHS.rightY, 0);
-    };
-
-    node.addEventListener("pointermove", handlePointer);
-    node.addEventListener("pointerdown", handlePointer);
-    node.addEventListener("pointerleave", reset);
-    node.addEventListener("pointerup", reset);
-
-    return () => {
-      node.removeEventListener("pointermove", handlePointer);
-      node.removeEventListener("pointerdown", handlePointer);
-      node.removeEventListener("pointerleave", reset);
-      node.removeEventListener("pointerup", reset);
-    };
-  }, [enabled, setInput, resolvedFaceId]);
-
-  return ref;
-}
+const { ready, loading, error, stagePoseNeutral, assetBundle } =
+  useVizijRuntime();
 ```
 
-### Pose hotkeys example
+This app uses the resolved `assetBundle` from context, not the original input object, so embedded pose config becomes available once the bundle has loaded.
+
+Once `ready` flips true, the app calls:
 
 ```tsx
-// src/hooks/usePoseHotkeys.ts
-import { useEffect } from "react";
-import {
-  useVizijRuntime,
-  type PoseRigConfig,
-  type PoseDefinition,
-} from "@vizij/runtime-react";
-
-export const POSE_HOTKEY_ORDER = [
-  "Digit1",
-  "Digit2",
-  "Digit3",
-  "Digit4",
-  "Digit5",
-] as const;
-
-const toPathSegment = (pose: PoseDefinition) =>
-  (pose.name ?? pose.id ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-export function usePoseHotkeys(config: PoseRigConfig | null, enabled: boolean) {
-  const { setInput, faceId } = useVizijRuntime();
-  const resolvedFaceId = (faceId ?? "face").toLowerCase();
-
-  useEffect(() => {
-    if (!enabled || !config) return;
-
-    const bindings = POSE_HOTKEY_ORDER.reduce((acc, code, index) => {
-      const pose = config.poses[index];
-      if (pose) acc.set(code, pose);
-      return acc;
-    }, new Map<string, PoseDefinition>());
-    if (bindings.size === 0) return;
-
-    const activeKeys = new Set<string>();
-
-    const applyWeight = (pose: PoseDefinition, weight: number) => {
-      const path = `rig/${resolvedFaceId}/poses/${toPathSegment(pose)}.weight`;
-      setInput(path, { float: weight });
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const pose = bindings.get(event.code);
-      if (!pose || activeKeys.has(event.code)) return;
-      activeKeys.add(event.code);
-      applyWeight(pose, 1);
-    };
-
-    const handleKeyUp = (event: KeyboardEvent) => {
-      const pose = bindings.get(event.code);
-      if (!pose) return;
-      activeKeys.delete(event.code);
-      applyWeight(pose, 0);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      bindings.forEach((pose) => applyWeight(pose, 0));
-    };
-  }, [config, enabled, resolvedFaceId, setInput]);
-}
+stagePoseNeutral();
 ```
 
----
+That resets authored pose channels to their neutral values before the user starts interacting with the face.
 
-## 6. Runtime helpers worth knowing
+## 5. Rendering The Face
 
-`useVizijRuntime()` returns everything you need to drive the face:
+Rendering is handled by `VizijRuntimeFace`:
 
-| Helper                                              | Purpose                                             |
-| --------------------------------------------------- | --------------------------------------------------- |
-| `ready / loading / error`                           | Lifecycle flags for UI states                       |
-| `namespace`, `faceId`, `rootId`                     | Useful when wiring custom logic                     |
-| `setInput(path, value)`                             | Stage values directly into the orchestrator         |
-| `animateValue(path, target, options?)`              | Tween input values over time                        |
-| `playAnimation(id, options?)` / `stopAnimation(id)` | Trigger registered animation clips                  |
-| `stagePoseNeutral(force?)`                          | Stage (filtered) neutral inputs on demand           |
-| `useVizijOutputs(paths)`                            | Subscribe to renderer values (e.g., debug overlays) |
-| `useRigInput(path)`                                 | Read/write a single channel as `[value, setValue]`  |
+```tsx
+<VizijRuntimeFace className="face-canvas" showSafeArea={false} />
+```
 
-Because the provider already registers rig + pose graphs and mirrors orchestrator writes into the renderer, you typically only need a few of these helpers to build rich interactions.
+The component already knows:
 
----
+- which `namespace` to read from
+- which `rootId` was resolved from the GLB/world
 
-## 7. Summary
+So this tutorial does not need a custom renderer wrapper.
 
-With `@vizij/runtime-react` you can bootstrap a Vizij face in three moves:
+## 6. Mouse Gaze
 
-1. **Define a `VizijAssetBundle`.**
-2. **Wrap your app with `<VizijRuntimeProvider assetBundle={...}>`.**
-3. **Render `<VizijRuntimeFace />` and hook into `useVizijRuntime()` as needed.**
+[`src/hooks/useMouseGaze.ts`](./src/hooks/useMouseGaze.ts) is the simplest example of writing runtime inputs directly.
 
-Everything else—GLB parsing, rig/pose merging, frame conversion, and orchestrator lifecycle—is handled automatically. Use runtime hooks to add gaze steering, hotkeys, or animation triggers without re-implementing the renderer/orchestrator bridge.
+Pattern:
+
+1. read `setInput()` and `faceId` from `useVizijRuntime()`
+2. normalize pointer movement to `[-1, 1]`
+3. write full rig paths like `rig/{faceId}/standard/...`
+
+This tutorial still uses direct eye paths because it is intentionally minimal. Larger apps such as `tutorial-agent-face` and `vizij-showcase` also use runtime-react’s face-control helpers when they need more adaptive control discovery.
+
+## 7. Pose Hotkeys
+
+[`src/hooks/usePoseHotkeys.ts`](./src/hooks/usePoseHotkeys.ts) is more representative of the current runtime-react API shape.
+
+It does not build pose paths from pose names manually. Instead it uses:
+
+- `buildPoseWeightPathMap()`
+- `filterPosesBySemanticKind()`
+- `getPoseSemanticKey()`
+- `EXPRESSIVE_EMOTION_POSE_KEYS`
+
+That means the app can:
+
+- derive canonical pose-weight paths from the loaded pose config
+- prefer expressive emotion poses first
+- fill the remaining hotkeys with other emotion, viseme, and fallback poses
+
+The hotkey hook then animates pose weights through:
+
+```tsx
+animateValue(binding.path, { float: weight }, { duration: 2 });
+```
+
+This is the current recommended pattern for short-lived pose gestures.
+
+## 8. What This Tutorial Deliberately Does Not Cover
+
+This app is intentionally narrower than the other runtime-react examples in the repo.
+
+It does not cover:
+
+- uploaded GLB sources
+- diagnostics panels
+- clip/program transport UIs
+- shared orchestrator mode
+- runtime graph hot-swapping with `setGraphBundle()`
+- live speech, visemes, or tool-driven emotions
+
+For those patterns, continue with:
+
+- [`apps/tutorial-agent-face/tutorial.md`](../tutorial-agent-face/tutorial.md)
+- [`apps/demo-vizij-player/docs/runtime-react-walkthrough.md`](../demo-vizij-player/docs/runtime-react-walkthrough.md)
+- [`packages/@vizij/runtime-react/README.md`](../../packages/@vizij/runtime-react/README.md)

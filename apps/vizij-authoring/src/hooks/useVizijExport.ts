@@ -142,6 +142,7 @@ interface UseVizijExportOptions {
   poseRig: PoseRigExportState;
   authoredMotionGraphs?: MotionGraphExportEntry[];
   getMotionGraphSpec?: () => { nodes: unknown[]; edges: unknown[] } | null;
+  activeMotionGraphId?: string | null;
   onExportGlbComplete?: () => void;
 }
 
@@ -593,6 +594,7 @@ export function useVizijExport(
     poseRig,
     authoredMotionGraphs,
     getMotionGraphSpec,
+    activeMotionGraphId,
     onExportGlbComplete,
   } = options;
 
@@ -987,6 +989,19 @@ export function useVizijExport(
             ]);
           }
         }
+
+        if (
+          bundle &&
+          activeMotionGraphId &&
+          bundle.graphs?.some(
+            (g) => g.kind === "motiongraph" && g.id === activeMotionGraphId,
+          )
+        ) {
+          bundle = {
+            ...bundle,
+            metadata: { ...bundle.metadata, activeMotionGraphId },
+          };
+        }
       }
 
       if (bundle?.graphs?.length) {
@@ -1086,6 +1101,7 @@ export function useVizijExport(
     alertDialog,
     animatableComponents,
     animatables,
+    activeMotionGraphId,
     authoredMotionGraphs,
     bindings,
     collectAnimatableExportState,

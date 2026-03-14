@@ -65,4 +65,128 @@ describe("applyRuntimeGraphBundle", () => {
       spec: { nodes: [{ id: "rig-2", type: "input" }] },
     });
   });
+
+  it("preserves explicit rig removals as own undefined properties", () => {
+    const baseBundle = {
+      ...base,
+      rig: { id: "rig-v1", spec: { nodes: [{ id: "rig-1", type: "input" }] } },
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      rig: undefined,
+    });
+
+    expect(Object.prototype.hasOwnProperty.call(next, "rig")).toBe(true);
+    expect(next.rig).toBeUndefined();
+  });
+
+  it("preserves explicit pose removals as own undefined properties", () => {
+    const baseBundle = {
+      ...base,
+      pose: {
+        graph: { id: "pose", spec: { nodes: [{ id: "pose", type: "input" }] } },
+      },
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      pose: undefined,
+    });
+
+    expect(Object.prototype.hasOwnProperty.call(next, "pose")).toBe(true);
+    expect(next.pose).toBeUndefined();
+  });
+
+  it("preserves programs while applying rig overrides", () => {
+    const baseBundle = {
+      ...base,
+      programs: [
+        {
+          id: "wave",
+          label: "Wave",
+          graph: {
+            id: "wave",
+            spec: { nodes: [{ id: "out", type: "output" }], edges: [] },
+          },
+        },
+      ],
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      rig: { id: "rig-v2", spec: { nodes: [{ id: "rig-2", type: "input" }] } },
+    });
+
+    expect(next.programs).toEqual(baseBundle.programs);
+  });
+
+  it("applies program overrides independently from animations", () => {
+    const baseBundle = {
+      ...base,
+      animations: [{ id: "a", clip: { tracks: [] } }],
+      programs: [
+        {
+          id: "wave",
+          graph: { id: "wave", spec: { nodes: [], edges: [] } },
+        },
+      ],
+    } as any;
+
+    const next = applyRuntimeGraphBundle(baseBundle, {
+      programs: [
+        {
+          id: "blink",
+          graph: { id: "blink", spec: { nodes: [{ id: "x" }], edges: [] } },
+        },
+      ],
+    });
+
+    expect(next.animations).toEqual(baseBundle.animations);
+    expect(next.programs).toEqual([
+      {
+        id: "blink",
+        graph: { id: "blink", spec: { nodes: [{ id: "x" }], edges: [] } },
+      },
+    ]);
+  });
+
+  it("treats same-size blob swaps as asset reloads", () => {
+    const prev = {
+      ...base,
+      glb: {
+        kind: "blob",
+        blob: new Blob(["abc"]),
+      },
+    } as any;
+    const next = {
+      ...base,
+      glb: {
+        kind: "blob",
+        blob: new Blob(["xyz"]),
+      },
+    } as any;
+
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(true);
+  });
+
+  it("treats URL import option changes as asset reloads", () => {
+    const prev = {
+      ...base,
+      glb: {
+        kind: "url",
+        src: "/face.glb",
+        aggressiveImport: false,
+      },
+    } as any;
+    const next = {
+      ...base,
+      glb: {
+        kind: "url",
+        src: "/face.glb",
+        aggressiveImport: true,
+      },
+    } as any;
+
+    const plan = resolveRuntimeUpdatePlan(prev, next, "graphs");
+    expect(plan.reloadAssets).toBe(true);
+  });
 });

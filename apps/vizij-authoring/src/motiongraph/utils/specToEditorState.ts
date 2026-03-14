@@ -207,9 +207,30 @@ export function specToEditorState(
     }
   }
 
-  // ── 5. Auto-layout ────────────────────────────────────────────────
+  // ── 5. Restore saved layout or fall back to auto-layout ──────────
 
-  applyAutoLayout(editorNodes, editorEdges);
+  const layout = spec.layout as
+    | Record<string, { x: number; y: number }>
+    | undefined;
+
+  if (layout && typeof layout === "object") {
+    let hasAnyPosition = false;
+    for (const node of editorNodes) {
+      const pos = layout[node.id];
+      if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
+        node.position = { x: pos.x, y: pos.y };
+        hasAnyPosition = true;
+      }
+    }
+    // If some nodes had no saved position (e.g. added after the layout was
+    // saved), fall back to auto-layout for the entire graph so it stays
+    // consistent.
+    if (!hasAnyPosition) {
+      applyAutoLayout(editorNodes, editorEdges);
+    }
+  } else {
+    applyAutoLayout(editorNodes, editorEdges);
+  }
 
   return {
     nodes: editorNodes,

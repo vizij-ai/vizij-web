@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   Panel as ResizablePanel,
   Group as PanelGroup,
@@ -93,6 +94,10 @@ import {
   buildGlbExportDirtySnapshot,
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
+import {
+  getMemoryInvestigationFlags,
+  updateMemoryDebugState,
+} from "./debug/memoryInvestigation";
 import { createEditFocusPanelVisibility } from "./state/editFocusPanels";
 import {
   areActiveInspectorTargetsEqual,
@@ -141,6 +146,91 @@ function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
     runtimeRootId: null,
   };
 }
+
+function MemoryDebugBridge({ loader }: { loader: VizijAssetLoaderState }) {
+  const memoryInvestigation = getMemoryInvestigationFlags();
+  const authoringWorldEntryCount = useVizijStore(
+    (state) => Object.keys(state.world).length,
+  );
+  const authoringAnimatableCount = useVizijStore(
+    (state) => Object.keys(state.animatables).length,
+  );
+  const authoringValuesSize = useVizijStore((state) => state.values.size);
+  const graphRuntimeDebug = useGraphRuntime(
+    useShallow((state) => ({
+      faceId: state.faceId,
+      faceSegment: state.faceSegment,
+      graphStatus: state.graphStatus,
+      graphError: state.graphError,
+      graphWarning: state.graphWarning ?? null,
+      graphPlaybackState: state.graphPlaybackState,
+      graphPlaybackAvailable: state.graphPlaybackAvailable,
+      graphFrameRate: state.graphFrameRate,
+      graphTimeSeconds: state.graphTimeSeconds,
+      runtimeViewReady: state.runtimeViewReady,
+      runtimeViewLoading: state.runtimeViewLoading,
+      runtimeViewRootId: state.runtimeViewRootId,
+      runtimeViewGraphCount: state.runtimeViewGraphCount,
+      runtimeViewOutputCount: state.runtimeViewOutputCount,
+      worldEntryCount: Object.keys(state.world).length,
+      animatableCount: Object.keys(state.animatables).length,
+      valuesSize: state.values.size,
+    })),
+  );
+
+  useEffect(() => {
+    if (!memoryInvestigation.enabled) {
+      return;
+    }
+    updateMemoryDebugState((state) => {
+      state.authoring = {
+        rootId: loader.rootId,
+        sourceName: loader.sourceName,
+        isLoading: loader.isLoading,
+        error: loader.error,
+        bundlePresent: loader.bundle !== null,
+        exportSceneRootPresent: loader.exportSceneRoot !== null,
+        worldEntryCount: authoringWorldEntryCount,
+        animatableCount: authoringAnimatableCount,
+        valuesSize: authoringValuesSize,
+        faceLoadProgress: loader.faceLoadProgress,
+        isImportFlowActive: loader.isImportFlowActive,
+        faceLoadSourceLabel: loader.faceLoadSourceLabel,
+        faceLoadSessionToken: loader.faceLoadSessionToken,
+        faceLoadSessionStartedAtMs: loader.faceLoadSessionStartedAtMs,
+        faceLoadSessionCompletedAtMs: loader.faceLoadSessionCompletedAtMs,
+        faceLoadInFlightOperationCount: loader.faceLoadInFlightOperationCount,
+        faceLoadLastOperationUpdateAtMs: loader.faceLoadLastOperationUpdateAtMs,
+        faceLoadMilestones: { ...loader.faceLoadMilestones },
+      };
+      state.graphRuntime = { ...graphRuntimeDebug };
+    });
+  }, [
+    authoringAnimatableCount,
+    authoringValuesSize,
+    authoringWorldEntryCount,
+    graphRuntimeDebug,
+    loader.bundle,
+    loader.error,
+    loader.exportSceneRoot,
+    loader.faceLoadInFlightOperationCount,
+    loader.faceLoadLastOperationUpdateAtMs,
+    loader.faceLoadMilestones,
+    loader.faceLoadProgress,
+    loader.faceLoadSessionCompletedAtMs,
+    loader.faceLoadSessionStartedAtMs,
+    loader.faceLoadSessionToken,
+    loader.faceLoadSourceLabel,
+    loader.isImportFlowActive,
+    loader.isLoading,
+    loader.rootId,
+    loader.sourceName,
+    memoryInvestigation.enabled,
+  ]);
+
+  return null;
+}
+
 const QUARTER_TURN_RADIANS = Math.PI / 2;
 const UNKNOWN_FACE_LOAD_STEP_WEIGHT = 6;
 const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
@@ -536,6 +626,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     markImportFlowError,
     completeImportFlow,
   } = loader;
+  const memoryInvestigation = getMemoryInvestigationFlags();
+  const runtimeInvestigationBypassed =
+    memoryInvestigation.enabled && !memoryInvestigation.mainRuntimeEnabled;
 
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
@@ -625,7 +718,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadHugo = useCallback(() => {
-    handleLoadAssetFromUrl("/assets/Hugo_Legacy.glb", "Hugo_Legacy.glb");
+    handleLoadAssetFromUrl(
+      "/assets/Hugo_Current_Extended.glb",
+      "Hugo_Current_Extended.glb",
+    );
   }, [handleLoadAssetFromUrl]);
 
   const handleLoadPresetAsset = useCallback(
@@ -2919,6 +3015,30 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     selectedProceduralTargetId,
   ]);
 
+  const activeMotionGraphIdForExport = useMemo<string | null>(() => {
+    if (
+      effectiveProgramRuntimePlaybackState !== "playing" ||
+      !activeProgramRuntimeTargetId
+    ) {
+      return null;
+    }
+    const authored = authoredProceduralTargets.find(
+      (t) => t.targetId === activeProgramRuntimeTargetId,
+    );
+    if (authored) {
+      return authored.programId;
+    }
+    const importedEntry = resolveBundleProceduralEntry(
+      activeProgramRuntimeTargetId,
+    );
+    return importedEntry?.id ?? null;
+  }, [
+    effectiveProgramRuntimePlaybackState,
+    activeProgramRuntimeTargetId,
+    authoredProceduralTargets,
+    resolveBundleProceduralEntry,
+  ]);
+
   const loadingSessionActive =
     loader.faceLoadSessionStartedAtMs !== null &&
     loader.faceLoadSessionCompletedAtMs === null;
@@ -3862,12 +3982,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const runtimeInputReady =
-    typeof stageRuntimeInput === "function" && graphStatus === "ready";
+    runtimeInvestigationBypassed ||
+    (typeof stageRuntimeInput === "function" && graphStatus === "ready");
   const runtimeVisibleReady =
-    runtimeViewReady &&
-    !runtimeViewLoading &&
-    runtimeViewRootId !== null &&
-    runtimeViewRootId === rootId;
+    runtimeInvestigationBypassed ||
+    (runtimeViewReady &&
+      !runtimeViewLoading &&
+      runtimeViewRootId !== null &&
+      runtimeViewRootId === rootId);
   const loadingBarVisible = loadingSessionActive;
   const weightedStepProgress = useMemo(
     () => computeWeightedFaceLoadProgress(loader.faceLoadSteps),
@@ -4150,6 +4272,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         rootId={rootId}
         namespace={DEFAULT_NAMESPACE}
         bundle={rootId ? runtimeBundle : null}
+        runtimeEnabled={memoryInvestigation.mainRuntimeEnabled}
         animationSourceActive={animationSourceActive}
         animationRuntimeClip={activeAnimationRuntimeClip}
         animationTransportSessionKey={animationTransportSessionKey}
@@ -4204,6 +4327,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             />
             <ResizablePanel defaultSize={30} minSize={20}>
               <ReferenceFacePanel
+                runtimeEnabled={memoryInvestigation.referenceRuntimeEnabled}
                 splitVertical={viewerSplitVertical}
                 onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
                 onClosePanel={handleHideReferenceFacePanel}
@@ -4279,6 +4403,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   return (
     <ReferenceFaceProvider value={referenceFaceContextValue}>
       <SharedVariableSyncProvider value={sharedVariableSync}>
+        {memoryInvestigation.enabled ? (
+          <MemoryDebugBridge loader={loader} />
+        ) : null}
         <WorkspaceLayout
           menuBar={menuBar}
           // Left
@@ -4482,6 +4609,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         loadedBundle={loadedBundle}
         authoredAnimationClips={authoredAnimationClipsForExport}
         authoredProceduralPrograms={authoredProceduralProgramsForExport}
+        activeMotionGraphId={activeMotionGraphIdForExport}
         canExport={canExport}
         handleImportPoseGraphFile={handleImportPoseGraphFile}
         poseGraphRemap={poseGraphRemap}

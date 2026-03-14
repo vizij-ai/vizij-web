@@ -13,8 +13,8 @@ export function sanitizePresetId(presetId: string): string {
   return presetId.replace(/[:/]/g, "-");
 }
 
-export async function bootAuthoring(page: Page): Promise<void> {
-  await page.goto("/");
+export async function bootAuthoring(page: Page, path = "/"): Promise<void> {
+  await page.goto(path);
   await expect(page).toHaveTitle(/Vizij Authoring Tool/i);
   await expect(page.getByTestId("main-viewer")).toBeVisible();
   await expect(page.getByTestId("main-viewer-empty-state")).toBeVisible();
@@ -113,7 +113,7 @@ export async function ensureInspectorPanelVisible(page: Page): Promise<void> {
 
 export async function loadReferencePreset(
   page: Page,
-  presetId = "hugo:legacy",
+  presetId = "hugo:latest",
 ): Promise<void> {
   await selectEditMode(page, "reference-face");
   await expect(page.getByTestId("reference-face-panel")).toBeVisible();
