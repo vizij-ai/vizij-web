@@ -54,6 +54,10 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
+    /// Log level (error, warn, info, debug, trace)
+    #[arg(long, default_value = "info")]
+    log_level: LevelFilter,
+
     /// WebSocket server port
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
@@ -381,10 +385,13 @@ pub fn run() {
         return;
     }
 
+    let log_level = cli.log_level;
+
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(LevelFilter::Debug)
+                .level(log_level)
+                .level_for("rustdds", LevelFilter::Warn)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -417,10 +424,8 @@ pub fn run() {
 
             #[cfg(feature = "ros2")]
             {
-                let ros2_node = arora_ros2::AroraRos2Node::new(
-                    &cli.ros2_namespace,
-                    cli.ros2_domain_id,
-                );
+                let ros2_node =
+                    arora_ros2::AroraRos2Node::new(&cli.ros2_namespace, cli.ros2_domain_id);
                 manager.add_connection(Arc::new(ros2_node));
                 info!(
                     "ROS2 node configured (domain_id={}, namespace={})",
@@ -428,11 +433,7 @@ pub fn run() {
                 );
             }
 
-            let web_port = if serve_web_control {
-                Some(port)
-            } else {
-                None
-            };
+            let web_port = if serve_web_control { Some(port) } else { None };
 
             // CLI flags > env vars > VITE_ prefixed env vars (from .env file)
             let deepgram_key = cli
@@ -493,7 +494,10 @@ pub fn run() {
 
             info!("Vizij Standalone App initialized with WS port {}", port);
             if serve_web_control {
-                info!("Web control panel will be available at http://<ip>:{}", port);
+                info!(
+                    "Web control panel will be available at http://<ip>:{}",
+                    port
+                );
             }
             if let Some(ref src) = glb_source {
                 info!("GLB source: {}", src);
