@@ -51,6 +51,7 @@ High-level flow:
 4. author bindings in the Mapping tab
 
 Path shape:
+
 ```text
 /standard/{namespace}/{channel}/{track}/{attribute}
 ```
