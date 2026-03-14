@@ -1,0 +1,99 @@
+.button {
+  appearance: none;
+  border: 1px solid var(--color-slate-700);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--color-slate-200);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  text-decoration: none;
+}
+
+.button:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.3);
+  border-color: #4b5568;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled,
+.button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Variants */
+.button.primary {
+  border-color: var(--color-blue-600);
+  background: rgba(37, 99, 235, 0.85);
+  color: var(--color-slate-50);
+}
+
+.button.primary:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.95);
+  border-color: var(--color-blue-500);
+}
+
+.button.subtle {
+  border-color: var(--border-default);
+  background: rgba(15, 23, 42, 0.5);
+  color: var(--color-slate-300);
+}
+
+.button.danger {
+  border-color: rgba(248, 113, 113, 0.75);
+  color: #fecaca;
+  background: rgba(153, 27, 27, 0.25);
+}
+
+.button.danger:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.95);
+  background: rgba(153, 27, 27, 0.45);
+}
+
+.button.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-slate-300);
+}
+
+.button.ghost:hover:not(:disabled) {
+  border-color: var(--border-default);
+  background: rgba(51, 65, 85, 0.18);
+}
+
+.button.pill {
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+}
+
+.button.icon-only {
+  padding: 0.25rem 0.35rem;
+  border-radius: 0.4rem;
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+/* Sizes */
+.button.sm {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.button.lg {
+  padding: 0.5rem 0.95rem;
+  font-size: 0.95rem;
+}

@@ -1,0 +1,33 @@
+.pose-rig-kind-toggle {
+  display: inline-flex;
+  border: 1px solid var(--sidebar-border, #dfe3ea);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin-right: 0.5rem;
+}
+
+.pose-rig-kind-toggle__btn {
+  background: #0f172a;
+  color: #f8fafc;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.pose-rig-kind-toggle__btn + .pose-rig-kind-toggle__btn {
+  border-left: 1px solid #e5e7eb;
+}
+
+.pose-rig-kind-toggle__btn[data-active="true"] {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.pose-rig-kind-toggle__btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
