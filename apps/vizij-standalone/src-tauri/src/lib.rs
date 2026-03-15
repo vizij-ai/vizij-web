@@ -124,6 +124,16 @@ struct Cli {
     #[arg(long, default_value = "vizij")]
     ros2_namespace: String,
 
+    /// Zenoh namespace for key expressions (requires --features zenoh)
+    #[cfg(feature = "zenoh")]
+    #[arg(long, default_value = "vizij")]
+    zenoh_namespace: String,
+
+    /// Path to a Zenoh JSON5 configuration file (requires --features zenoh)
+    #[cfg(feature = "zenoh")]
+    #[arg(long)]
+    zenoh_config: Option<String>,
+
     /// Silence duration in milliseconds before auto-stopping the microphone (server-side VAD).
     /// Defaults to 1500ms in conversation mode. Set to 0 to disable.
     #[arg(long)]
@@ -428,6 +438,18 @@ pub fn run() {
                 info!(
                     "ROS2 node configured (domain_id={}, namespace={})",
                     cli.ros2_domain_id, cli.ros2_namespace
+                );
+            }
+
+            #[cfg(feature = "zenoh")]
+            {
+                let zenoh_config_path = cli.zenoh_config.as_ref().map(std::path::PathBuf::from);
+                let zenoh_session =
+                    arora_zenoh::AroraZenohSession::new(&cli.zenoh_namespace, zenoh_config_path);
+                manager.add_connection(Arc::new(zenoh_session));
+                info!(
+                    "Zenoh session configured (namespace={})",
+                    cli.zenoh_namespace
                 );
             }
 

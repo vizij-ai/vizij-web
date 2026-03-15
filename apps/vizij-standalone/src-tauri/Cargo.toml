@@ -16,11 +16,18 @@ tauri-build = { version = "2.5.6", features = [] }
 arora-connection = { path = "../../../packages/arora-connection" }
 arora-websocket = { path = "../../../packages/arora-websocket" }
 arora-ros2 = { path = "../../../packages/arora-ros2", optional = true }
+arora-zenoh = { path = "../../../packages/arora-zenoh", optional = true }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-log = "2.8.0"
-tokio = { version = "1", features = ["sync", "net", "io-util", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = [
+  "sync",
+  "net",
+  "io-util",
+  "macros",
+  "rt-multi-thread",
+] }
 tokio-util = "0.7"
 tokio-tungstenite = "0.26"
 futures-util = { version = "0.3", features = ["sink"] }
@@ -38,6 +45,7 @@ windows = { version = "0.58", features = ["Win32_System_Console"] }
 [features]
 default = ["ros2"]
 ros2 = ["arora-ros2"]
+zenoh = ["arora-zenoh"]
 
 [dev-dependencies]
 ros2-client = "0.8"

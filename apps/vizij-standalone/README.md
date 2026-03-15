@@ -10,7 +10,7 @@ At runtime the app:
 2. builds a `VizijAssetBundle` from either a URL or a local file blob
 3. mounts `VizijRuntimeProvider` with `autostart` and `driveOrchestrator={true}`
 4. mirrors runtime `inputConstraints`, speech state, and transport inventory back to the Rust side
-5. applies incoming WebSocket or ROS2 control messages through the shared connection manager
+5. applies incoming WebSocket, ROS2, or Zenoh control messages through the shared connection manager
 
 Relevant files:
 
@@ -27,6 +27,7 @@ Relevant files:
 - optional same-port web control panel unless disabled with `--no-web-control`
 - transport inventory for bundled animations and procedural programs
 - optional ROS2 control surface when built with the default `ros2` feature
+- optional Zenoh control surface when built with the `zenoh` feature
 - optional speech pipeline driven by bundle metadata plus CLI/env keys
 
 ## CLI
@@ -54,6 +55,8 @@ Main options:
 - `--speech-mode`
 - `--ros2-domain-id`: DDS domain ID for the ROS2 surface
 - `--ros2-namespace`: ROS2 namespace prefix for topics and services
+- `--zenoh-namespace`: Zenoh key-expression prefix (default `vizij`, requires `--features zenoh`)
+- `--zenoh-config`: path to a Zenoh JSON5 config file (requires `--features zenoh`)
 
 Use `list-displays` to inspect monitor indices before launching fullscreen on a specific display.
 
@@ -109,6 +112,56 @@ Relevant files:
 - [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs)
 - [`src-tauri/tests/ros2_smoke.rs`](./src-tauri/tests/ros2_smoke.rs)
 - [`../../../packages/arora-ros2/src/lib.rs`](../../../packages/arora-ros2/src/lib.rs)
+
+## Zenoh Control Surface
+
+When built with the `zenoh` feature (`--features zenoh`), the app starts an `AroraZenohSession` that exposes the same slots and methods over the [Zenoh](https://zenoh.io) protocol.
+
+Current behavior:
+
+- input slots are exposed as Zenoh subscribers on `{namespace}/slots/...`
+- methods are exposed as Zenoh queryables on `{namespace}/methods/...`
+- all payloads are JSON-serialized `Value` objects (e.g., `{"f64": 0.75}`)
+- the namespace defaults to `vizij`
+- an optional `--zenoh-config` flag accepts a Zenoh JSON5 config file for advanced setups (router addresses, transport tuning, etc.)
+
+The `zenoh` feature is **not** enabled by default. To build or develop with it, pass `--features zenoh` to the Tauri CLI:
+
+```bash
+# Dev with both ROS2 (default) and Zenoh
+pnpm --filter vizij-standalone tauri dev --features zenoh
+
+# Dev with Zenoh only (no ROS2)
+pnpm --filter vizij-standalone tauri dev --no-default-features --features zenoh
+
+# Production build with both
+pnpm --filter vizij-standalone tauri build --features zenoh
+```
+
+Pass runtime flags after a `--` separator:
+
+```bash
+pnpm --filter vizij-standalone tauri dev --features zenoh -- -- \
+  --zenoh-namespace my_robot
+```
+
+Quick smoke test from an external Zenoh client:
+
+```bash
+# Subscribe to all slot updates
+z_sub -k 'vizij/slots/**'
+
+# Publish a slot value
+z_put -k vizij/slots/blink -v '{"f64": 0.5}'
+
+# Invoke a method
+z_get -s vizij/methods/reset
+```
+
+Relevant files:
+
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs)
+- [`../../../packages/arora-zenoh/src/lib.rs`](../../../packages/arora-zenoh/src/lib.rs)
 
 ## Speech Support
 
