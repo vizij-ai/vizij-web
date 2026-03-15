@@ -165,6 +165,20 @@ If you see a linker error like `LNK1181: cannot open input file 'Packet.lib'`, y
    ```
    The `<index-hash>` folder is named something like `index.crates.io-1949cf8c6b5b557f`. You can find it under `%USERPROFILE%\.cargo\registry\src\`.
 
+### Running without ROS2 (no Npcap required)
+
+`arora-ros2` is an optional Cargo dependency behind the `ros2` feature, which is on by default. To build or run without it — skipping the Npcap requirement entirely — pass `--no-default-features` to the Tauri CLI:
+
+```bash
+# dev without ROS2
+pnpm --filter vizij-standalone dev -- --no-default-features
+
+# production build without ROS2
+pnpm --filter vizij-standalone tauri build -- --no-default-features
+```
+
+The `--ros2-domain-id` and `--ros2-namespace` CLI flags are compiled out when the `ros2` feature is not enabled.
+
 From the repo root:
 
 ```bash
