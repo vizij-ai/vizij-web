@@ -150,6 +150,21 @@ If speech looks half-configured, check both the Tauri CLI flags and the browser-
 
 ## Development
 
+### Windows prerequisites
+
+The default build includes the `ros2` feature, which pulls in `pnet` for low-level networking. On Windows, `pnet` requires `Packet.lib` from the Npcap SDK at link time.
+
+If you see a linker error like `LNK1181: cannot open input file 'Packet.lib'`, you need two separate things — installing Npcap alone is **not enough**:
+
+1. **Install Npcap** from [npcap.com](https://npcap.com/#download) (the runtime installer).
+2. **Download the Npcap SDK** separately — it is a ZIP on the same page, not part of the installer. Extract it anywhere (e.g. `C:\npcap-sdk`).
+3. **Copy `Packet.lib` into the pnet crate's lib folder**. Setting the `LIB` environment variable is the documented approach but may not work; copying the file directly is the reliable fix:
+   ```
+   C:\npcap-sdk\Lib\x64\Packet.lib
+     → %USERPROFILE%\.cargo\registry\src\<index-hash>\pnet-0.35.0\lib\x64\Packet.lib
+   ```
+   The `<index-hash>` folder is named something like `index.crates.io-1949cf8c6b5b557f`. You can find it under `%USERPROFILE%\.cargo\registry\src\`.
+
 From the repo root:
 
 ```bash
