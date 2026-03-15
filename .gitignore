@@ -20,3 +20,5 @@
 .eslintcache
 .claude/settings.local.json
 .worktrees/
+
+.firebase/
