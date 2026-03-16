@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   VizijRuntimeProvider,
   VizijRuntimeFace,
@@ -39,8 +39,8 @@ function VizijRuntimeHud() {
 }
 
 function FaceRuntime() {
-  const { ready, loading, error, stagePoseNeutral, assetBundle } =
-    useVizijRuntime();
+  const runtime = useVizijRuntime();
+  const { ready, loading, error, stagePoseNeutral, assetBundle } = runtime;
   const poseConfig = assetBundle.pose?.config ?? null;
   const gazeRef = useMouseGaze(ready);
   const { bindings } = usePoseHotkeys(poseConfig, ready);
@@ -55,6 +55,34 @@ function FaceRuntime() {
       stagePoseNeutral();
     }
   }, [ready, stagePoseNeutral]);
+
+  // Auto-play motion graph from bundle metadata when ?autoplay is present
+  const autoPlayTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!ready || loading) return;
+    if (autoPlayTriggeredRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("autoplay")) return;
+    const meta = assetBundle.bundle?.metadata as
+      | Record<string, unknown>
+      | undefined;
+    const activeId: string | undefined =
+      typeof meta?.activeMotionGraphId === "string"
+        ? meta.activeMotionGraphId
+        : Array.isArray(meta?.activeMotionGraphIds) &&
+            typeof (meta.activeMotionGraphIds as unknown[])[0] === "string"
+          ? ((meta.activeMotionGraphIds as unknown[])[0] as string)
+          : undefined;
+    if (!activeId) return;
+    const match = (assetBundle.programs ?? []).find((p) => p.id === activeId);
+    if (!match) return;
+    try {
+      runtime.playProgram(activeId);
+      autoPlayTriggeredRef.current = true;
+    } catch {
+      // will retry on next render cycle
+    }
+  }, [ready, loading, assetBundle, runtime.playProgram]);
 
   const hotkeyHints = useMemo(() => {
     if (!poseConfig || bindings.length === 0) {

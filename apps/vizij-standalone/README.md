@@ -174,11 +174,11 @@ If you see a linker error like `LNK1181: cannot open input file 'Packet.lib'`, y
 To enable ROS2 support explicitly:
 
 ```bash
-# dev with ROS2
-pnpm --filter vizij-standalone dev -- --features ros2
+# dev without ROS2
+pnpm --filter vizij-standalone dev -- --no-default-features
 
-# production build with ROS2
-pnpm --filter vizij-standalone tauri build -- --features ros2
+# production build without ROS2
+pnpm --filter vizij-standalone tauri build -- --no-default-features
 ```
 
 The `--ros2-domain-id` and `--ros2-namespace` CLI flags are compiled out when the `ros2` feature is not enabled.
