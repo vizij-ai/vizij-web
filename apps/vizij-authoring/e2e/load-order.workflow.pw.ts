@@ -15,7 +15,7 @@ test("latest preset selection wins when an older preset response arrives late @w
 
   await page.getByTestId("main-preset-quori-latest").click();
   await page.waitForTimeout(50);
-  await page.getByTestId("main-preset-hugo-basic").click();
+  await page.getByTestId("main-preset-quori-basic").click();
 
   await expect(page.getByTestId("main-runtime-ready-flag")).toBeVisible({
     timeout: 120_000,

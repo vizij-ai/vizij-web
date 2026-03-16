@@ -314,7 +314,7 @@ export function GroupMappingEditor({
 
       // Get the semantic ID for this track
       // Use the binding's inputId if it exists, otherwise use component's safeId
-      // This applies to both self-references and other driven references (Hugo's approach)
+      // This applies to both self-references and other driven references.
       const trackBinding = mainFaceBindings[trackId];
       const semanticInputId =
         trackBinding?.inputId ?? componentSafeIds.get(trackId);

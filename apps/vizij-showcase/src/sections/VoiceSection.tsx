@@ -48,7 +48,7 @@ export function VoiceSection() {
       />
       <ShowcaseRuntime
         namespace="voice"
-        asset="hugoCurrentExtended"
+        asset="quoriCurrentExtended"
         active={hasEntered}
         autostart={isVisible}
         driveOrchestrator

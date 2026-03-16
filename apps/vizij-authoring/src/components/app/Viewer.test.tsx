@@ -168,7 +168,6 @@ describe("Viewer", () => {
       showSelectionGlow: false,
       onImportClick: () => {},
       onLoadQuori: () => {},
-      onLoadHugo: () => {},
     });
 
     expect(container.textContent).toContain("Empty Scene");
@@ -193,7 +192,6 @@ describe("Viewer", () => {
       showSelectionGlow: true,
       onImportClick: () => {},
       onLoadQuori: () => {},
-      onLoadHugo: () => {},
     });
 
     expect(
@@ -224,7 +222,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -264,7 +261,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -305,7 +301,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -327,7 +322,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -372,7 +366,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -416,7 +409,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -461,7 +453,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -506,7 +497,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -594,7 +584,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -678,7 +667,6 @@ describe("Viewer", () => {
               showSelectionGlow={false}
               onImportClick={() => {}}
               onLoadQuori={() => {}}
-              onLoadHugo={() => {}}
             />
           </BindingAuthoringStoreProvider>
         </GraphRuntimeStoreProvider>,
@@ -747,7 +735,6 @@ describe("Viewer", () => {
               showSelectionGlow={false}
               onImportClick={() => {}}
               onLoadQuori={() => {}}
-              onLoadHugo={() => {}}
             />
           </BindingAuthoringStoreProvider>
         </GraphRuntimeStoreProvider>,
@@ -791,7 +778,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -834,7 +820,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,
@@ -860,7 +845,6 @@ describe("Viewer", () => {
             showSelectionGlow={false}
             onImportClick={() => {}}
             onLoadQuori={() => {}}
-            onLoadHugo={() => {}}
           />
         </BindingAuthoringStoreProvider>
       </GraphRuntimeStoreProvider>,

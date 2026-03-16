@@ -48,7 +48,7 @@ The walkthrough covers:
 
 ## Current Workflow
 
-- Start with one of the curated built-in samples: `Quori_Current_Extended.glb` or `Hugo_Current_Extended.glb`.
+- Start with the curated built-in sample: `Quori_Current_Extended.glb`.
 - Upload your own bundled `.glb` when you want to validate an external face.
 - The app is intentionally bundle-oriented: separate low-level rig JSON, high-level rig JSON, and standalone animation JSON imports are not part of the main flow.
 - Diagnostics are read-only and runtime-focused: graph inventory, controller ids, output paths, metadata, and runtime errors.

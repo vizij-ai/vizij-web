@@ -61,29 +61,6 @@ export function ExpressionsSection() {
               subtitle="Tap a preset or fire the hotkeys to see the expression"
             />
           </ShowcaseRuntime>
-          <ShowcaseRuntime
-            namespace="expressions-hugo-face"
-            asset="hugoCurrentExtended"
-            active={hasEntered}
-            autostart={poseActive && isVisible}
-            driveOrchestrator={false}
-            visible={isVisible}
-            hiddenStepHz={0}
-            label="Expressions · Hugo"
-            fallback={
-              <ExpressionFaceFallback
-                label="Expression kit · Hugo"
-                subtitle="Tap a preset or fire the hotkeys to see the expression"
-              />
-            }
-          >
-            <PoseRigMirrorBridge />
-            <RuntimeFaceFrame
-              variant="md"
-              label="Expression kit · Hugo"
-              subtitle="Tap a preset or fire the hotkeys to see the expression"
-            />
-          </ShowcaseRuntime>
         </div>
       </div>
     </section>

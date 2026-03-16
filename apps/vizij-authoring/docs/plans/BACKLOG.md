@@ -1129,7 +1129,7 @@ Acceptance checks:
 
 ## Block V — Sample GLB + Standard-Rig Finalization
 
-### [ ] V9.1 Finalize Canonical GLB Examples (Quori, Hugo, Toasty)
+### [ ] V9.1 Finalize Canonical GLB Examples (Quori, Toasty)
 
 Priority and why this should still be done:
 
@@ -1143,7 +1143,7 @@ Dependencies / blockers:
 
 Intent:
 
-- Finalize and version canonical sample bundles for Quori, Hugo, and Toasty.
+- Finalize and version canonical sample bundles for Quori and Toasty.
 
 Acceptance checks:
 
@@ -1165,7 +1165,7 @@ Dependencies / blockers:
 
 Intent:
 
-- Define target standard-rig coverage for Quori, Hugo, and Toasty and validate mapping completeness.
+- Define target standard-rig coverage for Quori and Toasty and validate mapping completeness.
 
 Acceptance checks:
 
@@ -1187,7 +1187,7 @@ Dependencies / blockers:
 
 Intent:
 
-- Add deterministic fixture/CI checks for Quori/Hugo/Toasty import/playback/export contracts.
+- Add deterministic fixture/CI checks for Quori/Toasty import/playback/export contracts.
 
 Acceptance checks:
 

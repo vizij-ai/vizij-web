@@ -717,13 +717,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
   }, [handleLoadAssetFromUrl]);
 
-  const handleLoadHugo = useCallback(() => {
-    handleLoadAssetFromUrl(
-      "/assets/Hugo_Current_Extended.glb",
-      "Hugo_Current_Extended.glb",
-    );
-  }, [handleLoadAssetFromUrl]);
-
   const handleLoadPresetAsset = useCallback(
     (preset: FacePresetAssetOption) => {
       if (!preset.available) {
@@ -4294,7 +4287,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         showSelectionGlow={showSelectionGlow}
         onImportClick={handleImportClick}
         onLoadQuori={handleLoadQuori}
-        onLoadHugo={handleLoadHugo}
         presetLoadOptions={FACE_PRESET_GRID_OPTIONS}
         onLoadPresetAsset={handleLoadPresetAsset}
       />

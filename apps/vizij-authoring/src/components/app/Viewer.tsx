@@ -528,7 +528,6 @@ export interface ViewerProps {
   showSelectionGlow: boolean;
   onImportClick: () => void;
   onLoadQuori: () => void;
-  onLoadHugo: () => void;
   presetLoadOptions?: readonly FacePresetAssetOption[];
   onLoadPresetAsset?: (preset: FacePresetAssetOption) => void;
   onRuntimeExportBodiesChange?: (snapshot: RuntimeExportBodiesSnapshot) => void;
@@ -559,7 +558,6 @@ export function Viewer({
   showSelectionGlow,
   onImportClick,
   onLoadQuori,
-  onLoadHugo,
   presetLoadOptions,
   onLoadPresetAsset,
   onRuntimeExportBodiesChange,
@@ -810,14 +808,6 @@ export function Viewer({
                     size="md"
                   >
                     Load Quori
-                  </Button>
-                  <Button
-                    data-testid="main-preset-hugo-latest"
-                    variant="secondary"
-                    onClick={onLoadHugo}
-                    size="md"
-                  >
-                    Load Hugo
                   </Button>
                 </div>
               )}

@@ -110,13 +110,13 @@ Scope:
 
 1. Export authored clip data as first-class bundle animation payload.
 2. Import bundle animation payload back into `AnimationClipIR` authoring state.
-3. Finalize Quori/Hugo/Toasty GLB examples for deterministic playback validation.
+3. Finalize Quori/Toasty GLB examples for deterministic playback validation.
 4. Define and validate Vizij standard-rig mappings for those sample assets.
 
 Exit criteria:
 
 1. Author -> export -> import round-trip preserves authored animation semantics.
-2. Quori/Hugo/Toasty sample packs pass playback smoke tests.
+2. Quori/Toasty sample packs pass playback smoke tests.
 3. Standard-rig coverage report exists for sample assets.
 
 ## Wave 4: Workspace UX Convergence
@@ -177,4 +177,4 @@ Integration gates (Wave 2+):
 
 1. `pnpm run validate:all`
 2. Deterministic compile/export snapshots for animation payloads
-3. Quori/Hugo/Toasty playback smoke matrix
+3. Quori/Toasty playback smoke matrix

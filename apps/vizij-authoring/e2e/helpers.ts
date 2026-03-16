@@ -113,7 +113,7 @@ export async function ensureInspectorPanelVisible(page: Page): Promise<void> {
 
 export async function loadReferencePreset(
   page: Page,
-  presetId = "hugo:latest",
+  presetId = "quori:basic",
 ): Promise<void> {
   await selectEditMode(page, "reference-face");
   await expect(page.getByTestId("reference-face-panel")).toBeVisible();

@@ -6,10 +6,6 @@ const SAMPLE_ASSET_URLS = {
     "../../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
     import.meta.url,
   ).href,
-  "hugo-current-extended": new URL(
-    "../../../vizij-authoring/public/assets/Hugo_Current_Extended.glb",
-    import.meta.url,
-  ).href,
 } as const satisfies Record<DemoSampleId, string>;
 
 export type DemoSampleDefinition = {
@@ -56,28 +52,6 @@ export const DEMO_SAMPLES: DemoSampleDefinition[] = [
       programs: 1,
     },
     assetUrl: SAMPLE_ASSET_URLS["quori-current-extended"],
-  },
-  {
-    id: "hugo-current-extended",
-    label: "Hugo Extended",
-    eyebrow: "Expressive rig",
-    description:
-      "A dense authored face with pose groups, one embedded clip, and a bundled procedural motiongraph program.",
-    accent: "#7cc7ff",
-    capabilities: {
-      rig: true,
-      poses: true,
-      animations: true,
-      programs: true,
-    },
-    counts: {
-      rigs: 2,
-      poses: 24,
-      poseGroups: 2,
-      animations: 1,
-      programs: 1,
-    },
-    assetUrl: SAMPLE_ASSET_URLS["hugo-current-extended"],
   },
 ];
 

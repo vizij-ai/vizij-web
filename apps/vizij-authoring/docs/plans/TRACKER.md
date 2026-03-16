@@ -18,7 +18,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 10. Reference-face reliability tranche `R6.1`-`R6.4` is complete (path-first staging, legacy pose-control bridge compatibility, export guardrails, and reset normalization); `R6.5` remains open for perf thresholds + session audit logging.
 11. Animation/orchestrator unification lane (`G7.*`) is implemented end-to-end on the authoring/runtime path (runtime-authoritative transport, deterministic IR/compiler, interpolation, and export/import round-trip).
 12. Workspace clarity lane (`U8.*`) is planned, including motion graph sidebar migration and graph-first workspace reclaim.
-13. Sample asset standardization lane (`V9.*`) is planned for Quori/Hugo/Toasty + Vizij standard-rig coverage.
+13. Sample asset standardization lane (`V9.*`) is planned for Quori/Toasty + Vizij standard-rig coverage.
 14. Speech/viseme extension lane (`P10.*`, Amazon Polly) is captured as the top post-core backlog lane.
 15. Stage-order waiver is active: Stage 6/7/8 planning/execution opened before full Stage 5 completion due current product priority on animation/workspace lanes; import reliability lane (`F5.*`) remains active in parallel.
 
@@ -70,7 +70,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | U8.2  | planned | P0       | Reclaim graph workspace area where reference-face pane currently sits in graph-focused mode.                                                                            |
 | U8.3  | planned | P1       | Execute cross-pane visual consistency pass for dense authoring flows.                                                                                                   |
 | U8.4  | planned | P1       | Upgrade pose group/blend visualization and grouping readability.                                                                                                        |
-| V9.1  | planned | P0       | Finalize canonical sample GLBs for Quori/Hugo/Toasty.                                                                                                                   |
+| V9.1  | planned | P0       | Finalize canonical sample GLBs for Quori/Toasty.                                                                                                                        |
 | V9.2  | planned | P0       | Define and validate Vizij standard-rig coverage for sample assets.                                                                                                      |
 | V9.3  | planned | P1       | Add sample fixture matrix + CI gates for sample import/playback/export contracts.                                                                                       |
 | P10.1 | planned | P1       | Add speech provider abstraction and Amazon Polly adapter.                                                                                                               |

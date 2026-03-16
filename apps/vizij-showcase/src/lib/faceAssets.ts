@@ -1,10 +1,6 @@
 import type { VizijAssetBundle } from "@vizij/runtime-react";
 
 const FACE_ASSET_PATHS = {
-  hugoCurrentExtended: new URL(
-    "../../../vizij-authoring/public/assets/Hugo_Current_Extended.glb",
-    import.meta.url,
-  ).href,
   quoriCurrentExtended: new URL(
     "../../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
     import.meta.url,
@@ -22,7 +18,7 @@ export const faceAssetBundleTemplate: VizijAssetBundle = {
   namespace: "vizij-showcase",
   glb: {
     ...FACE_ASSET_GLB_BASE,
-    src: FACE_ASSET_PATHS.hugoCurrentExtended,
+    src: FACE_ASSET_PATHS.quoriCurrentExtended,
   },
   pose: {
     stageNeutralFilter: (_id, path) => !path.includes("/color/"),
@@ -38,7 +34,7 @@ function createGlbConfig(asset: ShowcaseFaceAssetKey): VizijAssetBundle["glb"] {
 
 export function createShowcaseBundle(
   key: string,
-  asset: ShowcaseFaceAssetKey = "hugoCurrentExtended",
+  asset: ShowcaseFaceAssetKey = "quoriCurrentExtended",
 ): VizijAssetBundle {
   return {
     ...faceAssetBundleTemplate,

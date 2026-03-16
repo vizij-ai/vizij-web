@@ -181,10 +181,10 @@ function LandingPanel() {
             </p>
           </article>
           <article>
-            <strong>Comprehensive samples</strong>
+            <strong>Curated sample</strong>
             <p>
-              Quori and Hugo cover the rich authored bundles we want to showcase
-              right now.
+              Quori covers the rich authored bundle we want to showcase right
+              now.
             </p>
           </article>
         </div>

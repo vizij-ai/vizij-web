@@ -13,7 +13,7 @@ Make `vizij-authoring` the authoritative, runtime-truthful authoring surface for
 2. Authored animation playback runs through the same orchestrator/runtime path used for final output.
 3. Workspace layout and panel semantics stay clear and consistent for dense authoring sessions.
 4. Import/export flows are deterministic and migration-safe across legacy and current assets.
-5. Canonical sample assets (Quori, Hugo, Toasty) and Vizij standard-rig mappings are validated.
+5. Canonical sample assets (Quori, Toasty) and Vizij standard-rig mappings are validated.
 6. The development branch stays continuously green (`typecheck`, `lint`, `test`).
 7. Speech/viseme integration is designed as a clean extension path (provider-based, orchestrator-integrated).
 

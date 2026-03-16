@@ -115,12 +115,11 @@ export function HeroSection() {
       </div>
       <div className="section-description">
         <p>
-          Hugo (from <a href="https://peerbots.org">Peerbots</a>), and{" "}
-          <a href="https://quori.org">Quori</a> are driven by Vizij rigs and
+          <a href="https://quori.org">Quori</a> is driven by Vizij rigs and
           controllers, combining expressions, visemes, blinks, and saccades to
-          create communicative, rendered robot faces. Below, feature-specific
-          demos unpack the building blocks—rig controls, poses, gaze behaviors,
-          and speech blending— that enable these performances.
+          create a communicative rendered robot face. Below, feature-specific
+          demos unpack the building blocks: rig controls, poses, gaze behaviors,
+          and speech blending.
         </p>
       </div>
     </section>

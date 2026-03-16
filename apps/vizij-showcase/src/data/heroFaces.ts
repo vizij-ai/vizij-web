@@ -9,12 +9,6 @@ type HeroFace = {
 
 export const HERO_FACES: readonly HeroFace[] = [
   {
-    namespace: "hero-hugo",
-    label: "Hugo · Product demo",
-    subtitle: "Current extended rig tuned for in-app hosts",
-    asset: "hugoCurrentExtended",
-  },
-  {
     namespace: "hero-quori",
     label: "Quori · Robot face",
     subtitle: "Current extended rig for embodied assistants",

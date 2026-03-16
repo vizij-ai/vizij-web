@@ -378,7 +378,7 @@ async function runPresetChurnScenario(
     async (record) => {
       await record("start");
       for (let index = 0; index < PRESET_CYCLES; index += 1) {
-        const nextPreset = index % 2 === 0 ? "hugo:basic" : "quori:latest";
+        const nextPreset = index % 2 === 0 ? "quori:basic" : "quori:latest";
         await resetMainScene(page);
         await loadPresetForScope(page, scope, nextPreset);
         if (
@@ -400,7 +400,7 @@ async function runReferenceFaceScenario(
   await bootAuthoring(page, buildInvestigationPath("full"));
   await waitForMemoryDebug(page);
   await loadMainPreset(page, "quori:latest");
-  await loadReferencePreset(page, "hugo:latest");
+  await loadReferencePreset(page, "quori:basic");
 
   return runMeasuredScenario(
     page,
@@ -415,7 +415,7 @@ async function runReferenceFaceScenario(
         await expect(
           page.getByTestId("reference-face-empty-state"),
         ).toBeVisible();
-        await page.getByTestId("reference-face-preset-hugo-latest").click();
+        await page.getByTestId("reference-face-preset-quori-basic").click();
         await expect(page.getByTestId("reference-face-runtime")).toBeVisible({
           timeout: 120_000,
         });

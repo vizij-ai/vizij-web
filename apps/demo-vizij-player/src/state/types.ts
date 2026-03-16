@@ -1,4 +1,4 @@
-export type DemoSampleId = "quori-current-extended" | "hugo-current-extended";
+export type DemoSampleId = "quori-current-extended";
 export type DemoTheme = "light" | "dark";
 
 export type DemoFaceSource =

@@ -13,10 +13,7 @@ import {
 
 const STORAGE_VERSION = "v4";
 const STORAGE_KEY = `demo-vizij-player/${STORAGE_VERSION}/state`;
-const SAMPLE_IDS = new Set<DemoSampleId>([
-  "quori-current-extended",
-  "hugo-current-extended",
-]);
+const SAMPLE_IDS = new Set<DemoSampleId>(["quori-current-extended"]);
 const THEMES = new Set<DemoTheme>(["light", "dark"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {

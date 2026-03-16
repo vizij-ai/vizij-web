@@ -243,7 +243,7 @@ Backlog scope:
 
 Exit gate:
 
-1. Quori/Hugo/Toasty examples are finalized for import/playback/export smoke flows.
+1. Quori/Toasty examples are finalized for import/playback/export smoke flows.
 2. Standard-rig coverage is defined and verified for those examples.
 3. Fixture-backed regression matrix exists for sample assets.
 
