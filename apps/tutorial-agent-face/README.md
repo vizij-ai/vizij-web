@@ -24,6 +24,7 @@ Vite loads `.env.local` automatically for this app.
 
 ```bash
 pnpm --filter tutorial-agent-face dev
+pnpm --filter tutorial-agent-face dev:https
 pnpm --filter tutorial-agent-face build
 pnpm --filter tutorial-agent-face preview
 pnpm --filter tutorial-agent-face typecheck
@@ -31,6 +32,26 @@ pnpm --filter tutorial-agent-face lint
 ```
 
 If you are not using `.env.local`, pass the key inline when running the commands.
+
+## Microphone Access On LAN
+
+`getUserMedia` is only available on trustworthy origins. That means:
+
+- `http://localhost:5173` works for local-only microphone testing.
+- `http://<LAN-IP>:5173` is not a trustworthy origin, so the app will warn and keep Connect disabled.
+- `https://<LAN-IP>:5173` is the supported LAN microphone path.
+
+Use one of these commands from the repo root:
+
+```bash
+pnpm --filter tutorial-agent-face dev
+pnpm --filter tutorial-agent-face dev -- --host --https
+pnpm --filter tutorial-agent-face dev:https
+```
+
+The HTTPS dev flow generates a local self-signed certificate under `apps/tutorial-agent-face/.vite/https/`. Your browser may ask you to accept the certificate the first time you open the LAN URL.
+
+Use `pnpm`, not `npm`, in this workspace. The monorepo uses `workspace:*` dependencies, so `npm install` is not supported here.
 
 ## Docs
 

@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { getLookup } from "@vizij/utils";
+import { createBrowserSafeId, getLookup } from "@vizij/utils";
 import type { RawValue, AnimatableValue } from "@vizij/utils";
 import type { BindingValueType } from "@vizij/node-graph-authoring";
 import type { ShapeMaterial } from "@vizij/render";
@@ -751,9 +751,9 @@ export function useSceneComposer(): SceneComposer {
 
   const createMaterial = useCallback(
     (label: string) => {
-      const colorAnimId = crypto.randomUUID();
-      const opacityAnimId = crypto.randomUUID();
-      const templateShapeId = `material:template:${crypto.randomUUID()}`;
+      const colorAnimId = createBrowserSafeId();
+      const opacityAnimId = createBrowserSafeId();
+      const templateShapeId = `material:template:${createBrowserSafeId()}`;
 
       setStoreState((state) => {
         // 1. Create Animatables

@@ -9,6 +9,10 @@ import {
   type FeatureFrame,
   type PhonemeProbFrame,
 } from "../phoneme-core";
+import {
+  assertMicrophoneSupport,
+  toMicrophoneInputError,
+} from "./microphoneSupport";
 
 type ChunkSchedule = {
   startTime: number; // absolute AudioContext time when chunk starts
@@ -68,6 +72,8 @@ export class AudioManager {
     }
 
     try {
+      assertMicrophoneSupport();
+
       // Request audio with specific constraints
       this.inputStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -108,7 +114,7 @@ export class AudioManager {
       this.processor.connect(this.inputContext.destination);
     } catch (error) {
       await this.closeInput();
-      throw error;
+      throw toMicrophoneInputError(error);
     }
   }
 

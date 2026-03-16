@@ -1,5 +1,9 @@
 import type { BufferGeometry, Mesh } from "three";
-import type { AnimatableValue, AnimatableNumber } from "@vizij/utils";
+import {
+  type AnimatableValue,
+  type AnimatableNumber,
+  createBrowserSafeId,
+} from "@vizij/utils";
 import type { Feature } from "../../types";
 
 function sanitizeMorphKey(
@@ -42,7 +46,7 @@ export function importGeometry(
     const usedKeys = new Set<string>();
     Object.entries(mesh.morphTargetDictionary ?? {}).forEach(
       ([name, index]) => {
-        const morphId = crypto.randomUUID();
+        const morphId = createBrowserSafeId();
         const featureKey = sanitizeMorphKey(name, index, usedKeys);
         morphIds.push(featureKey);
         features[featureKey] = {

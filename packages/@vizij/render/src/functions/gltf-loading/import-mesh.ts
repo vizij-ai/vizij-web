@@ -16,6 +16,7 @@ import type {
   AnimatableColor,
   AnimatableNumber,
 } from "@vizij/utils";
+import { createBrowserSafeId } from "@vizij/utils";
 import type { World, Shape } from "../../types";
 import { ShapeMaterial } from "../../types";
 import { namespaceArrayToRefs } from "../util";
@@ -39,7 +40,7 @@ export function importMesh(
   let newColorLookup: Record<string, [string, string, boolean]> = {};
 
   const translationAnimatable: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${mesh.name ?? "Mesh"} translation`,
     type: "vector3",
     default: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
@@ -56,7 +57,7 @@ export function importMesh(
   };
 
   const rotationAnimatable: AnimatableEuler = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${mesh.name ?? "Mesh"} rotation`,
     type: "euler",
     default: { x: mesh.rotation.x, y: mesh.rotation.y, z: mesh.rotation.z },
@@ -70,7 +71,7 @@ export function importMesh(
   animatables = { ...animatables, [rotationAnimatable.id]: rotationAnimatable };
 
   const scaleAnimatable: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${mesh.name ?? "Mesh"} scale`,
     type: "vector3",
     default: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z },
@@ -96,7 +97,7 @@ export function importMesh(
   const colorName: string | undefined = (mesh.material as MeshStandardMaterial)
     .name;
   const colorAnimatable: AnimatableColor = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name:
       (mesh.material as MeshStandardMaterial).name ??
       `${mesh.name ?? "Mesh"} color`,
@@ -115,7 +116,7 @@ export function importMesh(
   };
 
   const opacityAnimatable: AnimatableNumber = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: (mesh.material as MeshStandardMaterial).name
       ? `${(mesh.material as MeshStandardMaterial).name} opacity`
       : `${mesh.name ?? "Mesh"} opacity`,

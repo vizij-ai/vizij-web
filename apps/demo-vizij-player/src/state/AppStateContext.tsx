@@ -7,6 +7,7 @@ import {
   useReducer,
 } from "react";
 import type { ReactNode } from "react";
+import { createBrowserSafeId } from "@vizij/utils";
 import {
   loadPersistedState,
   persistState,
@@ -23,13 +24,7 @@ import {
 } from "./types";
 
 function createUploadId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-  return `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return createBrowserSafeId();
 }
 
 type Action =

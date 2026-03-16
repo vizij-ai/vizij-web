@@ -15,6 +15,7 @@ import { useSpeechAnticipation } from "./hooks/useSpeechAnticipation";
 import { useVolumeChin } from "./hooks/useVolumeChin";
 import { useAgentFaceTools } from "./hooks/useAgentFaceTools";
 import { AudioManager } from "./utils/audioManager";
+import { getMicrophoneSupport } from "./utils/microphoneSupport";
 import { LiveStatus } from "./phoneme-core";
 import { EmotionButtons } from "./components/EmotionButtons";
 import "./styles.css";
@@ -108,6 +109,11 @@ function AgentFaceRuntime() {
   }, [bindings, poseConfig]);
 
   const audioManager = useMemo(() => new AudioManager(), []);
+  const microphoneSupport = getMicrophoneSupport();
+  const microphoneWarningLabel =
+    microphoneSupport.code === "insecure-context"
+      ? "Mic requires HTTPS or localhost"
+      : "Mic unavailable in this browser";
   const [mouthMode, setMouthMode] = useState<"baseline" | "synth" | "align">(
     "synth",
   );
@@ -226,11 +232,22 @@ function AgentFaceRuntime() {
                 {geminiError && (
                   <span className="chip error">{geminiError}</span>
                 )}
+                {!microphoneSupport.supported && !geminiError && (
+                  <span className="chip warn">{microphoneWarningLabel}</span>
+                )}
               </div>
+              {!microphoneSupport.supported && (
+                <p className="warning-banner">
+                  {microphoneSupport.message} <code>localhost</code> works for
+                  local-only development; use HTTPS when testing microphone
+                  input over LAN.
+                </p>
+              )}
               <div className="controls">
                 <button
                   onClick={connect}
                   disabled={
+                    !microphoneSupport.supported ||
                     geminiStatus === LiveStatus.CONNECTED ||
                     geminiStatus === LiveStatus.CONNECTING
                   }

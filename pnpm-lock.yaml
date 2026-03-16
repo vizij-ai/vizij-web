@@ -159,6 +159,9 @@ importers:
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
+      '@vizij/utils':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/utils
       react:
         specifier: ^19.2.3
         version: 19.2.3

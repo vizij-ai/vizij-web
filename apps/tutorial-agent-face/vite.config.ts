@@ -1,11 +1,15 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import { resolve } from "node:path";
+import { resolveDevHttpsOptions } from "./dev-certificate.mjs";
+
+const https = resolveDevHttpsOptions();
 
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ["**/*.glb"],
   server: {
+    https,
     fs: {
       allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../..")],
     },

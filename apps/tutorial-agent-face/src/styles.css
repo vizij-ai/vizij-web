@@ -238,6 +238,25 @@ body,
   background: rgba(248, 113, 113, 0.16);
 }
 
+.chip.warn {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(234, 179, 8, 0.14);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.warning-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  background: rgba(120, 53, 15, 0.22);
+  color: #fde68a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .controls {
   display: flex;
   gap: 10px;

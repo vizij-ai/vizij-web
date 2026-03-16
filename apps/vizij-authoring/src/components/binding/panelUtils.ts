@@ -1,4 +1,5 @@
 import {
+  createBrowserSafeId,
   instanceOfRawEuler,
   instanceOfRawRGB,
   instanceOfRawVector3,
@@ -99,7 +100,7 @@ export function buildDefaultAnimatable(
     const units = getUnitsForEntry(entry);
 
     const descriptor: AnimatableNumber = {
-      id: crypto.randomUUID(),
+      id: createBrowserSafeId(),
       name: labelBase,
       type: "number",
       default: numericDefault,
@@ -131,7 +132,7 @@ export function buildDefaultAnimatable(
 
   if (entry.vector.descriptorType === "rgb") {
     const descriptor: AnimatableColor = {
-      id: crypto.randomUUID(),
+      id: createBrowserSafeId(),
       name: labelBase,
       type: "rgb",
       default: defaults as RawColor,
@@ -149,7 +150,7 @@ export function buildDefaultAnimatable(
 
   if (entry.vector.descriptorType === "euler") {
     const descriptor: AnimatableEuler = {
-      id: crypto.randomUUID(),
+      id: createBrowserSafeId(),
       name: labelBase,
       type: "euler",
       default: defaults as RawEuler,
@@ -167,7 +168,7 @@ export function buildDefaultAnimatable(
   }
 
   const descriptor: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: labelBase,
     type: "vector3",
     default: defaults as RawVector3,

@@ -7,6 +7,7 @@ Fullscreen Vizij face wired to a live Gemini agent. Mouse steers gaze, number ke
 ## Runbook
 
 - Dev server: `pnpm --filter tutorial-agent-face dev`
+- HTTPS LAN dev: `pnpm --filter tutorial-agent-face dev -- --host --https` or `pnpm --filter tutorial-agent-face dev:https`
 - Build/preview: `pnpm --filter tutorial-agent-face build` / `pnpm --filter tutorial-agent-face preview`
 - Typecheck: `pnpm --filter tutorial-agent-face typecheck`
 - Env: set `VITE_GEMINI_API_KEY` (Google AI Studio key) before running dev/build.
@@ -15,6 +16,8 @@ Fullscreen Vizij face wired to a live Gemini agent. Mouse steers gaze, number ke
   `VITE_GEMINI_API_KEY=... pnpm --filter tutorial-agent-face dev`
   `$env:VITE_GEMINI_API_KEY="..."; pnpm --filter tutorial-agent-face dev`
 - Reader-facing setup instructions live in `README.md`.
+- LAN microphone capture requires HTTPS or `localhost`; plain `http://<LAN-IP>` should be treated as a non-mic-capable setup.
+- The HTTPS dev path generates a local self-signed certificate under `.vite/https/`.
 
 ## Integration Tips
 

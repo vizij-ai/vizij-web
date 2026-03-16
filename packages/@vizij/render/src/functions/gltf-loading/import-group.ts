@@ -6,6 +6,7 @@ import type {
   AnimatableVector3,
   RawVector2,
 } from "@vizij/utils";
+import { createBrowserSafeId } from "@vizij/utils";
 import type { World, Group as VizijGroup } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";
@@ -32,7 +33,7 @@ export function importGroup(
   const children: string[] = [];
 
   const translationAnimatable: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${group.name ?? "Group"} translation`,
     type: "vector3",
     default: { x: group.position.x, y: group.position.y, z: group.position.z },
@@ -49,7 +50,7 @@ export function importGroup(
   };
 
   const rotationAnimatable: AnimatableEuler = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${group.name ?? "Group"} rotation`,
     type: "euler",
     default: { x: group.rotation.x, y: group.rotation.y, z: group.rotation.z },
@@ -63,7 +64,7 @@ export function importGroup(
   animatables = { ...animatables, [rotationAnimatable.id]: rotationAnimatable };
 
   const scaleAnimatable: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${group.name ?? "Group"} scale`,
     type: "vector3",
     default: { x: group.scale.x, y: group.scale.y, z: group.scale.z },

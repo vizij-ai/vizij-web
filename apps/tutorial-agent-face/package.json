@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:https": "node ./scripts/dev.mjs --host --https",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
