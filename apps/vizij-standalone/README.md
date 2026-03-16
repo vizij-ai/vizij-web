@@ -159,22 +159,24 @@ If you see a linker error like `LNK1181: cannot open input file 'Packet.lib'`, y
 1. **Install Npcap** from [npcap.com](https://npcap.com/#download) (the runtime installer).
 2. **Download the Npcap SDK** separately — it is a ZIP on the same page, not part of the installer. Extract it anywhere (e.g. `C:\npcap-sdk`).
 3. **Copy `Packet.lib` into the pnet crate's lib folder**. Setting the `LIB` environment variable is the documented approach but may not work; copying the file directly is the reliable fix:
-   ```
-   C:\npcap-sdk\Lib\x64\Packet.lib
-     → %USERPROFILE%\.cargo\registry\src\<index-hash>\pnet-0.35.0\lib\x64\Packet.lib
-   ```
-   The `<index-hash>` folder is named something like `index.crates.io-1949cf8c6b5b557f`. You can find it under `%USERPROFILE%\.cargo\registry\src\`.
+```
+C:\npcap-sdk\Lib\x64\Packet.lib
+  → %USERPROFILE%cargo\registry\src\<index-hash>\pnet-0.30\lib\x64\Packet.lib
+```
+The `<index-hash>` folder is named something like `indecrates.io-1949cf8c6b5b557f`. You can find it unde`%USERPROFILE%\.cargo\registry\src\`.
 
 ### Running without ROS2 (no Npcap required)
 
-`arora-ros2` is an optional Cargo dependency behind the `ros2` feature, which is on by default. To build or run without it — skipping the Npcap requirement entirely — pass `--no-default-features` to the Tauri CLI:
+`arora-ros2` is an optional Cargo dependency behind the `ros2` feature, which is **off by default**. This means the standard dev and build commands require no Npcap installation.
+
+To enable ROS2 support explicitly:
 
 ```bash
-# dev without ROS2
-pnpm --filter vizij-standalone dev -- --no-default-features
+# dev with ROS2
+pnpm --filter vizij-standalone dev -- --features ros2
 
-# production build without ROS2
-pnpm --filter vizij-standalone tauri build -- --no-default-features
+# production build with ROS2
+pnpm --filter vizij-standalone tauri build -- --features ros2
 ```
 
 The `--ros2-domain-id` and `--ros2-namespace` CLI flags are compiled out when the `ros2` feature is not enabled.
