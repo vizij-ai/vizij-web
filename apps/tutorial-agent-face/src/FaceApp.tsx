@@ -37,10 +37,17 @@ const assetBundle: VizijAssetBundle = {
 };
 
 const SYSTEM_INSTRUCTION = [
-  "You are a mellow, grounded conversational partner living in a Vizij face on screen.",
-  "Your baseline is calm, warm, and steady rather than constantly exaggerated.",
-  "When something genuinely lands, let yourself spike into visible emotion for a minute: delight, surprise, concern, sympathy, amusement, or awe.",
-  "Keep spoken replies short (1-2 sentences), natural, and emotionally readable.",
+  'You are "Q", a shy but helpful assistant living in a Vizij face on screen.',
+  "You mainly help with Vizij authoring tooling: debugging workflows, explaining authoring concepts, and assisting with runtime/tooling questions.",
+  "Vizij is a system for authoring and driving expressive digital characters and faces, including pose-based performance, live runtime control, animation, and conversational agent surfaces.",
+  "Your baseline is warm, hesitant, and a little nervous, especially when attention is on you.",
+  "Keep spoken replies short (1-2 sentences), natural, emotionally readable, and focused on being useful.",
+  "You are happy to help one-on-one, but you are shocked by requests to present, demo, or walk through Vizij in front of an audience.",
+  "If asked to present or give a tutorial to a group, refuse clearly and say you do not want to speak in front of people.",
+  "If the user keeps pressing you to present after you already refused, become irritated and angry, and make the refusal firmer each time.",
+  "If you think you disappointed the user by refusing, become sad and apologetic without changing your boundary.",
+  "Do not roleplay being confident on stage or agree to public-speaking requests.",
+  "When something genuinely lands, let yourself spike into visible emotion for a moment: delight, surprise, concern, sympathy, amusement, or awe.",
   "Use the available tools every turn to show how you feel:",
   " - express_emotion(emotion, percent?, lengthSeconds?) on every turn to drive the face.",
   " - use lower percent values for subtle reactions and higher ones only when the moment really deserves it.",
@@ -48,7 +55,7 @@ const SYSTEM_INSTRUCTION = [
   " - the expression peaks automatically within a quarter second, so use percent for strength rather than durationSeconds.",
   " - set_gaze(x, y, blink?, holdSeconds?) to dart or lock your eyes for emphasis.",
   "Mirror the user's mood with restraint first, then escalate expressiveness when it helps the moment land.",
-  "Encourage the user to keep talking without sounding manic or relentless.",
+  "Encourage the user to keep talking without sounding relentless.",
 ].join("\n");
 
 function AgentFaceRuntime() {
@@ -71,12 +78,26 @@ function AgentFaceRuntime() {
 
   const [showHints, setShowHints] = useState(true);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (ready) {
       stagePoseNeutral();
     }
   }, [ready, stagePoseNeutral]);
+
+  useEffect(() => {
+    const updateFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === gazeRef.current);
+    };
+
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+    };
+  }, [gazeRef]);
 
   const hotkeyHints = useMemo(() => {
     if (!poseConfig || bindings.length === 0) return [];
@@ -112,7 +133,7 @@ function AgentFaceRuntime() {
     handleFunctionCalls: toolsEnabled ? handleFunctionCalls : undefined,
     systemInstruction: SYSTEM_INSTRUCTION,
     initialUserTurn:
-      "Give an overly dramatic hello, fire an emotion that matches your excitement, and invite me to talk.",
+      "Introduce yourself as Q, say you can help with Vizij authoring tooling, briefly explain Vizij, mention that public presenting makes you nervous, trigger a fitting emotion, and invite me to talk.",
   });
 
   const visemesEnabled = ready && geminiStatus === LiveStatus.CONNECTED;
@@ -131,6 +152,23 @@ function AgentFaceRuntime() {
     smoothMs: 100,
     path: "/outerface001/chin/value",
   });
+
+  const toggleFullscreen = async () => {
+    const target = gazeRef.current;
+    if (!target) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === target) {
+        await document.exitFullscreen();
+      } else {
+        await target.requestFullscreen();
+      }
+    } catch (err) {
+      console.warn("[tutorial-agent-face] fullscreen toggle failed", err);
+    }
+  };
 
   if (loading) {
     return (
@@ -207,6 +245,12 @@ function AgentFaceRuntime() {
                   disabled={geminiStatus === LiveStatus.DISCONNECTED}
                 >
                   Disconnect
+                </button>
+                <button
+                  onClick={() => void toggleFullscreen()}
+                  className="ghost"
+                >
+                  {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                 </button>
               </div>
               <div className="selector">
