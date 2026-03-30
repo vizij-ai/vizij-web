@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   mapNormalizedControlValue,
@@ -39,8 +39,29 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
     setPointerActive(next);
   };
 
+  const setEye = useCallback(
+    (path: keyof typeof controls.eyes, value: number) => {
+      const control = controls.eyes[path];
+      if (!control) {
+        return;
+      }
+      setInput(control.path, {
+        float: mapNormalizedControlValue(control, clamp(value)),
+      });
+    },
+    [controls, setInput],
+  );
+
+  const resetEyes = useCallback(() => {
+    setEye("leftX", 0);
+    setEye("leftY", 0);
+    setEye("rightX", 0);
+    setEye("rightY", 0);
+  }, [setEye]);
+
   useEffect(() => {
     if (!enabled) {
+      resetEyes();
       updatePointerActive(false);
       return;
     }
@@ -64,16 +85,6 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
       }, POINTER_IDLE_TIMEOUT_MS);
     };
 
-    const setEye = (path: keyof typeof controls.eyes, value: number) => {
-      const control = controls.eyes[path];
-      if (!control) {
-        return;
-      }
-      setInput(control.path, {
-        float: mapNormalizedControlValue(control, clamp(value)),
-      });
-    };
-
     const handlePointer = (event: PointerEvent) => {
       const rect = target.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
@@ -93,10 +104,7 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
     };
 
     const reset = () => {
-      setEye("leftX", 0);
-      setEye("leftY", 0);
-      setEye("rightX", 0);
-      setEye("rightY", 0);
+      resetEyes();
       updatePointerActive(false);
       clearIdleTimeout();
     };
@@ -112,9 +120,10 @@ export function useMouseGaze(enabled: boolean): MouseGazeHandle {
       target.removeEventListener("pointerleave", reset);
       target.removeEventListener("pointerup", reset);
       clearIdleTimeout();
+      resetEyes();
       updatePointerActive(false);
     };
-  }, [controls, enabled, setInput]);
+  }, [enabled, resetEyes, setEye]);
 
   return { ref, isPointerActive };
 }

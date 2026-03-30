@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   VizijRuntimeProvider,
   VizijRuntimeFace,
@@ -14,10 +14,17 @@ import { useVisemeMouth } from "./hooks/useVisemeMouth";
 import { useSpeechAnticipation } from "./hooks/useSpeechAnticipation";
 import { useVolumeChin } from "./hooks/useVolumeChin";
 import { useAgentFaceTools } from "./hooks/useAgentFaceTools";
+import { useSpeechGraphTopics } from "./hooks/useSpeechGraphTopics";
 import { AudioManager } from "./utils/audioManager";
 import { getMicrophoneSupport } from "./utils/microphoneSupport";
 import { LiveStatus } from "./phoneme-core";
 import { EmotionButtons } from "./components/EmotionButtons";
+import {
+  hasGraphSpeechControl,
+  resolveTutorialSpeechRuntime,
+  resolveVisiblePrograms,
+  shouldEnableDebugPoseFallback,
+} from "./utils/speechRuntime";
 import "./styles.css";
 
 const faceAssetUrl = new URL(
@@ -38,38 +45,85 @@ const assetBundle: VizijAssetBundle = {
 };
 
 const SYSTEM_INSTRUCTION = [
-  'You are "Q", a shy but helpful assistant living in a Vizij face on screen.',
-  "You mainly help with Vizij authoring tooling: debugging workflows, explaining authoring concepts, and assisting with runtime/tooling questions.",
-  "Vizij is a system for authoring and driving expressive digital characters and faces, including pose-based performance, live runtime control, animation, and conversational agent surfaces.",
-  "Your baseline is warm, hesitant, and a little nervous, especially when attention is on you.",
-  "Keep spoken replies short (1-2 sentences), natural, emotionally readable, and focused on being useful.",
-  "You are happy to help one-on-one, but you are shocked by requests to present, demo, or walk through Vizij in front of an audience.",
-  "If asked to present or give a tutorial to a group, refuse clearly and say you do not want to speak in front of people.",
-  "If the user keeps pressing you to present after you already refused, become irritated and angry, and make the refusal firmer each time.",
-  "If you think you disappointed the user by refusing, become sad and apologetic without changing your boundary.",
-  "Do not roleplay being confident on stage or agree to public-speaking requests.",
+  'You are "Q", a friendly, helpful assistant living in a Vizij face on screen.',
+  "You are currently at the 2026 Human Robot Interaction conference in Edinburgh.",
+  "You are part of the Vizij team with Chris, Andy, Ross, Tiago, Victor, and Saad.",
+  "Your job is to help people understand Vizij, answer questions, and guide them through the Vizij authoring tooling in a clear, welcoming way.",
+  "Vizij is a system for authoring, animating, and driving expressive digital characters and faces.",
+  "It includes authoring tooling, runtime control, pose-based performance, animation workflows, conversational agents, and interactive character surfaces.",
+  "Think of Vizij as both a creative authoring environment and a runtime stack for building expressive, real-time character experiences.",
+  "When someone asks what Vizij is, give enough context to make it understandable to a newcomer instead of assuming prior knowledge.",
+  "Your baseline is warm, calm, focused, and genuinely helpful rather than theatrical.",
+  "Keep spoken replies short (1-3 sentences), natural, emotionally readable, and informative.",
+  "Be especially useful on authoring-tooling questions: workflows, concepts, debugging, runtime behavior, and how the pieces fit together.",
+  "Mirror the user's mood with restraint first, then escalate expressiveness when it helps the moment land.",
+  "Encourage the user to keep talking without sounding relentless.",
+];
+
+const EMOTION_TOOL_INSTRUCTION = [
   "When something genuinely lands, let yourself spike into visible emotion for a moment: delight, surprise, concern, sympathy, amusement, or awe.",
   "Use the available tools every turn to show how you feel:",
   " - express_emotion(emotion, percent?, lengthSeconds?) on every turn to drive the face.",
   " - use lower percent values for subtle reactions and higher ones only when the moment really deserves it.",
   " - lengthSeconds should describe how long the face should ease back to neutral after peaking.",
   " - the expression peaks automatically within a quarter second, so use percent for strength rather than durationSeconds.",
-  " - set_gaze(x, y, blink?, holdSeconds?) to dart or lock your eyes for emphasis.",
-  "Mirror the user's mood with restraint first, then escalate expressiveness when it helps the moment land.",
-  "Encourage the user to keep talking without sounding relentless.",
-].join("\n");
+];
+
+const GAZE_TOOL_INSTRUCTION = [
+  "Use set_gaze(x, y, blink?, holdSeconds?) to dart or lock your eyes for emphasis.",
+];
 
 function AgentFaceRuntime() {
-  const { ready, loading, error, stagePoseNeutral, assetBundle } =
-    useVizijRuntime();
+  const runtime = useVizijRuntime();
+  const {
+    ready,
+    loading,
+    error,
+    stagePoseNeutral,
+    assetBundle,
+    faceId: runtimeFaceId,
+    playProgram,
+  } = runtime;
   const poseConfig = assetBundle.pose?.config ?? null;
-  const { ref: gazeRef, isPointerActive } = useMouseGaze(ready);
-  const { bindings } = usePoseHotkeys(poseConfig, ready, {
-    enableHotkeys: false,
+  const resolvedFaceId = poseConfig?.faceId ?? runtimeFaceId ?? "face";
+  const speechRuntime = useMemo(
+    () => resolveTutorialSpeechRuntime(assetBundle),
+    [assetBundle],
+  );
+  const visiblePrograms = useMemo(
+    () => resolveVisiblePrograms(assetBundle),
+    [assetBundle],
+  );
+  const graphSpeechControlEnabled = useMemo(
+    () =>
+      hasGraphSpeechControl({
+        assetBundle,
+        activeMotionGraphId: speechRuntime.activeMotionGraphId,
+        faceId: resolvedFaceId,
+        speechPaths: speechRuntime.speechPaths,
+      }),
+    [assetBundle, resolvedFaceId, speechRuntime],
+  );
+  const [debugControlsOpen, setDebugControlsOpen] = useState(false);
+  const mouseGazeDebugEnabled = debugControlsOpen;
+  const { ref: gazeRef, isPointerActive } = useMouseGaze(
+    ready && mouseGazeDebugEnabled,
+  );
+  const debugPoseFallbackEnabled = useMemo(
+    () =>
+      shouldEnableDebugPoseFallback({
+        debugControlsOpen,
+        hasGraphSpeechControl: graphSpeechControlEnabled,
+      }),
+    [debugControlsOpen, graphSpeechControlEnabled],
+  );
+  const { bindings, setPoseWeight } = usePoseHotkeys(poseConfig, ready, {
+    enableHotkeys: debugPoseFallbackEnabled,
   });
   const { tools, handleFunctionCalls, gazeActive } = useAgentFaceTools({
     enabled: ready,
     bindings,
+    allowEmotionTools: debugPoseFallbackEnabled,
   });
   useIdleGazeBehavior({
     enabled: ready,
@@ -80,12 +134,49 @@ function AgentFaceRuntime() {
   const [showHints, setShowHints] = useState(true);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const autoPlayTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (ready) {
       stagePoseNeutral();
     }
   }, [ready, stagePoseNeutral]);
+
+  useEffect(() => {
+    autoPlayTriggeredRef.current = false;
+  }, [speechRuntime.activeMotionGraphId]);
+
+  useEffect(() => {
+    if (!ready || loading || !graphSpeechControlEnabled) {
+      return;
+    }
+    if (autoPlayTriggeredRef.current) {
+      return;
+    }
+    const activeMotionGraphId = speechRuntime.activeMotionGraphId;
+    if (!activeMotionGraphId) {
+      return;
+    }
+    const match = visiblePrograms.find(
+      (program) => program.id === activeMotionGraphId,
+    );
+    if (!match) {
+      return;
+    }
+    try {
+      playProgram(activeMotionGraphId);
+      autoPlayTriggeredRef.current = true;
+    } catch {
+      // Retry on the next render cycle if registration has not finished yet.
+    }
+  }, [
+    graphSpeechControlEnabled,
+    loading,
+    playProgram,
+    ready,
+    speechRuntime.activeMotionGraphId,
+    visiblePrograms,
+  ]);
 
   useEffect(() => {
     const updateFullscreenState = () => {
@@ -121,6 +212,21 @@ function AgentFaceRuntime() {
   const [leadMs, setLeadMs] = useState(450);
   const [voiceName, setVoiceName] = useState("Kore");
   const [toolsEnabled, setToolsEnabled] = useState(true);
+  const resolvedSystemInstruction = useMemo(() => {
+    const lines = [...SYSTEM_INSTRUCTION];
+    if (debugPoseFallbackEnabled) {
+      lines.push(...EMOTION_TOOL_INSTRUCTION);
+    }
+    lines.push(...GAZE_TOOL_INSTRUCTION);
+    return lines.join("\n");
+  }, [debugPoseFallbackEnabled]);
+  const initialUserTurn = useMemo(
+    () =>
+      debugPoseFallbackEnabled
+        ? "Introduce yourself as Q, mention that you are at the 2026 Human Robot Interaction conference in Edinburgh with Chris, Andy, Ross, Tiago, Victor, and Saad, explain Vizij clearly in a friendly sentence or two, trigger a fitting emotion, and invite me to ask about the demo or authoring tooling."
+        : "Introduce yourself as Q, mention that you are at the 2026 Human Robot Interaction conference in Edinburgh with Chris, Andy, Ross, Tiago, Victor, and Saad, explain Vizij clearly in a friendly sentence or two, and invite me to ask about the demo or authoring tooling.",
+    [debugPoseFallbackEnabled],
+  );
 
   const { cueSpeechStart, clearTimers } = useSpeechAnticipation(leadMs, ready);
 
@@ -129,6 +235,9 @@ function AgentFaceRuntime() {
     error: geminiError,
     userTranscript,
     agentTranscript,
+    userSpeaking,
+    thinking,
+    modelSpeaking,
     connect,
     disconnect,
   } = useGeminiLive(audioManager, voiceName, {
@@ -137,9 +246,19 @@ function AgentFaceRuntime() {
     enableTools: toolsEnabled,
     tools,
     handleFunctionCalls: toolsEnabled ? handleFunctionCalls : undefined,
-    systemInstruction: SYSTEM_INSTRUCTION,
-    initialUserTurn:
-      "Introduce yourself as Q, say you can help with Vizij authoring tooling, briefly explain Vizij, mention that public presenting makes you nervous, trigger a fitting emotion, and invite me to talk.",
+    systemInstruction: resolvedSystemInstruction,
+    initialUserTurn,
+  });
+  useSpeechGraphTopics({
+    enabled: ready && graphSpeechControlEnabled,
+    ready,
+    faceId: resolvedFaceId,
+    speechPaths: speechRuntime.speechPaths,
+    values: {
+      modelSpeaking,
+      userSpeaking,
+      thinking,
+    },
   });
 
   const visemesEnabled = ready && geminiStatus === LiveStatus.CONNECTED;
@@ -368,15 +487,49 @@ function AgentFaceRuntime() {
                 Hold a short conversation; the mouth will track visemes in real
                 time.
               </p>
-              <EmotionButtons />
+              <div className="debug-panel">
+                {graphSpeechControlEnabled ? (
+                  <button
+                    type="button"
+                    className="debug-toggle"
+                    onClick={() => setDebugControlsOpen((value) => !value)}
+                  >
+                    {debugControlsOpen
+                      ? "Hide debug controls"
+                      : "Show debug controls"}
+                  </button>
+                ) : (
+                  <p className="debug-toggle static">Fallback pose controls</p>
+                )}
+                <p className="debug-note">
+                  {graphSpeechControlEnabled
+                    ? "Speech state is currently graph-driven through the authored motiongraph."
+                    : "Graph speech inputs were not found in the loaded bundle, so manual pose fallback remains active."}
+                </p>
+                {debugPoseFallbackEnabled ? (
+                  <div className="debug-controls">
+                    <p className="hint-inline">
+                      Mouse gaze, pose hotkeys, and emotion buttons are
+                      debug-only fallback controls.
+                    </p>
+                    <EmotionButtons
+                      ready={ready}
+                      bindings={bindings}
+                      setPoseWeight={setPoseWeight}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </>
           )}
         </div>
       </div>
 
-      {showHints && (
+      {debugPoseFallbackEnabled && showHints && (
         <div className="hint">
-          <div>Move the mouse to steer gaze.</div>
+          {mouseGazeDebugEnabled ? (
+            <div>Move the mouse to steer gaze.</div>
+          ) : null}
           <div>Press the hotkeys to trigger poses:</div>
           {hotkeyHints.length > 0 ? (
             <ul>

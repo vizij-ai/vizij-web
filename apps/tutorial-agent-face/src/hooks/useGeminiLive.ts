@@ -12,12 +12,21 @@ import {
 } from "@google/genai";
 import type { AudioManager } from "../utils/audioManager";
 import { LiveStatus, MODEL_NAME } from "../phoneme-core";
+import {
+  createInitialGeminiSpeechState,
+  transitionGeminiSpeechState,
+} from "../utils/geminiSpeechState";
+
+const USER_SPEECH_RELEASE_MS = 220;
 
 export type GeminiLiveState = {
   status: LiveStatus;
   error: string | null;
   userTranscript: string;
   agentTranscript: string;
+  userSpeaking: boolean;
+  thinking: boolean;
+  modelSpeaking: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
 };
@@ -43,11 +52,16 @@ export function useGeminiLive(
   const [error, setError] = useState<string | null>(null);
   const [userTranscript, setUserTranscript] = useState("");
   const [agentTranscript, setAgentTranscript] = useState("");
+  const [speechState, setSpeechState] = useState(
+    createInitialGeminiSpeechState,
+  );
 
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const turnCompleteRef = useRef(true);
   const statusRef = useRef<LiveStatus>(LiveStatus.DISCONNECTED);
   const overrideToolsRef = useRef<boolean | null>(null);
+  const speechStateRef = useRef(speechState);
+  const lastMicActiveAtRef = useRef<number | null>(null);
   const {
     onModelSpeechEnd,
     onModelSpeechStart,
@@ -57,6 +71,33 @@ export function useGeminiLive(
     systemInstruction,
     initialUserTurn,
   } = opts;
+
+  useEffect(() => {
+    speechStateRef.current = speechState;
+  }, [speechState]);
+
+  const applySpeechEvent = useCallback(
+    (
+      event: Parameters<typeof transitionGeminiSpeechState>[1],
+      options?: { force?: boolean },
+    ) => {
+      const next = transitionGeminiSpeechState(speechStateRef.current, event);
+      const current = speechStateRef.current;
+      const changed =
+        options?.force === true ||
+        next.userSpeaking !== current.userSpeaking ||
+        next.thinking !== current.thinking ||
+        next.modelSpeaking !== current.modelSpeaking ||
+        next.awaitingModelResponse !== current.awaitingModelResponse ||
+        next.hasObservedUserTurn !== current.hasObservedUserTurn;
+      if (!changed) {
+        return;
+      }
+      speechStateRef.current = next;
+      setSpeechState(next);
+    },
+    [],
+  );
 
   const disconnect = useCallback(async () => {
     if (sessionPromiseRef.current) {
@@ -71,7 +112,9 @@ export function useGeminiLive(
     await audioManager.close();
     setStatus(LiveStatus.DISCONNECTED);
     statusRef.current = LiveStatus.DISCONNECTED;
-  }, [audioManager]);
+    lastMicActiveAtRef.current = null;
+    applySpeechEvent({ type: "reset" }, { force: true });
+  }, [applySpeechEvent, audioManager]);
 
   const connect = useCallback(async () => {
     if (status === LiveStatus.CONNECTING || status === LiveStatus.CONNECTED) {
@@ -91,6 +134,8 @@ export function useGeminiLive(
     setError(null);
     setUserTranscript("");
     setAgentTranscript("");
+    lastMicActiveAtRef.current = null;
+    applySpeechEvent({ type: "reset" }, { force: true });
 
     const effectiveToolsEnabled =
       (overrideToolsRef.current ?? enableTools) &&
@@ -171,6 +216,8 @@ export function useGeminiLive(
             setStatus(LiveStatus.DISCONNECTED);
             statusRef.current = LiveStatus.DISCONNECTED;
             sessionPromiseRef.current = null;
+            lastMicActiveAtRef.current = null;
+            applySpeechEvent({ type: "reset" }, { force: true });
             void audioManager.close();
             const causedByTools =
               effectiveToolsEnabled &&
@@ -189,6 +236,8 @@ export function useGeminiLive(
             setError(message ?? "Gemini live error");
             setStatus(LiveStatus.ERROR);
             statusRef.current = LiveStatus.ERROR;
+            lastMicActiveAtRef.current = null;
+            applySpeechEvent({ type: "reset" }, { force: true });
           },
           onmessage: async (message: LiveServerMessage) => {
             const toolCalls =
@@ -265,6 +314,7 @@ export function useGeminiLive(
             if (userText) {
               setUserTranscript((prev) => `${prev}${userText}`);
               turnCompleteRef.current = true; // user speech implies previous model turn ended
+              applySpeechEvent({ type: "user-turn-observed" });
             }
 
             const modelAudio = server?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -276,6 +326,7 @@ export function useGeminiLive(
               audioManager.resetChain();
               setAgentTranscript("");
               turnCompleteRef.current = false;
+              applySpeechEvent({ type: "model-turn-start" });
               onModelSpeechStart?.();
             }
 
@@ -289,12 +340,14 @@ export function useGeminiLive(
             if (server?.interrupted) {
               audioManager.interrupt();
               turnCompleteRef.current = true;
+              applySpeechEvent({ type: "model-interrupted" });
             }
 
             if (server?.turnComplete) {
               turnCompleteRef.current = true;
               // small trailing rest so visemes decay smoothly
               audioManager.playSilence(0.16).catch(() => {});
+              applySpeechEvent({ type: "model-turn-end" });
               onModelSpeechEnd?.();
             }
           },
@@ -306,9 +359,12 @@ export function useGeminiLive(
       console.error("[gemini] connect failed", err);
       setError((err as Error)?.message ?? "Failed to connect");
       setStatus(LiveStatus.ERROR);
+      lastMicActiveAtRef.current = null;
+      applySpeechEvent({ type: "reset" }, { force: true });
       await audioManager.close();
     }
   }, [
+    applySpeechEvent,
     audioManager,
     handleFunctionCalls,
     enableTools,
@@ -320,6 +376,41 @@ export function useGeminiLive(
     tools,
     voiceName,
   ]);
+
+  useEffect(() => {
+    if (status !== LiveStatus.CONNECTED) {
+      lastMicActiveAtRef.current = null;
+      applySpeechEvent({ type: "reset" }, { force: true });
+      return;
+    }
+
+    let animationFrameId = 0;
+    const tick = () => {
+      const activity = audioManager.getMicActivity();
+      const now = performance.now();
+
+      if (activity.active) {
+        lastMicActiveAtRef.current = activity.lastActiveAt ?? now;
+        applySpeechEvent({ type: "user-speaking-start" });
+      } else if (speechStateRef.current.userSpeaking) {
+        const lastActiveAt =
+          lastMicActiveAtRef.current ?? activity.lastActiveAt;
+        if (
+          lastActiveAt !== null &&
+          now - lastActiveAt >= USER_SPEECH_RELEASE_MS
+        ) {
+          applySpeechEvent({ type: "user-speaking-stop" });
+        }
+      }
+
+      animationFrameId = window.requestAnimationFrame(tick);
+    };
+
+    animationFrameId = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [applySpeechEvent, audioManager, status]);
 
   useEffect(() => {
     // Reset any automatic fallback when the user toggles tools.
@@ -337,6 +428,9 @@ export function useGeminiLive(
     error,
     userTranscript,
     agentTranscript,
+    userSpeaking: speechState.userSpeaking,
+    thinking: speechState.thinking,
+    modelSpeaking: speechState.modelSpeaking,
     connect,
     disconnect,
   };

@@ -408,3 +408,41 @@ body,
   font-size: 13px;
   color: rgba(226, 232, 240, 0.8);
 }
+
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.debug-toggle {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.72);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.debug-toggle.static {
+  margin: 0;
+  cursor: default;
+  color: #cbd5f5;
+}
+
+.debug-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(191, 219, 254, 0.86);
+}
+
+.debug-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

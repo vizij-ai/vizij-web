@@ -21,6 +21,7 @@ import type { PoseHotkeyBinding } from "./usePoseHotkeys";
 type AgentFaceToolsOptions = {
   enabled: boolean;
   bindings: PoseHotkeyBinding[];
+  allowEmotionTools?: boolean;
 };
 
 export type AgentFaceTools = {
@@ -156,6 +157,7 @@ function normalizePercent(value: unknown, fallback = 100) {
 export function useAgentFaceTools({
   enabled,
   bindings,
+  allowEmotionTools = true,
 }: AgentFaceToolsOptions): AgentFaceTools {
   const {
     animateValue,
@@ -175,7 +177,7 @@ export function useAgentFaceTools({
     () => bindings.filter((binding) => isEmotionBinding(binding)),
     [bindings],
   );
-  const hasEmotionBindings = emotionBindings.length > 0;
+  const hasEmotionBindings = allowEmotionTools && emotionBindings.length > 0;
   const neutralBinding = useMemo(
     () =>
       emotionBindings.find(
@@ -461,7 +463,7 @@ export function useAgentFaceTools({
           if (call.name === "set_gaze") {
             const result = await applyGaze((call.args ?? {}) as GazeArgs);
             responses.push({ id: call.id, name: call.name, response: result });
-          } else if (call.name === "express_emotion") {
+          } else if (call.name === "express_emotion" && allowEmotionTools) {
             const result = await applyEmotion((call.args ?? {}) as EmotionArgs);
             responses.push({ id: call.id, name: call.name, response: result });
           } else {
@@ -485,7 +487,7 @@ export function useAgentFaceTools({
 
       return responses;
     },
-    [applyEmotion, applyGaze],
+    [allowEmotionTools, applyEmotion, applyGaze],
   );
 
   useEffect(() => {

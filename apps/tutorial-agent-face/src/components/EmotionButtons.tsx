@@ -3,15 +3,27 @@ import {
   EXPRESSIVE_EMOTION_POSE_KEYS,
   useVizijRuntime,
 } from "@vizij/runtime-react";
-import { usePoseHotkeys } from "../hooks/usePoseHotkeys";
 import { isEmotionBinding } from "../utils/emotions";
+import type { PoseHotkeyBinding } from "../hooks/usePoseHotkeys";
 
 const DEFAULT_POSE_WEIGHT = 0.7;
 
-export function EmotionButtons() {
-  const { ready, assetBundle, animateValue } = useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const { bindings, setPoseWeight } = usePoseHotkeys(poseConfig, ready);
+type EmotionButtonsProps = {
+  ready: boolean;
+  bindings: PoseHotkeyBinding[];
+  setPoseWeight: (
+    binding: PoseHotkeyBinding,
+    weight: number,
+    duration?: number,
+  ) => void;
+};
+
+export function EmotionButtons({
+  ready,
+  bindings,
+  setPoseWeight,
+}: EmotionButtonsProps) {
+  const { animateValue } = useVizijRuntime();
   const timeoutRef = useRef<Map<string, number>>(new Map());
 
   const emotionBindings = useMemo(() => {

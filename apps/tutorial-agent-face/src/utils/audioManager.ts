@@ -22,6 +22,9 @@ type ChunkSchedule = {
 };
 
 export class AudioManager {
+  private static readonly MIC_ACTIVITY_ON_THRESHOLD = 0.08;
+  private static readonly MIC_ACTIVITY_OFF_THRESHOLD = 0.045;
+
   private inputContext: AudioContext | null = null;
   private outputContext: AudioContext | null = null;
   private inputStream: MediaStream | null = null;
@@ -60,6 +63,10 @@ export class AudioManager {
   private latencySamples: number[] = [];
   private lastArrivalLatencyMs: number = 0;
   private arrivalLatencySamples: number[] = [];
+  private micActivityLevel: number = 0;
+  private micActivityRms: number = 0;
+  private micActive: boolean = false;
+  private micLastActiveAt: number | null = null;
 
   constructor() {
     // Initial setup if needed
@@ -103,6 +110,22 @@ export class AudioManager {
 
       this.processor.onaudioprocess = (e) => {
         const inputData = e.inputBuffer.getChannelData(0);
+        const rms = this.computeRms(inputData);
+        const volume = normalizeVolume(rms);
+        const now = performance.now();
+
+        this.micActivityRms = rms;
+        this.micActivityLevel = volume;
+        if (
+          volume >= AudioManager.MIC_ACTIVITY_ON_THRESHOLD ||
+          (this.micActive && volume >= AudioManager.MIC_ACTIVITY_OFF_THRESHOLD)
+        ) {
+          this.micActive = true;
+          this.micLastActiveAt = now;
+        } else {
+          this.micActive = false;
+        }
+
         const pcmData = this.convertFloat32ToInt16(inputData);
         const buffer = new ArrayBuffer(pcmData.byteLength);
         new Int16Array(buffer).set(pcmData);
@@ -383,6 +406,15 @@ export class AudioManager {
     return this.lastLatencyMs;
   }
 
+  getMicActivity() {
+    return {
+      active: this.micActive,
+      level: this.micActivityLevel,
+      rms: this.micActivityRms,
+      lastActiveAt: this.micLastActiveAt,
+    };
+  }
+
   getLatencyStats() {
     if (!this.latencySamples.length) return { p50: 0, p95: 0, avg: 0 };
     const sorted = [...this.latencySamples].sort((a, b) => a - b);
@@ -453,6 +485,7 @@ export class AudioManager {
       }
       this.inputContext = null;
     }
+    this.resetMicActivity();
   }
 
   private emptyFeatures(): AudioFeatures {
@@ -801,6 +834,7 @@ export class AudioManager {
     this.activeChainDuration = 0;
     this.activeChainStartTime = 0;
     this.resetFeatureCache();
+    this.resetMicActivity();
   }
 
   // --- Helpers ---
@@ -844,6 +878,13 @@ export class AudioManager {
       };
       reader.readAsDataURL(blob);
     });
+  }
+
+  private resetMicActivity() {
+    this.micActivityLevel = 0;
+    this.micActivityRms = 0;
+    this.micActive = false;
+    this.micLastActiveAt = null;
   }
 }
 
