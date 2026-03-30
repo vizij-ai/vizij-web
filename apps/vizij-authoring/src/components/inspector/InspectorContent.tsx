@@ -58,6 +58,7 @@ import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
+import { resolveAuthoringParentExpressionVariable } from "../../utils/rigPipelineAliases";
 import {
   fromRotationDisplayValue,
   shouldDisplayRotationInDegrees,
@@ -101,6 +102,7 @@ import {
 import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
 import {
   assessLegacyBindingMigration,
+  buildDefaultParentContributionFormula,
   buildLegacyMigrationLinkUpserts,
   buildDefaultParentVariableFormula,
   buildCompiledPipelineEquation,
@@ -246,21 +248,6 @@ function collectBindingInputIds(
     }
   });
   return Array.from(ids);
-}
-
-function resolveBindingSlotAlias(
-  slot: { alias?: string | null; id?: string | null },
-  index: number,
-): string {
-  const trimmedAlias = slot.alias?.trim();
-  if (trimmedAlias) {
-    return trimmedAlias;
-  }
-  const trimmedId = slot.id?.trim();
-  if (trimmedId) {
-    return trimmedId;
-  }
-  return index === 0 ? "s1" : `s${index + 1}`;
 }
 
 function collectLockableTargetIdsForNode(
@@ -3465,21 +3452,57 @@ export function InspectorContent({
         if (!childInput) {
           return [];
         }
+        const resolvedMetadata = resolvePatchedPipelineMetadata(
+          params.pipelineMetadata,
+          params.patch,
+        );
+        const linksById = asObject(resolvedMetadata?.links);
+        const childBinding =
+          bindingAuthoringStore.getState().inputBindings[params.childInputId] ??
+          inputBindings[params.childInputId];
+        const slotByInputId = new Map<
+          string,
+          {
+            slot: NonNullable<typeof childBinding>["slots"][number];
+            index: number;
+          }
+        >();
+        (childBinding?.slots ?? []).forEach((slot, index) => {
+          const rawInputId = slot.inputId?.trim() ?? "";
+          if (!rawInputId || rawInputId === SELF_BINDING_ID) {
+            return;
+          }
+          const resolvedInputId = resolveRigMetadataInputId(
+            rawInputId,
+            standardInputsById,
+          );
+          slotByInputId.set(resolvedInputId, { slot, index });
+        });
         const resolvedConfig = resolveRigPipelineV1InputConfig({
           faceId: runtimeFaceId?.trim() || "robot",
           input: childInput,
-          pipelineV1:
-            resolvePatchedPipelineMetadata(
-              params.pipelineMetadata,
-              params.patch,
-            ) ?? undefined,
+          pipelineV1: resolvedMetadata ?? undefined,
         });
         return resolvedConfig.parents
           .filter((parent) => parent.enabled)
-          .map((parent) => ({
-            alias: parent.alias,
-            expression: parent.expression,
-          }));
+          .map((parent) => {
+            const linkConfig = asObject(linksById?.[parent.linkId]);
+            const linkExpression =
+              typeof linkConfig?.expression === "string" &&
+              linkConfig.expression.trim().length > 0
+                ? linkConfig.expression.trim()
+                : null;
+            return {
+              alias: resolveAuthoringParentExpressionVariable({
+                input: standardInputsById.get(parent.inputId),
+                slot: slotByInputId.get(parent.inputId)?.slot ?? null,
+                slotIndex: slotByInputId.get(parent.inputId)?.index,
+                linkExpression,
+                fallbackAlias: parent.alias,
+              }),
+              ...(linkExpression ? { expression: linkExpression } : {}),
+            };
+          });
       };
       const queueParentBlendExpressionSync = (params: {
         childInputId: string;
@@ -4192,11 +4215,13 @@ export function InspectorContent({
       });
       const expressionVariableByInputId = (() => {
         const aliasesByInputId = new Map<string, string>();
-        const usedAliases = new Set<string>();
-        resolvedCurrentPipelineConfig.parents.forEach((parent) => {
-          aliasesByInputId.set(parent.inputId, parent.alias);
-          usedAliases.add(parent.alias.toLowerCase());
-        });
+        const slotByInputId = new Map<
+          string,
+          {
+            slot: NonNullable<typeof parentBinding>["slots"][number];
+            index: number;
+          }
+        >();
         (parentBinding?.slots ?? []).forEach((slot, index) => {
           const rawInputId = slot.inputId?.trim() ?? "";
           if (!rawInputId || rawInputId === SELF_BINDING_ID) {
@@ -4206,36 +4231,61 @@ export function InspectorContent({
             rawInputId,
             standardInputsById,
           );
-          if (aliasesByInputId.has(resolvedInputId)) {
-            return;
-          }
-          const alias = resolveRigPipelineV1FormulaVariable({
-            alias: resolveBindingSlotAlias(slot, index),
-            expression:
-              pipelineLinksById.get(
-                buildRigPipelineV1LinkId(resolvedInputId, input.id),
-              )?.expression ?? null,
-            fallbackAlias: `s${index + 1}`,
-          });
-          const normalizedAlias = alias.toLowerCase();
-          aliasesByInputId.set(resolvedInputId, alias);
-          usedAliases.add(normalizedAlias);
+          slotByInputId.set(resolvedInputId, { slot, index });
         });
-        let fallbackAliasIndex = 1;
-        parentRigInputRefs.forEach((entry) => {
+        resolvedCurrentPipelineConfig.parents.forEach((parent) => {
+          const slotInfo = slotByInputId.get(parent.inputId);
+          aliasesByInputId.set(
+            parent.inputId,
+            resolveAuthoringParentExpressionVariable({
+              input: standardInputsById.get(parent.inputId),
+              slot: slotInfo?.slot ?? null,
+              slotIndex: slotInfo?.index,
+              linkExpression:
+                pipelineLinksById.get(parent.linkId)?.expression ?? null,
+              fallbackAlias: parent.alias,
+            }),
+          );
+        });
+        parentRigInputRefs.forEach((entry, index) => {
           if (aliasesByInputId.has(entry.id)) {
             return;
           }
-          while (usedAliases.has(`s${fallbackAliasIndex}`)) {
-            fallbackAliasIndex += 1;
-          }
-          const fallbackAlias = `s${fallbackAliasIndex}`;
-          aliasesByInputId.set(entry.id, fallbackAlias);
-          usedAliases.add(fallbackAlias);
-          fallbackAliasIndex += 1;
+          const slotInfo = slotByInputId.get(entry.id);
+          aliasesByInputId.set(
+            entry.id,
+            resolveAuthoringParentExpressionVariable({
+              input: standardInputsById.get(entry.id),
+              slot: slotInfo?.slot ?? null,
+              slotIndex: slotInfo?.index,
+              linkExpression: entry.linkExpression,
+              fallbackAlias: `s${index + 1}`,
+            }),
+          );
         });
         return aliasesByInputId;
       })();
+      const canonicalParentContributionSources =
+        resolveParentContributionSourcesForInput({
+          childInputId: input.id,
+          pipelineMetadata: pipelineMetadataV1,
+        });
+      const resolvedParentContributionSources =
+        resolvedCurrentPipelineConfig.parents
+          .filter((parent) => parent.enabled)
+          .map((parent) => {
+            const linkExpression =
+              pipelineLinksById.get(parent.linkId)?.expression ?? null;
+            if (linkExpression) {
+              return {
+                alias: parent.alias,
+                expression: linkExpression,
+              };
+            }
+            return {
+              alias: parent.alias,
+            };
+          });
       const parentRigChainItems: Array<{
         key: string;
         inputId: string;
@@ -4514,10 +4564,22 @@ export function InspectorContent({
       const parentExpressionTitle = isMigratedBinding
         ? "Parent Contribution Formula"
         : "Authored Parent Expression";
-      const defaultParentContributionExpression =
-        resolvedCurrentPipelineConfig.parentBlend.expression;
+      const storedParentContributionExpression =
+        readParentBlendExpressionFromPipelineMetadata(
+          pipelineMetadataV1 as Record<string, unknown> | null | undefined,
+          input.id,
+        ) ?? resolvedCurrentPipelineConfig.parentBlend.expression;
       const displayedParentExpression = isMigratedBinding
-        ? defaultParentContributionExpression
+        ? isAutoParentBlendExpression(
+            storedParentContributionExpression,
+            resolvedParentContributionSources,
+          )
+          ? canonicalParentContributionSources.length > 0
+            ? buildDefaultParentContributionFormula(
+                canonicalParentContributionSources,
+              )
+            : ""
+          : storedParentContributionExpression
         : (parentBinding?.expression ?? "");
 
       const applyPipelineMetadataPatchForInput = (

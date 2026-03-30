@@ -27,6 +27,7 @@ import {
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { getStandardInputResolutionIndex } from "../utils/standardInputResolutionIndex";
+import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions";
 
 interface BindingManagerOptions {
   componentsById: Map<string, AnimatableComponent>;
@@ -88,40 +89,6 @@ export function useBindingManager(options: BindingManagerOptions) {
       return aliasOnlyExpression(binding);
     },
     [aliasOnlyExpression],
-  );
-
-  const expressionReferencesSlot = useCallback(
-    (binding: AnimatableBinding, slotId: string): boolean => {
-      const expression = (binding.expression ?? "").trim();
-      if (expression.length === 0) {
-        return false;
-      }
-      const slot = (binding.slots ?? []).find(
-        (candidate) => candidate.id === slotId,
-      );
-      if (!slot || !slot.inputId || slot.inputId === SELF_BINDING_ID) {
-        return false;
-      }
-      const slotTokenCandidates = new Set<string>();
-      const alias = slot.alias?.trim();
-      if (alias) {
-        slotTokenCandidates.add(alias);
-      }
-      const slotTokenId = slot.id?.trim();
-      if (slotTokenId) {
-        slotTokenCandidates.add(slotTokenId);
-      }
-      for (const token of slotTokenCandidates) {
-        const pattern = new RegExp(
-          `\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-        );
-        if (pattern.test(expression)) {
-          return true;
-        }
-      }
-      return false;
-    },
-    [],
   );
 
   const updateInputBinding = useCallback(
@@ -607,20 +574,7 @@ export function useBindingManager(options: BindingManagerOptions) {
               connectedSlotId,
               upstreamInput,
             );
-            // Ensure the newly-connected slot is active in the expression.
-            if (expressionReferencesSlot(aliased, connectedSlotId)) {
-              return aliased;
-            }
-            const canonicalExpression = canonicalBindingExpression(aliased);
-            if (
-              (aliased.expression ?? "").trim() === canonicalExpression.trim()
-            ) {
-              return aliased;
-            }
-            return {
-              ...aliased,
-              expression: canonicalExpression,
-            };
+            return ensureLinkedSlotActiveInExpression(aliased, connectedSlotId);
           },
         );
       });
@@ -630,8 +584,6 @@ export function useBindingManager(options: BindingManagerOptions) {
       standardInputsByIdRef,
       updateInputBinding,
       maybeAutoAliasSlot,
-      canonicalBindingExpression,
-      expressionReferencesSlot,
     ],
   );
 

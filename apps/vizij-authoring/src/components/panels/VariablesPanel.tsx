@@ -61,6 +61,7 @@ import {
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
+import { ensureLinkedSlotActiveInExpression } from "../../utils/bindingExpressions";
 import type {
   PoseBlendMode,
   PoseDefinition,
@@ -1610,12 +1611,6 @@ function applyVariableCopyLinkPlansToInputBindings(params: {
       existingBinding ?? createDefaultParentBinding(target),
       target,
     );
-    const expressionBefore = (baseBinding.expression ?? "").trim();
-    const canonicalExpressionBefore =
-      buildCanonicalBindingExpression(baseBinding).trim();
-    const expressionWasAuto =
-      expressionBefore.length === 0 ||
-      expressionBefore === canonicalExpressionBefore;
     let linkedBinding = baseBinding;
 
     let targetSlotId =
@@ -1641,19 +1636,10 @@ function applyVariableCopyLinkPlansToInputBindings(params: {
       parentInput,
       targetSlotId ?? undefined,
     );
-    if (expressionWasAuto) {
-      const canonicalExpressionAfter =
-        buildCanonicalBindingExpression(linkedBinding).trim();
-      if (
-        canonicalExpressionAfter.length > 0 &&
-        (linkedBinding.expression ?? "").trim() !== canonicalExpressionAfter
-      ) {
-        linkedBinding = {
-          ...linkedBinding,
-          expression: canonicalExpressionAfter,
-        };
-      }
-    }
+    linkedBinding = ensureLinkedSlotActiveInExpression(
+      linkedBinding,
+      targetSlotId,
+    );
     const linkedWithMetadata = upsertBindingPipelineLinkMetadata(
       linkedBinding,
       {

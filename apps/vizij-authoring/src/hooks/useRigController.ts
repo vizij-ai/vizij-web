@@ -13,7 +13,6 @@ import {
   bindingTargetFromComponent,
   bindingTargetFromInput,
   bindingToDefinition,
-  buildCanonicalBindingExpression,
   createDefaultBinding,
   createDefaultInputValues,
   createDefaultParentBinding,
@@ -91,6 +90,11 @@ import {
   buildLegacyMigrationLinkUpserts,
   mergePipelineMetadata,
 } from "../components/inspector/pipelineStages";
+import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions";
+import {
+  deriveAliasFromInputDescriptor,
+  syncBindingParentAliasReferences,
+} from "../utils/rigPipelineAliases";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { FEATURE_FLAG_DEFAULTS, useFeatureLabels } from "./useFeatureLabels";
@@ -201,23 +205,6 @@ function collectBindingInputIds(
     }
   });
   return Array.from(ids);
-}
-
-function deriveAliasFromInputDescriptor(
-  input?: StandardRigInput | null,
-): string | null {
-  if (!input) {
-    return null;
-  }
-  const normalized = normalizeStandardRigInputPath(input.path);
-  const segments = normalized.split("/").filter(Boolean);
-  const fallback = input.id ?? input.label ?? null;
-  const candidate =
-    segments.length > 0 ? segments[segments.length - 1] : fallback;
-  if (!candidate) {
-    return null;
-  }
-  return candidate;
 }
 
 export function appendStandardInputPathSuffix(
@@ -1230,10 +1217,6 @@ function upsertParentLinkBinding(params: {
     params.binding ?? createDefaultParentBinding(target),
     target,
   );
-  const expressionBefore = (next.expression ?? "").trim();
-  const canonicalBefore = buildCanonicalBindingExpression(next).trim();
-  const expressionWasAuto =
-    expressionBefore.length === 0 || expressionBefore === canonicalBefore;
 
   let targetSlotId =
     next.slots.find((slot) => slot.inputId === params.parentInput.id)?.id ??
@@ -1257,18 +1240,7 @@ function upsertParentLinkBinding(params: {
     params.parentInput,
     targetSlotId ?? undefined,
   );
-  if (expressionWasAuto) {
-    const canonicalAfter = buildCanonicalBindingExpression(next).trim();
-    if (
-      canonicalAfter.length > 0 &&
-      (next.expression ?? "").trim() !== canonicalAfter
-    ) {
-      next = {
-        ...next,
-        expression: canonicalAfter,
-      };
-    }
-  }
+  next = ensureLinkedSlotActiveInExpression(next, targetSlotId);
 
   const linkId = buildRigPipelineV1LinkId(
     params.parentInput.id,
@@ -2149,6 +2121,7 @@ export function useRigController(
         range?: { min?: number; max?: number };
       },
     ) => {
+      const previousInput = standardInputsByIdRef.current.get(inputId) ?? null;
       const result = updateStandardInputEntry({
         inputId,
         updates,
@@ -2169,17 +2142,76 @@ export function useRigController(
         upserts: [result.updatedInput],
       });
       if (result.previousId === result.nextId) {
+        setInputBindings((previous) => {
+          if (!previousInput) {
+            return previous;
+          }
+          let changed = false;
+          const next: InputBindingMap = {};
+          Object.entries(previous).forEach(([childInputId, binding]) => {
+            if (!binding) {
+              return;
+            }
+            const childInput = standardInputsByIdRef.current.get(childInputId);
+            if (!childInput) {
+              next[childInputId] = binding;
+              return;
+            }
+            const updatedBinding = syncBindingParentAliasReferences({
+              binding,
+              childInput,
+              standardInputsById: standardInputsByIdRef.current,
+              parentInputBefore: previousInput,
+              parentInputAfter: result.updatedInput,
+            });
+            if (updatedBinding !== binding) {
+              changed = true;
+            }
+            next[childInputId] = updatedBinding;
+          });
+          return changed ? next : previous;
+        });
         return;
       }
       applyStandardInputIdRemap(
         new Map([[result.previousId, result.nextId]]),
         standardInputsByIdRef.current,
       );
+      setInputBindings((previous) => {
+        if (!previousInput) {
+          return previous;
+        }
+        let changed = false;
+        const next: InputBindingMap = {};
+        Object.entries(previous).forEach(([childInputId, binding]) => {
+          if (!binding) {
+            return;
+          }
+          const childInput = standardInputsByIdRef.current.get(childInputId);
+          if (!childInput) {
+            next[childInputId] = binding;
+            return;
+          }
+          const updatedBinding = syncBindingParentAliasReferences({
+            binding,
+            childInput,
+            standardInputsById: standardInputsByIdRef.current,
+            parentInputBefore: previousInput,
+            parentInputAfter: result.updatedInput,
+          });
+          if (updatedBinding !== binding) {
+            changed = true;
+          }
+          next[childInputId] = updatedBinding;
+        });
+        return changed ? next : previous;
+      });
     },
     [
       applyStandardInputIdRemap,
       autoInputsRef,
       customInputsRef,
+      setInputBindings,
       setAutoInputs,
       setCustomInputs,
       syncStandardInputSnapshotRefs,

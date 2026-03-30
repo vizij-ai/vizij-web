@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createStandardRigInput, type StandardRigInput } from "@vizij/utils";
+import { linkChildInput } from "../standardInputLinks";
 import { useBindingManager } from "../useBindingManager";
 
 function makeInput(
@@ -229,5 +230,72 @@ describe("useBindingManager", () => {
       sourceBSlot?.alias ?? "",
     );
     expect((updated?.expression ?? "").trim()).not.toBe("self + s2");
+  });
+
+  it("canonicalizes custom expressions when child-link creation adds a new parent", () => {
+    const target = makeInput(
+      "propsrig_scene_rotation_z",
+      "/propsrig/scene/rotation/z",
+    );
+    const sourceA = makeInput("testing_source_a", "/testing/source/a");
+    const sourceB = makeInput("testing_source_b", "/testing/source/b");
+    const standardInputsByIdRef = {
+      current: new Map<string, StandardRigInput>([
+        [target.id, target],
+        [sourceA.id, sourceA],
+        [sourceB.id, sourceB],
+      ]),
+    };
+    const allStandardInputsRef = {
+      current: new Map<string, StandardRigInput>([
+        [target.id, target],
+        [sourceA.id, sourceA],
+        [sourceB.id, sourceB],
+      ]),
+    };
+
+    const hook = renderHook(() =>
+      useBindingManager({
+        componentsById: new Map(),
+        standardInputsByIdRef,
+        allStandardInputsRef,
+        maybeAutoAliasSlot: (binding) => binding,
+        debugLog: vi.fn(),
+      }),
+    );
+
+    act(() => {
+      hook.result.current.handleCreateParentDriverBinding(
+        target.id,
+        sourceA.id,
+      );
+    });
+
+    act(() => {
+      hook.result.current.handleParentBindingExpressionChange(
+        target.id,
+        "self * 0.5 + s2",
+      );
+    });
+
+    act(() => {
+      linkChildInput({
+        parentId: sourceB.id,
+        childId: target.id,
+        updateInputBinding: hook.result.current.updateInputBinding,
+        standardInputsByIdRef,
+        allStandardInputsRef,
+      });
+    });
+
+    const updated = hook.result.current.inputBindings[target.id];
+    const sourceBSlot = updated?.slots.find(
+      (slot) => slot.inputId === sourceB.id,
+    );
+    expect(sourceBSlot).toBeDefined();
+    expect((updated?.expression ?? "").trim()).toContain(
+      sourceBSlot?.alias ?? "",
+    );
+    expect((updated?.expression ?? "").trim()).not.toBe("self * 0.5 + s2");
   });
 });
