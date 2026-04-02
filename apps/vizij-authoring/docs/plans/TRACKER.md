@@ -14,7 +14,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 6. Stage 4 policy semantics are now complete: `E4.1` override-map contracts, `E4.2` priority compiler semantics, and `E4.3` design-pack guidance.
 7. Stage `4A` pose-control composition alignment is complete (`A0.4`-`A0.7`), including rig-side effective composition, per-channel compose-mode authoring, and Inputs-pane internal-path filtering/sync contracts.
 8. Import Migration Plan integration remains tracked as Block `F5.*` in `plans/BACKLOG.md` with dependency-ordered execution and quality-gate linkage (`QL0.*`, `QL2.*`).
-9. Pose Group + Stage Inspector sprint has started with commit-sized `S0`-`S7` execution tracking in `plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN.md` (scope: scoped neutral authoring + stage inspector + composition-output analysis).
+9. Pose Group + Stage Inspector sprint is complete; the chunk-by-chunk historical record lives in `../archive/plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN_2026-02-26.md` (scope: scoped neutral authoring + stage inspector + composition-output analysis).
 10. Reference-face reliability tranche `R6.1`-`R6.4` is complete (path-first staging, legacy pose-control bridge compatibility, export guardrails, and reset normalization); `R6.5` remains open for perf thresholds + session audit logging.
 11. Animation/orchestrator unification lane (`G7.*`) is implemented end-to-end on the authoring/runtime path (runtime-authoritative transport, deterministic IR/compiler, interpolation, and export/import round-trip).
 12. Workspace clarity lane (`U8.*`) is planned, including motion graph sidebar migration and graph-first workspace reclaim.

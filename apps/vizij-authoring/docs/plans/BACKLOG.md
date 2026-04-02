@@ -899,11 +899,11 @@ Acceptance checks:
 
 1. Perf thresholds are documented with reproducible dual-face benchmark runs.
 2. Copy sessions emit auditable summary records (operation type, source, destination, unresolved count, final action).
-3. SOP and implementation-plan docs reflect the finalized thresholds and logging behavior.
+3. SOP and tracker/docs reflect the finalized thresholds and logging behavior.
 
 ## Block G — Animation + Orchestrator Unification
 
-Wave sequencing for this block is tracked in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md`.
+Historical wave sequencing for this block is preserved in `../archive/plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN_2026-03-02.md`. Current outcome tracking lives in `TRACKER.md`.
 
 ### [x] G7.1 Playback Authority Contract Lock
 

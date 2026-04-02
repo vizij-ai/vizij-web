@@ -1,7 +1,7 @@
 # Authoring Blueprint: Inputs, Pose, and Rig Layer Contract
 
-Last updated: 2026-02-17  
-Status: design draft for P1 finalization  
+Last updated: 2026-03-30
+Status: living local reference
 Owner: Vizij Authoring  
 Scope: `apps/vizij-authoring`
 
@@ -18,11 +18,13 @@ This blueprint defines the canonical authored and compiled model for:
 
 It also defines UI behaviors required to create, edit, and delete Inputs, Poses, and Pose Groups while preserving correct graph composition.
 
-## 2) Current context and required contract adjustment
+If this file conflicts with `ARCHITECTURE.md` or `UI_DESIGN.md`, follow those files first and treat this blueprint as the layer-model companion reference.
+
+## 2) Current contract and migration notes
 
 - Existing docs and implementations historically used `/rig/element`.
 - New contract for this cycle: generated low-level rig variables are now **`/propsrig/...`**.
-- The old value `/pose/control` should not be used as the generated namespace.
+- Internal pose-control outputs now use `rig/<face>/pose/control/<inputId>` as a graph-internal runtime path; they are not a generated low-level rig namespace.
 - Legacy imported assets should still load and continue to work, but emit migration diagnostics when their low-level mapping does not match the new `/propsrig` contract.
 
 ## 3) Authoring levels
@@ -139,7 +141,7 @@ On load / import / compile:
   - stale.
 - Provide quick sync action if propsrig mapping is missing.
 
-### 7.2 Inputs surface (replaces Drivers pane)
+### 7.2 Inputs and Drivers surfaces
 
 Required functions:
 
@@ -178,11 +180,11 @@ Required functions:
 5. Set local blend mode.
 6. Set/inspect cross-group strategy.
 
-### 7.5 Wiring model (no dedicated Drivers pane)
+### 7.5 Wiring model
 
-- The app has no separate Drivers pane.
+- The app currently keeps a dedicated Drivers surface inside `Control Authoring`.
 - Wiring actions are performed via:
-  - Inputs bindings editor for selected input rows,
+  - Drivers/input bindings editor for selected rows,
   - Inspector-level chain navigation/actions.
 - Required wiring behavior:
   1. Show selected node incoming/outgoing links.

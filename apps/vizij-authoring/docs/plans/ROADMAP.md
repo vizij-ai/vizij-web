@@ -136,7 +136,7 @@ Exit gate:
 Current status:
 
 - `done`
-- Progress: `A0.4`, `A0.5`, `A0.6`, and `A0.7` are complete; execution details and validation log are captured in `plans/POSE_CONTROL_COMPOSITION_PLAN.md`.
+- Progress: `A0.4`, `A0.5`, `A0.6`, and `A0.7` are complete; execution details and validation log are captured in `../archive/plans/POSE_CONTROL_COMPOSITION_PLAN_2026-02-19.md`.
 
 ## Stage 4B — Reference-Face Runtime/Export Reliability
 
@@ -197,7 +197,7 @@ Backlog scope:
 
 Execution model:
 
-- Wave-based phases captured in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md` (`Wave 0` through `Wave 5`).
+- Historical wave sequencing is preserved in `../archive/plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN_2026-03-02.md`; current state is summarized in `TRACKER.md`.
 
 Exit gate:
 
@@ -207,9 +207,9 @@ Exit gate:
 
 Current status:
 
-- `in_progress`
-- Progress: exploratory seam analysis and wave plan are complete; implementation starts at `Wave 0` contract lock + instrumentation.
-- Note: this stage is opened under explicit tracker waiver before full Stage 5 completion.
+- `done`
+- Progress: the historical wave plan is complete and the resulting runtime-authoritative animation path is tracked in `TRACKER.md`.
+- Note: this stage was opened under explicit tracker waiver before full Stage 5 completion.
 
 ## Stage 7 — Workspace Clarity + Pose Blend Visualization
 

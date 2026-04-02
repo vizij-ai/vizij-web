@@ -1,7 +1,7 @@
 # Pose Grouping And Blending In Vizij Authoring
 
-Last updated: 2026-02-26  
-Execution plan: `apps/vizij-authoring/docs/plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN.md`
+Last updated: 2026-03-30
+Historical implementation record: `apps/vizij-authoring/docs/archive/plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN_2026-02-26.md`
 
 This document explains how pose grouping and blending work in the `vizij-authoring` app in plain English.
 
@@ -12,7 +12,7 @@ It covers:
 3. What gets compiled and executed under the hood.
 4. Which configuration layers exist and how they stack.
 5. Where implementation and docs currently align or drift.
-6. Roadmap steps for scoped neutral authoring in stage/group inspectors.
+6. Historical rollout and cleanup notes for scoped neutral authoring in stage/group inspectors.
 
 ## 1) What This System Is Doing
 
@@ -68,7 +68,7 @@ This keeps the runtime contract explicit and supports future policy extension wi
 
 ## 2) How The UI Works
 
-**Executive summary:** You author groups and stages in the Pose Groups surface, edit per-pose memberships in both panel and inspector, set per-channel compose mode in pose channel rows, use Inputs for read-only composition observability, and use stage/group inspectors as the planned home for neutral editing plus composition output analysis.
+**Executive summary:** You author groups and stages in the Pose Groups surface, edit per-pose memberships in both panel and inspector, set per-channel compose mode in pose channel rows, use Inputs for read-only composition observability, and use stage/group inspectors as the current home for neutral editing plus composition output analysis.
 
 ### 2.1 Where to find the controls
 
@@ -528,9 +528,9 @@ This preserves authoring intent plus machine-facing evidence for downstream revi
 - [useVizijExport.ts](../src/hooks/useVizijExport.ts#L906)
 - [ARCHITECTURE.md](./ARCHITECTURE.md#runtime-graph-packaging)
 
-## 7) Current Docs Consistency Check
+## 7) Historical Docs Consistency Check (2026-02-26 Snapshot)
 
-**Executive summary:** Active architecture/UI contracts mostly match behavior, but there is visible drift in `Authoring_Blueprint.md` and app `README.md`, plus naming leftovers (`materials` key used for Pose Groups visibility). The new stage/group-scoped neutral direction is also not yet captured as a formal contract.
+**Executive summary:** This review snapshot captured the remaining drift as of 2026-02-26. Some items below have since been cleaned up, but the section remains useful as historical context for why the docs were normalized.
 
 ### 7.1 Where docs and code are aligned
 
@@ -598,7 +598,7 @@ Recommended order:
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
 - [UI_DESIGN.md](./UI_DESIGN.md)
 
-## 8) Roadmap To Deliver Scoped Neutral In Stage/Group Inspectors
+## 8) Historical Rollout Notes For Scoped Neutral In Stage/Group Inspectors
 
 **Executive summary:** We can deliver this safely in phases: lock contracts, add scoped neutral data shape, update compiler neutral resolution, ship inspector UX for neutral authoring and composition outputs, then close with migration/tests/docs.
 

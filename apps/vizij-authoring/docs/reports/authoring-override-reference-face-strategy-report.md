@@ -6,7 +6,8 @@ Status: `baseline-analysis-with-execution-update`
 Follow-on planning docs:
 
 1. `apps/vizij-authoring/docs/references/authoring-reference-face-workflow-sop.md`
-2. `apps/vizij-authoring/docs/plans/authoring-reference-face-implementation-plan.md`
+2. `apps/vizij-authoring/docs/plans/TRACKER.md`
+3. `apps/vizij-authoring/docs/archive/plans/authoring-reference-face-implementation-plan_2026-03-01.md`
 
 ## Executive Summary
 

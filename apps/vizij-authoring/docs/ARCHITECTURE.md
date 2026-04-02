@@ -7,7 +7,7 @@ This document defines system boundaries, canonical data contracts, and compile/r
 
 ## Source Hierarchy
 
-1. Program objective: `plans/GOAL.md`
+1. Cross-repo program summary: `../../../../vizij-docs/active_projects/authoring/summary.md`
 2. Delivery order: `plans/ROADMAP.md`
 3. Work items: `plans/BACKLOG.md`
 4. Execution state and evidence: `plans/TRACKER.md`
@@ -130,3 +130,4 @@ Execution note:
 1. If user-visible behavior changes, update `UI_DESIGN.md` first (or in the same change).
 2. If sequencing or priorities change, update `ROADMAP.md` and `BACKLOG.md` together.
 3. If validation status changes, record it in `TRACKER.md` with command evidence.
+4. If local contracts change the cross-repo authoring story, update `vizij-docs/active_projects/authoring/summary.md` as well.
