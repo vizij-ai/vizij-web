@@ -29,6 +29,7 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `@vizij/orchestrator-react`   | Orchestrator provider, hooks, and blackboard utilities        |
 | `@vizij/render`               | Three.js renderer and controllers                             |
 | `@vizij/runtime-react`        | Higher-level runtime provider wiring renderer + orchestration |
+| `@vizij/speech-react`         | Speech-layer hooks for STT, conversation, and TTS/visemes     |
 | `@vizij/utils`                | Shared utility layer                                          |
 | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI                  |
 | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps                        |
@@ -36,10 +37,11 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 
 ### Local Rust crates under `packages/`
 
-| Crate              | Focus                                           |
-| ------------------ | ----------------------------------------------- |
-| `arora-connection` | Core Arora connection traits/types              |
-| `arora-websocket`  | WebSocket implementation for the Arora protocol |
+| Crate              | Focus                                                |
+| ------------------ | ---------------------------------------------------- |
+| `arora-connection` | Core Arora connection traits/types                   |
+| `arora-ros2`       | ROS2 transport implementation for the Arora protocol |
+| `arora-websocket`  | WebSocket implementation for the Arora protocol      |
 
 ### Apps (`apps/*`)
 
@@ -58,7 +60,7 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `vizij-showcase`               | Shareable showcase/demo surface      |
 | `vizij-standalone`             | Tauri standalone app                 |
 
-`apps/vizij-ws-app` also exists as a directory, but it is not part of the primary current pnpm app map or root command set. Treat it as a transitional implementation surface tied to the standalone/protocol track.
+Older docs may still mention a former `vizij-ws-app` surface, but it is no longer part of the current app map. Treat `vizij-standalone` plus the `arora-*` packages as the current deployment/control surfaces.
 
 ## Common Tasks
 

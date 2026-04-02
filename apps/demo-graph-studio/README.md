@@ -11,7 +11,6 @@
 2. [Quick Start](#quick-start)
 3. [Capabilities](#capabilities)
 4. [Key Files](#key-files)
-5. [Roadmap](#roadmap)
 
 ---
 
@@ -73,13 +72,4 @@ pnpm --filter vizij-node-graph-editor test       # Vitest unit tests
 | `src/components/InspectorPanel.tsx`   | Param editing UI.                                               |
 | `src/components/PersistencePanel.tsx` | Import/export controls.                                         |
 
----
-
-## Roadmap
-
-- Connection assistant enhancements and richer validation feedback.
-- Improved inspector editors (vectors, transforms, enums).
-- Canvas affordances for grouped selections and bulk operations.
-- End-to-end regression tests, wasm parity checks, and performance tuning.
-
-Contributions are welcome—open an issue if you hit rough edges. 🛠️
+Contributions are welcome if you hit rough edges.

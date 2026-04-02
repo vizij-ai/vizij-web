@@ -25,7 +25,9 @@ Use this file when working under `apps/`.
 | `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters. |
 | `minimal-demo-graph`           | Lightweight node-graph playground (inputs/outputs/staging demos).     |
 | `minimal-demo-orchestrator`    | Blackboard visualiser to test orchestrator controller coordination.   |
+| `tutorial-agent-face`          | Tutorial/demo surface with agent interaction and runtime wiring.      |
 | `tutorial-fullscreen-face`     | Lightweight getting-started face demo for the runtime provider.       |
 | `vizij-showcase`               | Larger face showcase with advanced controls and staging helpers.      |
+| `vizij-standalone`             | Tauri desktop runtime with local Arora control and optional ROS2.     |
 
 Each app directory contains its own `AGENTS.md` (if not, add one before doing extensive work) alongside README/setup instructions.
