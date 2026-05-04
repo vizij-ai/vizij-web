@@ -322,6 +322,34 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("keeps export smoke diagnostics quiet by default", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const hook = renderHook(createOptions());
+
+    try {
+      await act(async () => {
+        await hook.result.current?.exportGlb();
+      });
+
+      expect(logSpy).not.toHaveBeenCalledWith(
+        "[vizij-export]",
+        expect.anything(),
+      );
+    } finally {
+      hook.unmount();
+      logSpy.mockRestore();
+    }
+  });
+
   it("notifies when GLB export completes successfully", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
