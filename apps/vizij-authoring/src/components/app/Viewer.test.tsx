@@ -1,7 +1,15 @@
 import React, { act } from "react";
-import { fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { createRoot, type Root } from "react-dom/client";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   GraphRuntimeStoreProvider,
   createGraphRuntimeStore,
@@ -159,6 +167,10 @@ describe("Viewer", () => {
     useEditorStore.getState().clear();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it("shows empty scene state when no rootId", () => {
     const { container, unmount } = renderViewer({
       rootId: null,
@@ -243,6 +255,44 @@ describe("Viewer", () => {
     } finally {
       unmount();
       logSpy.mockRestore();
+    }
+  });
+
+  it("does not poll animation playback before runtime state exists", () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+    const cancelAnimationFrameSpy = vi
+      .spyOn(globalThis, "cancelAnimationFrame")
+      .mockImplementation(() => {});
+    const animationStore = useAnimationStore.getState();
+    animationStore.addTrack("rig/face/standard/blink", "Blink");
+    animationStore.addKeyframe("track-0001", 0, 0);
+    animationStore.addKeyframe("track-0001", 1, 1);
+    const { unmount } = renderViewer({
+      rootId: "root-1",
+      namespace: "vizij",
+      bundle: {
+        namespace: "vizij",
+        glb: {
+          kind: "world",
+          world: {} as any,
+          animatables: {} as any,
+          bundle: null,
+        },
+      },
+      onClearSelection: () => {},
+      showSelectionGlow: true,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+    });
+
+    try {
+      expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      requestAnimationFrameSpy.mockRestore();
+      cancelAnimationFrameSpy.mockRestore();
     }
   });
 

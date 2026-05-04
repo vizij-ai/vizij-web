@@ -399,38 +399,66 @@ export function AnimationRuntimeBridge({
       setTransportRuntimeReady(false, transportSessionKey);
       return;
     }
+    const syncMissingPlaybackState = () => {
+      syncTransportState(
+        {
+          isPlaying: false,
+          transportActive: false,
+          transportPlaybackState: "stopped",
+          currentTime: 0,
+        },
+        transportSessionKey,
+      );
+    };
+    const syncPlaybackState = (playbackState: {
+      time: number;
+      duration: number;
+      playing: boolean;
+      loop: boolean;
+      speed: number;
+    }) => {
+      syncTransportState(
+        {
+          currentTime: playbackState.time,
+          duration: playbackState.duration,
+          isPlaying: playbackState.playing,
+          loop: playbackState.loop,
+          playSpeed: playbackState.speed,
+          transportActive: true,
+          transportPlaybackState: playbackState.playing ? "playing" : "paused",
+        },
+        transportSessionKey,
+      );
+    };
+    if (!getAnimationState) {
+      syncMissingPlaybackState();
+      return;
+    }
     let frameHandle = 0;
     const tick = () => {
-      const playbackState = getAnimationState?.(AUTHORED_TIMELINE_CLIP_ID);
+      const playbackState = getAnimationState(AUTHORED_TIMELINE_CLIP_ID);
       if (!playbackState) {
-        syncTransportState(
-          {
-            isPlaying: false,
-            transportActive: false,
-            transportPlaybackState: "stopped",
-            currentTime: 0,
-          },
-          transportSessionKey,
-        );
-      } else {
-        syncTransportState(
-          {
-            currentTime: playbackState.time,
-            duration: playbackState.duration,
-            isPlaying: playbackState.playing,
-            loop: playbackState.loop,
-            playSpeed: playbackState.speed,
-            transportActive: true,
-            transportPlaybackState: playbackState.playing
-              ? "playing"
-              : "paused",
-          },
-          transportSessionKey,
-        );
+        syncMissingPlaybackState();
+        if (!transportActive) {
+          frameHandle = 0;
+          return;
+        }
+        frameHandle = requestAnimationFrame(tick);
+        return;
       }
+      syncPlaybackState(playbackState);
       frameHandle = requestAnimationFrame(tick);
     };
 
+    const initialPlaybackState = getAnimationState(AUTHORED_TIMELINE_CLIP_ID);
+    if (!initialPlaybackState) {
+      syncMissingPlaybackState();
+      if (!transportActive) {
+        return;
+      }
+    } else {
+      syncPlaybackState(initialPlaybackState);
+    }
     frameHandle = requestAnimationFrame(tick);
     return () => {
       if (frameHandle !== 0) {
@@ -442,6 +470,7 @@ export function AnimationRuntimeBridge({
     getAnimationState,
     setTransportRuntimeReady,
     syncTransportState,
+    transportActive,
     transportSessionKey,
   ]);
 
