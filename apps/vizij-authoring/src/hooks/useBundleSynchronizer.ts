@@ -10,6 +10,7 @@ import {
 import { waitForNextFrame } from "../utils/frame";
 import { sanitizeFaceId } from "../utils/faceId";
 import { extractGraphFaceId, prepareSpecForImport } from "../utils/graphImport";
+import { logAuthoringDebug } from "../utils/debug";
 import type { BundleGraphWithIr } from "../types/bundle";
 import { useLatestRef } from "./useLatestRef";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
@@ -57,8 +58,7 @@ function logBundleSyncDebug(
   event: string,
   payload?: Record<string, unknown>,
 ): void {
-  // eslint-disable-next-line no-console -- local import/export smoke-test diagnostics
-  console.log("[bundle-sync]", { event, ...(payload ?? {}) });
+  logAuthoringDebug("export", "[bundle-sync]", { event, ...(payload ?? {}) });
 }
 
 function stableJsonFingerprint(value: unknown): string | null {

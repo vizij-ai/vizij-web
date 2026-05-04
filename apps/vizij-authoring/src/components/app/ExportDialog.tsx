@@ -17,6 +17,7 @@ import {
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
+import { logAuthoringDebug } from "../../utils/debug";
 import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 import { ExportPanel } from "./ExportPanel";
@@ -316,8 +317,9 @@ export function ExportDialog({
             onExportFileNameChange={handleExportFileNameChange}
             canExport={canExport}
             onExportGlb={() => {
-              // eslint-disable-next-line no-console -- export smoke-test diagnostics
-              console.log("[vizij-export-ui]", { event: "export-click" });
+              logAuthoringDebug("export", "[vizij-export-ui]", {
+                event: "export-click",
+              });
               void exportGlb();
             }}
             animationCount={bundleSummary.animationCount}

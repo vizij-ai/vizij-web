@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { alertDialog, confirmDialog, promptDialog } from "../utils/dialogs";
+import { logAuthoringDebug } from "../utils/debug";
 
 type AlertFn = (message: string) => Promise<void>;
 type ConfirmFn = (message: string) => Promise<boolean>;
@@ -26,8 +27,10 @@ export function useDialogQueue(): DialogQueueApi {
   const alert = useCallback<AlertFn>(
     (message) =>
       enqueue(async () => {
-        // eslint-disable-next-line no-console -- export/import smoke-test diagnostics
-        console.log("[vizij-dialog]", { type: "alert", message });
+        logAuthoringDebug("dialog", "[vizij-dialog]", {
+          type: "alert",
+          message,
+        });
         await Promise.resolve(alertDialog(message));
       }),
     [enqueue],

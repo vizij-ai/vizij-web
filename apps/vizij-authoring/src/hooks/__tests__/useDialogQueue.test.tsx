@@ -55,16 +55,25 @@ describe("useDialogQueue", () => {
 
   it("queues alerts sequentially", async () => {
     const order: string[] = [];
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     mockedDialogs.alertDialog.mockImplementation((message: string) => {
       order.push(message);
     });
     const api = await renderQueueApi();
 
-    await act(async () => {
-      await Promise.all([api.alert("first"), api.alert("second")]);
-    });
+    try {
+      await act(async () => {
+        await Promise.all([api.alert("first"), api.alert("second")]);
+      });
 
-    expect(order).toEqual(["first", "second"]);
+      expect(order).toEqual(["first", "second"]);
+      expect(logSpy).not.toHaveBeenCalledWith(
+        "[vizij-dialog]",
+        expect.anything(),
+      );
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it("passes prompt defaults through", async () => {

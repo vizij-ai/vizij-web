@@ -46,7 +46,7 @@ import { useAnimationStore } from "../state/animationStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
-import { isAuthoringDebugEnabled } from "../utils/debug";
+import { logAuthoringDebug } from "../utils/debug";
 import {
   clipIrToBundleAnimationEntry,
   findCanonicalAuthoredTimelineConflict,
@@ -173,11 +173,7 @@ function logVizijExportDebug(
   event: string,
   payload?: Record<string, unknown>,
 ): void {
-  if (!isAuthoringDebugEnabled("export")) {
-    return;
-  }
-  // eslint-disable-next-line no-console -- local export smoke-test diagnostics
-  console.log("[vizij-export]", { event, ...(payload ?? {}) });
+  logAuthoringDebug("export", "[vizij-export]", { event, ...(payload ?? {}) });
 }
 
 function resolveExportFaceId(value: string | null | undefined): string {
