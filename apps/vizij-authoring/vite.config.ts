@@ -67,7 +67,6 @@ export default defineConfig(({ mode }) => {
         ignored: [
           "**/node_modules/**",
           "!**/node_modules/@vizij/animation-wasm/**",
-          "!**/node_modules/@vizij/animation-react/**",
           "!**/node_modules/@vizij/orchestrator-wasm/**",
           "!**/node_modules/@vizij/orchestrator-react/**",
           "!**/node_modules/@vizij/node-graph-wasm/**",
@@ -86,11 +85,7 @@ export default defineConfig(({ mode }) => {
         "@vizij/orchestrator-wasm",
         "@vizij/node-graph-wasm",
       ],
-      include: [
-        "@vizij/animation-react",
-        "@vizij/orchestrator-react",
-        "@vizij/node-graph-react",
-      ],
+      include: ["@vizij/orchestrator-react", "@vizij/node-graph-react"],
       force: true,
     },
     test: {

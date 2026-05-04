@@ -7,6 +7,7 @@ export type TabId = string;
 export interface TabItem {
   id: TabId;
   label: ReactNode;
+  ariaLabel?: string;
   description?: ReactNode;
   disabled?: boolean;
   badge?: ReactNode;
@@ -22,6 +23,7 @@ export interface TabsProps {
   className?: string;
   listClassName?: string;
   panelClassName?: string;
+  tabClassName?: string;
   size?: "sm" | "md";
   variant?: "default" | "pill" | "underline";
   fillPanels?: boolean;
@@ -35,6 +37,7 @@ export function Tabs({
   className,
   listClassName,
   panelClassName,
+  tabClassName,
   size = "md",
   variant = "default",
   fillPanels = false,
@@ -65,6 +68,7 @@ export function Tabs({
             value={item.id}
             disabled={item.disabled}
             data-testid={item.testId}
+            aria-label={item.ariaLabel}
             className={({ active: selected }: { active: boolean }) =>
               cn(
                 "group inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative cursor-pointer",
@@ -91,6 +95,7 @@ export function Tabs({
                   // Sizes (overrides if needed)
                   "text-[11px]": size === "sm",
                 },
+                tabClassName,
               )
             }
           >

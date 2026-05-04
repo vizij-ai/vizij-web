@@ -286,10 +286,24 @@ function LinkControlEditor({
       : "s1";
   const scaleText = formatCompactNumber(linkControl.scale);
   const offsetText = formatSignedCompactNumber(linkControl.offset);
+  const sourceLabel = context === "parent" ? "Parent value" : "This driver";
+  const outputLabel = context === "parent" ? variableToken : "Child input";
+  const enabledLabel =
+    context === "parent"
+      ? linkControl.enabled
+        ? "Use this parent"
+        : "Parent bypassed"
+      : linkControl.enabled
+        ? "Drive this child"
+        : "Child bypassed";
+  const enabledHint =
+    context === "parent"
+      ? "When enabled, this parent contributes to the selected driver's formula."
+      : "When enabled, this driver contributes to the child driver.";
   const formulaHint =
     context === "parent"
       ? `${variableToken} = parent * scale + offset`
-      : "Child input = this x scale + offset";
+      : "child input = this driver * scale + offset";
   const expandedFormulaHint =
     context === "parent" &&
     typeof sourceValue === "number" &&
@@ -300,47 +314,102 @@ function LinkControlEditor({
       : null;
 
   return (
-    <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
+    <div className="rounded-lg border border-border-default/45 bg-bg-panel/20 p-2 flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2">
         <Switch
           checked={linkControl.enabled}
           onChange={(checked) => linkControl.onEnabledChange?.(checked)}
-          label={linkControl.enabled ? "Link Enabled" : "Link Disabled"}
-          hint="Toggle this connection on/off."
+          label={enabledLabel}
+          hint={enabledHint}
           size="sm"
         />
-        <div className="flex flex-col items-end">
-          <span className="text-[9px] text-text-muted">{formulaHint}</span>
-          {expandedFormulaHint ? (
-            <span className="text-[9px] text-text-muted font-mono">
-              {expandedFormulaHint}
-            </span>
-          ) : null}
+        <span
+          className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
+            linkControl.enabled
+              ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-100"
+              : "border-border-default/50 bg-bg-input/30 text-text-muted"
+          }`}
+        >
+          {linkControl.enabled ? "active" : "ignored"}
+        </span>
+      </div>
+      <div className="rounded-md border border-border-default/45 bg-bg-input/25 p-1.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5">
+          <div className="min-w-0 rounded bg-bg-panel/55 px-1.5 py-1">
+            <div className="text-[8px] uppercase tracking-wide text-text-muted">
+              Source
+            </div>
+            <div className="truncate text-[10px] font-semibold text-text-primary">
+              {sourceLabel}
+            </div>
+          </div>
+          <ArrowRight
+            size={11}
+            className="text-text-muted"
+            aria-hidden="true"
+          />
+          <div className="min-w-0 rounded bg-bg-panel/55 px-1.5 py-1">
+            <div className="text-[8px] uppercase tracking-wide text-text-muted">
+              Result
+            </div>
+            <div className="truncate font-mono text-[10px] text-text-primary">
+              {outputLabel}
+            </div>
+          </div>
+        </div>
+        <div className="mt-1 grid grid-cols-2 gap-1.5">
+          <div className="rounded bg-sky-500/10 px-1.5 py-1">
+            <div className="text-[8px] uppercase tracking-wide text-sky-100/70">
+              Scale
+            </div>
+            <div className="font-mono text-[10px] text-sky-50">
+              x {scaleText}
+            </div>
+          </div>
+          <div className="rounded bg-amber-500/10 px-1.5 py-1">
+            <div className="text-[8px] uppercase tracking-wide text-amber-100/70">
+              Offset
+            </div>
+            <div className="font-mono text-[10px] text-amber-50">
+              {offsetText}
+            </div>
+          </div>
+        </div>
+        <div className="mt-1 truncate font-mono text-[9px] text-text-muted">
+          {expandedFormulaHint ?? formulaHint}
         </div>
       </div>
-      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Scale</span>
-        <NumberField
-          size="sm"
-          value={linkControl.scale}
-          step={0.01}
-          commitMode="blur"
-          allowScrub={false}
-          onChange={(value) => linkControl.onScaleChange?.(value)}
-          disabled={!linkControl.enabled}
-        />
-      </div>
-      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Offset</span>
-        <NumberField
-          size="sm"
-          value={linkControl.offset}
-          step={0.01}
-          commitMode="blur"
-          allowScrub={false}
-          onChange={(value) => linkControl.onOffsetChange?.(value)}
-          disabled={!linkControl.enabled}
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-[9px] uppercase tracking-wide text-text-muted">
+            Scale
+          </span>
+          <NumberField
+            size="sm"
+            value={linkControl.scale}
+            step={0.01}
+            commitMode="blur"
+            allowScrub={false}
+            className="w-full"
+            onChange={(value) => linkControl.onScaleChange?.(value)}
+            disabled={!linkControl.enabled}
+          />
+        </label>
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-[9px] uppercase tracking-wide text-text-muted">
+            Offset
+          </span>
+          <NumberField
+            size="sm"
+            value={linkControl.offset}
+            step={0.01}
+            commitMode="blur"
+            allowScrub={false}
+            className="w-full"
+            onChange={(value) => linkControl.onOffsetChange?.(value)}
+            disabled={!linkControl.enabled}
+          />
+        </label>
       </div>
     </div>
   );
@@ -598,6 +667,10 @@ export function VariablePipelineStages({
         ),
     [parents],
   );
+  const hasParentLinks = parents.length > 0;
+  const compiledOutputSourceLabel = overrideEnabled
+    ? "Override value"
+    : "Blended value";
 
   return (
     <div
@@ -650,7 +723,7 @@ export function VariablePipelineStages({
       </div>
 
       <StageSection
-        key={`pipeline-stage-parents-${parentExpressionAttentionKey}`}
+        key={`pipeline-stage-parents-${hasParentLinks ? "linked" : "empty"}-${parentExpressionAttentionKey}`}
         title="Parents"
         hoverText="Upstream drivers that contribute parent math."
         count={parents.length}
@@ -665,7 +738,7 @@ export function VariablePipelineStages({
         ]}
         testId="pipeline-stage-parents"
         className={sourceSectionClass}
-        defaultCollapsed={false}
+        defaultCollapsed={!hasParentLinks}
       >
         <div className="rounded-md bg-bg-input/20 p-2">
           <div className="mb-1 flex items-center justify-between gap-2">
@@ -775,7 +848,9 @@ export function VariablePipelineStages({
                   subtitle={
                     parent.linkControl
                       ? `${parent.expressionVariable ? `${parent.expressionVariable} · ` : ""}${
-                          parent.linkControl.enabled ? "Enabled" : "Disabled"
+                          parent.linkControl.enabled
+                            ? "contributes"
+                            : "bypassed"
                         } · scale ${formatCompactNumber(
                           parent.linkControl.scale,
                         )} · offset ${formatCompactNumber(
@@ -792,10 +867,11 @@ export function VariablePipelineStages({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 text-[10px] gap-1.5"
+                          className="h-6 w-6 p-0 text-text-secondary hover:text-sky-200"
+                          aria-label={`Inspect ${parent.label}`}
+                          title={`Inspect ${parent.label}`}
                           onClick={parent.onInspect}
                         >
-                          Inspect
                           <ArrowRight size={11} aria-hidden="true" />
                         </Button>
                       ) : null}
@@ -803,10 +879,11 @@ export function VariablePipelineStages({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 text-[10px] gap-1.5 text-red-300 hover:text-red-200"
+                          className="h-6 w-6 p-0 text-red-300/75 hover:text-red-200"
+                          aria-label={`Delete ${parent.label} link`}
+                          title={`Delete ${parent.label} link`}
                           onClick={parent.onUnlink}
                         >
-                          Delete
                           <Trash2 size={11} aria-hidden="true" />
                         </Button>
                       ) : null}
@@ -974,11 +1051,12 @@ export function VariablePipelineStages({
       </StageSection>
 
       <StageSection
+        key={`pipeline-stage-direct-input-${hasParentLinks ? "with-parents" : "no-parents"}`}
         title="Direct Input"
         hoverText="Optional direct control path for this driver."
         headerBadges={[
           {
-            label: directInputEnabled ? "Direct enabled" : "Direct disabled",
+            label: directInputEnabled ? "Enabled" : "Disabled",
             tone: directInputEnabled ? "success" : "muted",
           },
           {
@@ -990,6 +1068,7 @@ export function VariablePipelineStages({
         ]}
         testId="pipeline-stage-direct-input"
         className={sourceSectionClass}
+        defaultCollapsed={hasParentLinks}
       >
         <div className="flex items-center gap-3">
           <Switch
@@ -1169,96 +1248,88 @@ export function VariablePipelineStages({
         hoverText="Live contribution flow and resulting output."
         headerBadges={[
           {
-            label: directInputEnabled ? "Direct active" : "Direct bypassed",
+            label: directInputEnabled ? "Direct in blend" : "No direct",
             tone: directInputEnabled ? "success" : "muted",
           },
           {
-            label: overrideEnabled ? "Override active" : "Override bypassed",
+            label: overrideEnabled ? "Override output" : "Blend output",
             tone: overrideEnabled ? "warning" : "muted",
           },
         ]}
         testId="pipeline-stage-compiled"
       >
-        <div className="rounded-lg border border-border-default/45 bg-bg-panel/25 p-2.5 flex flex-col gap-2.5">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="rounded-lg border border-border-default/45 bg-bg-panel/25 p-2 flex flex-col gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             <div
-              className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1.5"
+              className="min-w-0 rounded-md border border-sky-500/30 bg-sky-500/10 px-1.5 py-1"
               data-testid="pipeline-compiled-source-parents"
             >
-              <div className="text-[10px] font-semibold text-sky-100">
+              <div className="truncate text-[8px] font-semibold uppercase tracking-wide text-sky-100/75">
                 Parents
               </div>
-              <div className="text-[11px] font-mono text-sky-50">
+              <div className="truncate text-[10px] font-mono text-sky-50">
                 {formatPipelineValue(diagnostics.parentContribution)}
               </div>
             </div>
             <div
-              className="rounded-md border border-fuchsia-500/35 bg-fuchsia-500/10 px-2 py-1.5"
+              className="min-w-0 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-1.5 py-1"
               data-testid="pipeline-compiled-source-poses"
             >
-              <div className="text-[10px] font-semibold text-fuchsia-100">
+              <div className="truncate text-[8px] font-semibold uppercase tracking-wide text-fuchsia-100/75">
                 Poses
               </div>
-              <div className="text-[11px] font-mono text-fuchsia-50">
+              <div className="truncate text-[10px] font-mono text-fuchsia-50">
                 {formatPipelineValue(diagnostics.poseContribution)}
               </div>
             </div>
             <div
-              className="rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2 py-1.5"
+              className="min-w-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1"
               data-testid="pipeline-compiled-source-direct"
             >
-              <div className="text-[10px] font-semibold text-emerald-100">
+              <div className="truncate text-[8px] font-semibold uppercase tracking-wide text-emerald-100/75">
                 Direct
               </div>
-              <div className="text-[11px] font-mono text-emerald-50">
+              <div className="truncate text-[10px] font-mono text-emerald-50">
                 {formatPipelineValue(diagnostics.directContribution)}
               </div>
             </div>
           </div>
 
-          <div className="text-[10px] text-text-muted text-center font-medium">
-            Parents + poses + direct blend into one pipeline value.
-          </div>
-
-          <div
-            className="rounded-md border border-indigo-500/35 bg-indigo-500/10 px-2 py-1.5"
-            data-testid="pipeline-compiled-blended"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold text-indigo-100">
-                Blended Result
+          <div className="rounded-md border border-border-default/45 bg-bg-input/25 p-2">
+            <div
+              className="flex items-center justify-between gap-2"
+              data-testid="pipeline-compiled-blended"
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-text-muted">
+                Blend result
               </span>
-              <span className="text-[11px] font-mono text-indigo-50">
+              <span className="font-mono text-[11px] text-text-primary">
                 {formatPipelineValue(diagnostics.blendedResult)}
               </span>
             </div>
-          </div>
-
-          <div
-            className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-1.5"
-            data-testid="pipeline-compiled-override"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold text-amber-100">
-                Override Decision
+            <div
+              className="mt-1 flex items-center justify-between gap-2"
+              data-testid="pipeline-compiled-override"
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-text-muted">
+                Output source
               </span>
-              <span className="text-[10px] font-semibold text-amber-50">
-                {overrideEnabled ? "Override On" : "Override Off"}
+              <span
+                className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
+                  overrideEnabled
+                    ? "border-amber-500/35 bg-amber-500/10 text-amber-100"
+                    : "border-indigo-500/35 bg-indigo-500/10 text-indigo-100"
+                }`}
+              >
+                {compiledOutputSourceLabel}
               </span>
             </div>
-            <div className="mt-1 text-[10px] text-amber-50/90 font-mono">
-              Selected:{" "}
-              {formatPipelineValue(diagnostics.overrideSelectedResult)}
-            </div>
-          </div>
-
-          <div
-            className="rounded-md border border-green-500/35 bg-green-500/10 px-2 py-1.5"
-            data-testid="pipeline-compiled-effective"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold text-green-100">
-                Effective Output
+            <div
+              className="mt-1 flex items-center justify-between gap-2 border-t border-border-default/35 pt-1"
+              data-testid="pipeline-compiled-effective"
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-emerald-100/85">
+                Effective output
               </span>
               <span className="text-[11px] font-mono text-green-50">
                 {formatPipelineValue(diagnostics.effectiveResult)}
@@ -1297,9 +1368,9 @@ export function VariablePipelineStages({
                 title={child.label}
                 subtitle={
                   child.linkControl
-                    ? `child += me * ${formatCompactNumber(
+                    ? `Drive child · scale ${formatCompactNumber(
                         child.linkControl.scale,
-                      )} + ${formatCompactNumber(child.linkControl.offset)}`
+                      )} · offset ${formatCompactNumber(child.linkControl.offset)}`
                     : "No shared link controls configured"
                 }
                 defaultExpanded={false}
@@ -1311,10 +1382,11 @@ export function VariablePipelineStages({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px] gap-1.5"
+                        className="h-6 w-6 p-0 text-text-secondary hover:text-sky-200"
+                        aria-label={`Inspect ${child.label}`}
+                        title={`Inspect ${child.label}`}
                         onClick={child.onInspect}
                       >
-                        Inspect
                         <ArrowRight size={11} aria-hidden="true" />
                       </Button>
                     ) : null}
@@ -1322,10 +1394,11 @@ export function VariablePipelineStages({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 text-[10px] gap-1.5 text-red-300 hover:text-red-200"
+                        className="h-6 w-6 p-0 text-red-300/75 hover:text-red-200"
+                        aria-label={`Delete ${child.label} link`}
+                        title={`Delete ${child.label} link`}
                         onClick={child.onUnlink}
                       >
-                        Delete
                         <Trash2 size={11} aria-hidden="true" />
                       </Button>
                     ) : null}
@@ -1333,52 +1406,10 @@ export function VariablePipelineStages({
                 }
                 expandedContent={
                   child.linkControl ? (
-                    <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
-                      <Switch
-                        checked={child.linkControl.enabled}
-                        onChange={(enabled) =>
-                          child.linkControl?.onEnabledChange?.(enabled)
-                        }
-                        label={
-                          child.linkControl.enabled
-                            ? "Link Enabled"
-                            : "Link Disabled"
-                        }
-                        size="sm"
-                      />
-                      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-                        <span className="text-[10px] text-text-secondary">
-                          Scale
-                        </span>
-                        <NumberField
-                          size="sm"
-                          value={child.linkControl.scale}
-                          step={0.01}
-                          commitMode="blur"
-                          allowScrub={false}
-                          onChange={(value) =>
-                            child.linkControl?.onScaleChange?.(value)
-                          }
-                          disabled={!child.linkControl.enabled}
-                        />
-                      </div>
-                      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-                        <span className="text-[10px] text-text-secondary">
-                          Offset
-                        </span>
-                        <NumberField
-                          size="sm"
-                          value={child.linkControl.offset}
-                          step={0.01}
-                          commitMode="blur"
-                          allowScrub={false}
-                          onChange={(value) =>
-                            child.linkControl?.onOffsetChange?.(value)
-                          }
-                          disabled={!child.linkControl.enabled}
-                        />
-                      </div>
-                    </div>
+                    <LinkControlEditor
+                      linkControl={child.linkControl}
+                      context="child"
+                    />
                   ) : (
                     <span className="text-[10px] text-text-muted">
                       No child link controls available.

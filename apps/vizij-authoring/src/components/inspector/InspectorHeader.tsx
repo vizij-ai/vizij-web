@@ -15,6 +15,7 @@ interface InspectorHeaderProps {
   nameEditable?: boolean;
   icon?: LucideIcon;
   actions?: ReactNode;
+  showId?: boolean;
 }
 
 export function InspectorHeader({
@@ -27,6 +28,7 @@ export function InspectorHeader({
   nameEditable = true,
   icon: CustomIcon,
   actions,
+  showId = false,
 }: InspectorHeaderProps) {
   const [draftName, setDraftName] = useState(name);
   const [draftPath, setDraftPath] = useState(path ?? "");
@@ -185,15 +187,16 @@ export function InspectorHeader({
         )}
       </div>
 
-      {/* ID */}
-      <div className="pl-[26px]">
-        <div
-          className="text-[9px] text-text-muted font-mono select-all truncate hover:text-text-secondary transition-colors cursor-text"
-          title={`ID: ${id}`}
-        >
-          {id}
+      {showId ? (
+        <div className="pl-[26px]">
+          <div
+            className="text-[9px] text-text-muted font-mono select-all truncate hover:text-text-secondary transition-colors cursor-text"
+            title={`ID: ${id}`}
+          >
+            {id}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

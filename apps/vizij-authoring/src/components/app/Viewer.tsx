@@ -418,14 +418,13 @@ function RuntimeStatusDebug() {
       });
     }
   }, [loading, ready, rootId, error, controllers, outputPaths.length]);
+  const runtimeState = ready ? "ready" : loading ? "loading" : "idle";
   return (
     <div
       data-testid="main-runtime-status"
-      className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white"
+      className="absolute bottom-2 right-2 z-10 rounded bg-black/55 px-2 py-1 text-[10px] text-white/80"
     >
-      {`runtime: ${ready ? "ready" : loading ? "loading" : "idle"} | rootId: ${
-        rootId ?? "null"
-      } | graphs: ${runtimeViewGraphCount} | outputs: ${runtimeViewOutputCount}`}
+      {`runtime: ${runtimeState} | graphs: ${runtimeViewGraphCount} | outputs: ${runtimeViewOutputCount}`}
     </div>
   );
 }

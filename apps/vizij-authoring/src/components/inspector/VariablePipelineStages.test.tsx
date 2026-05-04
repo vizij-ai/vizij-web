@@ -107,6 +107,16 @@ function openStage(
   return stage;
 }
 
+function clickExpandableRow(container: HTMLElement, titlePattern: RegExp) {
+  const trigger = within(container)
+    .getAllByRole("button", { name: titlePattern })
+    .find((button) => button.getAttribute("aria-expanded") !== null);
+  if (!trigger) {
+    throw new Error(`No expandable row found for ${titlePattern}`);
+  }
+  fireEvent.click(trigger);
+}
+
 function hasNumericInputValue(
   container: HTMLElement,
   expected: number,
@@ -163,7 +173,7 @@ describe("VariablePipelineStages", () => {
     expect(props.onDirectValueChange).toHaveBeenCalledWith(Math.PI);
   });
 
-  it("keeps parents and children sections open by default", () => {
+  it("keeps linked parents and children open, then falls back to direct input when no parents exist", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);
 
@@ -176,6 +186,22 @@ describe("VariablePipelineStages", () => {
       view.getByTestId("pipeline-stage-children"),
     ).getByRole("button", { name: /children/i });
     expect(childrenTrigger.getAttribute("aria-expanded")).toBe("true");
+
+    cleanup();
+
+    const noParentProps = createBaseProps();
+    noParentProps.parents = [];
+    const noParentView = render(<VariablePipelineStages {...noParentProps} />);
+
+    const emptyParentsTrigger = within(
+      noParentView.getByTestId("pipeline-stage-parents"),
+    ).getByRole("button", { name: /parents/i });
+    expect(emptyParentsTrigger.getAttribute("aria-expanded")).toBe("false");
+
+    const directTrigger = within(
+      noParentView.getByTestId("pipeline-stage-direct-input"),
+    ).getByRole("button", { name: /direct input/i });
+    expect(directTrigger.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("renders stage-oriented sections and diagnostics", () => {
@@ -218,28 +244,28 @@ describe("VariablePipelineStages", () => {
     const view = render(<VariablePipelineStages {...props} />);
 
     const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    clickExpandableRow(parentStage, /jaw parent/i);
     fireEvent.click(
-      within(parentStage).getByRole("button", { name: /jaw parent/i }),
-    );
-    fireEvent.click(
-      within(parentStage).getAllByRole("button", { name: "Delete" })[0]!,
+      within(parentStage).getByRole("button", {
+        name: /delete jaw parent link/i,
+      }),
     );
     expect(props.parents[0]?.onUnlink).toHaveBeenCalledTimes(1);
     fireEvent.click(
-      within(parentStage).getByRole("button", { name: "Inspect" }),
+      within(parentStage).getByRole("button", { name: /inspect jaw parent/i }),
     );
     expect(props.parents[0]?.onInspect).toHaveBeenCalledTimes(1);
 
     const childStage = openStage(view, "pipeline-stage-children", /children/i);
+    clickExpandableRow(childStage, /mouth child/i);
     fireEvent.click(
-      within(childStage).getByRole("button", { name: /mouth child/i }),
-    );
-    fireEvent.click(
-      within(childStage).getAllByRole("button", { name: "Delete" })[0]!,
+      within(childStage).getByRole("button", {
+        name: /delete mouth child link/i,
+      }),
     );
     expect(props.children[0]?.onUnlink).toHaveBeenCalledTimes(1);
     fireEvent.click(
-      within(childStage).getByRole("button", { name: "Inspect" }),
+      within(childStage).getByRole("button", { name: /inspect mouth child/i }),
     );
     expect(props.children[0]?.onInspect).toHaveBeenCalledTimes(1);
 
@@ -311,9 +337,7 @@ describe("VariablePipelineStages", () => {
     const view = render(<VariablePipelineStages {...props} />);
     const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
 
-    fireEvent.click(
-      within(parentStage).getByRole("button", { name: /jaw parent/i }),
-    );
+    clickExpandableRow(parentStage, /jaw parent/i);
     fireEvent.click(within(parentStage).getByText("Advanced Formula"));
 
     fireEvent.change(
@@ -342,9 +366,7 @@ describe("VariablePipelineStages", () => {
     const view = render(<VariablePipelineStages {...props} />);
 
     const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
-    fireEvent.click(
-      within(parentStage).getByRole("button", { name: /jaw parent/i }),
-    );
+    clickExpandableRow(parentStage, /jaw parent/i);
     const parentFields = Array.from(
       parentStage.querySelectorAll(
         'input[aria-roledescription="Number field"]',
@@ -366,9 +388,7 @@ describe("VariablePipelineStages", () => {
     expect(parentOffsetChange).toHaveBeenCalledWith(3.4);
 
     const childStage = openStage(view, "pipeline-stage-children", /children/i);
-    fireEvent.click(
-      within(childStage).getByRole("button", { name: /mouth child/i }),
-    );
+    clickExpandableRow(childStage, /mouth child/i);
     const childFields = Array.from(
       childStage.querySelectorAll('input[aria-roledescription="Number field"]'),
     ) as HTMLInputElement[];
@@ -445,9 +465,7 @@ describe("VariablePipelineStages", () => {
     ];
     const view = render(<VariablePipelineStages {...props} />);
     const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
-    fireEvent.click(
-      within(parentStage).getByRole("button", { name: /jaw parent/i }),
-    );
+    clickExpandableRow(parentStage, /jaw parent/i);
     const poseStage = openStage(view, "pipeline-stage-poses", /poses/i);
     fireEvent.click(within(poseStage).getByRole("button", { name: /smile/i }));
     openStage(view, "pipeline-stage-direct-input", /direct input/i);
@@ -498,14 +516,18 @@ describe("VariablePipelineStages", () => {
       "pipeline-stage-direct-input",
       /direct input/i,
     );
-    expect(within(directStage).getByText("Disabled")).toBeTruthy();
+    expect(within(directStage).getAllByText("Disabled").length).toBeGreaterThan(
+      0,
+    );
 
     const overrideStage = openStage(
       view,
       "pipeline-stage-override",
       /override/i,
     );
-    expect(within(overrideStage).getByText("Disabled")).toBeTruthy();
+    expect(
+      within(overrideStage).getAllByText("Disabled").length,
+    ).toBeGreaterThan(0);
   });
 
   it("shows add parent action", () => {

@@ -22,10 +22,10 @@ import {
   Users,
   X,
   Camera,
+  Pencil,
 } from "lucide-react";
 import {
   addBindingSlot,
-  buildCanonicalBindingExpression,
   bindingTargetFromInput,
   bindingToDefinition,
   createDefaultParentBinding,
@@ -6261,7 +6261,9 @@ export function VariablesPanel({
     if (id === "variables") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Drivers", variableItemCount),
+        label: "Drivers",
+        ariaLabel: formatSurfaceLabelWithCount("Drivers", variableItemCount),
+        badge: variableItemCount,
         testId: "control-authoring-tab-drivers",
         panelTestId: "control-authoring-panel-drivers",
       };
@@ -6269,7 +6271,9 @@ export function VariablesPanel({
     if (id === "poses") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Poses", poseItemCount),
+        label: "Poses",
+        ariaLabel: formatSurfaceLabelWithCount("Poses", poseItemCount),
+        badge: poseItemCount,
         testId: "control-authoring-tab-poses",
         panelTestId: "control-authoring-panel-poses",
       };
@@ -6277,7 +6281,12 @@ export function VariablesPanel({
     if (id === "pose-groups") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Pose Groups", poseGroupItemCount),
+        label: "Groups",
+        ariaLabel: formatSurfaceLabelWithCount(
+          "Pose Groups",
+          poseGroupItemCount,
+        ),
+        badge: poseGroupItemCount,
         testId: "control-authoring-tab-pose-groups",
         panelTestId: "control-authoring-panel-pose-groups",
       };
@@ -6285,7 +6294,12 @@ export function VariablesPanel({
     if (id === "animations") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Animations", animationItemCount),
+        label: "Animations",
+        ariaLabel: formatSurfaceLabelWithCount(
+          "Animations",
+          animationItemCount,
+        ),
+        badge: animationItemCount,
         testId: "control-authoring-tab-animations",
         panelTestId: "control-authoring-panel-animations",
       };
@@ -6293,14 +6307,18 @@ export function VariablesPanel({
     if (id === "programs") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Programs", programItemCount),
+        label: "Programs",
+        ariaLabel: formatSurfaceLabelWithCount("Programs", programItemCount),
+        badge: programItemCount,
         testId: "control-authoring-tab-programs",
         panelTestId: "control-authoring-panel-programs",
       };
     }
     return {
       id,
-      label: formatSurfaceLabelWithCount("Inputs", inputItemCount),
+      label: "Inputs",
+      ariaLabel: formatSurfaceLabelWithCount("Inputs", inputItemCount),
+      badge: inputItemCount,
       testId: "input-controls-tab-inputs",
       panelTestId: "input-controls-panel-inputs",
     };
@@ -6320,7 +6338,9 @@ export function VariablesPanel({
               : "variables";
 
   const selectedPoseName = selectedPoseId
-    ? (poseNameById.get(selectedPoseId) ?? selectedPoseId)
+    ? selectedPoseId === "__pose_rig_neutral__"
+      ? "Neutral"
+      : (poseNameById.get(selectedPoseId) ?? selectedPoseId)
     : null;
   const selectedPoseMemberships =
     selectedPoseGroupPaths.length > 0
@@ -6570,7 +6590,9 @@ export function VariablesPanel({
             className="flex-1 min-h-0"
             fillPanels
             items={surfaceTabs}
-            listClassName="flex-wrap overflow-visible"
+            listClassName="grid grid-cols-3 gap-0 overflow-visible border-b border-border-default bg-bg-app/20"
+            size="sm"
+            tabClassName="w-full justify-between px-1.5 py-1.5 text-[11px]"
             value={activeSurface}
             onValueChange={(id) => {
               const nextSurface = surfaceForTab(id);
@@ -6857,150 +6879,41 @@ export function VariablesPanel({
                         title="Capture current input values as a new pose (non-neutral channels only)"
                       >
                         <Camera size={11} />
-                        Capture Current
+                        Capture Inputs
                       </Button>
                     </div>
                   ) : null}
-                  <div className="flex items-center gap-1 px-1 mb-1">
-                    {isVariables && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1"
-                        onClick={handleCreateVariable}
-                        title="Create a new driver and inspect it"
-                      >
-                        <Plus size={11} />
-                        New Driver
-                      </Button>
-                    )}
-                    {isVariables && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1"
-                        onClick={handleDuplicateSelectedVariable}
-                        disabled={!selectedMainVariableId}
-                        title={
-                          selectedMainVariableId
-                            ? "Duplicate selected driver and inspect the copy"
-                            : "Select a driver to duplicate"
-                        }
-                      >
-                        <Copy size={11} />
-                        Duplicate Driver
-                      </Button>
-                    )}
-                    {isPoses && (
-                      <>
+                  {isPoseGroups ? (
+                    <div className="flex flex-col gap-1 px-1 mb-1">
+                      <div className="grid grid-cols-2 gap-1">
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="h-6 px-2 text-[10px] gap-1"
-                          onClick={handleCreatePose}
-                          title="Create a new pose and inspect it"
-                        >
-                          <Activity size={11} className="text-purple-400" />
-                          New Pose
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px] gap-1"
-                          data-testid="variables-poses-capture-current"
-                          onClick={handleCaptureCurrentPose}
-                          title="Capture current input values as a new pose (non-neutral channels only)"
-                        >
-                          <Camera size={11} />
-                          Capture Current
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px] gap-1"
-                          data-testid="variables-poses-duplicate-selected"
-                          onClick={handleDuplicateSelectedPose}
-                          disabled={
-                            !selectedPoseId ||
-                            selectedPoseId === "__pose_rig_neutral__"
-                          }
-                          title={
-                            selectedPoseId &&
-                            selectedPoseId !== "__pose_rig_neutral__"
-                              ? "Duplicate selected pose"
-                              : "Select a pose to duplicate"
-                          }
-                        >
-                          <Copy size={11} />
-                          Duplicate Pose
-                        </Button>
-                        {referenceFace.file && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
-                            data-testid="variables-poses-copy-reference"
-                            onClick={handleCopyReferencePoseToMain}
-                            disabled={!canCopyReferencePoses}
-                            title={
-                              selectedReferencePoseCopyCount > 0
-                                ? "Copy selected reference poses to the main face"
-                                : "Copy a reference pose to the main face"
-                            }
-                          >
-                            <Copy size={11} />
-                            {selectedReferencePoseCopyCount > 0
-                              ? `Copy Ref Pose (${selectedReferencePoseCopyCount})`
-                              : `Copy Ref Pose (${referencePoseCopyCount})`}
-                          </Button>
-                        )}
-                      </>
-                    )}
-                    {isVariables && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
-                        data-testid="variables-drivers-copy-reference"
-                        onClick={handleCopyReferenceToMain}
-                        disabled={!canCopyReferenceDrivers}
-                        title={
-                          selectedReferenceRigCopyCount > 0
-                            ? "Copy selected reference drivers to main face"
-                            : "Copy reference-only drivers to main face"
-                        }
-                      >
-                        <Copy size={11} />
-                        {selectedReferenceRigCopyCount > 0
-                          ? `Copy Ref (${selectedReferenceRigCopyCount})`
-                          : `Copy Ref (${uncopiedReferenceCount})`}
-                      </Button>
-                    )}
-                    {isPoseGroups && (
-                      <>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-6 px-2 text-[10px] gap-1"
+                          className="h-6 min-w-0 gap-1 px-2 text-[10px]"
                           onClick={handleCreatePoseGroup}
+                          title="Create a new pose group"
+                          aria-label="New Group"
                         >
                           <Plus size={11} />
-                          New Group
+                          Group
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="h-6 px-2 text-[10px] gap-1"
+                          className="h-6 min-w-0 gap-1 px-2 text-[10px]"
                           onClick={handleCreateBlendStage}
                           title="Create a new blend stage"
+                          aria-label="New Stage"
                         >
                           <Plus size={11} />
-                          New Stage
+                          Stage
                         </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 px-2 text-[10px] gap-1"
+                          className="h-6 min-w-0 gap-1 px-2 text-[10px]"
                           disabled={!selectedPoseGroup?.groupId}
                           onClick={handleRenameSelectedPoseGroup}
                           title={
@@ -7009,12 +6922,13 @@ export function VariablesPanel({
                               : "Select a configured pose group first"
                           }
                         >
+                          <Pencil size={11} />
                           Rename
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 px-2 text-[10px] gap-1 text-amber-300 hover:text-amber-200"
+                          className="h-6 min-w-0 gap-1 px-2 text-[10px] text-amber-300 hover:text-amber-200"
                           disabled={!selectedPoseGroup?.groupId}
                           onClick={handleDeleteSelectedPoseGroup}
                           title={
@@ -7023,16 +6937,129 @@ export function VariablesPanel({
                               : "Select a configured pose group first"
                           }
                         >
+                          <Trash2 size={11} />
                           Delete
                         </Button>
-                      </>
-                    )}
-                    {isPoseGroups && (
-                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                        Compatibility blend
-                      </span>
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 px-1 mb-1">
+                      {isVariables && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          onClick={handleCreateVariable}
+                          title="Create a new driver and inspect it"
+                        >
+                          <Plus size={11} />
+                          New Driver
+                        </Button>
+                      )}
+                      {isVariables && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1"
+                          onClick={handleDuplicateSelectedVariable}
+                          disabled={!selectedMainVariableId}
+                          title={
+                            selectedMainVariableId
+                              ? "Duplicate selected driver and inspect the copy"
+                              : "Select a driver to duplicate"
+                          }
+                        >
+                          <Copy size={11} />
+                          Duplicate Driver
+                        </Button>
+                      )}
+                      {isPoses && (
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1"
+                            onClick={handleCreatePose}
+                            title="Create a new pose and inspect it"
+                          >
+                            <Activity size={11} className="text-purple-400" />
+                            New Pose
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1"
+                            data-testid="variables-poses-capture-current"
+                            onClick={handleCaptureCurrentPose}
+                            title="Capture current input values as a new pose (non-neutral channels only)"
+                          >
+                            <Camera size={11} />
+                            Capture Inputs
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1"
+                            data-testid="variables-poses-duplicate-selected"
+                            onClick={handleDuplicateSelectedPose}
+                            disabled={
+                              !selectedPoseId ||
+                              selectedPoseId === "__pose_rig_neutral__"
+                            }
+                            title={
+                              selectedPoseId &&
+                              selectedPoseId !== "__pose_rig_neutral__"
+                                ? "Duplicate selected pose"
+                                : "Select a pose to duplicate"
+                            }
+                          >
+                            <Copy size={11} />
+                            Duplicate Pose
+                          </Button>
+                          {referenceFace.file && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[10px] gap-1 text-cyan-200 hover:text-cyan-100"
+                              data-testid="variables-poses-copy-reference"
+                              onClick={handleCopyReferencePoseToMain}
+                              disabled={!canCopyReferencePoses}
+                              title={
+                                selectedReferencePoseCopyCount > 0
+                                  ? "Copy selected reference poses to the main face"
+                                  : "Copy a reference pose to the main face"
+                              }
+                            >
+                              <Copy size={11} />
+                              {selectedReferencePoseCopyCount > 0
+                                ? `Copy Ref Pose (${selectedReferencePoseCopyCount})`
+                                : `Copy Ref Pose (${referencePoseCopyCount})`}
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      {isVariables && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-text-secondary hover:text-text-primary"
+                          data-testid="variables-drivers-copy-reference"
+                          onClick={handleCopyReferenceToMain}
+                          disabled={!canCopyReferenceDrivers}
+                          title={
+                            selectedReferenceRigCopyCount > 0
+                              ? "Copy selected reference drivers to main face"
+                              : "Copy reference-only drivers to main face"
+                          }
+                        >
+                          <Copy size={11} />
+                          {selectedReferenceRigCopyCount > 0
+                            ? `Copy Ref (${selectedReferenceRigCopyCount})`
+                            : `Copy Ref (${uncopiedReferenceCount})`}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 px-1 mb-1">
                     <PanelSearch
                       ref={searchInputRef}
@@ -7144,30 +7171,55 @@ export function VariablesPanel({
                   )}
                   {isPoseGroups && (
                     <div className="flex flex-col gap-2 px-1">
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[10px] text-text-muted">
-                          {selectedPoseName
-                            ? `Selected pose: ${selectedPoseName}`
-                            : "Select a pose to edit membership"}
-                        </span>
-                        {selectedPoseName && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            {selectedPoseMemberships.map((membership) => (
-                              <span
-                                key={membership.path}
-                                className="text-[10px] text-text-muted font-mono border border-border-default/50 rounded px-1 py-0.5"
-                              >
-                                {membership.label}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="ml-auto flex flex-wrap items-center gap-1">
-                          <span className="text-[10px] text-text-muted">
-                            {stageDefinitions.length === 0
-                              ? "Legacy cross-group mode"
-                              : "Fallback mode"}
+                      <div className="rounded border border-border-default/50 bg-bg-panel/30 px-2 py-1.5">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            className="min-w-0 flex-1 truncate text-[10px] text-text-muted"
+                            title={
+                              selectedPoseName
+                                ? `Selected pose: ${selectedPoseName}`
+                                : "Select a pose to edit membership"
+                            }
+                          >
+                            {selectedPoseName
+                              ? `Selected pose: ${selectedPoseName}`
+                              : "Select a pose to edit membership"}
                           </span>
+                          {selectedPoseName ? (
+                            <div className="flex max-w-[45%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+                              {selectedPoseMemberships
+                                .slice(0, 2)
+                                .map((membership) => (
+                                  <span
+                                    key={membership.path}
+                                    className="truncate rounded border border-border-default/50 px-1 py-0.5 font-mono text-[10px] text-text-muted"
+                                    title={membership.label}
+                                  >
+                                    {membership.label}
+                                  </span>
+                                ))}
+                              {selectedPoseMemberships.length > 2 ? (
+                                <span className="rounded border border-border-default/50 px-1 py-0.5 font-mono text-[10px] text-text-muted">
+                                  +{selectedPoseMemberships.length - 2}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded border border-border-default/50 bg-bg-panel/30 px-2 py-1.5">
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span className="truncate text-[10px] uppercase tracking-wider text-text-muted">
+                            Cross-group
+                          </span>
+                          <span className="rounded border border-border-default/50 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-text-muted">
+                            {stageDefinitions.length === 0
+                              ? "Compatibility"
+                              : "Fallback"}
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 rounded bg-bg-input/50 p-0.5">
                           <Button
                             variant={
                               crossGroupBlendMode === "average"
@@ -7175,11 +7227,12 @@ export function VariablesPanel({
                                 : "subtle"
                             }
                             size="sm"
-                            className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
+                            className="h-5 px-1.5 text-[10px] disabled:opacity-100 disabled:cursor-default"
                             disabled={crossGroupBlendMode === "average"}
                             onClick={() => setCrossGroupBlendMode("average")}
+                            title="Average cross-group blend"
                           >
-                            Average
+                            Avg
                           </Button>
                           <Button
                             variant={
@@ -7188,11 +7241,12 @@ export function VariablesPanel({
                                 : "subtle"
                             }
                             size="sm"
-                            className="h-6 px-2 text-[10px] disabled:opacity-100 disabled:cursor-default"
+                            className="h-5 px-1.5 text-[10px] disabled:opacity-100 disabled:cursor-default"
                             disabled={crossGroupBlendMode === "additive"}
                             onClick={() => setCrossGroupBlendMode("additive")}
+                            title="Additive cross-group blend"
                           >
-                            Additive
+                            Add
                           </Button>
                         </div>
                       </div>
@@ -7204,7 +7258,7 @@ export function VariablesPanel({
                           </span>
                           <span className="text-[10px] text-text-muted">
                             {stageDefinitions.length === 0
-                              ? "No stages (compatibility mode)"
+                              ? "Compatibility mode"
                               : `${stageDefinitions.length} configured`}
                           </span>
                         </div>
@@ -7218,8 +7272,7 @@ export function VariablesPanel({
                         )}
                         {stageDefinitions.length === 0 ? (
                           <div className="text-[10px] text-text-muted">
-                            Add stages to author explicit multi-stage blending.
-                            Until then, cross-group blend mode above is used.
+                            No stages configured.
                           </div>
                         ) : (
                           <div className="flex flex-col gap-2">
@@ -7310,7 +7363,7 @@ export function VariablesPanel({
                                 >
                                   <div className="flex items-center gap-1">
                                     <span className="text-[10px] text-text-muted font-mono">
-                                      {stage.id}
+                                      {stageIndex + 1}
                                     </span>
                                     <span className="text-xs text-text-primary">
                                       {stageName}

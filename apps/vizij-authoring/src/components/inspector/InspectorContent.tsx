@@ -4767,6 +4767,14 @@ export function InspectorContent({
       const rigMetadataStep = usesDegreeDisplay(input.path) ? "0.5" : "0.01";
       return (
         <div className="p-2 flex flex-col gap-4 min-h-0 flex-1">
+          <div className="mx-1 rounded-md border border-border-default/50 bg-bg-panel/45 px-2 py-1.5">
+            <div className="text-[9px] uppercase tracking-wide text-text-muted">
+              Runtime path
+            </div>
+            <code className="mt-0.5 block break-all font-mono text-[10px] leading-snug text-text-primary">
+              {directInputRuntimePath}
+            </code>
+          </div>
           <InspectorHeader
             name={input.label || input.id}
             path={
@@ -4857,23 +4865,23 @@ export function InspectorContent({
             defaultCollapsed={true}
             className="mb-0"
           >
-            <div className="flex items-center justify-end gap-2">
-              <span
-                className={cn(
-                  "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                  isRemovableCustomInput
-                    ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
-                    : "border-sky-500/40 text-sky-200 bg-sky-500/10",
-                )}
-              >
-                {isRemovableCustomInput ? "custom" : "system"}
-              </span>
-            </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-text-muted uppercase tracking-wide">
-                Input Path
-              </span>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 items-center">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">
+                  Input Path
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                    isRemovableCustomInput
+                      ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
+                      : "border-sky-500/40 text-sky-200 bg-sky-500/10",
+                  )}
+                >
+                  {isRemovableCustomInput ? "custom" : "system"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
                 <Input
                   size="sm"
                   value={rigPathDraft}
@@ -4890,29 +4898,28 @@ export function InspectorContent({
                   }}
                   className="w-full bg-bg-input/80 border-border-default/80 font-mono text-[11px] text-text-primary"
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="h-6 text-[10px] whitespace-nowrap"
-                  onClick={handleApplyRigPathDraft}
-                >
-                  Apply Path
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-[10px] whitespace-nowrap"
-                  onClick={() => {
-                    setRigPathDraft(input.path ?? "");
-                    setRigLifecycleMessage(null);
-                  }}
-                >
-                  Reset Path
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 text-[10px] whitespace-nowrap"
+                    onClick={handleApplyRigPathDraft}
+                  >
+                    Apply Path
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] whitespace-nowrap"
+                    onClick={() => {
+                      setRigPathDraft(input.path ?? "");
+                      setRigLifecycleMessage(null);
+                    }}
+                  >
+                    Reset Path
+                  </Button>
+                </div>
               </div>
-              <code className="text-[10px] text-text-muted break-all">
-                Runtime path: {directInputRuntimePath}
-              </code>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="flex flex-col gap-1">

@@ -360,10 +360,18 @@ describe("VariablesPanel", () => {
     );
 
     expect(within(view.container).getByText("Control Elements")).toBeTruthy();
-    expect(within(view.container).getByText("Drivers (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Poses (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Pose Groups (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Inputs (0)")).toBeTruthy();
+    expect(
+      within(view.container).getByRole("tab", { name: "Drivers (0)" }),
+    ).toBeTruthy();
+    expect(
+      within(view.container).getByRole("tab", { name: "Poses (0)" }),
+    ).toBeTruthy();
+    expect(
+      within(view.container).getByRole("tab", { name: "Pose Groups (0)" }),
+    ).toBeTruthy();
+    expect(
+      within(view.container).getByRole("tab", { name: "Inputs (0)" }),
+    ).toBeTruthy();
   });
 
   it("shows explicit variables context labels when reference face is available", () => {
@@ -4139,7 +4147,7 @@ describe("VariablesPanel", () => {
     expect(screen.queryByRole("button", { name: "Add PAP Output" })).toBeNull();
   });
 
-  it("renders wrapped authoring tabs for animations and programs", () => {
+  it("renders compact authoring tabs for animations and programs", () => {
     const view = render(
       <VariablesPanel
         availableSurfaces={[
@@ -4182,7 +4190,8 @@ describe("VariablesPanel", () => {
     ).toBeGreaterThan(0);
 
     const tablist = view.container.querySelector('[role="tablist"]');
-    expect(tablist?.className).toContain("flex-wrap");
+    expect(tablist?.className).toContain("grid");
+    expect(tablist?.className).toContain("grid-cols-3");
     expect(tablist?.className).toContain("overflow-visible");
   });
 
