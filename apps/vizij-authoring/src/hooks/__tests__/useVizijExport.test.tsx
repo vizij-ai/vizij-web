@@ -1,6 +1,5 @@
-import React from "react";
+import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { flushSync } from "react-dom";
 import {
   describe,
   expect,
@@ -92,10 +91,6 @@ const mockedAuditBundleGraphs = vi.mocked(auditBundleGraphs);
 
 type HookResult = ReturnType<typeof useVizijExport>;
 
-function act<T>(callback: () => T): T {
-  return callback();
-}
-
 function renderHook(options: Parameters<typeof useVizijExport>[0]) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -107,8 +102,8 @@ function renderHook(options: Parameters<typeof useVizijExport>[0]) {
     return null;
   }
 
-  let root: Root;
-  flushSync(() => {
+  let root: Root | null = null;
+  act(() => {
     root = createRoot(container);
     root.render(React.createElement(HookWrapper));
   });
@@ -116,8 +111,8 @@ function renderHook(options: Parameters<typeof useVizijExport>[0]) {
   return {
     result,
     unmount: () => {
-      flushSync(() => {
-        root.unmount();
+      act(() => {
+        root?.unmount();
       });
       if (container.parentNode) {
         container.parentNode.removeChild(container);
@@ -333,6 +328,7 @@ describe("useVizijExport", () => {
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const hook = renderHook(createOptions());
 
     try {
@@ -344,9 +340,15 @@ describe("useVizijExport", () => {
         "[vizij-export]",
         expect.anything(),
       );
+      const actWarnings = errorSpy.mock.calls.filter(
+        ([first]) =>
+          typeof first === "string" && first.includes("not wrapped in act"),
+      );
+      expect(actWarnings).toHaveLength(0);
     } finally {
       hook.unmount();
       logSpy.mockRestore();
+      errorSpy.mockRestore();
     }
   });
 
