@@ -16,11 +16,22 @@ test("reference face compare, copy, and reset @smoke", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Pose Copy Mapping" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Confirm Copy" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "Blocking unresolved mapping",
-  );
+  await expect(
+    page.getByText("Matching main pose found", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Overwrite Pose" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Pose Copy Mapping" }),
+  ).toBeHidden();
+
+  await copyButton.click();
+  await expect(
+    page.getByRole("heading", { name: "Pose Copy Mapping" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Pose Copy Mapping" }),
+  ).toBeHidden();
 
   await page.getByTestId("main-runtime-reset-inputs").click();
   await expect(page.getByTestId("main-runtime-ready-flag")).toBeVisible();

@@ -3,6 +3,7 @@
 **/.vite/
 **/.turbo/        # if you ever use turbo
 **/dist/
+**/test-results/
 
 # env
 .env
