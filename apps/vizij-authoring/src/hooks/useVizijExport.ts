@@ -46,6 +46,7 @@ import { useAnimationStore } from "../state/animationStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
+import { isAuthoringDebugEnabled } from "../utils/debug";
 import {
   clipIrToBundleAnimationEntry,
   findCanonicalAuthoredTimelineConflict,
@@ -168,22 +169,11 @@ interface VizijExportHandlers {
 const POSE_IR_SUPPORT_HINT =
   "Pose IR hooks unavailable. Expected core poseRig hooks: exportPoseIrData() and importPoseIr(file).";
 
-function isVizijExportDebugEnabled(): boolean {
-  const debugGlobals = globalThis as {
-    __VIZIJ_AUTHORING_DEBUG__?: boolean;
-    __VIZIJ_EXPORT_DEBUG__?: boolean;
-  };
-  return Boolean(
-    debugGlobals.__VIZIJ_AUTHORING_DEBUG__ ||
-      debugGlobals.__VIZIJ_EXPORT_DEBUG__,
-  );
-}
-
 function logVizijExportDebug(
   event: string,
   payload?: Record<string, unknown>,
 ): void {
-  if (!isVizijExportDebugEnabled()) {
+  if (!isAuthoringDebugEnabled("export")) {
     return;
   }
   // eslint-disable-next-line no-console -- local export smoke-test diagnostics

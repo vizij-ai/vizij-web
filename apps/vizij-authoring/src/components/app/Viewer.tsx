@@ -30,6 +30,7 @@ import {
 import { useAnimationStore } from "../../state/animationStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import type { AnimationClipIR } from "../../types/animationClipIr";
+import { isAuthoringDebugEnabled } from "../../utils/debug";
 import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
@@ -384,7 +385,7 @@ function RuntimeGraphBridge() {
       return;
     }
     lastPayloadSignatureRef.current = payloadSignature;
-    if (process.env.NODE_ENV !== "production") {
+    if (isAuthoringDebugEnabled("runtime")) {
       console.log("[vizij-runtime][graph-bridge]", {
         hasRig: Boolean(payload.rig),
         hasPoseGraph: Boolean(payload.pose?.graph),
@@ -407,7 +408,7 @@ function RuntimeStatusDebug() {
     (state) => state.runtimeViewOutputCount,
   );
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
+    if (isAuthoringDebugEnabled("runtime")) {
       console.log("[vizij-runtime][viewer]", {
         loading,
         ready,

@@ -13,6 +13,7 @@ import {
   type AnimationClipIR,
 } from "../types/animationClipIr";
 import { clipIrToBundleAnimationEntry } from "../utils/animationClipCompiler";
+import { isAuthoringDebugEnabled } from "../utils/debug";
 
 function toDeterministicSignature(value: unknown): string {
   const seen = new WeakSet<object>();
@@ -355,7 +356,7 @@ export function AnimationRuntimeBridge({
     // animations from the runtime bundle.
     appliedAnimationSignatureRef.current = mergedAnimationSignature;
     if (setGraphBundle) {
-      if (process.env.NODE_ENV !== "production") {
+      if (isAuthoringDebugEnabled("timeline")) {
         console.log("[timeline][animation-bridge] apply animations", {
           currentAnimationSignature,
           mergedAnimationSignature,

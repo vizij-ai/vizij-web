@@ -203,6 +203,49 @@ describe("Viewer", () => {
     unmount();
   });
 
+  it("keeps runtime bridge diagnostics quiet by default", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const animationStore = useAnimationStore.getState();
+    animationStore.addTrack("rig/face/standard/blink", "Blink");
+    animationStore.addKeyframe("track-0001", 0, 0);
+    animationStore.addKeyframe("track-0001", 1, 1);
+    const { unmount } = renderViewer({
+      rootId: "root-1",
+      namespace: "vizij",
+      bundle: {
+        namespace: "vizij",
+        glb: {
+          kind: "world",
+          world: {} as any,
+          animatables: {} as any,
+          bundle: null,
+        },
+      },
+      onClearSelection: () => {},
+      showSelectionGlow: true,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+    });
+
+    try {
+      expect(logSpy).not.toHaveBeenCalledWith(
+        "[vizij-runtime][graph-bridge]",
+        expect.anything(),
+      );
+      expect(logSpy).not.toHaveBeenCalledWith(
+        "[vizij-runtime][viewer]",
+        expect.anything(),
+      );
+      expect(logSpy).not.toHaveBeenCalledWith(
+        "[timeline][animation-bridge] apply animations",
+        expect.anything(),
+      );
+    } finally {
+      unmount();
+      logSpy.mockRestore();
+    }
+  });
+
   it("stages input without forcing step", () => {
     const store = createGraphRuntimeStore();
     const bindingStore = createBindingAuthoringStore();
