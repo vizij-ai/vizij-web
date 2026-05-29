@@ -16,6 +16,8 @@ import { ProgramsPanel } from "./components/ProgramsPanel";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { IconButton } from "./components/IconButton";
 
+const ORCHESTRATOR_BACKEND = "moduleFacade" as const;
+
 function ViewerPanel() {
   const { loading, ready, error } = useVizijRuntime();
 
@@ -144,7 +146,12 @@ function WorkspaceSurface({
             status={{ loading, ready, error, controllers }}
           />
         ) : null}
-        {panels.diagnostics ? <DiagnosticsPanel summary={summary} /> : null}
+        {panels.diagnostics ? (
+          <DiagnosticsPanel
+            summary={summary}
+            backendLabel="Arora module facade"
+          />
+        ) : null}
       </div>
     </>
   );
@@ -252,6 +259,7 @@ export default function App() {
             assetBundle={assetBundle}
             autostart
             orchestratorScope="isolated"
+            orchestratorBackend={ORCHESTRATOR_BACKEND}
           >
             <WorkspaceSurface
               sourceLabel={sourceLabel}

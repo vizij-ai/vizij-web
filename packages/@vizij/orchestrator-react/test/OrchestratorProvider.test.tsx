@@ -8,7 +8,10 @@ import {
   act,
   cleanup,
 } from "@testing-library/react";
-import { createOrchestrator } from "@vizij/orchestrator-wasm";
+import {
+  createModuleFacade,
+  createOrchestrator,
+} from "@vizij/orchestrator-wasm";
 import {
   OrchestratorProvider,
   useOrchestrator,
@@ -32,6 +35,7 @@ type OrchestratorMock = {
 };
 
 const orchestratorInstances: OrchestratorMock[] = [];
+const moduleFacadeDispatches: Array<{ call: string; args?: unknown }> = [];
 const stepResultRef: { current: OrchestratorFrame | null } = {
   current: null,
 };
@@ -95,6 +99,37 @@ const makeInstance = (): OrchestratorMock => {
   return instance;
 };
 
+const makeModuleFacade = () => ({
+  dispatch: vi.fn((request: { call: string; args?: unknown }) => {
+    moduleFacadeDispatches.push(request);
+    switch (request.call) {
+      case "runtime.create":
+        return {
+          ok: true,
+          result: { runtimeHandle: "runtime:0", schedule: "SinglePass" },
+          version: 1,
+        };
+      case "orchestrator.step":
+        return {
+          ok: true,
+          result: stepResultRef.current ?? makeFrame(),
+          version: 1,
+        };
+      case "controllers.list":
+        return { ok: true, result: { graphs: [], anims: [] }, version: 1 };
+      default:
+        return { ok: true, result: {}, version: 1 };
+    }
+  }),
+  dispatchJson: vi.fn((requestJson: string) =>
+    JSON.stringify({
+      ok: true,
+      result: { echo: JSON.parse(requestJson) },
+      version: 1,
+    }),
+  ),
+});
+
 vi.mock("@vizij/orchestrator-wasm", async () => {
   const actual = await vi.importActual<
     typeof import("@vizij/orchestrator-wasm")
@@ -107,8 +142,10 @@ vi.mock("@vizij/orchestrator-wasm", async () => {
     loadOrchestrationJson: actual.loadOrchestrationJson,
     init: vi.fn(async () => {}),
     createOrchestrator: vi.fn(async () => makeInstance()),
+    createModuleFacade: vi.fn(async () => makeModuleFacade()),
     Orchestrator: vi.fn(() => makeInstance()),
     abi_version: vi.fn(() => 2),
+    module_facade_version: vi.fn(() => 1),
   };
 });
 
@@ -143,11 +180,50 @@ const Harness: FC = () => {
 describe("OrchestratorProvider", () => {
   beforeEach(() => {
     orchestratorInstances.length = 0;
+    moduleFacadeDispatches.length = 0;
     stepResultRef.current = null;
     vi.clearAllMocks();
     cleanup();
     vi.mocked(createOrchestrator).mockImplementation(async () =>
       makeInstance(),
+    );
+  });
+
+  it("can drive the provider through the module-facade backend", async () => {
+    stepResultRef.current = makeFrame({
+      epoch: 7,
+      merged_writes: [
+        {
+          path: "demo/output/value",
+          value: { float: 0.75 },
+        },
+      ],
+    });
+
+    render(
+      <OrchestratorProvider backend="moduleFacade" autostart={false}>
+        <Harness />
+      </OrchestratorProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ready").textContent).toBe("ready");
+      expect(createModuleFacade).toHaveBeenCalledTimes(1);
+      expect(createOrchestrator).not.toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByTestId("step"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("epoch").textContent).toBe("7");
+      expect(screen.getByTestId("target").textContent).toContain("0.75");
+    });
+
+    expect(moduleFacadeDispatches.map((request) => request.call)).toContain(
+      "runtime.create",
+    );
+    expect(moduleFacadeDispatches.map((request) => request.call)).toContain(
+      "orchestrator.step",
     );
   });
 

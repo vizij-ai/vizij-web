@@ -4,10 +4,10 @@ import {
   init as initOrchestratorWasm,
   createOrchestrator as createOrchestratorWasm,
   abi_version as orchestratorAbiVersion,
-  type Orchestrator as OrchestratorRuntime,
 } from "@vizij/orchestrator-wasm";
 import type { JSX } from "react/jsx-runtime";
 import { OrchestratorContext } from "./context";
+import { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
 import type {
   ControllerId,
   CreateOrchOptions,
@@ -15,8 +15,10 @@ import type {
   MergedGraphRegistrationConfig,
   AnimationRegistrationConfig,
   InitInput,
+  OrchestratorBackend,
   OrchestratorFrame,
   OrchestratorReactCtx,
+  OrchestratorRuntimeLike,
   PrebindResolver,
   ShapeJSON,
   ValueJSON,
@@ -71,6 +73,8 @@ export type OrchestratorProviderProps = {
   autoCreate?: boolean;
   /** Options passed to the wasm createOrchestrator helper when auto-creating. */
   createOptions?: CreateOrchOptions;
+  /** Select the direct wasm API or the shared module-facade JSON backend. */
+  backend?: OrchestratorBackend;
   /**
    * Start a requestAnimationFrame loop once ready. Defaults to false so tests and
    * demos can opt-in to manual stepping.
@@ -87,6 +91,7 @@ export function OrchestratorProvider({
   initInput,
   autoCreate = true,
   createOptions,
+  backend = "direct",
   autostart = false,
 }: OrchestratorProviderProps): JSX.Element {
   const mountedRef = useRef(false);
@@ -99,8 +104,10 @@ export function OrchestratorProvider({
   }, []);
 
   const initPromiseRef = useRef<Promise<void> | null>(null);
-  const orchestratorRef = useRef<OrchestratorRuntime | null>(null);
-  const createPromiseRef = useRef<Promise<OrchestratorRuntime> | null>(null);
+  const orchestratorRef = useRef<OrchestratorRuntimeLike | null>(null);
+  const createPromiseRef = useRef<Promise<OrchestratorRuntimeLike> | null>(
+    null,
+  );
 
   const latestFrameRef = useRef<OrchestratorFrame | null>(null);
   const pathCacheRef = useRef(new Map<string, ValueJSON>());
@@ -151,16 +158,21 @@ export function OrchestratorProvider({
   }, []);
 
   const ensureOrchestrator = useCallback(
-    async (opts?: CreateOrchOptions): Promise<OrchestratorRuntime> => {
+    async (opts?: CreateOrchOptions): Promise<OrchestratorRuntimeLike> => {
       if (orchestratorRef.current) {
         return orchestratorRef.current;
       }
       if (!createPromiseRef.current) {
         createPromiseRef.current = (async () => {
           await ensureInit();
-          const instance = await createOrchestratorWasm(
-            opts ?? createOptions ?? undefined,
-          );
+          const options = opts ?? createOptions ?? undefined;
+          const instance =
+            backend === "moduleFacade"
+              ? await ModuleFacadeOrchestratorRuntime.create(
+                  options,
+                  normalizeInitInput(initInput),
+                )
+              : await createOrchestratorWasm(options);
           orchestratorRef.current = instance;
           if (mountedRef.current) {
             setReady(true);
@@ -170,10 +182,10 @@ export function OrchestratorProvider({
       }
       return createPromiseRef.current;
     },
-    [createOptions, ensureInit],
+    [backend, createOptions, ensureInit, initInput],
   );
 
-  const requireOrchestrator = useCallback((): OrchestratorRuntime => {
+  const requireOrchestrator = useCallback((): OrchestratorRuntimeLike => {
     const instance = orchestratorRef.current;
     if (!instance) {
       throw new Error(

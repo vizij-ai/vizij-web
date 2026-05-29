@@ -52,6 +52,8 @@ export type CreateOrchOptions = {
   schedule?: "SinglePass" | "TwoPass" | "RateDecoupled";
 };
 
+export type OrchestratorBackend = "direct" | "moduleFacade";
+
 export type ControllerId = string;
 
 export type GraphRegistrationInput = WasmGraphRegistrationInput;
@@ -100,7 +102,7 @@ export type OrchestratorReactCtx = {
   registerGraph: (cfg: GraphRegistrationInput) => ControllerId;
   registerMergedGraph: (cfg: MergedGraphRegistrationConfig) => ControllerId;
   registerAnimation: (cfg: AnimationRegistrationConfig) => ControllerId;
-  prebind?: (resolver: PrebindResolver) => void;
+  prebind: (resolver: PrebindResolver) => void;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   removeInput: (path: string) => boolean;
   step: (dt: number) => OrchestratorFrame | null;
@@ -114,4 +116,19 @@ export type OrchestratorReactCtx = {
   getFrameSnapshot: () => OrchestratorFrame | null;
   normalizeGraphSpec?: (spec: object | string) => Promise<object>;
   abiVersion?: () => Promise<number>;
+};
+
+export type OrchestratorRuntimeLike = {
+  registerGraph: (cfg: GraphRegistrationInput) => ControllerId;
+  registerMergedGraph: (cfg: MergedGraphRegistrationConfig) => ControllerId;
+  registerAnimation: (cfg: AnimationRegistrationConfig) => ControllerId;
+  prebind: (resolver: PrebindResolver) => void;
+  setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
+  removeInput: (path: string) => boolean;
+  step: (dt: number) => OrchestratorFrame;
+  listControllers: () => { graphs: ControllerId[]; anims: ControllerId[] };
+  removeGraph: (id: ControllerId) => boolean;
+  removeAnimation: (id: ControllerId) => boolean;
+  normalizeGraphSpec?: (spec: object | string) => Promise<object>;
+  facadeVersion?: () => number;
 };

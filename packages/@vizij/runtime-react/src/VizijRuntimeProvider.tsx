@@ -1259,6 +1259,7 @@ export function VizijRuntimeProvider({
   autostart = false,
   driveOrchestrator = true,
   mergeStrategy,
+  orchestratorBackend,
   onRegisterControllers,
   onStatusChange,
   transformOutputWrite,
@@ -1311,6 +1312,7 @@ export function VizijRuntimeProvider({
     <OrchestratorProvider
       autoCreate={autoCreate}
       createOptions={createOptions}
+      backend={orchestratorBackend}
       autostart={false}
     >
       {runtimeTree}

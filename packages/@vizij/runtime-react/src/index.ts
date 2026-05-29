@@ -56,4 +56,5 @@ export type {
   RuntimeUpdatePlan,
   RuntimeGraphBundle,
   RuntimeOutputWrite,
+  OrchestratorBackend,
 } from "./types";

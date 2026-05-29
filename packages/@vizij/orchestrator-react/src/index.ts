@@ -8,6 +8,8 @@ import {
 export { OrchestratorProvider } from "./OrchestratorProvider";
 export type { OrchestratorProviderProps } from "./OrchestratorProvider";
 export { OrchestratorContext } from "./context";
+export { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
+export type { ModuleFacadeRequest, ModuleFacadeResponse } from "./moduleFacade";
 
 export { useOrchestrator, useOrchTarget, useOrchFrame } from "./hooks";
 
@@ -22,6 +24,8 @@ export type {
   InitInput,
   PrebindResolver,
   CreateOrchOptions,
+  OrchestratorBackend,
+  OrchestratorRuntimeLike,
   ControllerId,
   GraphRegistrationInput,
   GraphRegistrationConfig,

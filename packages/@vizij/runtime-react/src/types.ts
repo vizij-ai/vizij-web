@@ -5,12 +5,15 @@ import type {
   GraphRegistrationConfig,
   GraphSubscriptions,
   MergeStrategyOptions,
+  OrchestratorBackend,
   ValueJSON,
   ShapeJSON,
 } from "@vizij/orchestrator-react";
 import type { IrGraph } from "@vizij/node-graph-authoring";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
+
+export type { OrchestratorBackend } from "@vizij/orchestrator-react";
 
 export type PoseDefinition = {
   id: string;
@@ -301,6 +304,7 @@ export type VizijRuntimeProviderProps = {
   updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
   createOptions?: CreateOrchOptions;
+  orchestratorBackend?: OrchestratorBackend;
   autostart?: boolean;
   driveOrchestrator?: boolean;
   mergeStrategy?: MergeStrategyOptions;

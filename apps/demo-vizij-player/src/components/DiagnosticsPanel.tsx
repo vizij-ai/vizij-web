@@ -3,7 +3,13 @@ import { useVizijRuntime } from "@vizij/runtime-react";
 import type { DemoBundleSummary } from "../lib/bundleSummary";
 import { formatGraphKind, formatPathLabel } from "../lib/bundleSummary";
 
-export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
+export function DiagnosticsPanel({
+  summary,
+  backendLabel,
+}: {
+  summary: DemoBundleSummary;
+  backendLabel: string;
+}) {
   const { errors, outputPaths, controllers, assetBundle } = useVizijRuntime();
   const outputPreviewPaths = useMemo(
     () => outputPaths.slice(0, 12),
@@ -50,6 +56,7 @@ export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
 
         <div className="diagnostics-block">
           <strong>Runtime controllers</strong>
+          <p>Backend: {backendLabel}</p>
           <p className="diagnostic-copy">
             These are the controller ids the runtime exposes from the
             orchestrator layer. Graph controllers cover registered rig, pose, or
