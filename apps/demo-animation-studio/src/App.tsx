@@ -8,7 +8,6 @@ import type {
 } from "@vizij/animation-wasm";
 import type { Value } from "@vizij/animation-react";
 import { init, abi_version } from "@vizij/animation-wasm";
-import presets from "./presets";
 import AnimationsPanel from "./components/AnimationsPanel";
 import type { InstanceSpec } from "./components/PlayersPanel";
 import EventsLog from "./components/EventsLog";
@@ -19,11 +18,21 @@ import { makeResolver } from "./components/PrebindPanel";
 import type { SessionState } from "./components/SessionPanel";
 import SessionPanel from "./components/SessionPanel";
 import AnimationEditor from "./components/AnimationEditor";
+import TransitionWorkbench from "./components/TransitionWorkbench";
+import {
+  getAnimationExtentMs,
+  makeStudioCanonicalTransitionAsset,
+  type StudioV2WorkbenchAnimation,
+} from "./dev/transitionWorkbench";
 import "./styles/app.css";
 
 type Sample = { t: number; v: Value };
 type HistoryEntry = { value: Sample[]; derivative: Sample[] };
 type History = Record<string, HistoryEntry>;
+
+const createTransitionWorkbenchAnimations = (): StoredAnimation[] => [
+  makeStudioCanonicalTransitionAsset() as unknown as StoredAnimation,
+];
 
 /* -----------------------------------------------------------
    Engine status and throttle (MVP)
@@ -378,7 +387,7 @@ function StudioShell({
       const matchIdx = remainingSources.findIndex(({ anim }) => {
         const animName = (anim as any).name ?? (anim as any).id ?? undefined;
         if (animName && nameCandidates.includes(String(animName))) return true;
-        const animDuration = Number((anim as any).duration ?? 0);
+        const animDuration = getAnimationExtentMs(anim as any);
         if (duration && Math.round(animDuration) === Math.round(duration)) {
           const animTracks = Array.isArray((anim as any).tracks)
             ? (anim as any).tracks.length
@@ -427,6 +436,22 @@ function StudioShell({
     [animApi, instances, setAnimations],
   );
 
+  const applyWorkbenchAnimation = useCallback(
+    (
+      nextWorkbench: StudioV2WorkbenchAnimation,
+    ): { ok: boolean; message?: string } => {
+      const nextAnimations: StoredAnimation[] =
+        animations.length === 0
+          ? [nextWorkbench as unknown as StoredAnimation]
+          : [
+              nextWorkbench as unknown as StoredAnimation,
+              ...animations.slice(1),
+            ];
+      return applyEditedAnimations(nextAnimations);
+    },
+    [animations, applyEditedAnimations],
+  );
+
   return (
     <div
       style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100%" }}
@@ -437,9 +462,12 @@ function StudioShell({
         <div className="col-left">
           <ConfigPanel value={engineCfg} onChange={setEngineCfg} />
           <AnimationsPanel
-            preset={presets as any}
+            preset={
+              makeStudioCanonicalTransitionAsset() as unknown as StoredAnimation
+            }
             animations={animations}
             setAnimations={setAnimations}
+            onReplaceAnimations={applyEditedAnimations}
           />
           {/* <PrebindPanel keys={canonicalKeys} rules={rules} setRules={setRules} /> */}
           <SessionPanel
@@ -472,6 +500,15 @@ function StudioShell({
             padding: 8,
           }}
         >
+          <TransitionWorkbench
+            animation={
+              (animations[0] as any)?.formatVersion === 2
+                ? (animations[0] as unknown as StudioV2WorkbenchAnimation)
+                : null
+            }
+            onApply={applyWorkbenchAnimation}
+          />
+
           {/* Add Player */}
           <div
             style={{
@@ -580,9 +617,9 @@ function StudioShell({
 
 export default function App() {
   // console.log("Setting up app");
-  const [animations, setAnimations] = useState<StoredAnimation[]>([
-    presets as any,
-  ]);
+  const [animations, setAnimations] = useState<StoredAnimation[]>(
+    createTransitionWorkbenchAnimations,
+  );
   const [instances, setInstances] = useState<InstanceSpec[]>([
     {
       playerName: "default",
@@ -598,7 +635,7 @@ export default function App() {
   const [rules, setRules] = useState<PrebindRule[]>([]);
 
   const initialAnimations = useMemo<StoredAnimation[]>(
-    () => [presets as any],
+    () => createTransitionWorkbenchAnimations(),
     [],
   );
   const initialInstances = useMemo<InstanceSpec[]>(

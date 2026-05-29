@@ -7,6 +7,10 @@ import type {
   StoredAnimation,
 } from "@vizij/animation-wasm";
 import { formatValue } from "../utils/valueFormat";
+import {
+  getAnimationExtentMs,
+  pointStampToSeconds,
+} from "../dev/transitionWorkbench";
 import type { InstanceSpan, TimelineMarker } from "./Timeline";
 import Timeline from "./Timeline";
 import BakedAnimationPlot from "./BakedAnimationPlot";
@@ -250,10 +254,9 @@ export default function PlayerCard({
           : srcMap
             ? (srcMap as Record<number, StoredAnimation>)[ii.animation]
             : undefined;
-      const durationMs =
-        (animSource as any)?.duration ??
-        animById[ii.animation]?.duration_ms ??
-        0;
+      const durationMs = animSource
+        ? getAnimationExtentMs(animSource as any)
+        : (animById[ii.animation]?.duration_ms ?? 0);
       const durationSec = Number(durationMs) / 1000;
       if (!Number.isFinite(durationSec) || durationSec <= 0) return;
       const colorFallback = instColors[idx % instColors.length];
@@ -264,7 +267,9 @@ export default function PlayerCard({
         (track.points ?? []).forEach((pt: any, pointIdx: number) => {
           const stamp = Number(pt.stamp ?? 0);
           if (!Number.isFinite(stamp)) return;
-          const clipTime = clampStamp(stamp) * durationSec;
+          const clipTime = animSource
+            ? pointStampToSeconds(animSource as any, stamp)
+            : clampStamp(stamp) * durationSec;
           const relative = direction >= 0 ? clipTime : durationSec - clipTime;
           const t = offset + relative * absScale;
           map.push({
@@ -329,6 +334,7 @@ export default function PlayerCard({
 
   return (
     <div
+      className="player-card"
       style={{
         display: "grid",
         gap: 8,
@@ -336,11 +342,25 @@ export default function PlayerCard({
         border: "1px solid #2a2d31",
         background: "#121417",
         borderRadius: 8,
+        minWidth: 0,
+        gridTemplateColumns: "minmax(0, 1fr)",
+        overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          minWidth: 0,
+          width: "100%",
+          maxWidth: "100%",
+          overflow: "hidden",
+        }}
+      >
         <b>{player.name}</b>
-        <span style={{ opacity: 0.7, fontSize: 12 }}>
+        <span style={{ opacity: 0.7, fontSize: 12, minWidth: 0 }}>
           state: {player.state} • t={player.time.toFixed(2)}s • len=
           {player.length.toFixed(2)}s
         </span>

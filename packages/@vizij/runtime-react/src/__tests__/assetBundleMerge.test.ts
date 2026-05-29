@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { VizijBundleExtension } from "@vizij/render";
-import { mergeAssetBundle } from "../VizijRuntimeProvider";
+import {
+  mergeAssetBundle,
+  toStoredAnimationClip,
+} from "../VizijRuntimeProvider";
 import type {
   VizijAnimationAsset,
   VizijAssetBundle,
@@ -105,6 +108,56 @@ describe("mergeAssetBundle", () => {
     expect(merged.animations?.map((animation) => animation.id)).toEqual([
       "authoring.timeline.main",
       "bundle-animation",
+    ]);
+  });
+
+  it("converts bundle clips to Studio v2 stored animations", () => {
+    const stored = toStoredAnimationClip("fallback", {
+      id: "authoring.timeline.main",
+      name: "Main Timeline",
+      duration: 2,
+      tracks: [
+        {
+          id: "jaw-open",
+          name: "Jaw Open",
+          channel: "controls/jaw/open",
+          interpolation: "linear",
+          keyframes: [
+            { id: "k0", time: 0, value: 0 },
+            { id: "k1", time: 1.5, value: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(stored).toMatchObject({
+      id: "authoring.timeline.main",
+      name: "Main Timeline",
+      formatVersion: 2,
+      defaultViewportExtent: 2000,
+      groups: {},
+    });
+    expect(stored).not.toHaveProperty("duration");
+
+    const track = (stored.tracks as Array<Record<string, unknown>>)[0];
+    expect(track).toMatchObject({
+      id: "jaw-open",
+      name: "Jaw Open",
+      animatableId: "controls/jaw/open",
+    });
+    expect(track.points).toEqual([
+      {
+        id: "k0",
+        stamp: 0,
+        value: 0,
+        transitions: { in: "linear", out: "linear" },
+      },
+      {
+        id: "k1",
+        stamp: 1500,
+        value: 1,
+        transitions: { in: "linear", out: "linear" },
+      },
     ]);
   });
 });

@@ -1137,17 +1137,17 @@ function buildStoredAnimationTransitions(mode: "linear" | "step" | "cubic") {
   }
   if (mode === "step") {
     return {
-      in: { x: 1, y: 1 },
-      out: { x: 1, y: 0 },
+      in: "linear",
+      out: { x: 0, y: 0 },
     };
   }
   return {
-    in: { x: 1, y: 1 },
-    out: { x: 0, y: 0 },
+    in: "linear",
+    out: "linear",
   };
 }
 
-function toStoredAnimationClip(
+export function toStoredAnimationClip(
   fallbackId: string,
   clip: AnimationClipLike,
 ): Record<string, unknown> {
@@ -1220,14 +1220,12 @@ function toStoredAnimationClip(
         typeof rawTrackName === "string" && rawTrackName.trim().length > 0
           ? rawTrackName.trim()
           : channel.replace(/^\/+/, "") || trackId;
-      const denominator = durationSeconds > 0 ? durationSeconds : 1;
-
       return {
         id: trackId,
         name: trackName,
         animatableId: channel,
         points: keyframes.map((keyframe) => {
-          const stamp = Math.max(0, Math.min(1, keyframe.time / denominator));
+          const stamp = Math.max(0, Math.round(keyframe.time * 1000));
           const transitions = buildStoredAnimationTransitions(keyframe.mode);
           return {
             id: keyframe.id,
@@ -1243,7 +1241,8 @@ function toStoredAnimationClip(
   return {
     id: clipId,
     name: clipName,
-    duration: durationMs,
+    formatVersion: 2,
+    defaultViewportExtent: durationMs,
     groups: {},
     tracks,
   };

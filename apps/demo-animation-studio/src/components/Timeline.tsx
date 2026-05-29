@@ -88,6 +88,9 @@ export default function Timeline({
       style={{
         position: "relative",
         width: "100%",
+        minWidth: 0,
+        maxWidth: "100%",
+        boxSizing: "border-box",
         height,
         background: "#0f1113",
         border: "1px solid #2a2d31",

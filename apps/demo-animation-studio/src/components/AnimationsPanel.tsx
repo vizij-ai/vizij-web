@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import type { StoredAnimation } from "@vizij/animation-wasm";
 import { useAnimation } from "@vizij/animation-react";
+import { getAnimationExtentMs } from "../dev/transitionWorkbench";
+
+type ApplyResult = { ok: boolean; message?: string };
 
 function cloneWithoutTransitions(anim: StoredAnimation): StoredAnimation {
   return {
@@ -20,7 +23,8 @@ function summarize(anims: StoredAnimation[]) {
   return anims.map((a, i) => ({
     i,
     name: a.name ?? `anim_${i}`,
-    duration: a.duration,
+    extentMs: getAnimationExtentMs(a as any),
+    formatVersion: (a as any).formatVersion,
     tracks: a.tracks?.length ?? 0,
   }));
 }
@@ -29,10 +33,12 @@ export default function AnimationsPanel({
   preset,
   animations,
   setAnimations,
+  onReplaceAnimations,
 }: {
   preset: StoredAnimation;
   animations: StoredAnimation[];
   setAnimations: (next: StoredAnimation[]) => void;
+  onReplaceAnimations?: (next: StoredAnimation[]) => ApplyResult;
 }) {
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
@@ -41,14 +47,35 @@ export default function AnimationsPanel({
 
   const summary = useMemo(() => summarize(animations), [animations]);
 
+  const replaceAnimations = (next: StoredAnimation[]) => {
+    const result = onReplaceAnimations?.(next);
+    if (result && !result.ok) {
+      setError(result.message ?? "Failed to reload animations");
+      return false;
+    }
+    if (!result) {
+      setAnimations(next);
+    }
+    return true;
+  };
+
+  const appendAnimations = (next: StoredAnimation[]) => {
+    if (typeof animApi.addAnimations === "function") {
+      animApi.addAnimations(next);
+      setAnimations([...animations, ...next]);
+      return true;
+    }
+    return replaceAnimations([...animations, ...next]);
+  };
+
   const usePreset = () => {
     setError(null);
-    setAnimations([preset]);
+    replaceAnimations([preset]);
   };
 
   const useNoTransitions = () => {
     setError(null);
-    setAnimations([cloneWithoutTransitions(preset)]);
+    replaceAnimations([cloneWithoutTransitions(preset)]);
   };
 
   const tryImport = () => {
@@ -60,14 +87,18 @@ export default function AnimationsPanel({
       for (const a of arr) {
         if (typeof a !== "object" || a == null)
           throw new Error("Invalid animation entry");
-        if (typeof (a as any).duration !== "number")
-          throw new Error("Missing duration");
         if (!Array.isArray((a as any).tracks))
           throw new Error("Missing tracks");
+        if (
+          typeof (a as any).duration !== "number" &&
+          typeof (a as any).defaultViewportExtent !== "number"
+        )
+          throw new Error("Missing duration or defaultViewportExtent");
       }
-      setAnimations(arr);
-      setShowImport(false);
-      setImportText("");
+      if (replaceAnimations(arr)) {
+        setShowImport(false);
+        setImportText("");
+      }
     } catch (e: any) {
       setError(e?.message ?? String(e));
     }
@@ -82,15 +113,18 @@ export default function AnimationsPanel({
       for (const a of arr) {
         if (typeof a !== "object" || a == null)
           throw new Error("Invalid animation entry");
-        if (typeof (a as any).duration !== "number")
-          throw new Error("Missing duration");
         if (!Array.isArray((a as any).tracks))
           throw new Error("Missing tracks");
+        if (
+          typeof (a as any).duration !== "number" &&
+          typeof (a as any).defaultViewportExtent !== "number"
+        )
+          throw new Error("Missing duration or defaultViewportExtent");
       }
-      animApi.addAnimations?.(arr);
-      setAnimations([...animations, ...arr]);
-      setShowImport(false);
-      setImportText("");
+      if (appendAnimations(arr)) {
+        setShowImport(false);
+        setImportText("");
+      }
     } catch (e: any) {
       setError(e?.message ?? String(e));
     }
@@ -117,17 +151,17 @@ export default function AnimationsPanel({
         <button onClick={useNoTransitions}>Use No-Transitions Variant</button>
         <button
           onClick={() => {
-            animApi.addAnimations?.(preset);
-            setAnimations([...animations, preset]);
+            setError(null);
+            appendAnimations([preset]);
           }}
         >
           Append Preset
         </button>
         <button
           onClick={() => {
+            setError(null);
             const nt = cloneWithoutTransitions(preset);
-            animApi.addAnimations?.(nt);
-            setAnimations([...animations, nt]);
+            appendAnimations([nt]);
           }}
         >
           Append No-Transitions
@@ -178,7 +212,7 @@ export default function AnimationsPanel({
         Active animations: {animations.length}
       </div>
       <div style={{ display: "grid", gap: 6 }}>
-        {summary.map(({ i, name, duration, tracks }) => (
+        {summary.map(({ i, name, extentMs, formatVersion, tracks }) => (
           <div
             key={i}
             style={{
@@ -190,7 +224,8 @@ export default function AnimationsPanel({
           >
             <div style={{ fontWeight: 600 }}>{name}</div>
             <div style={{ opacity: 0.75 }}>
-              Duration: {duration} ms • Tracks: {tracks}
+              Extent: {extentMs} ms • Tracks: {tracks}
+              {formatVersion ? ` • v${formatVersion}` : ""}
             </div>
           </div>
         ))}

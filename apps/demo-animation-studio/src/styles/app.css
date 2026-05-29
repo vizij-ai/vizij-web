@@ -101,3 +101,229 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+.player-card > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.player-card section {
+  overflow: hidden;
+}
+
+.player-card section > *,
+.player-card section label,
+.player-card section div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.transition-workbench {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #14181b;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+}
+
+.transition-workbench__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transition-workbench__header > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.transition-workbench__header-actions {
+  display: flex;
+  align-items: end;
+  justify-content: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.transition-workbench__asset-select {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 180px;
+  min-width: 180px;
+}
+
+.transition-workbench__header span,
+.transition-workbench__controls span,
+.transition-workbench__asset-select span,
+.transition-workbench__proof-grid span {
+  color: #a9b2bd;
+  font-size: 12px;
+}
+
+.transition-workbench__controls {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(150px, 220px) minmax(
+      220px,
+      1fr
+    );
+  gap: 10px;
+  align-items: end;
+}
+
+.transition-workbench__controls label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transition-workbench__readout {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.transition-workbench__readout span {
+  padding: 6px 8px;
+  background: #0f1215;
+  border: 1px solid #29313a;
+  border-radius: 6px;
+  color: #e8edf2;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.transition-workbench__svg {
+  width: 100%;
+  aspect-ratio: 19 / 8;
+  min-height: 260px;
+  max-height: 420px;
+  display: block;
+  touch-action: none;
+}
+
+.transition-workbench__plot-bg {
+  fill: #0d1013;
+  stroke: #2f3741;
+}
+
+.transition-workbench__grid {
+  stroke: rgba(143, 179, 255, 0.16);
+  stroke-width: 1;
+}
+
+.transition-workbench__axis {
+  fill: #7f8b98;
+  font-size: 11px;
+}
+
+.transition-workbench__curve {
+  fill: none;
+  stroke: #58d6a9;
+  stroke-width: 2.25;
+}
+
+.transition-workbench__curve-selected {
+  fill: none;
+  stroke: #f2c94c;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.transition-workbench__point {
+  fill: #0f1215;
+  stroke: #e8edf2;
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+
+.transition-workbench__point[data-selected="true"] {
+  fill: #f2c94c;
+  stroke: #121417;
+}
+
+.transition-workbench__handle-line {
+  stroke: rgba(232, 237, 242, 0.42);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.transition-workbench__handle {
+  stroke: #121417;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.transition-workbench__handle:active {
+  cursor: grabbing;
+}
+
+.transition-workbench__handle--out {
+  fill: #ff8f70;
+}
+
+.transition-workbench__handle--in {
+  fill: #8fb3ff;
+}
+
+.transition-workbench__proof-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.transition-workbench__proof-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  background: #0f1215;
+  border: 1px solid #29313a;
+  border-radius: 6px;
+}
+
+.transition-workbench__proof-grid code {
+  min-height: 18px;
+  color: #f6f8fb;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.transition-workbench__status {
+  color: #58d6a9;
+  font-size: 12px;
+}
+
+@media (max-width: 1000px) {
+  .transition-workbench__controls,
+  .transition-workbench__proof-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .transition-workbench__header {
+    display: grid;
+  }
+
+  .transition-workbench__header-actions {
+    justify-content: stretch;
+  }
+
+  .transition-workbench__asset-select {
+    min-width: 0;
+  }
+
+  .transition-workbench__controls,
+  .transition-workbench__proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .transition-workbench__readout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

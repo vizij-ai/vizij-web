@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { StoredAnimation } from "@vizij/animation-wasm";
 import { cloneDeepSafe } from "@vizij/utils";
+import {
+  getAnimationExtentMs,
+  usesUnitDomainStamps,
+} from "../dev/transitionWorkbench";
 
 const cloneAnimation = (anim: StoredAnimation): StoredAnimation =>
   cloneDeepSafe(anim);
@@ -114,6 +118,10 @@ export default function AnimationEditor({
   const selectedTrack = tracks[selectedTrackIndex] ?? null;
   const trackPoints = (selectedTrack?.points ?? []) as any[];
   const selectedPoint = trackPoints[selectedPointIndex] ?? null;
+  const usesUnitStamps = draft ? usesUnitDomainStamps(draft as any) : true;
+  const draftExtentMs = draft ? getAnimationExtentMs(draft as any) : 1;
+  const stampMax = usesUnitStamps ? 1 : draftExtentMs;
+  const stampStep = usesUnitStamps ? 0.01 : 1;
   const selectedPointKey = selectedPoint
     ? makePointKey(selectedTrackIndex, selectedPointIndex)
     : null;
@@ -161,9 +169,12 @@ export default function AnimationEditor({
     stamp: number,
   ) => {
     if (!Number.isFinite(stamp)) return;
-    const clamped = Math.min(1, Math.max(0, stamp));
     setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
+      const maxStamp = usesUnitDomainStamps(prev as any)
+        ? 1
+        : getAnimationExtentMs(prev as any);
+      const clamped = Math.min(maxStamp, Math.max(0, stamp));
       const nextTracks = (prev.tracks ?? []).map((track: any, ti: number) => {
         if (ti !== trackIdx) return track;
         const nextPoints = (track.points ?? []).map((pt: any, pi: number) =>
@@ -297,7 +308,7 @@ export default function AnimationEditor({
     }
   };
 
-  const updateMeta = (field: keyof StoredAnimation, value: any) => {
+  const updateMeta = (field: string, value: any) => {
     setDraft((prev: StoredAnimation | null) => {
       if (!prev) return prev;
       return { ...prev, [field]: value } as StoredAnimation;
@@ -327,9 +338,17 @@ export default function AnimationEditor({
       }));
       const sanitized: StoredAnimation = {
         ...draft,
-        duration: Number((draft as any).duration) || (draft as any).duration,
         tracks: sanitizedTracks,
       } as StoredAnimation;
+      if (Number((draft as any).formatVersion) === 2) {
+        delete (sanitized as any).duration;
+        (sanitized as any).defaultViewportExtent =
+          Number((draft as any).defaultViewportExtent) ||
+          getAnimationExtentMs(draft as any);
+      } else {
+        (sanitized as any).duration =
+          Number((draft as any).duration) || (draft as any).duration;
+      }
       const next = animations.map((anim, idx) =>
         idx === selectedIndex ? sanitized : anim,
       );
@@ -403,7 +422,7 @@ export default function AnimationEditor({
             >
               {animations.map((anim, idx) => (
                 <option key={idx} value={idx}>
-                  {anim.name ?? anim.id ?? `anim_${idx}`} ({anim.duration} ms)
+                  {`${anim.name ?? anim.id ?? `anim_${idx}`} (${getAnimationExtentMs(anim as any)} ms)`}
                 </option>
               ))}
             </select>
@@ -421,14 +440,26 @@ export default function AnimationEditor({
                 </label>
                 <label style={{ display: "grid", gap: 4 }}>
                   <span style={{ fontSize: 12, opacity: 0.75 }}>
-                    Duration (ms)
+                    {Number((draft as any).formatVersion) === 2
+                      ? "Viewport extent (ms)"
+                      : "Duration (ms)"}
                   </span>
                   <input
                     type="number"
                     min={0}
-                    value={(draft as any).duration ?? 0}
+                    value={
+                      Number((draft as any).formatVersion) === 2
+                        ? ((draft as any).defaultViewportExtent ??
+                          getAnimationExtentMs(draft as any))
+                        : ((draft as any).duration ?? 0)
+                    }
                     onChange={(e) =>
-                      updateMeta("duration", Number(e.target.value))
+                      updateMeta(
+                        Number((draft as any).formatVersion) === 2
+                          ? "defaultViewportExtent"
+                          : "duration",
+                        Number(e.target.value),
+                      )
                     }
                   />
                 </label>
@@ -631,13 +662,15 @@ export default function AnimationEditor({
                                     <span
                                       style={{ fontSize: 12, opacity: 0.75 }}
                                     >
-                                      Stamp (0-1)
+                                      {usesUnitStamps
+                                        ? "Stamp (0-1)"
+                                        : "Stamp (ms)"}
                                     </span>
                                     <input
                                       type="number"
-                                      step="0.01"
+                                      step={stampStep}
                                       min={0}
-                                      max={1}
+                                      max={stampMax}
                                       value={selectedPoint.stamp ?? 0}
                                       onChange={(e) =>
                                         updatePointStamp(
