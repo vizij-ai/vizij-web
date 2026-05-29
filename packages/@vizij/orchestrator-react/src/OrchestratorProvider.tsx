@@ -7,6 +7,7 @@ import {
 } from "@vizij/orchestrator-wasm";
 import type { JSX } from "react/jsx-runtime";
 import { OrchestratorContext } from "./context";
+import { AroraWebOrchestratorRuntime } from "./aroraWeb";
 import { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
 import type {
   ControllerId,
@@ -73,7 +74,7 @@ export type OrchestratorProviderProps = {
   autoCreate?: boolean;
   /** Options passed to the wasm createOrchestrator helper when auto-creating. */
   createOptions?: CreateOrchOptions;
-  /** Select the direct wasm API or the shared module-facade JSON backend. */
+  /** Select the direct wasm API, local facade, or browser-hosted Arora engine backend. */
   backend?: OrchestratorBackend;
   /**
    * Start a requestAnimationFrame loop once ready. Defaults to false so tests and
@@ -164,15 +165,23 @@ export function OrchestratorProvider({
       }
       if (!createPromiseRef.current) {
         createPromiseRef.current = (async () => {
-          await ensureInit();
           const options = opts ?? createOptions ?? undefined;
-          const instance =
-            backend === "moduleFacade"
-              ? await ModuleFacadeOrchestratorRuntime.create(
-                  options,
-                  normalizeInitInput(initInput),
-                )
-              : await createOrchestratorWasm(options);
+          let instance: OrchestratorRuntimeLike;
+          if (backend === "aroraWeb") {
+            instance = await AroraWebOrchestratorRuntime.create(
+              options,
+              initInput,
+            );
+          } else {
+            await ensureInit();
+            instance =
+              backend === "moduleFacade"
+                ? await ModuleFacadeOrchestratorRuntime.create(
+                    options,
+                    normalizeInitInput(initInput),
+                  )
+                : await createOrchestratorWasm(options);
+          }
           orchestratorRef.current = instance;
           if (mountedRef.current) {
             setReady(true);
@@ -341,9 +350,13 @@ export function OrchestratorProvider({
   );
 
   const abiVersion = useCallback(async (): Promise<number> => {
+    if (backend === "aroraWeb") {
+      const instance = await ensureOrchestrator();
+      return instance.facadeVersion?.() ?? 1;
+    }
     await ensureInit();
     return orchestratorAbiVersion();
-  }, [ensureInit]);
+  }, [backend, ensureInit, ensureOrchestrator]);
 
   const getLatestFrame = useCallback(() => latestFrameRef.current, []);
   const getFrameSnapshot = useCallback(() => latestFrameRef.current, []);
@@ -397,6 +410,9 @@ export function OrchestratorProvider({
   }, []);
 
   useEffect(() => {
+    if (backend === "aroraWeb") {
+      return;
+    }
     let cancelled = false;
     ensureInit().catch((err) => {
       if (!cancelled) {
@@ -406,7 +422,7 @@ export function OrchestratorProvider({
     return () => {
       cancelled = true;
     };
-  }, [ensureInit]);
+  }, [backend, ensureInit]);
 
   useEffect(() => {
     if (!autoCreate) {

@@ -16,7 +16,8 @@ import { ProgramsPanel } from "./components/ProgramsPanel";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { IconButton } from "./components/IconButton";
 
-const ORCHESTRATOR_BACKEND = "moduleFacade" as const;
+const ORCHESTRATOR_BACKEND = "aroraWeb" as const;
+const ORCHESTRATOR_BACKEND_LABEL = "Arora web engine";
 
 function ViewerPanel() {
   const { loading, ready, error } = useVizijRuntime();
@@ -149,7 +150,7 @@ function WorkspaceSurface({
         {panels.diagnostics ? (
           <DiagnosticsPanel
             summary={summary}
-            backendLabel="Arora module facade"
+            backendLabel={ORCHESTRATOR_BACKEND_LABEL}
           />
         ) : null}
       </div>

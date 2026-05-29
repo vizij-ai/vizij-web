@@ -4,6 +4,7 @@
 **/.turbo/        # if you ever use turbo
 **/dist/
 **/test-results/
+apps/demo-vizij-player/public/arora-web/
 
 # env
 .env

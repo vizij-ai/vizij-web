@@ -42,7 +42,28 @@ export type OrchestratorFrame = Omit<WasmOrchestratorFrame, "merged_writes"> & {
 
 export type OrchestratorConflict = ConflictLog;
 
-export type InitInput = WasmInitInput | { url?: string };
+export type AroraWebModuleExports = {
+  default?: (input?: unknown) => Promise<unknown> | unknown;
+  init?: (input?: unknown) => Promise<unknown> | unknown;
+  Engine: new () => {
+    loadModule?: (headerJson: string, executable: Uint8Array) => string;
+    load_module?: (headerJson: string, executable: Uint8Array) => string;
+    call: (callJson: string) => string;
+  };
+};
+
+export type AroraWebInitInput = {
+  aroraWeb?: AroraWebModuleExports | (() => Promise<AroraWebModuleExports>);
+  aroraWebUrl?: string;
+  aroraWebInitInput?: unknown;
+  headerJson?: string | object;
+  headerUrl?: string | URL;
+  wasmBytes?: Uint8Array | ArrayBuffer;
+  wasmUrl?: string | URL;
+  fetch?: typeof fetch;
+};
+
+export type InitInput = WasmInitInput | { url?: string } | AroraWebInitInput;
 
 export type PrebindResolver = (
   path: string,
@@ -52,7 +73,7 @@ export type CreateOrchOptions = {
   schedule?: "SinglePass" | "TwoPass" | "RateDecoupled";
 };
 
-export type OrchestratorBackend = "direct" | "moduleFacade";
+export type OrchestratorBackend = "direct" | "moduleFacade" | "aroraWeb";
 
 export type ControllerId = string;
 

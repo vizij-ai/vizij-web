@@ -13,6 +13,7 @@ import {
   createOrchestrator,
 } from "@vizij/orchestrator-wasm";
 import {
+  AroraWebOrchestratorRuntime,
   OrchestratorProvider,
   ModuleFacadeOrchestratorRuntime,
   useOrchestrator,
@@ -104,37 +105,41 @@ const makeInstance = (): OrchestratorMock => {
   return instance;
 };
 
+function moduleFacadeResponse(request: { call: string; args?: unknown }) {
+  switch (request.call) {
+    case "runtime.create":
+      return {
+        ok: true,
+        result: { runtimeHandle: "runtime:0", schedule: "SinglePass" },
+        version: 1,
+      };
+    case "orchestrator.step":
+      return {
+        ok: true,
+        result: stepResultRef.current ?? makeFrame(),
+        version: 1,
+      };
+    case "graph.normalize":
+      return {
+        ok: true,
+        result: {
+          ...(request.args as { spec?: object }).spec,
+          edges: [],
+          normalized: true,
+        },
+        version: 1,
+      };
+    case "controllers.list":
+      return { ok: true, result: { graphs: [], anims: [] }, version: 1 };
+    default:
+      return { ok: true, result: {}, version: 1 };
+  }
+}
+
 const makeModuleFacade = () => ({
   dispatch: vi.fn((request: { call: string; args?: unknown }) => {
     moduleFacadeDispatches.push(request);
-    switch (request.call) {
-      case "runtime.create":
-        return {
-          ok: true,
-          result: { runtimeHandle: "runtime:0", schedule: "SinglePass" },
-          version: 1,
-        };
-      case "orchestrator.step":
-        return {
-          ok: true,
-          result: stepResultRef.current ?? makeFrame(),
-          version: 1,
-        };
-      case "graph.normalize":
-        return {
-          ok: true,
-          result: {
-            ...(request.args as { spec?: object }).spec,
-            edges: [],
-            normalized: true,
-          },
-          version: 1,
-        };
-      case "controllers.list":
-        return { ok: true, result: { graphs: [], anims: [] }, version: 1 };
-      default:
-        return { ok: true, result: {}, version: 1 };
-    }
+    return moduleFacadeResponse(request);
   }),
   dispatchJson: vi.fn((requestJson: string) =>
     JSON.stringify({
@@ -144,6 +149,40 @@ const makeModuleFacade = () => ({
     }),
   ),
 });
+
+const makeAroraWebModule = () => {
+  const init = vi.fn(async () => {});
+  const loadModule = vi.fn(() => "144358c2-b7e0-414d-8755-56d7ac03f811");
+  const engineCalls: unknown[] = [];
+
+  class Engine {
+    loadModule = loadModule;
+
+    call(callJson: string): string {
+      const call = JSON.parse(callJson) as {
+        module_id?: string;
+        args?: Array<{ value?: { str?: string } }>;
+      };
+      engineCalls.push(call);
+      const requestJson = call.args?.[0]?.value?.str;
+      if (!requestJson) {
+        throw new Error("missing arora request string");
+      }
+      const request = JSON.parse(requestJson) as {
+        call: string;
+        runtimeHandle?: string;
+        args?: unknown;
+      };
+      moduleFacadeDispatches.push(request);
+      return JSON.stringify({
+        ret: { str: JSON.stringify(moduleFacadeResponse(request)) },
+        mutated: [],
+      });
+    }
+  }
+
+  return { default: init, Engine, loadModule, engineCalls };
+};
 
 vi.mock("@vizij/orchestrator-wasm", async () => {
   const actual = await vi.importActual<
@@ -245,6 +284,73 @@ describe("OrchestratorProvider", () => {
 
   it("normalizes graph specs through the module-facade backend", async () => {
     const runtime = await ModuleFacadeOrchestratorRuntime.create();
+    const normalized = await runtime.normalizeGraphSpec({
+      nodes: [{ id: "source", kind: "Node" }],
+    });
+
+    expect(normalized).toMatchObject({ edges: [], normalized: true });
+    const normalizeDispatch = moduleFacadeDispatches.find(
+      (request) => request.call === "graph.normalize",
+    );
+    expect(normalizeDispatch?.runtimeHandle).toBe("runtime:0");
+  });
+
+  it("can drive the provider through the arora-web backend", async () => {
+    stepResultRef.current = makeFrame({
+      epoch: 11,
+      merged_writes: [
+        {
+          path: "demo/output/value",
+          value: { float: 0.25 },
+        },
+      ],
+    });
+    const aroraWeb = makeAroraWebModule();
+
+    render(
+      <OrchestratorProvider
+        backend="aroraWeb"
+        initInput={{ aroraWeb, wasmBytes: new Uint8Array([0]) }}
+        autostart={false}
+      >
+        <Harness />
+      </OrchestratorProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ready").textContent).toBe("ready");
+      expect(aroraWeb.default).toHaveBeenCalledTimes(1);
+      expect(aroraWeb.loadModule).toHaveBeenCalledTimes(1);
+      expect(createModuleFacade).not.toHaveBeenCalled();
+      expect(createOrchestrator).not.toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByTestId("step"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("epoch").textContent).toBe("11");
+      expect(screen.getByTestId("target").textContent).toContain("0.25");
+    });
+
+    const stepDispatch = moduleFacadeDispatches.find(
+      (request) => request.call === "orchestrator.step",
+    );
+    expect(stepDispatch?.runtimeHandle).toBe("runtime:0");
+    expect(aroraWeb.engineCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          module_id: "144358c2-b7e0-414d-8755-56d7ac03f811",
+        }),
+      ]),
+    );
+  });
+
+  it("normalizes graph specs through the arora-web backend", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      wasmBytes: new Uint8Array([0]),
+    });
     const normalized = await runtime.normalizeGraphSpec({
       nodes: [{ id: "source", kind: "Node" }],
     });

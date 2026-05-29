@@ -40,6 +40,7 @@ The walkthrough covers:
 ## Scripts
 
 - `pnpm dev` - start the local dev server
+- `pnpm prepare:arora-web` - build/copy local Arora web + Vizij orchestrator wasm assets for the `aroraWeb` backend
 - `pnpm build` - build the production bundle
 - `pnpm preview` - preview the production build
 - `pnpm typecheck` - run TypeScript in `--noEmit` mode
@@ -53,20 +54,20 @@ The walkthrough covers:
 - The app is intentionally bundle-oriented: separate low-level rig JSON, high-level rig JSON, and standalone animation JSON imports are not part of the main flow.
 - Diagnostics are read-only and runtime-focused: graph inventory, controller ids, output paths, metadata, and runtime errors.
 
-## Module Facade Backend Experiment
+## Arora Web Backend Experiment
 
 This branch runs the demo through `VizijRuntimeProvider` with the
-`orchestratorBackend="moduleFacade"` path. That path requires a local
-`@vizij/orchestrator-wasm` build from the matching `vizij-rs` experiment branch
-until the module-facade exports are published.
+`orchestratorBackend="aroraWeb"` path. That path uses Victor's browser-hosted
+`arora-web.Engine`, loads the `vizij-orchestrator` Arora module wasm, and sends
+the same Vizij module-facade JSON requests through Arora `Call` / `CallResult`.
 
 From this repo:
 
 ```bash
-pnpm run wasm:link -- --pkgs orchestrator-wasm --vizij-rs /home/chris/Code/semio_ws/_worktrees/vizij-rs-vizij-engine-backend-experiment --no-verify-clean
-pnpm --filter demo-vizij-player dev -- --host 127.0.0.1 --port 5174
+ARORA_ENGINE_PATH=/home/chris/Code/semio_ws/_worktrees/engine-vizij-backend-experiment pnpm --filter demo-vizij-player prepare:arora-web
+NODE_ENV=development pnpm --filter demo-vizij-player dev --force --host 127.0.0.1 --port 5174
 ```
 
-The diagnostics panel should show `Backend: Arora module facade`, and loading a
-sample should register graph/animation controllers without falling back to the
-direct wasm orchestrator API.
+The diagnostics panel should show `Backend: Arora web engine`, and loading a
+sample should register graph/animation controllers through the browser-hosted
+Arora engine rather than the direct wasm orchestrator API.

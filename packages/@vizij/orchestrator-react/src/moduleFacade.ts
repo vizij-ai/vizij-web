@@ -24,7 +24,7 @@ export type ModuleFacadeResponse<TResult = unknown> = {
   requestId?: string;
 };
 
-type WasmModuleFacade = {
+export type ModuleFacadeTransport = {
   dispatch<TResult = unknown, TArgs = unknown>(
     request: ModuleFacadeRequest<TArgs>,
   ): ModuleFacadeResponse<TResult>;
@@ -33,7 +33,7 @@ type WasmModuleFacade = {
 
 type WasmModuleFacadeExports = {
   init?: (input?: unknown) => Promise<void>;
-  createModuleFacade?: () => Promise<WasmModuleFacade>;
+  createModuleFacade?: () => Promise<ModuleFacadeTransport>;
   module_facade_version?: () => number;
 };
 
@@ -66,11 +66,13 @@ function graphRegistrationArgs(cfg: GraphRegistrationInput): unknown {
  * Runtime adapter backed by the shared Vizij module-facade JSON contract.
  */
 export class ModuleFacadeOrchestratorRuntime {
-  private readonly facade: WasmModuleFacade;
-  private runtimeHandle: string | undefined;
+  private readonly facade: ModuleFacadeTransport;
+  private readonly versionResolver: () => number;
+  protected runtimeHandle: string | undefined;
 
-  constructor(facade: WasmModuleFacade) {
+  constructor(facade: ModuleFacadeTransport, versionResolver = () => 1) {
     this.facade = facade;
+    this.versionResolver = versionResolver;
   }
 
   static async create(
@@ -87,12 +89,21 @@ export class ModuleFacadeOrchestratorRuntime {
       );
     }
     const facade = await api.createModuleFacade();
-    const runtime = new ModuleFacadeOrchestratorRuntime(facade);
-    const created = runtime.call<{ runtimeHandle?: string }>(
-      "runtime.create",
-      opts ?? {},
+    return ModuleFacadeOrchestratorRuntime.createFromFacade(facade, opts, () =>
+      Number(api.module_facade_version?.() ?? 1),
     );
-    runtime.runtimeHandle = created.runtimeHandle;
+  }
+
+  static createFromFacade(
+    facade: ModuleFacadeTransport,
+    opts?: CreateOrchOptions,
+    versionResolver = () => 1,
+  ): ModuleFacadeOrchestratorRuntime {
+    const runtime = new ModuleFacadeOrchestratorRuntime(
+      facade,
+      versionResolver,
+    );
+    runtime.createRuntime(opts);
     return runtime;
   }
 
@@ -107,8 +118,7 @@ export class ModuleFacadeOrchestratorRuntime {
   }
 
   facadeVersion(): number {
-    const api = moduleFacadeExports();
-    return Number(api.module_facade_version?.() ?? 1);
+    return this.versionResolver();
   }
 
   registerGraph(cfg: GraphRegistrationInput): string {
@@ -177,7 +187,15 @@ export class ModuleFacadeOrchestratorRuntime {
     });
   }
 
-  private call<TResult = unknown>(call: string, args: unknown): TResult {
+  protected createRuntime(opts?: CreateOrchOptions): void {
+    const created = this.call<{ runtimeHandle?: string }>(
+      "runtime.create",
+      opts ?? {},
+    );
+    this.runtimeHandle = created.runtimeHandle;
+  }
+
+  protected call<TResult = unknown>(call: string, args: unknown): TResult {
     return assertOk<TResult>(
       this.facade.dispatch<TResult>({
         call,

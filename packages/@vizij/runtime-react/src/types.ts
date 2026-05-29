@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type {
   AnimationSetup,
+  InitInput,
   CreateOrchOptions,
   GraphRegistrationConfig,
   GraphSubscriptions,
@@ -305,6 +306,7 @@ export type VizijRuntimeProviderProps = {
   autoCreate?: boolean;
   createOptions?: CreateOrchOptions;
   orchestratorBackend?: OrchestratorBackend;
+  orchestratorInitInput?: InitInput;
   autostart?: boolean;
   driveOrchestrator?: boolean;
   mergeStrategy?: MergeStrategyOptions;
