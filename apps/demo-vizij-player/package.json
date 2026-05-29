@@ -17,10 +17,11 @@
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
-    "@vizij/utils": "workspace:*",
     "@vizij/runtime-react": "workspace:*",
+    "@vizij/utils": "workspace:*",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "scheduler": "^0.27.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.7",

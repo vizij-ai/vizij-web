@@ -67,6 +67,7 @@ function graphRegistrationArgs(cfg: GraphRegistrationInput): unknown {
  */
 export class ModuleFacadeOrchestratorRuntime {
   private readonly facade: WasmModuleFacade;
+  private runtimeHandle: string | undefined;
 
   constructor(facade: WasmModuleFacade) {
     this.facade = facade;
@@ -87,7 +88,11 @@ export class ModuleFacadeOrchestratorRuntime {
     }
     const facade = await api.createModuleFacade();
     const runtime = new ModuleFacadeOrchestratorRuntime(facade);
-    runtime.call("runtime.create", opts ?? {});
+    const created = runtime.call<{ runtimeHandle?: string }>(
+      "runtime.create",
+      opts ?? {},
+    );
+    runtime.runtimeHandle = created.runtimeHandle;
     return runtime;
   }
 
@@ -167,13 +172,16 @@ export class ModuleFacadeOrchestratorRuntime {
   }
 
   async normalizeGraphSpec(spec: object | string): Promise<object> {
-    return typeof spec === "string" ? JSON.parse(spec) : spec;
+    return this.call<object>("graph.normalize", {
+      spec: typeof spec === "string" ? JSON.parse(spec) : spec,
+    });
   }
 
   private call<TResult = unknown>(call: string, args: unknown): TResult {
     return assertOk<TResult>(
       this.facade.dispatch<TResult>({
         call,
+        ...(this.runtimeHandle ? { runtimeHandle: this.runtimeHandle } : {}),
         args,
       }),
       call,

@@ -152,6 +152,9 @@ const STANDARD_PARAMS: Record<
   linear: { out: { x: 0.33, y: 0.33 }, in: { x: 0.66, y: 0.66 } },
 };
 
+const AUTO_MAGIC_SCALE = 2.5614;
+const ASYMMETRY_CLAMP_FACTOR = 5;
+
 export const WORKBENCH_SCALAR_TRACK_ID = "workbench-transition-scalar";
 export const WORKBENCH_SEGMENT_MODES: WorkbenchSegmentMode[] = [
   "linear",
@@ -280,6 +283,174 @@ function namedTransitionDelta(params: {
   };
 }
 
+function normalizeDelta(delta: StudioExplicitTransition): {
+  unit: StudioExplicitTransition;
+  length: number;
+} {
+  const length = Math.hypot(delta.x, delta.y);
+  if (!Number.isFinite(length) || length === 0) {
+    return { unit: { x: 0, y: 0 }, length: 1 };
+  }
+  return {
+    unit: {
+      x: delta.x / length,
+      y: delta.y / length,
+    },
+    length,
+  };
+}
+
+function inferAutoHandleDeltas(
+  prev: WorldPoint | undefined,
+  anchor: WorldPoint,
+  next: WorldPoint | undefined,
+): { in: StudioExplicitTransition; out: StudioExplicitTransition } | null {
+  if (!prev || !next) return null;
+
+  const prevNorm = normalizeDelta({
+    x: anchor.stamp - prev.stamp,
+    y: anchor.value - prev.value,
+  });
+  const nextNorm = normalizeDelta({
+    x: next.stamp - anchor.stamp,
+    y: next.value - anchor.value,
+  });
+  const direction = {
+    x: prevNorm.unit.x + nextNorm.unit.x,
+    y: prevNorm.unit.y + nextNorm.unit.y,
+  };
+  const directionLength = Math.hypot(direction.x, direction.y);
+  const scaleBase = directionLength * AUTO_MAGIC_SCALE;
+  if (!Number.isFinite(scaleBase) || scaleBase <= 0) return null;
+
+  const prevLength = Math.min(
+    prevNorm.length,
+    ASYMMETRY_CLAMP_FACTOR * nextNorm.length,
+  );
+  const nextLength = Math.min(
+    nextNorm.length,
+    ASYMMETRY_CLAMP_FACTOR * prevNorm.length,
+  );
+  const inScale = prevLength / scaleBase;
+  const outScale = nextLength / scaleBase;
+  return {
+    in: {
+      x: -direction.x * inScale,
+      y: -direction.y * inScale,
+    },
+    out: {
+      x: direction.x * outScale,
+      y: direction.y * outScale,
+    },
+  };
+}
+
+function clampHandleToTargetValue(params: {
+  anchor: WorldPoint;
+  handle: WorldPoint;
+  targetValue: number;
+}): WorldPoint {
+  const { anchor, handle, targetValue } = params;
+  if (Math.abs(targetValue - anchor.value) < 1e-6) {
+    return { stamp: handle.stamp, value: targetValue };
+  }
+  const dy = handle.value - anchor.value;
+  if (dy === 0) return { stamp: anchor.stamp, value: targetValue };
+  const ratio = (targetValue - anchor.value) / dy;
+  if (!Number.isFinite(ratio)) {
+    return { stamp: anchor.stamp, value: targetValue };
+  }
+  return {
+    stamp: anchor.stamp + (handle.stamp - anchor.stamp) * ratio,
+    value: anchor.value + dy * ratio,
+  };
+}
+
+function clampHandleToTargetStamp(params: {
+  anchor: WorldPoint;
+  handle: WorldPoint;
+  targetStamp: number;
+}): WorldPoint {
+  const { anchor, handle, targetStamp } = params;
+  const dx = handle.stamp - anchor.stamp;
+  if (dx === 0) return { stamp: targetStamp, value: anchor.value };
+  const ratio = (targetStamp - anchor.stamp) / dx;
+  if (!Number.isFinite(ratio)) {
+    return { stamp: targetStamp, value: anchor.value };
+  }
+  return {
+    stamp: anchor.stamp + dx * ratio,
+    value: anchor.value + (handle.value - anchor.value) * ratio,
+  };
+}
+
+function clampHandleToSegmentValueRange(params: {
+  anchor: WorldPoint;
+  opposite: WorldPoint;
+  handle: WorldPoint;
+}): WorldPoint {
+  const minValue = Math.min(params.anchor.value, params.opposite.value);
+  const maxValue = Math.max(params.anchor.value, params.opposite.value);
+  if (params.handle.value >= minValue && params.handle.value <= maxValue) {
+    return params.handle;
+  }
+  return clampHandleToTargetValue({
+    anchor: params.anchor,
+    handle: params.handle,
+    targetValue: params.handle.value < minValue ? minValue : maxValue,
+  });
+}
+
+function clampHandleToSegmentStampRange(params: {
+  anchor: WorldPoint;
+  handle: WorldPoint;
+  minStamp: number;
+  maxStamp: number;
+}): WorldPoint {
+  if (
+    params.handle.stamp >= params.minStamp &&
+    params.handle.stamp <= params.maxStamp
+  ) {
+    return params.handle;
+  }
+  return clampHandleToTargetStamp({
+    anchor: params.anchor,
+    handle: params.handle,
+    targetStamp:
+      params.handle.stamp < params.minStamp ? params.minStamp : params.maxStamp,
+  });
+}
+
+function clampAutoDeltaToSegment(params: {
+  side: "out" | "in";
+  start: WorldPoint;
+  end: WorldPoint;
+  delta: StudioExplicitTransition;
+}): StudioExplicitTransition {
+  const anchor = params.side === "out" ? params.start : params.end;
+  const opposite = params.side === "out" ? params.end : params.start;
+  const minStamp = Math.min(params.start.stamp, params.end.stamp);
+  const maxStamp = Math.max(params.start.stamp, params.end.stamp);
+  let handle = {
+    stamp: anchor.stamp + params.delta.x,
+    value: anchor.value + params.delta.y,
+  };
+  handle = clampHandleToSegmentStampRange({
+    anchor,
+    handle,
+    minStamp,
+    maxStamp,
+  });
+  handle = clampHandleToSegmentValueRange({ anchor, opposite, handle });
+  handle = clampHandleToSegmentStampRange({
+    anchor,
+    handle,
+    minStamp,
+    maxStamp,
+  });
+  return dragHandleToTransitionDelta({ anchor, handle });
+}
+
 function autoTransitionDelta(params: {
   side: "out" | "in";
   start: WorldPoint;
@@ -289,10 +460,11 @@ function autoTransitionDelta(params: {
   clamped: boolean;
 }): StudioExplicitTransition {
   const { side, start, end, prev, next, clamped } = params;
-  const anchor = side === "out" ? start : end;
-  const before = side === "out" ? prev : start;
-  const after = side === "out" ? end : next;
-  if (!before || !after || after.stamp === before.stamp) {
+  const inferred =
+    side === "out"
+      ? inferAutoHandleDeltas(prev, start, end)?.out
+      : inferAutoHandleDeltas(start, end, next)?.in;
+  if (!inferred) {
     return namedTransitionDelta({
       side,
       start,
@@ -301,33 +473,14 @@ function autoTransitionDelta(params: {
     });
   }
 
-  const slope = (after.value - before.value) / (after.stamp - before.stamp);
-  const segmentSpan = end.stamp - start.stamp;
-  const rawAbsX = Math.min(
-    Math.abs(segmentSpan) * 0.35,
-    Math.abs(after.stamp - before.stamp) / 6,
-  );
-  const x = side === "out" ? rawAbsX : -rawAbsX;
-  const y = slope * x;
-  const delta = { x: roundDelta(x), y: roundDelta(y) };
+  if (!clamped) {
+    return {
+      x: roundDelta(inferred.x),
+      y: roundDelta(inferred.y),
+    };
+  }
 
-  if (!clamped) return delta;
-
-  const cp = {
-    stamp: anchor.stamp + delta.x,
-    value: anchor.value + delta.y,
-  };
-  const minStamp = Math.min(start.stamp, end.stamp);
-  const maxStamp = Math.max(start.stamp, end.stamp);
-  const minValue = Math.min(start.value, end.value);
-  const maxValue = Math.max(start.value, end.value);
-  return dragHandleToTransitionDelta({
-    anchor,
-    handle: {
-      stamp: clamp(cp.stamp, minStamp, maxStamp),
-      value: clamp(cp.value, minValue, maxValue),
-    },
-  });
+  return clampAutoDeltaToSegment({ side, start, end, delta: inferred });
 }
 
 function transitionToDelta(params: {
@@ -437,6 +590,46 @@ function makeScalarProofPoints(
   });
 
   return scalarPoints;
+}
+
+function convertExplicitDeltasToLegacyBezierHandles(points: WorkbenchPoint[]) {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const span = end.stamp - start.stamp;
+    const valueSpan = Number(end.value) - Number(start.value);
+    if (!Number.isFinite(span) || Math.abs(span) < Number.EPSILON) continue;
+
+    const outgoing = start.transitions?.out;
+    if (isExplicitTransition(outgoing)) {
+      start.transitions = {
+        ...(start.transitions ?? {}),
+        out: {
+          x: roundDelta(outgoing.x / span),
+          y: roundDelta(
+            Number.isFinite(valueSpan) && Math.abs(valueSpan) > Number.EPSILON
+              ? outgoing.y / valueSpan
+              : outgoing.y,
+          ),
+        },
+      };
+    }
+
+    const incoming = end.transitions?.in;
+    if (isExplicitTransition(incoming)) {
+      end.transitions = {
+        ...(end.transitions ?? {}),
+        in: {
+          x: roundDelta(1 + incoming.x / span),
+          y: roundDelta(
+            Number.isFinite(valueSpan) && Math.abs(valueSpan) > Number.EPSILON
+              ? 1 + incoming.y / valueSpan
+              : 1 + incoming.y,
+          ),
+        },
+      };
+    }
+  }
 }
 
 export function makeStudioTransitionWorkbenchAnimation(): StudioV2WorkbenchAnimation {
@@ -550,6 +743,7 @@ function makeLegacyVizijTransitionAsset(): LegacyVizijAnimation {
     WORKBENCH_VALUES,
     "legacy-scalar",
   );
+  convertExplicitDeltasToLegacyBezierHandles(scalarPoints);
 
   return {
     id: "legacy-vizij-migrated-transition-asset",
@@ -678,15 +872,79 @@ function normalizeLegacyGroups(groups: unknown): WorkbenchTrackGroup[] {
   return [];
 }
 
+type TransitionMigrationMode = "studio-v1" | "legacy-vizij" | "millisecond";
+
+type TransitionSegmentContext = {
+  spanMs: number;
+  valueDelta?: number;
+};
+
+function resolveTransitionMigrationMode(params: {
+  sourceVersion: number;
+  shouldScaleUnitDomain: boolean;
+}): TransitionMigrationMode {
+  if (!params.shouldScaleUnitDomain) return "millisecond";
+  return params.sourceVersion === 1 ? "studio-v1" : "legacy-vizij";
+}
+
+function numericValue(value: unknown): number | undefined {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+function transitionSegmentContext(params: {
+  side: "in" | "out";
+  points: LegacyVizijAnimation["tracks"][number]["points"];
+  pointIndex: number;
+  durationMs: number;
+  shouldScaleUnitDomain: boolean;
+}): TransitionSegmentContext | undefined {
+  const startIndex =
+    params.side === "out" ? params.pointIndex : params.pointIndex - 1;
+  if (startIndex < 0 || startIndex >= params.points.length - 1) {
+    return undefined;
+  }
+
+  const start = params.points[startIndex];
+  const end = params.points[startIndex + 1];
+  const startStamp = Number(start.stamp);
+  const endStamp = Number(end.stamp);
+  if (!Number.isFinite(startStamp) || !Number.isFinite(endStamp)) {
+    return undefined;
+  }
+
+  const stampScale = params.shouldScaleUnitDomain ? params.durationMs : 1;
+  const startValue = numericValue(start.value);
+  const endValue = numericValue(end.value);
+  return {
+    spanMs: (endStamp - startStamp) * stampScale,
+    valueDelta:
+      startValue !== undefined && endValue !== undefined
+        ? endValue - startValue
+        : undefined,
+  };
+}
+
 function migrateLegacyTransitionValue(params: {
   value: unknown;
   durationMs: number;
   shouldScaleUnitDomain: boolean;
+  mode: TransitionMigrationMode;
+  side: "in" | "out";
+  segment?: TransitionSegmentContext;
   diagnostics: LegacyAnimationMigrationDiagnostic[];
   path: string;
 }): StudioAuthoredTransition | undefined {
-  const { value, durationMs, shouldScaleUnitDomain, diagnostics, path } =
-    params;
+  const {
+    value,
+    durationMs,
+    shouldScaleUnitDomain,
+    mode,
+    side,
+    segment,
+    diagnostics,
+    path,
+  } = params;
   if (value === undefined) return undefined;
 
   if (isStandardTransition(value) || isDirective(value)) {
@@ -704,8 +962,9 @@ function migrateLegacyTransitionValue(params: {
   }
 
   if (isExplicitTransition(value)) {
-    const shouldScaleX = shouldScaleUnitDomain && Math.abs(value.x) <= 1;
-    if (shouldScaleUnitDomain && Math.abs(value.x) > 1) {
+    const looksAlreadyMillisecond =
+      shouldScaleUnitDomain && Math.abs(value.x) > 1;
+    if (looksAlreadyMillisecond) {
       diagnostics.push({
         level: "warning",
         code: "transition-x-already-ms",
@@ -713,9 +972,54 @@ function migrateLegacyTransitionValue(params: {
           "Transition x value looked larger than the legacy normalized domain, so it was preserved as milliseconds.",
         path,
       });
+      return {
+        x: roundDelta(value.x),
+        y: roundDelta(value.y),
+      };
     }
+
+    if (mode === "studio-v1") {
+      return {
+        x: roundDelta(value.x * durationMs),
+        y: roundDelta(value.y),
+      };
+    }
+
+    if (mode === "legacy-vizij") {
+      if (!segment || !Number.isFinite(segment.spanMs)) {
+        diagnostics.push({
+          level: "warning",
+          code: "transition-segment-missing",
+          message:
+            "Transition handle could not be matched to a segment and was preserved as authored.",
+          path,
+        });
+        return {
+          x: roundDelta(value.x),
+          y: roundDelta(value.y),
+        };
+      }
+
+      const valueDelta = segment.valueDelta;
+      if (side === "out") {
+        return {
+          x: roundDelta(value.x * segment.spanMs),
+          y: roundDelta(
+            valueDelta === undefined ? value.y : value.y * valueDelta,
+          ),
+        };
+      }
+
+      return {
+        x: roundDelta((value.x - 1) * segment.spanMs),
+        y: roundDelta(
+          valueDelta === undefined ? value.y - 1 : (value.y - 1) * valueDelta,
+        ),
+      };
+    }
+
     return {
-      x: roundDelta(shouldScaleX ? value.x * durationMs : value.x),
+      x: roundDelta(value.x),
       y: roundDelta(value.y),
     };
   }
@@ -777,6 +1081,10 @@ export function migrateLegacyVizijAnimationToStudioV2(
   const durationMs = resolveMigrationExtentMs(animation, maxStamp, diagnostics);
   const sourceVersion = Number(animation.formatVersion);
   const shouldScaleUnitDomain = sourceVersion !== 2 && maxStamp <= 1;
+  const transitionMode = resolveTransitionMigrationMode({
+    sourceVersion,
+    shouldScaleUnitDomain,
+  });
 
   const tracks = animation.tracks.map((track, trackIndex) => ({
     id: track.id,
@@ -807,6 +1115,15 @@ export function migrateLegacyVizijAnimationToStudioV2(
           value: point.transitions.in,
           durationMs,
           shouldScaleUnitDomain,
+          mode: transitionMode,
+          side: "in",
+          segment: transitionSegmentContext({
+            side: "in",
+            points: track.points,
+            pointIndex,
+            durationMs,
+            shouldScaleUnitDomain,
+          }),
           diagnostics,
           path: `tracks[${trackIndex}].points[${pointIndex}].transitions.in`,
         });
@@ -814,6 +1131,15 @@ export function migrateLegacyVizijAnimationToStudioV2(
           value: point.transitions.out,
           durationMs,
           shouldScaleUnitDomain,
+          mode: transitionMode,
+          side: "out",
+          segment: transitionSegmentContext({
+            side: "out",
+            points: track.points,
+            pointIndex,
+            durationMs,
+            shouldScaleUnitDomain,
+          }),
           diagnostics,
           path: `tracks[${trackIndex}].points[${pointIndex}].transitions.out`,
         });

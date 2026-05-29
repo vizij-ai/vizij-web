@@ -14,6 +14,7 @@ import {
 } from "@vizij/orchestrator-wasm";
 import {
   OrchestratorProvider,
+  ModuleFacadeOrchestratorRuntime,
   useOrchestrator,
   useOrchFrame,
   useOrchTarget,
@@ -35,7 +36,11 @@ type OrchestratorMock = {
 };
 
 const orchestratorInstances: OrchestratorMock[] = [];
-const moduleFacadeDispatches: Array<{ call: string; args?: unknown }> = [];
+const moduleFacadeDispatches: Array<{
+  call: string;
+  runtimeHandle?: string;
+  args?: unknown;
+}> = [];
 const stepResultRef: { current: OrchestratorFrame | null } = {
   current: null,
 };
@@ -113,6 +118,16 @@ const makeModuleFacade = () => ({
         return {
           ok: true,
           result: stepResultRef.current ?? makeFrame(),
+          version: 1,
+        };
+      case "graph.normalize":
+        return {
+          ok: true,
+          result: {
+            ...(request.args as { spec?: object }).spec,
+            edges: [],
+            normalized: true,
+          },
           version: 1,
         };
       case "controllers.list":
@@ -222,9 +237,23 @@ describe("OrchestratorProvider", () => {
     expect(moduleFacadeDispatches.map((request) => request.call)).toContain(
       "runtime.create",
     );
-    expect(moduleFacadeDispatches.map((request) => request.call)).toContain(
-      "orchestrator.step",
+    const stepDispatch = moduleFacadeDispatches.find(
+      (request) => request.call === "orchestrator.step",
     );
+    expect(stepDispatch?.runtimeHandle).toBe("runtime:0");
+  });
+
+  it("normalizes graph specs through the module-facade backend", async () => {
+    const runtime = await ModuleFacadeOrchestratorRuntime.create();
+    const normalized = await runtime.normalizeGraphSpec({
+      nodes: [{ id: "source", kind: "Node" }],
+    });
+
+    expect(normalized).toMatchObject({ edges: [], normalized: true });
+    const normalizeDispatch = moduleFacadeDispatches.find(
+      (request) => request.call === "graph.normalize",
+    );
+    expect(normalizeDispatch?.runtimeHandle).toBe("runtime:0");
   });
 
   const renderHarness = () =>

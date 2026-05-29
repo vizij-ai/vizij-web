@@ -34,7 +34,7 @@ describe("legacy Vizij animation migration", () => {
               stamp: 0.5,
               value: 1,
               transitions: {
-                in: { x: -0.15, y: -0.2 },
+                in: { x: 0.7, y: 0.8 },
                 out: "cubic",
                 pairing: "free",
               },
@@ -69,7 +69,7 @@ describe("legacy Vizij animation migration", () => {
       result.animation.tracks[0].points.map((point) => point.stamp),
     ).toEqual([0, 1000, 2000]);
     expect(result.animation.tracks[0].points[0].transitions?.out).toEqual({
-      x: 500,
+      x: 250,
       y: 0.1,
     });
     expect(result.animation.tracks[0].points[1].transitions).toEqual({
@@ -170,6 +170,41 @@ describe("legacy Vizij animation migration", () => {
     expect(getStudioV2CompatibilityReport(result.animation).isCompatible).toBe(
       true,
     );
+  });
+
+  it("keeps Studio v1 normalized handle migration duration-based", () => {
+    const result = migrateLegacyVizijAnimationToStudioV2({
+      id: "studio-v1",
+      name: "Studio v1",
+      formatVersion: 1,
+      duration: 2400,
+      groups: [],
+      tracks: [
+        {
+          id: "studio-v1-track",
+          name: "Studio v1 Track",
+          animatableId: "studio/v1/value",
+          points: [
+            {
+              id: "a",
+              stamp: 0,
+              value: 0,
+              transitions: { out: { x: 0.125, y: 0.1 } },
+            },
+            { id: "b", stamp: 1, value: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.animation.tracks[0].points[0].transitions?.out).toEqual({
+      x: 300,
+      y: 0.1,
+    });
+    expect(
+      result.animation.tracks[0].points.map((point) => point.stamp),
+    ).toEqual([0, 2400]);
   });
 
   it("builds a migrated legacy fixture that covers Studio transition parity", () => {

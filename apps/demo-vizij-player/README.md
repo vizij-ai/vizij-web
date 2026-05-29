@@ -52,3 +52,21 @@ The walkthrough covers:
 - Upload your own bundled `.glb` when you want to validate an external face.
 - The app is intentionally bundle-oriented: separate low-level rig JSON, high-level rig JSON, and standalone animation JSON imports are not part of the main flow.
 - Diagnostics are read-only and runtime-focused: graph inventory, controller ids, output paths, metadata, and runtime errors.
+
+## Module Facade Backend Experiment
+
+This branch runs the demo through `VizijRuntimeProvider` with the
+`orchestratorBackend="moduleFacade"` path. That path requires a local
+`@vizij/orchestrator-wasm` build from the matching `vizij-rs` experiment branch
+until the module-facade exports are published.
+
+From this repo:
+
+```bash
+pnpm run wasm:link -- --pkgs orchestrator-wasm --vizij-rs /home/chris/Code/semio_ws/_worktrees/vizij-rs-vizij-engine-backend-experiment --no-verify-clean
+pnpm --filter demo-vizij-player dev -- --host 127.0.0.1 --port 5174
+```
+
+The diagnostics panel should show `Backend: Arora module facade`, and loading a
+sample should register graph/animation controllers without falling back to the
+direct wasm orchestrator API.
