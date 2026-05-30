@@ -13,6 +13,7 @@
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "test": "node ./scripts/run-vitest.mjs",
+    "test:e2e:arora": "playwright test --config=playwright.config.ts",
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
@@ -25,6 +26,7 @@
     "scheduler": "^0.27.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.2",

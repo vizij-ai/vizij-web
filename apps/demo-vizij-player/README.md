@@ -46,6 +46,8 @@ The walkthrough covers:
 - `pnpm typecheck` - run TypeScript in `--noEmit` mode
 - `pnpm lint` - run ESLint across the project
 - `pnpm test` - execute the Vitest suite
+- `pnpm test:e2e:arora` - run the browser acceptance proof for the
+  Arora web backend after `pnpm prepare:arora-web`
 
 ## Current Workflow
 
@@ -79,3 +81,13 @@ browser-hosted Arora engine rather than the direct wasm orchestrator API.
 
 Use `?orchestrator=compat` to load the original `vizij-orchestrator`
 compatibility module instead.
+
+The durable browser proof is:
+
+```bash
+pnpm --filter demo-vizij-player test:e2e:arora
+```
+
+It expects the ignored `apps/demo-vizij-player/public/arora-web/` assets to
+already exist. Re-run `prepare:arora-web` after changing Arora engine modules or
+when switching engine worktrees so the proof is not using stale generated wasm.

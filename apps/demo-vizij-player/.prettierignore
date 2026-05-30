@@ -1,0 +1,6 @@
+dist
+test-results
+coverage
+node_modules
+.vite
+public/arora-web
