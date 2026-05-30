@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyRuntimeGraphBundle,
   buildGraphRegistrationConfig,
+  diffAnimationAggregateValues,
   prepareRuntimeAssetBundle,
   resolveRuntimeUpdatePlan,
+  sampleAnimationClipOutputValues,
   toStoredAnimationClip,
 } from "../index";
 import type { VizijAssetBundle, VizijGraphAsset } from "../types";
@@ -144,6 +146,62 @@ describe("studio support package", () => {
             transitions: { in: "linear", out: { x: 0, y: 0 } },
           },
         ],
+      },
+    ]);
+  });
+
+  it("samples animation outputs onto bridge target paths", () => {
+    const outputs = sampleAnimationClipOutputValues(
+      {
+        tracks: [
+          {
+            channel: "controls/jaw/open",
+            keyframes: [
+              { time: 0, value: 0.2 },
+              { time: 1, value: 0.6 },
+            ],
+          },
+          {
+            channel: "controls/jaw/open",
+            keyframes: [
+              { time: 0, value: 0.1 },
+              { time: 1, value: 0.4 },
+            ],
+          },
+        ],
+      },
+      1,
+      1,
+      "hugo",
+    );
+
+    expect(outputs.get("controls/jaw/open")).toBeCloseTo(1, 6);
+    expect(outputs.get("rig/hugo/controls/jaw/open")).toBeCloseTo(1, 6);
+  });
+
+  it("diffs aggregate animation outputs without converting clears to zero writes", () => {
+    expect(
+      diffAnimationAggregateValues(
+        new Map([["rig/hugo/poses/pose_happy.weight", 0.75]]),
+        new Map(),
+      ),
+    ).toEqual([
+      {
+        kind: "clear",
+        path: "rig/hugo/poses/pose_happy.weight",
+      },
+    ]);
+
+    expect(
+      diffAnimationAggregateValues(
+        new Map([["rig/hugo/poses/pose_happy.weight", 0.75]]),
+        new Map([["rig/hugo/poses/pose_happy.weight", 0]]),
+      ),
+    ).toEqual([
+      {
+        kind: "set",
+        path: "rig/hugo/poses/pose_happy.weight",
+        value: 0,
       },
     ]);
   });

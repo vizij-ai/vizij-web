@@ -56,7 +56,10 @@ export {
 } from "./utils/graph";
 export {
   collectAnimationClipOutputPaths,
+  diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,
+  sampleAnimationClipOutputValues,
+  type AnimationAggregateOperation,
 } from "./utils/animationBridge";
 export {
   advanceClipTime,
