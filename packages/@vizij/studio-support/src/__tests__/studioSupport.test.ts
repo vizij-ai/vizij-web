@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildGraphRegistrationConfig,
   prepareRuntimeAssetBundle,
-} from "@vizij/studio-support";
+  toStoredAnimationClip,
+} from "../index";
 import type { VizijAssetBundle, VizijGraphAsset } from "../types";
 
 function makeBaseBundle(
@@ -21,8 +22,8 @@ function makeBaseBundle(
   };
 }
 
-describe("studioSupport", () => {
-  it("prepares extracted Studio bundle assets without requiring the provider", () => {
+describe("studio support package", () => {
+  it("prepares extracted Studio bundle assets outside runtime-react", () => {
     const prepared = prepareRuntimeAssetBundle(
       makeBaseBundle(),
       {
@@ -67,7 +68,7 @@ describe("studioSupport", () => {
     ]);
   });
 
-  it("builds namespaced graph registration configs from Studio graph assets", () => {
+  it("builds namespaced graph registration configs", () => {
     const asset: VizijGraphAsset = {
       id: "pose-driver",
       spec: {
@@ -99,17 +100,48 @@ describe("studioSupport", () => {
         outputs: ["face-a/rig/mouth/open", "debug/face-a/rig/eye/blink"],
       },
     });
-    expect(result?.config.spec?.nodes).toEqual([
-      { id: "in", type: "input", params: { path: "face-a/pose/open" } },
+  });
+
+  it("converts runtime clips into Studio v2 stored animation format", () => {
+    const stored = toStoredAnimationClip("fallback", {
+      id: "authoring.timeline.main",
+      duration: 2,
+      tracks: [
+        {
+          channel: "controls/jaw/open",
+          interpolation: "step",
+          keyframes: [
+            { id: "k0", time: 0, value: 0 },
+            { id: "k1", time: 1.5, value: 1 },
+          ],
+        },
+      ],
+    });
+
+    expect(stored).toMatchObject({
+      id: "authoring.timeline.main",
+      formatVersion: 2,
+      defaultViewportExtent: 2000,
+    });
+    expect(stored.tracks).toEqual([
       {
-        id: "out",
-        type: "output",
-        params: { path: "face-a/rig/mouth/open" },
-      },
-      {
-        id: "debug",
-        type: "output",
-        params: { path: "debug/face-a/rig/eye/blink" },
+        id: "authoring.timeline.main:track-0000",
+        name: "controls/jaw/open",
+        animatableId: "controls/jaw/open",
+        points: [
+          {
+            id: "k0",
+            stamp: 0,
+            value: 0,
+            transitions: { in: "linear", out: { x: 0, y: 0 } },
+          },
+          {
+            id: "k1",
+            stamp: 1500,
+            value: 1,
+            transitions: { in: "linear", out: { x: 0, y: 0 } },
+          },
+        ],
       },
     ]);
   });

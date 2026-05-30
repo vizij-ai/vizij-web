@@ -19,6 +19,7 @@ Use this note when touching anything under `packages/`.
 | `@vizij/orchestrator-react`   | `@vizij/orchestrator-react`   | Orchestrator provider, hooks, and blackboard utilities.          |
 | `@vizij/render`               | `@vizij/render`               | Three.js renderer/controllers used across demos.                 |
 | `@vizij/runtime-react`        | `@vizij/runtime-react`        | All-in-one runtime provider that wires render + orchestration.   |
+| `@vizij/studio-support`       | `@vizij/studio-support`       | Studio-canonical asset preparation helpers.                      |
 | `@vizij/speech-react`         | `@vizij/speech-react`         | Speech-layer hooks for STT, conversation, and TTS playback.      |
 | `@vizij/utils`                | `@vizij/utils`                | Shared math/value helpers used by all other packages/apps.       |
 | `@vizij/arora-types`          | `@vizij/arora-types`          | TypeScript contract helpers for the standalone/control protocol. |

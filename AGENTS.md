@@ -29,6 +29,7 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `@vizij/orchestrator-react`   | Orchestrator provider, hooks, and blackboard utilities        |
 | `@vizij/render`               | Three.js renderer and controllers                             |
 | `@vizij/runtime-react`        | Higher-level runtime provider wiring renderer + orchestration |
+| `@vizij/studio-support`       | Studio-canonical asset preparation helpers                    |
 | `@vizij/speech-react`         | Speech-layer hooks for STT, conversation, and TTS/visemes     |
 | `@vizij/utils`                | Shared utility layer                                          |
 | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI                  |

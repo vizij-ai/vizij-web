@@ -24,6 +24,28 @@ import type {
 import { collectInputPaths, collectOutputPaths } from "./utils/graph";
 import { resolveClipDurationSeconds } from "./utils/clipPlayback";
 
+export type {
+  AnimationClipLike,
+  AnimationKeyframeLike,
+  AnimationTrackLike,
+  PoseDefinition,
+  PoseBlendMode,
+  PoseGroupDefinition,
+  PoseRigConfig,
+  RootBounds,
+  VizijAnimationAsset,
+  VizijAssetBundle,
+  VizijGlbAsset,
+  VizijGraphAsset,
+  VizijInputMetadata,
+  VizijProgramAsset,
+} from "./types";
+export {
+  collectInputPathMap,
+  collectInputPaths,
+  collectOutputPaths,
+} from "./utils/graph";
+
 export type InputConstraint = {
   min?: number;
   max?: number;

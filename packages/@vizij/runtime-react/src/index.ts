@@ -36,6 +36,7 @@ export type {
   VizijProgramAsset,
   PoseRigConfig,
   PoseDefinition,
+  PoseBlendMode,
   PoseGroupDefinition,
   RootBounds,
   AnimationClipLike,

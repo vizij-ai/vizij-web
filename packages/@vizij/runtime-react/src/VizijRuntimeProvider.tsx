@@ -29,6 +29,23 @@ import {
   type ControllerId,
   type WriteOp,
 } from "@vizij/orchestrator-react";
+import {
+  buildGraphRegistrationConfig,
+  collectInputPathMap,
+  collectOutputPaths,
+  convertBundlePrograms,
+  convertExtractedAnimations,
+  deriveProgramInputSeedValues,
+  extractInputConstraints,
+  namespaceControllerId,
+  namespaceTypedPath,
+  normalisePath,
+  pickExtractedAnimations,
+  prepareRuntimeAssetBundle,
+  resolveGraphSpec,
+  stripNamespace,
+  toStoredAnimationClip,
+} from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
@@ -61,7 +78,6 @@ import type {
   VizijRuntimeStatus,
   RuntimeOutputWrite,
 } from "./types";
-import { collectInputPathMap, collectOutputPaths } from "./utils/graph";
 import { buildPoseWeightPathMap, buildRigInputPath } from "./utils/posePaths";
 import {
   resolvePoseControlInputPath,
@@ -78,27 +94,12 @@ import {
   sampleAnimationClipOutputValues,
 } from "./utils/animationBridge";
 import { valueJSONToRaw } from "./utils/valueConversion";
-import {
-  buildGraphRegistrationConfig,
-  convertBundlePrograms,
-  convertExtractedAnimations,
-  deriveProgramInputSeedValues,
-  extractInputConstraints,
-  namespaceControllerId,
-  namespaceTypedPath,
-  normalisePath,
-  pickExtractedAnimations,
-  prepareRuntimeAssetBundle,
-  resolveGraphSpec,
-  stripNamespace,
-  toStoredAnimationClip,
-} from "./studioSupport";
 
 export {
   deriveProgramInputSeedValues,
   mergeAssetBundle,
   toStoredAnimationClip,
-} from "./studioSupport";
+} from "@vizij/studio-support";
 
 type ProviderProps = PropsWithChildren<VizijRuntimeProviderProps>;
 
