@@ -59,12 +59,12 @@ The walkthrough covers:
 This branch runs the demo through `VizijRuntimeProvider` with the
 `orchestratorBackend="aroraWeb"` path. That path uses Victor's browser-hosted
 `arora-web.Engine`. In composed mode, `@vizij/orchestrator-react` reads the
-selected orchestrator module header, preloads the independent Vizij modules
-declared by its imports, then loads the composed `vizij-orchestrator-composed`
-Arora module wasm. Browser execution sends Vizij module-facade JSON requests
-through Arora `Call` / `CallResult`, and the composed orchestrator dispatches
-to the imported `vizij-animation` and `vizij-node-graph` modules through
-Arora's module-to-module call path.
+selected orchestrator module header, resolves imported modules through its
+Arora module registry, preloads those dependencies, then loads the composed
+`vizij-orchestrator-composed` Arora module wasm. Browser execution sends Vizij
+module-facade JSON requests through Arora `Call` / `CallResult`, and the
+composed orchestrator dispatches to the imported `vizij-animation` and
+`vizij-node-graph` modules through Arora's module-to-module call path.
 
 From this repo:
 

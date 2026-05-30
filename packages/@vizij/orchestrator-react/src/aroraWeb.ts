@@ -2,6 +2,7 @@ import { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
 import type {
   AroraWebInitInput,
   AroraWebModuleExports,
+  AroraWebModuleRegistry,
   AroraWebOrchestratorModule,
   AroraWebPreloadModule,
   AroraWebPreloadModuleName,
@@ -101,12 +102,11 @@ const VIZIJ_PRELOAD_MODULE_PRESETS: Record<
   },
 };
 
-const VIZIJ_PRELOAD_PRESET_BY_MODULE_ID: Record<
-  string,
-  AroraWebPreloadModuleName
-> = {
+const DEFAULT_MODULE_REGISTRY: AroraWebModuleRegistry = {
   [VIZIJ_ANIMATION_MODULE_ID]: "vizij-animation",
+  "vizij-animation": "vizij-animation",
   [VIZIJ_NODE_GRAPH_MODULE_ID]: "vizij-node-graph",
+  "vizij-node-graph": "vizij-node-graph",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -291,21 +291,36 @@ function functionImports(header: object): AroraHeaderImport[] {
   return importsValue.filter(isRecord) as AroraHeaderImport[];
 }
 
+function moduleRegistry(config: AroraWebInitInput): AroraWebModuleRegistry {
+  return {
+    ...DEFAULT_MODULE_REGISTRY,
+    ...(config.moduleRegistry ?? {}),
+  };
+}
+
 function defaultPreloadModulesForHeader(
   header: object,
+  config: AroraWebInitInput,
 ): AroraWebPreloadModule[] {
-  const modules: AroraWebPreloadModuleName[] = [];
-  const seen = new Set<AroraWebPreloadModuleName>();
+  const registry = moduleRegistry(config);
+  const modules: AroraWebPreloadModule[] = [];
+  const seen = new Set<string>();
   for (const importValue of functionImports(header)) {
     const moduleId = stringField(importValue.module);
-    const presetName = moduleId
-      ? VIZIJ_PRELOAD_PRESET_BY_MODULE_ID[moduleId]
-      : undefined;
-    if (!presetName || seen.has(presetName)) {
+    const moduleInput = moduleId ? registry[moduleId] : undefined;
+    if (!moduleId) {
       continue;
     }
-    modules.push(presetName);
-    seen.add(presetName);
+    if (!moduleInput) {
+      throw new Error(
+        `No aroraWeb module registry entry for imported module ${moduleId}`,
+      );
+    }
+    if (seen.has(moduleId)) {
+      continue;
+    }
+    modules.push(moduleInput);
+    seen.add(moduleId);
   }
   return modules;
 }
@@ -443,7 +458,7 @@ async function resolvePreloadModules(
 ): Promise<ResolvedAroraWebPreloadModule[]> {
   const modules = Array.isArray(config.preloadModules)
     ? config.preloadModules
-    : defaultPreloadModulesForHeader(selectedHeader);
+    : defaultPreloadModulesForHeader(selectedHeader, config);
   const resolved: ResolvedAroraWebPreloadModule[] = [];
   for (const moduleInput of modules) {
     const preset = preloadPreset(moduleInput);

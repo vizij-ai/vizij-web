@@ -196,6 +196,7 @@ const COMPATIBILITY_REQUEST_PARAM_ID = "71b4a759-ded6-42a3-b59d-9716472ac045";
 const COMPATIBILITY_MODULE_ID = "144358c2-b7e0-414d-8755-56d7ac03f811";
 const VIZIJ_ANIMATION_MODULE_ID = "aa32e080-b002-428c-9994-6143aab3bf08";
 const VIZIJ_NODE_GRAPH_MODULE_ID = "098bd478-8375-4f3a-b649-d64cb1284944";
+const CUSTOM_IMPORT_MODULE_ID = "6ae5766d-6bc6-430f-b17e-dc8cf7386e26";
 
 function dispatchHeader(args: {
   moduleId: string;
@@ -256,6 +257,7 @@ const COMPOSED_HEADER = dispatchHeader({
 });
 const VIZIJ_ANIMATION_HEADER = moduleHeader(VIZIJ_ANIMATION_MODULE_ID);
 const VIZIJ_NODE_GRAPH_HEADER = moduleHeader(VIZIJ_NODE_GRAPH_MODULE_ID);
+const CUSTOM_IMPORT_HEADER = moduleHeader(CUSTOM_IMPORT_MODULE_ID);
 
 function jsonResponse(value: unknown): Response {
   return new Response(JSON.stringify(value), {
@@ -577,6 +579,115 @@ describe("OrchestratorProvider", () => {
     );
     expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
       2,
+      expect.stringContaining(COMPOSED_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+  });
+
+  it("resolves default preloads from a module registry entry keyed by imported module id", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const customComposedHeader = dispatchHeader({
+      moduleId: COMPOSED_MODULE_ID,
+      dispatchFunctionId: COMPOSED_DISPATCH_FUNCTION_ID,
+      requestParamId: COMPOSED_REQUEST_PARAM_ID,
+      imports: [
+        moduleImport(
+          CUSTOM_IMPORT_MODULE_ID,
+          "ff94ec38-a145-4c73-9a99-d7724acbfa72",
+        ),
+      ],
+    });
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (urlText === "/custom-module/module.json") {
+        return jsonResponse(CUSTOM_IMPORT_HEADER);
+      }
+      if (urlText === "/custom-module/custom.wasm") {
+        return binaryResponse([3]);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+
+    await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: customComposedHeader,
+      moduleRegistry: {
+        [CUSTOM_IMPORT_MODULE_ID]: {
+          headerUrl: "/custom-module/module.json",
+          wasmUrl: "/custom-module/custom.wasm",
+        },
+      },
+      fetch: fetch as unknown as typeof globalThis.fetch,
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(CUSTOM_IMPORT_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(COMPOSED_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+  });
+
+  it("fails early when an imported module is missing from the registry", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const unresolvedImportHeader = dispatchHeader({
+      moduleId: COMPOSED_MODULE_ID,
+      dispatchFunctionId: COMPOSED_DISPATCH_FUNCTION_ID,
+      requestParamId: COMPOSED_REQUEST_PARAM_ID,
+      imports: [
+        moduleImport(
+          CUSTOM_IMPORT_MODULE_ID,
+          "ff94ec38-a145-4c73-9a99-d7724acbfa72",
+        ),
+      ],
+    });
+
+    await expect(
+      AroraWebOrchestratorRuntime.create(undefined, {
+        aroraWeb,
+        orchestratorModule: "composed",
+        headerJson: unresolvedImportHeader,
+        wasmBytes: new Uint8Array([0]),
+      }),
+    ).rejects.toThrow(
+      `No aroraWeb module registry entry for imported module ${CUSTOM_IMPORT_MODULE_ID}`,
+    );
+    expect(aroraWeb.loadModule).not.toHaveBeenCalled();
+  });
+
+  it("uses explicit preloads as an override without validating selected module imports", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const unresolvedImportHeader = dispatchHeader({
+      moduleId: COMPOSED_MODULE_ID,
+      dispatchFunctionId: COMPOSED_DISPATCH_FUNCTION_ID,
+      requestParamId: COMPOSED_REQUEST_PARAM_ID,
+      imports: [
+        moduleImport(
+          CUSTOM_IMPORT_MODULE_ID,
+          "ff94ec38-a145-4c73-9a99-d7724acbfa72",
+        ),
+      ],
+    });
+
+    await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: unresolvedImportHeader,
+      preloadModules: [],
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(1);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
       expect.stringContaining(COMPOSED_MODULE_ID),
       expect.any(Uint8Array),
     );
