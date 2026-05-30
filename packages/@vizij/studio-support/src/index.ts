@@ -59,6 +59,17 @@ export {
   resolveAnimationBridgeOutputPaths,
 } from "./utils/animationBridge";
 export {
+  advanceClipTime,
+  clampAnimationTime,
+  resolveClipDurationSeconds,
+  resolveTrackInputPath,
+  sampleClipAtTime,
+  sampleTrackAtTime,
+  type AdvanceClipTimeInput,
+  type AdvanceClipTimeResult,
+  type TrackSample,
+} from "./utils/clipPlayback";
+export {
   applyRuntimeGraphBundle,
   resolveRuntimeUpdatePlan,
 } from "./updatePolicy";

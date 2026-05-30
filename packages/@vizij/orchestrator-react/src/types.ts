@@ -148,8 +148,24 @@ export type MergedGraphRegistrationConfig = Omit<
   strategy?: MergeStrategyOptions;
 };
 
-export type AnimationRegistrationConfig = WasmAnimationRegistrationConfig;
-export type AnimationSetup = WasmAnimationSetup;
+export type AnimationSetup = Omit<WasmAnimationSetup, "player" | "instance"> & {
+  player?: NonNullable<WasmAnimationSetup["player"]> & {
+    loopMode?: "once" | "loop" | "pingpong";
+  };
+  instance?: NonNullable<WasmAnimationSetup["instance"]> & {
+    timeScale?: number;
+    timescale?: number;
+    startOffset?: number;
+    offset?: number;
+    active?: boolean;
+  };
+};
+export type AnimationRegistrationConfig = Omit<
+  WasmAnimationRegistrationConfig,
+  "setup"
+> & {
+  setup?: AnimationSetup;
+};
 
 export type OrchestratorReactCtx = {
   ready: boolean;

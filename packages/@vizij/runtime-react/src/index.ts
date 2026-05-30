@@ -27,6 +27,19 @@ export {
   mapUnitControlValue,
 } from "./utils/faceControls";
 export type { FaceScalarControl } from "./utils/faceControls";
+export {
+  advanceClipTime,
+  clampAnimationTime,
+  resolveClipDurationSeconds,
+  resolveTrackInputPath,
+  sampleClipAtTime,
+  sampleTrackAtTime,
+} from "./utils/clipPlayback";
+export type {
+  AdvanceClipTimeInput,
+  AdvanceClipTimeResult,
+  TrackSample,
+} from "./utils/clipPlayback";
 
 export type {
   VizijAssetBundle,

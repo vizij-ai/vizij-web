@@ -153,4 +153,53 @@ describe("prepareRuntimeRegistrationPlan", () => {
       },
     ]);
   });
+
+  it("preserves Studio animation setup fields in runtime registration", () => {
+    const plan = prepareRuntimeRegistrationPlan({
+      assetBundle: makeBaseBundle({
+        animations: [
+          {
+            id: "blink",
+            clip: {
+              id: "blink",
+              tracks: [
+                {
+                  channel: "blink",
+                  keyframes: [
+                    { time: 0, value: 0 },
+                    { time: 1, value: 1 },
+                  ],
+                },
+              ],
+            },
+            setup: {
+              player: { name: "studio-player", loopMode: "once" },
+              instance: {
+                timeScale: 2,
+                offset: 250,
+                active: false,
+              },
+            },
+          },
+        ],
+      }),
+      namespace: "demo-face",
+      faceId: "quori_latest",
+    });
+
+    expect(plan.animationRegistrations[0]?.config).toMatchObject({
+      id: "demo-face/animation/blink",
+      setup: {
+        player: { name: "studio-player", loopMode: "once" },
+        instance: {
+          timeScale: 2,
+          offset: 250,
+          active: false,
+        },
+      },
+    });
+    expect(plan.animationRegistrations[0]?.config.setup).toHaveProperty(
+      "animation",
+    );
+  });
 });
