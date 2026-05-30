@@ -52,14 +52,19 @@ export type AroraWebModuleExports = {
   };
 };
 
+export type AroraWebOrchestratorModule = "compatibility" | "composed";
+
 export type AroraWebInitInput = {
   aroraWeb?: AroraWebModuleExports | (() => Promise<AroraWebModuleExports>);
   aroraWebUrl?: string;
   aroraWebInitInput?: unknown;
+  orchestratorModule?: AroraWebOrchestratorModule;
   headerJson?: string | object;
   headerUrl?: string | URL;
   wasmBytes?: Uint8Array | ArrayBuffer;
   wasmUrl?: string | URL;
+  dispatchFunctionId?: string;
+  requestParamId?: string;
   fetch?: typeof fetch;
 };
 

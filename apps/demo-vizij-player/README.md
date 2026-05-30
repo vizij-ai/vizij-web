@@ -58,8 +58,9 @@ The walkthrough covers:
 
 This branch runs the demo through `VizijRuntimeProvider` with the
 `orchestratorBackend="aroraWeb"` path. That path uses Victor's browser-hosted
-`arora-web.Engine`, loads the `vizij-orchestrator` Arora module wasm, and sends
-the same Vizij module-facade JSON requests through Arora `Call` / `CallResult`.
+`arora-web.Engine`, loads the composed `vizij-orchestrator-composed` Arora
+module wasm by default, and sends the same Vizij module-facade JSON requests
+through Arora `Call` / `CallResult`.
 
 From this repo:
 
@@ -68,6 +69,9 @@ ARORA_ENGINE_PATH=/home/chris/Code/semio_ws/_worktrees/engine-vizij-backend-expe
 NODE_ENV=development pnpm --filter demo-vizij-player dev --force --host 127.0.0.1 --port 5174
 ```
 
-The diagnostics panel should show `Backend: Arora web engine`, and loading a
-sample should register graph/animation controllers through the browser-hosted
-Arora engine rather than the direct wasm orchestrator API.
+The diagnostics panel should show `Backend: Arora web engine (composed)`, and
+loading a sample should register graph/animation controllers through the
+browser-hosted Arora engine rather than the direct wasm orchestrator API.
+
+Use `?orchestrator=compat` to load the original `vizij-orchestrator`
+compatibility module instead.

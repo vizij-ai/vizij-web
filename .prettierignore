@@ -8,3 +8,4 @@ node_modules
 build
 pnpm-lock.yaml
 apps/**/src-tauri/target
+apps/demo-vizij-player/public/arora-web

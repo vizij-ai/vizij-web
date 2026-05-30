@@ -152,7 +152,10 @@ const makeModuleFacade = () => ({
 
 const makeAroraWebModule = () => {
   const init = vi.fn(async () => {});
-  const loadModule = vi.fn(() => "144358c2-b7e0-414d-8755-56d7ac03f811");
+  const loadModule = vi.fn((headerJson: string) => {
+    const header = JSON.parse(headerJson) as { id?: string };
+    return header.id ?? "144358c2-b7e0-414d-8755-56d7ac03f811";
+  });
   const engineCalls: unknown[] = [];
 
   class Engine {
@@ -183,6 +186,10 @@ const makeAroraWebModule = () => {
 
   return { default: init, Engine, loadModule, engineCalls };
 };
+
+const COMPOSED_DISPATCH_FUNCTION_ID = "90725b7e-a4d9-4a3f-99af-8e227612bed7";
+const COMPOSED_REQUEST_PARAM_ID = "323d47be-3b30-46ff-882f-bc7f7ffacd57";
+const COMPOSED_MODULE_ID = "580d9cef-88be-4f1c-b649-f87032acd8fe";
 
 vi.mock("@vizij/orchestrator-wasm", async () => {
   const actual = await vi.importActual<
@@ -360,6 +367,35 @@ describe("OrchestratorProvider", () => {
       (request) => request.call === "graph.normalize",
     );
     expect(normalizeDispatch?.runtimeHandle).toBe("runtime:0");
+  });
+
+  it("can select the composed arora-web orchestrator module", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    runtime.step(1 / 60);
+
+    expect(aroraWeb.loadModule).toHaveBeenCalledWith(
+      expect.stringContaining(COMPOSED_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.engineCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          module_id: COMPOSED_MODULE_ID,
+          id: COMPOSED_DISPATCH_FUNCTION_ID,
+          args: [
+            expect.objectContaining({
+              id: COMPOSED_REQUEST_PARAM_ID,
+            }),
+          ],
+        }),
+      ]),
+    );
   });
 
   const renderHarness = () =>

@@ -17,7 +17,22 @@ import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { IconButton } from "./components/IconButton";
 
 const ORCHESTRATOR_BACKEND = "aroraWeb" as const;
-const ORCHESTRATOR_BACKEND_LABEL = "Arora web engine";
+
+function resolveOrchestratorModule() {
+  if (typeof window === "undefined") {
+    return "composed" as const;
+  }
+  const param = new URLSearchParams(window.location.search).get("orchestrator");
+  return param === "compat" || param === "compatibility"
+    ? ("compatibility" as const)
+    : ("composed" as const);
+}
+
+const ORCHESTRATOR_MODULE = resolveOrchestratorModule();
+const ORCHESTRATOR_BACKEND_LABEL =
+  ORCHESTRATOR_MODULE === "composed"
+    ? "Arora web engine (composed)"
+    : "Arora web engine (compatibility)";
 
 function ViewerPanel() {
   const { loading, ready, error } = useVizijRuntime();
@@ -261,6 +276,7 @@ export default function App() {
             autostart
             orchestratorScope="isolated"
             orchestratorBackend={ORCHESTRATOR_BACKEND}
+            orchestratorInitInput={{ orchestratorModule: ORCHESTRATOR_MODULE }}
           >
             <WorkspaceSurface
               sourceLabel={sourceLabel}

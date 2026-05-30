@@ -18,6 +18,7 @@ export default tseslint.config(
       "**/.vite/**",
       "**/.turbo/**",
       "**/build/**",
+      "apps/demo-vizij-player/public/arora-web/**",
     ],
   },
   js.configs.recommended,

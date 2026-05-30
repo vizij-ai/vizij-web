@@ -152,6 +152,8 @@ If you override `init()` with a custom wasm location, prefer string URLs (`init(
 - `autoCreate` (default `true`) – Automatically call `createOrchestrator` on mount.
 - `createOptions` – Options passed to `createOrchestrator` (e.g., `{ schedule: "TwoPass" }`).
 - `autostart` – When `true`, kicks off an `requestAnimationFrame` loop stepping the orchestrator every frame.
+- `backend="aroraWeb"` – Runs the shared module-facade contract through `arora-web.Engine`.
+  Pass `initInput={{ orchestratorModule: "composed" }}` to load the composed Arora module, or omit it to keep the compatibility module default.
 
 ### Context Surface
 
