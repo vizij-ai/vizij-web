@@ -56,7 +56,10 @@ function makeBundle(
   };
 }
 
-function makeOrchestratorContext(calls: RuntimeCall[]): OrchestratorReactCtx {
+function makeOrchestratorContext(
+  calls: RuntimeCall[],
+  backend: OrchestratorReactCtx["backend"] = "direct",
+): OrchestratorReactCtx {
   const graphIds: string[] = [];
   const animationIds: string[] = [];
   const pathCache = new Map<string, ValueJSON>([
@@ -64,7 +67,7 @@ function makeOrchestratorContext(calls: RuntimeCall[]): OrchestratorReactCtx {
   ]);
 
   return {
-    backend: "direct",
+    backend,
     ready: true,
     createOrchestrator: vi.fn(async () => {}),
     registerGraph: vi.fn((config) => {
@@ -130,9 +133,12 @@ function makeOrchestratorContext(calls: RuntimeCall[]): OrchestratorReactCtx {
   };
 }
 
-async function mountRuntime(assetBundle = makeBundle()) {
+async function mountRuntime(
+  assetBundle = makeBundle(),
+  options: { backend?: OrchestratorReactCtx["backend"] } = {},
+) {
   const calls: RuntimeCall[] = [];
-  const orchestrator = makeOrchestratorContext(calls);
+  const orchestrator = makeOrchestratorContext(calls, options.backend);
   let runtime: VizijRuntimeContextValue | null = null;
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -259,6 +265,90 @@ describe("VizijRuntimeProvider execution loop", () => {
         value: { float: 0.5 },
         shape: undefined,
       },
+    ]);
+  });
+
+  it("routes animation playback through orchestrator commands for Arora web runtimes", async () => {
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        animations: [
+          {
+            id: "blink",
+            clip: {
+              id: "blink",
+              duration: 1,
+              tracks: [
+                {
+                  channel: "rig/face/smile",
+                  keyframes: [
+                    { time: 0, value: 0 },
+                    { time: 1, value: 1 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      { backend: "aroraWeb" },
+    );
+
+    const registration = calls.find(
+      (call): call is Extract<RuntimeCall, { kind: "registerAnimation" }> =>
+        call.kind === "registerAnimation",
+    );
+    expect(registration?.config).toMatchObject({
+      id: "demo-face/animation/blink",
+      setup: {
+        player: {
+          speed: 0,
+        },
+      },
+    });
+
+    calls.splice(0);
+    await act(async () => {
+      void runtime().playAnimation("blink", {
+        reset: true,
+        speed: 1.25,
+        weight: 0.5,
+      });
+    });
+
+    expect(
+      calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
+    ).toEqual([
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/seek",
+        value: { float: 0 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/set_loop",
+        value: "once",
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/set_speed",
+        value: { float: 1.25 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/instance/0/weight",
+        value: { float: 0.5 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/play",
+        value: { bool: true },
+        shape: undefined,
+      },
+      { kind: "step", dt: 0 },
     ]);
   });
 });
