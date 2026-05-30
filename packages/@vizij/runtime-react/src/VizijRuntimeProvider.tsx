@@ -25,13 +25,11 @@ import {
   type MergeStrategyOptions,
   type ValueJSON,
   type ShapeJSON,
-  type AnimationRegistrationConfig,
   type ControllerId,
   type WriteOp,
 } from "@vizij/orchestrator-react";
 import {
   buildGraphRegistrationConfig,
-  collectInputPathMap,
   collectOutputPaths,
   convertBundlePrograms,
   convertExtractedAnimations,
@@ -41,10 +39,10 @@ import {
   namespaceTypedPath,
   normalisePath,
   pickExtractedAnimations,
+  prepareRuntimeRegistrationPlan,
   prepareRuntimeAssetBundle,
   resolveGraphSpec,
   stripNamespace,
-  toStoredAnimationClip,
 } from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
@@ -89,7 +87,6 @@ import {
   resolveClipDurationSeconds,
 } from "./utils/clipPlayback";
 import {
-  collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   sampleAnimationClipOutputValues,
 } from "./utils/animationBridge";
@@ -937,123 +934,63 @@ function VizijRuntimeProviderInner({
       });
     }
 
-    const baseOutputPaths = new Set<string>();
-    const namespacedOutputPaths = new Set<string>();
-    const recordOutputs = (paths: string[]) => {
-      paths.forEach((path) => {
-        const trimmed = path.trim();
-        if (!trimmed) return;
-        const basePath = stripNamespace(trimmed, namespace);
-        baseOutputPaths.add(basePath);
-        namespacedOutputPaths.add(namespaceTypedPath(trimmed, namespace));
-      });
-    };
-
-    const graphConfigs: GraphRegistrationConfig[] = [];
     rigInputMapRef.current = {};
     rigPoseControlInputIdsRef.current = new Set();
     poseControlBridgeValuesRef.current.clear();
 
-    const rigAsset = assetBundle.rig;
-    if (rigAsset) {
-      const rigRegistration = buildGraphRegistrationConfig({
-        asset: rigAsset,
-        namespace,
-        context: `${rigAsset.id ?? "rig"} graph`,
-      });
-      if (!rigRegistration) {
+    const plan = prepareRuntimeRegistrationPlan({
+      assetBundle,
+      namespace,
+      faceId: faceId ?? undefined,
+      programs: resolvedProgramAssets,
+    });
+
+    plan.diagnostics.forEach((diagnostic) => {
+      if (diagnostic.level === "error") {
         pushError({
-          message: "Rig graph is missing a usable spec or IR payload.",
+          message: diagnostic.message,
           phase: "registration",
           timestamp: performance.now(),
         });
-      } else {
-        const rigSpec = rigRegistration.spec;
-        const rigOutputs = rigRegistration.outputs;
-        const rigInputs = rigRegistration.inputs;
-        // Avoid logging here; browsers building DTS don't have `process` types.
-        const rigPoseControlInputIds = new Set<string>();
-        rigInputs.forEach((path) => {
-          const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
-            path.trim(),
-          );
-          const inputId = (poseControlMatch?.[1] ?? "").trim();
-          if (inputId.length > 0) {
-            rigPoseControlInputIds.add(inputId);
-          }
-        });
-        rigInputMapRef.current = collectInputPathMap(rigSpec);
-        rigPoseControlInputIdsRef.current = rigPoseControlInputIds;
-        if (isRuntimeDebugEnabled()) {
-          const blinkKeys = Object.keys(rigInputMapRef.current).filter((key) =>
-            key.toLowerCase().includes("blink"),
-          );
-          const blinkMappings = blinkKeys
-            .slice(0, 20)
-            .map((key) => `${key} => ${rigInputMapRef.current[key] ?? "?"}`);
-          console.log("[vizij-runtime] rig input map sample", {
-            blink: rigInputMapRef.current["blink"] ?? null,
-            blinkKeys: blinkKeys.slice(0, 12),
-            blinkMappings: blinkMappings.join(" | "),
-          });
-        }
-        recordOutputs(rigOutputs);
-        graphConfigs.push(rigRegistration.config);
+        return;
       }
-    }
 
-    const poseGraphAsset = assetBundle.pose?.graph;
-    if (poseGraphAsset) {
-      const poseRegistration = buildGraphRegistrationConfig({
-        asset: poseGraphAsset,
-        namespace,
-        context: `${poseGraphAsset.id ?? "pose"} graph`,
+      if (diagnostic.target === "pose" || isRuntimeDebugEnabled()) {
+        console.warn("[vizij-runtime]", diagnostic.message);
+      }
+    });
+
+    rigInputMapRef.current = plan.rigInputMap;
+    rigPoseControlInputIdsRef.current = new Set(plan.rigPoseControlInputIds);
+    outputPathsRef.current = new Set(plan.outputPaths);
+    baseOutputPathsRef.current = new Set(plan.baseOutputPaths);
+    namespacedOutputPathsRef.current = new Set(plan.namespacedOutputPaths);
+
+    if (isRuntimeDebugEnabled()) {
+      const blinkKeys = Object.keys(rigInputMapRef.current).filter((key) =>
+        key.toLowerCase().includes("blink"),
+      );
+      const blinkMappings = blinkKeys
+        .slice(0, 20)
+        .map((key) => `${key} => ${rigInputMapRef.current[key] ?? "?"}`);
+      console.log("[vizij-runtime] rig input map sample", {
+        blink: rigInputMapRef.current["blink"] ?? null,
+        blinkKeys: blinkKeys.slice(0, 12),
+        blinkMappings: blinkMappings.join(" | "),
       });
-      if (poseRegistration) {
-        recordOutputs(poseRegistration.outputs);
-        graphConfigs.push(poseRegistration.config);
-      } else {
-        console.warn(
-          "[vizij-runtime] Pose graph is missing a usable spec or IR payload; skipping registration.",
-        );
-      }
-    }
-
-    for (const animation of assetBundle.animations ?? []) {
-      const bridgeOutputs = collectAnimationClipOutputPaths(
-        animation.clip as AnimationClipLike,
-        faceId ?? undefined,
-        rigInputMapRef.current,
-      );
-      if (isRuntimeDebugEnabled()) {
+      plan.animationRegistrations.forEach((registration) => {
         console.log("[vizij-runtime] animation output routing", {
-          animationId: animation.id,
-          bridgeOutputs,
-          bridgeOutputsText: bridgeOutputs.join(" | "),
+          animationId: registration.assetId,
+          bridgeOutputs: registration.outputPaths,
+          bridgeOutputsText: registration.outputPaths.join(" | "),
         });
-      }
-      recordOutputs(bridgeOutputs);
+      });
     }
-
-    for (const program of resolvedProgramAssets) {
-      const programSpec = resolveGraphSpec(
-        program.graph,
-        `${program.id ?? "program"} graph (outputs)`,
-      );
-      if (!programSpec) {
-        continue;
-      }
-      recordOutputs(collectOutputPaths(programSpec));
-    }
-
-    outputPathsRef.current = namespacedOutputPaths;
-    baseOutputPathsRef.current = baseOutputPaths;
-    namespacedOutputPathsRef.current = namespacedOutputPaths;
 
     const graphIds: string[] = [];
 
     try {
-      if (graphConfigs.length > 1) {
+      if (plan.graphConfigs.length > 1) {
         const mergedId = registerMergedGraph({
           id:
             namespaceControllerId(
@@ -1061,13 +998,13 @@ function VizijRuntimeProviderInner({
               namespace,
               "merged",
             ) ?? undefined,
-          graphs: graphConfigs,
+          graphs: plan.graphConfigs,
           strategy: mergeStrategy ?? DEFAULT_MERGE,
         });
         mergedGraphRef.current = mergedId;
         graphIds.push(mergedId);
       } else {
-        graphConfigs.forEach((cfg) => {
+        plan.graphConfigs.forEach((cfg) => {
           const id = registerGraph(cfg);
           graphIds.push(id);
         });
@@ -1087,31 +1024,19 @@ function VizijRuntimeProviderInner({
     }
 
     const animationIds: string[] = [];
-    for (const anim of assetBundle.animations ?? []) {
+    for (const registration of plan.animationRegistrations) {
       try {
-        const controllerId =
-          namespaceControllerId(anim.id, namespace, "animation") ?? anim.id;
-        const animationPayload =
-          anim.setup?.animation ??
-          toStoredAnimationClip(anim.id, anim.clip as AnimationClipLike);
-        const config: AnimationRegistrationConfig = {
-          id: controllerId,
-          setup: {
-            ...(anim.setup ?? {}),
-            animation: animationPayload,
-          } as AnimationRegistrationConfig["setup"],
-        };
-        const id = registerAnimation(config);
+        const id = registerAnimation(registration.config);
         animationIds.push(id);
       } catch (err: unknown) {
         if (isRuntimeDebugEnabled()) {
           console.warn("[vizij-runtime] failed animation registration", {
-            animationId: anim.id,
+            animationId: registration.assetId,
             error: err instanceof Error ? err.message : String(err),
           });
         }
         pushError({
-          message: `Failed to register animation ${anim.id}`,
+          message: `Failed to register animation ${registration.assetId}`,
           cause: err,
           phase: "animation",
           timestamp: performance.now(),
@@ -1154,6 +1079,7 @@ function VizijRuntimeProviderInner({
   }, [
     assetBundle,
     clearControllers,
+    faceId,
     listControllers,
     mergeStrategy,
     namespace,

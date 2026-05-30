@@ -4,6 +4,7 @@ import type {
   VizijBundleGraphEntry,
 } from "@vizij/render";
 import type {
+  AnimationRegistrationConfig,
   GraphRegistrationConfig,
   GraphSubscriptions,
   ShapeJSON,
@@ -21,8 +22,13 @@ import type {
   VizijInputMetadata,
   VizijProgramAsset,
 } from "./types";
-import { collectInputPaths, collectOutputPaths } from "./utils/graph";
+import {
+  collectInputPathMap,
+  collectInputPaths,
+  collectOutputPaths,
+} from "./utils/graph";
 import { resolveClipDurationSeconds } from "./utils/clipPlayback";
+import { collectAnimationClipOutputPaths } from "./utils/animationBridge";
 
 export type {
   AnimationClipLike,
@@ -49,6 +55,10 @@ export {
   collectOutputPaths,
 } from "./utils/graph";
 export {
+  collectAnimationClipOutputPaths,
+  resolveAnimationBridgeOutputPaths,
+} from "./utils/animationBridge";
+export {
   applyRuntimeGraphBundle,
   resolveRuntimeUpdatePlan,
 } from "./updatePolicy";
@@ -66,6 +76,31 @@ export type GraphRegistrationSupportResult = {
   spec: GraphRegistrationConfig["spec"];
   inputs: string[];
   outputs: string[];
+};
+
+export type RuntimeRegistrationDiagnostic = {
+  level: "error" | "warn";
+  target: "rig" | "pose" | "program" | "animation";
+  id?: string;
+  message: string;
+};
+
+export type RuntimeAnimationRegistrationSupportResult = {
+  assetId: string;
+  config: AnimationRegistrationConfig;
+  outputPaths: string[];
+};
+
+export type RuntimeRegistrationPlan = {
+  graphRegistrations: GraphRegistrationSupportResult[];
+  graphConfigs: GraphRegistrationConfig[];
+  animationRegistrations: RuntimeAnimationRegistrationSupportResult[];
+  baseOutputPaths: string[];
+  namespacedOutputPaths: string[];
+  outputPaths: string[];
+  rigInputMap: Record<string, string>;
+  rigPoseControlInputIds: string[];
+  diagnostics: RuntimeRegistrationDiagnostic[];
 };
 
 type GraphNodeSpec = NonNullable<
@@ -1029,6 +1064,146 @@ export function buildGraphRegistrationConfig(args: {
       spec: stripNulls(namespaceGraphSpec(graphSpec, args.namespace)),
       subs: namespaceSubscriptions(subs, args.namespace),
     },
+  };
+}
+
+export function prepareRuntimeRegistrationPlan(args: {
+  assetBundle: VizijAssetBundle;
+  namespace: string;
+  faceId?: string;
+  programs?: VizijProgramAsset[];
+}): RuntimeRegistrationPlan {
+  const graphRegistrations: GraphRegistrationSupportResult[] = [];
+  const animationRegistrations: RuntimeAnimationRegistrationSupportResult[] =
+    [];
+  const diagnostics: RuntimeRegistrationDiagnostic[] = [];
+  const baseOutputPaths = new Set<string>();
+  const namespacedOutputPaths = new Set<string>();
+
+  const recordOutputs = (paths: string[]) => {
+    paths.forEach((path) => {
+      const trimmed = path.trim();
+      if (!trimmed) {
+        return;
+      }
+      const basePath = stripNamespace(trimmed, args.namespace);
+      baseOutputPaths.add(basePath);
+      namespacedOutputPaths.add(namespaceTypedPath(trimmed, args.namespace));
+    });
+  };
+
+  let rigInputMap: Record<string, string> = {};
+  const rigPoseControlInputIds = new Set<string>();
+
+  const rigAsset = args.assetBundle.rig;
+  if (rigAsset) {
+    const rigRegistration = buildGraphRegistrationConfig({
+      asset: rigAsset,
+      namespace: args.namespace,
+      context: `${rigAsset.id ?? "rig"} graph`,
+    });
+    if (!rigRegistration) {
+      diagnostics.push({
+        level: "error",
+        target: "rig",
+        id: rigAsset.id,
+        message: "Rig graph is missing a usable spec or IR payload.",
+      });
+    } else {
+      rigInputMap = collectInputPathMap(rigRegistration.spec);
+      rigRegistration.inputs.forEach((path) => {
+        const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
+          path.trim(),
+        );
+        const inputId = (poseControlMatch?.[1] ?? "").trim();
+        if (inputId.length > 0) {
+          rigPoseControlInputIds.add(inputId);
+        }
+      });
+      recordOutputs(rigRegistration.outputs);
+      graphRegistrations.push(rigRegistration);
+    }
+  }
+
+  const poseGraphAsset = args.assetBundle.pose?.graph;
+  if (poseGraphAsset) {
+    const poseRegistration = buildGraphRegistrationConfig({
+      asset: poseGraphAsset,
+      namespace: args.namespace,
+      context: `${poseGraphAsset.id ?? "pose"} graph`,
+    });
+    if (!poseRegistration) {
+      diagnostics.push({
+        level: "warn",
+        target: "pose",
+        id: poseGraphAsset.id,
+        message:
+          "Pose graph is missing a usable spec or IR payload; skipping registration.",
+      });
+    } else {
+      recordOutputs(poseRegistration.outputs);
+      graphRegistrations.push(poseRegistration);
+    }
+  }
+
+  for (const animation of args.assetBundle.animations ?? []) {
+    const outputPaths = collectAnimationClipOutputPaths(
+      animation.clip as AnimationClipLike,
+      args.faceId,
+      rigInputMap,
+    );
+    recordOutputs(outputPaths);
+
+    const controllerId =
+      namespaceControllerId(animation.id, args.namespace, "animation") ??
+      animation.id;
+    const animationPayload =
+      animation.setup?.animation ??
+      toStoredAnimationClip(animation.id, animation.clip as AnimationClipLike);
+    animationRegistrations.push({
+      assetId: animation.id,
+      outputPaths,
+      config: {
+        id: controllerId,
+        setup: {
+          ...(animation.setup ?? {}),
+          animation: animationPayload,
+        } as AnimationRegistrationConfig["setup"],
+      },
+    });
+  }
+
+  const programs = args.programs ?? args.assetBundle.programs ?? [];
+  for (const program of programs) {
+    const programSpec = resolveGraphSpec(
+      program.graph,
+      `${program.id ?? "program"} graph (outputs)`,
+    );
+    if (!programSpec) {
+      diagnostics.push({
+        level: "warn",
+        target: "program",
+        id: program.id,
+        message: `Program ${program.id} is missing a usable graph payload.`,
+      });
+      continue;
+    }
+    recordOutputs(collectOutputPaths(programSpec));
+  }
+
+  const graphConfigs = graphRegistrations.map(
+    (registration) => registration.config,
+  );
+  return {
+    graphRegistrations,
+    graphConfigs,
+    animationRegistrations,
+    baseOutputPaths: Array.from(baseOutputPaths),
+    namespacedOutputPaths: Array.from(namespacedOutputPaths),
+    outputPaths: Array.from(namespacedOutputPaths),
+    rigInputMap,
+    rigPoseControlInputIds: Array.from(rigPoseControlInputIds),
+    diagnostics,
   };
 }
 
