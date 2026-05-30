@@ -32,6 +32,9 @@ export type {
   PoseBlendMode,
   PoseGroupDefinition,
   PoseRigConfig,
+  RuntimeGraphBundle,
+  RuntimeUpdatePlan,
+  RuntimeUpdateTier,
   RootBounds,
   VizijAnimationAsset,
   VizijAssetBundle,
@@ -45,6 +48,10 @@ export {
   collectInputPaths,
   collectOutputPaths,
 } from "./utils/graph";
+export {
+  applyRuntimeGraphBundle,
+  resolveRuntimeUpdatePlan,
+} from "./updatePolicy";
 
 export type InputConstraint = {
   min?: number;

@@ -143,3 +143,17 @@ export type VizijAssetBundle = {
   metadata?: Record<string, unknown>;
   bundle?: VizijBundleExtension | null;
 };
+
+export type RuntimeUpdateTier = "auto" | "assets" | "graphs";
+
+export type RuntimeUpdatePlan = {
+  reloadAssets: boolean;
+  reregisterGraphs: boolean;
+};
+
+export type RuntimeGraphBundle = {
+  rig?: VizijGraphAsset;
+  pose?: VizijAssetBundle["pose"];
+  animations?: VizijAnimationAsset[];
+  programs?: VizijProgramAsset[];
+};

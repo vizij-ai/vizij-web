@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyRuntimeGraphBundle,
   buildGraphRegistrationConfig,
   prepareRuntimeAssetBundle,
+  resolveRuntimeUpdatePlan,
   toStoredAnimationClip,
 } from "../index";
 import type { VizijAssetBundle, VizijGraphAsset } from "../types";
@@ -144,5 +146,28 @@ describe("studio support package", () => {
         ],
       },
     ]);
+  });
+
+  it("plans Studio bundle graph updates outside runtime-react", () => {
+    const previous = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: { nodes: [], edges: [] },
+      },
+    });
+    const next = applyRuntimeGraphBundle(previous, {
+      rig: {
+        id: "rig",
+        spec: { nodes: [{ id: "jaw", type: "input" }], edges: [] },
+      },
+    });
+
+    const plan = resolveRuntimeUpdatePlan(previous, next, "graphs");
+
+    expect(next.rig?.spec).toEqual({
+      nodes: [{ id: "jaw", type: "input" }],
+      edges: [],
+    });
+    expect(plan).toEqual({ reloadAssets: false, reregisterGraphs: true });
   });
 });

@@ -25,6 +25,8 @@ export type {
   InitInput,
   AroraWebInitInput,
   AroraWebModuleExports,
+  AroraWebPreloadModule,
+  AroraWebPreloadModuleName,
   PrebindResolver,
   CreateOrchOptions,
   OrchestratorBackend,

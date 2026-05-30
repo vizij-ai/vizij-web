@@ -10,10 +10,9 @@ import type {
 import type { RawValue } from "@vizij/utils";
 import type { VizijProps } from "@vizij/render";
 import type {
-  VizijAnimationAsset,
   VizijAssetBundle,
-  VizijGraphAsset,
-  VizijProgramAsset,
+  RuntimeGraphBundle,
+  RuntimeUpdateTier,
 } from "@vizij/studio-support";
 
 export type { OrchestratorBackend } from "@vizij/orchestrator-react";
@@ -25,6 +24,9 @@ export type {
   PoseBlendMode,
   PoseGroupDefinition,
   PoseRigConfig,
+  RuntimeGraphBundle,
+  RuntimeUpdatePlan,
+  RuntimeUpdateTier,
   RootBounds,
   VizijAnimationAsset,
   VizijAssetBundle,
@@ -198,18 +200,4 @@ export type VizijRuntimeProviderProps = {
     write: RuntimeOutputWrite,
   ) => RuntimeOutputWrite | null;
   orchestratorScope?: "auto" | "shared" | "isolated";
-};
-
-export type RuntimeUpdateTier = "auto" | "assets" | "graphs";
-
-export type RuntimeUpdatePlan = {
-  reloadAssets: boolean;
-  reregisterGraphs: boolean;
-};
-
-export type RuntimeGraphBundle = {
-  rig?: VizijGraphAsset;
-  pose?: VizijAssetBundle["pose"];
-  animations?: VizijAnimationAsset[];
-  programs?: VizijProgramAsset[];
 };

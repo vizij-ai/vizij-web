@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
 const APP_ROOT = path.resolve(import.meta.dirname, "..");
 const REPO_ROOT = path.resolve(APP_ROOT, "../..");
@@ -15,6 +16,16 @@ const ENGINE_ROOT = path.resolve(
 );
 const PUBLIC_ROOT = path.join(APP_ROOT, "public", "arora-web");
 const VIZIJ_MODULES = [
+  {
+    packageName: "vizij-animation",
+    wasmFile: "vizij_animation.wasm",
+    publicName: "vizij-animation",
+  },
+  {
+    packageName: "vizij-node-graph",
+    wasmFile: "vizij_node_graph.wasm",
+    publicName: "vizij-node-graph",
+  },
   {
     packageName: "vizij-orchestrator",
     wasmFile: "arora_vizij_orchestrator.wasm",
@@ -43,6 +54,56 @@ function run(cmd, args, cwd) {
 function copyFile(src, dest) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.copyFileSync(src, dest);
+}
+
+const PRIMITIVE_TYPE_IDS = new Map([
+  ["unit", "00000000-0000-0000-0000-000000000000"],
+  ["boolean", "00000000-0000-0000-0000-000000000001"],
+  ["bool", "00000000-0000-0000-0000-000000000001"],
+  ["i8", "00000000-0000-0000-0000-000000000002"],
+  ["i16", "00000000-0000-0000-0000-000000000003"],
+  ["i32", "00000000-0000-0000-0000-000000000004"],
+  ["i64", "00000000-0000-0000-0000-000000000005"],
+  ["u8", "00000000-0000-0000-0000-000000000006"],
+  ["u16", "00000000-0000-0000-0000-000000000007"],
+  ["u32", "00000000-0000-0000-0000-000000000008"],
+  ["u64", "00000000-0000-0000-0000-000000000009"],
+  ["f32", "00000000-0000-0000-0000-00000000000a"],
+  ["f64", "00000000-0000-0000-0000-00000000000b"],
+  ["str", "00000000-0000-0000-0000-00000000000c"],
+  ["string", "00000000-0000-0000-0000-00000000000c"],
+]);
+
+function normalizeHeaderAliases(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeHeaderAliases);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const normalized = Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      normalizeHeaderAliases(child),
+    ]),
+  );
+  if (
+    normalized.kind === "scalar" &&
+    typeof normalized.id === "string" &&
+    PRIMITIVE_TYPE_IDS.has(normalized.id)
+  ) {
+    normalized.id = PRIMITIVE_TYPE_IDS.get(normalized.id);
+  }
+  return normalized;
+}
+
+function writeModuleHeader(srcYaml, destJson) {
+  fs.mkdirSync(path.dirname(destJson), { recursive: true });
+  const header = normalizeHeaderAliases(
+    parseYaml(fs.readFileSync(srcYaml, "utf8")),
+  );
+  fs.writeFileSync(destJson, `${JSON.stringify(header, null, 2)}\n`);
 }
 
 if (!fs.existsSync(path.join(ENGINE_ROOT, "crates", "arora-web"))) {
@@ -105,6 +166,10 @@ for (const moduleInfo of VIZIJ_MODULES) {
       moduleInfo.publicName,
       moduleInfo.wasmFile,
     ),
+  );
+  writeModuleHeader(
+    path.join(ENGINE_ROOT, "modules", moduleInfo.packageName, "module.yaml"),
+    path.join(PUBLIC_ROOT, "modules", moduleInfo.publicName, "module.json"),
   );
 }
 

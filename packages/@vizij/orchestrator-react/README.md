@@ -154,6 +154,7 @@ If you override `init()` with a custom wasm location, prefer string URLs (`init(
 - `autostart` – When `true`, kicks off an `requestAnimationFrame` loop stepping the orchestrator every frame.
 - `backend="aroraWeb"` – Runs the shared module-facade contract through `arora-web.Engine`.
   Pass `initInput={{ orchestratorModule: "composed" }}` to load the composed Arora module, or omit it to keep the compatibility module default.
+  Pass `preloadModules: ["vizij-animation", "vizij-node-graph"]` when the host should load the independent Vizij domain modules into the same browser engine before the orchestrator facade. Presets load their `module.json` headers from the prepared Arora web assets, so the browser path follows the engine module manifests instead of a duplicated TypeScript header copy.
 
 ### Context Surface
 

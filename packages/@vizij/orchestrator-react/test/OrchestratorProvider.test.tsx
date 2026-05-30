@@ -190,6 +190,59 @@ const makeAroraWebModule = () => {
 const COMPOSED_DISPATCH_FUNCTION_ID = "90725b7e-a4d9-4a3f-99af-8e227612bed7";
 const COMPOSED_REQUEST_PARAM_ID = "323d47be-3b30-46ff-882f-bc7f7ffacd57";
 const COMPOSED_MODULE_ID = "580d9cef-88be-4f1c-b649-f87032acd8fe";
+const COMPATIBILITY_DISPATCH_FUNCTION_ID =
+  "debf32e5-1650-48ac-af4a-da2da617aef7";
+const COMPATIBILITY_REQUEST_PARAM_ID = "71b4a759-ded6-42a3-b59d-9716472ac045";
+const COMPATIBILITY_MODULE_ID = "144358c2-b7e0-414d-8755-56d7ac03f811";
+const VIZIJ_ANIMATION_MODULE_ID = "aa32e080-b002-428c-9994-6143aab3bf08";
+const VIZIJ_NODE_GRAPH_MODULE_ID = "098bd478-8375-4f3a-b649-d64cb1284944";
+
+function dispatchHeader(args: {
+  moduleId: string;
+  dispatchFunctionId: string;
+  requestParamId: string;
+}) {
+  return {
+    id: args.moduleId,
+    exports: [
+      {
+        type: "function",
+        id: args.dispatchFunctionId,
+        name: "dispatch_json",
+        parameters: [
+          {
+            id: args.requestParamId,
+            name: "request_json",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function moduleHeader(moduleId: string) {
+  return { id: moduleId, exports: [] };
+}
+
+const COMPATIBILITY_HEADER = dispatchHeader({
+  moduleId: COMPATIBILITY_MODULE_ID,
+  dispatchFunctionId: COMPATIBILITY_DISPATCH_FUNCTION_ID,
+  requestParamId: COMPATIBILITY_REQUEST_PARAM_ID,
+});
+const COMPOSED_HEADER = dispatchHeader({
+  moduleId: COMPOSED_MODULE_ID,
+  dispatchFunctionId: COMPOSED_DISPATCH_FUNCTION_ID,
+  requestParamId: COMPOSED_REQUEST_PARAM_ID,
+});
+const VIZIJ_ANIMATION_HEADER = moduleHeader(VIZIJ_ANIMATION_MODULE_ID);
+const VIZIJ_NODE_GRAPH_HEADER = moduleHeader(VIZIJ_NODE_GRAPH_MODULE_ID);
+
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 vi.mock("@vizij/orchestrator-wasm", async () => {
   const actual = await vi.importActual<
@@ -317,7 +370,11 @@ describe("OrchestratorProvider", () => {
     render(
       <OrchestratorProvider
         backend="aroraWeb"
-        initInput={{ aroraWeb, wasmBytes: new Uint8Array([0]) }}
+        initInput={{
+          aroraWeb,
+          headerJson: COMPATIBILITY_HEADER,
+          wasmBytes: new Uint8Array([0]),
+        }}
         autostart={false}
       >
         <Harness />
@@ -346,7 +403,7 @@ describe("OrchestratorProvider", () => {
     expect(aroraWeb.engineCalls).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          module_id: "144358c2-b7e0-414d-8755-56d7ac03f811",
+          module_id: COMPATIBILITY_MODULE_ID,
         }),
       ]),
     );
@@ -356,6 +413,7 @@ describe("OrchestratorProvider", () => {
     const aroraWeb = makeAroraWebModule();
     const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
       aroraWeb,
+      headerJson: COMPATIBILITY_HEADER,
       wasmBytes: new Uint8Array([0]),
     });
     const normalized = await runtime.normalizeGraphSpec({
@@ -374,6 +432,7 @@ describe("OrchestratorProvider", () => {
     const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
       aroraWeb,
       orchestratorModule: "composed",
+      headerJson: COMPOSED_HEADER,
       wasmBytes: new Uint8Array([0]),
     });
 
@@ -393,6 +452,64 @@ describe("OrchestratorProvider", () => {
               id: COMPOSED_REQUEST_PARAM_ID,
             }),
           ],
+        }),
+      ]),
+    );
+  });
+
+  it("can preload independent Vizij modules before the composed arora-web orchestrator", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (urlText.includes("vizij-animation")) {
+        return jsonResponse(VIZIJ_ANIMATION_HEADER);
+      }
+      if (urlText.includes("vizij-node-graph")) {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+    const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: COMPOSED_HEADER,
+      preloadModules: [
+        {
+          preset: "vizij-animation",
+          wasmBytes: new Uint8Array([1]),
+        },
+        {
+          preset: "vizij-node-graph",
+          wasmBytes: new Uint8Array([2]),
+        },
+      ],
+      fetch: fetch as unknown as typeof globalThis.fetch,
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    runtime.step(1 / 60);
+
+    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(VIZIJ_ANIMATION_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(VIZIJ_NODE_GRAPH_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining(COMPOSED_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.engineCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          module_id: COMPOSED_MODULE_ID,
         }),
       ]),
     );

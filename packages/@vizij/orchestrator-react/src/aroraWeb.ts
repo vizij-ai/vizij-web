@@ -3,6 +3,8 @@ import type {
   AroraWebInitInput,
   AroraWebModuleExports,
   AroraWebOrchestratorModule,
+  AroraWebPreloadModule,
+  AroraWebPreloadModuleName,
   CreateOrchOptions,
 } from "./types";
 import type {
@@ -15,88 +17,20 @@ const DEFAULT_ARORA_WEB_URL = "/arora-web/pkg/arora_web.js";
 const DEFAULT_ARORA_WEB_WASM_URL = "/arora-web/pkg/arora_web_bg.wasm";
 const DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL =
   "/arora-web/modules/vizij-orchestrator/arora_vizij_orchestrator.wasm";
+const DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL =
+  "/arora-web/modules/vizij-orchestrator/module.json";
 const DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL =
   "/arora-web/modules/vizij-orchestrator-composed/arora_vizij_orchestrator_composed.wasm";
-
-const VIZIJ_ORCHESTRATOR_DISPATCH_FN_ID =
-  "debf32e5-1650-48ac-af4a-da2da617aef7";
-const VIZIJ_ORCHESTRATOR_REQUEST_PARAM_ID =
-  "71b4a759-ded6-42a3-b59d-9716472ac045";
-const VIZIJ_ORCHESTRATOR_COMPOSED_DISPATCH_FN_ID =
-  "90725b7e-a4d9-4a3f-99af-8e227612bed7";
-const VIZIJ_ORCHESTRATOR_COMPOSED_REQUEST_PARAM_ID =
-  "323d47be-3b30-46ff-882f-bc7f7ffacd57";
-const ARORA_STRING_TYPE_ID = "00000000-0000-0000-0000-00000000000c";
-
-const DEFAULT_VIZIJ_ORCHESTRATOR_HEADER = {
-  id: "144358c2-b7e0-414d-8755-56d7ac03f811",
-  name: "vizij-orchestrator",
-  author: "",
-  description: null,
-  license: "",
-  version: { major: 0, minor: 0, patch: 0 },
-  executor: { name: "wasm", min_version: null, max_version: null },
-  exports: [
-    {
-      type: "function",
-      id: VIZIJ_ORCHESTRATOR_DISPATCH_FN_ID,
-      name: "dispatch_json",
-      parameters: [
-        {
-          id: VIZIJ_ORCHESTRATOR_REQUEST_PARAM_ID,
-          name: "request_json",
-          type: {
-            kind: "scalar",
-            id: ARORA_STRING_TYPE_ID,
-          },
-          mutable: false,
-          default_value: null,
-        },
-      ],
-      ret: {
-        kind: "scalar",
-        id: ARORA_STRING_TYPE_ID,
-      },
-    },
-  ],
-  imports: [],
-  executable_mime: "",
-};
-
-const DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER = {
-  id: "580d9cef-88be-4f1c-b649-f87032acd8fe",
-  name: "vizij-orchestrator-composed",
-  author: "",
-  description: null,
-  license: "",
-  version: { major: 0, minor: 0, patch: 0 },
-  executor: { name: "wasm", min_version: null, max_version: null },
-  exports: [
-    {
-      type: "function",
-      id: VIZIJ_ORCHESTRATOR_COMPOSED_DISPATCH_FN_ID,
-      name: "dispatch_json",
-      parameters: [
-        {
-          id: VIZIJ_ORCHESTRATOR_COMPOSED_REQUEST_PARAM_ID,
-          name: "request_json",
-          type: {
-            kind: "scalar",
-            id: ARORA_STRING_TYPE_ID,
-          },
-          mutable: false,
-          default_value: null,
-        },
-      ],
-      ret: {
-        kind: "scalar",
-        id: ARORA_STRING_TYPE_ID,
-      },
-    },
-  ],
-  imports: [],
-  executable_mime: "",
-};
+const DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL =
+  "/arora-web/modules/vizij-orchestrator-composed/module.json";
+const DEFAULT_VIZIJ_ANIMATION_WASM_URL =
+  "/arora-web/modules/vizij-animation/vizij_animation.wasm";
+const DEFAULT_VIZIJ_ANIMATION_HEADER_URL =
+  "/arora-web/modules/vizij-animation/module.json";
+const DEFAULT_VIZIJ_NODE_GRAPH_WASM_URL =
+  "/arora-web/modules/vizij-node-graph/vizij_node_graph.wasm";
+const DEFAULT_VIZIJ_NODE_GRAPH_HEADER_URL =
+  "/arora-web/modules/vizij-node-graph/module.json";
 
 type AroraWebEngine = InstanceType<AroraWebModuleExports["Engine"]>;
 
@@ -113,8 +47,9 @@ type AroraHeaderParameter = {
 };
 
 type AroraWebModulePreset = {
-  header: object;
-  wasmUrl: string;
+  header?: object;
+  headerUrl?: string | URL;
+  wasmUrl: string | URL;
 };
 
 type AroraWebDispatchBinding = {
@@ -132,12 +67,26 @@ const VIZIJ_ORCHESTRATOR_MODULE_PRESETS: Record<
   AroraWebModulePreset
 > = {
   compatibility: {
-    header: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER,
+    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
   },
   composed: {
-    header: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER,
+    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
+  },
+};
+
+const VIZIJ_PRELOAD_MODULE_PRESETS: Record<
+  AroraWebPreloadModuleName,
+  AroraWebModulePreset
+> = {
+  "vizij-animation": {
+    headerUrl: DEFAULT_VIZIJ_ANIMATION_HEADER_URL,
+    wasmUrl: DEFAULT_VIZIJ_ANIMATION_WASM_URL,
+  },
+  "vizij-node-graph": {
+    headerUrl: DEFAULT_VIZIJ_NODE_GRAPH_HEADER_URL,
+    wasmUrl: DEFAULT_VIZIJ_NODE_GRAPH_WASM_URL,
   },
 };
 
@@ -261,10 +210,24 @@ function loadHeaderObjectFromInput(
   if (config.headerJson) {
     return config.headerJson;
   }
-  if (!config.headerUrl) {
+  if (!config.headerUrl && preset.header) {
     return preset.header;
   }
   return null;
+}
+
+async function fetchHeaderObject(
+  config: AroraWebInitInput,
+  headerUrl: string | URL,
+  label: string,
+): Promise<object> {
+  const response = await fetchImpl(config)(headerUrl);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load ${label}: ${response.status} ${response.statusText}`,
+    );
+  }
+  return parseHeaderJson(await response.text(), String(headerUrl));
 }
 
 async function loadHeaderObject(
@@ -275,16 +238,11 @@ async function loadHeaderObject(
   if (header) {
     return header;
   }
-  if (config.headerUrl) {
-    const response = await fetchImpl(config)(config.headerUrl);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to load aroraWeb module header: ${response.status} ${response.statusText}`,
-      );
-    }
-    return parseHeaderJson(await response.text(), String(config.headerUrl));
+  const headerUrl = config.headerUrl ?? preset.headerUrl;
+  if (headerUrl) {
+    return fetchHeaderObject(config, headerUrl, "aroraWeb module header");
   }
-  return preset.header;
+  throw new Error("aroraWeb module needs a headerJson/headerUrl.");
 }
 
 function stringField(value: unknown): string | null {
@@ -363,6 +321,102 @@ async function resolveAroraWebModule(
   };
 }
 
+type ResolvedAroraWebPreloadModule = {
+  headerJson: string;
+  wasmUrl: string | URL;
+  wasmBytes?: Uint8Array | ArrayBuffer;
+};
+
+function preloadPreset(
+  moduleInput: AroraWebPreloadModule,
+): AroraWebModulePreset | null {
+  const presetName =
+    typeof moduleInput === "string" ? moduleInput : moduleInput.preset;
+  if (!presetName) {
+    return null;
+  }
+  const preset = VIZIJ_PRELOAD_MODULE_PRESETS[presetName];
+  if (!preset) {
+    throw new Error(`Unsupported aroraWeb preload module: ${presetName}`);
+  }
+  return preset;
+}
+
+async function loadPreloadHeaderObject(
+  config: AroraWebInitInput,
+  moduleInput: AroraWebPreloadModule,
+  preset: AroraWebModulePreset | null,
+): Promise<object> {
+  if (typeof moduleInput === "string") {
+    if (preset?.header) {
+      return preset.header;
+    }
+    if (preset?.headerUrl) {
+      return fetchHeaderObject(
+        config,
+        preset.headerUrl,
+        "aroraWeb preload module header",
+      );
+    }
+    throw new Error(
+      "aroraWeb preload module needs a preset or explicit headerJson/headerUrl.",
+    );
+  }
+  if (typeof moduleInput.headerJson === "string") {
+    return parseHeaderJson(moduleInput.headerJson, "preloadModules.headerJson");
+  }
+  if (moduleInput.headerJson) {
+    return moduleInput.headerJson;
+  }
+  if (moduleInput.headerUrl) {
+    return fetchHeaderObject(
+      config,
+      moduleInput.headerUrl,
+      "aroraWeb preload module header",
+    );
+  }
+  if (preset?.header) {
+    return preset.header;
+  }
+  if (preset?.headerUrl) {
+    return fetchHeaderObject(
+      config,
+      preset.headerUrl,
+      "aroraWeb preload module header",
+    );
+  }
+  throw new Error(
+    "aroraWeb preload module needs a preset or explicit headerJson/headerUrl.",
+  );
+}
+
+async function resolvePreloadModules(
+  config: AroraWebInitInput,
+): Promise<ResolvedAroraWebPreloadModule[]> {
+  const modules = Array.isArray(config.preloadModules)
+    ? config.preloadModules
+    : [];
+  const resolved: ResolvedAroraWebPreloadModule[] = [];
+  for (const moduleInput of modules) {
+    const preset = preloadPreset(moduleInput);
+    const header = await loadPreloadHeaderObject(config, moduleInput, preset);
+    const moduleConfig =
+      typeof moduleInput === "string" ? undefined : moduleInput;
+    const wasmUrl = moduleConfig?.wasmUrl ?? preset?.wasmUrl;
+    if (!wasmUrl) {
+      throw new Error(
+        "aroraWeb preload module needs a preset or explicit wasmUrl.",
+      );
+    }
+    resolved.push({
+      headerJson: JSON.stringify(header),
+      wasmUrl,
+      ...(moduleConfig?.wasmBytes ? { wasmBytes: moduleConfig.wasmBytes } : {}),
+    });
+  }
+  return resolved;
+}
+
 function bytesFrom(value: Uint8Array | ArrayBuffer): Uint8Array {
   return value instanceof Uint8Array ? value : new Uint8Array(value);
 }
@@ -370,18 +424,38 @@ function bytesFrom(value: Uint8Array | ArrayBuffer): Uint8Array {
 async function loadWasmBytes(
   config: AroraWebInitInput,
   wasmUrl: string | URL,
+  wasmBytes?: Uint8Array | ArrayBuffer,
+  options: { useGlobalWasmBytes?: boolean } = {},
 ): Promise<Uint8Array> {
-  if (config.wasmBytes) {
-    return bytesFrom(config.wasmBytes);
+  const explicitBytes =
+    wasmBytes ?? (options.useGlobalWasmBytes ? config.wasmBytes : undefined);
+  if (explicitBytes) {
+    return bytesFrom(explicitBytes);
   }
 
   const response = await fetchImpl(config)(wasmUrl);
   if (!response.ok) {
     throw new Error(
-      `Failed to load aroraWeb orchestrator wasm: ${response.status} ${response.statusText}`,
+      `Failed to load aroraWeb module wasm: ${response.status} ${response.statusText}`,
     );
   }
   return new Uint8Array(await response.arrayBuffer());
+}
+
+async function preloadModules(
+  engine: AroraWebEngine,
+  config: AroraWebInitInput,
+): Promise<void> {
+  const modules = await resolvePreloadModules(config);
+  for (const moduleConfig of modules) {
+    const wasmBytes = await loadWasmBytes(
+      config,
+      moduleConfig.wasmUrl,
+      moduleConfig.wasmBytes,
+      { useGlobalWasmBytes: false },
+    );
+    loadModule(engine, moduleConfig.headerJson, wasmBytes);
+  }
 }
 
 function loadModule(
@@ -458,11 +532,19 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
     await initAroraWeb(module, defaultAroraWebInitInput(config));
 
     const selectedModule = await resolveAroraWebModule(config);
-    const wasmBytes = await loadWasmBytes(config, selectedModule.wasmUrl);
+    const wasmBytes = await loadWasmBytes(
+      config,
+      selectedModule.wasmUrl,
+      undefined,
+      {
+        useGlobalWasmBytes: true,
+      },
+    );
     if (typeof module.Engine !== "function") {
       throw new Error("arora-web module does not expose Engine.");
     }
     const engine = new module.Engine();
+    await preloadModules(engine, config);
     const moduleId = loadModule(engine, selectedModule.headerJson, wasmBytes);
 
     const runtime = new AroraWebOrchestratorRuntime(

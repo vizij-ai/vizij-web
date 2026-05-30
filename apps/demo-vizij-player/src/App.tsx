@@ -33,6 +33,10 @@ const ORCHESTRATOR_BACKEND_LABEL =
   ORCHESTRATOR_MODULE === "composed"
     ? "Arora web engine (composed)"
     : "Arora web engine (compatibility)";
+const ORCHESTRATOR_PRELOAD_MODULES =
+  ORCHESTRATOR_MODULE === "composed"
+    ? (["vizij-animation", "vizij-node-graph"] as const)
+    : undefined;
 
 function ViewerPanel() {
   const { loading, ready, error } = useVizijRuntime();
@@ -276,7 +280,12 @@ export default function App() {
             autostart
             orchestratorScope="isolated"
             orchestratorBackend={ORCHESTRATOR_BACKEND}
-            orchestratorInitInput={{ orchestratorModule: ORCHESTRATOR_MODULE }}
+            orchestratorInitInput={{
+              orchestratorModule: ORCHESTRATOR_MODULE,
+              preloadModules: ORCHESTRATOR_PRELOAD_MODULES
+                ? [...ORCHESTRATOR_PRELOAD_MODULES]
+                : undefined,
+            }}
           >
             <WorkspaceSurface
               sourceLabel={sourceLabel}

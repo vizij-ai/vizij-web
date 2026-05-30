@@ -53,12 +53,23 @@ export type AroraWebModuleExports = {
 };
 
 export type AroraWebOrchestratorModule = "compatibility" | "composed";
+export type AroraWebPreloadModuleName = "vizij-animation" | "vizij-node-graph";
+export type AroraWebPreloadModule =
+  | AroraWebPreloadModuleName
+  | {
+      preset?: AroraWebPreloadModuleName;
+      headerJson?: string | object;
+      headerUrl?: string | URL;
+      wasmBytes?: Uint8Array | ArrayBuffer;
+      wasmUrl?: string | URL;
+    };
 
 export type AroraWebInitInput = {
   aroraWeb?: AroraWebModuleExports | (() => Promise<AroraWebModuleExports>);
   aroraWebUrl?: string;
   aroraWebInitInput?: unknown;
   orchestratorModule?: AroraWebOrchestratorModule;
+  preloadModules?: AroraWebPreloadModule[];
   headerJson?: string | object;
   headerUrl?: string | URL;
   wasmBytes?: Uint8Array | ArrayBuffer;
