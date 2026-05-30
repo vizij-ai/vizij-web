@@ -46,6 +46,13 @@ import {
   registerRuntimeControllers,
   type RuntimeControllerHostError,
 } from "./host/controllerRegistration";
+import {
+  advanceRuntimeExecution,
+  clearStagedRuntimeInput,
+  flushStagedRuntimeInput,
+  stageRuntimeInput,
+  type StagedRuntimeInputs,
+} from "./host/executionLoop";
 import { prepareRuntimeFrameWrites } from "./host/frameWrites";
 import {
   clearRuntimeDebugState,
@@ -518,9 +525,7 @@ function VizijRuntimeProviderInner({
   );
   const clipAggregateValuesRef = useRef<Map<string, number>>(new Map());
   const animationSystemActiveRef = useRef(true);
-  const stagedInputsRef = useRef<
-    Map<string, { value: ValueJSON; shape?: ShapeJSON }>
-  >(new Map());
+  const stagedInputsRef = useRef<StagedRuntimeInputs>(new Map());
   const autostartRef = useRef(autostart);
   const lastActivityTimeRef = useRef<number>(now());
   const [loopMode, setLoopMode] = useState<LoopMode>("stopped");
@@ -677,7 +682,13 @@ function VizijRuntimeProviderInner({
         return;
       }
       markActivity();
-      const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
+      const namespacedPath = stageRuntimeInput({
+        stagedInputs: stagedInputsRef.current,
+        namespace: namespaceRef.current,
+        path,
+        value,
+        shape,
+      });
       if (
         isRuntimeDebugEnabled() &&
         (namespacedPath.includes("animation/authoring.timeline.main") ||
@@ -689,7 +700,6 @@ function VizijRuntimeProviderInner({
           value,
         });
       }
-      stagedInputsRef.current.set(namespacedPath, { value, shape });
     },
     [
       assetBundle.pose?.config?.faceId,
@@ -1228,23 +1238,25 @@ function VizijRuntimeProviderInner({
       if (!options?.immediate) {
         return;
       }
-      const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
-      const staged = stagedInputsRef.current.get(namespacedPath);
-      if (staged) {
-        orchestratorSetInput(namespacedPath, staged.value, staged.shape);
-        stagedInputsRef.current.delete(namespacedPath);
-        return;
-      }
-      orchestratorSetInput(namespacedPath, { float: value });
+      flushStagedRuntimeInput({
+        stagedInputs: stagedInputsRef.current,
+        namespace: namespaceRef.current,
+        path,
+        fallbackValue: { float: value },
+        setInput: orchestratorSetInput,
+      });
     },
     [orchestratorSetInput, setInput],
   );
 
   const clearAnimationInput = useCallback(
     (path: string) => {
-      const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
-      stagedInputsRef.current.delete(namespacedPath);
-      removeInput(namespacedPath);
+      clearStagedRuntimeInput({
+        stagedInputs: stagedInputsRef.current,
+        namespace: namespaceRef.current,
+        path,
+        removeInput,
+      });
     },
     [removeInput],
   );
@@ -2046,30 +2058,21 @@ function VizijRuntimeProviderInner({
     [advanceAnimationTweens, advanceClipPlayback],
   );
 
-  const flushStagedInputs = useCallback(() => {
-    if (stagedInputsRef.current.size === 0) {
-      return;
-    }
-    stagedInputsRef.current.forEach(({ value, shape }, path) => {
-      orchestratorSetInput(path, value, shape);
-    });
-    stagedInputsRef.current.clear();
-  }, [orchestratorSetInput]);
-
   const step = useCallback(
     (dt: number, opts?: { forceRuntime?: boolean }) => {
-      if (dt > 0 && Number.isFinite(dt)) {
-        const prev = avgStepDtRef.current ?? dt;
-        const alpha = 0.1;
-        avgStepDtRef.current = prev * (1 - alpha) + dt * alpha;
-      }
-      advanceAnimations(dt);
-      flushStagedInputs();
-      if (driveOrchestratorRef.current || opts?.forceRuntime) {
-        stepRuntime(dt);
-      }
+      const result = advanceRuntimeExecution({
+        dt,
+        previousAverageDt: avgStepDtRef.current,
+        driveRuntime: driveOrchestratorRef.current,
+        forceRuntime: opts?.forceRuntime,
+        stagedInputs: stagedInputsRef.current,
+        advanceHostAnimations: advanceAnimations,
+        setInput: orchestratorSetInput,
+        stepRuntime,
+      });
+      avgStepDtRef.current = result.averageDt;
     },
-    [advanceAnimations, flushStagedInputs, stepRuntime],
+    [advanceAnimations, orchestratorSetInput, stepRuntime],
   );
 
   useEffect(() => {
