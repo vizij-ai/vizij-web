@@ -27,6 +27,7 @@ export type {
   AroraWebModuleArtifact,
   AroraWebModuleExports,
   AroraWebModuleRegistry,
+  AroraWebModuleRegistryManifest,
   AroraWebPreloadModule,
   AroraWebPreloadModuleName,
   PrebindResolver,

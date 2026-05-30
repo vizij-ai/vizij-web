@@ -65,6 +65,20 @@ export type AroraWebPreloadModule =
   | AroraWebPreloadModuleName
   | AroraWebModuleArtifact;
 export type AroraWebModuleRegistry = Record<string, AroraWebPreloadModule>;
+export type AroraWebModuleRegistryManifest = {
+  schemaVersion?: number;
+  version?: number;
+  baseUrl?: string | URL;
+  engine?: {
+    js?: string | URL;
+    wasm?: string | URL;
+  };
+  orchestrators?: Partial<Record<AroraWebOrchestratorModule, string>> &
+    Record<string, string | undefined>;
+  modules?:
+    | Record<string, AroraWebModuleArtifact & { id?: string; name?: string }>
+    | Array<AroraWebModuleArtifact & { id: string; name?: string }>;
+};
 
 export type AroraWebInitInput = {
   aroraWeb?: AroraWebModuleExports | (() => Promise<AroraWebModuleExports>);
@@ -72,6 +86,7 @@ export type AroraWebInitInput = {
   aroraWebInitInput?: unknown;
   orchestratorModule?: AroraWebOrchestratorModule;
   moduleRegistry?: AroraWebModuleRegistry;
+  moduleRegistryUrl?: string | URL | false;
   preloadModules?: AroraWebPreloadModule[];
   headerJson?: string | object;
   headerUrl?: string | URL;

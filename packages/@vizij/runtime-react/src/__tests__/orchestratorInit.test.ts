@@ -6,6 +6,7 @@ describe("resolveVizijOrchestratorInitInput", () => {
   it("defaults aroraWeb runtimes to the composed Vizij module path", () => {
     expect(resolveVizijOrchestratorInitInput("aroraWeb")).toEqual({
       orchestratorModule: "composed",
+      moduleRegistryUrl: "/arora-web/modules/manifest.json",
     });
   });
 
@@ -22,6 +23,7 @@ describe("resolveVizijOrchestratorInitInput", () => {
       }),
     ).toEqual({
       orchestratorModule: "composed",
+      moduleRegistryUrl: "/arora-web/modules/manifest.json",
       aroraWebUrl: "/custom/arora_web.js",
       fetch,
       wasmBytes,
@@ -35,6 +37,7 @@ describe("resolveVizijOrchestratorInitInput", () => {
       }),
     ).toEqual({
       orchestratorModule: "compatibility",
+      moduleRegistryUrl: "/arora-web/modules/manifest.json",
     });
   });
 
@@ -45,6 +48,7 @@ describe("resolveVizijOrchestratorInitInput", () => {
       }),
     ).toEqual({
       orchestratorModule: "composed",
+      moduleRegistryUrl: "/arora-web/modules/manifest.json",
       preloadModules: [],
     });
   });

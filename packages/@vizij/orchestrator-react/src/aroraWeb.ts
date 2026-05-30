@@ -1,8 +1,10 @@
 import { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
 import type {
   AroraWebInitInput,
+  AroraWebModuleArtifact,
   AroraWebModuleExports,
   AroraWebModuleRegistry,
+  AroraWebModuleRegistryManifest,
   AroraWebOrchestratorModule,
   AroraWebPreloadModule,
   AroraWebPreloadModuleName,
@@ -16,6 +18,7 @@ import type {
 
 const DEFAULT_ARORA_WEB_URL = "/arora-web/pkg/arora_web.js";
 const DEFAULT_ARORA_WEB_WASM_URL = "/arora-web/pkg/arora_web_bg.wasm";
+const DEFAULT_MODULE_REGISTRY_MANIFEST_URL = "/arora-web/modules/manifest.json";
 const DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL =
   "/arora-web/modules/vizij-orchestrator/arora_vizij_orchestrator.wasm";
 const DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL =
@@ -56,8 +59,10 @@ type AroraHeaderImport = {
 
 type AroraWebModulePreset = {
   header?: object;
+  headerJson?: string | object;
   headerUrl?: string | URL;
-  wasmUrl: string | URL;
+  wasmBytes?: Uint8Array | ArrayBuffer;
+  wasmUrl?: string | URL;
 };
 
 type AroraWebDispatchBinding = {
@@ -68,11 +73,23 @@ type AroraWebDispatchBinding = {
 type ResolvedAroraWebModule = AroraWebDispatchBinding & {
   header: object;
   headerJson: string;
+  wasmBytes?: Uint8Array | ArrayBuffer;
   wasmUrl: string | URL;
 };
 
+const VIZIJ_ORCHESTRATOR_MODULE_ID = "144358c2-b7e0-414d-8755-56d7ac03f811";
+const VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID =
+  "580d9cef-88be-4f1c-b649-f87032acd8fe";
 const VIZIJ_ANIMATION_MODULE_ID = "aa32e080-b002-428c-9994-6143aab3bf08";
 const VIZIJ_NODE_GRAPH_MODULE_ID = "098bd478-8375-4f3a-b649-d64cb1284944";
+
+const VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS: Record<
+  AroraWebOrchestratorModule,
+  string
+> = {
+  compatibility: "vizij-orchestrator",
+  composed: "vizij-orchestrator-composed",
+};
 
 const VIZIJ_ORCHESTRATOR_MODULE_PRESETS: Record<
   AroraWebOrchestratorModule,
@@ -103,6 +120,22 @@ const VIZIJ_PRELOAD_MODULE_PRESETS: Record<
 };
 
 const DEFAULT_MODULE_REGISTRY: AroraWebModuleRegistry = {
+  [VIZIJ_ORCHESTRATOR_MODULE_ID]: {
+    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
+    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
+  },
+  "vizij-orchestrator": {
+    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
+    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
+  },
+  [VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID]: {
+    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
+    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
+  },
+  "vizij-orchestrator-composed": {
+    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
+    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
+  },
   [VIZIJ_ANIMATION_MODULE_ID]: "vizij-animation",
   "vizij-animation": "vizij-animation",
   [VIZIJ_NODE_GRAPH_MODULE_ID]: "vizij-node-graph",
@@ -120,9 +153,15 @@ function normalizeConfig(input?: unknown): AroraWebInitInput {
   return input as AroraWebInitInput;
 }
 
-function selectedModulePreset(config: AroraWebInitInput): AroraWebModulePreset {
+function selectedModulePreset(
+  config: AroraWebInitInput,
+  registry: AroraWebModuleRegistry,
+): AroraWebModulePreset {
   const moduleName = config.orchestratorModule ?? "compatibility";
-  const preset = VIZIJ_ORCHESTRATOR_MODULE_PRESETS[moduleName];
+  const registryKey = VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS[moduleName];
+  const registryPreset = modulePresetFromInput(registry[registryKey]);
+  const preset =
+    registryPreset ?? VIZIJ_ORCHESTRATOR_MODULE_PRESETS[moduleName];
   if (!preset) {
     throw new Error(
       `Unsupported aroraWeb orchestratorModule: ${String(moduleName)}`,
@@ -229,6 +268,13 @@ function loadHeaderObjectFromInput(
   if (config.headerJson) {
     return config.headerJson;
   }
+  const presetHeaderJson = preset.headerJson;
+  if (!config.headerUrl && typeof presetHeaderJson === "string") {
+    return parseHeaderJson(presetHeaderJson, "module registry headerJson");
+  }
+  if (!config.headerUrl && isRecord(presetHeaderJson)) {
+    return presetHeaderJson;
+  }
   if (!config.headerUrl && preset.header) {
     return preset.header;
   }
@@ -291,18 +337,268 @@ function functionImports(header: object): AroraHeaderImport[] {
   return importsValue.filter(isRecord) as AroraHeaderImport[];
 }
 
-function moduleRegistry(config: AroraWebInitInput): AroraWebModuleRegistry {
+function preloadPreset(
+  moduleInput: AroraWebPreloadModule,
+): AroraWebModulePreset | null {
+  const presetName =
+    typeof moduleInput === "string" ? moduleInput : moduleInput.preset;
+  if (!presetName) {
+    return null;
+  }
+  const preset = VIZIJ_PRELOAD_MODULE_PRESETS[presetName];
+  if (!preset) {
+    throw new Error(`Unsupported aroraWeb preload module: ${presetName}`);
+  }
+  return preset;
+}
+
+function modulePresetFromInput(
+  moduleInput: AroraWebPreloadModule | undefined,
+): AroraWebModulePreset | null {
+  if (!moduleInput) {
+    return null;
+  }
+  if (typeof moduleInput === "string") {
+    return preloadPreset(moduleInput);
+  }
+  const preset = preloadPreset(moduleInput);
+  return {
+    ...(preset ?? {}),
+    ...moduleInput,
+  };
+}
+
+function isAbsoluteUrl(value: string): boolean {
+  return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value);
+}
+
+function ensureTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value : `${value}/`;
+}
+
+function rootRelativeDirname(value: string): string | null {
+  if (!value.startsWith("/")) {
+    return null;
+  }
+  const index = value.lastIndexOf("/");
+  return index >= 0 ? value.slice(0, index + 1) : "/";
+}
+
+function joinRootRelativeUrl(baseUrl: string, relativeUrl: string): string {
+  return `${ensureTrailingSlash(baseUrl)}${relativeUrl}`;
+}
+
+function browserBaseUrl(): string {
+  return typeof globalThis.location === "undefined"
+    ? "http://localhost/"
+    : globalThis.location.href;
+}
+
+function resolveManifestRelativeUrl(
+  value: string | URL | undefined,
+  manifestUrl: string | URL,
+  manifestBaseUrl?: string | URL,
+): string | URL | undefined {
+  if (!value || value instanceof URL) {
+    return value;
+  }
+  if (value.startsWith("/") || isAbsoluteUrl(value)) {
+    return value;
+  }
+
+  if (manifestBaseUrl) {
+    const baseUrl = String(manifestBaseUrl);
+    if (baseUrl.startsWith("/")) {
+      return joinRootRelativeUrl(baseUrl, value);
+    }
+    if (isAbsoluteUrl(baseUrl)) {
+      return new URL(value, ensureTrailingSlash(baseUrl)).toString();
+    }
+  }
+
+  const manifestUrlText = String(manifestUrl);
+  const rootRelativeBase = rootRelativeDirname(manifestUrlText);
+  if (rootRelativeBase) {
+    return joinRootRelativeUrl(rootRelativeBase, value);
+  }
+  return new URL(value, new URL(manifestUrlText, browserBaseUrl())).toString();
+}
+
+function manifestEntryToArtifact(
+  key: string,
+  value: unknown,
+  manifestUrl: string | URL,
+  manifestBaseUrl?: string | URL,
+): AroraWebModuleArtifact & { id?: string; name?: string } {
+  if (!isRecord(value)) {
+    throw new Error(`Invalid aroraWeb module registry entry for ${key}.`);
+  }
+  const id = stringField(value.id) ?? key;
+  const name = stringField(value.name) ?? undefined;
+  const preset = stringField(value.preset) ?? undefined;
+  const headerUrl = resolveManifestRelativeUrl(
+    stringField(value.headerUrl) ?? undefined,
+    manifestUrl,
+    manifestBaseUrl,
+  );
+  const wasmUrl = resolveManifestRelativeUrl(
+    stringField(value.wasmUrl) ?? undefined,
+    manifestUrl,
+    manifestBaseUrl,
+  );
+  const headerJson = value.headerJson;
+  return {
+    ...(preset ? { preset: preset as AroraWebPreloadModuleName } : {}),
+    ...(typeof headerJson === "string" || isRecord(headerJson)
+      ? { headerJson }
+      : {}),
+    ...(headerUrl ? { headerUrl } : {}),
+    ...(wasmUrl ? { wasmUrl } : {}),
+    ...(id ? { id } : {}),
+    ...(name ? { name } : {}),
+  };
+}
+
+function manifestModuleEntries(
+  manifest: AroraWebModuleRegistryManifest,
+): Array<[string, unknown]> {
+  if (Array.isArray(manifest.modules)) {
+    return manifest.modules.map((entry) => [entry.id, entry]);
+  }
+  if (isRecord(manifest.modules)) {
+    return Object.entries(manifest.modules);
+  }
+  return [];
+}
+
+function moduleRegistryFromManifest(
+  manifest: AroraWebModuleRegistryManifest,
+  manifestUrl: string | URL,
+): AroraWebModuleRegistry {
+  const registry: AroraWebModuleRegistry = {};
+  for (const [key, rawEntry] of manifestModuleEntries(manifest)) {
+    const entry = manifestEntryToArtifact(
+      key,
+      rawEntry,
+      manifestUrl,
+      manifest.baseUrl,
+    );
+    registry[key] = entry;
+    if (entry.id) {
+      registry[entry.id] = entry;
+    }
+    if (entry.name) {
+      registry[entry.name] = entry;
+    }
+  }
+
+  if (isRecord(manifest.orchestrators)) {
+    for (const [alias, moduleId] of Object.entries(manifest.orchestrators)) {
+      if (typeof moduleId !== "string") {
+        continue;
+      }
+      const moduleInput = registry[moduleId];
+      if (moduleInput) {
+        registry[alias] = moduleInput;
+        const registryKey =
+          VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS[
+            alias as AroraWebOrchestratorModule
+          ];
+        if (registryKey) {
+          registry[registryKey] = moduleInput;
+        }
+      }
+    }
+  }
+
+  return registry;
+}
+
+function parseModuleRegistryManifest(
+  manifestJson: string,
+  source: string,
+): AroraWebModuleRegistryManifest {
+  try {
+    const parsed = JSON.parse(manifestJson);
+    if (!isRecord(parsed)) {
+      throw new Error("manifest root is not an object");
+    }
+    return parsed as AroraWebModuleRegistryManifest;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to parse aroraWeb module registry manifest from ${source}: ${detail}`,
+    );
+  }
+}
+
+function shouldLoadModuleRegistryManifest(config: AroraWebInitInput): boolean {
+  if (config.moduleRegistryUrl === false) {
+    return false;
+  }
+  if (config.moduleRegistryUrl !== undefined) {
+    return true;
+  }
+  return (
+    (config.headerJson === undefined && config.headerUrl === undefined) ||
+    (config.wasmBytes === undefined && config.wasmUrl === undefined)
+  );
+}
+
+async function fetchModuleRegistryManifest(
+  config: AroraWebInitInput,
+): Promise<AroraWebModuleRegistry> {
+  if (!shouldLoadModuleRegistryManifest(config)) {
+    return {};
+  }
+  const manifestUrl =
+    config.moduleRegistryUrl ?? DEFAULT_MODULE_REGISTRY_MANIFEST_URL;
+  if (manifestUrl === false) {
+    return {};
+  }
+  const strict = config.moduleRegistryUrl !== undefined;
+  let response: Response;
+  try {
+    response = await fetchImpl(config)(manifestUrl);
+  } catch (err) {
+    if (!strict) {
+      return {};
+    }
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to load aroraWeb module registry manifest: ${detail}`,
+    );
+  }
+  if (!response.ok) {
+    if (!strict && response.status === 404) {
+      return {};
+    }
+    throw new Error(
+      `Failed to load aroraWeb module registry manifest: ${response.status} ${response.statusText}`,
+    );
+  }
+  const manifest = parseModuleRegistryManifest(
+    await response.text(),
+    String(manifestUrl),
+  );
+  return moduleRegistryFromManifest(manifest, manifestUrl);
+}
+
+async function moduleRegistry(
+  config: AroraWebInitInput,
+): Promise<AroraWebModuleRegistry> {
+  const manifestRegistry = await fetchModuleRegistryManifest(config);
   return {
     ...DEFAULT_MODULE_REGISTRY,
+    ...manifestRegistry,
     ...(config.moduleRegistry ?? {}),
   };
 }
 
 function defaultPreloadModulesForHeader(
   header: object,
-  config: AroraWebInitInput,
+  registry: AroraWebModuleRegistry,
 ): AroraWebPreloadModule[] {
-  const registry = moduleRegistry(config);
   const modules: AroraWebPreloadModule[] = [];
   const seen = new Set<string>();
   for (const importValue of functionImports(header)) {
@@ -371,15 +667,21 @@ function resolveDispatchBinding(
 
 async function resolveAroraWebModule(
   config: AroraWebInitInput,
+  registry: AroraWebModuleRegistry,
 ): Promise<ResolvedAroraWebModule> {
-  const preset = selectedModulePreset(config);
+  const preset = selectedModulePreset(config, registry);
   const header = await loadHeaderObject(config, preset);
   const binding = resolveDispatchBinding(header, config);
+  const wasmUrl = config.wasmUrl ?? preset.wasmUrl;
+  if (!wasmUrl) {
+    throw new Error("aroraWeb module needs a wasmUrl or wasmBytes.");
+  }
   return {
     ...binding,
     header,
     headerJson: JSON.stringify(header),
-    wasmUrl: config.wasmUrl ?? preset.wasmUrl,
+    ...(preset.wasmBytes ? { wasmBytes: preset.wasmBytes } : {}),
+    wasmUrl,
   };
 }
 
@@ -389,21 +691,6 @@ type ResolvedAroraWebPreloadModule = {
   wasmBytes?: Uint8Array | ArrayBuffer;
 };
 
-function preloadPreset(
-  moduleInput: AroraWebPreloadModule,
-): AroraWebModulePreset | null {
-  const presetName =
-    typeof moduleInput === "string" ? moduleInput : moduleInput.preset;
-  if (!presetName) {
-    return null;
-  }
-  const preset = VIZIJ_PRELOAD_MODULE_PRESETS[presetName];
-  if (!preset) {
-    throw new Error(`Unsupported aroraWeb preload module: ${presetName}`);
-  }
-  return preset;
-}
-
 async function loadPreloadHeaderObject(
   config: AroraWebInitInput,
   moduleInput: AroraWebPreloadModule,
@@ -412,6 +699,11 @@ async function loadPreloadHeaderObject(
   if (typeof moduleInput === "string") {
     if (preset?.header) {
       return preset.header;
+    }
+    if (preset?.headerJson) {
+      return typeof preset.headerJson === "string"
+        ? parseHeaderJson(preset.headerJson, "preloadModules.headerJson")
+        : preset.headerJson;
     }
     if (preset?.headerUrl) {
       return fetchHeaderObject(
@@ -437,6 +729,11 @@ async function loadPreloadHeaderObject(
       "aroraWeb preload module header",
     );
   }
+  if (preset?.headerJson) {
+    return typeof preset.headerJson === "string"
+      ? parseHeaderJson(preset.headerJson, "preloadModules.headerJson")
+      : preset.headerJson;
+  }
   if (preset?.header) {
     return preset.header;
   }
@@ -455,10 +752,11 @@ async function loadPreloadHeaderObject(
 async function resolvePreloadModules(
   config: AroraWebInitInput,
   selectedHeader: object,
+  registry: AroraWebModuleRegistry,
 ): Promise<ResolvedAroraWebPreloadModule[]> {
   const modules = Array.isArray(config.preloadModules)
     ? config.preloadModules
-    : defaultPreloadModulesForHeader(selectedHeader, config);
+    : defaultPreloadModulesForHeader(selectedHeader, registry);
   const resolved: ResolvedAroraWebPreloadModule[] = [];
   for (const moduleInput of modules) {
     const preset = preloadPreset(moduleInput);
@@ -509,8 +807,9 @@ async function preloadModules(
   engine: AroraWebEngine,
   config: AroraWebInitInput,
   selectedHeader: object,
+  registry: AroraWebModuleRegistry,
 ): Promise<void> {
-  const modules = await resolvePreloadModules(config, selectedHeader);
+  const modules = await resolvePreloadModules(config, selectedHeader, registry);
   for (const moduleConfig of modules) {
     const wasmBytes = await loadWasmBytes(
       config,
@@ -595,11 +894,12 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
     const module = await loadAroraWebModule(config);
     await initAroraWeb(module, defaultAroraWebInitInput(config));
 
-    const selectedModule = await resolveAroraWebModule(config);
+    const registry = await moduleRegistry(config);
+    const selectedModule = await resolveAroraWebModule(config, registry);
     const wasmBytes = await loadWasmBytes(
       config,
       selectedModule.wasmUrl,
-      undefined,
+      selectedModule.wasmBytes,
       {
         useGlobalWasmBytes: true,
       },
@@ -608,7 +908,7 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
       throw new Error("arora-web module does not expose Engine.");
     }
     const engine = new module.Engine();
-    await preloadModules(engine, config, selectedModule.header);
+    await preloadModules(engine, config, selectedModule.header, registry);
     const moduleId = loadModule(engine, selectedModule.headerJson, wasmBytes);
 
     const runtime = new AroraWebOrchestratorRuntime(

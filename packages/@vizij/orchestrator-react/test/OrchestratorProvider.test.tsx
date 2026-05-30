@@ -636,6 +636,175 @@ describe("OrchestratorProvider", () => {
     );
   });
 
+  it("loads the selected module and imported modules from the browser module manifest", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (urlText === "/arora-web/modules/manifest.json") {
+        return jsonResponse({
+          schemaVersion: 1,
+          baseUrl: "/bundle",
+          orchestrators: {
+            composed: COMPOSED_MODULE_ID,
+          },
+          modules: {
+            [COMPOSED_MODULE_ID]: {
+              id: COMPOSED_MODULE_ID,
+              name: "vizij-orchestrator-composed",
+              headerUrl: "composed/module.json",
+              wasmUrl: "composed/composed.wasm",
+            },
+            [VIZIJ_ANIMATION_MODULE_ID]: {
+              id: VIZIJ_ANIMATION_MODULE_ID,
+              name: "vizij-animation",
+              headerUrl: "animation/module.json",
+              wasmUrl: "animation/animation.wasm",
+            },
+            [VIZIJ_NODE_GRAPH_MODULE_ID]: {
+              id: VIZIJ_NODE_GRAPH_MODULE_ID,
+              name: "vizij-node-graph",
+              headerUrl: "node-graph/module.json",
+              wasmUrl: "node-graph/node-graph.wasm",
+            },
+          },
+        });
+      }
+      if (urlText === "/bundle/composed/module.json") {
+        return jsonResponse(COMPOSED_HEADER);
+      }
+      if (urlText === "/bundle/composed/composed.wasm") {
+        return binaryResponse([0]);
+      }
+      if (urlText === "/bundle/animation/module.json") {
+        return jsonResponse(VIZIJ_ANIMATION_HEADER);
+      }
+      if (urlText === "/bundle/animation/animation.wasm") {
+        return binaryResponse([1]);
+      }
+      if (urlText === "/bundle/node-graph/module.json") {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      if (urlText === "/bundle/node-graph/node-graph.wasm") {
+        return binaryResponse([2]);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+
+    await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      "/arora-web/modules/manifest.json",
+      "/bundle/composed/module.json",
+      "/bundle/composed/composed.wasm",
+      "/bundle/animation/module.json",
+      "/bundle/node-graph/module.json",
+      "/bundle/animation/animation.wasm",
+      "/bundle/node-graph/node-graph.wasm",
+    ]);
+    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(3);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(VIZIJ_ANIMATION_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(VIZIJ_NODE_GRAPH_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining(COMPOSED_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+  });
+
+  it("lets explicit module registry entries override browser manifest modules", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (urlText === "/arora-web/modules/manifest.json") {
+        return jsonResponse({
+          schemaVersion: 1,
+          baseUrl: "/bundle",
+          orchestrators: {
+            composed: COMPOSED_MODULE_ID,
+          },
+          modules: {
+            [COMPOSED_MODULE_ID]: {
+              id: COMPOSED_MODULE_ID,
+              name: "vizij-orchestrator-composed",
+              headerUrl: "composed/module.json",
+              wasmUrl: "composed/composed.wasm",
+            },
+            [VIZIJ_ANIMATION_MODULE_ID]: {
+              id: VIZIJ_ANIMATION_MODULE_ID,
+              name: "vizij-animation",
+              headerUrl: "bad-animation/module.json",
+              wasmUrl: "bad-animation/animation.wasm",
+            },
+            [VIZIJ_NODE_GRAPH_MODULE_ID]: {
+              id: VIZIJ_NODE_GRAPH_MODULE_ID,
+              name: "vizij-node-graph",
+              headerUrl: "node-graph/module.json",
+              wasmUrl: "node-graph/node-graph.wasm",
+            },
+          },
+        });
+      }
+      if (urlText === "/bundle/composed/module.json") {
+        return jsonResponse(COMPOSED_HEADER);
+      }
+      if (urlText === "/bundle/composed/composed.wasm") {
+        return binaryResponse([0]);
+      }
+      if (urlText === "/override/animation/module.json") {
+        return jsonResponse(VIZIJ_ANIMATION_HEADER);
+      }
+      if (urlText === "/override/animation/animation.wasm") {
+        return binaryResponse([1]);
+      }
+      if (urlText === "/bundle/node-graph/module.json") {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      if (urlText === "/bundle/node-graph/node-graph.wasm") {
+        return binaryResponse([2]);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+
+    await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      moduleRegistry: {
+        [VIZIJ_ANIMATION_MODULE_ID]: {
+          headerUrl: "/override/animation/module.json",
+          wasmUrl: "/override/animation/animation.wasm",
+        },
+      },
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      "/arora-web/modules/manifest.json",
+      "/bundle/composed/module.json",
+      "/bundle/composed/composed.wasm",
+      "/override/animation/module.json",
+      "/bundle/node-graph/module.json",
+      "/override/animation/animation.wasm",
+      "/bundle/node-graph/node-graph.wasm",
+    ]);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(VIZIJ_ANIMATION_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+  });
+
   it("fails early when an imported module is missing from the registry", async () => {
     const aroraWeb = makeAroraWebModule();
     const unresolvedImportHeader = dispatchHeader({

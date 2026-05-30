@@ -104,6 +104,16 @@ function writeModuleHeader(srcYaml, destJson) {
     parseYaml(fs.readFileSync(srcYaml, "utf8")),
   );
   fs.writeFileSync(destJson, `${JSON.stringify(header, null, 2)}\n`);
+  return header;
+}
+
+function moduleIdForHeader(header, moduleInfo) {
+  if (typeof header?.id !== "string" || header.id.length === 0) {
+    throw new Error(
+      `[prepare-arora-web] ${moduleInfo.packageName} module.yaml does not declare a string id.`,
+    );
+  }
+  return header.id;
 }
 
 if (!fs.existsSync(path.join(ENGINE_ROOT, "crates", "arora-web"))) {
@@ -151,6 +161,16 @@ copyFile(
   path.join(ENGINE_ROOT, "crates", "arora-web", "pkg", "arora_web_bg.wasm"),
   path.join(PUBLIC_ROOT, "pkg", "arora_web_bg.wasm"),
 );
+const moduleManifest = {
+  schemaVersion: 1,
+  baseUrl: "/arora-web",
+  engine: {
+    js: "pkg/arora_web.js",
+    wasm: "pkg/arora_web_bg.wasm",
+  },
+  orchestrators: {},
+  modules: {},
+};
 for (const moduleInfo of VIZIJ_MODULES) {
   copyFile(
     path.join(
@@ -167,10 +187,27 @@ for (const moduleInfo of VIZIJ_MODULES) {
       moduleInfo.wasmFile,
     ),
   );
-  writeModuleHeader(
+  const moduleHeader = writeModuleHeader(
     path.join(ENGINE_ROOT, "modules", moduleInfo.packageName, "module.yaml"),
     path.join(PUBLIC_ROOT, "modules", moduleInfo.publicName, "module.json"),
   );
+  const moduleId = moduleIdForHeader(moduleHeader, moduleInfo);
+  moduleManifest.modules[moduleId] = {
+    id: moduleId,
+    name: moduleInfo.publicName,
+    headerUrl: `modules/${moduleInfo.publicName}/module.json`,
+    wasmUrl: `modules/${moduleInfo.publicName}/${moduleInfo.wasmFile}`,
+  };
+  if (moduleInfo.packageName === "vizij-orchestrator") {
+    moduleManifest.orchestrators.compatibility = moduleId;
+  }
+  if (moduleInfo.packageName === "vizij-orchestrator-composed") {
+    moduleManifest.orchestrators.composed = moduleId;
+  }
 }
+fs.writeFileSync(
+  path.join(PUBLIC_ROOT, "modules", "manifest.json"),
+  `${JSON.stringify(moduleManifest, null, 2)}\n`,
+);
 
 console.log(`[prepare-arora-web] wrote assets to ${PUBLIC_ROOT}`);
