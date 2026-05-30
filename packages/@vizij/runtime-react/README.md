@@ -200,6 +200,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 - `namespace`, `faceId`: override resolved ids without mutating the incoming bundle
 - `updateTier`: `"auto"` (default), `"assets"`, or `"graphs"`
 - `autoCreate`, `createOptions`: forwarded to orchestrator creation when this provider owns the orchestrator
+- `orchestratorBackend`, `orchestratorInitInput`: choose the orchestrator backend and backend init options
 - `autostart`: start the runtime loop automatically after registration
 - `driveOrchestrator`: whether this runtime instance should call `step()` during its loop
 - `mergeStrategy`: forwarded to graph/animation registration
@@ -211,6 +212,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 ### Important runtime flags
 
 - `autostart` controls whether the orchestrator begins stepping automatically once ready.
+- `orchestratorBackend="aroraWeb"` defaults to the composed Arora module path and preloads the independent `vizij-animation` and `vizij-node-graph` modules. Pass `orchestratorInitInput={{ orchestratorModule: "compatibility" }}` to use the compatibility Arora module, or pass custom `preloadModules` when you need to override the default composed module list.
 - `driveOrchestrator={false}` is useful for non-driver faces in shared-orchestrator layouts.
 - `orchestratorScope="shared"` is the strict mode for apps that expect an outer `OrchestratorProvider`.
 - `transformOutputWrite` is the hook to remap or suppress specific runtime outputs before they update renderer state.

@@ -51,6 +51,7 @@ import {
   clearRuntimeDebugState,
   setRuntimeDebugState,
 } from "./memoryInvestigation";
+import { resolveVizijOrchestratorInitInput } from "./orchestratorInit";
 import {
   applyRuntimeGraphBundle,
   resolveRuntimeUpdatePlan,
@@ -260,7 +261,10 @@ export function VizijRuntimeProvider({
       autoCreate={autoCreate}
       createOptions={createOptions}
       backend={orchestratorBackend}
-      initInput={orchestratorInitInput}
+      initInput={resolveVizijOrchestratorInitInput(
+        orchestratorBackend,
+        orchestratorInitInput,
+      )}
       autostart={false}
     >
       {runtimeTree}

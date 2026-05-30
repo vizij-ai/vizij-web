@@ -395,7 +395,12 @@ async function resolvePreloadModules(
 ): Promise<ResolvedAroraWebPreloadModule[]> {
   const modules = Array.isArray(config.preloadModules)
     ? config.preloadModules
-    : [];
+    : config.orchestratorModule === "composed"
+      ? ([
+          "vizij-animation",
+          "vizij-node-graph",
+        ] satisfies AroraWebPreloadModule[])
+      : [];
   const resolved: ResolvedAroraWebPreloadModule[] = [];
   for (const moduleInput of modules) {
     const preset = preloadPreset(moduleInput);

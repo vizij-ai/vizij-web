@@ -244,6 +244,13 @@ function jsonResponse(value: unknown): Response {
   });
 }
 
+function binaryResponse(value: number[]): Response {
+  return new Response(new Uint8Array(value), {
+    status: 200,
+    headers: { "Content-Type": "application/wasm" },
+  });
+}
+
 vi.mock("@vizij/orchestrator-wasm", async () => {
   const actual = await vi.importActual<
     typeof import("@vizij/orchestrator-wasm")
@@ -427,18 +434,60 @@ describe("OrchestratorProvider", () => {
     expect(normalizeDispatch?.runtimeHandle).toBe("runtime:0");
   });
 
-  it("can select the composed arora-web orchestrator module", async () => {
+  it("preloads the independent Vizij modules by default for the composed arora-web orchestrator", async () => {
     const aroraWeb = makeAroraWebModule();
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (
+        urlText.includes("vizij-animation") &&
+        urlText.endsWith("module.json")
+      ) {
+        return jsonResponse(VIZIJ_ANIMATION_HEADER);
+      }
+      if (
+        urlText.includes("vizij-node-graph") &&
+        urlText.endsWith("module.json")
+      ) {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      if (
+        urlText.includes("vizij-animation") &&
+        urlText.endsWith("vizij_animation.wasm")
+      ) {
+        return binaryResponse([1]);
+      }
+      if (
+        urlText.includes("vizij-node-graph") &&
+        urlText.endsWith("vizij_node_graph.wasm")
+      ) {
+        return binaryResponse([2]);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
     const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
       aroraWeb,
       orchestratorModule: "composed",
       headerJson: COMPOSED_HEADER,
+      fetch: fetch as unknown as typeof globalThis.fetch,
       wasmBytes: new Uint8Array([0]),
     });
 
     runtime.step(1 / 60);
 
-    expect(aroraWeb.loadModule).toHaveBeenCalledWith(
+    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(VIZIJ_ANIMATION_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(VIZIJ_NODE_GRAPH_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      3,
       expect.stringContaining(COMPOSED_MODULE_ID),
       expect.any(Uint8Array),
     );
