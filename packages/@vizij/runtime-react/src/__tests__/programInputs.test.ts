@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveProgramInputSeedValues } from "../VizijRuntimeProvider";
+import { deriveProgramInputSeedValues } from "../studioSupport";
 import type { VizijProgramAsset } from "../types";
 
 function makeProgram(path: string): VizijProgramAsset {
