@@ -60,6 +60,7 @@ export type {
   AnimateValueOptions,
   PlayAnimationOptions,
   AnimationPlaybackState,
+  AnimationTransportMode,
   StopProgramOptions,
   ProgramPlaybackState,
   InputDriverFactory,

@@ -168,6 +168,7 @@ export type AnimationRegistrationConfig = Omit<
 };
 
 export type OrchestratorReactCtx = {
+  backend: OrchestratorBackend;
   ready: boolean;
   createOrchestrator: (opts?: CreateOrchOptions) => Promise<void>;
   registerGraph: (cfg: GraphRegistrationInput) => ControllerId;

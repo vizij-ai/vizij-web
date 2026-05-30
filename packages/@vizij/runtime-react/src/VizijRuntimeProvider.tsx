@@ -91,6 +91,14 @@ import {
   diffAnimationAggregateValues,
   sampleAnimationClipOutputValues,
 } from "./utils/animationBridge";
+import {
+  buildAnimationControllerCommandPath,
+  buildAnimationControllerPlayInputs,
+  prepareAnimationRegistrationForTransport,
+  resolveAnimationTransportMode,
+  resolveProviderAnimationBackend,
+  type ResolvedAnimationTransportMode,
+} from "./utils/animationTransport";
 import { valueJSONToRaw } from "./utils/valueConversion";
 
 export {
@@ -212,6 +220,7 @@ export function VizijRuntimeProvider({
   onStatusChange,
   transformOutputWrite,
   orchestratorScope = "auto",
+  animationTransport = "auto",
 }: ProviderProps) {
   const storeRef = useRef<VizijStore | null>(null);
   if (!storeRef.current) {
@@ -230,6 +239,12 @@ export function VizijRuntimeProvider({
     );
   }
 
+  const animationTransportBackend = resolveProviderAnimationBackend({
+    providerBackend: orchestratorBackend,
+    parentBackend: parentOrchestrator?.backend,
+    providesOrchestrator: shouldProvideOrchestrator,
+  });
+
   const runtimeTree = (
     <VizijContext.Provider value={storeRef.current}>
       <VizijRuntimeProviderInner
@@ -240,6 +255,10 @@ export function VizijRuntimeProvider({
         autoCreate={autoCreate}
         autostart={autostart}
         driveOrchestrator={driveOrchestrator}
+        animationTransport={resolveAnimationTransportMode(
+          animationTransport,
+          animationTransportBackend,
+        )}
         createOptions={createOptions}
         mergeStrategy={mergeStrategy}
         onRegisterControllers={onRegisterControllers}
@@ -289,6 +308,7 @@ type VizijRuntimeProviderInnerProps = {
   autostart: boolean;
   createOptions?: CreateOrchOptions;
   driveOrchestrator: boolean;
+  animationTransport: ResolvedAnimationTransportMode;
 };
 
 function VizijRuntimeProviderInner({
@@ -306,6 +326,7 @@ function VizijRuntimeProviderInner({
   autostart,
   createOptions,
   driveOrchestrator,
+  animationTransport,
 }: VizijRuntimeProviderInnerProps) {
   const [assetBundleOverride, setAssetBundleOverride] =
     useState<VizijAssetBundle | null>(null);
@@ -432,10 +453,13 @@ function VizijRuntimeProviderInner({
   const namespacedOutputPathsRef = useRef<Set<string>>(new Set());
   const namespaceRef = useRef(namespace);
   const driveOrchestratorRef = useRef(driveOrchestrator);
+  const animationTransportRef =
+    useRef<ResolvedAnimationTransportMode>(animationTransport);
   const rigInputMapRef = useRef<Record<string, string>>({});
   const rigPoseControlInputIdsRef = useRef<Set<string>>(new Set());
   const registeredGraphsRef = useRef<string[]>([]);
   const registeredAnimationsRef = useRef<string[]>([]);
+  const animationControllerIdsRef = useRef<Map<string, string>>(new Map());
   const mergedGraphRef = useRef<string | null>(null);
   const poseControlBridgeValuesRef = useRef<Map<string, number>>(new Map());
   const poseWeightFallbackMap = useMemo(() => {
@@ -765,6 +789,7 @@ function VizijRuntimeProviderInner({
     });
     registeredGraphsRef.current = [];
     registeredAnimationsRef.current = [];
+    animationControllerIdsRef.current.clear();
     programControllerIdsRef.current.clear();
     mergedGraphRef.current = null;
     outputPathsRef.current = new Set();
@@ -787,6 +812,10 @@ function VizijRuntimeProviderInner({
   useEffect(() => {
     driveOrchestratorRef.current = driveOrchestrator;
   }, [driveOrchestrator]);
+
+  useEffect(() => {
+    animationTransportRef.current = animationTransport;
+  }, [animationTransport]);
 
   const glbAsset = effectiveAssetBundle.glb;
   const baseBundle: VizijBundleExtension | null =
@@ -934,6 +963,7 @@ function VizijRuntimeProviderInner({
         hasPose: Boolean(assetBundle.pose?.graph),
         animationCount: assetBundle.animations?.length ?? 0,
         animationIds: (assetBundle.animations ?? []).map((anim) => anim.id),
+        animationTransport,
         namespace,
       });
     }
@@ -1028,10 +1058,17 @@ function VizijRuntimeProviderInner({
     }
 
     const animationIds: string[] = [];
+    const animationControllerIds = new Map<string, string>();
     for (const registration of plan.animationRegistrations) {
       try {
-        const id = registerAnimation(registration.config);
+        const id = registerAnimation(
+          prepareAnimationRegistrationForTransport(
+            registration.config,
+            animationTransport,
+          ),
+        );
         animationIds.push(id);
+        animationControllerIds.set(registration.assetId, id);
       } catch (err: unknown) {
         if (isRuntimeDebugEnabled()) {
           console.warn("[vizij-runtime] failed animation registration", {
@@ -1049,6 +1086,7 @@ function VizijRuntimeProviderInner({
     }
 
     registeredAnimationsRef.current = animationIds;
+    animationControllerIdsRef.current = animationControllerIds;
 
     if (assetBundle.initialInputs) {
       Object.entries(assetBundle.initialInputs).forEach(([path, value]) => {
@@ -1082,6 +1120,7 @@ function VizijRuntimeProviderInner({
     onRegisterControllers?.(controllers);
   }, [
     assetBundle,
+    animationTransport,
     clearControllers,
     faceId,
     listControllers,
@@ -1347,6 +1386,62 @@ function VizijRuntimeProviderInner({
     [removeInput],
   );
 
+  const pulseAnimationControllerInputs = useCallback(
+    (
+      id: string,
+      inputs: Array<{ path: string; value: ValueJSON }>,
+    ): boolean => {
+      const controllerId = animationControllerIdsRef.current.get(id);
+      if (!controllerId || inputs.length === 0) {
+        return false;
+      }
+      try {
+        inputs.forEach(({ path, value }) => {
+          orchestratorSetInput(path, value);
+        });
+        stepRuntime(0);
+      } catch (err: unknown) {
+        pushError({
+          message: `Failed to stage animation command for ${id}`,
+          cause: err,
+          phase: "animation",
+          timestamp: performance.now(),
+        });
+        return false;
+      } finally {
+        inputs.forEach(({ path }) => {
+          try {
+            removeInput(path);
+          } catch {
+            // Best-effort cleanup; the command step above is the source of truth.
+          }
+        });
+      }
+      return true;
+    },
+    [orchestratorSetInput, pushError, removeInput, stepRuntime],
+  );
+
+  const pulseAnimationControllerCommands = useCallback(
+    (
+      id: string,
+      commands: Array<{ action: string; value: ValueJSON }>,
+    ): boolean => {
+      const controllerId = animationControllerIdsRef.current.get(id);
+      if (!controllerId) {
+        return false;
+      }
+      return pulseAnimationControllerInputs(
+        id,
+        commands.map(({ action, value }) => ({
+          path: buildAnimationControllerCommandPath(controllerId, action),
+          value,
+        })),
+      );
+    },
+    [pulseAnimationControllerInputs],
+  );
+
   const buildClipOutputValues = useCallback(
     (
       clip: VizijAnimationAsset,
@@ -1476,6 +1571,8 @@ function VizijRuntimeProviderInner({
       if (clipPlaybackRef.current.size === 0) {
         return;
       }
+      const hostOwnsClipOutputs =
+        animationTransportRef.current !== "orchestrator";
       const toDelete: string[] = [];
       clipPlaybackRef.current.forEach((state, key) => {
         const clip = resolveClipById(state.id);
@@ -1502,7 +1599,7 @@ function VizijRuntimeProviderInner({
         );
         state.time = clampAnimationTime(time, state.duration);
 
-        if (state.playing || completed) {
+        if (hostOwnsClipOutputs && (state.playing || completed)) {
           writeClipOutputs(clip, state);
         }
 
@@ -1514,7 +1611,7 @@ function VizijRuntimeProviderInner({
 
       toDelete.forEach((key) => {
         clipPlaybackRef.current.delete(key);
-        if (animationSystemActiveRef.current) {
+        if (hostOwnsClipOutputs && animationSystemActiveRef.current) {
           clearClipOutputs(key);
         }
       });
@@ -1633,7 +1730,23 @@ function VizijRuntimeProviderInner({
 
       const completion = ensureClipPromise(state);
       clipPlaybackRef.current.set(id, state);
-      writeClipOutputs(clip, state);
+      if (
+        animationTransportRef.current === "orchestrator" &&
+        animationControllerIdsRef.current.has(id)
+      ) {
+        const controllerId = animationControllerIdsRef.current.get(id)!;
+        pulseAnimationControllerInputs(
+          id,
+          buildAnimationControllerPlayInputs(controllerId, {
+            reset: shouldReset,
+            loop: state.loop,
+            speed: state.speed,
+            weight: state.weight,
+          }),
+        );
+      } else {
+        writeClipOutputs(clip, state);
+      }
       markActivity();
       return completion;
     },
@@ -1641,6 +1754,7 @@ function VizijRuntimeProviderInner({
       ensureClipPlaybackState,
       ensureClipPromise,
       markActivity,
+      pulseAnimationControllerInputs,
       resolveClipPromise,
       writeClipOutputs,
     ],
@@ -1653,9 +1767,17 @@ function VizijRuntimeProviderInner({
         return;
       }
       state.playing = false;
+      if (
+        animationTransportRef.current === "orchestrator" &&
+        animationControllerIdsRef.current.has(id)
+      ) {
+        pulseAnimationControllerCommands(id, [
+          { action: "pause", value: { bool: true } },
+        ]);
+      }
       updateLoopMode();
     },
-    [updateLoopMode],
+    [pulseAnimationControllerCommands, updateLoopMode],
   );
 
   const seekAnimation = useCallback(
@@ -1667,9 +1789,22 @@ function VizijRuntimeProviderInner({
       const { clip, state } = ensured;
       state.time = clampAnimationTime(timeSeconds, state.duration);
       clipPlaybackRef.current.set(id, state);
-      writeClipOutputs(clip, state, { immediate: true });
+      if (
+        animationTransportRef.current === "orchestrator" &&
+        animationControllerIdsRef.current.has(id)
+      ) {
+        pulseAnimationControllerCommands(id, [
+          { action: "seek", value: { float: state.time } },
+        ]);
+      } else {
+        writeClipOutputs(clip, state, { immediate: true });
+      }
     },
-    [ensureClipPlaybackState, writeClipOutputs],
+    [
+      ensureClipPlaybackState,
+      pulseAnimationControllerCommands,
+      writeClipOutputs,
+    ],
   );
 
   const setAnimationLoop = useCallback(
@@ -1680,9 +1815,17 @@ function VizijRuntimeProviderInner({
       }
       ensured.state.loop = Boolean(enabled);
       clipPlaybackRef.current.set(id, ensured.state);
+      if (
+        animationTransportRef.current === "orchestrator" &&
+        animationControllerIdsRef.current.has(id)
+      ) {
+        pulseAnimationControllerCommands(id, [
+          { action: "set_loop", value: enabled ? "loop" : "once" },
+        ]);
+      }
       updateLoopMode();
     },
-    [ensureClipPlaybackState, updateLoopMode],
+    [ensureClipPlaybackState, pulseAnimationControllerCommands, updateLoopMode],
   );
 
   const getAnimationState = useCallback(
@@ -1710,12 +1853,24 @@ function VizijRuntimeProviderInner({
         state.playing = false;
         resolveClipPromise(state);
       }
-      if (options?.clearOutputs !== false) {
+      const orchestratorOwnsAnimation =
+        animationTransportRef.current === "orchestrator" &&
+        animationControllerIdsRef.current.has(id);
+      if (orchestratorOwnsAnimation) {
+        pulseAnimationControllerCommands(id, [
+          { action: "stop", value: { bool: true } },
+        ]);
+      } else if (options?.clearOutputs !== false) {
         clearClipOutputs(id);
       }
       updateLoopMode();
     },
-    [clearClipOutputs, resolveClipPromise, updateLoopMode],
+    [
+      clearClipOutputs,
+      pulseAnimationControllerCommands,
+      resolveClipPromise,
+      updateLoopMode,
+    ],
   );
 
   const refreshControllerStatus = useCallback(() => {
@@ -2162,6 +2317,7 @@ function VizijRuntimeProviderInner({
     return () => {
       animationTweensRef.current.clear();
       clipPlaybackRef.current.clear();
+      animationControllerIdsRef.current.clear();
       programPlaybackRef.current.clear();
       programControllerIdsRef.current.clear();
       clipOutputValuesRef.current.clear();

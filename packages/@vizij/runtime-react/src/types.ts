@@ -87,6 +87,10 @@ export type PlayAnimationOptions = {
 };
 
 export type StopAnimationOptions = {
+  /**
+   * Host transport removes sampled clip inputs. Orchestrator transport delegates
+   * stop/reset semantics to the animation controller instead of deleting output paths.
+   */
   clearOutputs?: boolean;
 };
 
@@ -97,6 +101,8 @@ export type AnimationPlaybackState = {
   loop: boolean;
   speed: number;
 };
+
+export type AnimationTransportMode = "auto" | "host" | "orchestrator";
 
 export type StopProgramOptions = {
   resetOutputs?: boolean;
@@ -193,6 +199,11 @@ export type VizijRuntimeProviderProps = {
   orchestratorInitInput?: InitInput;
   autostart?: boolean;
   driveOrchestrator?: boolean;
+  /**
+   * Selects the animation playback authority. `auto` uses the orchestrator for
+   * Arora web backends and preserves host-side clip sampling elsewhere.
+   */
+  animationTransport?: AnimationTransportMode;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;

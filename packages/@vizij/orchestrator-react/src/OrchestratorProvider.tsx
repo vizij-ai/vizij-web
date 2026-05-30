@@ -504,6 +504,7 @@ export function OrchestratorProvider({
 
   const contextValue = useMemo<OrchestratorReactCtx>(
     () => ({
+      backend,
       ready,
       createOrchestrator: createOrchestratorFn,
       registerGraph,
@@ -525,6 +526,7 @@ export function OrchestratorProvider({
       abiVersion,
     }),
     [
+      backend,
       ready,
       createOrchestratorFn,
       registerGraph,
