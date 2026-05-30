@@ -91,6 +91,9 @@ const VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS: Record<
   composed: "vizij-orchestrator-composed",
 };
 
+const DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE: AroraWebOrchestratorModule =
+  "composed";
+
 const VIZIJ_ORCHESTRATOR_MODULE_PRESETS: Record<
   AroraWebOrchestratorModule,
   AroraWebModulePreset
@@ -157,7 +160,8 @@ function selectedModulePreset(
   config: AroraWebInitInput,
   registry: AroraWebModuleRegistry,
 ): AroraWebModulePreset {
-  const moduleName = config.orchestratorModule ?? "compatibility";
+  const moduleName =
+    config.orchestratorModule ?? DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE;
   const registryKey = VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS[moduleName];
   const registryPreset = modulePresetFromInput(registry[registryKey]);
   const preset =

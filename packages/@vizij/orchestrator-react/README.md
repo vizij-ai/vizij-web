@@ -153,7 +153,7 @@ If you override `init()` with a custom wasm location, prefer string URLs (`init(
 - `createOptions` – Options passed to `createOrchestrator` (e.g., `{ schedule: "TwoPass" }`).
 - `autostart` – When `true`, kicks off an `requestAnimationFrame` loop stepping the orchestrator every frame.
 - `backend="aroraWeb"` – Runs the shared module-facade contract through `arora-web.Engine`.
-  Pass `initInput={{ orchestratorModule: "composed" }}` to load the composed Arora module, or omit it to keep the compatibility module default.
+  The composed Arora module is the default; pass `initInput={{ orchestratorModule: "compatibility" }}` to use the compatibility module instead.
   By default, dependency preloads are derived from the selected module header's `imports` and resolved through a module registry. The built-in registry covers the independent `vizij-animation` and `vizij-node-graph` modules declared by the composed manifest, `moduleRegistryUrl` can point at a browser artifact manifest such as `/arora-web/modules/manifest.json`, and `moduleRegistry` can add custom module ids/URLs/bytes. Pass `preloadModules` only when you need to override header-derived dependency loading entirely.
 
 ### Context Surface

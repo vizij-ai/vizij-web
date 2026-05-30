@@ -401,6 +401,7 @@ describe("OrchestratorProvider", () => {
         backend="aroraWeb"
         initInput={{
           aroraWeb,
+          orchestratorModule: "compatibility",
           headerJson: COMPATIBILITY_HEADER,
           wasmBytes: new Uint8Array([0]),
         }}
@@ -636,7 +637,7 @@ describe("OrchestratorProvider", () => {
     );
   });
 
-  it("loads the selected module and imported modules from the browser module manifest", async () => {
+  it("loads the composed module by default with imported modules from the browser module manifest", async () => {
     const aroraWeb = makeAroraWebModule();
     const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
       const urlText = String(url);
@@ -692,7 +693,6 @@ describe("OrchestratorProvider", () => {
 
     await AroraWebOrchestratorRuntime.create(undefined, {
       aroraWeb,
-      orchestratorModule: "composed",
       fetch: fetch as unknown as typeof globalThis.fetch,
     });
 
