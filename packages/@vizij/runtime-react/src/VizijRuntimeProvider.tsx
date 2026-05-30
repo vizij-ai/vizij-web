@@ -24,14 +24,12 @@ import {
   type MergeStrategyOptions,
   type ValueJSON,
   type ShapeJSON,
-  type ControllerId,
 } from "@vizij/orchestrator-react";
 import {
   convertBundlePrograms,
   convertExtractedAnimations,
   deriveProgramInputSeedValues,
   deriveProgramResetValues,
-  namespaceControllerId,
   namespaceTypedPath,
   normalisePath,
   pickExtractedAnimations,
@@ -43,6 +41,11 @@ import {
 import { valueAsNumber } from "@vizij/value-json";
 import { type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
+import {
+  clearRuntimeControllers,
+  registerRuntimeControllers,
+  type RuntimeControllerHostError,
+} from "./host/controllerRegistration";
 import { prepareRuntimeFrameWrites } from "./host/frameWrites";
 import {
   clearRuntimeDebugState,
@@ -91,7 +94,6 @@ import {
 import {
   buildAnimationControllerCommandPath,
   buildAnimationControllerPlayInputs,
-  prepareAnimationRegistrationForTransport,
   resolveAnimationTransportMode,
   resolveProviderAnimationBackend,
   type ResolvedAnimationTransportMode,
@@ -722,6 +724,16 @@ function VizijRuntimeProviderInner({
     [reportStatus],
   );
 
+  const pushHostError = useCallback(
+    (error: RuntimeControllerHostError) => {
+      pushError({
+        ...error,
+        timestamp: performance.now(),
+      });
+    },
+    [pushError],
+  );
+
   const resetErrors = useCallback(() => {
     errorsRef.current = [];
     reportStatus((prev) => ({
@@ -737,30 +749,15 @@ function VizijRuntimeProviderInner({
   }, [autostart, updateLoopMode]);
 
   const clearControllers = useCallback(() => {
-    const existing = listControllers();
-    existing.graphs.forEach((id: ControllerId) => {
-      try {
-        removeGraph(id);
-      } catch (err: unknown) {
-        pushError({
-          message: `Failed to remove graph ${id}`,
-          cause: err,
-          phase: "registration",
-          timestamp: performance.now(),
-        });
-      }
+    const result = clearRuntimeControllers({
+      host: {
+        listControllers,
+        removeGraph,
+        removeAnimation,
+      },
     });
-    existing.anims.forEach((id: ControllerId) => {
-      try {
-        removeAnimation(id);
-      } catch (err: unknown) {
-        pushError({
-          message: `Failed to remove animation ${id}`,
-          cause: err,
-          phase: "registration",
-          timestamp: performance.now(),
-        });
-      }
+    result.errors.forEach((error) => {
+      pushHostError(error);
     });
     registeredGraphsRef.current = [];
     registeredAnimationsRef.current = [];
@@ -776,7 +773,7 @@ function VizijRuntimeProviderInner({
     rigPoseControlInputIdsRef.current = new Set();
     clipOutputValuesRef.current.clear();
     clipAggregateValuesRef.current.clear();
-  }, [listControllers, removeAnimation, removeGraph, pushError]);
+  }, [listControllers, removeAnimation, removeGraph, pushHostError]);
 
   useEffect(() => {
     namespaceRef.current = namespace;
@@ -972,29 +969,15 @@ function VizijRuntimeProviderInner({
       }
     });
 
-    rigInputMapRef.current = plan.rigInputMap;
-    rigPoseControlInputIdsRef.current = new Set(plan.rigPoseControlInputIds);
-    inputConstraintsRef.current = plan.inputConstraints;
-    setInputConstraints(plan.inputConstraints);
-    programRegistrationMapRef.current = new Map(
-      plan.programRegistrations.map((registration) => [
-        registration.assetId,
-        registration,
-      ]),
-    );
-    outputPathsRef.current = new Set(plan.outputPaths);
-    baseOutputPathsRef.current = new Set(plan.baseOutputPaths);
-    namespacedOutputPathsRef.current = new Set(plan.namespacedOutputPaths);
-
     if (isRuntimeDebugEnabled()) {
-      const blinkKeys = Object.keys(rigInputMapRef.current).filter((key) =>
+      const blinkKeys = Object.keys(plan.rigInputMap).filter((key) =>
         key.toLowerCase().includes("blink"),
       );
       const blinkMappings = blinkKeys
         .slice(0, 20)
-        .map((key) => `${key} => ${rigInputMapRef.current[key] ?? "?"}`);
+        .map((key) => `${key} => ${plan.rigInputMap[key] ?? "?"}`);
       console.log("[vizij-runtime] rig input map sample", {
-        blink: rigInputMapRef.current["blink"] ?? null,
+        blink: plan.rigInputMap["blink"] ?? null,
         blinkKeys: blinkKeys.slice(0, 12),
         blinkMappings: blinkMappings.join(" | "),
       });
@@ -1007,103 +990,66 @@ function VizijRuntimeProviderInner({
       });
     }
 
-    const graphIds: string[] = [];
-
-    try {
-      if (plan.graphConfigs.length > 1) {
-        const mergedId = registerMergedGraph({
-          id:
-            namespaceControllerId(
-              mergedGraphRef.current ?? `merged-${namespace}`,
-              namespace,
-              "merged",
-            ) ?? undefined,
-          graphs: plan.graphConfigs,
-          strategy: mergeStrategy ?? DEFAULT_MERGE,
-        });
-        mergedGraphRef.current = mergedId;
-        graphIds.push(mergedId);
-      } else {
-        plan.graphConfigs.forEach((cfg) => {
-          const id = registerGraph(cfg);
-          graphIds.push(id);
+    const result = registerRuntimeControllers({
+      host: {
+        registerGraph,
+        registerMergedGraph,
+        registerAnimation,
+        setInput,
+        listControllers,
+      },
+      plan,
+      namespace,
+      mergeStrategy,
+      defaultMergeStrategy: DEFAULT_MERGE,
+      animationTransport,
+      initialInputs: assetBundle.initialInputs,
+      previousMergedGraphId: mergedGraphRef.current,
+    });
+    result.errors.forEach((error) => {
+      if (isRuntimeDebugEnabled() && error.phase === "animation") {
+        console.warn("[vizij-runtime] failed animation registration", {
+          message: error.message,
+          error:
+            error.cause instanceof Error
+              ? error.cause.message
+              : String(error.cause),
         });
       }
-    } catch (err: unknown) {
-      pushError({
-        message: "Failed to register rig graphs",
-        cause: err,
-        phase: "registration",
-        timestamp: performance.now(),
-      });
-    }
+      pushHostError(error);
+    });
 
-    registeredGraphsRef.current = graphIds;
+    rigInputMapRef.current = result.rigInputMap;
+    rigPoseControlInputIdsRef.current = result.rigPoseControlInputIds;
+    inputConstraintsRef.current = result.inputConstraints;
+    setInputConstraints(result.inputConstraints);
+    programRegistrationMapRef.current = result.programRegistrationMap;
+    outputPathsRef.current = result.outputPaths;
+    baseOutputPathsRef.current = result.baseOutputPaths;
+    namespacedOutputPathsRef.current = result.namespacedOutputPaths;
+    mergedGraphRef.current = result.mergedGraphId;
+    registeredGraphsRef.current = result.graphIds;
     if (isRuntimeDebugEnabled()) {
-      console.log("[vizij-runtime] registered graph ids", graphIds);
+      console.log("[vizij-runtime] registered graph ids", result.graphIds);
     }
 
-    const animationIds: string[] = [];
-    const animationControllerIds = new Map<string, string>();
-    for (const registration of plan.animationRegistrations) {
-      try {
-        const id = registerAnimation(
-          prepareAnimationRegistrationForTransport(
-            registration.config,
-            animationTransport,
-          ),
-        );
-        animationIds.push(id);
-        animationControllerIds.set(registration.assetId, id);
-      } catch (err: unknown) {
-        if (isRuntimeDebugEnabled()) {
-          console.warn("[vizij-runtime] failed animation registration", {
-            animationId: registration.assetId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-        pushError({
-          message: `Failed to register animation ${registration.assetId}`,
-          cause: err,
-          phase: "animation",
-          timestamp: performance.now(),
-        });
-      }
-    }
+    registeredAnimationsRef.current = result.animationIds;
+    animationControllerIdsRef.current = result.animationControllerIds;
 
-    registeredAnimationsRef.current = animationIds;
-    animationControllerIdsRef.current = animationControllerIds;
-
-    if (assetBundle.initialInputs) {
-      Object.entries(assetBundle.initialInputs).forEach(([path, value]) => {
-        try {
-          setInput(path, value);
-        } catch (err: unknown) {
-          pushError({
-            message: `Failed to stage initial input ${path}`,
-            cause: err,
-            phase: "registration",
-            timestamp: performance.now(),
-          });
-        }
-      });
-    }
-
-    const controllers = listControllers();
     if (isRuntimeDebugEnabled()) {
       console.log("[vizij-runtime] controllers after register", {
-        controllers,
-        graphIds,
-        animationIds,
+        controllers: result.controllers,
+        graphIds: result.graphIds,
+        animationIds: result.animationIds,
       });
     }
     reportStatus((prev) => ({
       ...prev,
       ready: true,
-      controllers,
+      controllers: result.controllers,
       outputPaths: Array.from(outputPathsRef.current),
     }));
-    onRegisterControllers?.(controllers);
+    onRegisterControllers?.(result.controllers);
   }, [
     assetBundle,
     animationTransport,
@@ -1114,6 +1060,7 @@ function VizijRuntimeProviderInner({
     namespace,
     onRegisterControllers,
     pushError,
+    pushHostError,
     registerAnimation,
     registerGraph,
     registerMergedGraph,
