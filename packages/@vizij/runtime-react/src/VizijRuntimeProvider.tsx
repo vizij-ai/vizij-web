@@ -21,32 +21,29 @@ import {
   useOrchestrator,
   useOrchFrame,
   type CreateOrchOptions,
-  type GraphRegistrationConfig,
   type MergeStrategyOptions,
   type ValueJSON,
   type ShapeJSON,
   type ControllerId,
-  type WriteOp,
 } from "@vizij/orchestrator-react";
 import {
-  buildGraphRegistrationConfig,
-  collectOutputPaths,
   convertBundlePrograms,
   convertExtractedAnimations,
   deriveProgramInputSeedValues,
-  extractInputConstraints,
+  deriveProgramResetValues,
   namespaceControllerId,
   namespaceTypedPath,
   normalisePath,
   pickExtractedAnimations,
   prepareRuntimeRegistrationPlan,
   prepareRuntimeAssetBundle,
-  resolveGraphSpec,
   stripNamespace,
+  type RuntimeProgramRegistrationSupportResult,
 } from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
-import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
+import { type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
+import { prepareRuntimeFrameWrites } from "./host/frameWrites";
 import {
   clearRuntimeDebugState,
   setRuntimeDebugState,
@@ -99,7 +96,6 @@ import {
   resolveProviderAnimationBackend,
   type ResolvedAnimationTransportMode,
 } from "./utils/animationTransport";
-import { valueJSONToRaw } from "./utils/valueConversion";
 
 export {
   deriveProgramInputSeedValues,
@@ -511,6 +507,9 @@ function VizijRuntimeProviderInner({
   const programPlaybackRef = useRef<Map<string, ProgramTransportState>>(
     new Map(),
   );
+  const programRegistrationMapRef = useRef<
+    Map<string, RuntimeProgramRegistrationSupportResult>
+  >(new Map());
   const programControllerIdsRef = useRef<Map<string, string>>(new Map());
   const clipOutputValuesRef = useRef<Map<string, Map<string, number>>>(
     new Map(),
@@ -588,30 +587,6 @@ function VizijRuntimeProviderInner({
       clearRuntimeDebugState(runtimeDebugInstanceIdRef.current);
     };
   }, [publishRuntimeDebugState, store]);
-
-  useEffect(() => {
-    const rigAsset = assetBundle.rig;
-    if (!rigAsset) {
-      inputConstraintsRef.current = {};
-      setInputConstraints({});
-      return;
-    }
-
-    const rigSpec = resolveGraphSpec(
-      rigAsset,
-      `${rigAsset.id ?? "rig"} graph (constraints)`,
-    );
-
-    const constraints = extractInputConstraints(
-      rigSpec as GraphRegistrationConfig["spec"],
-      rigAsset.inputMetadata,
-      namespace,
-    );
-    inputConstraintsRef.current = constraints;
-    setInputConstraints(constraints);
-
-    // Intentionally no logging here to keep runtime console quiet.
-  }, [assetBundle.rig, namespace]);
 
   const requestLoopMode = useCallback((mode: LoopMode) => {
     if (!runtimeMountedRef.current) {
@@ -790,11 +765,14 @@ function VizijRuntimeProviderInner({
     registeredGraphsRef.current = [];
     registeredAnimationsRef.current = [];
     animationControllerIdsRef.current.clear();
+    programRegistrationMapRef.current.clear();
     programControllerIdsRef.current.clear();
     mergedGraphRef.current = null;
     outputPathsRef.current = new Set();
     baseOutputPathsRef.current = new Set();
     namespacedOutputPathsRef.current = new Set();
+    inputConstraintsRef.current = {};
+    setInputConstraints({});
     rigPoseControlInputIdsRef.current = new Set();
     clipOutputValuesRef.current.clear();
     clipAggregateValuesRef.current.clear();
@@ -996,6 +974,14 @@ function VizijRuntimeProviderInner({
 
     rigInputMapRef.current = plan.rigInputMap;
     rigPoseControlInputIdsRef.current = new Set(plan.rigPoseControlInputIds);
+    inputConstraintsRef.current = plan.inputConstraints;
+    setInputConstraints(plan.inputConstraints);
+    programRegistrationMapRef.current = new Map(
+      plan.programRegistrations.map((registration) => [
+        registration.assetId,
+        registration,
+      ]),
+    );
     outputPathsRef.current = new Set(plan.outputPaths);
     baseOutputPathsRef.current = new Set(plan.baseOutputPaths);
     namespacedOutputPathsRef.current = new Set(plan.namespacedOutputPaths);
@@ -1168,94 +1154,24 @@ function VizijRuntimeProviderInner({
     }
     const setWorldValues = store.getState().setValues;
     const namespaceValue = status.namespace;
-    const currentValues = store.getState().values;
-    const rigInputPathMap = rigInputMapRef.current;
-    const rigPoseControlInputIds = rigPoseControlInputIdsRef.current;
-    const batched: Array<{ id: string; namespace: string; value: RawValue }> =
-      [];
-    const namespacedOutputs = namespacedOutputPathsRef.current;
-    const baseOutputs = baseOutputPathsRef.current;
-    writes.forEach((write: WriteOp) => {
-      const path = normalisePath(write.path);
-      const basePath = stripNamespace(path, namespaceValue);
-      const isTrackedOutput =
-        namespacedOutputs.has(path) || baseOutputs.has(basePath);
-      // if (
-      //   isRuntimeDebugEnabled() &&
-      //   (path.includes("animation/authoring.timeline.main") ||
-      //     path.toLowerCase().includes("blink"))
-      // ) {
-      //   console.log("[vizij-runtime] frame write", {
-      //     path,
-      //     basePath,
-      //     value: write.value,
-      //     isTrackedOutput,
-      //   });
-      // }
-      if (!isTrackedOutput) {
-        return;
-      }
-      const raw = valueJSONToRaw(write.value);
-      if (raw === undefined) {
-        return;
-      }
-      const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
-        basePath,
-      );
-      if (poseControlMatch && typeof raw === "number" && Number.isFinite(raw)) {
-        const inputId = (poseControlMatch[1] ?? "").trim();
-        const hasNativePoseControlInput =
-          inputId.length > 0 && rigPoseControlInputIds.has(inputId);
-        // Merged graphs do not automatically recycle pose-driver outputs into
-        // sibling rig inputs, so native pose-control channels still need to be
-        // restaged as runtime inputs on the next frame. Prefer explicit rig
-        // input mappings first, then fall back to the native pose-control path.
-        const mappedInputPath =
-          inputId.length === 0
-            ? undefined
-            : resolvePoseControlInputPath({
-                inputId,
-                basePath,
-                rigInputPathMap,
-                hasNativePoseControlInput,
-              });
-        if (mappedInputPath) {
-          const bridgeKey = `${namespaceValue}:${mappedInputPath}`;
-          const previousValue =
-            poseControlBridgeValuesRef.current.get(bridgeKey);
-          if (
-            previousValue === undefined ||
-            Math.abs(previousValue - raw) > POSE_CONTROL_BRIDGE_EPSILON
-          ) {
-            poseControlBridgeValuesRef.current.set(bridgeKey, raw);
-            setInput(mappedInputPath, { float: raw });
-          }
-        }
-      }
-      const targetPath = baseOutputs.has(basePath) ? basePath : path;
-      const currentValue = currentValues.get(
-        getLookup(namespaceValue, targetPath),
-      );
-      const nextWrite = transformOutputWrite
-        ? transformOutputWrite({
-            id: targetPath,
-            namespace: namespaceValue,
-            value: raw,
-            currentValue,
-          })
-        : {
-            id: targetPath,
-            namespace: namespaceValue,
-            value: raw,
-          };
-      if (nextWrite) {
-        batched.push(nextWrite);
-      }
+    const prepared = prepareRuntimeFrameWrites({
+      writes,
+      namespace: namespaceValue,
+      namespacedOutputPaths: namespacedOutputPathsRef.current,
+      baseOutputPaths: baseOutputPathsRef.current,
+      rigInputPathMap: rigInputMapRef.current,
+      rigPoseControlInputIds: rigPoseControlInputIdsRef.current,
+      poseControlBridgeValues: poseControlBridgeValuesRef.current,
+      currentValues: store.getState().values,
+      transformOutputWrite,
     });
-    if (batched.length > 0) {
-      setWorldValues(batched);
+    prepared.poseControlInputs.forEach(({ path, value }) => {
+      setInput(path, value);
+    });
+    if (prepared.rendererWrites.length > 0) {
+      setWorldValues(prepared.rendererWrites);
     }
-  }, [frame, status.namespace, store, transformOutputWrite]);
+  }, [frame, setInput, status.namespace, store, transformOutputWrite]);
 
   const stagePoseNeutral = useCallback(
     (force = false) => {
@@ -1890,52 +1806,6 @@ function VizijRuntimeProviderInner({
     [resolvedProgramAssets],
   );
 
-  const buildProgramRegistrationConfig = useCallback(
-    (program: VizijProgramAsset): GraphRegistrationConfig | null => {
-      return (
-        buildGraphRegistrationConfig({
-          asset: program.graph,
-          namespace,
-          context: `${program.id ?? "program"} graph`,
-        })?.config ?? null
-      );
-    },
-    [namespace],
-  );
-
-  const deriveProgramResetValues = useCallback(
-    (program: VizijProgramAsset): Array<{ path: string; value: number }> => {
-      if (program.resetValues) {
-        return Object.entries(program.resetValues)
-          .filter(([, value]) => Number.isFinite(value))
-          .map(([path, value]) => ({ path, value }));
-      }
-
-      const graphSpec = resolveGraphSpec(
-        program.graph,
-        `${program.id ?? "program"} graph (reset)`,
-      );
-      if (!graphSpec) {
-        return [];
-      }
-
-      return collectOutputPaths(graphSpec)
-        .filter((path) => path.trim().length > 0)
-        .map((path) => {
-          const defaultValue =
-            inputConstraintsRef.current[path]?.defaultValue ?? 0;
-          return {
-            path,
-            value:
-              Number.isFinite(defaultValue) && defaultValue != null
-                ? defaultValue
-                : 0,
-          };
-        });
-    },
-    [],
-  );
-
   const syncProgramPlaybackControllers = useCallback(() => {
     if (!ready) {
       return;
@@ -1996,8 +1866,8 @@ function VizijRuntimeProviderInner({
         return;
       }
 
-      const config = buildProgramRegistrationConfig(program);
-      if (!config) {
+      const registration = programRegistrationMapRef.current.get(program.id);
+      if (!registration) {
         pushError({
           message: `Program ${id} is missing a usable graph payload.`,
           phase: "registration",
@@ -2006,7 +1876,7 @@ function VizijRuntimeProviderInner({
         return;
       }
       try {
-        const nextControllerId = registerGraph(config);
+        const nextControllerId = registerGraph(registration.config);
         programControllerIdsRef.current.set(id, nextControllerId);
       } catch (err: unknown) {
         pushError({
@@ -2020,7 +1890,6 @@ function VizijRuntimeProviderInner({
 
     refreshControllerStatus();
   }, [
-    buildProgramRegistrationConfig,
     pushError,
     ready,
     refreshControllerStatus,
@@ -2101,7 +1970,11 @@ function VizijRuntimeProviderInner({
         state: "stopped",
       });
       if (program && options?.resetOutputs !== false) {
-        deriveProgramResetValues(program).forEach(({ path, value }) => {
+        deriveProgramResetValues({
+          program,
+          namespace: namespaceRef.current,
+          inputConstraints: inputConstraintsRef.current,
+        }).forEach(({ path, value }) => {
           setInput(path, { float: value });
         });
       }
@@ -2109,7 +1982,6 @@ function VizijRuntimeProviderInner({
       updateLoopMode();
     },
     [
-      deriveProgramResetValues,
       pushError,
       refreshControllerStatus,
       removeGraph,

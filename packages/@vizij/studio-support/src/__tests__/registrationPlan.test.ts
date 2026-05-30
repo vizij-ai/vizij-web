@@ -25,6 +25,13 @@ describe("prepareRuntimeRegistrationPlan", () => {
       assetBundle: makeBaseBundle({
         rig: {
           id: "rig",
+          inputMetadata: [
+            {
+              path: "rig/quori_latest/blink",
+              defaultValue: 0.25,
+              range: { min: 0, max: 1 },
+            },
+          ],
           spec: {
             nodes: [
               {
@@ -103,6 +110,23 @@ describe("prepareRuntimeRegistrationPlan", () => {
     expect(plan.rigInputMap).toMatchObject({
       blink: "rig/quori_latest/blink",
       happy: "rig/quori_latest/pose/control/happy",
+    });
+    expect(plan.inputConstraints).toMatchObject({
+      "demo-face/rig/quori_latest/blink": {
+        min: 0,
+        max: 1,
+        defaultValue: 0.25,
+      },
+      "rig/quori_latest/blink": {
+        min: 0,
+        max: 1,
+        defaultValue: 0.25,
+      },
+      blink: {
+        min: 0,
+        max: 1,
+        defaultValue: 0.25,
+      },
     });
     expect(plan.rigPoseControlInputIds).toEqual(["happy"]);
     expect(plan.baseOutputPaths).toEqual([
@@ -201,5 +225,63 @@ describe("prepareRuntimeRegistrationPlan", () => {
     expect(plan.animationRegistrations[0]?.config.setup).toHaveProperty(
       "animation",
     );
+  });
+
+  it("prepares playable program graph registrations outside the React runtime host", () => {
+    const plan = prepareRuntimeRegistrationPlan({
+      assetBundle: makeBaseBundle({
+        programs: [
+          {
+            id: "idle-eyes",
+            label: "Idle eyes",
+            graph: {
+              id: "idle-eyes-graph",
+              spec: {
+                nodes: [
+                  {
+                    id: "jitter",
+                    type: "input",
+                    params: {
+                      path: "rig/quori_latest/standard/vmotion/idle/eyes/jitter_amplitude",
+                    },
+                  },
+                  {
+                    id: "blink",
+                    type: "output",
+                    params: { path: "rig/quori_latest/lids/blink" },
+                  },
+                ],
+                edges: [],
+              },
+            },
+            resetValues: {
+              "rig/quori_latest/lids/blink": 0,
+            },
+          },
+        ],
+      }),
+      namespace: "demo-face",
+      faceId: "quori_latest",
+    });
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(plan.programRegistrations).toHaveLength(1);
+    expect(plan.programRegistrations[0]).toMatchObject({
+      assetId: "idle-eyes",
+      outputs: ["rig/quori_latest/lids/blink"],
+      config: {
+        id: "demo-face/graph/idle-eyes-graph",
+        subs: {
+          inputs: [
+            "demo-face/rig/quori_latest/standard/vmotion/idle/eyes/jitter_amplitude",
+          ],
+          outputs: ["demo-face/rig/quori_latest/lids/blink"],
+        },
+      },
+    });
+    expect(plan.baseOutputPaths).toEqual(["rig/quori_latest/lids/blink"]);
+    expect(plan.namespacedOutputPaths).toEqual([
+      "demo-face/rig/quori_latest/lids/blink",
+    ]);
   });
 });

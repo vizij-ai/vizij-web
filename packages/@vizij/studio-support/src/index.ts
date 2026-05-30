@@ -102,13 +102,23 @@ export type RuntimeAnimationRegistrationSupportResult = {
   outputPaths: string[];
 };
 
+export type RuntimeProgramRegistrationSupportResult = {
+  assetId: string;
+  config: GraphRegistrationConfig;
+  spec: GraphRegistrationConfig["spec"];
+  inputs: string[];
+  outputs: string[];
+};
+
 export type RuntimeRegistrationPlan = {
   graphRegistrations: GraphRegistrationSupportResult[];
   graphConfigs: GraphRegistrationConfig[];
   animationRegistrations: RuntimeAnimationRegistrationSupportResult[];
+  programRegistrations: RuntimeProgramRegistrationSupportResult[];
   baseOutputPaths: string[];
   namespacedOutputPaths: string[];
   outputPaths: string[];
+  inputConstraints: Record<string, InputConstraint>;
   rigInputMap: Record<string, string>;
   rigPoseControlInputIds: string[];
   diagnostics: RuntimeRegistrationDiagnostic[];
@@ -820,35 +830,6 @@ export function deriveProgramInputSeedValues(args: {
   getPathSnapshot: (path: string) => ValueJSON | undefined;
   stagedInputs: Map<string, { value: ValueJSON; shape?: ShapeJSON }>;
 }): Array<{ path: string; value: ValueJSON }> {
-  const resolveConstraintDefault = (path: string): number | undefined => {
-    const trimmed = path.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    const stripped = stripRigFacePrefix(trimmed);
-    const relativePath = stripped ? `/${stripped}` : "";
-    const candidates = [
-      namespaceTypedPath(trimmed, args.namespace),
-      trimmed,
-      stripped ? namespaceTypedPath(stripped, args.namespace) : undefined,
-      stripped || undefined,
-      relativePath || undefined,
-    ];
-
-    for (const candidate of candidates) {
-      if (!candidate) {
-        continue;
-      }
-      const defaultValue = args.inputConstraints[candidate]?.defaultValue;
-      if (Number.isFinite(defaultValue)) {
-        return Number(defaultValue);
-      }
-    }
-
-    return undefined;
-  };
-
   const graphSpec = resolveGraphSpec(
     args.program.graph,
     `${args.program.id ?? "program"} graph (seed defaults)`,
@@ -869,13 +850,95 @@ export function deriveProgramInputSeedValues(args: {
         return [];
       }
 
-      const defaultValue = resolveConstraintDefault(path);
+      const defaultValue = resolveConstraintDefaultForPath({
+        path,
+        namespace: args.namespace,
+        inputConstraints: args.inputConstraints,
+      });
       if (!Number.isFinite(defaultValue)) {
         return [];
       }
 
       return [{ path, value: { float: Number(defaultValue) } }];
     });
+}
+
+function resolveConstraintDefaultForPath(args: {
+  path: string;
+  namespace?: string;
+  inputConstraints: Record<
+    string,
+    { min?: number; max?: number; defaultValue?: number }
+  >;
+}): number | undefined {
+  const trimmed = args.path.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const stripped = stripRigFacePrefix(trimmed);
+  const relativePath = stripped ? `/${stripped}` : "";
+  const namespaced = args.namespace
+    ? namespaceTypedPath(trimmed, args.namespace)
+    : undefined;
+  const strippedNamespaced =
+    args.namespace && stripped
+      ? namespaceTypedPath(stripped, args.namespace)
+      : undefined;
+  const candidates = [
+    namespaced,
+    trimmed,
+    strippedNamespaced,
+    stripped || undefined,
+    relativePath || undefined,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    const defaultValue = args.inputConstraints[candidate]?.defaultValue;
+    if (Number.isFinite(defaultValue)) {
+      return Number(defaultValue);
+    }
+  }
+
+  return undefined;
+}
+
+export function deriveProgramResetValues(args: {
+  program: VizijProgramAsset;
+  namespace?: string;
+  inputConstraints: Record<
+    string,
+    { min?: number; max?: number; defaultValue?: number }
+  >;
+}): Array<{ path: string; value: number }> {
+  if (args.program.resetValues) {
+    return Object.entries(args.program.resetValues)
+      .filter(([, value]) => Number.isFinite(value))
+      .map(([path, value]) => ({ path, value }));
+  }
+
+  const graphSpec = resolveGraphSpec(
+    args.program.graph,
+    `${args.program.id ?? "program"} graph (reset)`,
+  );
+  if (!graphSpec) {
+    return [];
+  }
+
+  return collectOutputPaths(graphSpec)
+    .filter((path) => path.trim().length > 0)
+    .map((path) => ({
+      path,
+      value:
+        resolveConstraintDefaultForPath({
+          path,
+          namespace: args.namespace,
+          inputConstraints: args.inputConstraints,
+        }) ?? 0,
+    }));
 }
 
 function mergeProgramLists(
@@ -1087,9 +1150,11 @@ export function prepareRuntimeRegistrationPlan(args: {
   const graphRegistrations: GraphRegistrationSupportResult[] = [];
   const animationRegistrations: RuntimeAnimationRegistrationSupportResult[] =
     [];
+  const programRegistrations: RuntimeProgramRegistrationSupportResult[] = [];
   const diagnostics: RuntimeRegistrationDiagnostic[] = [];
   const baseOutputPaths = new Set<string>();
   const namespacedOutputPaths = new Set<string>();
+  let inputConstraints: Record<string, InputConstraint> = {};
 
   const recordOutputs = (paths: string[]) => {
     paths.forEach((path) => {
@@ -1122,6 +1187,11 @@ export function prepareRuntimeRegistrationPlan(args: {
       });
     } else {
       rigInputMap = collectInputPathMap(rigRegistration.spec);
+      inputConstraints = extractInputConstraints(
+        rigRegistration.spec,
+        rigAsset.inputMetadata,
+        args.namespace,
+      );
       rigRegistration.inputs.forEach((path) => {
         const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
           path.trim(),
@@ -1186,11 +1256,12 @@ export function prepareRuntimeRegistrationPlan(args: {
 
   const programs = args.programs ?? args.assetBundle.programs ?? [];
   for (const program of programs) {
-    const programSpec = resolveGraphSpec(
-      program.graph,
-      `${program.id ?? "program"} graph (outputs)`,
-    );
-    if (!programSpec) {
+    const programRegistration = buildGraphRegistrationConfig({
+      asset: program.graph,
+      namespace: args.namespace,
+      context: `${program.id ?? "program"} graph`,
+    });
+    if (!programRegistration) {
       diagnostics.push({
         level: "warn",
         target: "program",
@@ -1199,7 +1270,14 @@ export function prepareRuntimeRegistrationPlan(args: {
       });
       continue;
     }
-    recordOutputs(collectOutputPaths(programSpec));
+    recordOutputs(programRegistration.outputs);
+    programRegistrations.push({
+      assetId: program.id,
+      config: programRegistration.config,
+      spec: programRegistration.spec,
+      inputs: programRegistration.inputs,
+      outputs: programRegistration.outputs,
+    });
   }
 
   const graphConfigs = graphRegistrations.map(
@@ -1209,9 +1287,11 @@ export function prepareRuntimeRegistrationPlan(args: {
     graphRegistrations,
     graphConfigs,
     animationRegistrations,
+    programRegistrations,
     baseOutputPaths: Array.from(baseOutputPaths),
     namespacedOutputPaths: Array.from(namespacedOutputPaths),
     outputPaths: Array.from(namespacedOutputPaths),
+    inputConstraints,
     rigInputMap,
     rigPoseControlInputIds: Array.from(rigPoseControlInputIds),
     diagnostics,
