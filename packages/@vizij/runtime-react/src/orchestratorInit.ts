@@ -4,11 +4,6 @@ import type {
   OrchestratorBackend,
 } from "@vizij/orchestrator-react";
 
-const DEFAULT_COMPOSED_PRELOAD_MODULES = [
-  "vizij-animation",
-  "vizij-node-graph",
-] as const;
-
 type MergeableInitInput = Record<string, unknown> & Partial<AroraWebInitInput>;
 
 function isMergeableInitInput(input: InitInput): input is MergeableInitInput {
@@ -30,7 +25,6 @@ export function resolveVizijOrchestratorInitInput(
   if (!initInput) {
     return {
       orchestratorModule: "composed",
-      preloadModules: [...DEFAULT_COMPOSED_PRELOAD_MODULES],
     };
   }
 
@@ -42,15 +36,5 @@ export function resolveVizijOrchestratorInitInput(
     orchestratorModule: "composed",
     ...initInput,
   };
-  if (
-    "preloadModules" in resolved ||
-    (resolved as { orchestratorModule?: unknown }).orchestratorModule ===
-      "compatibility"
-  ) {
-    return resolved;
-  }
-  return {
-    ...resolved,
-    preloadModules: [...DEFAULT_COMPOSED_PRELOAD_MODULES],
-  } as InitInput;
+  return resolved;
 }

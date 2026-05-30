@@ -46,6 +46,13 @@ type AroraHeaderParameter = {
   name?: unknown;
 };
 
+type AroraHeaderImport = {
+  type?: unknown;
+  module?: unknown;
+  id?: unknown;
+  name?: unknown;
+};
+
 type AroraWebModulePreset = {
   header?: object;
   headerUrl?: string | URL;
@@ -58,9 +65,13 @@ type AroraWebDispatchBinding = {
 };
 
 type ResolvedAroraWebModule = AroraWebDispatchBinding & {
+  header: object;
   headerJson: string;
   wasmUrl: string | URL;
 };
+
+const VIZIJ_ANIMATION_MODULE_ID = "aa32e080-b002-428c-9994-6143aab3bf08";
+const VIZIJ_NODE_GRAPH_MODULE_ID = "098bd478-8375-4f3a-b649-d64cb1284944";
 
 const VIZIJ_ORCHESTRATOR_MODULE_PRESETS: Record<
   AroraWebOrchestratorModule,
@@ -88,6 +99,14 @@ const VIZIJ_PRELOAD_MODULE_PRESETS: Record<
     headerUrl: DEFAULT_VIZIJ_NODE_GRAPH_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_NODE_GRAPH_WASM_URL,
   },
+};
+
+const VIZIJ_PRELOAD_PRESET_BY_MODULE_ID: Record<
+  string,
+  AroraWebPreloadModuleName
+> = {
+  [VIZIJ_ANIMATION_MODULE_ID]: "vizij-animation",
+  [VIZIJ_NODE_GRAPH_MODULE_ID]: "vizij-node-graph",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -264,6 +283,33 @@ function parametersFor(exportValue: AroraHeaderExport): AroraHeaderParameter[] {
   return exportValue.parameters.filter(isRecord) as AroraHeaderParameter[];
 }
 
+function functionImports(header: object): AroraHeaderImport[] {
+  const importsValue = (header as { imports?: unknown }).imports;
+  if (!Array.isArray(importsValue)) {
+    return [];
+  }
+  return importsValue.filter(isRecord) as AroraHeaderImport[];
+}
+
+function defaultPreloadModulesForHeader(
+  header: object,
+): AroraWebPreloadModule[] {
+  const modules: AroraWebPreloadModuleName[] = [];
+  const seen = new Set<AroraWebPreloadModuleName>();
+  for (const importValue of functionImports(header)) {
+    const moduleId = stringField(importValue.module);
+    const presetName = moduleId
+      ? VIZIJ_PRELOAD_PRESET_BY_MODULE_ID[moduleId]
+      : undefined;
+    if (!presetName || seen.has(presetName)) {
+      continue;
+    }
+    modules.push(presetName);
+    seen.add(presetName);
+  }
+  return modules;
+}
+
 function resolveDispatchBinding(
   header: object,
   config: AroraWebInitInput,
@@ -316,6 +362,7 @@ async function resolveAroraWebModule(
   const binding = resolveDispatchBinding(header, config);
   return {
     ...binding,
+    header,
     headerJson: JSON.stringify(header),
     wasmUrl: config.wasmUrl ?? preset.wasmUrl,
   };
@@ -392,15 +439,11 @@ async function loadPreloadHeaderObject(
 
 async function resolvePreloadModules(
   config: AroraWebInitInput,
+  selectedHeader: object,
 ): Promise<ResolvedAroraWebPreloadModule[]> {
   const modules = Array.isArray(config.preloadModules)
     ? config.preloadModules
-    : config.orchestratorModule === "composed"
-      ? ([
-          "vizij-animation",
-          "vizij-node-graph",
-        ] satisfies AroraWebPreloadModule[])
-      : [];
+    : defaultPreloadModulesForHeader(selectedHeader);
   const resolved: ResolvedAroraWebPreloadModule[] = [];
   for (const moduleInput of modules) {
     const preset = preloadPreset(moduleInput);
@@ -450,8 +493,9 @@ async function loadWasmBytes(
 async function preloadModules(
   engine: AroraWebEngine,
   config: AroraWebInitInput,
+  selectedHeader: object,
 ): Promise<void> {
-  const modules = await resolvePreloadModules(config);
+  const modules = await resolvePreloadModules(config, selectedHeader);
   for (const moduleConfig of modules) {
     const wasmBytes = await loadWasmBytes(
       config,
@@ -549,7 +593,7 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
       throw new Error("arora-web module does not expose Engine.");
     }
     const engine = new module.Engine();
-    await preloadModules(engine, config);
+    await preloadModules(engine, config, selectedModule.header);
     const moduleId = loadModule(engine, selectedModule.headerJson, wasmBytes);
 
     const runtime = new AroraWebOrchestratorRuntime(

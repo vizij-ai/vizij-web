@@ -201,6 +201,7 @@ function dispatchHeader(args: {
   moduleId: string;
   dispatchFunctionId: string;
   requestParamId: string;
+  imports?: Array<Record<string, unknown>>;
 }) {
   return {
     id: args.moduleId,
@@ -217,11 +218,20 @@ function dispatchHeader(args: {
         ],
       },
     ],
+    imports: args.imports ?? [],
   };
 }
 
 function moduleHeader(moduleId: string) {
   return { id: moduleId, exports: [] };
+}
+
+function moduleImport(moduleId: string, functionId: string) {
+  return {
+    type: "function",
+    module: moduleId,
+    id: functionId,
+  };
 }
 
 const COMPATIBILITY_HEADER = dispatchHeader({
@@ -233,6 +243,16 @@ const COMPOSED_HEADER = dispatchHeader({
   moduleId: COMPOSED_MODULE_ID,
   dispatchFunctionId: COMPOSED_DISPATCH_FUNCTION_ID,
   requestParamId: COMPOSED_REQUEST_PARAM_ID,
+  imports: [
+    moduleImport(
+      VIZIJ_ANIMATION_MODULE_ID,
+      "80f5c157-bfc0-457d-9a08-531ba04f5305",
+    ),
+    moduleImport(
+      VIZIJ_NODE_GRAPH_MODULE_ID,
+      "d898a9d4-516d-4cda-bd8c-7dbf3fa75b70",
+    ),
+  ],
 });
 const VIZIJ_ANIMATION_HEADER = moduleHeader(VIZIJ_ANIMATION_MODULE_ID);
 const VIZIJ_NODE_GRAPH_HEADER = moduleHeader(VIZIJ_NODE_GRAPH_MODULE_ID);
@@ -503,6 +523,62 @@ describe("OrchestratorProvider", () => {
           ],
         }),
       ]),
+    );
+  });
+
+  it("derives default composed preloads from the selected module imports", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const graphOnlyComposedHeader = dispatchHeader({
+      moduleId: COMPOSED_MODULE_ID,
+      dispatchFunctionId: COMPOSED_DISPATCH_FUNCTION_ID,
+      requestParamId: COMPOSED_REQUEST_PARAM_ID,
+      imports: [
+        moduleImport(
+          VIZIJ_NODE_GRAPH_MODULE_ID,
+          "14e86906-c4e4-45e8-936d-725dc43ec9bb",
+        ),
+        moduleImport(
+          VIZIJ_NODE_GRAPH_MODULE_ID,
+          "d898a9d4-516d-4cda-bd8c-7dbf3fa75b70",
+        ),
+      ],
+    });
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (
+        urlText.includes("vizij-node-graph") &&
+        urlText.endsWith("module.json")
+      ) {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      if (
+        urlText.includes("vizij-node-graph") &&
+        urlText.endsWith("vizij_node_graph.wasm")
+      ) {
+        return binaryResponse([2]);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+
+    await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: graphOnlyComposedHeader,
+      fetch: fetch as unknown as typeof globalThis.fetch,
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(VIZIJ_NODE_GRAPH_MODULE_ID),
+      expect.any(Uint8Array),
+    );
+    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(COMPOSED_MODULE_ID),
+      expect.any(Uint8Array),
     );
   });
 

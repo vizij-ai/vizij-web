@@ -6,7 +6,6 @@ describe("resolveVizijOrchestratorInitInput", () => {
   it("defaults aroraWeb runtimes to the composed Vizij module path", () => {
     expect(resolveVizijOrchestratorInitInput("aroraWeb")).toEqual({
       orchestratorModule: "composed",
-      preloadModules: ["vizij-animation", "vizij-node-graph"],
     });
   });
 
@@ -23,7 +22,6 @@ describe("resolveVizijOrchestratorInitInput", () => {
       }),
     ).toEqual({
       orchestratorModule: "composed",
-      preloadModules: ["vizij-animation", "vizij-node-graph"],
       aroraWebUrl: "/custom/arora_web.js",
       fetch,
       wasmBytes,

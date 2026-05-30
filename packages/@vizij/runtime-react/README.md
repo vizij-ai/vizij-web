@@ -212,7 +212,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 ### Important runtime flags
 
 - `autostart` controls whether the orchestrator begins stepping automatically once ready.
-- `orchestratorBackend="aroraWeb"` defaults to the composed Arora module path and preloads the independent `vizij-animation` and `vizij-node-graph` modules. Pass `orchestratorInitInput={{ orchestratorModule: "compatibility" }}` to use the compatibility Arora module, or pass custom `preloadModules` when you need to override the default composed module list.
+- `orchestratorBackend="aroraWeb"` defaults to the composed Arora module path; `@vizij/orchestrator-react` derives dependency preloads from the selected Arora module header's `imports`. Pass `orchestratorInitInput={{ orchestratorModule: "compatibility" }}` to use the compatibility Arora module, or pass custom `preloadModules` when you need to override header-derived preloads.
 - `driveOrchestrator={false}` is useful for non-driver faces in shared-orchestrator layouts.
 - `orchestratorScope="shared"` is the strict mode for apps that expect an outer `OrchestratorProvider`.
 - `transformOutputWrite` is the hook to remap or suppress specific runtime outputs before they update renderer state.
