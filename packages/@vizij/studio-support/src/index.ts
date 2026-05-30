@@ -55,6 +55,27 @@ export {
   collectOutputPaths,
 } from "./utils/graph";
 export {
+  buildPoseWeightInputPathSegment,
+  buildPoseWeightPathMap,
+  buildPoseWeightRelativePath,
+  buildRigInputPath,
+  buildSemanticPoseWeightPathMap,
+  EMOTION_POSE_KEYS,
+  EXPRESSIVE_EMOTION_POSE_KEYS,
+  filterPosesBySemanticKind,
+  getPoseSemanticKey,
+  normalizePoseSemanticKey,
+  POSE_WEIGHT_INPUT_PATH_PREFIX,
+  resolvePoseMembership,
+  resolvePoseSemantics,
+  VISEME_POSE_KEYS,
+  type PoseSemanticKind,
+} from "./utils/posePaths";
+export {
+  resolvePoseControlInputPath,
+  shouldUseLegacyPoseWeightFallback,
+} from "./utils/poseRuntime";
+export {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,

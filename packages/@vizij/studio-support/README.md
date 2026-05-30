@@ -13,3 +13,7 @@ This package is the Studio-support layer, not the runtime executor. It currently
 Animation bridge helpers such as `sampleAnimationClipOutputValues()` and
 `diffAnimationAggregateValues()` also live here so editor tooling and runtime
 hosts share the same Studio-shaped sampling and output-diff behavior.
+
+Pose path and pose runtime helpers live here for the same reason: authoring
+surfaces and runtime hosts should agree on pose semantic classification, rig
+path resolution, and pose-control fallback behavior without importing React.
