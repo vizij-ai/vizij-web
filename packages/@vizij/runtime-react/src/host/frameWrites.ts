@@ -1,9 +1,12 @@
 import { getLookup, type RawValue } from "@vizij/utils";
 import type { ValueJSON, WriteOp } from "@vizij/orchestrator-react";
-import { normalisePath, stripNamespace } from "@vizij/studio-support";
+import {
+  normalisePath,
+  resolvePoseControlInputPath,
+  stripNamespace,
+} from "@vizij/studio-support";
 import type { RuntimeOutputWrite } from "../types";
 import { valueJSONToRaw } from "../utils/valueConversion";
-import { resolvePoseControlInputPath } from "../utils/poseRuntime";
 
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 

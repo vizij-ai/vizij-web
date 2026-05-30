@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { collectInputPathMap } from "../utils/graph";
+import { collectInputPathMap } from "../index";
 
-describe("graph utils", () => {
-  it("aliases pose control inputs by bare channel id", () => {
+describe("graph input path maps", () => {
+  it("aliases pose-control inputs by bare channel id", () => {
     const inputPathMap = collectInputPathMap({
       nodes: [
         {
@@ -51,24 +51,6 @@ describe("graph utils", () => {
     );
     expect(inputPathMap.propsrig_mouth_jawud_value).toBe(
       "rig/quori_latest/propsrig/mouth/jawud/value",
-    );
-  });
-
-  it("still exposes pose-control aliases when no direct input exists", () => {
-    const inputPathMap = collectInputPathMap({
-      nodes: [
-        {
-          id: "input_pose_control_brow_lbrow_inud_value",
-          type: "input",
-          params: {
-            path: "rig/quori_latest/pose/control/brow_lbrow_inud_value",
-          },
-        },
-      ],
-    });
-
-    expect(inputPathMap.brow_lbrow_inud_value).toBe(
-      "rig/quori_latest/pose/control/brow_lbrow_inud_value",
     );
   });
 

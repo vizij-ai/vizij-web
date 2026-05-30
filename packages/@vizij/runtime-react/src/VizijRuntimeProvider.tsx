@@ -30,13 +30,26 @@ import {
   convertExtractedAnimations,
   deriveProgramInputSeedValues,
   deriveProgramResetValues,
+  advanceClipTime,
+  applyRuntimeGraphBundle,
+  buildPoseWeightPathMap,
+  buildRigInputPath,
+  clampAnimationTime,
+  diffAnimationAggregateValues,
   namespaceTypedPath,
   normalisePath,
   pickExtractedAnimations,
   prepareRuntimeRegistrationPlan,
   prepareRuntimeAssetBundle,
+  resolveClipDurationSeconds,
+  resolvePoseControlInputPath,
+  resolveRuntimeUpdatePlan,
+  sampleAnimationClipOutputValues,
+  shouldUseLegacyPoseWeightFallback,
   stripNamespace,
+  type RuntimeGraphBundle,
   type RuntimeProgramRegistrationSupportResult,
+  type RuntimeUpdateTier,
 } from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
 import { type AnimatableValue, type RawValue } from "@vizij/utils";
@@ -59,12 +72,6 @@ import {
   setRuntimeDebugState,
 } from "./memoryInvestigation";
 import { resolveVizijOrchestratorInitInput } from "./orchestratorInit";
-import {
-  applyRuntimeGraphBundle,
-  resolveRuntimeUpdatePlan,
-  type RuntimeGraphBundle,
-  type RuntimeUpdateTier,
-} from "./updatePolicy";
 import type {
   AnimateValueOptions,
   AnimationPlaybackState,
@@ -84,20 +91,6 @@ import type {
   VizijRuntimeStatus,
   RuntimeOutputWrite,
 } from "./types";
-import { buildPoseWeightPathMap, buildRigInputPath } from "./utils/posePaths";
-import {
-  resolvePoseControlInputPath,
-  shouldUseLegacyPoseWeightFallback,
-} from "./utils/poseRuntime";
-import {
-  advanceClipTime,
-  clampAnimationTime,
-  resolveClipDurationSeconds,
-} from "./utils/clipPlayback";
-import {
-  diffAnimationAggregateValues,
-  sampleAnimationClipOutputValues,
-} from "./utils/animationBridge";
 import {
   buildAnimationControllerCommandPath,
   buildAnimationControllerPlayInputs,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceClipTime,
+  clampAnimationTime,
   resolveClipDurationSeconds,
   sampleClipAtTime,
   sampleTrackAtTime,
@@ -75,6 +76,48 @@ describe("Studio clip playback helpers", () => {
         value: 0.5,
       },
     ]);
+  });
+
+  it("clamps and samples deterministic seek times", () => {
+    const clip = {
+      id: "clip",
+      duration: 2,
+      tracks: [
+        {
+          channel: "jaw",
+          interpolation: "step" as const,
+          keyframes: [
+            { time: 0, value: 0.2 },
+            { time: 1, value: 0.8 },
+            { time: 2, value: 1.2 },
+          ],
+        },
+      ],
+    };
+
+    const duration = resolveClipDurationSeconds(clip);
+    const firstMidSample = sampleClipAtTime(
+      "clip",
+      clip,
+      clampAnimationTime(1, duration),
+    );
+    const secondMidSample = sampleClipAtTime(
+      "clip",
+      clip,
+      clampAnimationTime(1, duration),
+    );
+
+    expect(firstMidSample).toEqual(secondMidSample);
+    expect(firstMidSample[0]).toEqual({
+      path: "animation/clip/jaw",
+      value: 0.8,
+    });
+    expect(
+      sampleClipAtTime("clip", clip, clampAnimationTime(99, duration))[0],
+    ).toEqual({ path: "animation/clip/jaw", value: 1.2 });
+    expect(
+      sampleClipAtTime("clip", clip, clampAnimationTime(-4, duration))[0],
+    ).toEqual({ path: "animation/clip/jaw", value: 0.2 });
   });
 
   it("derives duration and transport time consistently", () => {
