@@ -76,6 +76,13 @@ export {
   shouldUseLegacyPoseWeightFallback,
 } from "./utils/poseRuntime";
 export {
+  mapNormalizedControlValue,
+  mapUnitControlValue,
+  resolveFaceControls,
+  type FaceScalarControl,
+  type ResolvedFaceControls,
+} from "./utils/faceControls";
+export {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,

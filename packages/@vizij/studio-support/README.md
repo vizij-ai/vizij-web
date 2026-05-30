@@ -17,3 +17,6 @@ hosts share the same Studio-shaped sampling and output-diff behavior.
 Pose path and pose runtime helpers live here for the same reason: authoring
 surfaces and runtime hosts should agree on pose semantic classification, rig
 path resolution, and pose-control fallback behavior without importing React.
+
+Face-control discovery helpers also live here so authoring and runtime surfaces
+use the same metadata-based gaze, blink, and normalized-control mapping rules.
