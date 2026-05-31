@@ -5,8 +5,8 @@ import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
   POSE_IR_TARGETING_CONTRACT,
   type PoseRigIrFile,
-} from "../types";
-import { PoseGraphService } from "./poseGraphService";
+} from "../types/poseRig";
+import { PoseGraphService } from "../utils/poseRigGraphService";
 
 const createInput = (
   id: string,

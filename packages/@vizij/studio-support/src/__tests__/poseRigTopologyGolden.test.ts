@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
-import { buildPoseGraphSpecFromIr } from "./graphBuilder";
-import type { PoseDiagnostic, PoseRigConfigFile } from "./types";
-import { PoseIrService } from "./services/poseIrService";
+import { buildPoseGraphSpecFromIr } from "../utils/poseRigGraphBuilder";
+import type { PoseDiagnostic, PoseRigConfigFile } from "../types/poseRig";
+import { PoseIrService } from "../utils/poseRigIrService";
 
 const FIXTURE_TIMESTAMP = "2026-02-19T00:00:00.000Z";
 

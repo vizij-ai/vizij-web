@@ -4,8 +4,8 @@ import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
   POSE_IR_TARGETING_CONTRACT,
   type PoseRigIrFile,
-} from "../types";
-import { PoseIrService } from "./poseIrService";
+} from "../types/poseRig";
+import { PoseIrService } from "../utils/poseRigIrService";
 
 const createInput = (id: string, path: string): StandardRigInput => ({
   id,

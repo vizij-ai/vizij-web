@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PoseSnapshotService } from "./poseSnapshotService";
+import { PoseSnapshotService } from "../utils/poseRigSnapshotService";
 
 describe("PoseSnapshotService", () => {
   it("creates deterministic pose ids with stable suffixes", () => {

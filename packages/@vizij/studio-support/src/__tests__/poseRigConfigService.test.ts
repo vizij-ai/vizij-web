@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createStandardRigInput } from "@vizij/utils";
-import { POSE_RIG_CONFIG_VERSION } from "../types";
-import { PoseConfigService } from "./poseConfigService";
+import { POSE_RIG_CONFIG_VERSION } from "../types/poseRig";
+import { PoseConfigService } from "../utils/poseRigConfigService";
 
 describe("PoseConfigService", () => {
   it("normalizes a valid config", () => {

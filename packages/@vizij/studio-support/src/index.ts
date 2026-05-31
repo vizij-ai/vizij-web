@@ -68,6 +68,54 @@ export {
   type BundleAnimationToClipOptions,
   type CompileAnimationClipIrOptions,
 } from "./utils/animationClipCompiler";
+export {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
+  POSE_RIG_CONFIG_VERSION,
+  POSE_RIG_IR_VERSION,
+} from "./types/poseRig";
+export type {
+  LowLevelBinding,
+  LowLevelRigSummary,
+  PoseCrossGroupChannelOverride,
+  PoseCrossGroupChannelOverrideMap,
+  PoseCrossGroupOverrideMode,
+  PoseDiagnostic,
+  PoseDiagnosticLocation,
+  PoseDiagnosticSeverity,
+  PoseGraphContribution,
+  PoseGraphInputSummary,
+  PoseInputComposeMode,
+  PoseInputComposeModeMap,
+  PoseIrBlendMode,
+  PoseIrBlendStageDefinition,
+  PoseIrCompileResult,
+  PoseIrContracts,
+  PoseIrCrossGroupChannelOverride,
+  PoseIrCrossGroupChannelOverrideMap,
+  PoseIrCrossGroupOverrideMode,
+  PoseIrCrossGroupPolicy,
+  PoseIrGroupDefinition,
+  PoseIrNeutralDefinition,
+  PoseIrPoseDefinition,
+  PoseIrStageSource,
+  PoseNeutralMode,
+  PosePriorityTieBreak,
+  PoseRigAuthoringState,
+  PoseRigConfigFile,
+  PoseRigGraphSummary,
+  PoseRigIrFile,
+  PoseScopedNeutralDefinition,
+  PoseScopedNeutralDirectValuesDefinition,
+  PoseScopedNeutralInheritDefinition,
+  PoseScopedNeutralPoseReferenceDefinition,
+  PoseScopedNeutralSourceType,
+  PoseWeightMap,
+  StandardInputId,
+  PoseBlendMode as PoseRigBlendMode,
+  PoseDefinition as PoseRigPoseDefinition,
+  PoseGroupDefinition as PoseRigGroupDefinition,
+} from "./types/poseRig";
 export type {
   AnimationClipLike,
   AnimationKeyframeLike,
@@ -197,6 +245,24 @@ export {
   resolveBindingSlotAlias,
   syncBindingParentAliasReferences,
 } from "./utils/rigPipelineAliases";
+export {
+  buildPoseGroupLookup,
+  humanizePoseGroupName,
+  normalizePoseGroupPath,
+  orderPoseMembershipIds,
+  resolvePoseMembership as resolvePoseRigMembership,
+  sanitizePoseGroupId,
+  type PoseGroupLookup,
+} from "./utils/poseRigGroupMembership";
+export {
+  buildPoseGraphSpec,
+  buildPoseGraphSpecFromIr,
+} from "./utils/poseRigGraphBuilder";
+export { parsePoseGraphSpec } from "./utils/poseRigGraphParser";
+export { PoseConfigService } from "./utils/poseRigConfigService";
+export { PoseGraphService } from "./utils/poseRigGraphService";
+export { PoseIrService } from "./utils/poseRigIrService";
+export { PoseSnapshotService } from "./utils/poseRigSnapshotService";
 export {
   extractGraphFaceId,
   extractVizijPipelineConfigMap,

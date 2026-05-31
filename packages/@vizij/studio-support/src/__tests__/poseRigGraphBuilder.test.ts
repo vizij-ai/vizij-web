@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
-import { buildPoseGraphSpec } from "./graphBuilder";
+import { buildPoseGraphSpec } from "../utils/poseRigGraphBuilder";
 
 const stdInput = (id: string, path: string): StandardRigInput => ({
   id,
