@@ -1412,6 +1412,7 @@ describe("Viewer", () => {
         source: expect.objectContaining({
           key: "motiongraph",
           signature: expect.any(String),
+          programId: "graph:test",
         }),
       }),
     );
@@ -1476,6 +1477,7 @@ describe("Viewer", () => {
         source: expect.objectContaining({
           key: "motiongraph",
           signature: expect.any(String),
+          programId: "graph:test",
         }),
       }),
     );
@@ -1661,6 +1663,7 @@ describe("Viewer", () => {
         source: expect.objectContaining({
           key: "motiongraph",
           signature: expect.any(String),
+          programId: null,
         }),
       }),
     );

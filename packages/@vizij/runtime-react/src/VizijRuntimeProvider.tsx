@@ -162,6 +162,16 @@ const DEFAULT_DURATION = 0.35;
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 let runtimeDebugInstanceSequence = 0;
 
+function isProgramRegistrationAcknowledgementDeferred(
+  update: RuntimeGraphBundlePendingUpdate,
+): boolean {
+  return (
+    update.source.key === "motiongraph" &&
+    typeof update.source.programId === "string" &&
+    update.source.programId.trim().length > 0
+  );
+}
+
 function isRuntimeDebugEnabled(): boolean {
   const globalObj = globalThis as {
     __VIZIJ_RUNTIME_DEBUG__?: boolean;
@@ -374,6 +384,9 @@ function VizijRuntimeProviderInner({
   const pendingGraphBundleUpdatesRef = useRef<
     RuntimeGraphBundlePendingUpdate[]
   >([]);
+  const pendingProgramRegistrationUpdatesRef = useRef<
+    Map<string, RuntimeGraphBundlePendingUpdate>
+  >(new Map());
   const updateTierRef = useRef<RuntimeUpdateTier>(updateTier);
 
   useEffect(() => {
@@ -571,6 +584,7 @@ function VizijRuntimeProviderInner({
     });
     clipPlaybackRef.current.clear();
     programPlaybackRef.current.clear();
+    pendingProgramRegistrationUpdatesRef.current.clear();
     stagedInputsRef.current.clear();
     clipOutputValuesRef.current.clear();
     clipAggregateValuesRef.current.clear();
@@ -584,6 +598,7 @@ function VizijRuntimeProviderInner({
     }
     initialAssetBundleRef.current = initialAssetBundle;
     pendingGraphBundleUpdatesRef.current = [];
+    pendingProgramRegistrationUpdatesRef.current.clear();
     resetTransientRuntimeState();
     setAssetBundleOverride(null);
   }, [initialAssetBundle, resetTransientRuntimeState]);
@@ -857,16 +872,22 @@ function VizijRuntimeProviderInner({
     (
       controllers: { graphs: string[]; anims: string[] },
       updates: readonly RuntimeGraphBundlePendingUpdate[] = pendingGraphBundleUpdatesRef.current,
+      options: { includeDeferredProgramUpdates?: boolean } = {},
     ) => {
-      if (updates.length === 0) {
+      const appliedUpdates = options.includeDeferredProgramUpdates
+        ? [...updates]
+        : updates.filter(
+            (update) => !isProgramRegistrationAcknowledgementDeferred(update),
+          );
+      if (appliedUpdates.length === 0) {
         return;
       }
       pendingGraphBundleUpdatesRef.current =
         removeRuntimeGraphBundlePendingUpdates(
           pendingGraphBundleUpdatesRef.current,
-          updates,
+          appliedUpdates,
         );
-      updates.forEach((update) => {
+      appliedUpdates.forEach((update) => {
         onRuntimeGraphBundleApplied?.({
           revision: update.revision,
           source: update.source,
@@ -1055,6 +1076,7 @@ function VizijRuntimeProviderInner({
           timestamp: performance.now(),
         });
         pendingGraphBundleUpdatesRef.current = [];
+        pendingProgramRegistrationUpdatesRef.current.clear();
         reportStatus((prev) => ({
           ...prev,
           loading: false,
@@ -1240,6 +1262,7 @@ function VizijRuntimeProviderInner({
       notifyGraphBundleApplied(result.controllers);
     } else {
       pendingGraphBundleUpdatesRef.current = [];
+      pendingProgramRegistrationUpdatesRef.current.clear();
     }
   }, [
     assetBundle,
@@ -2116,10 +2139,23 @@ function VizijRuntimeProviderInner({
       try {
         const nextControllerId = registerGraph(registration.config);
         programControllerIdsRef.current.set(programId, nextControllerId);
+        const pendingProgramUpdate =
+          pendingProgramRegistrationUpdatesRef.current.get(programId);
+        if (pendingProgramUpdate) {
+          pendingProgramRegistrationUpdatesRef.current.delete(programId);
+          notifyGraphBundleApplied(listControllers(), [pendingProgramUpdate], {
+            includeDeferredProgramUpdates: true,
+          });
+        }
       } catch (err: unknown) {
+        const pendingProgramUpdate =
+          pendingProgramRegistrationUpdatesRef.current.get(programId);
         pushError({
           message: `Failed to register program ${programId}`,
           cause: err,
+          sources: pendingProgramUpdate
+            ? [{ ...pendingProgramUpdate.source }]
+            : undefined,
           phase: "registration",
           timestamp: performance.now(),
         });
@@ -2132,6 +2168,8 @@ function VizijRuntimeProviderInner({
     ready,
     refreshControllerStatus,
     registerGraph,
+    listControllers,
+    notifyGraphBundleApplied,
     removeGraph,
     resolvedProgramAssets,
   ]);
@@ -2466,6 +2504,25 @@ function VizijRuntimeProviderInner({
           pendingGraphBundleUpdatesRef.current,
           pendingUpdate,
         );
+      if (pendingUpdate?.source.key) {
+        for (const [
+          programId,
+          update,
+        ] of pendingProgramRegistrationUpdatesRef.current) {
+          if (update.source.key === pendingUpdate.source.key) {
+            pendingProgramRegistrationUpdatesRef.current.delete(programId);
+          }
+        }
+      }
+      if (
+        pendingUpdate &&
+        isProgramRegistrationAcknowledgementDeferred(pendingUpdate)
+      ) {
+        pendingProgramRegistrationUpdatesRef.current.set(
+          pendingUpdate.source.programId!,
+          pendingUpdate,
+        );
+      }
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
       latestEffectiveAssetBundleRef.current = nextAssetBundle;

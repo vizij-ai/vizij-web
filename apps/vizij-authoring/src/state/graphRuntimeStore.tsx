@@ -61,8 +61,15 @@ export interface RuntimeBundleAcknowledgementLike {
   source: {
     key?: string | null;
     signature?: string | null;
+    programId?: string | null;
   };
-  graphCount: number;
+  revision: number;
+  controllers: {
+    graphs: readonly string[];
+    anims: readonly string[];
+  };
+  reregistered: boolean;
+  reloadedAssets: boolean;
 }
 
 export interface GraphRuntimeState {
@@ -221,7 +228,7 @@ export function resolveRuntimeBundleAcknowledgementPatch(
   const target = parseAuthoringPreviewTarget(event.source.key);
   const signature = event.source.signature ?? null;
   const baseUpdate = {
-    runtimeViewGraphCount: event.graphCount,
+    runtimeViewGraphCount: event.controllers.graphs.length,
   };
   if (!target) {
     return baseUpdate;

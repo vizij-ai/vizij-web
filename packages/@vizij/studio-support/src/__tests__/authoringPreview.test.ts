@@ -55,6 +55,40 @@ describe("authoring preview bundle assembly", () => {
     });
   });
 
+  it("keeps a matching runtime error from being hidden by a compiled update", () => {
+    expect(
+      resolveAuthoringCompileTargetState({
+        current: {
+          status: "runtime-error",
+          message: "animation registration failed",
+          signature: "animation-v1",
+        },
+        status: "compiled",
+        signature: "animation-v1",
+      }),
+    ).toEqual({
+      status: "runtime-error",
+      message: "animation registration failed",
+      signature: "animation-v1",
+    });
+
+    expect(
+      resolveAuthoringCompileTargetState({
+        current: {
+          status: "runtime-error",
+          message: "animation registration failed",
+          signature: "animation-v1",
+        },
+        status: "compiled",
+        signature: "animation-v2",
+      }),
+    ).toEqual({
+      status: "compiled",
+      message: null,
+      signature: "animation-v2",
+    });
+  });
+
   it("resolves runtime errors to source targets before falling back to active target", () => {
     expect(
       resolveAuthoringRuntimeErrorStates({
@@ -392,7 +426,11 @@ describe("authoring preview bundle assembly", () => {
     expect(publishPlan).toMatchObject({
       converged: false,
       shouldPublish: true,
-      source: { key: "motiongraph", signature: preview.signature },
+      source: {
+        key: "motiongraph",
+        signature: preview.signature,
+        programId: "authoring.program",
+      },
       nextAppliedSignature: preview.signature,
       nextTouchedProgramBundle: true,
       shouldClearManagedProgramId: false,

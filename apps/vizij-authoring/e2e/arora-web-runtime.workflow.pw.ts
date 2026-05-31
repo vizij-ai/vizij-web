@@ -1123,7 +1123,6 @@ test("executes UI-edited animation and graph values through Arora web composed r
   await operandDefaultInput.fill(String(authoredGraphValue));
   await expect(operandDefaultInput).toHaveValue(String(authoredGraphValue));
   await expectAuthoringCompileAtLeastCompiled(page, "motiongraph");
-  await expectAuthoringCompileState(page, "motiongraph", "registered");
 
   const beforeGraphRuntime = await readMainRuntimeDebug(page);
   const beforeGraphArora = await readMainAroraDebug(page);
@@ -1140,6 +1139,7 @@ test("executes UI-edited animation and graph values through Arora web composed r
       )?.["graph.register"] ?? 0,
     ),
   );
+  await expectAuthoringCompileState(page, "motiongraph", "registered");
   await waitForMainRuntimeWrites(
     page,
     Number(beforeGraphRuntime?.frameWriteCount ?? 0),

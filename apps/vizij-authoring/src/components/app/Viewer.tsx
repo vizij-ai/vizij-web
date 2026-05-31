@@ -783,10 +783,7 @@ export function Viewer({
   const handleRuntimeGraphBundleApplied = useCallback(
     (event: RuntimeGraphBundleAppliedEvent) => {
       graphRuntimeStore.setState((state) => {
-        return resolveRuntimeBundleAcknowledgementPatch(state, {
-          source: event.source,
-          graphCount: event.controllers.graphs.length,
-        });
+        return resolveRuntimeBundleAcknowledgementPatch(state, event);
       });
     },
     [graphRuntimeStore],

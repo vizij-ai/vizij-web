@@ -49,6 +49,7 @@ export interface AuthoringPreviewCompileState
 export interface AuthoringPreviewUpdateSource {
   key: AuthoringPreviewTarget;
   signature: string;
+  programId?: string | null;
 }
 
 export interface AuthoringRuntimeErrorSourceLike {
@@ -123,12 +124,13 @@ export function resolveAuthoringCompileTargetState({
 }): AuthoringCompileTargetStateLike {
   if (
     status === "compiled" &&
-    current?.status === "registered" &&
+    (current?.status === "registered" || current?.status === "runtime-error") &&
     current.signature === signature
   ) {
     return {
-      status: "registered",
-      message: null,
+      status: current.status,
+      message:
+        current.status === "runtime-error" ? (current.message ?? null) : null,
       signature,
     };
   }
@@ -322,8 +324,9 @@ function buildCompileState(
 function buildUpdateSource(
   target: AuthoringPreviewTarget,
   signature: string,
+  extras: Omit<AuthoringPreviewUpdateSource, "key" | "signature"> = {},
 ): AuthoringPreviewUpdateSource {
-  return { key: target, signature };
+  return { key: target, signature, ...extras };
 }
 
 export function planRuntimeGraphPreviewTransaction(
@@ -403,7 +406,9 @@ export function planMotionGraphPreviewTransaction(
     converged,
     shouldPublish,
     bundle: options.preview.bundle,
-    source: buildUpdateSource("motiongraph", signature),
+    source: buildUpdateSource("motiongraph", signature, {
+      programId: options.preview.programAsset?.id ?? null,
+    }),
     compilingState: buildCompileState("motiongraph", "compiling", signature),
     compiledState: buildCompileState("motiongraph", "compiled", signature),
     nextLastCurrentSignature: options.currentSignature,

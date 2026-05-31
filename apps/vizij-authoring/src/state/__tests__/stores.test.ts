@@ -136,6 +136,44 @@ describe("graphRuntimeStore", () => {
     });
   });
 
+  it("does not hide a matching runtime-error target on a compiled update", () => {
+    const store = createGraphRuntimeStore();
+
+    store.setState({
+      authoringCompileStatus: "runtime-error",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: "animation registration failed",
+      authoringCompileSignature: "animation-v1",
+    });
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+
+    expect(store.getState().authoringCompileStatus).toBe("runtime-error");
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "runtime-error",
+      message: "animation registration failed",
+      signature: "animation-v1",
+    });
+
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v2",
+    });
+
+    expect(store.getState().authoringCompileStatus).toBe("compiled");
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      message: null,
+      signature: "animation-v2",
+    });
+  });
+
   it("surfaces the worst compile target state before the latest target", () => {
     const targets = createAuthoringCompileTargets();
     targets["runtime-graph"] = {
@@ -198,7 +236,10 @@ describe("graphRuntimeStore", () => {
     store.setState((state) =>
       resolveRuntimeBundleAcknowledgementPatch(state, {
         source: { key: "animation", signature: "stale" },
-        graphCount: 2,
+        revision: 1,
+        controllers: { graphs: ["graph-a", "graph-b"], anims: [] },
+        reregistered: true,
+        reloadedAssets: false,
       }),
     );
 
@@ -210,7 +251,10 @@ describe("graphRuntimeStore", () => {
     store.setState((state) =>
       resolveRuntimeBundleAcknowledgementPatch(state, {
         source: { key: "animation", signature: "animation-v1" },
-        graphCount: 3,
+        revision: 2,
+        controllers: { graphs: ["graph-a", "graph-b", "graph-c"], anims: [] },
+        reregistered: true,
+        reloadedAssets: false,
       }),
     );
 
@@ -230,7 +274,13 @@ describe("graphRuntimeStore", () => {
     store.setState((state) =>
       resolveRuntimeBundleAcknowledgementPatch(state, {
         source: { key: "motiongraph", signature: "motiongraph-v1" },
-        graphCount: 4,
+        revision: 3,
+        controllers: {
+          graphs: ["graph-a", "graph-b", "graph-c", "graph-d"],
+          anims: [],
+        },
+        reregistered: false,
+        reloadedAssets: false,
       }),
     );
 

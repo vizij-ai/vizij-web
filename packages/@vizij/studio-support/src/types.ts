@@ -162,6 +162,7 @@ export type RuntimeGraphBundle = {
 export type RuntimeGraphBundleUpdateSource = {
   key?: string;
   signature?: string | null;
+  programId?: string | null;
 };
 
 export type RuntimeGraphBundlePendingUpdate = {

@@ -916,6 +916,167 @@ describe("VizijRuntimeProvider execution loop", () => {
     );
   });
 
+  it("defers motiongraph acknowledgements until the program graph registers", async () => {
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        rig: undefined,
+        pose: undefined,
+        programs: [],
+      }),
+      {
+        onRuntimeGraphBundleApplied: (event) => {
+          applied.push(event);
+        },
+      },
+    );
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle(), {
+        tier: "graphs",
+        source: {
+          key: "motiongraph",
+          signature: "motiongraph:sig-1",
+          programId: "live-program",
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(applied).toEqual([]);
+    expect(calls.filter((call) => call.kind === "registerGraph")).toEqual([]);
+
+    await act(async () => {
+      runtime().playProgram("live-program");
+    });
+
+    expect(calls.filter((call) => call.kind === "registerGraph")).toHaveLength(
+      1,
+    );
+    expect(applied).toHaveLength(1);
+    expect(applied[0]).toMatchObject({
+      source: {
+        key: "motiongraph",
+        signature: "motiongraph:sig-1",
+        programId: "live-program",
+      },
+      reregistered: true,
+      reloadedAssets: false,
+    });
+    expect(applied[0]?.controllers.graphs.length).toBeGreaterThan(0);
+  });
+
+  it("drops superseded deferred motiongraph acknowledgements", async () => {
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    const { runtime } = await mountRuntime(
+      makeBundle({
+        rig: undefined,
+        pose: undefined,
+        programs: [],
+      }),
+      {
+        onRuntimeGraphBundleApplied: (event) => {
+          applied.push(event);
+        },
+      },
+    );
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle(), {
+        tier: "graphs",
+        source: {
+          key: "motiongraph",
+          signature: "motiongraph:sig-1",
+          programId: "live-program",
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle(), {
+        tier: "graphs",
+        source: {
+          key: "motiongraph",
+          signature: "motiongraph:sig-2",
+          programId: null,
+        },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(applied.map((event) => event.source.signature)).toEqual([
+      "motiongraph:sig-2",
+    ]);
+
+    await act(async () => {
+      runtime().playProgram("live-program");
+    });
+
+    expect(applied.map((event) => event.source.signature)).toEqual([
+      "motiongraph:sig-2",
+    ]);
+  });
+
+  it("reports motiongraph program registration errors with the pending source", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    try {
+      const { runtime } = await mountRuntime(
+        makeBundle({
+          rig: undefined,
+          pose: undefined,
+          programs: [],
+        }),
+        {
+          configureOrchestrator: (orchestrator) => {
+            orchestrator.registerGraph = vi.fn(() => {
+              throw new Error("program register failed");
+            });
+          },
+          onRuntimeGraphBundleApplied: (event) => {
+            applied.push(event);
+          },
+        },
+      );
+
+      await act(async () => {
+        runtime().setGraphBundle(makeProgramBundle(), {
+          tier: "graphs",
+          source: {
+            key: "motiongraph",
+            signature: "motiongraph:sig-1",
+            programId: "live-program",
+          },
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        runtime().playProgram("live-program");
+      });
+
+      expect(applied).toEqual([]);
+      expect(runtime().error).toMatchObject({
+        message: "Failed to register program live-program",
+        phase: "registration",
+        sources: [
+          {
+            key: "motiongraph",
+            signature: "motiongraph:sig-1",
+            programId: "live-program",
+          },
+        ],
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("clears queued public inputs before graph bundle re-registration", async () => {
     const { calls, runtime } = await mountRuntime();
 
