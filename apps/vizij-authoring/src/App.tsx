@@ -14,12 +14,20 @@ import {
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
+  buildImportedBundleAnimationTargets,
+  buildImportedBundleProgramTargets,
   buildMotionGraphResetValuesForOutputs,
   buildGraphSpecForExport,
   buildRuntimeBaseBundle,
-  bundleAnimationEntryToClipIr,
+  filterImportedBundleProgramEntries,
+  isImportedBundleAnimationTargetId,
+  isImportedBundleProgramTargetId,
   normalizeMotionGraphResetValues,
-  specToEditorState,
+  resolveImportedBundleAnimationBaseClip,
+  resolveImportedBundleAnimationClip,
+  resolveImportedBundleProgramBaseSnapshot,
+  resolveImportedBundleProgramEntry,
+  resolveImportedBundleProgramSnapshot,
   type AnimationClipIR,
   type MotionGraphBundleEntry,
 } from "@vizij/studio-support";
@@ -117,30 +125,7 @@ import { formatPlaybackClock } from "./utils/animationTimeDisplay";
 const __DEV__ = process.env.NODE_ENV !== "production";
 const AUTHORED_ANIMATION_TARGET_PREFIX = "authored-animation:";
 const AUTHORED_PROCEDURAL_TARGET_PREFIX = "authored-procedural:";
-const BUNDLE_ANIMATION_TARGET_PREFIX = "bundle-animation:";
-const BUNDLE_PROCEDURAL_TARGET_PREFIX = "bundle-procedural:";
 const EMPTY_INPUT_VALUES: Readonly<Record<string, number>> = Object.freeze({});
-
-function bundleTargetValue(
-  prefix: string,
-  bundleSessionKey: string,
-  index: number,
-): string {
-  return `${prefix}${bundleSessionKey}:${index}`;
-}
-
-function parseBundleTargetIndex(
-  targetId: string,
-  prefix: string,
-): number | null {
-  if (!targetId.startsWith(prefix)) {
-    return null;
-  }
-  const raw = targetId.slice(prefix.length);
-  const rawIndex = raw.split(":").pop() ?? raw;
-  const index = Number.parseInt(rawIndex, 10);
-  return Number.isFinite(index) && index >= 0 ? index : null;
-}
 
 function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
   return {
@@ -1151,25 +1136,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const bundleAnimationTargetOptions = useMemo(() => {
-    const entries = loadedBundle?.animations ?? [];
-    return entries
-      .map((entry, index) => {
-        const targetValue = bundleTargetValue(
-          BUNDLE_ANIMATION_TARGET_PREFIX,
-          bundleSessionKey,
-          index,
-        );
-        const clipName =
-          typeof entry.clip?.name === "string" ? entry.clip.name.trim() : "";
-        const fallbackName =
-          entry.id?.trim() || `Imported Animation ${index + 1}`;
-        const baseLabel = clipName || fallbackName;
-        return {
-          value: targetValue,
-          label: bundleAnimationNameOverrides[targetValue] ?? baseLabel,
-        };
-      })
-      .filter((option) => !hiddenBundleAnimationTargetIds[option.value]);
+    return buildImportedBundleAnimationTargets({
+      bundleSessionKey,
+      entries: loadedBundle?.animations,
+      nameOverrides: bundleAnimationNameOverrides,
+      hiddenTargetIds: hiddenBundleAnimationTargetIds,
+    });
   }, [
     bundleSessionKey,
     bundleAnimationNameOverrides,
@@ -1192,34 +1164,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const bundleProceduralEntries = useMemo(
-    () =>
-      (loadedBundle?.graphs ?? []).filter(
-        (entry) => entry.kind?.toLowerCase?.() === "motiongraph",
-      ),
+    () => filterImportedBundleProgramEntries(loadedBundle?.graphs),
     [loadedBundle?.graphs],
   );
 
   const bundleProceduralTargetOptions = useMemo(
     () =>
-      bundleProceduralEntries
-        .map((entry, index) => {
-          const targetValue = bundleTargetValue(
-            BUNDLE_PROCEDURAL_TARGET_PREFIX,
-            bundleSessionKey,
-            index,
-          );
-          const metadataLabel =
-            typeof entry.label === "string" ? entry.label.trim() : "";
-          const metadataId =
-            typeof entry.id === "string" ? entry.id.trim() : "";
-          const baseLabel =
-            metadataLabel || metadataId || `Imported Program ${index + 1}`;
-          return {
-            value: targetValue,
-            label: bundleProceduralNameOverrides[targetValue] ?? baseLabel,
-          };
-        })
-        .filter((option) => !hiddenBundleProceduralTargetIds[option.value]),
+      buildImportedBundleProgramTargets({
+        bundleSessionKey,
+        entries: bundleProceduralEntries,
+        nameOverrides: bundleProceduralNameOverrides,
+        hiddenTargetIds: hiddenBundleProceduralTargetIds,
+      }),
     [
       bundleSessionKey,
       bundleProceduralEntries,
@@ -1258,135 +1214,69 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ),
     [proceduralTargetOptions],
   );
-  const resolveBundleAnimationEntry = useCallback(
-    (targetId: string) => {
-      const index = parseBundleTargetIndex(
-        targetId,
-        BUNDLE_ANIMATION_TARGET_PREFIX,
-      );
-      if (index === null) {
-        return null;
-      }
-      return loadedBundle?.animations?.[index] ?? null;
-    },
-    [loadedBundle?.animations],
-  );
   const resolveImportedAnimationClip = useCallback(
     (targetId: string): AnimationClipIR | null => {
-      const entry = resolveBundleAnimationEntry(targetId);
-      if (!entry) {
-        return null;
-      }
-      const baseClip = bundleAnimationEntryToClipIr(entry, {
+      return resolveImportedBundleAnimationClip({
+        targetId,
+        entries: loadedBundle?.animations,
         standardInputsById: mainFaceInputsById,
+        clipOverrides: bundleAnimationClipOverrides,
+        nameOverrides: bundleAnimationNameOverrides,
+        durationOverrides: bundleAnimationDurationOverrides,
       });
-      if (!baseClip) {
-        return null;
-      }
-      const overriddenName = bundleAnimationNameOverrides[targetId]?.trim();
-      const overriddenDuration = bundleAnimationDurationOverrides[targetId];
-      const resolvedBaseClip = {
-        ...baseClip,
-        name:
-          overriddenName && overriddenName.length > 0
-            ? overriddenName
-            : baseClip.name,
-        duration: Number.isFinite(overriddenDuration)
-          ? overriddenDuration
-          : baseClip.duration,
-      };
-      const override = bundleAnimationClipOverrides[targetId];
-      const clip = override ? structuredClone(override) : resolvedBaseClip;
-      return {
-        ...clip,
-        name:
-          overriddenName && overriddenName.length > 0
-            ? overriddenName
-            : clip.name,
-        duration: Number.isFinite(overriddenDuration)
-          ? overriddenDuration
-          : clip.duration,
-      };
     },
     [
       bundleAnimationClipOverrides,
       bundleAnimationDurationOverrides,
       bundleAnimationNameOverrides,
+      loadedBundle?.animations,
       mainFaceInputsById,
-      resolveBundleAnimationEntry,
     ],
   );
   const resolveImportedAnimationBaseClip = useCallback(
     (targetId: string): AnimationClipIR | null => {
-      const entry = resolveBundleAnimationEntry(targetId);
-      if (!entry) {
-        return null;
-      }
-      const clip = bundleAnimationEntryToClipIr(entry, {
+      return resolveImportedBundleAnimationBaseClip({
+        targetId,
+        entries: loadedBundle?.animations,
         standardInputsById: mainFaceInputsById,
+        nameOverrides: bundleAnimationNameOverrides,
+        durationOverrides: bundleAnimationDurationOverrides,
       });
-      if (!clip) {
-        return null;
-      }
-      const overriddenName = bundleAnimationNameOverrides[targetId]?.trim();
-      const overriddenDuration = bundleAnimationDurationOverrides[targetId];
-      return {
-        ...clip,
-        name:
-          overriddenName && overriddenName.length > 0
-            ? overriddenName
-            : clip.name,
-        duration: Number.isFinite(overriddenDuration)
-          ? overriddenDuration
-          : clip.duration,
-      };
     },
     [
       bundleAnimationDurationOverrides,
       bundleAnimationNameOverrides,
+      loadedBundle?.animations,
       mainFaceInputsById,
-      resolveBundleAnimationEntry,
     ],
   );
   const resolveBundleProceduralEntry = useCallback(
     (targetId: string) => {
-      const index = parseBundleTargetIndex(
+      return resolveImportedBundleProgramEntry({
         targetId,
-        BUNDLE_PROCEDURAL_TARGET_PREFIX,
-      );
-      if (index === null) {
-        return null;
-      }
-      return bundleProceduralEntries[index] ?? null;
+        entries: bundleProceduralEntries,
+      });
     },
     [bundleProceduralEntries],
   );
   const resolveImportedProceduralBaseSnapshot = useCallback(
     (targetId: string): ProceduralProgramSnapshot | null => {
-      const entry = resolveBundleProceduralEntry(targetId);
-      if (!entry?.spec || typeof entry.spec !== "object") {
-        return null;
-      }
-      const parsed = specToEditorState(entry.spec as Record<string, unknown>);
-      return {
-        nodes: parsed.nodes,
-        edges: parsed.edges,
-        enabledOutputs: Array.from(parsed.enabledOutputs),
-        enabledInputs: Array.from(parsed.enabledInputs),
-        customInputPaths: [...parsed.customInputPaths],
-      };
+      return resolveImportedBundleProgramBaseSnapshot({
+        targetId,
+        entries: bundleProceduralEntries,
+      });
     },
-    [resolveBundleProceduralEntry],
+    [bundleProceduralEntries],
   );
   const resolveImportedProceduralSnapshot = useCallback(
     (targetId: string): ProceduralProgramSnapshot | null => {
-      const override = bundleProceduralSnapshotOverrides[targetId];
-      if (override) {
-        return structuredClone(override);
-      }
-      return resolveImportedProceduralBaseSnapshot(targetId);
+      return resolveImportedBundleProgramSnapshot({
+        targetId,
+        entries: bundleProceduralEntries,
+        snapshotOverrides: bundleProceduralSnapshotOverrides,
+      });
     },
-    [bundleProceduralSnapshotOverrides, resolveImportedProceduralBaseSnapshot],
+    [bundleProceduralEntries, bundleProceduralSnapshotOverrides],
   );
   const effectiveAnimationRuntimePlaybackState: RuntimePlaybackState =
     activeAnimationRuntimeTargetId
@@ -1485,7 +1375,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const saveProceduralTarget = useCallback(
     (targetId: string) => {
       const programId = parseAuthoredProceduralTargetValue(targetId);
-      if (!programId && !targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      if (!programId && !isImportedBundleProgramTargetId(targetId)) {
         return;
       }
       const snapshot = snapshotProceduralEditorState();
@@ -1550,7 +1440,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const saveAnimationTarget = useCallback(
     (targetId: string) => {
       const clipId = parseAuthoredAnimationTargetValue(targetId);
-      if (!clipId && !targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      if (!clipId && !isImportedBundleAnimationTargetId(targetId)) {
         return;
       }
       if (clipId) {
@@ -1741,9 +1631,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           id: authoredTarget.clipId,
           name: targetName,
         });
-      } else if (
-        selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
-      ) {
+      } else if (isImportedBundleAnimationTargetId(selectedAnimationTargetId)) {
         clip = resolveImportedAnimationClip(selectedAnimationTargetId);
         if (!clip) {
           return null;
@@ -1829,9 +1717,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           selectedProceduralTargetId === authoredTarget.targetId
             ? snapshotProceduralEditorState()
             : structuredClone(authoredTarget.snapshot);
-      } else if (
-        selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
-      ) {
+      } else if (isImportedBundleProgramTargetId(selectedProceduralTargetId)) {
         snapshot = resolveImportedProceduralSnapshot(
           selectedProceduralTargetId,
         );
@@ -1946,9 +1832,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         id: AUTHORED_TIMELINE_CLIP_ID,
       };
     }
-    if (
-      !activeAnimationRuntimeTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
-    ) {
+    if (!isImportedBundleAnimationTargetId(activeAnimationRuntimeTargetId)) {
       return null;
     }
     const clip = resolveImportedAnimationClip(activeAnimationRuntimeTargetId);
@@ -1988,11 +1872,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           ? snapshotProceduralEditorState()
           : structuredClone(authoredTarget.snapshot);
       }
-      if (
-        !activeProgramRuntimeTargetId.startsWith(
-          BUNDLE_PROCEDURAL_TARGET_PREFIX,
-        )
-      ) {
+      if (!isImportedBundleProgramTargetId(activeProgramRuntimeTargetId)) {
         return null;
       }
       return resolveImportedProceduralSnapshot(activeProgramRuntimeTargetId);
@@ -2023,7 +1903,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           importAnimationClipIr(target.clip);
           return;
         }
-      } else if (targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      } else if (isImportedBundleAnimationTargetId(targetId)) {
         const clip = resolveImportedAnimationClip(targetId);
         if (clip) {
           importAnimationClipIr(clip);
@@ -2057,7 +1937,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           hydrateProceduralEditorState(authoredTarget.snapshot);
           return;
         }
-      } else if (targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      } else if (isImportedBundleProgramTargetId(targetId)) {
         const snapshot = resolveImportedProceduralSnapshot(targetId);
         if (snapshot) {
           hydrateProceduralEditorState(snapshot);
@@ -2123,9 +2003,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           : structuredClone(authoredTarget.snapshot);
       }
       if (
-        !resolvedSelectedProceduralTargetId.startsWith(
-          BUNDLE_PROCEDURAL_TARGET_PREFIX,
-        )
+        !isImportedBundleProgramTargetId(resolvedSelectedProceduralTargetId)
       ) {
         return null;
       }
@@ -2164,13 +2042,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     if (!previewProgramRuntimeSnapshot) {
       return [];
     }
-    const preservedResetValues = previewProgramRuntimeTargetId?.startsWith(
-      BUNDLE_PROCEDURAL_TARGET_PREFIX,
-    )
-      ? readMotionGraphMetadataResetValues(
-          resolveBundleProceduralEntry(previewProgramRuntimeTargetId) ?? {},
-        )
-      : undefined;
+    const preservedResetValues =
+      previewProgramRuntimeTargetId &&
+      isImportedBundleProgramTargetId(previewProgramRuntimeTargetId)
+        ? readMotionGraphMetadataResetValues(
+            resolveBundleProceduralEntry(previewProgramRuntimeTargetId) ?? {},
+          )
+        : undefined;
     return resetValueEntries(
       buildMotionGraphResetValuesForOutputs(
         previewProgramRuntimeSnapshot.enabledOutputs,
@@ -2271,7 +2149,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                 name: authoredTarget.name,
               })
             : structuredClone(authoredTarget.clip);
-      } else if (targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      } else if (isImportedBundleAnimationTargetId(targetId)) {
         const importedClip = resolveImportedAnimationClip(targetId);
         if (!importedClip) {
           return;
@@ -2345,7 +2223,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         nextAuthoredTargets = authoredAnimationTargets.filter(
           (target) => target.targetId !== deletingTargetId,
         );
-      } else if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      } else if (isImportedBundleAnimationTargetId(deletingTargetId)) {
         setHiddenBundleAnimationTargetIds((previous) => ({
           ...previous,
           [deletingTargetId]: true,
@@ -2395,7 +2273,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
     const activeImportedTargetId =
       selectedAnimationTargetId &&
-      selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
+      isImportedBundleAnimationTargetId(selectedAnimationTargetId)
         ? selectedAnimationTargetId
         : null;
     const liveActiveClip =
@@ -2545,7 +2423,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           targetId === selectedProceduralTargetId
             ? snapshotProceduralEditorState()
             : structuredClone(authoredTarget.snapshot);
-      } else if (targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      } else if (isImportedBundleProgramTargetId(targetId)) {
         sourceSnapshot = resolveImportedProceduralSnapshot(targetId);
         if (!sourceSnapshot) {
           return;
@@ -2608,7 +2486,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         nextAuthoredTargets = authoredProceduralTargets.filter(
           (target) => target.targetId !== deletingTargetId,
         );
-      } else if (deletingTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      } else if (isImportedBundleProgramTargetId(deletingTargetId)) {
         setHiddenBundleProceduralTargetIds((previous) => ({
           ...previous,
           [deletingTargetId]: true,
@@ -2858,7 +2736,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         );
         return;
       }
-      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      if (!isImportedBundleAnimationTargetId(targetId)) {
         return;
       }
       setBundleAnimationNameOverrides((previous) => ({
@@ -2884,7 +2762,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         saveAnimationTarget(targetId);
         return;
       }
-      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      if (!isImportedBundleAnimationTargetId(targetId)) {
         return;
       }
       setBundleAnimationDurationOverrides((previous) => ({
@@ -2962,7 +2840,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         );
         return;
       }
-      if (!targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
+      if (!isImportedBundleProgramTargetId(targetId)) {
         return;
       }
       setBundleProceduralNameOverrides((previous) => ({
@@ -2979,7 +2857,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
     const activeImportedProgram =
       selectedProceduralTargetId &&
-      selectedProceduralTargetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)
+      isImportedBundleProgramTargetId(selectedProceduralTargetId)
         ? selectedProceduralTargetId
         : null;
     const liveActiveSnapshot = activeAuthoredProgramId
