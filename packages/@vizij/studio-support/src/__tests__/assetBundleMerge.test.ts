@@ -88,6 +88,43 @@ describe("mergeAssetBundle", () => {
     expect(merged.programs).toEqual([]);
   });
 
+  it("round-trips motiongraph reset values from bundle metadata", () => {
+    const merged = mergeAssetBundle(
+      makeBaseBundle(),
+      makeExtractedBundle({
+        graphs: [
+          {
+            id: "wave",
+            kind: "motiongraph",
+            spec: {
+              nodes: [
+                {
+                  id: "out",
+                  type: "output",
+                  params: { path: "rig/face/smile" },
+                },
+              ],
+              edges: [],
+            },
+            metadata: {
+              resetValues: {
+                "rig/face/smile": 0.25,
+              },
+            },
+          },
+        ],
+      }),
+      undefined,
+    );
+
+    expect(merged.programs?.[0]).toMatchObject({
+      id: "wave",
+      resetValues: {
+        "rig/face/smile": 0.25,
+      },
+    });
+  });
+
   it("still merges explicit authored animations with extracted animations", () => {
     const authoredAnimations: VizijAnimationAsset[] = [
       {

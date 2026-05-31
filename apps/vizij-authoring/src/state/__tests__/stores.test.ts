@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGraphRuntimeStore } from "../graphRuntimeStore";
+import {
+  createAuthoringCompileTargets,
+  createGraphRuntimeStore,
+  resolveVisibleAuthoringCompileState,
+} from "../graphRuntimeStore";
 import { createBindingAuthoringStore } from "../bindingAuthoringStore";
 import { createSelectionStore } from "../selectionStore";
 import { createPoseRigStore } from "../../poseRig/store";
@@ -12,10 +16,172 @@ describe("graphRuntimeStore", () => {
     store.setState({ faceId: "demo", graphStatus: "ready" });
     expect(store.getState().faceId).toBe("demo");
     expect(store.getState().graphStatus).toBe("ready");
+    expect(store.getState().authoringCompileStatus).toBe("idle");
     expect(listener).toHaveBeenCalledTimes(1);
+    store.setState({
+      authoringCompileStatus: "registered",
+      authoringCompileTarget: "motiongraph",
+      authoringCompileSignature: "abc",
+    });
+    expect(store.getState().authoringCompileStatus).toBe("registered");
+    expect(store.getState().authoringCompileTarget).toBe("motiongraph");
+    expect(store.getState().authoringCompileSignature).toBe("abc");
+    expect(store.getState().authoringCompileTargets.motiongraph).toMatchObject({
+      status: "registered",
+      signature: "abc",
+    });
+    expect(listener).toHaveBeenCalledTimes(2);
     unsubscribe();
     store.setState({ faceSegment: "segment" });
-    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it("builds fresh compile target maps for runtime reset/error states", () => {
+    const idleTargets = createAuthoringCompileTargets();
+    const errorTargets = createAuthoringCompileTargets({
+      status: "runtime-error",
+      message: "runtime failed",
+      signature: null,
+    });
+
+    expect(idleTargets.animation).toEqual({
+      status: "idle",
+      message: null,
+      signature: null,
+    });
+    expect(errorTargets.animation).toEqual({
+      status: "runtime-error",
+      message: "runtime failed",
+      signature: null,
+    });
+    expect(errorTargets.animation).not.toBe(errorTargets.motiongraph);
+  });
+
+  it("preserves explicit all-target compile reset maps", () => {
+    const store = createGraphRuntimeStore();
+
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileSignature: "animation-v1",
+    });
+    store.setState({
+      authoringCompileStatus: "runtime-error",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: "runtime failed",
+      authoringCompileSignature: null,
+      authoringCompileTargets: createAuthoringCompileTargets({
+        status: "runtime-error",
+        message: "runtime failed",
+        signature: null,
+      }),
+    });
+
+    expect(store.getState().authoringCompileTargets).toEqual({
+      "runtime-graph": {
+        status: "runtime-error",
+        message: "runtime failed",
+        signature: null,
+      },
+      animation: {
+        status: "runtime-error",
+        message: "runtime failed",
+        signature: null,
+      },
+      motiongraph: {
+        status: "runtime-error",
+        message: "runtime failed",
+        signature: null,
+      },
+    });
+  });
+
+  it("does not demote a registered compile target on a matching compiled update", () => {
+    const store = createGraphRuntimeStore();
+
+    store.setState({
+      authoringCompileStatus: "registered",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+
+    expect(store.getState().authoringCompileStatus).toBe("registered");
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "registered",
+      message: null,
+      signature: "animation-v1",
+    });
+
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v2",
+    });
+
+    expect(store.getState().authoringCompileStatus).toBe("compiled");
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      message: null,
+      signature: "animation-v2",
+    });
+  });
+
+  it("surfaces the worst compile target state before the latest target", () => {
+    const targets = createAuthoringCompileTargets();
+    targets["runtime-graph"] = {
+      status: "runtime-error",
+      message: "runtime graph failed",
+      signature: null,
+    };
+    targets.animation = {
+      status: "registered",
+      message: null,
+      signature: "animation-v1",
+    };
+
+    expect(
+      resolveVisibleAuthoringCompileState({
+        authoringCompileTarget: "animation",
+        authoringCompileTargets: targets,
+      }),
+    ).toMatchObject({
+      target: "runtime-graph",
+      status: "runtime-error",
+      message: "runtime graph failed",
+    });
+  });
+
+  it("uses the latest compile target as the tie-breaker for equal states", () => {
+    const targets = createAuthoringCompileTargets();
+    targets.animation = {
+      status: "compiled",
+      message: null,
+      signature: "animation-v1",
+    };
+    targets.motiongraph = {
+      status: "compiled",
+      message: null,
+      signature: "motiongraph-v1",
+    };
+
+    expect(
+      resolveVisibleAuthoringCompileState({
+        authoringCompileTarget: "motiongraph",
+        authoringCompileTargets: targets,
+      }),
+    ).toMatchObject({
+      target: "motiongraph",
+      status: "compiled",
+      signature: "motiongraph-v1",
+    });
   });
 });
 

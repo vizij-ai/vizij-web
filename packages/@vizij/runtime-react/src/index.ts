@@ -70,6 +70,8 @@ export type {
   RuntimeUpdateTier,
   RuntimeUpdatePlan,
   RuntimeGraphBundle,
+  RuntimeGraphBundleAppliedEvent,
+  RuntimeGraphBundleUpdateSource,
   RuntimeOutputWrite,
   OrchestratorBackend,
 } from "./types";

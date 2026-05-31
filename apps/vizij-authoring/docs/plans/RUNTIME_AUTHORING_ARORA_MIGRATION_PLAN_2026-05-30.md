@@ -60,7 +60,66 @@ Latest validation:
 
 The 2026-05-31 hardening pass also corrected stale browser assertions in the authoring E2E suite: tab counts now read the stable accessible labels, the delayed-load workflow verifies the current `quori:basic` program target from the rendered Programs panel, and runtime-session tests target concrete animation/program rows instead of page-global button titles.
 
-This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly and reducing duplicate compile semantics.
+The 2026-05-31 verification-led responsibility pass tightened the same architecture without adding a new feature surface:
+
+1. Pipeline metadata export/import helpers, pose compose-mode projection, graph-build pipeline metadata injection, locked-target derivation, generated-node diff filtering, and bundle-audit violation formatting are now package-owned in `@vizij/studio-support`.
+2. `apps/vizij-authoring` callers now use those support-layer helpers instead of carrying local copies in hooks or audit utilities.
+3. The old app-level import-helper unit file was deleted because the same semantics now live in support package tests.
+4. Runtime program playback no longer rebuilds program graph registration as an on-demand fallback; it consumes the prepared registration map produced by the support-owned registration plan.
+5. Runtime source asset changes now reset transient playback/input state and clear previous graph controllers before reload.
+6. Animation-store coverage now proves cubic tangent edits survive exported clip IR and evaluate through the Studio-compatible animation core.
+7. Live preview bundle assembly for runtime graphs, animations, and motiongraph programs now comes from `@vizij/studio-support` helpers instead of local React bridge code.
+8. Authoring compile state is target-scoped across runtime graph, animation, and motiongraph updates, with `dirty`, `compiling`, `compiled`, `registered`, and `runtime-error` states surfaced in the inspector.
+9. The runtime graph bridge no longer clears imported rig or pose assets before authoring actually owns a graph payload.
+10. Pure rig round-trip diagnostic helpers and standard-input binding extraction are now support-owned.
+11. Runtime program playback waits for a prepared registration instead of reporting a user-visible registration error during the normal live-preview race.
+12. Runtime input route/path resolution and standard-input collection/index construction are now support-owned, leaving React hooks as adapters over package helpers.
+13. Pose graph IR changes now participate in runtime update planning, so IR-only pose graph updates trigger graph re-registration.
+14. Compile status no longer promotes from generic runtime readiness; the UI resets stale target states on runtime teardown/error and promotes `compiled` payloads only from target/signature-specific runtime graph bundle acknowledgements.
+15. Runtime graph bundle acknowledgements are queued per submitted source, so graph, animation, and motiongraph updates submitted in the same registration wave can each be marked applied without relying on controller-count refreshes.
+16. Motiongraph reset values now use the same support-owned semantics for live preview, export metadata, and import/runtime program assets. Imported reset values are preserved for existing output paths and defaults are synthesized only for new outputs.
+17. Standalone rig graph export now uses the same support-owned rig graph artifact assembly helper as GLB bundle export, so app export code handles file/user intent while Studio support owns canonical spec/IR construction.
+18. Runtime program controller synchronization is now planned in `@vizij/studio-support`; `@vizij/runtime-react` keeps only the host `registerGraph`/`removeGraph` effects and status/error reporting.
+19. Runtime graph bundle acknowledgement sources are now runtime-generic `{ key, signature }` payloads. The authoring app interprets keys like `runtime-graph`, `animation`, and `motiongraph`, so runtime React no longer imports authoring compile-target semantics.
+20. Target-scoped compile status recovery now preserves explicit all-target runtime-error/reset maps, and the inspector reads the target status map as the display source instead of trusting only the latest global target fields.
+21. Runtime graph spec selection is now support-owned, and IR compile issues block runtime promotion instead of silently promoting a legacy fallback as current runtime truth.
+22. Rig graph import comparison now uses a support-owned rebuild/diff helper, including generated-node diff filtering, pose compose-mode hints, and total issue counting.
+23. Rig round-trip audit now uses the support-owned rig graph artifact assembly and imported-graph comparison paths, leaving the app utility responsible for audit orchestration and UI-facing result shape.
+24. Runtime graph bundle application planning is support-owned, but runtime host effects stay in `@vizij/runtime-react`: Studio support prepares pure plans; runtime React applies controller registration, removal, and input staging to the host.
+25. Animation compile status now preserves a matching `registered` target state when the runtime signature catches up and the bridge later observes an already-compiled payload. This prevents a registered animation edit from visually regressing to merely compiled.
+26. Live-edit pipeline metadata derivation, imported/local merge, sanitize, and link-patch reading are now support-owned pure helpers; `useRigController` keeps app-specific binding mutation and UI orchestration.
+27. Inspector compile-status display now ranks all target states before using the latest target as a tie-breaker, so a later animation acknowledgement cannot hide a runtime graph error, dirty state, or compile-in-progress state.
+
+Latest verification for this pass:
+
+1. `pnpm --filter @vizij/studio-support lint`
+2. `pnpm --filter @vizij/studio-support typecheck`
+3. `pnpm --filter @vizij/studio-support test` - 31 files, 157 tests passed.
+4. `pnpm --filter @vizij/runtime-react lint`
+5. `pnpm --filter @vizij/runtime-react typecheck`
+6. `pnpm --filter @vizij/runtime-react test` - 8 files, 40 tests passed.
+7. `pnpm --filter vizij-authoring lint`
+8. `pnpm --filter vizij-authoring typecheck`
+9. `pnpm --filter vizij-authoring test` - 93 files passed, 674 tests passed, 1 perf file/test skipped.
+10. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed in 2.4 minutes, including face load, UI-edited animation and graph execution through composed Arora runtime, and exported GLB round-trip.
+11. Source files touched in this pass passed `pnpm exec prettier --check ...`; package-level `prettier:check` scripts include generated `dist` files after local builds, so they were not used as the final source-format gate.
+12. `git diff --check`
+
+Focused evidence for the live authoring path:
+
+1. `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/standardInputCollections.test.ts src/__tests__/runtimeInputRoutes.test.ts src/__tests__/runtimeInputs.test.ts src/__tests__/standardInputBindings.test.ts src/__tests__/standardInputResolutionIndex.test.ts src/__tests__/studioSupport.test.ts` - 31 tests passed.
+2. `pnpm --filter @vizij/studio-support typecheck`
+3. `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/graphRuntime.test.ts src/hooks/__tests__/runtimeInputStaging.test.ts src/hooks/__tests__/rigGraphCompiler.test.ts src/state/__tests__/stores.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx src/hooks/__tests__/useVizijExport.test.tsx` - 76 tests passed.
+4. `pnpm --filter vizij-authoring typecheck`
+5. `pnpm --filter @vizij/runtime-react exec vitest --run src/__tests__/runtimeProviderExecutionLoop.test.tsx` - 13 tests passed.
+6. `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/bundleAssembly.test.ts src/__tests__/assetBundleMerge.test.ts src/__tests__/authoringPreview.test.ts src/__tests__/programInputs.test.ts` - 20 tests passed.
+7. After promoting shared rig graph export artifact assembly: `pnpm --filter @vizij/studio-support typecheck`, `pnpm --filter vizij-authoring typecheck`, `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/bundleAssembly.test.ts src/__tests__/assetBundleMerge.test.ts src/__tests__/authoringPreview.test.ts` - 14 tests passed, and `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx` - 34 tests passed.
+8. After runtime-thinning and target-scoped compile-status hardening: `pnpm --filter @vizij/studio-support typecheck`, `pnpm --filter @vizij/runtime-react typecheck`, `pnpm --filter vizij-authoring typecheck`, `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/studioSupport.test.ts` - 14 tests passed, `pnpm --filter @vizij/runtime-react exec vitest --run src/__tests__/runtimeProviderExecutionLoop.test.tsx` - 13 tests passed, `pnpm --filter vizij-authoring exec vitest --run src/state/__tests__/stores.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx` - 30 tests passed, and scoped lint for all three packages passed.
+9. After support-owned runtime graph gating and rig import/audit comparison cleanup: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/rigRoundtripDiagnostics.test.ts src/__tests__/runtimeGraphSpec.test.ts src/__tests__/bundleAssembly.test.ts src/__tests__/bundleAudit.test.ts src/__tests__/graphDiff.test.ts` - 25 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/rigGraphCompiler.test.ts src/hooks/__tests__/graphRuntime.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx src/state/__tests__/stores.test.ts` - 41 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx` - 34 tests passed.
+10. After correcting the support/runtime host-effect boundary and animation ack retention: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/authoringPreview.test.ts src/__tests__/studioSupport.test.ts` - 22 tests passed; `pnpm --filter @vizij/runtime-react exec vitest --run src/__tests__/controllerRegistration.test.ts src/__tests__/runtimeProviderExecutionLoop.test.tsx src/__tests__/studioSupportExports.test.ts` - 20 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/state/__tests__/stores.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx` - 32 tests passed.
+11. After moving live-edit pipeline metadata helpers into Studio support and fixing compile-target display ranking: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/pipelineMetadata.test.ts` - 15 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useRigController.pipelineMerge.test.ts src/state/__tests__/stores.test.ts` - 10 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/inspector/InspectorPanel.test.tsx src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx` - 28 tests passed.
+
+This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly, reducing duplicate compile semantics, and choosing performance promotions from evidence.
 
 ## Target Responsibility Model
 
@@ -297,18 +356,60 @@ Approve the migration if we accept these gates:
 3. How much playback session state eventually belongs in the composed orchestrator versus the React adapter.
 4. How much compatibility support remains after legacy animation migration is proven.
 
-## Recommended Next Slice
+## Recommended Remaining Migration Plan
 
-The next approvable slice should finish the authoring-backend promotion and take the highest-value part of runtime thinning:
+The next approvable slice should finish the authoring-backend promotion, add realish-time compile feedback, and make the runtime adapter thinner without moving browser or renderer responsibilities prematurely.
 
-1. Promote plan-derived controller application helpers out of `@vizij/runtime-react` where they can stay backend-agnostic: merged graph id handling, program registration bookkeeping, output/input path sets, rig input maps, and initial input staging results.
-2. Keep the actual host calls in the runtime adapter unless the extracted helper can remain cleanly typed as a host adapter without importing React or browser concerns.
-3. Promote remaining import/export audit and normalization helpers out of `apps/vizij-authoring` where they are not UI-specific. Highest-value candidates are `rigRoundtripAudit`, `standardInputResolutionIndex`, `standardInputPaths`, `graphPaths`, and the pure bundle/metadata helpers currently embedded in `useVizijExport`.
-4. Route live graph/animation edits through a single Studio-support asset assembly path before registration. The UI may still own immediate gesture state, but the compiled asset handed to Arora should come from the same support-layer compiler used for export/import.
-5. Add compile-status plumbing in authoring: dirty, compiling, compiled, registered, runtime error.
-6. Add debounced live-update plumbing for animation and graph edits using stable asset hashes so repeated edits do not cause redundant Arora registrations.
-7. Profile the compile/update loop before Rust promotion. Treat animation sampling/migration, graph normalization/diffing, and pose/rig IR compilation as the first Rust/Wasm candidates, but move them only when profiling or portability makes the benefit concrete.
-8. Keep the Arora E2E workflow, smoke E2E, full authoring unit suite, runtime tests, and support package tests as the approval gate.
+### Step 1: Finish The Remaining Support-Owned Compile Boundary
+
+Bundle assembly, live preview assembly, pipeline metadata normalization, generated-node diff filtering, bundle-audit violation formatting, rig round-trip diagnostic primitives, standard-input binding extraction, runtime input route/path resolution, and standard-input collection/index construction are now support-owned. The next cleanup should move only the remaining pure compile/diagnostic helpers out of React-facing authoring code:
+
+1. Keep `rigRoundtripAudit` UI invocation, file handling, and app-specific orchestration in the authoring app, but continue moving pure comparison helpers to support if more duplication appears.
+2. Continue auditing `useVizijExport`, import hooks, and runtime bridge code for pure helpers that still assemble canonical asset semantics locally.
+3. Keep support package tests at the function boundary; keep app tests for user workflows and integration only.
+
+### Step 2: Route Live Authoring Through One Compile Path
+
+Live preview now uses support-owned asset assembly for graph, animation, and motiongraph payloads. The remaining work is to close the last gaps between live preview and export/import:
+
+1. Animation keyframe, tangent, interpolation, and handle edits compile into the same canonical clip IR that export writes.
+2. Node graph default, connection, and target edits compile into the same canonical graph/program assets that export writes.
+3. Standalone graph export and GLB bundle export now share support-level rig graph artifact assembly for canonical spec/IR output.
+4. Export/import and live preview now share support-level graph/program bundle assembly for motiongraph reset semantics; remaining divergence should be audited only where a concrete export/import behavior still assembles canonical asset shape in the app.
+5. Stable asset hashes prevent repeated registrations when the compiled payload has not changed.
+
+### Step 3: Add Compile And Registration State To The Authoring UI
+
+The authoring app now has the first target/signature-specific acknowledgement path and no longer treats generic runtime readiness or controller-count refreshes as registration acknowledgement. The remaining work is to use that exact acknowledgement model consistently in UI messaging and batching:
+
+1. `dirty`: editor state changed and has not been compiled.
+2. `compiling`: support-layer compile/assembly is running.
+3. `compiled`: a canonical asset payload exists.
+4. `registered`: the runtime has accepted the latest compiled payload.
+5. `runtime-error`: compile succeeded, but runtime registration or execution failed.
+6. Runtime acknowledgements carry target/signature/update revision and should remain the only source for promoting compiled payloads to registered.
+
+This should be driven by support/runtime results, not by duplicated UI heuristics.
+
+### Step 4: Thin Runtime React To Plan Application And Renderer Bridging
+
+Keep `@vizij/runtime-react` responsible for host integration, not asset semantics:
+
+1. Move backend-agnostic plan application bookkeeping where it can be cleanly typed outside React: controller id sets, prepared program registration maps, output/input path sets, rig input maps, and registration result summaries.
+2. Keep actual host calls, backend loading, playback sessions, and renderer frame-write bridging in runtime React for now.
+3. Track public input lifecycle explicitly so source asset changes, graph replacement, and live edit updates have intentional input-retention behavior.
+4. Do not move renderer frame-write bridging into the engine until profiling or native service requirements prove it belongs there.
+5. Keep runtime acknowledgement payloads generic. Runtime React should report which opaque update key/signature was applied; authoring code owns the interpretation of that key as animation, graph, or motiongraph compile state.
+
+### Step 5: Decide Rust/Wasm Promotion From Evidence
+
+Treat Rust/Wasm as the likely destination for hot deterministic compilers, but choose the order by profiling and portability value:
+
+1. Animation sampling, tangent handling, and legacy-to-Studio migration validation are the first likely Rust candidates because they are deterministic, hot during playback/proofing, and already have canonical semantics.
+2. Node graph normalization/diffing is the next likely candidate because it affects live graph edit latency and export/import parity.
+3. Pose/rig IR compilation should move after the shape stabilizes, because it has the most authoring-specific coupling and the highest risk of premature crystallization.
+4. JavaScript wrappers should become typed adapters around the Rust/Wasm outputs, not parallel implementations.
+5. The same Rust core should support browser Wasm and future native execution; browser-only Wasm wrappers should not become the canonical engine contract.
 
 Acceptance for this next slice:
 

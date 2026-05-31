@@ -1,37 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import * as graphAuthoring from "@vizij/node-graph-authoring";
 import {
   buildBindingIssuesMap,
-  buildPoseComposeModeByInputId,
   buildRigGraphCompile,
   createGraphInsightSnapshot,
   resolveRuntimeGraphSpecWithCache,
-  withPipelineConfigBuildOptions,
 } from "../rigController/rigGraphCompiler";
 import type { RuntimeGraphSpec } from "../runtimeGraphSpec";
-
-describe("buildPoseComposeModeByInputId", () => {
-  it("projects compose modes only for targeted inputs", () => {
-    const modes = buildPoseComposeModeByInputId({
-      poses: [
-        {
-          values: { jaw: 0.4, smile: 1 },
-          composeModes: { jaw: "average" },
-        },
-        {
-          values: { smile: 0.2, blink: 1 },
-          composeModes: { smile: "average", blink: "unsupported" },
-        },
-      ],
-    });
-
-    expect(modes).toEqual({
-      jaw: "average",
-      smile: "average",
-      blink: "add",
-    });
-  });
-});
 
 describe("buildRigGraphCompile", () => {
   it("returns null when no face id is available", () => {
@@ -48,15 +22,7 @@ describe("buildRigGraphCompile", () => {
     expect(result).toBeNull();
   });
 
-  it("passes compose modes through to the graph compiler", () => {
-    const buildRigGraphSpecSpy = vi
-      .spyOn(graphAuthoring, "buildRigGraphSpec")
-      .mockReturnValue({
-        spec: { nodes: [] },
-        summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
-        issues: { fatal: [], byTarget: {} },
-      } as any);
-
+  it("delegates graph compilation and returns the build result", () => {
     const result = buildRigGraphCompile({
       faceId: "face",
       animatables: {},
@@ -81,43 +47,7 @@ describe("buildRigGraphCompile", () => {
     });
 
     expect(result).not.toBeNull();
-    expect(buildRigGraphSpecSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        faceId: "face",
-        inputComposeModesById: { jaw: "average" },
-        pipelineV1: expect.objectContaining({
-          byInputId: expect.objectContaining({
-            jaw: expect.objectContaining({
-              directInput: { enabled: true },
-            }),
-          }),
-        }),
-      }),
-    );
-    buildRigGraphSpecSpy.mockRestore();
-  });
-});
-
-describe("withPipelineConfigBuildOptions", () => {
-  it("returns original options when no staged config map is provided", () => {
-    const options = { faceId: "face", inputComposeModesById: {} };
-    expect(withPipelineConfigBuildOptions(options, null)).toBe(options);
-    expect(withPipelineConfigBuildOptions(options, {})).toBe(options);
-  });
-
-  it("attaches pipelineV1 metadata for staged pipeline maps", () => {
-    const options = { faceId: "face", inputComposeModesById: {} };
-    const next = withPipelineConfigBuildOptions(options, {
-      jaw: { clamp: { enabled: true } },
-    });
-    expect(next).not.toBe(options);
-    expect(next).toMatchObject({
-      pipelineV1: expect.objectContaining({
-        byInputId: expect.objectContaining({
-          jaw: expect.objectContaining({ clamp: { enabled: true } }),
-        }),
-      }),
-    });
+    expect(result?.summary.faceId).toBe("face");
   });
 });
 
@@ -161,6 +91,41 @@ describe("resolveRuntimeGraphSpecWithCache", () => {
     expect(resolved.blocked).toBe(false);
     expect(resolved.runtimeSpec?.source).toBe("legacy");
     expect(nextLastKnownGood).toEqual(resolved.runtimeSpec);
+  });
+
+  it("does not promote legacy fallback when IR reports issues", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const lastKnownGood: RuntimeGraphSpec = {
+      spec: { nodes: [{ id: "previous", type: "const", params: {} }] } as any,
+      source: "ir",
+    };
+    const buildWithIrIssues = {
+      spec: { nodes: [{ id: "legacy", type: "const", params: {} }] },
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], byTarget: {} },
+      ir: {
+        compile: () => ({
+          spec: { nodes: [{ id: "compiled", type: "const", params: {} }] },
+          issues: [
+            {
+              id: "issue_1",
+              severity: "error",
+              message: "Missing input",
+            },
+          ],
+        }),
+      },
+    } as any;
+
+    const { resolved, nextLastKnownGood } = resolveRuntimeGraphSpecWithCache(
+      buildWithIrIssues,
+      lastKnownGood,
+    );
+
+    expect(resolved.blocked).toBe(true);
+    expect(resolved.runtimeSpec).toBe(lastKnownGood);
+    expect(nextLastKnownGood).toBe(lastKnownGood);
+    warnSpy.mockRestore();
   });
 });
 

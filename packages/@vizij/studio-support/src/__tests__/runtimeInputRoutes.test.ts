@@ -4,9 +4,10 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import {
+  buildFallbackGraphPath,
   buildRuntimeInputRouteSnapshot,
   createEmptyRuntimeInputRouteSnapshot,
-} from "../rigController/runtimeInputRoutes";
+} from "../index";
 
 function createInput(
   id: string,
@@ -39,14 +40,11 @@ describe("buildRuntimeInputRouteSnapshot", () => {
       faceId: "face",
       graphSummary: {
         inputs: ["pose/control/internal", "rig/face/propsrig/jaw/open"],
-      } as any,
+      },
       rigOutputLookup: new Map(),
       standardInputsByPath: byPath,
       standardInputsById: byId,
-      managedStandardInputs: [
-        { input: jawAlias, source: "auto", disabled: false },
-        { input: brow, source: "auto", disabled: false },
-      ],
+      managedStandardInputs: [{ input: jawAlias }, { input: brow }],
       resolveRuntimeInputId: (inputId) =>
         inputId === "jaw_alias" ? "jaw_open" : inputId,
     });
@@ -100,7 +98,7 @@ describe("buildRuntimeInputRouteSnapshot", () => {
           "rig/face/rig/element/jaw/open",
           "rig/face/rig/control/brow/up",
         ],
-      } as any,
+      },
       rigOutputLookup: new Map(),
       standardInputsByPath: byPath,
       standardInputsById: new Map([
@@ -135,7 +133,7 @@ describe("buildRuntimeInputRouteSnapshot", () => {
           "rig/face/override/jaw_open/enabled",
           "rig/face/override/jaw_open/value",
         ],
-      } as any,
+      },
       rigOutputLookup: new Map(),
       standardInputsByPath: byPath,
       standardInputsById: byId,
@@ -158,5 +156,17 @@ describe("buildRuntimeInputRouteSnapshot", () => {
     expect(
       snapshot.graphPathLookupByInputId.get("rig/face/override/jaw_open/value"),
     ).toBe("rig/face/override/jaw_open/value");
+  });
+
+  it("builds fallback graph paths from normalized standard input paths", () => {
+    expect(
+      buildFallbackGraphPath(
+        "face",
+        createInput("jaw_open", "/standard/jaw/open", 0),
+      ),
+    ).toBe("rig/face/standard/jaw/open");
+    expect(buildFallbackGraphPath("face", createInput("root", "/", 0))).toBe(
+      "rig/face/custom/input",
+    );
   });
 });

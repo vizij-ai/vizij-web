@@ -159,6 +159,25 @@ export type RuntimeGraphBundle = {
   programs?: VizijProgramAsset[];
 };
 
+export type RuntimeGraphBundleUpdateSource = {
+  key?: string;
+  signature?: string | null;
+};
+
+export type RuntimeGraphBundlePendingUpdate = {
+  revision: number;
+  source: RuntimeGraphBundleUpdateSource;
+  reregistered: boolean;
+  reloadedAssets: boolean;
+};
+
+export type RuntimeGraphBundleApplicationPlan = {
+  baseAssetBundle: VizijAssetBundle;
+  nextAssetBundle: VizijAssetBundle;
+  updatePlan: RuntimeUpdatePlan;
+  pendingUpdate: RuntimeGraphBundlePendingUpdate | null;
+};
+
 export type InputConstraint = {
   min?: number;
   max?: number;

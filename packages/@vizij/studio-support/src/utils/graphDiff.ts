@@ -66,6 +66,14 @@ export interface GraphDiffResult {
 }
 
 const DEFAULT_DIFF_LIMIT = 200;
+const GENERATED_NODE_ID_PREFIXES = [
+  "join_",
+  "out_",
+  "const_",
+  "input_",
+  "derived_default_",
+  "reserved_",
+];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return (
@@ -86,6 +94,56 @@ function isPrimitive(
     typeof value === "number" ||
     typeof value === "boolean"
   );
+}
+
+function isGeneratedNodeId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    GENERATED_NODE_ID_PREFIXES.some((prefix) => value.startsWith(prefix))
+  );
+}
+
+function isNodeIdDiffPath(path: string): boolean {
+  return (
+    /\.node_id$/i.test(path) ||
+    /\.nodeId$/i.test(path) ||
+    (/\.id$/i.test(path) && path.includes("nodes["))
+  );
+}
+
+export function isBenignGeneratedNodeIdDiff(entry: GraphDiffEntry): boolean {
+  if (entry.kind !== "mismatch") {
+    return false;
+  }
+  if (!isNodeIdDiffPath(entry.path)) {
+    return false;
+  }
+  if (entry.context?.entityType === "edge" && entry.context.connection) {
+    return (
+      entry.context.connection.likelyNormalizationOnly &&
+      !entry.context.connection.likelySemanticRisk
+    );
+  }
+  return (
+    isGeneratedNodeId(entry.importedValue) &&
+    isGeneratedNodeId(entry.rebuiltValue)
+  );
+}
+
+export function filterBenignGeneratedNodeIdDiffs(diff: GraphDiffResult): {
+  filteredDiff: GraphDiffResult;
+  ignoredCount: number;
+} {
+  const filteredEntries = diff.entries.filter(
+    (entry) => !isBenignGeneratedNodeIdDiff(entry),
+  );
+  return {
+    filteredDiff: {
+      entries: filteredEntries,
+      limitReached: diff.limitReached,
+    },
+    ignoredCount: diff.entries.length - filteredEntries.length,
+  };
 }
 
 function stableStringify(value: unknown): string {

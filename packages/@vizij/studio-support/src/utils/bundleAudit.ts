@@ -154,6 +154,37 @@ export async function auditBundleGraphs(
   return audits;
 }
 
+export function resolveBundleContractViolationMessage(
+  audits: ReadonlyArray<BundleGraphAuditEntry>,
+): string | null {
+  const contractAudits = audits.filter((entry) => entry.kind === "rig");
+  if (!contractAudits.length) {
+    return null;
+  }
+  const mismatchEntry = contractAudits.find(
+    (entry) => entry.status !== "match",
+  );
+  if (mismatchEntry) {
+    if (mismatchEntry.status === "missing-ir") {
+      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" is missing IR metadata required for runtime compatibility checks.`;
+    }
+    if (mismatchEntry.status === "diff") {
+      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${mismatchEntry.diffCount} diff${mismatchEntry.diffCount === 1 ? "" : "s"}).`;
+    }
+    return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" failed runtime compatibility checks (${mismatchEntry.error ?? "unknown error"}).`;
+  }
+  const outputMismatch = contractAudits.find((entry) =>
+    entry.outputs.some((output) => output.status === "missing-target"),
+  );
+  if (outputMismatch) {
+    const missingOutput = outputMismatch.outputs.find(
+      (output) => output.status === "missing-target",
+    );
+    return `Export blocked: graph "${outputMismatch.label ?? outputMismatch.id}" has output path "${missingOutput?.path ?? "(missing path)"}" that does not map to a runtime target.`;
+  }
+  return null;
+}
+
 function collectOutputCoverage(
   spec: GraphSpec,
   validTargets?: Set<string>,

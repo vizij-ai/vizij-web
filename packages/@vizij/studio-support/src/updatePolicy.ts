@@ -3,9 +3,18 @@ import type {
   RuntimeUpdateTier,
   RuntimeUpdatePlan,
   RuntimeGraphBundle,
+  RuntimeGraphBundleApplicationPlan,
+  RuntimeGraphBundleUpdateSource,
 } from "./types";
 
-export type { RuntimeUpdateTier, RuntimeUpdatePlan, RuntimeGraphBundle };
+export type {
+  RuntimeUpdateTier,
+  RuntimeUpdatePlan,
+  RuntimeGraphBundle,
+  RuntimeGraphBundleApplicationPlan,
+  RuntimeGraphBundlePendingUpdate,
+  RuntimeGraphBundleUpdateSource,
+} from "./types";
 
 const blobIdentityMap = new WeakMap<Blob, number>();
 let nextBlobIdentity = 0;
@@ -97,7 +106,10 @@ function graphSignature(graph?: VizijAssetBundle["rig"]): string {
     return "";
   }
   const id = graph.id ?? "";
-  return `${id}:${normalizeSpecPayload(graph.spec ?? graph.ir ?? null)}`;
+  const graphPayload = normalizeSpecPayload(graph.spec ?? graph.ir ?? null);
+  const subscriptions = normalizeSpecPayload(graph.subscriptions ?? null);
+  const inputMetadata = normalizeSpecPayload(graph.inputMetadata ?? null);
+  return `${id}:${graphPayload}:${subscriptions}:${inputMetadata}`;
 }
 
 function poseSignature(pose?: VizijAssetBundle["pose"]): string {
@@ -106,9 +118,7 @@ function poseSignature(pose?: VizijAssetBundle["pose"]): string {
   }
   const graph = pose.graph;
   const config = pose.config;
-  const graphPart = graph
-    ? graphSignature({ id: graph.id, spec: graph.spec })
-    : "";
+  const graphPart = graph ? graphSignature(graph) : "";
   const configPart = config ? normalizeSpecPayload(config) : "";
   return `${graphPart}:${configPart}`;
 }
@@ -140,12 +150,9 @@ function programsSignature(programs?: VizijAssetBundle["programs"]): string {
     .map((program) => {
       const id = program.id ?? "";
       const label = program.label ?? "";
-      const graphId = program.graph?.id ?? "";
-      const graphPayload = normalizeSpecPayload(
-        program.graph?.spec ?? program.graph?.ir ?? null,
-      );
+      const graphPayload = graphSignature(program.graph);
       const resetValues = normalizeSpecPayload(program.resetValues ?? null);
-      return `${id}:${label}:${graphId}:${graphPayload}:${resetValues}`;
+      return `${id}:${label}:${graphPayload}:${resetValues}`;
     })
     .sort()
     .join("|");
@@ -166,10 +173,15 @@ export function resolveRuntimeUpdatePlan(
   const rigReferenceChanged =
     previous.rig?.id !== next.rig?.id ||
     previous.rig?.spec !== next.rig?.spec ||
-    previous.rig?.ir !== next.rig?.ir;
+    previous.rig?.ir !== next.rig?.ir ||
+    previous.rig?.subscriptions !== next.rig?.subscriptions ||
+    previous.rig?.inputMetadata !== next.rig?.inputMetadata;
   const poseReferenceChanged =
     previous.pose?.graph?.id !== next.pose?.graph?.id ||
     previous.pose?.graph?.spec !== next.pose?.graph?.spec ||
+    previous.pose?.graph?.ir !== next.pose?.graph?.ir ||
+    previous.pose?.graph?.subscriptions !== next.pose?.graph?.subscriptions ||
+    previous.pose?.graph?.inputMetadata !== next.pose?.graph?.inputMetadata ||
     previous.pose?.config !== next.pose?.config;
   const graphsChanged =
     rigChanged || poseChanged || rigReferenceChanged || poseReferenceChanged;
@@ -199,4 +211,48 @@ export function resolveRuntimeUpdatePlan(
     return { reloadAssets: false, reregisterGraphs: true };
   }
   return { reloadAssets: false, reregisterGraphs: false };
+}
+
+export function planRuntimeGraphBundleApplication(args: {
+  baseAssetBundle: VizijAssetBundle;
+  extractedBundle?: VizijAssetBundle["bundle"] | null;
+  graphBundle: RuntimeGraphBundle;
+  tier: RuntimeUpdateTier;
+  source?: RuntimeGraphBundleUpdateSource;
+  revision?: number;
+}): RuntimeGraphBundleApplicationPlan {
+  const baseAssetBundle =
+    !args.baseAssetBundle.bundle && args.extractedBundle
+      ? {
+          ...args.baseAssetBundle,
+          bundle: args.extractedBundle,
+        }
+      : args.baseAssetBundle;
+  const nextAssetBundle = applyRuntimeGraphBundle(
+    baseAssetBundle,
+    args.graphBundle,
+  );
+  const updatePlan = resolveRuntimeUpdatePlan(
+    baseAssetBundle,
+    nextAssetBundle,
+    args.tier,
+  );
+  const pendingUpdate = args.source
+    ? {
+        revision: args.revision ?? 0,
+        source: {
+          ...args.source,
+          signature: args.source.signature ?? null,
+        },
+        reregistered: updatePlan.reregisterGraphs,
+        reloadedAssets: updatePlan.reloadAssets,
+      }
+    : null;
+
+  return {
+    baseAssetBundle,
+    nextAssetBundle,
+    updatePlan,
+    pendingUpdate,
+  };
 }

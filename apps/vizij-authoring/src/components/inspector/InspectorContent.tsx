@@ -53,6 +53,7 @@ import {
 } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useSharedVariableSyncContext } from "../../state/SharedVariableSyncContext";
+import { resolveVisibleAuthoringCompileState } from "../../state/graphRuntimeStore";
 import { useSceneComposer } from "../../scene/useSceneComposer";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
@@ -818,6 +819,23 @@ export function InspectorContent({
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
   const graphError = useGraphRuntime((state) => state.graphError);
   const graphWarning = useGraphRuntime((state) => state.graphWarning);
+  const authoringCompileTarget = useGraphRuntime(
+    (state) => state.authoringCompileTarget,
+  );
+  const authoringCompileTargets = useGraphRuntime(
+    (state) => state.authoringCompileTargets,
+  );
+  const visibleAuthoringCompileState = useMemo(
+    () =>
+      resolveVisibleAuthoringCompileState({
+        authoringCompileTarget,
+        authoringCompileTargets,
+      }),
+    [authoringCompileTarget, authoringCompileTargets],
+  );
+  const authoringCompileStatus = visibleAuthoringCompileState.status;
+  const authoringCompileMessage = visibleAuthoringCompileState.message;
+  const visibleAuthoringCompileTarget = visibleAuthoringCompileState.target;
   const runtimeFaceId = useGraphRuntime((state) => state.faceId);
   const bindingIssueCount = useMemo(
     () =>
@@ -1889,6 +1907,19 @@ export function InspectorContent({
           : graphStatus === "error"
             ? "text-red-300 border-red-500/40 bg-red-500/10"
             : "text-text-muted border-border-default/50 bg-bg-panel/30";
+    const compileTone =
+      authoringCompileStatus === "registered"
+        ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
+        : authoringCompileStatus === "compiling" ||
+            authoringCompileStatus === "dirty" ||
+            authoringCompileStatus === "compiled"
+          ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+          : authoringCompileStatus === "runtime-error"
+            ? "text-red-300 border-red-500/40 bg-red-500/10"
+            : "text-text-muted border-border-default/50 bg-bg-panel/30";
+    const compileLabel = visibleAuthoringCompileTarget
+      ? `${visibleAuthoringCompileTarget} ${authoringCompileStatus}`
+      : `asset ${authoringCompileStatus}`;
     return (
       <div className="flex items-center gap-1.5 flex-wrap px-1 py-0.5 mb-1">
         <span
@@ -1899,6 +1930,19 @@ export function InspectorContent({
         >
           Compile {graphStatus}
         </span>
+        <span
+          className={cn(
+            "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
+            compileTone,
+          )}
+        >
+          {compileLabel}
+        </span>
+        {authoringCompileMessage ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200 truncate max-w-[260px]">
+            {authoringCompileMessage}
+          </span>
+        ) : null}
         {graphWarning ? (
           <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200 truncate max-w-[260px]">
             {graphWarning}

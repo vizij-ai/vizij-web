@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
+  evaluateAnimationTrackAtTime,
   type AnimationClipIR,
 } from "@vizij/studio-support";
 import { useAnimationStore } from "../animationStore";
@@ -96,6 +97,37 @@ describe("animationStore deterministic behavior", () => {
     expect(state.tracks[0]?.interpolation).toBe("step");
     expect(state.tracks[0]?.keyframes[0]?.interpolation).toBe("cubic");
     expect(state.tracks[0]?.keyframes[1]?.interpolation).toBeUndefined();
+  });
+
+  it("preserves cubic tangent edits through exported clip IR", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 1, 1);
+    store.setTrackInterpolation("track-0001", "cubic");
+    store.updateKeyframe("track-0001", "kf-000001", {
+      interpolation: "cubic",
+      outTangent: 2,
+    });
+    store.updateKeyframe("track-0001", "kf-000002", {
+      interpolation: "cubic",
+      inTangent: 0,
+    });
+
+    const exported = store.exportClipIr();
+    const exportedTrack = exported.tracks[0];
+
+    expect(exportedTrack?.interpolation).toBe("cubic");
+    expect(exportedTrack?.keyframes[0]).toMatchObject({
+      outTangent: 2,
+    });
+    expect(exportedTrack?.keyframes[1]).toMatchObject({
+      inTangent: 0,
+    });
+    expect(evaluateAnimationTrackAtTime(exportedTrack!, 0.5)).toBeCloseTo(
+      0.75,
+      6,
+    );
   });
 
   it("upserts input keyframes by creating a track and updating same-time keys", () => {

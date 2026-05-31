@@ -14,11 +14,14 @@ import {
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
+  buildMotionGraphResetValuesForOutputs,
   buildGraphSpecForExport,
   buildRuntimeBaseBundle,
   bundleAnimationEntryToClipIr,
+  normalizeMotionGraphResetValues,
   specToEditorState,
   type AnimationClipIR,
+  type MotionGraphBundleEntry,
 } from "@vizij/studio-support";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
@@ -268,11 +271,9 @@ interface AuthoredProceduralTarget {
   snapshot: ProceduralProgramSnapshot;
 }
 
-interface AuthoredMotionGraphExportEntry {
-  id: string;
+type AuthoredMotionGraphExportEntry = MotionGraphBundleEntry & {
   label: string;
-  spec: { nodes: unknown[]; edges: unknown[] };
-}
+};
 
 type RuntimePlaybackState = "playing" | "paused" | "stopped";
 
@@ -472,6 +473,27 @@ function resolveStandardInputForRuntimePath(
     standardInputsByPath.get(normalizedPath.replace(/^\/rig\/[^/]+\//, "/")) ??
     null
   );
+}
+
+function resetValueEntries(
+  resetValues: Record<string, number>,
+): MotionGraphRuntimeResetEntry[] {
+  return Object.entries(resetValues).map(([path, value]) => ({
+    path,
+    value,
+  }));
+}
+
+function readMotionGraphMetadataResetValues(entry: {
+  metadata?: unknown;
+}): Record<string, number> | undefined {
+  const metadata =
+    entry.metadata &&
+    typeof entry.metadata === "object" &&
+    !Array.isArray(entry.metadata)
+      ? (entry.metadata as Record<string, unknown>)
+      : null;
+  return normalizeMotionGraphResetValues(metadata?.resetValues);
 }
 
 type VizijAssetLoaderState = ReturnType<typeof useVizijAssetLoader>;
@@ -1991,23 +2013,26 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     if (!activeProgramRuntimeSnapshot) {
       return [];
     }
-    return Array.from(new Set(activeProgramRuntimeSnapshot.enabledOutputs))
-      .sort((left, right) => left.localeCompare(right))
-      .map((path) => {
-        const input = resolveStandardInputForRuntimePath(
-          standardInputsByPath,
-          path,
-        );
-        const defaultValue = input?.defaultValue;
-        return {
-          path,
-          value:
-            typeof defaultValue === "number" && Number.isFinite(defaultValue)
-              ? defaultValue
-              : 0,
-        };
-      });
-  }, [activeProgramRuntimeSnapshot, standardInputsByPath]);
+    const preservedResetValues = activeProgramRuntimeTargetId?.startsWith(
+      BUNDLE_PROCEDURAL_TARGET_PREFIX,
+    )
+      ? readMotionGraphMetadataResetValues(
+          resolveBundleProceduralEntry(activeProgramRuntimeTargetId) ?? {},
+        )
+      : undefined;
+    return resetValueEntries(
+      buildMotionGraphResetValuesForOutputs(
+        activeProgramRuntimeSnapshot.enabledOutputs,
+        standardInputsByPath,
+        preservedResetValues,
+      ),
+    );
+  }, [
+    activeProgramRuntimeSnapshot,
+    activeProgramRuntimeTargetId,
+    resolveBundleProceduralEntry,
+    standardInputsByPath,
+  ]);
   const activeProgramRuntimeControllerId = useMemo(
     () =>
       activeProgramRuntimeTargetId
@@ -2974,6 +2999,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           id: target.programId,
           label: target.name,
           spec,
+          resetValues: buildMotionGraphResetValuesForOutputs(
+            snapshot.enabledOutputs,
+            standardInputsByPath,
+          ),
         };
       })
       .filter(
@@ -3003,6 +3032,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   bundleProceduralSnapshotOverrides[target.value]!,
                 )
               : null;
+        const preservedResetValues = readMotionGraphMetadataResetValues(entry);
+        const resetSnapshot = currentSnapshot ?? originalSnapshot;
+        const resetValues = buildMotionGraphResetValuesForOutputs(
+          resetSnapshot.enabledOutputs,
+          standardInputsByPath,
+          preservedResetValues,
+        );
         const spec =
           currentSnapshot &&
           stableValueFingerprint(currentSnapshot) !==
@@ -3018,6 +3054,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           id: entry.id,
           label: target.label,
           spec,
+          resetValues,
         };
       })
       .filter(
@@ -3037,6 +3074,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     resolveImportedProceduralBaseSnapshot,
     selectedAuthoredProceduralTarget,
     selectedProceduralTargetId,
+    standardInputsByPath,
   ]);
 
   const activeMotionGraphIdForExport = useMemo<string | null>(() => {

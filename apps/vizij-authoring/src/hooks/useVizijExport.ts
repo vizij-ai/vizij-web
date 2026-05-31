@@ -1,17 +1,11 @@
 import { useCallback } from "react";
 import {
   exportScene,
-  type VizijBundleAnimationEntry,
   type VizijBundleExtension,
-  type VizijPoseRigConfig,
   type VizijSpeechConfig,
   type VizijData,
 } from "@vizij/render";
-import {
-  buildRigGraphSpec,
-  type BindingMap,
-  type InputBindingMap,
-} from "@vizij/node-graph-authoring";
+import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
@@ -20,26 +14,23 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import { downloadJsonFile, ensureExtension } from "@vizij/authoring-shared";
-import {
-  buildRigPipelineV1LinkId,
-  getLookup,
-  cloneRawValue,
-} from "@vizij/utils";
+import { getLookup, cloneRawValue } from "@vizij/utils";
 import {
   auditBundleGraphs,
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
-  AUTHORED_TIMELINE_METADATA_ORIGIN,
-  clipIrToBundleAnimationEntry,
-  findCanonicalAuthoredTimelineConflict,
+  buildAuthoringRigGraphArtifacts,
+  buildAuthoringVizijBundle,
+  resolveBundleContractViolationMessage,
   type AnimationClipIR,
+  type MotionGraphBundleEntry,
+  type PipelineConfigByInputId,
   type VizijPipelineMetadataV1,
 } from "@vizij/studio-support";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
-import type { BundleGraphWithIr } from "../types/bundle";
 import type {
   PoseDiagnostic,
   PoseRigConfigFile,
@@ -49,11 +40,6 @@ import { useAnimationStore } from "../state/animationStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { logAuthoringDebug } from "../utils/debug";
-import {
-  buildPoseComposeModeByInputId,
-  withPipelineConfigBuildOptions,
-  type PipelineConfigByInputId,
-} from "./rigController/rigGraphCompiler";
 
 interface CollectAnimatableExportStateResult {
   appliedOverrides: boolean;
@@ -139,16 +125,10 @@ interface UseVizijExportOptions {
   fallbackExportBody?: unknown;
   alertDialog: (message: string) => Promise<void> | void;
   poseRig: PoseRigExportState;
-  authoredMotionGraphs?: MotionGraphExportEntry[];
+  authoredMotionGraphs?: MotionGraphBundleEntry[];
   getMotionGraphSpec?: () => { nodes: unknown[]; edges: unknown[] } | null;
   activeMotionGraphId?: string | null;
   onExportGlbComplete?: () => void;
-}
-
-interface MotionGraphExportEntry {
-  id: string;
-  label?: string;
-  spec: { nodes: unknown[]; edges: unknown[] };
 }
 
 interface VizijExportHandlers {
@@ -192,304 +172,6 @@ function withPoseConfigFaceId(
   };
 }
 
-function normalizeStringValue(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeFiniteValue(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
-
-function normalizeBooleanValue(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  return value as Record<string, unknown>;
-}
-
-function resolvePipelineMetadataForExport(
-  pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined,
-  pipelineConfigByInputId: PipelineConfigByInputId | null | undefined,
-  availableInputIds: ReadonlySet<string>,
-): VizijPipelineMetadataV1 | null {
-  const hasAvailableInputIds = availableInputIds.size > 0;
-  const hasConfigMap =
-    Boolean(pipelineConfigByInputId) &&
-    Object.keys(pipelineConfigByInputId ?? {}).length > 0;
-  const hasMetadataBase =
-    Boolean(pipelineMetadataV1) &&
-    typeof pipelineMetadataV1 === "object" &&
-    !Array.isArray(pipelineMetadataV1);
-  if (!hasMetadataBase && !hasConfigMap) {
-    return null;
-  }
-
-  const base = hasMetadataBase
-    ? (cloneSerializable(pipelineMetadataV1) as VizijPipelineMetadataV1)
-    : ({} as VizijPipelineMetadataV1);
-  const nextByInputId: PipelineConfigByInputId = {};
-  const seededByConfigInputIds = new Set<string>();
-  const synthesizedLinkParentInputIds = new Set<string>();
-  const rawByInputId = hasConfigMap
-    ? (pipelineConfigByInputId as PipelineConfigByInputId)
-    : ((base.byInputId ?? {}) as PipelineConfigByInputId);
-
-  Object.entries(rawByInputId).forEach(([rawInputId, rawConfig]) => {
-    if (
-      !rawConfig ||
-      typeof rawConfig !== "object" ||
-      Array.isArray(rawConfig)
-    ) {
-      return;
-    }
-    const configRecord = rawConfig as Record<string, unknown>;
-    const inputId =
-      normalizeStringValue(rawInputId) ??
-      normalizeStringValue(configRecord.inputId);
-    if (!inputId) {
-      return;
-    }
-    if (hasAvailableInputIds && !availableInputIds.has(inputId)) {
-      return;
-    }
-    nextByInputId[inputId] = {
-      ...configRecord,
-      inputId,
-    };
-    seededByConfigInputIds.add(inputId);
-  });
-
-  const nextLinks: Record<string, Record<string, unknown>> = {};
-  const parentsByChild = new Map<string, Array<Record<string, unknown>>>();
-  const childrenByParent = new Map<string, Set<string>>();
-  const rawLinks =
-    base.links && typeof base.links === "object" && !Array.isArray(base.links)
-      ? (base.links as Record<string, unknown>)
-      : {};
-
-  Object.entries(rawLinks).forEach(([rawLinkId, rawLink]) => {
-    if (!rawLink || typeof rawLink !== "object" || Array.isArray(rawLink)) {
-      return;
-    }
-    const linkRecord = rawLink as Record<string, unknown>;
-    const parentInputId = normalizeStringValue(linkRecord.parentInputId);
-    const childInputId = normalizeStringValue(linkRecord.childInputId);
-    if (!parentInputId || !childInputId) {
-      return;
-    }
-    if (
-      hasAvailableInputIds &&
-      (!availableInputIds.has(parentInputId) ||
-        !availableInputIds.has(childInputId))
-    ) {
-      return;
-    }
-    const linkId =
-      normalizeStringValue(linkRecord.linkId) ??
-      normalizeStringValue(rawLinkId) ??
-      `link/${encodeURIComponent(parentInputId)}->${encodeURIComponent(childInputId)}`;
-    const scale = normalizeFiniteValue(linkRecord.scale);
-    const offset = normalizeFiniteValue(linkRecord.offset);
-    const enabled = normalizeBooleanValue(linkRecord.enabled);
-    const expression = normalizeStringValue(linkRecord.expression);
-    const normalizedLink: Record<string, unknown> = {
-      ...linkRecord,
-      linkId,
-      parentInputId,
-      childInputId,
-      ...(scale !== undefined ? { scale } : {}),
-      ...(offset !== undefined ? { offset } : {}),
-      ...(enabled !== undefined ? { enabled } : {}),
-      ...(expression ? { expression } : {}),
-    };
-    nextLinks[linkId] = normalizedLink;
-
-    const parentEntry: Record<string, unknown> = {
-      linkId,
-      inputId: parentInputId,
-      ...(scale !== undefined ? { scale } : {}),
-      ...(offset !== undefined ? { offset } : {}),
-      ...(enabled !== undefined ? { enabled } : {}),
-      ...(expression ? { expression } : {}),
-    };
-    const existingParents = parentsByChild.get(childInputId) ?? [];
-    existingParents.push(parentEntry);
-    parentsByChild.set(childInputId, existingParents);
-
-    const existingChildren = childrenByParent.get(parentInputId) ?? new Set();
-    existingChildren.add(childInputId);
-    childrenByParent.set(parentInputId, existingChildren);
-  });
-
-  parentsByChild.forEach((parents, childInputId) => {
-    if (!nextByInputId[childInputId]) {
-      nextByInputId[childInputId] = { inputId: childInputId };
-    }
-    const existingParentEntries = Array.isArray(
-      nextByInputId[childInputId]?.parents,
-    )
-      ? nextByInputId[childInputId].parents
-      : [];
-    const existingParentsByKey = new Map<string, Record<string, unknown>>();
-    existingParentEntries.forEach((rawEntry) => {
-      const entry = asRecord(rawEntry);
-      if (!entry) {
-        return;
-      }
-      const parentInputId = normalizeStringValue(entry.inputId);
-      const linkId =
-        normalizeStringValue(entry.linkId) ??
-        (parentInputId
-          ? buildRigPipelineV1LinkId(parentInputId, childInputId)
-          : null);
-      if (!parentInputId || !linkId) {
-        return;
-      }
-      existingParentsByKey.set(`${parentInputId}::${linkId}`, entry);
-    });
-    const dedupedParents = new Map<string, Record<string, unknown>>();
-    parents.forEach((parent) => {
-      const parentInputId = normalizeStringValue(parent.inputId);
-      const linkId = normalizeStringValue(parent.linkId);
-      if (!parentInputId || !linkId) {
-        return;
-      }
-      const key = `${parentInputId}::${linkId}`;
-      dedupedParents.set(key, parent);
-    });
-    nextByInputId[childInputId].parents = Array.from(dedupedParents.values())
-      .map((parent): Record<string, unknown> => {
-        const parentInputId = normalizeStringValue(parent.inputId);
-        const linkId = normalizeStringValue(parent.linkId);
-        if (!parentInputId || !linkId) {
-          return { ...parent };
-        }
-        const existing =
-          existingParentsByKey.get(`${parentInputId}::${linkId}`) ?? null;
-        if (!existing) {
-          return { ...parent };
-        }
-        const alias = normalizeStringValue(existing.alias);
-        const existingExpression = normalizeStringValue(existing.expression);
-        const linkExpression = normalizeStringValue(parent.expression);
-        return {
-          ...existing,
-          ...parent,
-          ...(alias ? { alias } : {}),
-          ...(linkExpression
-            ? { expression: linkExpression }
-            : existingExpression
-              ? { expression: existingExpression }
-              : {}),
-        };
-      })
-      .sort((left, right) => {
-        const leftParent = normalizeStringValue(left.inputId) ?? "";
-        const rightParent = normalizeStringValue(right.inputId) ?? "";
-        if (leftParent !== rightParent) {
-          return leftParent.localeCompare(rightParent);
-        }
-        const leftLinkId = normalizeStringValue(left.linkId) ?? "";
-        const rightLinkId = normalizeStringValue(right.linkId) ?? "";
-        return leftLinkId.localeCompare(rightLinkId);
-      })
-      .map((parent) => ({ ...parent }));
-  });
-
-  childrenByParent.forEach((children, parentInputId) => {
-    if (!nextByInputId[parentInputId]) {
-      nextByInputId[parentInputId] = { inputId: parentInputId };
-      synthesizedLinkParentInputIds.add(parentInputId);
-    }
-    nextByInputId[parentInputId].children = Array.from(children).sort((a, b) =>
-      a.localeCompare(b),
-    );
-  });
-
-  Object.keys(nextByInputId).forEach((inputId) => {
-    const entry = nextByInputId[inputId];
-    if (!entry) {
-      return;
-    }
-    if (!Array.isArray(entry.parents)) {
-      entry.parents = [];
-    }
-    if (!Array.isArray(entry.children)) {
-      entry.children = [];
-    }
-    const directInput = asRecord(entry.directInput);
-    const poseSource = asRecord(entry.poseSource);
-    const poseTargets = Array.isArray(poseSource?.targetIds)
-      ? poseSource.targetIds
-      : [];
-    const isPropsRigInput = /^propsrig_/i.test(inputId);
-    const hasLinkedParents =
-      parentsByChild.has(inputId) ||
-      (Array.isArray(entry.parents) && entry.parents.length > 0);
-    const hasExplicitDirectInput =
-      directInput && typeof directInput.enabled === "boolean";
-    const shouldRepairDeadRelayDriver =
-      !isPropsRigInput &&
-      (childrenByParent.has(inputId) ||
-        (Array.isArray(entry.children) && entry.children.length > 0)) &&
-      Array.isArray(entry.parents) &&
-      entry.parents.length === 0 &&
-      directInput?.enabled === false &&
-      poseTargets.length === 0;
-    if (
-      synthesizedLinkParentInputIds.has(inputId) &&
-      !seededByConfigInputIds.has(inputId) &&
-      directInput?.enabled === undefined
-    ) {
-      entry.directInput = {
-        ...(directInput ?? {}),
-        enabled: true,
-      };
-      return;
-    }
-    if (isPropsRigInput && hasLinkedParents && !hasExplicitDirectInput) {
-      entry.directInput = {
-        ...(directInput ?? {}),
-        enabled: true,
-      };
-      return;
-    }
-    if (shouldRepairDeadRelayDriver) {
-      entry.directInput = {
-        ...(directInput ?? {}),
-        enabled: true,
-      };
-    }
-  });
-
-  if (Object.keys(nextByInputId).length > 0) {
-    base.byInputId = cloneSerializable(
-      nextByInputId,
-    ) as PipelineConfigByInputId;
-  } else {
-    delete base.byInputId;
-  }
-  if (Object.keys(nextLinks).length > 0) {
-    base.links = cloneSerializable(
-      nextLinks,
-    ) as VizijPipelineMetadataV1["links"];
-  } else {
-    delete base.links;
-  }
-
-  return Object.keys(base).length > 0 ? base : null;
-}
-
 function isPoseRigIrFile(value: unknown): value is PoseRigIrFile {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -527,37 +209,6 @@ function hasPoseConstantNodes(spec: GraphSpec | null | undefined): boolean {
     }
     return node.id.startsWith("pose_record_");
   });
-}
-
-function resolveBundleContractViolationMessage(
-  audits: Awaited<ReturnType<typeof auditBundleGraphs>>,
-): string | null {
-  const contractAudits = audits.filter((entry) => entry.kind === "rig");
-  if (!contractAudits.length) {
-    return null;
-  }
-  const mismatchEntry = contractAudits.find(
-    (entry) => entry.status !== "match",
-  );
-  if (mismatchEntry) {
-    if (mismatchEntry.status === "missing-ir") {
-      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" is missing IR metadata required for runtime compatibility checks.`;
-    }
-    if (mismatchEntry.status === "diff") {
-      return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" does not match compiled IR (${mismatchEntry.diffCount} diff${mismatchEntry.diffCount === 1 ? "" : "s"}).`;
-    }
-    return `Export blocked: graph "${mismatchEntry.label ?? mismatchEntry.id}" failed runtime compatibility checks (${mismatchEntry.error ?? "unknown error"}).`;
-  }
-  const outputMismatch = contractAudits.find((entry) =>
-    entry.outputs.some((output) => output.status === "missing-target"),
-  );
-  if (outputMismatch) {
-    const missingOutput = outputMismatch.outputs.find(
-      (output) => output.status === "missing-target",
-    );
-    return `Export blocked: graph "${outputMismatch.label ?? outputMismatch.id}" has output path "${missingOutput?.path ?? "(missing path)"}" that does not map to a runtime target.`;
-  }
-  return null;
 }
 
 export function useVizijExport(
@@ -621,43 +272,26 @@ export function useVizijExport(
       "json",
     );
     const base = normalizedName.replace(/\.json$/i, "");
-    const pipelineMetadataForExport = resolvePipelineMetadataForExport(
+    const poseConfigForCompose = resolvePoseConfigFromIr(poseRig);
+    const graphArtifacts = buildAuthoringRigGraphArtifacts({
+      faceId: exportFaceId,
+      animatablesForExport,
+      animatableComponents,
+      bindings,
+      inputBindings,
+      standardInputsById,
+      featureLabelOverrides,
+      inputMetadata: standardInputMetadataById,
       pipelineMetadataV1,
       pipelineConfigByInputId,
-      new Set(standardInputsById.keys()),
-    );
-    const poseConfigForCompose = resolvePoseConfigFromIr(poseRig);
-    const pipelineConfigByInputIdForExport =
-      pipelineMetadataForExport &&
-      typeof pipelineMetadataForExport.byInputId === "object" &&
-      pipelineMetadataForExport.byInputId !== null &&
-      !Array.isArray(pipelineMetadataForExport.byInputId)
-        ? (pipelineMetadataForExport.byInputId as PipelineConfigByInputId)
-        : pipelineConfigByInputId;
+      poseConfigForCompose,
+    });
 
-    const graphResult = buildRigGraphSpec(
-      withPipelineConfigBuildOptions(
-        {
-          faceId: exportFaceId,
-          animatables: animatablesForExport,
-          components: animatableComponents,
-          bindings,
-          inputsById: standardInputsById,
-          inputBindings,
-          inputMetadata: standardInputMetadataById,
-          inputComposeModesById:
-            buildPoseComposeModeByInputId(poseConfigForCompose),
-        },
-        pipelineConfigByInputIdForExport,
-        pipelineMetadataForExport,
-      ),
-    );
-
-    const specPayload = cloneSerializable(graphResult.spec);
+    const specPayload = cloneSerializable(graphArtifacts.spec);
     downloadJsonFile(specPayload, `${base}.json`);
 
-    if (graphResult.ir?.graph) {
-      const irPayload = cloneSerializable(graphResult.ir.graph);
+    if (graphArtifacts.irGraph) {
+      const irPayload = cloneSerializable(graphArtifacts.irGraph);
       downloadJsonFile(irPayload, `${base}.ir.json`);
     }
   }, [
@@ -667,8 +301,11 @@ export function useVizijExport(
     faceId,
     graphFileName,
     inputBindings,
+    featureLabelOverrides,
     pipelineConfigByInputId,
     pipelineMetadataV1,
+    poseRig.poseConfigDraft,
+    poseRig.poseIrDraft,
     standardInputsById,
     standardInputMetadataById,
     values,
@@ -931,13 +568,31 @@ export function useVizijExport(
 
       let bundle: VizijBundleExtension | null;
       try {
-        bundle = buildVizijBundle({
+        const fallbackMotionGraph = getMotionGraphSpec
+          ? (() => {
+              const motionGraphSpec = getMotionGraphSpec();
+              return motionGraphSpec && motionGraphSpec.nodes.length > 0
+                ? {
+                    id: "motiongraph",
+                    label: "motiongraph",
+                    spec: motionGraphSpec,
+                  }
+                : null;
+            })()
+          : null;
+        bundle = buildAuthoringVizijBundle({
           includeVizijBundle,
           includeImportedAnimations,
           faceId: exportFaceId,
           sourceName,
           loadedBundle,
-          poseRig,
+          pose: {
+            poseGraphSpec: poseGraphSpecForExport,
+            poseGraphFileName: poseRig.poseGraphFileName,
+            poseConfig: poseConfigForExport,
+            poseIr: poseRig.poseIrDraft,
+            poseDiagnostics: poseRig.poseDiagnostics,
+          },
           animatablesForExport,
           animatableComponents,
           bindings,
@@ -947,59 +602,17 @@ export function useVizijExport(
           inputMetadata: standardInputMetadataById,
           pipelineMetadataV1,
           pipelineConfigByInputId,
-          poseGraphSpecForExport,
-          poseConfigForExport,
           authoredAnimationClips: normalizedAuthoredAnimationClips,
           speechConfig: collectSpeechConfigFromLocalStorage(),
+          motionGraphs: authoredMotionGraphs,
+          fallbackMotionGraph,
+          activeMotionGraphId,
         });
       } catch (error) {
         await alertDialog(
           error instanceof Error ? error.message : String(error),
         );
         return;
-      }
-
-      if (bundle) {
-        const authoredMotionGraphEntries = (authoredMotionGraphs ?? []).filter(
-          (entry) =>
-            entry &&
-            typeof entry.id === "string" &&
-            entry.id.trim().length > 0 &&
-            entry.spec &&
-            Array.isArray(entry.spec.nodes) &&
-            Array.isArray(entry.spec.edges) &&
-            entry.spec.nodes.length > 0,
-        );
-        if (authoredMotionGraphEntries.length > 0) {
-          bundle = mergeMotionGraphsIntoBundle(
-            bundle,
-            authoredMotionGraphEntries,
-          );
-        } else if (getMotionGraphSpec) {
-          const motionGraphSpec = getMotionGraphSpec();
-          if (motionGraphSpec && motionGraphSpec.nodes.length > 0) {
-            bundle = mergeMotionGraphsIntoBundle(bundle, [
-              {
-                id: "motiongraph",
-                label: "motiongraph",
-                spec: motionGraphSpec,
-              },
-            ]);
-          }
-        }
-
-        if (
-          bundle &&
-          activeMotionGraphId &&
-          bundle.graphs?.some(
-            (g) => g.kind === "motiongraph" && g.id === activeMotionGraphId,
-          )
-        ) {
-          bundle = {
-            ...bundle,
-            metadata: { ...bundle.metadata, activeMotionGraphId },
-          };
-        }
       }
 
       if (bundle?.graphs?.length) {
@@ -1178,6 +791,8 @@ export function useVizijExport(
     poseRig.poseIrDraft,
     poseRig.poseConfigDraft,
     poseRig.poseGraphFileName,
+    poseRig.blendMode,
+    poseRig.crossGroupBlendMode,
     standardInputsById,
   ]);
 
@@ -1320,72 +935,6 @@ export function useVizijExport(
   };
 }
 
-interface BuildVizijBundleOptions {
-  includeVizijBundle: boolean;
-  includeImportedAnimations: boolean;
-  authoredAnimationClips?: AnimationClipIR[];
-  faceId: string;
-  sourceName: string | null;
-  loadedBundle: VizijBundleExtension | null;
-  poseRig: PoseRigExportState;
-  animatablesForExport: Record<string, AnimatableValue>;
-  animatableComponents: AnimatableComponent[];
-  bindings: BindingMap;
-  inputBindings: InputBindingMap;
-  standardInputsById: Map<string, StandardRigInput>;
-  featureLabelOverrides: Record<string, string>;
-  inputMetadata?: Map<
-    string,
-    { source?: "auto" | "custom" | "preset"; root?: string }
-  >;
-  pipelineMetadataV1?: VizijPipelineMetadataV1 | null;
-  pipelineConfigByInputId?: PipelineConfigByInputId;
-  poseGraphSpecForExport?: GraphSpec | null;
-  poseConfigForExport?: PoseRigConfigFile | null;
-  speechConfig?: VizijSpeechConfig | null;
-}
-
-function clonePoseIrForBundle(
-  value: unknown,
-  faceId: string,
-): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  const cloned = cloneSerializable(value as Record<string, unknown>) as Record<
-    string,
-    unknown
-  >;
-  cloned.faceId = faceId;
-  return cloned;
-}
-
-function mergeMotionGraphsIntoBundle(
-  bundle: VizijBundleExtension,
-  motionGraphs: MotionGraphExportEntry[],
-): VizijBundleExtension {
-  const cloned = structuredClone(bundle);
-  if (!cloned.graphs) {
-    cloned.graphs = [];
-  }
-  cloned.graphs = cloned.graphs.filter((graph) => graph.kind !== "motiongraph");
-  motionGraphs.forEach((motionGraph) => {
-    cloned.graphs!.push({
-      id: motionGraph.id,
-      kind: "motiongraph",
-      label: motionGraph.label ?? motionGraph.id,
-      spec: motionGraph.spec as Record<string, unknown>,
-      metadata: {
-        exportedAt: new Date().toISOString(),
-        source: "vizij-motiongraph",
-        nodeCount: motionGraph.spec.nodes.length,
-        edgeCount: motionGraph.spec.edges.length,
-      },
-    });
-  });
-  return cloned;
-}
-
 function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
   try {
     const speakingInputPath = localStorage.getItem(
@@ -1442,233 +991,4 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
   } catch {
     return null;
   }
-}
-
-function buildVizijBundle(
-  options: BuildVizijBundleOptions,
-): VizijBundleExtension | null {
-  if (!options.includeVizijBundle) {
-    return null;
-  }
-  const {
-    includeImportedAnimations,
-    authoredAnimationClips,
-    faceId,
-    sourceName,
-    loadedBundle,
-    poseRig,
-    animatablesForExport,
-    animatableComponents,
-    bindings,
-    inputBindings,
-    standardInputsById,
-    featureLabelOverrides,
-    inputMetadata,
-    pipelineMetadataV1,
-    pipelineConfigByInputId,
-  } = options;
-  const exportFaceId = resolveExportFaceId(faceId);
-  const exportFaceSlug = faceSlug(exportFaceId);
-  const poseConfigForCompose =
-    options.poseConfigForExport !== undefined
-      ? options.poseConfigForExport
-      : resolvePoseConfigFromIr(poseRig);
-  const pipelineMetadataForExport = resolvePipelineMetadataForExport(
-    pipelineMetadataV1,
-    pipelineConfigByInputId,
-    new Set(standardInputsById.keys()),
-  );
-  const pipelineConfigByInputIdForExport =
-    pipelineMetadataForExport &&
-    typeof pipelineMetadataForExport.byInputId === "object" &&
-    pipelineMetadataForExport.byInputId !== null &&
-    !Array.isArray(pipelineMetadataForExport.byInputId)
-      ? (pipelineMetadataForExport.byInputId as PipelineConfigByInputId)
-      : pipelineConfigByInputId;
-
-  const exportTimestamp = new Date().toISOString();
-  const rigGraphResult = buildRigGraphSpec(
-    withPipelineConfigBuildOptions(
-      {
-        faceId: exportFaceId,
-        animatables: animatablesForExport,
-        components: animatableComponents,
-        bindings,
-        inputsById: standardInputsById,
-        inputBindings,
-        inputMetadata,
-        inputComposeModesById:
-          buildPoseComposeModeByInputId(poseConfigForCompose),
-      },
-      pipelineConfigByInputIdForExport,
-      pipelineMetadataForExport,
-    ),
-  );
-
-  const rigIrGraph = rigGraphResult.ir?.graph
-    ? (cloneSerializable(rigGraphResult.ir.graph) as unknown as Record<
-        string,
-        unknown
-      >)
-    : undefined;
-  const rigSpec = cloneSerializable(rigGraphResult.spec) as Record<
-    string,
-    unknown
-  >;
-  const poseGraphSpec =
-    options.poseGraphSpecForExport !== undefined
-      ? options.poseGraphSpecForExport
-      : poseRig.poseGraphSpec;
-
-  const graphs: BundleGraphWithIr[] = [
-    {
-      id: exportFaceId,
-      kind: "rig",
-      label: `${exportFaceSlug} rig`,
-      spec: rigSpec,
-      ir: rigIrGraph ?? null,
-      metadata: {
-        exportedAt: exportTimestamp,
-        faceId: exportFaceId,
-        featureLabelOverrides:
-          featureLabelOverrides && Object.keys(featureLabelOverrides).length > 0
-            ? featureLabelOverrides
-            : undefined,
-        issues:
-          rigGraphResult.issues.fatal.length > 0
-            ? rigGraphResult.issues
-            : undefined,
-      },
-    },
-  ];
-
-  if (poseGraphSpec) {
-    graphs.push({
-      id: poseRig.poseGraphFileName || `${exportFaceSlug}_pose_graph`,
-      kind: "pose-driver",
-      label: poseRig.poseGraphFileName || "pose graph",
-      spec: cloneSerializable(poseGraphSpec) as unknown as Record<
-        string,
-        unknown
-      >,
-      metadata: { exportedAt: exportTimestamp, faceId: exportFaceId },
-    });
-  }
-
-  const poseConfigForBundle =
-    options.poseConfigForExport !== undefined
-      ? options.poseConfigForExport
-      : (() => {
-          const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
-          return poseConfigFromIr
-            ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
-            : null;
-        })();
-  const poseConfig: VizijPoseRigConfig | null = poseConfigForBundle
-    ? (cloneSerializable(poseConfigForBundle) as unknown as VizijPoseRigConfig)
-    : null;
-  const poseIrForBundle = clonePoseIrForBundle(
-    poseRig.poseIrDraft,
-    exportFaceId,
-  );
-  const poseDiagnostics = cloneSerializable(
-    poseRig.poseDiagnostics ?? [],
-  ) as PoseDiagnostic[];
-  const diagnosticSummary = {
-    errors: poseDiagnostics.filter((entry) => entry.severity === "error")
-      .length,
-    warnings: poseDiagnostics.filter((entry) => entry.severity === "warning")
-      .length,
-    info: poseDiagnostics.filter((entry) => entry.severity === "info").length,
-  };
-
-  const inheritedAnimations: VizijBundleAnimationEntry[] =
-    includeImportedAnimations && Array.isArray(loadedBundle?.animations)
-      ? (cloneSerializable(
-          loadedBundle.animations,
-        ) as VizijBundleAnimationEntry[])
-      : [];
-  const authoredAnimationEntries = (authoredAnimationClips ?? [])
-    .map((clip) =>
-      clipIrToBundleAnimationEntry(clip, {
-        standardInputsById,
-      }),
-    )
-    .filter(
-      (entry) =>
-        Boolean(entry) &&
-        Boolean(entry.clip) &&
-        Array.isArray(entry.clip.tracks) &&
-        entry.clip.tracks.length > 0,
-    );
-
-  if (authoredAnimationEntries.length > 0 && includeImportedAnimations) {
-    const conflictingCanonicalEntry =
-      findCanonicalAuthoredTimelineConflict(inheritedAnimations);
-    if (conflictingCanonicalEntry) {
-      throw new Error(
-        `Export blocked: imported animation "${AUTHORED_TIMELINE_CLIP_ID}" is not marked as authored timeline metadata.origin="${AUTHORED_TIMELINE_METADATA_ORIGIN}". Rename the imported clip or disable imported animation inheritance.`,
-      );
-    }
-  }
-
-  const mergedAnimationsById = new Map<string, VizijBundleAnimationEntry>();
-  inheritedAnimations.forEach((entry) => {
-    if (
-      !entry ||
-      typeof entry.id !== "string" ||
-      entry.id.trim().length === 0
-    ) {
-      return;
-    }
-    mergedAnimationsById.set(entry.id, entry);
-  });
-  authoredAnimationEntries.forEach((entry) => {
-    mergedAnimationsById.set(entry.id, entry);
-  });
-  const mergedAnimations = Array.from(mergedAnimationsById.values()).sort(
-    (left, right) => left.id.localeCompare(right.id),
-  );
-
-  const bundleMetadata: Record<string, unknown> = {
-    faceId: exportFaceId,
-    source: sourceName ?? null,
-    exporter: "vizij-authoring",
-  };
-
-  if (loadedBundle) {
-    bundleMetadata.previousBundleVersion = loadedBundle.version;
-    if (loadedBundle.exportedAt) {
-      bundleMetadata.previousExportedAt = loadedBundle.exportedAt;
-    }
-  }
-
-  if (!includeImportedAnimations) {
-    bundleMetadata.inheritedAnimations = false;
-  }
-  bundleMetadata.authoredAnimationClips = authoredAnimationEntries.length;
-  bundleMetadata.animationPayloadCount = mergedAnimations.length;
-
-  if (options.speechConfig) {
-    bundleMetadata.speechConfig = options.speechConfig;
-  }
-
-  return {
-    version: 1,
-    exportedAt: exportTimestamp,
-    graphs,
-    poses: poseConfig
-      ? {
-          config: poseConfig,
-          metadata: {
-            exportedAt: exportTimestamp,
-            poseIr: poseIrForBundle,
-            diagnostics: poseDiagnostics,
-            diagnosticSummary,
-          },
-        }
-      : null,
-    animations: mergedAnimations,
-    metadata: bundleMetadata,
-  };
 }

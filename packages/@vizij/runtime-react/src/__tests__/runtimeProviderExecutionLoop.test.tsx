@@ -13,6 +13,7 @@ import {
 } from "@vizij/orchestrator-react";
 import { useVizijRuntime } from "../hooks/useVizijRuntime";
 import type {
+  RuntimeGraphBundleAppliedEvent,
   VizijAssetBundle,
   VizijRuntimeContextValue,
   VizijRuntimeStatus,
@@ -50,6 +51,7 @@ type RuntimeCall =
   | { kind: "registerAnimation"; config: unknown }
   | { kind: "setInput"; path: string; value: ValueJSON; shape?: ShapeJSON }
   | { kind: "removeInput"; path: string }
+  | { kind: "removeGraph"; id: string }
   | { kind: "step"; dt: number };
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -164,6 +166,7 @@ function makeOrchestratorContext(
         return false;
       }
       graphIds.splice(index, 1);
+      calls.push({ kind: "removeGraph", id });
       return true;
     }),
     removeAnimation: vi.fn((id) => {
@@ -190,6 +193,9 @@ async function mountRuntime(
   options: {
     backend?: OrchestratorReactCtx["backend"];
     configureOrchestrator?: (orchestrator: OrchestratorReactCtx) => void;
+    onRuntimeGraphBundleApplied?: (
+      event: RuntimeGraphBundleAppliedEvent,
+    ) => void;
     onStatusChange?: (status: VizijRuntimeStatus) => void;
   } = {},
 ) {
@@ -216,6 +222,7 @@ async function mountRuntime(
           autostart={false}
           driveOrchestrator={false}
           namespace="demo-face"
+          onRuntimeGraphBundleApplied={options.onRuntimeGraphBundleApplied}
           onStatusChange={options.onStatusChange}
         >
           <Probe />
@@ -303,6 +310,151 @@ describe("VizijRuntimeProvider execution loop", () => {
       expect(runtime().loading).toBe(false);
       expect(runtime().error?.message).toBe("Failed to register rig graphs");
       expect(statuses.at(-1)?.ready).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("reports graph bundle applications with each caller source after registration succeeds", async () => {
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    const { runtime } = await mountRuntime(makeBundle(), {
+      onRuntimeGraphBundleApplied: (event) => {
+        applied.push(event);
+      },
+    });
+
+    await act(async () => {
+      runtime().setGraphBundle(
+        {
+          rig: {
+            id: "rig",
+            spec: {
+              nodes: [
+                {
+                  id: "out",
+                  type: "output",
+                  params: { path: "rig/face/smile" },
+                },
+              ],
+              edges: [],
+            },
+          },
+        },
+        {
+          tier: "graphs",
+          source: {
+            key: "runtime-graph",
+            signature: "runtime-graph:sig-1",
+          },
+        },
+      );
+      runtime().setGraphBundle(
+        {
+          animations: [
+            {
+              id: "blink",
+              clip: {
+                id: "blink",
+                duration: 1,
+                tracks: [
+                  {
+                    channel: "rig/face/smile",
+                    keyframes: [{ time: 0, value: 0 }],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          tier: "graphs",
+          source: {
+            key: "animation",
+            signature: "animation:sig-1",
+          },
+        },
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(applied).toHaveLength(2);
+    expect(applied.map((event) => event.source)).toEqual([
+      {
+        key: "runtime-graph",
+        signature: "runtime-graph:sig-1",
+      },
+      {
+        key: "animation",
+        signature: "animation:sig-1",
+      },
+    ]);
+    expect(applied[0]).toMatchObject({
+      revision: 1,
+      controllers: {
+        graphs: expect.any(Array),
+      },
+      reregistered: true,
+      reloadedAssets: false,
+    });
+    expect(applied[1]).toMatchObject({
+      revision: 2,
+      controllers: {
+        anims: expect.any(Array),
+      },
+      reregistered: true,
+      reloadedAssets: false,
+    });
+    expect(applied[0]?.controllers.graphs.length).toBeGreaterThan(0);
+    expect(applied[1]?.controllers.anims.length).toBeGreaterThan(0);
+  });
+
+  it("does not report graph bundle application when registration fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    try {
+      const { runtime } = await mountRuntime(makeBundle(), {
+        configureOrchestrator: (orchestrator) => {
+          orchestrator.registerGraph = vi.fn(() => {
+            throw new Error("graph register failed");
+          });
+        },
+        onRuntimeGraphBundleApplied: (event) => {
+          applied.push(event);
+        },
+      });
+
+      await act(async () => {
+        runtime().setGraphBundle(
+          {
+            rig: {
+              id: "rig",
+              spec: {
+                nodes: [
+                  {
+                    id: "out",
+                    type: "output",
+                    params: { path: "rig/face/smile" },
+                  },
+                ],
+                edges: [],
+              },
+            },
+          },
+          {
+            tier: "graphs",
+            source: {
+              key: "runtime-graph",
+              signature: "runtime-graph:sig-2",
+            },
+          },
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(applied).toEqual([]);
+      expect(runtime().error?.message).toBe("Failed to register rig graphs");
     } finally {
       warn.mockRestore();
     }
@@ -520,6 +672,91 @@ describe("VizijRuntimeProvider execution loop", () => {
         },
       ],
     );
+  });
+
+  it("clears queued public inputs before graph bundle re-registration", async () => {
+    const { calls, runtime } = await mountRuntime();
+
+    await act(async () => {
+      runtime().setInput("rig/face/smile", { float: 0.25 });
+    });
+
+    await act(async () => {
+      runtime().setGraphBundle(
+        {
+          rig: {
+            id: "rig",
+            spec: {
+              nodes: [
+                {
+                  id: "out",
+                  type: "output",
+                  params: { path: "rig/face/smile" },
+                },
+              ],
+              edges: [],
+            },
+          },
+        },
+        { tier: "graphs" },
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    calls.splice(0);
+    await act(async () => {
+      runtime().step(0, { forceRuntime: true });
+    });
+
+    expect(calls.filter((call) => call.kind === "setInput")).toEqual([]);
+  });
+
+  it("does not carry playing program sessions across source asset changes", async () => {
+    const programBundle = makeProgramBundle("live-program");
+    const { calls, rerender, runtime } = await mountRuntime(
+      makeBundle({
+        glb: {
+          kind: "url",
+          src: "/face-a.glb",
+        },
+        rig: undefined,
+        pose: undefined,
+        programs: programBundle.programs,
+      }),
+    );
+
+    calls.splice(0);
+    await act(async () => {
+      runtime().playProgram("live-program");
+    });
+
+    expect(calls.filter((call) => call.kind === "registerGraph")).toHaveLength(
+      1,
+    );
+
+    calls.splice(0);
+    await rerender(
+      makeBundle({
+        glb: {
+          kind: "url",
+          src: "/face-b.glb",
+        },
+        rig: undefined,
+        pose: undefined,
+        programs: programBundle.programs,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(calls.filter((call) => call.kind === "registerGraph")).toEqual([]);
+    expect(calls.filter((call) => call.kind === "removeGraph")).toEqual([
+      { kind: "removeGraph", id: "graph-1" },
+    ]);
   });
 
   it("clears graph bundle overrides when the source asset bundle changes", async () => {

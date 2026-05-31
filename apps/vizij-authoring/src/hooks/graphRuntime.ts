@@ -8,7 +8,6 @@ import {
 } from "@vizij/node-graph-react";
 import {
   buildAnimatableValue,
-  normalizeStandardRigInputPath,
   type AnimatableValue,
   type RawValue,
   type StandardRigInput,
@@ -212,15 +211,6 @@ export function stageGraphInputsFromState({
         : defaultValue;
     stageRigInput(graphPath, { float: value });
   });
-}
-
-export function buildFallbackGraphPath(
-  faceId: string,
-  input: StandardRigInput,
-): string {
-  const normalizedPath = normalizeStandardRigInputPath(input.path);
-  const trimmed = normalizedPath.replace(/^\/+/, "");
-  return trimmed.length > 0 ? `rig/${faceId}/${trimmed}` : `rig/${faceId}`;
 }
 
 export interface RuntimeInputBridgeStore {

@@ -3,7 +3,7 @@ import type { AnimationRegistrationConfig } from "@vizij/orchestrator-react";
 import {
   clearRuntimeControllers,
   registerRuntimeControllers,
-} from "../utils/controllerRegistration";
+} from "../host/controllerRegistration";
 
 function makeHost(
   controllers: { graphs: string[]; anims: string[] } = {

@@ -1,89 +1,34 @@
 import {
-  buildRigGraphSpec,
   type BindingMap,
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import {
-  getLookup,
-  cloneRawValue,
   type AnimatableComponent,
   type AnimatableValue,
   type RawValue,
 } from "@vizij/utils";
 import type { World } from "@vizij/render";
 import {
+  applyRuntimeOverridesToAnimatables,
+  buildAuthoringRigGraphArtifacts,
   canonicalizeGraphComparable,
+  compareImportedRigGraph,
+  countGraphDiffsByCategory,
   diffGraphSpecs,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineMetadataV1,
+  filterBenignGeneratedNodeIdDiffs,
   prepareSpecForImport,
+  summarizeGraphEdgeDiffRisk,
+  type PoseConfigSnapshot,
   type VizijPipelineConfigMap,
   type VizijPipelineMetadataV1,
-  withVizijPipelineMetadataV1,
 } from "@vizij/studio-support";
 import type { ManagedStandardInput } from "../types/standardInputs";
-import type {
-  GraphDiffCategory,
-  GraphDiffEntry,
-  GraphDiffResult,
-} from "../types/discrepancy";
+import type { GraphDiffCategory, GraphDiffResult } from "../types/discrepancy";
 import { buildAutoRigInputBlueprints } from "../rig/autoInputs";
 import { rehydrateRigDataFromGraph } from "../rig/importer";
-import {
-  buildPoseComposeModeByInputId,
-  type PoseConfigSnapshot,
-  withPipelineConfigBuildOptions,
-} from "../hooks/rigController/rigGraphCompiler";
-
-const GENERATED_NODE_ID_PREFIXES = [
-  "join_",
-  "out_",
-  "const_",
-  "input_",
-  "derived_default_",
-  "reserved_",
-];
-
-function isGeneratedNodeId(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    GENERATED_NODE_ID_PREFIXES.some((prefix) => value.startsWith(prefix))
-  );
-}
-
-function isNodeIdDiffPath(path: string): boolean {
-  return (
-    /\.node_id$/i.test(path) ||
-    /\.nodeId$/i.test(path) ||
-    (/\.id$/i.test(path) && path.includes("nodes["))
-  );
-}
-
-function isBenignGeneratedNodeIdDiff(entry: GraphDiffEntry): boolean {
-  return (
-    entry.kind === "mismatch" &&
-    isNodeIdDiffPath(entry.path) &&
-    isGeneratedNodeId(entry.importedValue) &&
-    isGeneratedNodeId(entry.rebuiltValue)
-  );
-}
-
-function filterBenignGeneratedNodeIdDiffs(diff: GraphDiffResult): {
-  filteredDiff: GraphDiffResult;
-  ignoredCount: number;
-} {
-  const filteredEntries = diff.entries.filter(
-    (entry) => !isBenignGeneratedNodeIdDiff(entry),
-  );
-  return {
-    filteredDiff: {
-      entries: filteredEntries,
-      limitReached: diff.limitReached,
-    },
-    ignoredCount: diff.entries.length - filteredEntries.length,
-  };
-}
 
 function resolveFaceId(value: string): string {
   const trimmed = value.trim();
@@ -104,87 +49,6 @@ function buildInputMetadataMap(
     });
   });
   return map;
-}
-
-function applyRuntimeOverridesToAnimatables(options: {
-  faceId: string;
-  animatables: Record<string, AnimatableValue>;
-  values: Map<string, RawValue | undefined>;
-}): Record<string, AnimatableValue> {
-  const { faceId, animatables, values } = options;
-  return Object.fromEntries(
-    Object.entries(animatables).map(([id, animatable]) => {
-      const override = values.get(getLookup(faceId, id));
-      if (override === undefined) {
-        return [id, animatable];
-      }
-      return [
-        id,
-        {
-          ...animatable,
-          default: cloneRawValue(override),
-        } as AnimatableValue,
-      ];
-    }),
-  );
-}
-
-function normalizeRehydratedInputMetadata(
-  rehydratedInputMetadata: Map<string, { source?: string; root?: string }>,
-): Map<string, { source?: "auto" | "custom" | "preset"; root?: string }> {
-  const next = new Map<
-    string,
-    { source?: "auto" | "custom" | "preset"; root?: string }
-  >();
-  rehydratedInputMetadata.forEach((metadata, inputId) => {
-    const source =
-      metadata.source === "auto" ||
-      metadata.source === "custom" ||
-      metadata.source === "preset"
-        ? metadata.source
-        : undefined;
-    next.set(inputId, {
-      source,
-      root: metadata.root,
-    });
-  });
-  return next;
-}
-
-function countByCategory(
-  entries: readonly GraphDiffEntry[],
-): Record<GraphDiffCategory, number> {
-  return entries.reduce<Record<GraphDiffCategory, number>>(
-    (acc, entry) => {
-      acc[entry.category] = (acc[entry.category] ?? 0) + 1;
-      return acc;
-    },
-    {
-      identifiers: 0,
-      inputs: 0,
-      bindings: 0,
-      expressions: 0,
-      values: 0,
-      metadata: 0,
-      structure: 0,
-      other: 0,
-    },
-  );
-}
-
-function countEdgeRisk(entries: readonly GraphDiffEntry[]) {
-  const edgeEntries = entries.filter(
-    (entry) => entry.context?.entityType === "edge",
-  );
-  return {
-    total: edgeEntries.length,
-    likelyNormalization: edgeEntries.filter(
-      (entry) => entry.context?.connection?.likelyNormalizationOnly,
-    ).length,
-    likelySemanticRisk: edgeEntries.filter(
-      (entry) => entry.context?.connection?.likelySemanticRisk,
-    ).length,
-  };
 }
 
 export interface RigRoundtripAuditOptions {
@@ -261,29 +125,23 @@ export async function runRigRoundtripAudit(
     );
     const inputMetadata = buildInputMetadataMap(managedStandardInputs);
 
-    const exportBuild = buildRigGraphSpec(
-      withPipelineConfigBuildOptions(
-        {
-          faceId,
-          animatables: animatablesForExport,
-          components: animatableComponents,
-          bindings,
-          inputsById: standardInputsById,
-          inputBindings,
-          inputMetadata,
-          inputComposeModesById: buildPoseComposeModeByInputId(poseConfig),
-        },
-        pipelineConfigByInputId,
-        pipelineMetadataV1,
-      ),
-    );
-    const exportedSpec = withVizijPipelineMetadataV1(
-      exportBuild.spec,
+    const exportArtifacts = buildAuthoringRigGraphArtifacts({
+      faceId,
+      animatablesForExport,
+      animatableComponents,
+      bindings,
+      inputBindings,
+      standardInputsById,
+      inputMetadata,
       pipelineMetadataV1,
-    ) as GraphSpec;
+      pipelineConfigByInputId,
+      poseConfigForCompose: poseConfig,
+    });
+    const exportBuild = exportArtifacts.graphResult;
+    const exportedSpec = exportArtifacts.spec as GraphSpec;
     const importPreparedSpec = prepareSpecForImport(
       exportedSpec,
-      exportBuild.ir?.graph,
+      exportArtifacts.irGraph,
     ) as GraphSpec;
 
     const blueprint = buildAutoRigInputBlueprints(
@@ -305,42 +163,26 @@ export async function runRigRoundtripAudit(
     const importedPipelineConfigByInputId =
       extractVizijPipelineConfigMapFromMetadata(importedPipelineMetadataV1);
 
-    const rebuiltBuild = buildRigGraphSpec(
-      withPipelineConfigBuildOptions(
-        {
-          faceId,
-          animatables: animatablesForExport,
-          components: animatableComponents,
-          bindings: rehydrated.bindings,
-          inputsById: new Map(
-            rehydrated.standardInputs.map((input) => [input.id, input]),
-          ),
-          inputBindings: rehydrated.inputBindings,
-          inputMetadata: normalizeRehydratedInputMetadata(
-            rehydrated.inputMetadata,
-          ),
-          inputComposeModesById: buildPoseComposeModeByInputId(poseConfig),
-        },
-        importedPipelineConfigByInputId,
-        importedPipelineMetadataV1,
-      ),
-    );
-    const rebuiltSpec = withVizijPipelineMetadataV1(
-      rebuiltBuild.spec,
-      importedPipelineMetadataV1,
-    ) as GraphSpec;
+    const comparison = await compareImportedRigGraph({
+      importedSpec: importPreparedSpec,
+      faceId,
+      animatables: animatablesForExport,
+      animatableComponents,
+      bindings: rehydrated.bindings,
+      inputBindings: rehydrated.inputBindings,
+      standardInputs: rehydrated.standardInputs,
+      inputMetadata: rehydrated.inputMetadata,
+      pipelineConfigByInputId: importedPipelineConfigByInputId,
+      pipelineMetadataV1: importedPipelineMetadataV1,
+      poseConfig,
+      diffLimit: limit,
+    });
 
-    const [exportedNormalized, importPreparedNormalized, rebuiltNormalized] =
-      await Promise.all([
-        normalizeGraphSpec(exportedSpec),
-        normalizeGraphSpec(importPreparedSpec),
-        normalizeGraphSpec(rebuiltSpec),
-      ]);
+    const exportedNormalized = await normalizeGraphSpec(exportedSpec);
+    const importPreparedNormalized = comparison.importedNormalized;
+    const rebuiltNormalized = comparison.rebuiltNormalized;
     const exportedComparable = canonicalizeGraphComparable(exportedNormalized);
-    const importPreparedComparable = canonicalizeGraphComparable(
-      importPreparedNormalized,
-    );
-    const rebuiltComparable = canonicalizeGraphComparable(rebuiltNormalized);
+    const importPreparedComparable = comparison.importedComparable;
     const exportImportDiffResult = diffGraphSpecs(
       exportedComparable,
       importPreparedComparable,
@@ -350,16 +192,7 @@ export async function runRigRoundtripAudit(
       filteredDiff: exportImportFilteredDiff,
       ignoredCount: exportImportIgnoredCount,
     } = filterBenignGeneratedNodeIdDiffs(exportImportDiffResult);
-    const diffResult = diffGraphSpecs(
-      importPreparedComparable,
-      rebuiltComparable,
-      {
-        limit,
-      },
-    );
-    const { filteredDiff, ignoredCount } =
-      filterBenignGeneratedNodeIdDiffs(diffResult);
-    const hasMainDiffs = filteredDiff.entries.length > 0;
+    const hasMainDiffs = comparison.diff.entries.length > 0;
     const hasExportImportDiffs = exportImportFilteredDiff.entries.length > 0;
 
     return {
@@ -370,16 +203,16 @@ export async function runRigRoundtripAudit(
       rebuiltSpec: rebuiltNormalized,
       exportImportDiff: exportImportFilteredDiff,
       exportImportIgnoredGeneratedNodeIdDiffs: exportImportIgnoredCount,
-      exportImportCategoryCounts: countByCategory(
+      exportImportCategoryCounts: countGraphDiffsByCategory(
         exportImportFilteredDiff.entries,
       ),
-      exportImportEdgeDiffSummary: countEdgeRisk(
+      exportImportEdgeDiffSummary: summarizeGraphEdgeDiffRisk(
         exportImportFilteredDiff.entries,
       ),
-      diff: filteredDiff,
-      ignoredGeneratedNodeIdDiffs: ignoredCount,
-      categoryCounts: countByCategory(filteredDiff.entries),
-      edgeDiffSummary: countEdgeRisk(filteredDiff.entries),
+      diff: comparison.diff,
+      ignoredGeneratedNodeIdDiffs: comparison.ignoredGeneratedNodeIdDiffs,
+      categoryCounts: countGraphDiffsByCategory(comparison.diff.entries),
+      edgeDiffSummary: summarizeGraphEdgeDiffRisk(comparison.diff.entries),
       fatalIssueCount: exportBuild.issues.fatal.length,
       issuesByTargetCount: Object.keys(exportBuild.issues.byTarget ?? {})
         .length,
@@ -393,7 +226,7 @@ export async function runRigRoundtripAudit(
       rebuiltSpec: null,
       exportImportDiff: emptyDiff,
       exportImportIgnoredGeneratedNodeIdDiffs: 0,
-      exportImportCategoryCounts: countByCategory([]),
+      exportImportCategoryCounts: countGraphDiffsByCategory([]),
       exportImportEdgeDiffSummary: {
         total: 0,
         likelyNormalization: 0,
@@ -401,7 +234,7 @@ export async function runRigRoundtripAudit(
       },
       diff: emptyDiff,
       ignoredGeneratedNodeIdDiffs: 0,
-      categoryCounts: countByCategory([]),
+      categoryCounts: countGraphDiffsByCategory([]),
       edgeDiffSummary: {
         total: 0,
         likelyNormalization: 0,

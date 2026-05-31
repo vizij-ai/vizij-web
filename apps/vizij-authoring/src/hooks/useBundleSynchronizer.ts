@@ -2,11 +2,8 @@ import { useEffect, useRef } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import {
-  bundleAnimationEntryToClipIr,
   extractGraphFaceId,
-  findAuthoredTimelineBundleAnimation,
   prepareSpecForImport,
-  type AnimationClipIR,
 } from "@vizij/studio-support";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import { waitForNextFrame } from "../utils/frame";
@@ -85,36 +82,6 @@ function stableJsonFingerprint(value: unknown): string | null {
   } catch {
     return null;
   }
-}
-
-interface TimelineHydrationActions {
-  importClipIr: (clip: AnimationClipIR) => void;
-  reset: () => void;
-}
-
-export function hydrateAuthoredTimelineFromBundleAnimations(
-  animations: VizijBundleExtension["animations"] | null | undefined,
-  actions: TimelineHydrationActions,
-): boolean {
-  if (!Array.isArray(animations) || animations.length === 0) {
-    actions.reset();
-    return false;
-  }
-
-  const authoredEntry = findAuthoredTimelineBundleAnimation(animations);
-  if (!authoredEntry) {
-    actions.reset();
-    return false;
-  }
-
-  const clipIr = bundleAnimationEntryToClipIr(authoredEntry);
-  if (!clipIr) {
-    actions.reset();
-    return false;
-  }
-
-  actions.importClipIr(clipIr);
-  return true;
 }
 
 /**

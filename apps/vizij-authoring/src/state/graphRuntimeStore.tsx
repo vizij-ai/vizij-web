@@ -8,6 +8,11 @@ import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { PoseRigConfig } from "@vizij/runtime-react";
 import type { VizijStoreSetter, World } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
+import {
+  resolveAuthoringCompileTargetState,
+  type AuthoringPreviewCompileStatus,
+  type AuthoringPreviewTarget,
+} from "@vizij/studio-support";
 import type { PersistedGraphInsight } from "../rig/persistence";
 import type {
   DiscrepancyResolutionResult,
@@ -17,6 +22,37 @@ import type {
 type GraphStatus = "idle" | "loading" | "ready" | "error";
 type GraphPlaybackState = "playing" | "paused";
 
+export interface AuthoringCompileTargetState {
+  status: AuthoringPreviewCompileStatus;
+  message: string | null;
+  signature: string | null;
+}
+
+export type AuthoringCompileTargetStates = Record<
+  AuthoringPreviewTarget,
+  AuthoringCompileTargetState
+>;
+
+export const AUTHORING_COMPILE_TARGETS: readonly AuthoringPreviewTarget[] = [
+  "runtime-graph",
+  "animation",
+  "motiongraph",
+];
+
+const AUTHORING_COMPILE_STATUS_RANK = {
+  "runtime-error": 5,
+  dirty: 4,
+  compiling: 3,
+  compiled: 2,
+  registered: 1,
+  idle: 0,
+} as const satisfies Record<AuthoringPreviewCompileStatus, number>;
+
+export interface VisibleAuthoringCompileState
+  extends AuthoringCompileTargetState {
+  target: AuthoringPreviewTarget | null;
+}
+
 export interface GraphRuntimeState {
   faceId: string;
   faceSegment: string;
@@ -24,6 +60,11 @@ export interface GraphRuntimeState {
   graphStatus: GraphStatus;
   graphError: string | null;
   graphWarning?: string | null;
+  authoringCompileStatus: AuthoringPreviewCompileStatus;
+  authoringCompileTarget: AuthoringPreviewTarget | null;
+  authoringCompileMessage: string | null;
+  authoringCompileSignature: string | null;
+  authoringCompileTargets: AuthoringCompileTargetStates;
   graphSpec?: GraphSpec | null;
   poseGraphSpec?: GraphSpec | null;
   poseConfig?: PoseRigConfig | null;
@@ -80,6 +121,75 @@ export interface GraphRuntimeStore {
 
 const noop = () => undefined;
 
+const defaultAuthoringCompileTargetState: AuthoringCompileTargetState = {
+  status: "idle",
+  message: null,
+  signature: null,
+};
+
+export function createAuthoringCompileTargets(
+  state: AuthoringCompileTargetState = defaultAuthoringCompileTargetState,
+): AuthoringCompileTargetStates {
+  return {
+    "runtime-graph": { ...state },
+    animation: { ...state },
+    motiongraph: { ...state },
+  };
+}
+
+export function resolveVisibleAuthoringCompileState(params: {
+  authoringCompileTarget: AuthoringPreviewTarget | null;
+  authoringCompileTargets: AuthoringCompileTargetStates;
+}): VisibleAuthoringCompileState {
+  const rankedTarget = [...AUTHORING_COMPILE_TARGETS].sort((left, right) => {
+    const leftStatus = params.authoringCompileTargets[left]?.status ?? "idle";
+    const rightStatus = params.authoringCompileTargets[right]?.status ?? "idle";
+    const leftRank = AUTHORING_COMPILE_STATUS_RANK[leftStatus];
+    const rightRank = AUTHORING_COMPILE_STATUS_RANK[rightStatus];
+
+    if (leftRank !== rightRank) {
+      return rightRank - leftRank;
+    }
+
+    if (params.authoringCompileTarget) {
+      if (
+        left === params.authoringCompileTarget &&
+        right !== params.authoringCompileTarget
+      ) {
+        return -1;
+      }
+      if (
+        right === params.authoringCompileTarget &&
+        left !== params.authoringCompileTarget
+      ) {
+        return 1;
+      }
+    }
+
+    return (
+      AUTHORING_COMPILE_TARGETS.indexOf(left) -
+      AUTHORING_COMPILE_TARGETS.indexOf(right)
+    );
+  })[0];
+  const rankedState = rankedTarget
+    ? params.authoringCompileTargets[rankedTarget]
+    : null;
+
+  if (!rankedTarget || !rankedState || rankedState.status === "idle") {
+    return {
+      target: null,
+      status: "idle",
+      message: null,
+      signature: null,
+    };
+  }
+
+  return {
+    target: rankedTarget,
+    ...rankedState,
+  };
+}
+
 const defaultGraphRuntimeState: GraphRuntimeState = {
   faceId: "robot",
   faceSegment: "robot",
@@ -87,6 +197,11 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   graphStatus: "idle",
   graphError: null,
   graphWarning: null,
+  authoringCompileStatus: "idle",
+  authoringCompileTarget: null,
+  authoringCompileMessage: null,
+  authoringCompileSignature: null,
+  authoringCompileTargets: createAuthoringCompileTargets(),
   graphSpec: null,
   poseGraphSpec: null,
   poseConfig: null,
@@ -128,6 +243,7 @@ export function createGraphRuntimeStore(
 ): GraphRuntimeStore {
   let state: GraphRuntimeState = {
     ...defaultGraphRuntimeState,
+    authoringCompileTargets: createAuthoringCompileTargets(),
     ...(initialState ?? {}),
   };
   const listeners = new Set<() => void>();
@@ -139,10 +255,38 @@ export function createGraphRuntimeStore(
     if (!patch) {
       return;
     }
-    const nextState = { ...state, ...patch } as GraphRuntimeState;
+    const resolvedPatch =
+      patch.authoringCompileTarget &&
+      patch.authoringCompileStatus &&
+      !patch.authoringCompileTargets
+        ? (() => {
+            const targetState = resolveAuthoringCompileTargetState({
+              current:
+                state.authoringCompileTargets[patch.authoringCompileTarget],
+              status: patch.authoringCompileStatus,
+              message: patch.authoringCompileMessage ?? null,
+              signature: patch.authoringCompileSignature ?? null,
+            });
+            return {
+              ...patch,
+              authoringCompileStatus: targetState.status,
+              authoringCompileMessage: targetState.message ?? null,
+              authoringCompileSignature: targetState.signature ?? null,
+              authoringCompileTargets: {
+                ...state.authoringCompileTargets,
+                [patch.authoringCompileTarget]: {
+                  status: targetState.status,
+                  message: targetState.message ?? null,
+                  signature: targetState.signature ?? null,
+                },
+              },
+            };
+          })()
+        : patch;
+    const nextState = { ...state, ...resolvedPatch } as GraphRuntimeState;
 
     // Check if any value actually changed
-    const hasChanged = Object.keys(patch).some(
+    const hasChanged = Object.keys(resolvedPatch).some(
       (key) => (state as any)[key] !== (nextState as any)[key],
     );
 

@@ -1,5 +1,6 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type {
+  RuntimeGraphBundleAppliedEvent,
   RuntimeOutputWrite,
   VizijAssetBundle,
 } from "@vizij/runtime-react";
@@ -13,10 +14,12 @@ import {
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import {
-  buildMotionGraphProgramAsset,
+  buildMotionGraphPreviewBundle,
+  buildRuntimeGraphPreviewBundle,
   buildRuntimeInputCatalogFromConstraints,
+  toDeterministicSignature,
+  type AuthoringPreviewTarget,
   type AnimationClipIR,
-  type VizijProgramAsset,
 } from "@vizij/studio-support";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
@@ -32,6 +35,7 @@ import {
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
+import { createAuthoringCompileTargets } from "../../state/graphRuntimeStore";
 import { useAnimationStore } from "../../state/animationStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import { isAuthoringDebugEnabled } from "../../utils/debug";
@@ -50,6 +54,20 @@ import {
 } from "./runtimeOutputLocks";
 import type { FacePresetAssetOption } from "./facePresetAssets";
 
+const AUTHORING_PREVIEW_TARGET_KEYS = new Set<AuthoringPreviewTarget>([
+  "runtime-graph",
+  "animation",
+  "motiongraph",
+]);
+
+function parseAuthoringPreviewTarget(
+  value: string | undefined,
+): AuthoringPreviewTarget | null {
+  return AUTHORING_PREVIEW_TARGET_KEYS.has(value as AuthoringPreviewTarget)
+    ? (value as AuthoringPreviewTarget)
+    : null;
+}
+
 type RuntimeRenderableSelectionType =
   | "group"
   | "shape"
@@ -63,58 +81,6 @@ function selectionTypeFromRenderableType(
     return type;
   }
   return "shape";
-}
-
-function toDeterministicSignature(value: unknown): string {
-  const seen = new WeakSet<object>();
-  return JSON.stringify(value, (_key, currentValue) => {
-    if (!currentValue || typeof currentValue !== "object") {
-      return currentValue;
-    }
-    if (seen.has(currentValue as object)) {
-      return "[Circular]";
-    }
-    seen.add(currentValue as object);
-    if (Array.isArray(currentValue)) {
-      return currentValue;
-    }
-    const record = currentValue as Record<string, unknown>;
-    const sorted: Record<string, unknown> = {};
-    Object.keys(record)
-      .sort((left, right) => left.localeCompare(right))
-      .forEach((key) => {
-        sorted[key] = record[key];
-      });
-    return sorted;
-  });
-}
-
-function mergeManagedProgramAsset(
-  currentPrograms: readonly VizijProgramAsset[],
-  programAsset: VizijProgramAsset | null,
-  previousManagedProgramId: string | null,
-): VizijProgramAsset[] {
-  const managedId = programAsset?.id ?? previousManagedProgramId;
-  if (!managedId) {
-    return [...currentPrograms];
-  }
-
-  let replaced = false;
-  const nextPrograms = currentPrograms
-    .filter((program) => program.id !== managedId || programAsset)
-    .map((program) => {
-      if (!programAsset || program.id !== managedId) {
-        return program;
-      }
-      replaced = true;
-      return programAsset;
-    });
-
-  if (programAsset && !replaced) {
-    nextPrograms.push(programAsset);
-  }
-
-  return nextPrograms.sort((left, right) => left.id.localeCompare(right.id));
 }
 
 interface RuntimeSelectionBridgeProps {
@@ -386,45 +352,59 @@ function RuntimeInputCatalogBridge({
 
 function RuntimeGraphBridge() {
   const { setGraphBundle } = useVizijRuntime();
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
-  const payload = useMemo(() => {
-    const shouldIncludePosePayload =
-      Boolean(graphSpec) || Boolean(poseGraphSpec) || Boolean(poseConfig);
-    const posePayload = shouldIncludePosePayload
-      ? {
-          graph: poseGraphSpec
-            ? { id: "pose", spec: poseGraphSpec }
-            : undefined,
-          config: poseConfig ?? undefined,
-        }
-      : undefined;
-    return {
-      rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
-      pose: posePayload,
-    };
-  }, [graphSpec, poseConfig, poseGraphSpec]);
-  const payloadSignature = useMemo(
-    () => toDeterministicSignature(payload),
-    [payload],
+  const previewBundle = useMemo(
+    () =>
+      buildRuntimeGraphPreviewBundle({
+        rigSpec: graphSpec,
+        poseGraphSpec,
+        poseConfig,
+      }),
+    [graphSpec, poseConfig, poseGraphSpec],
   );
   const lastPayloadSignatureRef = useRef<string | null>(null);
+  const managedPayloadRef = useRef(false);
 
   useEffect(() => {
-    if (lastPayloadSignatureRef.current === payloadSignature) {
+    const shouldPublish = previewBundle.hasPayload || managedPayloadRef.current;
+    if (!shouldPublish) {
       return;
     }
-    lastPayloadSignatureRef.current = payloadSignature;
+    if (lastPayloadSignatureRef.current === previewBundle.signature) {
+      return;
+    }
+    lastPayloadSignatureRef.current = previewBundle.signature;
+    graphRuntimeStore.setState({
+      authoringCompileStatus: "compiling",
+      authoringCompileTarget: "runtime-graph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: previewBundle.signature,
+    });
     if (isAuthoringDebugEnabled("runtime")) {
       console.log("[vizij-runtime][graph-bridge]", {
-        hasRig: Boolean(payload.rig),
-        hasPoseGraph: Boolean(payload.pose?.graph),
-        hasPoseConfig: Boolean(payload.pose?.config),
+        hasRig: Boolean(previewBundle.bundle.rig),
+        hasPoseGraph: Boolean(previewBundle.bundle.pose?.graph),
+        hasPoseConfig: Boolean(previewBundle.bundle.pose?.config),
       });
     }
-    setGraphBundle(payload, { tier: "graphs" });
-  }, [payload, payloadSignature, setGraphBundle]);
+    setGraphBundle(previewBundle.bundle, {
+      tier: "graphs",
+      source: {
+        key: "runtime-graph",
+        signature: previewBundle.signature,
+      },
+    });
+    managedPayloadRef.current = previewBundle.hasPayload;
+    graphRuntimeStore.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "runtime-graph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: previewBundle.signature,
+    });
+  }, [graphRuntimeStore, previewBundle, setGraphBundle]);
 
   return null;
 }
@@ -432,6 +412,7 @@ function RuntimeGraphBridge() {
 function RuntimeStatusDebug() {
   const { loading, ready, rootId, error, controllers, outputPaths } =
     useVizijRuntime();
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeViewGraphCount = useGraphRuntime(
     (state) => state.runtimeViewGraphCount,
   );
@@ -450,6 +431,23 @@ function RuntimeStatusDebug() {
       });
     }
   }, [loading, ready, rootId, error, controllers, outputPaths.length]);
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+    const currentTarget = graphRuntimeStore.getState().authoringCompileTarget;
+    graphRuntimeStore.setState({
+      authoringCompileStatus: "runtime-error",
+      authoringCompileTarget: currentTarget,
+      authoringCompileMessage: error.message,
+      authoringCompileSignature: null,
+      authoringCompileTargets: createAuthoringCompileTargets({
+        status: "runtime-error",
+        message: error.message,
+        signature: null,
+      }),
+    });
+  }, [error, graphRuntimeStore]);
   const runtimeState = ready ? "ready" : loading ? "loading" : "idle";
   return (
     <div
@@ -481,6 +479,7 @@ function MotionGraphRuntimeBridge({
   resetValues?: readonly MotionGraphRuntimeResetEntry[];
   plotActive?: boolean;
 }) {
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const {
     assetBundle,
     controllers,
@@ -516,47 +515,26 @@ function MotionGraphRuntimeBridge({
     () => toDeterministicSignature(currentPrograms),
     [currentPrograms],
   );
-  const resetValueMap = useMemo(
+  const previewBundle = useMemo(
     () =>
-      Object.fromEntries(
-        resetValues
-          .filter(
-            (entry) =>
-              entry.path.trim().length > 0 && Number.isFinite(entry.value),
-          )
-          .map((entry) => [entry.path, entry.value]),
-      ),
-    [resetValues],
-  );
-  const programAsset = useMemo<VizijProgramAsset | null>(() => {
-    if (!controllerId || !Array.isArray(nodes) || !Array.isArray(edges)) {
-      return null;
-    }
-    return buildMotionGraphProgramAsset({
-      id: controllerId,
-      nodes,
-      edges,
-      resetValues: resetValueMap,
-    });
-  }, [controllerId, edges, nodes, resetValueMap]);
-  useEffect(() => {
-    if (programAsset) {
-      managedProgramIdRef.current = programAsset.id;
-    }
-  }, [programAsset]);
-  const desiredPrograms = useMemo(
-    () =>
-      mergeManagedProgramAsset(
+      buildMotionGraphPreviewBundle({
+        controllerId,
+        nodes,
+        edges,
+        resetValues,
         currentPrograms,
-        programAsset,
-        managedProgramIdRef.current,
-      ),
-    [currentPrograms, programAsset],
+        previousManagedProgramId: managedProgramIdRef.current,
+      }),
+    [controllerId, currentPrograms, edges, nodes, resetValues],
   );
-  const desiredProgramSignature = useMemo(
-    () => toDeterministicSignature(desiredPrograms),
-    [desiredPrograms],
-  );
+  const programAsset = previewBundle.programAsset;
+  useEffect(() => {
+    if (previewBundle.managedProgramId) {
+      managedProgramIdRef.current = previewBundle.managedProgramId;
+    }
+  }, [previewBundle.managedProgramId]);
+  const desiredPrograms = previewBundle.programs;
+  const desiredProgramSignature = previewBundle.signature;
   const controllerSignature = useMemo(
     () => toDeterministicSignature(controllers),
     [controllers],
@@ -595,16 +573,31 @@ function MotionGraphRuntimeBridge({
 
     appliedProgramSignatureRef.current = desiredProgramSignature;
     touchedProgramBundleRef.current = true;
-    setGraphBundle(
-      {
-        programs: desiredPrograms,
+    graphRuntimeStore.setState({
+      authoringCompileStatus: "compiling",
+      authoringCompileTarget: "motiongraph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: desiredProgramSignature,
+    });
+    setGraphBundle(previewBundle.bundle, {
+      tier: "graphs",
+      source: {
+        key: "motiongraph",
+        signature: desiredProgramSignature,
       },
-      { tier: "graphs" },
-    );
+    });
+    graphRuntimeStore.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "motiongraph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: desiredProgramSignature,
+    });
   }, [
     currentProgramSignature,
     desiredProgramSignature,
     desiredPrograms,
+    graphRuntimeStore,
+    previewBundle.bundle,
     programAsset,
     setGraphBundle,
   ]);
@@ -825,6 +818,11 @@ export function Viewer({
       runtimeViewRootId: null,
       runtimeViewGraphCount: 0,
       runtimeViewOutputCount: 0,
+      authoringCompileStatus: "idle",
+      authoringCompileTarget: null,
+      authoringCompileMessage: null,
+      authoringCompileSignature: null,
+      authoringCompileTargets: createAuthoringCompileTargets(),
     });
     onRuntimeInputsReady?.([], new Map());
   }, [bundle, graphRuntimeStore, onRuntimeInputsReady, rootId, runtimeEnabled]);
@@ -833,6 +831,57 @@ export function Viewer({
     (ids: { graphs: string[]; anims: string[] }) => {
       graphRuntimeStore.setState({
         runtimeViewGraphCount: ids.graphs.length,
+      });
+    },
+    [graphRuntimeStore],
+  );
+  const handleRuntimeGraphBundleApplied = useCallback(
+    (event: RuntimeGraphBundleAppliedEvent) => {
+      const target = parseAuthoringPreviewTarget(event.source.key);
+      const signature = event.source.signature ?? null;
+      graphRuntimeStore.setState((state) => {
+        const baseUpdate = {
+          runtimeViewGraphCount: event.controllers.graphs.length,
+        };
+        if (!target) {
+          return baseUpdate;
+        }
+
+        const targetState = state.authoringCompileTargets[target];
+        const targetMatches =
+          targetState?.signature === signature &&
+          (targetState.status === "compiled" ||
+            targetState.status === "compiling");
+        if (!targetMatches) {
+          return baseUpdate;
+        }
+
+        const globalMatches =
+          state.authoringCompileTarget === target &&
+          state.authoringCompileSignature === signature &&
+          (state.authoringCompileStatus === "compiled" ||
+            state.authoringCompileStatus === "compiling");
+        if (globalMatches) {
+          return {
+            ...baseUpdate,
+            authoringCompileStatus: "registered" as const,
+            authoringCompileTarget: target,
+            authoringCompileMessage: null,
+            authoringCompileSignature: signature,
+          };
+        }
+
+        return {
+          ...baseUpdate,
+          authoringCompileTargets: {
+            ...state.authoringCompileTargets,
+            [target]: {
+              status: "registered" as const,
+              message: null,
+              signature,
+            },
+          },
+        };
       });
     },
     [graphRuntimeStore],
@@ -864,6 +913,7 @@ export function Viewer({
             autostart
             orchestratorBackend="aroraWeb"
             onRegisterControllers={handleRuntimeControllersRegistered}
+            onRuntimeGraphBundleApplied={handleRuntimeGraphBundleApplied}
             transformOutputWrite={transformOutputWrite}
           >
             {onSelectScene ? (

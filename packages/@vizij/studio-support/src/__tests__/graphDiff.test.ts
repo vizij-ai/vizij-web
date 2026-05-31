@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalizeGraphComparable,
   diffGraphSpecs,
+  filterBenignGeneratedNodeIdDiffs,
+  isBenignGeneratedNodeIdDiff,
   rewriteGraphFaceNamespace,
+  type GraphDiffResult,
 } from "../utils/graphDiff";
 
 describe("canonicalizeGraphComparable", () => {
@@ -210,5 +213,96 @@ describe("rewriteGraphFaceNamespace", () => {
       "robot",
     ) as { label: string };
     expect(rewritten.label).toBe("legacy_face_controller");
+  });
+});
+
+describe("generated node-id diff filtering", () => {
+  it("treats generated node id mismatches as benign", () => {
+    expect(
+      isBenignGeneratedNodeIdDiff({
+        id: "mismatch:1:spec.nodes[0].id",
+        kind: "mismatch",
+        path: "spec.nodes[0].id",
+        category: "structure",
+        importedValue: "join_04d3d1cf_246e_4081_a342_057feefce38d",
+        rebuiltValue: "join_dea0d202_dd6f_4554_8992_2196ad0aec91",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not ignore generated edge endpoint changes without normalization context", () => {
+    expect(
+      isBenignGeneratedNodeIdDiff({
+        id: "mismatch:1:spec.edges[0].to.node_id",
+        kind: "mismatch",
+        path: "spec.edges[0].to.node_id",
+        category: "structure",
+        importedValue: "join_04d3d1cf_246e_4081_a342_057feefce38d",
+        rebuiltValue: "join_dea0d202_dd6f_4554_8992_2196ad0aec91",
+        context: {
+          entityType: "edge",
+          scopePath: "spec.edges",
+          fieldPath: "to.node_id",
+          fieldName: "node_id",
+          importedType: "string",
+          rebuiltType: "string",
+          connection: {
+            imported: { toNodeId: "join_04d3d1cf_246e_4081_a342_057feefce38d" },
+            rebuilt: { toNodeId: "join_dea0d202_dd6f_4554_8992_2196ad0aec91" },
+            sameNodePair: false,
+            slotOnlyChange: false,
+            commutativeTarget: false,
+            likelyNormalizationOnly: false,
+            likelySemanticRisk: false,
+            guidance: "edge endpoint changed",
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not ignore mismatches where one side is not generated", () => {
+    expect(
+      isBenignGeneratedNodeIdDiff({
+        id: "mismatch:1:spec.edges[0].to.node_id",
+        kind: "mismatch",
+        path: "spec.edges[0].to.node_id",
+        category: "structure",
+        importedValue: "join_04d3d1cf_246e_4081_a342_057feefce38d",
+        rebuiltValue: "custom_manual_node",
+      }),
+    ).toBe(false);
+  });
+
+  it("removes only benign generated node-id mismatches", () => {
+    const diff: GraphDiffResult = {
+      entries: [
+        {
+          id: "mismatch:1:spec.nodes[0].id",
+          kind: "mismatch",
+          path: "spec.nodes[0].id",
+          category: "structure",
+          importedValue: "join_04d3d1cf_246e_4081_a342_057feefce38d",
+          rebuiltValue: "join_dea0d202_dd6f_4554_8992_2196ad0aec91",
+        },
+        {
+          id: "mismatch:2:spec.nodes[n1].params.path",
+          kind: "mismatch",
+          path: "spec.nodes[n1].params.path",
+          category: "structure",
+          importedValue: "/propsrig/jaw_open",
+          rebuiltValue: "/propsrig/jaw_close",
+        },
+      ],
+      limitReached: false,
+    };
+
+    const { filteredDiff, ignoredCount } =
+      filterBenignGeneratedNodeIdDiffs(diff);
+    expect(ignoredCount).toBe(1);
+    expect(filteredDiff.entries).toHaveLength(1);
+    expect(filteredDiff.entries[0]?.id).toBe(
+      "mismatch:2:spec.nodes[n1].params.path",
+    );
   });
 });

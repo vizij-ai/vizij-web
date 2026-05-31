@@ -12,6 +12,7 @@ import type { VizijProps } from "@vizij/render";
 import type {
   VizijAssetBundle,
   RuntimeGraphBundle,
+  RuntimeGraphBundleUpdateSource,
   RuntimeUpdateTier,
 } from "@vizij/studio-support";
 
@@ -25,6 +26,7 @@ export type {
   PoseGroupDefinition,
   PoseRigConfig,
   RuntimeGraphBundle,
+  RuntimeGraphBundleUpdateSource,
   RuntimeUpdatePlan,
   RuntimeUpdateTier,
   RootBounds,
@@ -140,6 +142,17 @@ export type RuntimeOutputWrite = {
   currentValue?: RawValue;
 };
 
+export type RuntimeGraphBundleAppliedEvent = {
+  revision: number;
+  source: RuntimeGraphBundleUpdateSource;
+  controllers: {
+    graphs: string[];
+    anims: string[];
+  };
+  reregistered: boolean;
+  reloadedAssets: boolean;
+};
+
 export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
   namespaceOverride?: string;
 };
@@ -149,7 +162,10 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   setGraphBundle: (
     bundle: RuntimeGraphBundle,
-    options?: { tier?: "auto" | "assets" | "graphs" },
+    options?: {
+      tier?: "auto" | "assets" | "graphs";
+      source?: RuntimeGraphBundleUpdateSource;
+    },
   ) => void;
   setValue: (
     id: string,
@@ -206,6 +222,7 @@ export type VizijRuntimeProviderProps = {
   animationTransport?: AnimationTransportMode;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
+  onRuntimeGraphBundleApplied?: (event: RuntimeGraphBundleAppliedEvent) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
   transformOutputWrite?: (
     write: RuntimeOutputWrite,

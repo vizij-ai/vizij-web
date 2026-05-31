@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { BuildGraphResult } from "@vizij/node-graph-authoring";
-import { resolveRuntimeGraphSpec } from "../runtimeGraphSpec";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { resolveRuntimeGraphSpec } from "../index";
 
 describe("resolveRuntimeGraphSpec", () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -38,15 +38,14 @@ describe("resolveRuntimeGraphSpec", () => {
     expect(result.warning).toMatch(/compile failed/i);
   });
 
-  it("uses compiled spec and updates last-known-good on success", () => {
-    const lastKnownGood = null;
+  it("uses compiled spec on clean IR compile", () => {
     const compile = vi.fn(() => ({ spec: compiledSpec, issues: [] }));
     const rigGraphBuild = {
       spec: legacySpec,
       ir: { compile } as unknown as BuildGraphResult["ir"],
     } as BuildGraphResult;
 
-    const result = resolveRuntimeGraphSpec(rigGraphBuild, lastKnownGood);
+    const result = resolveRuntimeGraphSpec(rigGraphBuild, null);
 
     expect(result.runtimeSpec?.spec).toEqual(compiledSpec);
     expect(result.runtimeSpec?.source).toBe("ir");
@@ -54,8 +53,8 @@ describe("resolveRuntimeGraphSpec", () => {
     expect(result.warning).toBeNull();
   });
 
-  it("falls back to legacy spec when IR compile reports errors", () => {
-    const lastKnownGood = null;
+  it("blocks runtime promotion when IR compile reports issues", () => {
+    const lastKnownGood = { spec: compiledSpec, source: "ir" as const };
     const compile = vi.fn(() => ({
       spec: compiledSpec,
       issues: [
@@ -69,17 +68,29 @@ describe("resolveRuntimeGraphSpec", () => {
     const rigGraphBuild = {
       spec: legacySpec,
       ir: { compile } as unknown as BuildGraphResult["ir"],
+      summary: { faceId: "face" },
     } as BuildGraphResult;
 
     const result = resolveRuntimeGraphSpec(rigGraphBuild, lastKnownGood);
 
-    expect(result.runtimeSpec?.spec).toEqual(legacySpec);
-    expect(result.runtimeSpec?.source).toBe("legacy");
-    expect(result.blocked).toBe(false);
-    expect(result.warning).toMatch(/legacy spec/i);
+    expect(result.runtimeSpec).toBe(lastKnownGood);
+    expect(result.blocked).toBe(true);
+    expect(result.warning).toMatch(/blocked/i);
     expect(warnSpy).toHaveBeenCalledWith(
-      "[vizij-authoring] IR runtime compile reported issues",
+      "[vizij-studio-support] IR runtime compile reported issues",
       expect.any(Array),
     );
+  });
+
+  it("uses legacy graph specs only when no IR is available", () => {
+    const rigGraphBuild = {
+      spec: legacySpec,
+    } as BuildGraphResult;
+
+    const result = resolveRuntimeGraphSpec(rigGraphBuild, null);
+
+    expect(result.runtimeSpec).toEqual({ spec: legacySpec, source: "legacy" });
+    expect(result.blocked).toBe(false);
+    expect(result.warning).toBeNull();
   });
 });

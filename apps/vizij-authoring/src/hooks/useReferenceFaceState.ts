@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { VizijBundleExtension } from "@vizij/render";
+import {
+  extractBindingsFromBundle,
+  getInputIdsWithBindings,
+} from "@vizij/studio-support";
 import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import type { VizijBundleExtension } from "@vizij/render";
 import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
@@ -13,10 +17,6 @@ import type {
   ReferenceCatalog,
   ReferenceCatalogPipelineLink,
 } from "../referenceFace/types";
-import {
-  extractBindingsFromBundle,
-  getInputIdsWithBindings,
-} from "../utils/standardInputBindings";
 import type { ReferenceFaceState } from "../state/ReferenceFaceContext";
 
 const VALUE_EPSILON = 1e-6;

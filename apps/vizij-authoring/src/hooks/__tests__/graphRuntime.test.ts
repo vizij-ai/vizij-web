@@ -3,7 +3,6 @@ import type { StandardRigInput } from "@vizij/utils";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { createGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import {
-  buildFallbackGraphPath,
   stageGraphInputsFromState,
   subscribeRuntimeInputBridgeAvailable,
 } from "../graphRuntime";
@@ -77,33 +76,6 @@ describe("subscribeRuntimeInputBridgeAvailable", () => {
     expect(onAvailable).toHaveBeenCalledTimes(1);
 
     unsubscribe();
-  });
-});
-
-describe("buildFallbackGraphPath", () => {
-  it("prepends the active face id and normalizes blank paths", () => {
-    const input: StandardRigInput = {
-      id: "jaw_open",
-      path: "/standard/jaw/open",
-      label: "Jaw Open",
-      group: "/standard/jaw",
-      defaultValue: 0,
-      range: { min: 0, max: 1 },
-    };
-    expect(buildFallbackGraphPath("face", input)).toBe(
-      "rig/face/standard/jaw/open",
-    );
-    const rootInput: StandardRigInput = {
-      id: "root",
-      path: "/",
-      label: "Root",
-      group: "/",
-      defaultValue: 0,
-      range: { min: 0, max: 1 },
-    };
-    expect(buildFallbackGraphPath("face", rootInput)).toBe(
-      "rig/face/custom/input",
-    );
   });
 });
 

@@ -24,6 +24,21 @@ import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { Viewer } from "./Viewer";
 
 const motionGraphValueSamplerSpy = vi.hoisted(() => vi.fn());
+const runtimeProviderProps = vi.hoisted(() => ({
+  current: null as {
+    onRegisterControllers?: (ids: {
+      graphs: string[];
+      anims: string[];
+    }) => void;
+    onRuntimeGraphBundleApplied?: (event: {
+      source: { key?: string; signature?: string | null };
+      controllers: { graphs: string[]; anims: string[] };
+      revision: number;
+      reregistered: boolean;
+      reloadedAssets: boolean;
+    }) => void;
+  } | null,
+}));
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const runtimeAssetBundleState: {
@@ -89,9 +104,30 @@ vi.mock("@vizij/render", () => ({
 }));
 
 vi.mock("@vizij/runtime-react", () => ({
-  VizijRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="runtime-provider">{children}</div>
-  ),
+  VizijRuntimeProvider: ({
+    children,
+    onRegisterControllers,
+    onRuntimeGraphBundleApplied,
+  }: {
+    children: React.ReactNode;
+    onRegisterControllers?: (ids: {
+      graphs: string[];
+      anims: string[];
+    }) => void;
+    onRuntimeGraphBundleApplied?: (event: {
+      source: { key?: string; signature?: string | null };
+      controllers: { graphs: string[]; anims: string[] };
+      revision: number;
+      reregistered: boolean;
+      reloadedAssets: boolean;
+    }) => void;
+  }) => {
+    runtimeProviderProps.current = {
+      onRegisterControllers,
+      onRuntimeGraphBundleApplied,
+    };
+    return <div data-testid="runtime-provider">{children}</div>;
+  },
   VizijRuntimeFace: ({ className }: { className?: string }) => (
     <div data-testid="runtime-face" className={className} />
   ),
@@ -202,6 +238,7 @@ describe("Viewer", () => {
     motionGraphValueSamplerSpy.mockReset();
     runtimeAssetBundleState.animations = [];
     runtimeAssetBundleState.programs = [];
+    runtimeProviderProps.current = null;
     setVizijStoreSpy.mockReset();
     stopAnimationSpy.mockReset();
     setAnimationActiveSpy.mockReset();
@@ -418,8 +455,145 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "runtime-graph",
+          signature: expect.any(String),
+        }),
+      }),
     );
+  });
+
+  it("marks a compile target registered only after a matching runtime bundle ack", () => {
+    const store = createGraphRuntimeStore({
+      graphSpec: { nodes: [{ id: "rig-ack" }] } as any,
+    });
+    const bindingStore = createBindingAuthoringStore();
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: {
+                kind: "world",
+                world: {},
+                animatables: {},
+                bundle: null,
+              },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    const signature =
+      store.getState().authoringCompileTargets["runtime-graph"].signature;
+    expect(signature).toContain("rig-ack");
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"].status,
+    ).toBe("compiled");
+
+    act(() => {
+      runtimeProviderProps.current?.onRegisterControllers?.({
+        graphs: ["graph-1"],
+        anims: [],
+      });
+    });
+
+    expect(store.getState().runtimeViewGraphCount).toBe(1);
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"].status,
+    ).toBe("compiled");
+
+    act(() => {
+      runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
+        revision: 1,
+        source: {
+          key: "runtime-graph",
+          signature: "stale-signature",
+        },
+        controllers: { graphs: ["graph-1"], anims: [] },
+        reregistered: true,
+        reloadedAssets: false,
+      });
+    });
+
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"].status,
+    ).toBe("compiled");
+
+    act(() => {
+      runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
+        revision: 2,
+        source: {
+          key: "runtime-graph",
+          signature,
+        },
+        controllers: { graphs: ["graph-1"], anims: [] },
+        reregistered: true,
+        reloadedAssets: false,
+      });
+    });
+
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"],
+    ).toMatchObject({
+      status: "registered",
+      message: null,
+      signature,
+    });
+  });
+
+  it("does not clear imported rig or pose assets before authoring owns a graph payload", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: {
+                kind: "world",
+                world: {},
+                animatables: {},
+                bundle: null,
+              },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).not.toHaveBeenCalledWith(
+      { rig: undefined, pose: undefined },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "runtime-graph",
+          signature: expect.stringContaining("rig-1"),
+        }),
+      }),
+    );
+    expect(setGraphBundleSpy).not.toHaveBeenCalled();
   });
 
   it("does not inject authored timeline animations when animation source is inactive", () => {
@@ -618,6 +792,82 @@ describe("Viewer", () => {
     ).toBe(true);
   });
 
+  it("keeps the authored animation target registered after the runtime signature catches up", () => {
+    useAnimationStore
+      .getState()
+      .addTrack("input_a", "Input A", "controls/input_a");
+
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const renderSubject = () => (
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>
+    );
+    const { rerender } = render(renderSubject());
+
+    const animationCall = (
+      setGraphBundleSpy.mock.calls as Array<
+        [unknown, { source?: { signature?: string | null } }?]
+      >
+    )
+      .filter(
+        ([payload]) =>
+          payload &&
+          typeof payload === "object" &&
+          Array.isArray((payload as { animations?: unknown }).animations),
+      )
+      .at(-1);
+    const signature = animationCall?.[1]?.source?.signature;
+    expect(signature).toEqual(expect.any(String));
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      signature,
+    });
+
+    act(() => {
+      runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
+        revision: 1,
+        source: {
+          key: "animation",
+          signature,
+        },
+        controllers: { graphs: [], anims: [AUTHORED_TIMELINE_CLIP_ID] },
+        reregistered: true,
+        reloadedAssets: false,
+      });
+    });
+
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "registered",
+      signature,
+    });
+
+    act(() => {
+      rerender(renderSubject());
+    });
+
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "registered",
+      signature,
+    });
+  });
+
   it("emits add/update/remove graph bundle transitions", () => {
     const store = createGraphRuntimeStore({
       graphSpec: { nodes: [{ id: "rig-1" }] } as any,
@@ -664,9 +914,24 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "runtime-graph",
+          signature: expect.stringContaining("rig-1"),
+        }),
+      }),
     ]);
     expect(graphBundleCalls().length).toBe(1);
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"],
+    ).toMatchObject({
+      status: "compiled",
+      message: null,
+    });
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"].signature,
+    ).toContain("rig-1");
 
     act(() => {
       store.setState({
@@ -679,12 +944,15 @@ describe("Viewer", () => {
     expect(secondGraphCall).toEqual([
       {
         rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
-        pose: {
-          graph: undefined,
-          config: undefined,
-        },
+        pose: undefined,
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "runtime-graph",
+          signature: expect.any(String),
+        }),
+      }),
     ]);
     expect(graphBundleCalls().length).toBe(2);
 
@@ -700,7 +968,13 @@ describe("Viewer", () => {
         rig: undefined,
         pose: undefined,
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "runtime-graph",
+          signature: expect.any(String),
+        }),
+      }),
     ]);
     expect(graphBundleCalls().length).toBe(3);
   });
@@ -741,7 +1015,13 @@ describe("Viewer", () => {
           config: { version: 1, neutralInputs: {}, poses: [] },
         },
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "runtime-graph",
+          signature: expect.stringContaining("pose-1"),
+        }),
+      }),
     );
   });
 
@@ -995,7 +1275,13 @@ describe("Viewer", () => {
           }),
         ],
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "motiongraph",
+          signature: expect.any(String),
+        }),
+      }),
     );
   });
 
@@ -1053,7 +1339,13 @@ describe("Viewer", () => {
           expect.objectContaining({ id: "graph:test" }),
         ],
       },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "motiongraph",
+          signature: expect.any(String),
+        }),
+      }),
     );
   });
 
@@ -1174,7 +1466,13 @@ describe("Viewer", () => {
     expect(stopProgramSpy).toHaveBeenCalledWith("graph:test");
     expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
       { programs: [] },
-      { tier: "graphs" },
+      expect.objectContaining({
+        tier: "graphs",
+        source: expect.objectContaining({
+          key: "motiongraph",
+          signature: expect.any(String),
+        }),
+      }),
     );
   });
 });

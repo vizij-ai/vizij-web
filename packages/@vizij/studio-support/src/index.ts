@@ -79,7 +79,10 @@ export type {
   PoseGroupDefinition,
   PoseRigConfig,
   RuntimeAnimationRegistrationSupportResult,
+  RuntimeGraphBundleApplicationPlan,
   RuntimeGraphBundle,
+  RuntimeGraphBundlePendingUpdate,
+  RuntimeGraphBundleUpdateSource,
   RuntimeProgramRegistrationSupportResult,
   RuntimeRegistrationDiagnostic,
   RuntimeRegistrationPlan,
@@ -107,6 +110,8 @@ export { normalizeGraphPath } from "./utils/graphPaths";
 export {
   canonicalizeGraphComparable,
   diffGraphSpecs,
+  filterBenignGeneratedNodeIdDiffs,
+  isBenignGeneratedNodeIdDiff,
   rewriteGraphFaceNamespace,
   type GraphDiffCategory,
   type GraphDiffConnectionContext,
@@ -119,10 +124,24 @@ export {
 } from "./utils/graphDiff";
 export {
   auditBundleGraphs,
+  resolveBundleContractViolationMessage,
   type BundleGraphAuditEntry,
   type BundleGraphAuditStatus,
   type BundleGraphOutputAudit,
 } from "./utils/bundleAudit";
+export {
+  buildAuthoringRigGraphArtifacts,
+  buildAuthoringVizijBundle,
+  mergeMotionGraphsIntoBundle,
+  normalizeMotionGraphResetValues,
+  type AuthoringPoseBundleState,
+  type AuthoringPoseConfig,
+  type AuthoringRigGraphArtifacts,
+  type BuildAuthoringRigGraphArtifactsOptions,
+  type AuthoringPoseDiagnostic,
+  type BuildAuthoringVizijBundleOptions,
+  type MotionGraphBundleEntry,
+} from "./utils/bundleAssembly";
 export {
   extractGraphFaceId,
   extractVizijPipelineConfigMap,
@@ -165,6 +184,65 @@ export {
   buildRuntimeGraphBundle,
 } from "./utils/runtimeBundle";
 export {
+  DEFAULT_RUNTIME_GRAPH_SPEC_RESULT,
+  resolveRuntimeGraphSpec,
+  type ResolveRuntimeGraphSpecResult,
+  type RuntimeGraphSpec,
+} from "./utils/runtimeGraphSpec";
+export {
+  planRuntimeProgramControllerSync,
+  type PlanRuntimeProgramControllerSyncOptions,
+  type RuntimeProgramControllerPlaybackEntry,
+  type RuntimeProgramControllerPlaybackState,
+  type RuntimeProgramControllerRegistration,
+  type RuntimeProgramControllerRemoval,
+  type RuntimeProgramControllerRemovalReason,
+  type RuntimeProgramControllerSyncPlan,
+} from "./utils/programControllerSync";
+export {
+  buildAnimationPreviewBundle,
+  buildMotionGraphPreviewBundle,
+  buildMotionGraphResetValuesForOutputs,
+  buildRuntimeGraphPreviewBundle,
+  mergeManagedProgramAsset,
+  resolveAuthoringCompileTargetState,
+  toDeterministicSignature,
+  type AnimationPreviewBundleOptions,
+  type AnimationPreviewBundleResult,
+  type AuthoringCompileTargetStateLike,
+  type AuthoringPreviewCompileStatus,
+  type AuthoringPreviewTarget,
+  type MotionGraphPreviewBundleOptions,
+  type MotionGraphPreviewBundleResult,
+  type MotionGraphRuntimeResetEntry,
+  type RuntimeGraphPreviewBundleResult,
+} from "./utils/authoringPreview";
+export {
+  buildPoseComposeModeByInputId,
+  canonicalizeImportedPipelineMetadataV1,
+  derivePipelineConfigFromInputBindings,
+  deriveLockedInspectorTargetsFromPipeline,
+  mergeImportedAndLocalPipelineConfigByInputId,
+  mergeImportedAndLocalPipelineLinksById,
+  readPipelineLinkPatch,
+  resolvePipelineMetadataForExport,
+  sanitizePipelineConfigAndLinksForAvailableInputs,
+  withPipelineConfigBuildOptions,
+  type DerivedPipelineEdits,
+  type PipelineConfigByInputId,
+  type PoseConfigSnapshot,
+} from "./utils/pipelineMetadata";
+export {
+  applyRuntimeOverridesToAnimatables,
+  compareImportedRigGraph,
+  countGraphDiffsByCategory,
+  normalizeRehydratedInputMetadata,
+  summarizeGraphEdgeDiffRisk,
+  type ImportedRigGraphComparison,
+  type ImportedRigGraphComparisonOptions,
+  type NormalizedInputMetadata,
+} from "./utils/rigRoundtripDiagnostics";
+export {
   buildStandardInputIdRemap,
   remapPipelineMetadataInputIds,
   remapPoseConfigInputIds,
@@ -185,6 +263,18 @@ export {
   type StandardInputResolutionIndex,
   type StandardInputResolutionMetrics,
 } from "./utils/standardInputResolutionIndex";
+export {
+  analyzeStandardInputBindings,
+  extractBindingsFromBundle,
+  getInputIdsWithBindings,
+  type StandardInputBindingInfo,
+} from "./utils/standardInputBindings";
+export {
+  buildStandardInputCollectionIndex,
+  type StandardInputCollectionEntry,
+  type StandardInputCollectionIndex,
+  type StandardInputCollectionMetadata,
+} from "./utils/standardInputCollections";
 export { extractStandardInputSubgroups } from "./utils/standardInputs";
 export {
   buildPoseWeightInputPathSegment,
@@ -225,6 +315,16 @@ export {
   type RuntimeInputWritePathMapOptions,
 } from "./utils/runtimeInputs";
 export {
+  buildFallbackGraphPath,
+  buildRuntimeInputRouteSnapshot,
+  createEmptyRuntimeInputRouteSnapshot,
+  type BuildRuntimeInputRouteSnapshotArgs,
+  type RuntimeInputRoute,
+  type RuntimeInputRouteGraphSummary,
+  type RuntimeInputRouteManagedInput,
+  type RuntimeInputRouteSnapshot,
+} from "./utils/runtimeInputRoutes";
+export {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,
@@ -254,16 +354,9 @@ export {
 } from "./utils/clipPlayback";
 export {
   applyRuntimeGraphBundle,
+  planRuntimeGraphBundleApplication,
   resolveRuntimeUpdatePlan,
 } from "./updatePolicy";
-export {
-  clearRuntimeControllers,
-  registerRuntimeControllers,
-  type ClearRuntimeControllersResult,
-  type RegisterRuntimeControllersResult,
-  type RuntimeControllerHost,
-  type RuntimeControllerHostError,
-} from "./utils/controllerRegistration";
 
 type GraphSubscriptionsLike = Partial<GraphSubscriptions>;
 
@@ -1252,6 +1345,27 @@ export function buildGraphRegistrationConfig(args: {
   };
 }
 
+export function buildProgramRegistrationConfig(args: {
+  program: VizijProgramAsset;
+  namespace: string;
+}): RuntimeProgramRegistrationSupportResult | null {
+  const registration = buildGraphRegistrationConfig({
+    asset: args.program.graph,
+    namespace: args.namespace,
+    context: `${args.program.id ?? "program"} graph`,
+  });
+  if (!registration) {
+    return null;
+  }
+  return {
+    assetId: args.program.id,
+    config: registration.config,
+    spec: registration.spec,
+    inputs: registration.inputs,
+    outputs: registration.outputs,
+  };
+}
+
 export function prepareRuntimeRegistrationPlan(args: {
   assetBundle: VizijAssetBundle;
   namespace: string;
@@ -1367,10 +1481,9 @@ export function prepareRuntimeRegistrationPlan(args: {
 
   const programs = args.programs ?? args.assetBundle.programs ?? [];
   for (const program of programs) {
-    const programRegistration = buildGraphRegistrationConfig({
-      asset: program.graph,
+    const programRegistration = buildProgramRegistrationConfig({
+      program,
       namespace: args.namespace,
-      context: `${program.id ?? "program"} graph`,
     });
     if (!programRegistration) {
       diagnostics.push({
@@ -1382,13 +1495,7 @@ export function prepareRuntimeRegistrationPlan(args: {
       continue;
     }
     recordOutputs(programRegistration.outputs);
-    programRegistrations.push({
-      assetId: program.id,
-      config: programRegistration.config,
-      spec: programRegistration.spec,
-      inputs: programRegistration.inputs,
-      outputs: programRegistration.outputs,
-    });
+    programRegistrations.push(programRegistration);
   }
 
   const graphConfigs = graphRegistrations.map(

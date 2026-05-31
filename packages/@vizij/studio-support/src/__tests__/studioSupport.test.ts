@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   applyRuntimeGraphBundle,
   buildGraphRegistrationConfig,
+  buildProgramRegistrationConfig,
   diffAnimationAggregateValues,
   prepareRuntimeAssetBundle,
   prepareRuntimeAssetView,
+  planRuntimeGraphBundleApplication,
+  planRuntimeProgramControllerSync,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
   toStoredAnimationClip,
@@ -142,6 +145,100 @@ describe("studio support package", () => {
     });
   });
 
+  it("builds namespaced program registrations from support-owned graph semantics", () => {
+    const result = buildProgramRegistrationConfig({
+      namespace: "face-a",
+      program: {
+        id: "smile-loop",
+        graph: {
+          id: "smile-loop.graph",
+          spec: {
+            nodes: [
+              { id: "in", type: "input", params: { path: "controls/smile" } },
+              { id: "out", type: "output", params: { path: "rig/face/smile" } },
+            ],
+            edges: [],
+          },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      assetId: "smile-loop",
+      inputs: ["controls/smile"],
+      outputs: ["rig/face/smile"],
+      config: {
+        id: "face-a/graph/smile-loop.graph",
+        subs: {
+          inputs: ["face-a/controls/smile"],
+          outputs: ["face-a/rig/face/smile"],
+        },
+      },
+    });
+  });
+
+  it("plans runtime program controller sync without host calls", () => {
+    const registration = buildProgramRegistrationConfig({
+      namespace: "face-a",
+      program: {
+        id: "smile-loop",
+        graph: {
+          id: "smile-loop.graph",
+          spec: {
+            nodes: [
+              { id: "in", type: "input", params: { path: "controls/smile" } },
+              { id: "out", type: "output", params: { path: "rig/face/smile" } },
+            ],
+            edges: [],
+          },
+        },
+      },
+    });
+
+    expect(registration).not.toBeNull();
+
+    const plan = planRuntimeProgramControllerSync({
+      availableProgramIds: ["smile-loop", "paused-loop", "waiting-loop"],
+      activeControllerIds: new Map([
+        ["old-loop", "controller-old"],
+        ["paused-loop", "controller-paused"],
+        ["already-loop", "controller-already"],
+      ]),
+      registrationByProgramId: new Map(
+        registration ? [["smile-loop", registration]] : [],
+      ),
+      playbackStates: [
+        { id: "old-loop", state: "playing" },
+        { id: "paused-loop", state: "paused" },
+        { id: "smile-loop", state: "playing" },
+        { id: "waiting-loop", state: "playing" },
+      ],
+    });
+
+    expect(plan).toEqual({
+      stalePlaybackIds: ["old-loop"],
+      controllerRemovals: [
+        {
+          programId: "old-loop",
+          controllerId: "controller-old",
+          reason: "unavailable",
+        },
+        {
+          programId: "paused-loop",
+          controllerId: "controller-paused",
+          reason: "inactive",
+        },
+      ],
+      controllerRegistrations: [
+        {
+          programId: "smile-loop",
+          registration,
+        },
+      ],
+      waitingProgramIds: ["waiting-loop"],
+    });
+  });
+
   it("converts runtime clips into Studio v2 stored animation format", () => {
     const stored = toStoredAnimationClip("fallback", {
       id: "authoring.timeline.main",
@@ -263,5 +360,216 @@ describe("studio support package", () => {
       edges: [],
     });
     expect(plan).toEqual({ reloadAssets: false, reregisterGraphs: true });
+  });
+
+  it("plans runtime graph bundle application with extracted bundle retention and pending update metadata", () => {
+    const extractedBundle = {
+      version: 1 as const,
+      graphs: [],
+    };
+    const result = planRuntimeGraphBundleApplication({
+      baseAssetBundle: makeBaseBundle({ bundle: null }),
+      extractedBundle,
+      graphBundle: {
+        animations: [
+          {
+            id: "blink",
+            clip: {
+              id: "blink",
+              duration: 1,
+              tracks: [],
+            },
+          },
+        ],
+      },
+      tier: "graphs",
+      source: { key: "animation" },
+      revision: 7,
+    });
+
+    expect(result.baseAssetBundle.bundle).toBe(extractedBundle);
+    expect(result.nextAssetBundle.animations?.map((entry) => entry.id)).toEqual(
+      ["blink"],
+    );
+    expect(result.updatePlan).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: true,
+    });
+    expect(result.pendingUpdate).toEqual({
+      revision: 7,
+      source: {
+        key: "animation",
+        signature: null,
+      },
+      reregistered: true,
+      reloadedAssets: false,
+    });
+  });
+
+  it("plans rig re-registration when only subscriptions change", () => {
+    const previous = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: { nodes: [], edges: [] },
+        subscriptions: { inputs: ["controls/smile"], outputs: [] },
+      },
+    });
+    const next = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: previous.rig?.spec,
+        subscriptions: {
+          inputs: ["controls/smile"],
+          outputs: ["rig/face/smile"],
+        },
+      },
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: true,
+    });
+  });
+
+  it("plans rig re-registration when only input metadata changes", () => {
+    const previous = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: { nodes: [], edges: [] },
+        inputMetadata: [
+          {
+            id: "smile",
+            path: "rig/face/smile",
+            defaultValue: 0,
+          },
+        ],
+      },
+    });
+    const next = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: previous.rig?.spec,
+        inputMetadata: [
+          {
+            id: "smile",
+            path: "rig/face/smile",
+            defaultValue: 0.5,
+          },
+        ],
+      },
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: true,
+    });
+  });
+
+  it("plans program re-registration when only program graph subscriptions change", () => {
+    const graph = {
+      id: "program.graph",
+      spec: { nodes: [], edges: [] },
+    };
+    const previous = makeBaseBundle({
+      programs: [
+        {
+          id: "program",
+          graph: {
+            ...graph,
+            subscriptions: { inputs: ["controls/smile"], outputs: [] },
+          },
+        },
+      ],
+    });
+    const next = makeBaseBundle({
+      programs: [
+        {
+          id: "program",
+          graph: {
+            ...graph,
+            subscriptions: {
+              inputs: ["controls/smile"],
+              outputs: ["rig/face/smile"],
+            },
+          },
+        },
+      ],
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: true,
+    });
+  });
+
+  it("plans pose graph re-registration when only pose graph input metadata changes", () => {
+    const graph = {
+      id: "pose.graph",
+      spec: { nodes: [], edges: [] },
+    };
+    const previous = makeBaseBundle({
+      pose: {
+        graph: {
+          ...graph,
+          inputMetadata: [{ path: "rig/face/pose/control/smile" }],
+        },
+      },
+    });
+    const next = makeBaseBundle({
+      pose: {
+        graph: {
+          ...graph,
+          inputMetadata: [
+            {
+              path: "rig/face/pose/control/smile",
+              defaultValue: 0.25,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: true,
+    });
+  });
+
+  it("plans pose graph re-registration when only pose graph IR changes", () => {
+    const spec = { nodes: [], edges: [] };
+    const previous = makeBaseBundle({
+      pose: {
+        graph: {
+          id: "pose.graph",
+          spec,
+          ir: {
+            id: "pose-ir",
+            nodes: [{ id: "input", op: "input" }],
+            edges: [],
+          } as any,
+        },
+      },
+    });
+    const next = makeBaseBundle({
+      pose: {
+        graph: {
+          id: "pose.graph",
+          spec,
+          ir: {
+            id: "pose-ir",
+            nodes: [
+              { id: "input", op: "input" },
+              { id: "output", op: "output" },
+            ],
+            edges: [],
+          } as any,
+        },
+      },
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: true,
+    });
   });
 });

@@ -8,13 +8,13 @@ import type {
   ValueJSON,
 } from "@vizij/orchestrator-react";
 import {
+  namespaceControllerId,
+  prepareAnimationRegistrationForTransport,
   type InputConstraint,
+  type ResolvedAnimationTransportMode,
   type RuntimeProgramRegistrationSupportResult,
   type RuntimeRegistrationPlan,
-} from "../types";
-import { prepareAnimationRegistrationForTransport } from "./animationTransport";
-import type { ResolvedAnimationTransportMode } from "./animationTransport";
-import { namespaceControllerId } from "./namespacing";
+} from "@vizij/studio-support";
 
 type ControllerList = { graphs: ControllerId[]; anims: ControllerId[] };
 

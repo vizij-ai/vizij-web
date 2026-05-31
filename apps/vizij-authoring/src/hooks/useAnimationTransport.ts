@@ -1,80 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import type { VizijAnimationAsset } from "@vizij/runtime-react";
 import { useOptionalVizijRuntime, useVizijRuntime } from "@vizij/runtime-react";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
-  clipIrToBundleAnimationEntry,
-  LEGACY_AUTHORED_TIMELINE_CLIP_ID,
+  buildAnimationPreviewBundle,
+  toDeterministicSignature,
   type AnimationClipIR,
+  type VizijAnimationAsset,
 } from "@vizij/studio-support";
-import { useBindingAuthoring } from "../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useGraphRuntimeStoreApi,
+} from "../state/RigControllerProvider";
 import {
   useAnimationStore,
   type AnimationRuntimeTransportAdapter,
 } from "../state/animationStore";
 import { isAuthoringDebugEnabled } from "../utils/debug";
-
-function toDeterministicSignature(value: unknown): string {
-  const seen = new WeakSet<object>();
-  return JSON.stringify(value, (_key, currentValue) => {
-    if (!currentValue || typeof currentValue !== "object") {
-      return currentValue;
-    }
-    if (seen.has(currentValue as object)) {
-      return "[Circular]";
-    }
-    seen.add(currentValue as object);
-    if (Array.isArray(currentValue)) {
-      return currentValue;
-    }
-    const record = currentValue as Record<string, unknown>;
-    const sorted: Record<string, unknown> = {};
-    Object.keys(record)
-      .sort((left, right) => left.localeCompare(right))
-      .forEach((key) => {
-        sorted[key] = record[key];
-      });
-    return sorted;
-  });
-}
-
-function isAuthoredTimelineAnimation(animation: VizijAnimationAsset): boolean {
-  return (
-    animation.id === AUTHORED_TIMELINE_CLIP_ID ||
-    animation.id === LEGACY_AUTHORED_TIMELINE_CLIP_ID
-  );
-}
-
-function normalizeAnimationInputPath(path: string | undefined): string {
-  return (path ?? "").trim().replace(/^\/+/, "");
-}
-
-function hasAnimationTracks(animation: VizijAnimationAsset): boolean {
-  const tracks = (animation.clip as { tracks?: unknown[] } | undefined)?.tracks;
-  return Array.isArray(tracks) && tracks.length > 0;
-}
-
-function muteAnimationClip(
-  animation: VizijAnimationAsset,
-): VizijAnimationAsset {
-  const sourceClip =
-    animation.clip && typeof animation.clip === "object"
-      ? (animation.clip as Record<string, unknown>)
-      : {};
-  const clipId =
-    typeof sourceClip.id === "string" && sourceClip.id.trim().length > 0
-      ? sourceClip.id
-      : animation.id;
-  return {
-    id: animation.id,
-    clip: {
-      ...sourceClip,
-      id: clipId,
-      tracks: [],
-    } as VizijAnimationAsset["clip"],
-  };
-}
 
 export function AnimationRuntimeBridge({
   active = true,
@@ -86,6 +28,7 @@ export function AnimationRuntimeBridge({
   transportSessionKey?: number;
 }) {
   const runtime = useVizijRuntime();
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeRootId = runtime.rootId ?? null;
   const assetBundleAnimations = runtime.assetBundle?.animations ?? [];
   const setGraphBundle =
@@ -129,48 +72,14 @@ export function AnimationRuntimeBridge({
   );
   const authoredClip = clip ?? editorClip;
 
-  const authoredAnimation = useMemo<VizijAnimationAsset | null>(() => {
-    if (!active || !authoredClip) {
-      return null;
-    }
-    const bundleEntry = clipIrToBundleAnimationEntry(authoredClip, {
-      standardInputsById,
-    });
-    return {
-      id: bundleEntry.id,
-      clip: bundleEntry.clip,
-    };
-  }, [active, authoredClip, standardInputsById]);
-  const authoredOutputPaths = useMemo(() => {
-    if (!authoredClip) {
-      return [];
-    }
-    const paths = new Set<string>();
-    authoredClip.tracks.forEach((track) => {
-      const resolvedPath =
-        normalizeAnimationInputPath(track.channel) ||
-        normalizeAnimationInputPath(track.variableId);
-      if (resolvedPath.length > 0) {
-        paths.add(resolvedPath);
-      }
-    });
-    return Array.from(paths);
-  }, [authoredClip]);
-
-  const inheritedAssetAnimations = useMemo(
-    () =>
-      assetBundleAnimations.filter(
-        (animation: VizijAnimationAsset) =>
-          !isAuthoredTimelineAnimation(animation),
-      ),
-    [assetBundleAnimations],
-  );
   const playableInheritedAssetAnimations = useMemo(
     () =>
-      inheritedAssetAnimations.filter((animation) =>
-        hasAnimationTracks(animation),
-      ),
-    [inheritedAssetAnimations],
+      buildAnimationPreviewBundle({
+        active: true,
+        authoredClip: null,
+        currentAnimations: assetBundleAnimations,
+      }).animations,
+    [assetBundleAnimations],
   );
   const inheritedAssetAnimationSignature = useMemo(
     () => toDeterministicSignature(playableInheritedAssetAnimations),
@@ -201,37 +110,28 @@ export function AnimationRuntimeBridge({
     [assetBundleAnimations],
   );
 
-  const mergedAnimations = useMemo(() => {
-    if (!active) {
-      const toMute =
-        currentAnimations.length > 0
-          ? currentAnimations
-          : cachedInheritedAnimationsRef.current;
-      const muted = toMute.map((animation) => muteAnimationClip(animation));
-      return [...muted].sort((left, right) => left.id.localeCompare(right.id));
-    }
-    const inherited =
-      playableInheritedAssetAnimations.length > 0
-        ? playableInheritedAssetAnimations
-        : cachedInheritedAnimationsRef.current;
-    const next = authoredAnimation
-      ? [...inherited, authoredAnimation]
-      : inherited;
-    return [...next].sort((left, right) => left.id.localeCompare(right.id));
-  }, [
-    active,
-    authoredAnimation,
-    currentAnimations,
-    playableInheritedAssetAnimations,
-  ]);
+  const previewBundle = useMemo(
+    () =>
+      buildAnimationPreviewBundle({
+        active,
+        authoredClip,
+        standardInputsById,
+        currentAnimations,
+        fallbackInheritedAnimations: cachedInheritedAnimationsRef.current,
+      }),
+    [active, authoredClip, currentAnimations, standardInputsById],
+  );
+  const authoredAnimation = previewBundle.authoredAnimation;
+  const authoredOutputPaths = previewBundle.outputPaths;
+  const mergedAnimations = previewBundle.animations;
 
   const currentAnimationSignature = useMemo(
     () => toDeterministicSignature(currentAnimations),
     [currentAnimations],
   );
   const mergedAnimationSignature = useMemo(
-    () => toDeterministicSignature(mergedAnimations),
-    [mergedAnimations],
+    () => previewBundle.signature,
+    [previewBundle.signature],
   );
   const currentTimeRef = useRef(currentTime);
   const wasActiveRef = useRef(active);
@@ -343,10 +243,22 @@ export function AnimationRuntimeBridge({
 
     if (currentAnimationSignature === mergedAnimationSignature) {
       appliedAnimationSignatureRef.current = mergedAnimationSignature;
+      graphRuntimeStore.setState({
+        authoringCompileStatus: "compiled",
+        authoringCompileTarget: "animation",
+        authoringCompileMessage: null,
+        authoringCompileSignature: mergedAnimationSignature,
+      });
       return;
     }
 
     setTransportRuntimeReady(false, transportSessionKey);
+    graphRuntimeStore.setState({
+      authoringCompileStatus: "dirty",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: "Animation preview changed",
+      authoringCompileSignature: mergedAnimationSignature,
+    });
     if (appliedAnimationSignatureRef.current === mergedAnimationSignature) {
       return;
     }
@@ -356,6 +268,12 @@ export function AnimationRuntimeBridge({
     // animations from the runtime bundle.
     appliedAnimationSignatureRef.current = mergedAnimationSignature;
     if (setGraphBundle) {
+      graphRuntimeStore.setState({
+        authoringCompileStatus: "compiling",
+        authoringCompileTarget: "animation",
+        authoringCompileMessage: null,
+        authoringCompileSignature: mergedAnimationSignature,
+      });
       if (isAuthoringDebugEnabled("timeline")) {
         console.log("[timeline][animation-bridge] apply animations", {
           currentAnimationSignature,
@@ -364,12 +282,27 @@ export function AnimationRuntimeBridge({
           authoredTrackCount: authoredAnimation?.clip?.tracks?.length ?? 0,
         });
       }
-      setGraphBundle(
-        {
-          animations: mergedAnimations,
+      setGraphBundle(previewBundle.bundle, {
+        tier: "graphs",
+        source: {
+          key: "animation",
+          signature: mergedAnimationSignature,
         },
-        { tier: "graphs" },
-      );
+      });
+      graphRuntimeStore.setState({
+        authoringCompileStatus: "compiled",
+        authoringCompileTarget: "animation",
+        authoringCompileMessage: null,
+        authoringCompileSignature: mergedAnimationSignature,
+      });
+    } else {
+      graphRuntimeStore.setState({
+        authoringCompileStatus: "runtime-error",
+        authoringCompileTarget: "animation",
+        authoringCompileMessage:
+          "Runtime does not support graph bundle updates",
+        authoringCompileSignature: mergedAnimationSignature,
+      });
     }
     if (transportActive && authoredAnimation && seekAnimation) {
       seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTimeRef.current);
@@ -377,8 +310,10 @@ export function AnimationRuntimeBridge({
   }, [
     authoredAnimation,
     currentAnimationSignature,
+    graphRuntimeStore,
     mergedAnimationSignature,
     mergedAnimations,
+    previewBundle.bundle,
     seekAnimation,
     setGraphBundle,
     setTransportRuntimeReady,

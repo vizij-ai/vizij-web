@@ -30,20 +30,18 @@ import {
   deriveProgramInputSeedValues,
   deriveProgramResetValues,
   advanceClipTime,
-  applyRuntimeGraphBundle,
   buildAnimationControllerCommandPath,
   buildAnimationControllerPlayInputs,
-  buildGraphRegistrationConfig,
   buildPoseWeightPathMap,
   buildRigInputPath,
   clampAnimationTime,
-  clearRuntimeControllers,
   diffAnimationAggregateValues,
   namespaceTypedPath,
   normalisePath,
+  planRuntimeProgramControllerSync,
+  planRuntimeGraphBundleApplication,
   pickExtractedAnimations,
   prepareRuntimeRegistrationPlan,
-  registerRuntimeControllers,
   prepareRuntimeAssetView,
   resolveClipDurationSeconds,
   resolveAnimationTransportMode,
@@ -55,7 +53,7 @@ import {
   type RuntimeGraphBundle,
   type RuntimeProgramRegistrationSupportResult,
   type RuntimeUpdateTier,
-  type RuntimeControllerHostError,
+  type RuntimeGraphBundlePendingUpdate,
   type ResolvedAnimationTransportMode,
 } from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
@@ -68,6 +66,11 @@ import {
   stageRuntimeInput,
   type StagedRuntimeInputs,
 } from "./host/executionLoop";
+import {
+  clearRuntimeControllers,
+  registerRuntimeControllers,
+  type RuntimeControllerHostError,
+} from "./host/controllerRegistration";
 import { prepareRuntimeFrameWrites } from "./host/frameWrites";
 import {
   clearRuntimeDebugState,
@@ -82,6 +85,8 @@ import type {
   InputDriverLifecycle,
   PlayAnimationOptions,
   ProgramPlaybackState,
+  RuntimeGraphBundleAppliedEvent,
+  RuntimeGraphBundleUpdateSource,
   StopAnimationOptions,
   StopProgramOptions,
   RuntimeError,
@@ -218,6 +223,7 @@ export function VizijRuntimeProvider({
   mergeStrategy,
   orchestratorBackend,
   onRegisterControllers,
+  onRuntimeGraphBundleApplied,
   onStatusChange,
   transformOutputWrite,
   orchestratorScope = "auto",
@@ -262,6 +268,7 @@ export function VizijRuntimeProvider({
         createOptions={createOptions}
         mergeStrategy={mergeStrategy}
         onRegisterControllers={onRegisterControllers}
+        onRuntimeGraphBundleApplied={onRuntimeGraphBundleApplied}
         onStatusChange={onStatusChange}
         transformOutputWrite={transformOutputWrite}
         store={storeRef.current}
@@ -298,6 +305,7 @@ type VizijRuntimeProviderInnerProps = {
   updateTier: RuntimeUpdateTier;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
+  onRuntimeGraphBundleApplied?: (event: RuntimeGraphBundleAppliedEvent) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
   transformOutputWrite?: (
     write: RuntimeOutputWrite,
@@ -318,6 +326,7 @@ function VizijRuntimeProviderInner({
   updateTier,
   mergeStrategy,
   onRegisterControllers,
+  onRuntimeGraphBundleApplied,
   onStatusChange,
   transformOutputWrite,
   store,
@@ -360,15 +369,11 @@ function VizijRuntimeProviderInner({
   const pendingPlanRef = useRef<ReturnType<
     typeof resolveRuntimeUpdatePlan
   > | null>(null);
+  const graphBundleUpdateRevisionRef = useRef(0);
+  const pendingGraphBundleUpdatesRef = useRef<
+    RuntimeGraphBundlePendingUpdate[]
+  >([]);
   const updateTierRef = useRef<RuntimeUpdateTier>(updateTier);
-
-  useEffect(() => {
-    if (initialAssetBundleRef.current === initialAssetBundle) {
-      return;
-    }
-    initialAssetBundleRef.current = initialAssetBundle;
-    setAssetBundleOverride(null);
-  }, [initialAssetBundle]);
 
   useEffect(() => {
     if (effectiveAssetBundle.bundle) {
@@ -554,6 +559,34 @@ function VizijRuntimeProviderInner({
   const lastActivityTimeRef = useRef<number>(now());
   const [loopMode, setLoopMode] = useState<LoopMode>("stopped");
   const loopModeRef = useRef<LoopMode>("stopped");
+  const resetTransientRuntimeState = useCallback(() => {
+    animationTweensRef.current.forEach((state) => state.resolve());
+    animationTweensRef.current.clear();
+    clipPlaybackRef.current.forEach((state) => {
+      state.playing = false;
+      state.resolve?.();
+      state.resolve = null;
+      state.completion = null;
+    });
+    clipPlaybackRef.current.clear();
+    programPlaybackRef.current.clear();
+    stagedInputsRef.current.clear();
+    clipOutputValuesRef.current.clear();
+    clipAggregateValuesRef.current.clear();
+    loopModeRef.current = "stopped";
+    setLoopMode("stopped");
+  }, []);
+
+  useEffect(() => {
+    if (initialAssetBundleRef.current === initialAssetBundle) {
+      return;
+    }
+    initialAssetBundleRef.current = initialAssetBundle;
+    pendingGraphBundleUpdatesRef.current = [];
+    resetTransientRuntimeState();
+    setAssetBundleOverride(null);
+  }, [initialAssetBundle, resetTransientRuntimeState]);
+
   useEffect(() => {
     loopModeRef.current = loopMode;
   }, [loopMode]);
@@ -815,6 +848,34 @@ function VizijRuntimeProviderInner({
     }));
   }, [reportStatus]);
 
+  const notifyGraphBundleApplied = useCallback(
+    (
+      controllers: { graphs: string[]; anims: string[] },
+      updates: readonly RuntimeGraphBundlePendingUpdate[] = pendingGraphBundleUpdatesRef.current,
+    ) => {
+      if (updates.length === 0) {
+        return;
+      }
+      const appliedRevisions = new Set(
+        updates.map((update) => update.revision),
+      );
+      pendingGraphBundleUpdatesRef.current =
+        pendingGraphBundleUpdatesRef.current.filter(
+          (update) => !appliedRevisions.has(update.revision),
+        );
+      updates.forEach((update) => {
+        onRuntimeGraphBundleApplied?.({
+          revision: update.revision,
+          source: update.source,
+          controllers,
+          reregistered: update.reregistered,
+          reloadedAssets: update.reloadedAssets,
+        });
+      });
+    },
+    [onRuntimeGraphBundleApplied],
+  );
+
   useEffect(() => {
     autostartRef.current = autostart;
     updateLoopMode();
@@ -851,6 +912,7 @@ function VizijRuntimeProviderInner({
     rigPoseControlInputIdsRef.current = new Set();
     clipOutputValuesRef.current.clear();
     clipAggregateValuesRef.current.clear();
+    stagedInputsRef.current.clear();
     frameCountRef.current = 0;
     frameWriteCountRef.current = 0;
     rendererWriteCountRef.current = 0;
@@ -899,6 +961,7 @@ function VizijRuntimeProviderInner({
         cancelled = true;
       };
     }
+    clearControllers();
     resetErrors();
     reportStatus((prev) => ({
       ...prev,
@@ -982,6 +1045,7 @@ function VizijRuntimeProviderInner({
           phase: "assets",
           timestamp: performance.now(),
         });
+        pendingGraphBundleUpdatesRef.current = [];
         reportStatus((prev) => ({
           ...prev,
           loading: false,
@@ -1003,6 +1067,7 @@ function VizijRuntimeProviderInner({
     pushError,
     reportStatus,
     resetErrors,
+    clearControllers,
     setExtractedBundle,
     setExtractedAnimations,
     status.rootId,
@@ -1151,6 +1216,9 @@ function VizijRuntimeProviderInner({
     }));
     if (runtimeReady) {
       onRegisterControllers?.(result.controllers);
+      notifyGraphBundleApplied(result.controllers);
+    } else {
+      pendingGraphBundleUpdatesRef.current = [];
     }
   }, [
     assetBundle,
@@ -1160,6 +1228,7 @@ function VizijRuntimeProviderInner({
     listControllers,
     mergeStrategy,
     namespace,
+    notifyGraphBundleApplied,
     onRegisterControllers,
     pushError,
     pushHostError,
@@ -1984,93 +2053,51 @@ function VizijRuntimeProviderInner({
       return;
     }
 
-    const availableProgramIds = new Set(
-      resolvedProgramAssets.map((program) => program.id),
-    );
+    const syncPlan = planRuntimeProgramControllerSync({
+      playbackStates: programPlaybackRef.current.values(),
+      availableProgramIds: resolvedProgramAssets.map((program) => program.id),
+      activeControllerIds: programControllerIdsRef.current,
+      registrationByProgramId: programRegistrationMapRef.current,
+    });
 
-    Array.from(programPlaybackRef.current.keys()).forEach((id) => {
-      if (availableProgramIds.has(id)) {
-        return;
-      }
+    syncPlan.stalePlaybackIds.forEach((id) => {
       programPlaybackRef.current.delete(id);
-      const controllerId = programControllerIdsRef.current.get(id);
-      if (controllerId) {
+    });
+
+    syncPlan.controllerRemovals.forEach(
+      ({ programId, controllerId, reason }) => {
         try {
           removeGraph(controllerId);
         } catch (err: unknown) {
           pushError({
-            message: `Failed to remove program ${id}`,
+            message:
+              reason === "inactive"
+                ? `Failed to pause program ${programId}`
+                : `Failed to remove program ${programId}`,
             cause: err,
             phase: "registration",
             timestamp: performance.now(),
           });
         }
-        programControllerIdsRef.current.delete(id);
+        programControllerIdsRef.current.delete(programId);
+      },
+    );
+
+    syncPlan.waitingProgramIds.forEach((id) => {
+      if (isRuntimeDebugEnabled()) {
+        console.warn(
+          `[vizij-runtime] Program ${id} playback is waiting for prepared graph registration.`,
+        );
       }
     });
 
-    programPlaybackRef.current.forEach((state, id) => {
-      const program = resolveProgramById(id);
-      const controllerId = programControllerIdsRef.current.get(id);
-
-      if (!program) {
-        return;
-      }
-
-      if (state.state !== "playing") {
-        if (!controllerId) {
-          return;
-        }
-        try {
-          removeGraph(controllerId);
-        } catch (err: unknown) {
-          pushError({
-            message: `Failed to pause program ${id}`,
-            cause: err,
-            phase: "registration",
-            timestamp: performance.now(),
-          });
-        }
-        programControllerIdsRef.current.delete(id);
-        return;
-      }
-
-      if (controllerId) {
-        return;
-      }
-
-      let registration = programRegistrationMapRef.current.get(program.id);
-      if (!registration) {
-        const builtRegistration = buildGraphRegistrationConfig({
-          asset: program.graph,
-          namespace,
-          context: `${program.id ?? "program"} graph`,
-        });
-        if (builtRegistration) {
-          registration = {
-            assetId: program.id,
-            config: builtRegistration.config,
-            spec: builtRegistration.spec,
-            inputs: builtRegistration.inputs,
-            outputs: builtRegistration.outputs,
-          };
-          programRegistrationMapRef.current.set(program.id, registration);
-        }
-      }
-      if (!registration) {
-        pushError({
-          message: `Program ${id} is missing a usable graph payload.`,
-          phase: "registration",
-          timestamp: performance.now(),
-        });
-        return;
-      }
+    syncPlan.controllerRegistrations.forEach(({ programId, registration }) => {
       try {
         const nextControllerId = registerGraph(registration.config);
-        programControllerIdsRef.current.set(id, nextControllerId);
+        programControllerIdsRef.current.set(programId, nextControllerId);
       } catch (err: unknown) {
         pushError({
-          message: `Failed to register program ${id}`,
+          message: `Failed to register program ${programId}`,
           cause: err,
           phase: "registration",
           timestamp: performance.now(),
@@ -2085,9 +2112,7 @@ function VizijRuntimeProviderInner({
     refreshControllerStatus,
     registerGraph,
     removeGraph,
-    namespace,
     resolvedProgramAssets,
-    resolveProgramById,
   ]);
 
   const playProgram = useCallback(
@@ -2375,6 +2400,7 @@ function VizijRuntimeProviderInner({
       animationControllerIdsRef.current.clear();
       programPlaybackRef.current.clear();
       programControllerIdsRef.current.clear();
+      stagedInputsRef.current.clear();
       clipOutputValuesRef.current.clear();
       clipAggregateValuesRef.current.clear();
     };
@@ -2396,25 +2422,34 @@ function VizijRuntimeProviderInner({
   }, [reportStatus]);
 
   const setGraphBundle = useCallback(
-    (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
-      const baseAssetBundle = latestEffectiveAssetBundleRef.current;
-      const baseAssetBundleWithExtractedBundle =
-        !baseAssetBundle.bundle && extractedBundleRef.current
-          ? {
-              ...baseAssetBundle,
-              bundle: extractedBundleRef.current,
-            }
-          : baseAssetBundle;
-      const nextAssetBundle = applyRuntimeGraphBundle(
-        baseAssetBundleWithExtractedBundle,
-        bundle,
-      );
-
-      const plan = resolveRuntimeUpdatePlan(
-        baseAssetBundleWithExtractedBundle,
-        nextAssetBundle,
-        options?.tier ?? updateTierRef.current,
-      );
+    (
+      bundle: RuntimeGraphBundle,
+      options?: {
+        tier?: RuntimeUpdateTier;
+        source?: RuntimeGraphBundleUpdateSource;
+      },
+    ) => {
+      const application = planRuntimeGraphBundleApplication({
+        baseAssetBundle: latestEffectiveAssetBundleRef.current,
+        extractedBundle: extractedBundleRef.current,
+        graphBundle: bundle,
+        tier: options?.tier ?? updateTierRef.current,
+        source: options?.source,
+        revision: options?.source
+          ? ++graphBundleUpdateRevisionRef.current
+          : undefined,
+      });
+      const { nextAssetBundle, updatePlan: plan, pendingUpdate } = application;
+      if (pendingUpdate) {
+        pendingGraphBundleUpdatesRef.current = [
+          ...pendingGraphBundleUpdatesRef.current.filter(
+            (update) =>
+              update.source.key !== pendingUpdate.source.key ||
+              update.source.signature !== pendingUpdate.source.signature,
+          ),
+          pendingUpdate,
+        ];
+      }
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
       latestEffectiveAssetBundleRef.current = nextAssetBundle;
@@ -2435,8 +2470,20 @@ function VizijRuntimeProviderInner({
           loading: false,
         }));
       }
+      if (pendingUpdate && !plan.reregisterGraphs && !plan.reloadAssets) {
+        void Promise.resolve().then(() => {
+          if (
+            !pendingGraphBundleUpdatesRef.current.some(
+              (update) => update.revision === pendingUpdate.revision,
+            )
+          ) {
+            return;
+          }
+          notifyGraphBundleApplied(listControllers(), [pendingUpdate]);
+        });
+      }
     },
-    [reportStatus],
+    [listControllers, notifyGraphBundleApplied, reportStatus],
   );
 
   const contextValue: VizijRuntimeContextValue = useMemo(

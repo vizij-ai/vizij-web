@@ -1,14 +1,13 @@
-import type { BuildGraphResult } from "@vizij/node-graph-authoring";
 import {
   deriveStandardRigInputIdFromPath,
   normalizeStandardRigInputPath,
   stripStandardInputPathPrefix,
   type StandardRigInput,
 } from "@vizij/utils";
-import { normalizeGraphPath } from "@vizij/studio-support";
-import { isPoseControlInputPath } from "../../poseRig/utils";
-import type { ManagedStandardInput } from "../../types/standardInputs";
-import { buildFallbackGraphPath } from "../graphRuntime";
+import { normalizeGraphPath } from "./graphPaths";
+import { buildRigInputPath } from "./posePaths";
+
+const POSE_CONTROL_INPUT_PATH_PREFIX = "/pose/control/";
 
 export interface RuntimeInputRoute {
   graphPath: string;
@@ -21,13 +20,21 @@ export interface RuntimeInputRouteSnapshot {
   defaults: Record<string, number>;
 }
 
-interface BuildRuntimeInputRouteSnapshotArgs {
+export interface RuntimeInputRouteManagedInput {
+  input: StandardRigInput;
+}
+
+export interface RuntimeInputRouteGraphSummary {
+  inputs?: readonly unknown[];
+}
+
+export interface BuildRuntimeInputRouteSnapshotArgs {
   faceId: string;
-  graphSummary: BuildGraphResult["summary"] | null;
-  rigOutputLookup: Map<string, StandardRigInput>;
-  standardInputsByPath: Map<string, StandardRigInput>;
-  standardInputsById: Map<string, StandardRigInput>;
-  managedStandardInputs: ManagedStandardInput[];
+  graphSummary: RuntimeInputRouteGraphSummary | null;
+  rigOutputLookup: ReadonlyMap<string, StandardRigInput>;
+  standardInputsByPath: ReadonlyMap<string, StandardRigInput>;
+  standardInputsById: ReadonlyMap<string, StandardRigInput>;
+  managedStandardInputs: readonly RuntimeInputRouteManagedInput[];
   resolveRuntimeInputId: (inputId: string) => string;
 }
 
@@ -44,6 +51,18 @@ function parseOverrideRuntimePath(
     inputId: match[1] ?? "",
     field: (match[2] as "enabled" | "value") ?? "value",
   };
+}
+
+function isPoseControlInputPath(path: string): boolean {
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith(POSE_CONTROL_INPUT_PATH_PREFIX);
+}
+
+export function buildFallbackGraphPath(
+  faceId: string,
+  input: StandardRigInput,
+): string {
+  return buildRigInputPath(faceId, normalizeStandardRigInputPath(input.path));
 }
 
 export function createEmptyRuntimeInputRouteSnapshot(): RuntimeInputRouteSnapshot {
@@ -104,12 +123,10 @@ export function buildRuntimeInputRouteSnapshot({
     const overridePath = parseOverrideRuntimePath(graphPath);
     if (overridePath) {
       const resolvedInputId = resolveRuntimeInputId(overridePath.inputId);
-      const fallbackDefault = overridePath.field === "enabled" ? 0 : 0;
       const defaultValue =
         overridePath.field === "value"
-          ? (standardInputsById.get(resolvedInputId)?.defaultValue ??
-            fallbackDefault)
-          : fallbackDefault;
+          ? (standardInputsById.get(resolvedInputId)?.defaultValue ?? 0)
+          : 0;
       registerInputRoute(graphPath, graphPath, defaultValue);
       return;
     }

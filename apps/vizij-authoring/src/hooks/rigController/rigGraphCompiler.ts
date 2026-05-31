@@ -1,15 +1,18 @@
 import {
   buildMachineReport,
-  buildRigGraphSpec,
   type BindingMap,
   type BuildGraphResult,
   type InputBindingMap,
-  type InputComposeMode,
 } from "@vizij/node-graph-authoring";
+import {
+  buildAuthoringRigGraphArtifacts,
+  type PipelineConfigByInputId,
+  type PoseConfigSnapshot,
+  type VizijPipelineMetadataV1,
+} from "@vizij/studio-support";
 import type {
   AnimatableComponent as AnimComponent,
   AnimatableValue,
-  RigPipelineV1InputConfig,
   StandardRigInput,
 } from "@vizij/utils";
 import type { PersistedGraphInsight } from "../../rig/persistence";
@@ -18,63 +21,7 @@ import {
   type RuntimeGraphSpec,
 } from "../runtimeGraphSpec";
 
-export interface PoseConfigSnapshot {
-  poses?: Array<{
-    values?: Record<string, number | undefined>;
-    composeModes?: Record<string, unknown>;
-  }>;
-}
-
-export type PipelineConfigByInputId = Record<string, Record<string, unknown>>;
-
-export function withPipelineConfigBuildOptions<
-  T extends Record<string, unknown>,
->(
-  options: T,
-  pipelineConfigByInputId: PipelineConfigByInputId | null | undefined,
-  pipelineMetadataV1?: Record<string, unknown> | null,
-): T {
-  const normalizedMap = pipelineConfigByInputId
-    ? Object.fromEntries(
-        Object.entries(pipelineConfigByInputId)
-          .filter(
-            ([, config]) =>
-              Boolean(config) &&
-              typeof config === "object" &&
-              !Array.isArray(config),
-          )
-          .map(([inputId, config]) => [
-            inputId,
-            {
-              ...(config as Record<string, unknown>),
-              inputId,
-            } satisfies RigPipelineV1InputConfig,
-          ]),
-      )
-    : {};
-  const hasNormalizedMap = Object.keys(normalizedMap).length > 0;
-  const hasPipelineMetadata =
-    Boolean(pipelineMetadataV1) &&
-    typeof pipelineMetadataV1 === "object" &&
-    !Array.isArray(pipelineMetadataV1);
-  if (!hasNormalizedMap && !hasPipelineMetadata) {
-    return options;
-  }
-  const mergedPipelineV1 = {
-    ...(hasPipelineMetadata
-      ? (pipelineMetadataV1 as Record<string, unknown>)
-      : {}),
-    ...(hasNormalizedMap
-      ? {
-          byInputId: normalizedMap as Record<string, RigPipelineV1InputConfig>,
-        }
-      : {}),
-  };
-  return {
-    ...(options as Record<string, unknown>),
-    pipelineV1: mergedPipelineV1,
-  } as unknown as T;
-}
+export type { PipelineConfigByInputId, PoseConfigSnapshot };
 
 export interface RigGraphCompileInputs {
   faceId: string | null;
@@ -89,29 +36,7 @@ export interface RigGraphCompileInputs {
   >;
   poseConfig: PoseConfigSnapshot | null;
   pipelineConfigByInputId?: PipelineConfigByInputId;
-  pipelineMetadataV1?: Record<string, unknown> | null;
-}
-
-export function buildPoseComposeModeByInputId(
-  poseConfig: PoseConfigSnapshot | null | undefined,
-): Partial<Record<string, InputComposeMode>> {
-  const next: Partial<Record<string, InputComposeMode>> = {};
-  const poses = Array.isArray(poseConfig?.poses) ? poseConfig.poses : [];
-  poses.forEach((pose) => {
-    if (!pose || typeof pose !== "object") {
-      return;
-    }
-    const targets =
-      pose.values && typeof pose.values === "object" ? pose.values : {};
-    Object.keys(targets).forEach((inputId) => {
-      const rawMode =
-        pose.composeModes && typeof pose.composeModes === "object"
-          ? pose.composeModes[inputId]
-          : undefined;
-      next[inputId] = rawMode === "average" ? "average" : "add";
-    });
-  });
-  return next;
+  pipelineMetadataV1?: VizijPipelineMetadataV1 | null;
 }
 
 export function buildRigGraphCompile(
@@ -132,21 +57,18 @@ export function buildRigGraphCompile(
   if (!faceId) {
     return null;
   }
-  const buildOptions = withPipelineConfigBuildOptions(
-    {
-      faceId,
-      animatables,
-      components,
-      bindings,
-      inputsById,
-      inputBindings,
-      inputMetadata,
-      inputComposeModesById: buildPoseComposeModeByInputId(poseConfig),
-    },
+  return buildAuthoringRigGraphArtifacts({
+    faceId,
+    animatablesForExport: animatables,
+    animatableComponents: components,
+    bindings,
+    inputBindings,
+    standardInputsById: inputsById,
+    inputMetadata,
     pipelineConfigByInputId,
     pipelineMetadataV1,
-  );
-  return buildRigGraphSpec(buildOptions);
+    poseConfigForCompose: poseConfig,
+  }).graphResult;
 }
 
 export interface RuntimeGraphResolution {

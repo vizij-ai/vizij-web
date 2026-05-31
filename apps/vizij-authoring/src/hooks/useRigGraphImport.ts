@@ -1,30 +1,27 @@
 import { useCallback, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
-  buildRigGraphSpec,
-  type AnimatableBinding,
   type BindingMap,
   type InputBindingMap,
   type StandardInputValues,
 } from "@vizij/node-graph-authoring";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
-  canonicalizeGraphComparable,
+  canonicalizeImportedPipelineMetadataV1,
+  compareImportedRigGraph,
+  deriveLockedInspectorTargetsFromPipeline,
   diffGraphSpecs,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineMetadataV1,
+  filterBenignGeneratedNodeIdDiffs,
   rewriteGraphFaceNamespace,
-  type GraphDiffEntry,
   type GraphDiffResult,
   type VizijPipelineMetadataV1,
-  withVizijPipelineMetadataV1,
+  type PoseConfigSnapshot,
 } from "@vizij/studio-support";
 import {
-  SELF_BINDING_ID,
   createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
-  resolveRigPipelineV1InputConfig,
-  resolveStandardRigInputId,
   type AnimatableComponent as AnimComponent,
   type StandardRigInput,
 } from "@vizij/utils";
@@ -36,11 +33,6 @@ import type { AutoInputState } from "../types/autoInputs";
 import type { DiscrepancyResolutionResult } from "../types/discrepancy";
 import { sanitizeFaceId } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
-import {
-  buildPoseComposeModeByInputId,
-  type PoseConfigSnapshot,
-  withPipelineConfigBuildOptions,
-} from "./rigController/rigGraphCompiler";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 
 interface UseRigGraphImportOptions {
@@ -79,251 +71,6 @@ interface UseRigGraphImportOptions {
   alertDialog: (message: string) => void;
   debugLog: (...args: unknown[]) => void;
   onImportPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  return value as Record<string, unknown>;
-}
-
-function isCanonicalPropsRigInputPath(
-  path: string | null | undefined,
-): boolean {
-  if (!path) {
-    return false;
-  }
-  const normalized = normalizeStandardRigInputPath(path).replace(
-    /^\/rig\/[^/]+\//,
-    "/",
-  );
-  return normalized.startsWith("/propsrig/");
-}
-
-function collectBindingInputIds(
-  binding: AnimatableBinding | undefined,
-): string[] {
-  if (!binding) {
-    return [];
-  }
-  const ids = new Set<string>();
-  if (
-    binding.inputId &&
-    binding.inputId !== SELF_BINDING_ID &&
-    binding.inputId.trim().length > 0
-  ) {
-    ids.add(binding.inputId);
-  }
-  binding.slots.forEach((slot) => {
-    if (
-      slot.inputId &&
-      slot.inputId !== SELF_BINDING_ID &&
-      slot.inputId.trim().length > 0
-    ) {
-      ids.add(slot.inputId);
-    }
-  });
-  return Array.from(ids);
-}
-
-const GENERATED_NODE_ID_PREFIXES = [
-  "join_",
-  "out_",
-  "const_",
-  "input_",
-  "derived_default_",
-  "reserved_",
-];
-
-function isGeneratedNodeId(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    GENERATED_NODE_ID_PREFIXES.some((prefix) => value.startsWith(prefix))
-  );
-}
-
-function isNodeIdDiffPath(path: string): boolean {
-  return (
-    /\.node_id$/i.test(path) ||
-    /\.nodeId$/i.test(path) ||
-    (/\.id$/i.test(path) && path.includes("nodes["))
-  );
-}
-
-export function isBenignGeneratedNodeIdDiff(entry: GraphDiffEntry): boolean {
-  if (entry.kind !== "mismatch") {
-    return false;
-  }
-  if (!isNodeIdDiffPath(entry.path)) {
-    return false;
-  }
-  return (
-    isGeneratedNodeId(entry.importedValue) &&
-    isGeneratedNodeId(entry.rebuiltValue)
-  );
-}
-
-export function filterBenignGeneratedNodeIdDiffs(diff: GraphDiffResult): {
-  filteredDiff: GraphDiffResult;
-  ignoredCount: number;
-} {
-  const filteredEntries = diff.entries.filter(
-    (entry) => !isBenignGeneratedNodeIdDiff(entry),
-  );
-  return {
-    filteredDiff: {
-      entries: filteredEntries,
-      limitReached: diff.limitReached,
-    },
-    ignoredCount: diff.entries.length - filteredEntries.length,
-  };
-}
-
-export function deriveLockedInspectorTargetsFromPipeline(options: {
-  bindings: BindingMap;
-  standardInputs: readonly StandardRigInput[];
-  pipelineConfigByInputId: Record<string, Record<string, unknown>>;
-}): Set<string> {
-  const { bindings, standardInputs, pipelineConfigByInputId } = options;
-  if (!bindings || !standardInputs.length) {
-    return new Set<string>();
-  }
-
-  const standardInputsById = new Map(
-    standardInputs.map((input) => [input.id, input]),
-  );
-  const directInputDisabledIds = new Set<string>();
-
-  Object.entries(pipelineConfigByInputId).forEach(([rawInputId, config]) => {
-    const directInput = asRecord(config?.directInput);
-    if (directInput?.enabled !== false) {
-      return;
-    }
-    const resolvedInputId = resolveStandardRigInputId(
-      rawInputId,
-      standardInputsById,
-    );
-    if (standardInputsById.has(resolvedInputId)) {
-      directInputDisabledIds.add(resolvedInputId);
-    }
-  });
-
-  if (directInputDisabledIds.size === 0) {
-    return new Set<string>();
-  }
-
-  const lockedTargets = new Set<string>();
-  Object.entries(bindings).forEach(([targetId, binding]) => {
-    const resolvedIds = collectBindingInputIds(binding)
-      .map((inputId) => resolveStandardRigInputId(inputId, standardInputsById))
-      .filter((inputId) => standardInputsById.has(inputId));
-    if (resolvedIds.length === 0) {
-      return;
-    }
-    const preferredId =
-      resolvedIds.find((inputId) =>
-        isCanonicalPropsRigInputPath(standardInputsById.get(inputId)?.path),
-      ) ?? resolvedIds[0];
-    if (preferredId && directInputDisabledIds.has(preferredId)) {
-      lockedTargets.add(targetId);
-    }
-  });
-
-  return lockedTargets;
-}
-
-export function canonicalizeImportedPipelineMetadataV1(params: {
-  faceId: string;
-  standardInputs: readonly StandardRigInput[];
-  pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined;
-}): VizijPipelineMetadataV1 | null {
-  const { faceId, standardInputs, pipelineMetadataV1 } = params;
-  if (!pipelineMetadataV1) {
-    return null;
-  }
-
-  const standardInputsById = new Map(
-    standardInputs.map((input) => [input.id, input]),
-  );
-  const pipelineConfigByInputId =
-    extractVizijPipelineConfigMapFromMetadata(pipelineMetadataV1);
-  const relevantInputIds = new Set<string>(
-    Object.keys(pipelineConfigByInputId),
-  );
-  const links = asRecord(pipelineMetadataV1.links);
-  if (links) {
-    Object.values(links).forEach((candidate) => {
-      const link = asRecord(candidate);
-      const parentInputId =
-        typeof link?.parentInputId === "string"
-          ? link.parentInputId.trim()
-          : "";
-      const childInputId =
-        typeof link?.childInputId === "string" ? link.childInputId.trim() : "";
-      if (parentInputId.length > 0) {
-        relevantInputIds.add(parentInputId);
-      }
-      if (childInputId.length > 0) {
-        relevantInputIds.add(childInputId);
-      }
-    });
-  }
-
-  const nextByInputId: Record<string, Record<string, unknown>> = {};
-  relevantInputIds.forEach((inputId) => {
-    const input = standardInputsById.get(inputId);
-    if (!input) {
-      return;
-    }
-    const rawConfig = asRecord(pipelineConfigByInputId[inputId]);
-    const rawParentBlend = asRecord(rawConfig?.parentBlend);
-    const resolvedConfig = resolveRigPipelineV1InputConfig({
-      faceId,
-      input,
-      pipelineV1: pipelineMetadataV1 as Parameters<
-        typeof resolveRigPipelineV1InputConfig
-      >[0]["pipelineV1"],
-    });
-    const nextConfig: Record<string, unknown> = {
-      ...(rawConfig ?? {}),
-      inputId,
-    };
-
-    if (resolvedConfig.parents.length > 0) {
-      nextConfig.parents = resolvedConfig.parents.map((parent) => ({
-        linkId: parent.linkId,
-        inputId: parent.inputId,
-        alias: parent.alias,
-        scale: parent.scale,
-        offset: parent.offset,
-        enabled: parent.enabled,
-        expression: parent.expression,
-      }));
-    }
-
-    if (resolvedConfig.children.length > 0) {
-      nextConfig.children = resolvedConfig.children.map((child) => ({
-        linkId: child.linkId,
-        childInputId: child.childInputId,
-      }));
-    }
-
-    if (rawParentBlend || resolvedConfig.parents.length > 0) {
-      nextConfig.parentBlend = {
-        ...(rawParentBlend ?? {}),
-        mode: resolvedConfig.parentBlend.mode,
-        expression: resolvedConfig.parentBlend.expression,
-      };
-    }
-
-    nextByInputId[inputId] = nextConfig;
-  });
-
-  return {
-    ...pipelineMetadataV1,
-    byInputId: nextByInputId,
-  };
 }
 
 export function useRigGraphImport({
@@ -515,40 +262,6 @@ export function useRigGraphImport({
         if (!loadedFaceId && importedFaceId) {
           setFaceId(importedFaceId);
         }
-        const rebuiltGraph = buildRigGraphSpec(
-          withPipelineConfigBuildOptions(
-            {
-              faceId: resolvedFaceId,
-              animatables,
-              components: animatableComponents,
-              bindings: rehydrated.bindings,
-              inputsById: new Map(
-                rehydrated.standardInputs.map((input) => [input.id, input]),
-              ),
-              inputBindings: rehydrated.inputBindings,
-              inputMetadata: normalizedInputMetadata,
-              inputComposeModesById:
-                buildPoseComposeModeByInputId(poseConfigForRebuild),
-            },
-            importedPipelineConfigByInputId,
-            importedPipelineMetadataV1,
-          ),
-        );
-        const rebuiltIssueEntries = Object.entries(rebuiltGraph.issues.byTarget)
-          .flatMap(([targetId, issues]) =>
-            issues.map((issue) => ({ targetId, issue })),
-          )
-          .slice(0, 8);
-        const rebuiltIssueCount =
-          rebuiltGraph.issues.fatal.length +
-          Object.values(rebuiltGraph.issues.byTarget).reduce(
-            (total, issues) => total + issues.length,
-            0,
-          );
-        const rebuiltSpec = withVizijPipelineMetadataV1(
-          rebuiltGraph.spec,
-          importedPipelineMetadataV1,
-        ) as GraphSpec;
         await waitForNextFrame();
 
         onImportPhaseChange?.({
@@ -556,17 +269,29 @@ export function useRigGraphImport({
           substepId: "compare-signatures",
           status: "active",
         });
-        const [importedNormalized, rebuiltNormalized] = await Promise.all([
-          normalizeGraphSpec(spec),
-          normalizeGraphSpec(rebuiltSpec),
-        ]);
-        const importedComparable =
-          canonicalizeGraphComparable(importedNormalized);
-        const rebuiltComparable =
-          canonicalizeGraphComparable(rebuiltNormalized);
-
-        const importedSignature = JSON.stringify(importedComparable);
-        const rebuiltSignature = JSON.stringify(rebuiltComparable);
+        const comparison = await compareImportedRigGraph({
+          importedSpec: spec,
+          faceId: resolvedFaceId,
+          animatables,
+          animatableComponents,
+          bindings: rehydrated.bindings,
+          inputBindings: rehydrated.inputBindings,
+          standardInputs: rehydrated.standardInputs,
+          inputMetadata: normalizedInputMetadata,
+          pipelineConfigByInputId: importedPipelineConfigByInputId,
+          pipelineMetadataV1: importedPipelineMetadataV1,
+          poseConfig: poseConfigForRebuild,
+          diffLimit: 300,
+        });
+        const {
+          importedComparable,
+          rebuiltComparable,
+          importedSignature,
+          rebuiltSignature,
+          issueEntries: rebuiltIssueEntries,
+          issueCount: rebuiltIssueCount,
+          composeModeHintCount,
+        } = comparison;
         onImportPhaseChange?.({
           stepId: "rig-import-normalization",
           substepId: "compare-signatures",
@@ -578,9 +303,7 @@ export function useRigGraphImport({
           importedSignatureHash: importedSignature.length,
           rebuiltSignatureHash: rebuiltSignature.length,
           missingBlueprintPaths,
-          composeModeHintCount: Object.keys(
-            buildPoseComposeModeByInputId(poseConfigForRebuild),
-          ).length,
+          composeModeHintCount,
         });
 
         if (rehydrated.legacyPropsRigInputPaths.length > 0) {
@@ -695,16 +418,9 @@ export function useRigGraphImport({
             status: "active",
           });
           await waitForNextFrame();
-          const initialDiffResult =
-            importedSignature === rebuiltSignature
-              ? { entries: [], limitReached: false }
-              : diffGraphSpecs(importedComparable, rebuiltComparable, {
-                  limit: 300,
-                });
-          const initialFiltered =
-            filterBenignGeneratedNodeIdDiffs(initialDiffResult);
-          let diffResult = initialFiltered.filteredDiff;
-          let ignoredGeneratedNodeIdDiffs = initialFiltered.ignoredCount;
+          let diffResult = comparison.diff;
+          let ignoredGeneratedNodeIdDiffs =
+            comparison.ignoredGeneratedNodeIdDiffs;
 
           let canAutoResolveFaceRename = false;
           if (
@@ -732,7 +448,7 @@ export function useRigGraphImport({
           }
 
           debugLog("discrepancy diff summary", {
-            initialDiffCount: initialDiffResult.entries.length,
+            initialDiffCount: comparison.diff.entries.length,
             residualDiffCount: diffResult.entries.length,
             ignoredGeneratedNodeIdDiffs,
             canAutoResolveFaceRename,
