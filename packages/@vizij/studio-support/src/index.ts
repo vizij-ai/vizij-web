@@ -292,9 +292,14 @@ export {
   extractVizijPipelineMetadataV1,
   normalizeVizijPipelineConfigMap,
   normalizeVizijPipelineLinkMap,
+  normalizeRuntimeGraphSpec,
+  prepareBundleGraphSpecForImport,
   prepareSpecForImport,
   remapGraphSpecFace,
+  renameBundleGraphOutputPath,
   withVizijPipelineMetadataV1,
+  type RenameBundleGraphOutputPathErrorKind,
+  type RenameBundleGraphOutputPathResult,
 } from "./utils/graphImport";
 export {
   rehydrateRigDataFromGraph,

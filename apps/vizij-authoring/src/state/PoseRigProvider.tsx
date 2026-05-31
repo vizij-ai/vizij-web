@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
-import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
 import {
   buildStandardInputIdRemap,
+  normalizeRuntimeGraphSpec,
   remapPoseConfigInputIds,
   remapPoseIrInputIds,
 } from "@vizij/studio-support";
@@ -316,7 +316,9 @@ function PoseRigController({
           substepId: "normalize-pose-graph",
           status: "active",
         });
-        const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
+        const normalized = await normalizeRuntimeGraphSpec(
+          poseRig.poseGraphSpec,
+        );
         if (cancelled) return;
         graphRuntimeStore.setState({
           poseGraphSpec: normalized,

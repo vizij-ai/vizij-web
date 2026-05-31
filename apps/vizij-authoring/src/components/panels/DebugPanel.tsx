@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import { assessLegacyBindingMigration } from "@vizij/studio-support";
+import {
+  assessLegacyBindingMigration,
+  renameBundleGraphOutputPath,
+} from "@vizij/studio-support";
 import {
   Activity,
   Play,
@@ -273,33 +275,25 @@ export function DebugPanel({
         await showAlert("Output path cannot be empty.");
         return;
       }
-      const nextIr = cloneSerializable(targetGraph.ir) as unknown as IrGraph;
-      const targetNode = nextIr.nodes.find((node) => node.id === nodeId);
-      if (!targetNode) {
-        await showAlert("Unable to find the output node inside the IR graph.");
+      const result = renameBundleGraphOutputPath(
+        loadedBundle,
+        graphId,
+        nodeId,
+        trimmed,
+      );
+      if (result.error) {
+        const message =
+          result.error.kind === "missing-node"
+            ? "Unable to find the output node inside the IR graph."
+            : result.error.kind === "missing-ir"
+              ? "This graph has no IR payload to edit."
+              : result.error.kind === "empty-path"
+                ? "Output path cannot be empty."
+                : "Unable to update the selected graph in the bundle.";
+        await showAlert(message);
         return;
       }
-      targetNode.params = { ...(targetNode.params ?? {}), path: trimmed };
-      const compiled = compileIrGraph(nextIr, { preferLegacySpec: false });
-      updateBundle((previous) => {
-        if (!previous?.graphs?.length) {
-          return previous;
-        }
-        const graphs = previous.graphs.map((graph) => {
-          if (graph.id !== graphId) {
-            return graph;
-          }
-          return {
-            ...graph,
-            spec: cloneSerializable(compiled.spec) as Record<string, unknown>,
-            ir: cloneSerializable(nextIr) as unknown as Record<string, unknown>,
-          };
-        });
-        return {
-          ...previous,
-          graphs,
-        };
-      });
+      updateBundle(result.bundle as VizijBundleExtension | null);
     },
     [loadedBundle, showAlert, showPrompt, updateBundle],
   );

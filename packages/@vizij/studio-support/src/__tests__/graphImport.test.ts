@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { VizijBundleExtension } from "../types";
 import {
   extractGraphFaceId,
+  prepareBundleGraphSpecForImport,
   prepareSpecForImport,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
   extractVizijPipelineMetadataV1,
   remapGraphSpecFace,
+  renameBundleGraphOutputPath,
   withVizijPipelineMetadataV1,
 } from "../utils/graphImport";
 
@@ -16,6 +19,84 @@ describe("graph import helpers", () => {
     };
     expect(extractGraphFaceId(payload)).toBe("legacy_face");
     expect(extractGraphFaceId({})).toBeNull();
+  });
+
+  it("normalizes prepared bundle graph specs for import", async () => {
+    const prepared = await prepareBundleGraphSpecForImport({
+      nodes: [
+        {
+          id: "input_smile",
+          type: "input",
+          params: { path: "rig/face/smile", value: { float: 0 } },
+        },
+      ],
+    });
+
+    expect(prepared.nodes?.[0]).toMatchObject({
+      id: "input_smile",
+      type: "input",
+    });
+  });
+
+  it("renames bundle graph output paths by compiling the stored IR", () => {
+    const bundle: VizijBundleExtension = {
+      version: 1,
+      graphs: [
+        {
+          id: "rig",
+          kind: "rig",
+          spec: { nodes: [] },
+          ir: {
+            id: "ir-1",
+            faceId: "face",
+            nodes: [
+              {
+                id: "out_smile",
+                type: "output",
+                params: { path: "rig/face/old_smile" },
+              },
+            ],
+            edges: [],
+            constants: [],
+            issues: [],
+            summary: {
+              faceId: "face",
+              inputs: [],
+              outputs: ["rig/face/old_smile"],
+              bindings: [],
+            },
+            metadata: {
+              source: "test",
+            },
+          },
+        },
+      ],
+    };
+
+    const result = renameBundleGraphOutputPath(
+      bundle,
+      "rig",
+      "out_smile",
+      "rig/face/smile",
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.bundle).not.toBe(bundle);
+    const graph = result.bundle?.graphs?.[0] as
+      | { ir?: { nodes?: unknown[] } | null; spec: { nodes?: unknown[] } }
+      | undefined;
+    expect(graph?.ir?.nodes).toEqual([
+      expect.objectContaining({
+        id: "out_smile",
+        params: { path: "rig/face/smile" },
+      }),
+    ]);
+    expect(graph?.spec.nodes).toEqual([
+      expect.objectContaining({
+        id: "out_smile",
+        params: { path: "rig/face/smile" },
+      }),
+    ]);
   });
 
   it("remaps rig prefixes and updates metadata when face ids differ", () => {

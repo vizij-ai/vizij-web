@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   extractGraphFaceId,
-  prepareSpecForImport,
+  prepareBundleGraphSpecForImport,
 } from "@vizij/studio-support";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import { waitForNextFrame } from "../utils/frame";
@@ -300,8 +300,10 @@ export function useBundleSynchronizer({
             substepId: "normalize-rig-graph",
           });
           await waitForNextFrame();
-          const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
-          const normalisedSpec = await normalizeGraphSpec(preparedSpec);
+          const normalisedSpec = await prepareBundleGraphSpecForImport(
+            rigEntry.spec,
+            rigEntry.ir,
+          );
           await waitForNextFrame();
           emitPhase({
             stepId: "bundle-sync",

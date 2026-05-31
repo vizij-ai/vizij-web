@@ -1,5 +1,7 @@
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import { cloneDeepSafe } from "@vizij/utils";
+import type { VizijBundleExtension } from "../types";
 import type {
   VizijPipelineConfigMap,
   VizijPipelineLinkMap,
@@ -181,6 +183,104 @@ export function prepareSpecForImport(
   );
   enriched.metadata = metadata;
   return enriched;
+}
+
+export async function prepareBundleGraphSpecForImport(
+  payload: unknown,
+  irGraphPayload?: unknown,
+): Promise<GraphSpec> {
+  return normalizeRuntimeGraphSpec(
+    prepareSpecForImport(payload, irGraphPayload) as GraphSpec,
+  );
+}
+
+export async function normalizeRuntimeGraphSpec(
+  spec: GraphSpec,
+): Promise<GraphSpec> {
+  return normalizeGraphSpec(spec);
+}
+
+export type RenameBundleGraphOutputPathErrorKind =
+  | "missing-bundle"
+  | "missing-graph"
+  | "missing-ir"
+  | "invalid-ir"
+  | "missing-node"
+  | "empty-path";
+
+export interface RenameBundleGraphOutputPathResult {
+  bundle: VizijBundleExtension | null;
+  error: { kind: RenameBundleGraphOutputPathErrorKind } | null;
+}
+
+export function renameBundleGraphOutputPath(
+  bundle: VizijBundleExtension | null | undefined,
+  graphId: string,
+  nodeId: string,
+  outputPath: string,
+): RenameBundleGraphOutputPathResult {
+  const trimmedPath = outputPath.trim();
+  if (!trimmedPath) {
+    return {
+      bundle: bundle ?? null,
+      error: { kind: "empty-path" },
+    };
+  }
+  if (!bundle?.graphs?.length) {
+    return {
+      bundle: bundle ?? null,
+      error: { kind: "missing-bundle" },
+    };
+  }
+  const targetGraph = bundle.graphs.find((graph) => graph.id === graphId);
+  if (!targetGraph) {
+    return {
+      bundle,
+      error: { kind: "missing-graph" },
+    };
+  }
+  if (!targetGraph.ir) {
+    return {
+      bundle,
+      error: { kind: "missing-ir" },
+    };
+  }
+
+  const nextIr = cloneSerializable(targetGraph.ir) as unknown as IrGraph;
+  if (!Array.isArray(nextIr.nodes)) {
+    return {
+      bundle,
+      error: { kind: "invalid-ir" },
+    };
+  }
+  const targetNode = nextIr.nodes.find((node) => node.id === nodeId);
+  if (!targetNode) {
+    return {
+      bundle,
+      error: { kind: "missing-node" },
+    };
+  }
+
+  targetNode.params = { ...(targetNode.params ?? {}), path: trimmedPath };
+  const compiled = compileIrGraph(nextIr, { preferLegacySpec: false });
+  const graphs = bundle.graphs.map((graph) => {
+    if (graph.id !== graphId) {
+      return graph;
+    }
+    return {
+      ...graph,
+      spec: cloneSerializable(compiled.spec) as Record<string, unknown>,
+      ir: cloneSerializable(nextIr) as unknown as Record<string, unknown>,
+    };
+  });
+
+  return {
+    bundle: {
+      ...bundle,
+      graphs,
+    },
+    error: null,
+  };
 }
 
 export function extractGraphFaceId(payload: unknown): string | null {
