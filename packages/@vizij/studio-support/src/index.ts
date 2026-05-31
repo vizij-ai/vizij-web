@@ -281,6 +281,12 @@ export {
   type RehydratedRigData,
 } from "./utils/rigGraphImport";
 export {
+  prepareRigGraphImportPlan,
+  type PrepareRigGraphImportPlanOptions,
+  type RigGraphImportAutoInputState,
+  type RigGraphImportPlan,
+} from "./utils/rigGraphImportPlan";
+export {
   buildPoseGraphRemapApplyPlan,
   collectPoseGraphDeltaInputs,
   listPoseGraphOutputs,

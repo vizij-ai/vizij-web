@@ -6,7 +6,11 @@ import type {
 } from "@vizij/node-graph-authoring";
 import { bindingToDefinition } from "@vizij/node-graph-authoring";
 import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
-import { rehydrateRigDataFromGraph } from "../index";
+import {
+  buildAuthoringRigGraphArtifacts,
+  prepareRigGraphImportPlan,
+  rehydrateRigDataFromGraph,
+} from "../index";
 
 const JAW_COMPONENT_ID = "component_jaw_open";
 
@@ -741,5 +745,47 @@ describe("rehydrateRigDataFromGraph", () => {
       "gaze_left_right",
       "gaze_left_right_copy",
     ]);
+  });
+
+  it("prepares the support-owned rig import plan for app state application", async () => {
+    const input = makeInput({
+      id: "custom_smile",
+      path: "/controls/smile",
+      label: "Smile",
+      group: "controls",
+      defaultValue: 0.25,
+    });
+    const artifacts = buildAuthoringRigGraphArtifacts({
+      faceId: "imported-face",
+      animatablesForExport: {},
+      animatableComponents: [],
+      bindings: {},
+      inputBindings: {},
+      standardInputsById: new Map([[input.id, input]]),
+      inputMetadata: new Map([[input.id, { source: "custom" }]]),
+      poseConfigForCompose: null,
+    });
+
+    const plan = await prepareRigGraphImportPlan({
+      spec: artifacts.graphResult.spec,
+      faceId: "current_face",
+      animatables: {},
+      animatableComponents: [],
+      world: {} as any,
+      featureLabelOverrides: {},
+      poseConfig: null,
+      normalizeFaceId: (value) =>
+        value.trim().toLowerCase().replace(/\s+/g, "-"),
+    });
+
+    expect(plan.importedFaceId).toBe("imported-face");
+    expect(plan.resolvedFaceId).toBe("imported-face");
+    expect(plan.nextCustomInputs.map((entry) => entry.id)).toEqual([
+      "custom_smile",
+    ]);
+    expect(plan.nextInputValues.custom_smile).toBe(0.25);
+    expect(plan.nextAutoInputs.size).toBe(0);
+    expect(plan.missingBlueprintPaths).toEqual([]);
+    expect(plan.comparison.diff.entries).toEqual([]);
   });
 });

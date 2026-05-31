@@ -7,14 +7,9 @@ import {
 } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
-  canonicalizeImportedPipelineMetadataV1,
-  compareImportedRigGraph,
-  deriveLockedInspectorTargetsFromPipeline,
   diffGraphSpecs,
-  extractVizijPipelineConfigMapFromMetadata,
-  extractVizijPipelineMetadataV1,
   filterBenignGeneratedNodeIdDiffs,
-  rehydrateRigDataFromGraph,
+  prepareRigGraphImportPlan,
   rewriteGraphFaceNamespace,
   type GraphDiffResult,
   type VizijPipelineMetadataV1,
@@ -27,7 +22,6 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import type { VizijData, World } from "@vizij/render";
-import { buildAutoRigInputBlueprints } from "../rig/autoInputs";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 import type { DiscrepancyResolutionResult } from "../types/discrepancy";
@@ -137,19 +131,16 @@ export function useRigGraphImport({
           status: "active",
         });
         await waitForNextFrame();
-        const blueprint = buildAutoRigInputBlueprints(
-          world,
+        const importPlan = await prepareRigGraphImportPlan({
+          spec,
+          faceId: loadedFaceId,
           animatables,
           animatableComponents,
+          world,
           featureLabelOverrides,
-        );
-        await waitForNextFrame();
-        const rehydrated = rehydrateRigDataFromGraph(spec, {
-          faceId: loadedFaceId,
-          components: animatableComponents,
-          provisionedPropsRigInputs: blueprint.blueprints.map(
-            (entry) => entry.input,
-          ),
+          poseConfig: poseConfigForRebuild,
+          normalizeFaceId: sanitizeFaceId,
+          diffLimit: 300,
         });
         await waitForNextFrame();
         onImportPhaseChange?.({
@@ -158,92 +149,19 @@ export function useRigGraphImport({
           status: "complete",
         });
 
-        const importedFaceIdRaw = rehydrated.sourceFaceId;
-        const importedFaceId =
-          importedFaceIdRaw && importedFaceIdRaw.trim().length > 0
-            ? sanitizeFaceId(importedFaceIdRaw)
-            : null;
-        const importedPipelineMetadataV1 =
-          canonicalizeImportedPipelineMetadataV1({
-            faceId: importedFaceId ?? loadedFaceId ?? "face",
-            standardInputs: rehydrated.standardInputs,
-            pipelineMetadataV1: extractVizijPipelineMetadataV1(spec),
-          });
-        const importedPipelineConfigByInputId =
-          extractVizijPipelineConfigMapFromMetadata(importedPipelineMetadataV1);
-        const importedLockedInspectorTargetIds =
-          deriveLockedInspectorTargetsFromPipeline({
-            bindings: rehydrated.bindings,
-            standardInputs: rehydrated.standardInputs,
-            pipelineConfigByInputId: importedPipelineConfigByInputId,
-          });
+        const {
+          rehydrated,
+          importedFaceId,
+          importedPipelineMetadataV1,
+          importedLockedInspectorTargetIds,
+          nextAutoInputs,
+          nextInputValues,
+          missingBlueprintPaths,
+          comparison,
+        } = importPlan;
         const faceChangedDuringImport =
           !!importedFaceId && importedFaceId !== loadedFaceId;
-
-        const normalizedInputMetadata = new Map<
-          string,
-          { source?: "auto" | "custom" | "preset"; root?: string }
-        >();
-        rehydrated.inputMetadata.forEach((metadata, inputId) => {
-          const source =
-            metadata.source === "auto" ||
-            metadata.source === "custom" ||
-            metadata.source === "preset"
-              ? metadata.source
-              : undefined;
-          normalizedInputMetadata.set(inputId, {
-            source,
-            root: metadata.root,
-          });
-        });
-
-        const inputsByPath = new Map(
-          rehydrated.standardInputs.map((input) => [input.path, input]),
-        );
-        const inputsBySourceId = new Map<string, StandardRigInput>();
-        rehydrated.standardInputs.forEach((input) => {
-          if (input.sourceId) {
-            inputsBySourceId.set(input.sourceId, input);
-          }
-        });
-
-        const nextAutoInputs = new Map<string, AutoInputState>();
-        const missingBlueprintPaths: string[] = [];
-
-        blueprint.blueprints.forEach((entry) => {
-          let input: StandardRigInput | undefined;
-          if (entry.sourceId) {
-            input = inputsBySourceId.get(entry.sourceId);
-          }
-          if (!input) {
-            input = inputsByPath.get(entry.path);
-          }
-          if (!input) {
-            missingBlueprintPaths.push(entry.path);
-            return;
-          }
-          if (entry.sourceId) {
-            inputsBySourceId.delete(entry.sourceId);
-          }
-          inputsByPath.delete(input.path);
-          const resolvedSourceId = input.sourceId ?? entry.sourceId;
-          nextAutoInputs.set(entry.path, {
-            input,
-            metadata: entry.metadata,
-            generatedLabel: entry.input.label,
-            generatedDefaultValue: entry.input.defaultValue,
-            generatedRange: {
-              min: entry.input.range.min,
-              max: entry.input.range.max,
-            },
-            sourcePath: entry.path,
-            sourceId: resolvedSourceId,
-          });
-        });
-
-        let nextCustomInputs = Array.from(inputsByPath.values()).sort((a, b) =>
-          a.label.localeCompare(b.label),
-        );
+        let nextCustomInputs = importPlan.nextCustomInputs;
 
         if (missingBlueprintPaths.length > 0) {
           console.warn(
@@ -252,12 +170,6 @@ export function useRigGraphImport({
           );
         }
 
-        const nextInputValues: StandardInputValues = {};
-        rehydrated.standardInputs.forEach((input) => {
-          nextInputValues[input.id] = input.defaultValue;
-        });
-
-        const resolvedFaceId = importedFaceId ?? loadedFaceId ?? "face";
         if (!loadedFaceId && importedFaceId) {
           setFaceId(importedFaceId);
         }
@@ -267,20 +179,6 @@ export function useRigGraphImport({
           stepId: "rig-import-normalization",
           substepId: "compare-signatures",
           status: "active",
-        });
-        const comparison = await compareImportedRigGraph({
-          importedSpec: spec,
-          faceId: resolvedFaceId,
-          animatables,
-          animatableComponents,
-          bindings: rehydrated.bindings,
-          inputBindings: rehydrated.inputBindings,
-          standardInputs: rehydrated.standardInputs,
-          inputMetadata: normalizedInputMetadata,
-          pipelineConfigByInputId: importedPipelineConfigByInputId,
-          pipelineMetadataV1: importedPipelineMetadataV1,
-          poseConfig: poseConfigForRebuild,
-          diffLimit: 300,
         });
         const {
           importedComparable,
