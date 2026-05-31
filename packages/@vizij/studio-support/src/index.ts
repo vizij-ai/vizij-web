@@ -304,6 +304,10 @@ export {
   type MotionGraphSpecNode,
 } from "./utils/motionGraphSpec";
 export {
+  buildAuthoringDriverGraph,
+  type BuildAuthoringDriverGraphOptions,
+} from "./utils/driverGraph";
+export {
   buildInitialInputDefaultsForPorts,
   defaultInputValueForPortType,
   defaultVariadicCount,
