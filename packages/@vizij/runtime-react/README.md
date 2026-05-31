@@ -319,6 +319,14 @@ It accepts normal `Vizij` renderer props except `rootId` and `namespace`, which 
 
 ## Exported Utilities
 
+### Compatibility Re-Exports
+
+`@vizij/runtime-react` may continue to re-export a small set of support helpers for existing callers, but new semantic imports should come from `@vizij/studio-support`.
+
+Use `@vizij/runtime-react` for React runtime hosting: asset loading, playback sessions, backend wiring, and renderer writes. Use `@vizij/studio-support` for migration, canonical asset preparation, graph/animation/pose planning, import/export assembly, and diagnostics.
+
+The support-owned helper families below are documented here to explain runtime behavior and compatibility, not to make runtime-react the canonical semantic helper package.
+
 ### Pose path helpers
 
 - `buildRigInputPath(faceId, path)`
@@ -360,7 +368,7 @@ Runtime-react also auto-detects the actual rig input paths it needs from the reg
 
 4. The provider bridges those internal outputs back onto the detected rig input path when possible and falls back to the native `pose/control` path only when necessary.
 
-This is why dependent apps should prefer runtime-react helpers and resolved metadata over hard-coded face-specific input paths.
+This is why dependent apps should prefer `@vizij/studio-support` helpers and runtime-resolved metadata over hard-coded face-specific input paths.
 
 ### Face control helpers
 

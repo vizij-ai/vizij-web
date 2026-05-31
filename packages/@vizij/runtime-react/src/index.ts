@@ -4,6 +4,8 @@ export { useVizijRuntime } from "./hooks/useVizijRuntime";
 export { useOptionalVizijRuntime } from "./hooks/useOptionalVizijRuntime";
 export { useVizijOutputs } from "./hooks/useVizijOutputs";
 export { useRigInput } from "./hooks/useRigInput";
+// Compatibility-only semantic helper re-exports. New callers should import
+// these helpers directly from @vizij/studio-support.
 export {
   mapNormalizedControlValue,
   mapUnitControlValue,
@@ -47,6 +49,8 @@ export type {
   VizijProgramAsset,
 } from "./types";
 
+// Compatibility-only semantic helper type re-exports. New callers should import
+// these types directly from @vizij/studio-support.
 export type {
   FaceScalarControl,
   ResolvedFaceControls,
