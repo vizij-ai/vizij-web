@@ -35,9 +35,23 @@ const bindingState = {
   standardInputsById: new Map(),
 };
 
+const graphRuntimeState = {
+  graphStatus: "ready",
+  graphWarning: null,
+  graphError: null,
+  authoringCompileTarget: null,
+  authoringCompileTargets: {
+    "runtime-graph": { status: "idle", message: null, signature: null },
+    animation: { status: "idle", message: null, signature: null },
+    motiongraph: { status: "idle", message: null, signature: null },
+  },
+};
+
 vi.mock("../../state/RigControllerProvider", () => ({
   useBindingAuthoring: (selector: (state: typeof bindingState) => unknown) =>
     selector(bindingState),
+  useGraphRuntime: (selector: (state: typeof graphRuntimeState) => unknown) =>
+    selector(graphRuntimeState),
 }));
 
 const animationStoreState: {

@@ -417,6 +417,19 @@ export {
   inferStandardSuggestion,
 } from "./utils/standardInputPaths";
 export {
+  planStandardInputCreation,
+  planStandardInputUpdate,
+  resolveUniqueStandardInputId,
+  resolveUpdatedStandardInputId,
+  type StandardInputCreationPlanOptions,
+  type StandardInputMutationIssue,
+  type StandardInputMutationIssueCode,
+  type StandardInputMutationPlan,
+  type StandardInputUpdatePatch,
+  type StandardInputUpdatePlanOptions,
+  type StandardInputUpdatePlanResult,
+} from "./utils/standardInputMutation";
+export {
   getStandardInputResolutionIndex,
   resolveUniqueAliasIdFromStandardInputs,
   type StandardInputResolutionIndex,

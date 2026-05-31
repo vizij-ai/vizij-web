@@ -952,6 +952,27 @@ async function stopActiveRuntime(page: Page): Promise<void> {
   );
 }
 
+async function expectAuthoringCompileState(
+  page: Page,
+  target: "animation" | "motiongraph" | "runtime-graph",
+  status: "compiled" | "registered",
+): Promise<void> {
+  await expect(
+    page.getByTestId(`authoring-compile-target-${target}`),
+  ).toContainText(`${target} ${status}`, { timeout: 30_000 });
+}
+
+async function expectAuthoringCompileAtLeastCompiled(
+  page: Page,
+  target: "animation" | "motiongraph" | "runtime-graph",
+): Promise<void> {
+  await expect(
+    page.getByTestId(`authoring-compile-target-${target}`),
+  ).toContainText(new RegExp(`^${target} (compiled|registered)$`), {
+    timeout: 30_000,
+  });
+}
+
 test.beforeAll(() => {
   assertPreparedAroraAssets();
 });
@@ -1055,6 +1076,8 @@ test("executes UI-edited animation and graph values through Arora web composed r
   await expect(
     editedTrackRow.getByTestId("animation-timeline-keyframe").first(),
   ).toHaveAttribute("title", /Value: 0\.55/);
+  await expectAuthoringCompileAtLeastCompiled(page, "animation");
+  await expectAuthoringCompileState(page, "animation", "registered");
 
   const beforeAnimationRuntime = await readMainRuntimeDebug(page);
   const beforeAnimationCanvas = await captureMainRuntimeCanvasPixels(page);
@@ -1099,6 +1122,8 @@ test("executes UI-edited animation and graph values through Arora web composed r
   await expect(operandDefaultInput).toBeVisible({ timeout: 30_000 });
   await operandDefaultInput.fill(String(authoredGraphValue));
   await expect(operandDefaultInput).toHaveValue(String(authoredGraphValue));
+  await expectAuthoringCompileAtLeastCompiled(page, "motiongraph");
+  await expectAuthoringCompileState(page, "motiongraph", "registered");
 
   const beforeGraphRuntime = await readMainRuntimeDebug(page);
   const beforeGraphArora = await readMainAroraDebug(page);

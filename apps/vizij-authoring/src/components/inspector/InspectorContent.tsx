@@ -1840,10 +1840,11 @@ export function InspectorContent({
     pendingChainNavigationRef.current = node;
     navigate();
   };
-  const showInspectorContextBars = useMemo(() => false, []);
+  const showInspectorChainPath = useMemo(() => false, []);
+  const showAuthoringStatus = false;
 
   const renderChainPath = () => {
-    if (!showInspectorContextBars) {
+    if (!showInspectorChainPath) {
       return null;
     }
     if (inspectorChainPath.length <= 1) {
@@ -1896,7 +1897,7 @@ export function InspectorContent({
   };
 
   const renderAuthoringStatus = () => {
-    if (!showInspectorContextBars) {
+    if (!showAuthoringStatus) {
       return null;
     }
     const statusTone =
@@ -1921,8 +1922,12 @@ export function InspectorContent({
       ? `${visibleAuthoringCompileTarget} ${authoringCompileStatus}`
       : `asset ${authoringCompileStatus}`;
     return (
-      <div className="flex items-center gap-1.5 flex-wrap px-1 py-0.5 mb-1">
+      <div
+        className="flex items-center gap-1.5 flex-wrap px-1 py-0.5 mb-1"
+        data-testid="authoring-compile-status-bar"
+      >
         <span
+          data-testid="authoring-graph-status-chip"
           className={cn(
             "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
             statusTone,
@@ -1931,6 +1936,7 @@ export function InspectorContent({
           Compile {graphStatus}
         </span>
         <span
+          data-testid="authoring-compile-state-chip"
           className={cn(
             "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
             compileTone,

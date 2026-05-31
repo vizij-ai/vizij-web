@@ -2007,39 +2007,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
     ]);
-  const activeProgramRuntimeResetValues = useMemo<
-    MotionGraphRuntimeResetEntry[]
-  >(() => {
-    if (!activeProgramRuntimeSnapshot) {
-      return [];
-    }
-    const preservedResetValues = activeProgramRuntimeTargetId?.startsWith(
-      BUNDLE_PROCEDURAL_TARGET_PREFIX,
-    )
-      ? readMotionGraphMetadataResetValues(
-          resolveBundleProceduralEntry(activeProgramRuntimeTargetId) ?? {},
-        )
-      : undefined;
-    return resetValueEntries(
-      buildMotionGraphResetValuesForOutputs(
-        activeProgramRuntimeSnapshot.enabledOutputs,
-        standardInputsByPath,
-        preservedResetValues,
-      ),
-    );
-  }, [
-    activeProgramRuntimeSnapshot,
-    activeProgramRuntimeTargetId,
-    resolveBundleProceduralEntry,
-    standardInputsByPath,
-  ]);
-  const activeProgramRuntimeControllerId = useMemo(
-    () =>
-      activeProgramRuntimeTargetId
-        ? motionGraphRuntimeControllerId(activeProgramRuntimeTargetId)
-        : null,
-    [activeProgramRuntimeTargetId],
-  );
   const loadSelectedAnimationTarget = useCallback(
     (targetId: string | null) => {
       if (!targetId) {
@@ -2176,6 +2143,47 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       resolvedSelectedProceduralTargetId,
       selectedProceduralTargetId,
     ]);
+  const previewProgramRuntimeTargetId =
+    activeProgramRuntimeTargetId ?? resolvedSelectedProceduralTargetId;
+  const previewProgramRuntimeSnapshot = activeProgramRuntimeTargetId
+    ? activeProgramRuntimeSnapshot
+    : selectedProgramRuntimeSnapshot;
+  const previewProgramRuntimePlaybackState = activeProgramRuntimeTargetId
+    ? effectiveProgramRuntimePlaybackState
+    : "stopped";
+  const previewProgramRuntimeControllerId = useMemo(
+    () =>
+      previewProgramRuntimeTargetId
+        ? motionGraphRuntimeControllerId(previewProgramRuntimeTargetId)
+        : null,
+    [previewProgramRuntimeTargetId],
+  );
+  const previewProgramRuntimeResetValues = useMemo<
+    MotionGraphRuntimeResetEntry[]
+  >(() => {
+    if (!previewProgramRuntimeSnapshot) {
+      return [];
+    }
+    const preservedResetValues = previewProgramRuntimeTargetId?.startsWith(
+      BUNDLE_PROCEDURAL_TARGET_PREFIX,
+    )
+      ? readMotionGraphMetadataResetValues(
+          resolveBundleProceduralEntry(previewProgramRuntimeTargetId) ?? {},
+        )
+      : undefined;
+    return resetValueEntries(
+      buildMotionGraphResetValuesForOutputs(
+        previewProgramRuntimeSnapshot.enabledOutputs,
+        standardInputsByPath,
+        preservedResetValues,
+      ),
+    );
+  }, [
+    previewProgramRuntimeSnapshot,
+    previewProgramRuntimeTargetId,
+    resolveBundleProceduralEntry,
+    standardInputsByPath,
+  ]);
 
   const handleSelectAnimationTarget = useCallback(
     (targetId: string) => {
@@ -4338,11 +4346,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         animationSourceActive={animationSourceActive}
         animationRuntimeClip={activeAnimationRuntimeClip}
         animationTransportSessionKey={animationTransportSessionKey}
-        motionGraphRuntimeNodes={activeProgramRuntimeSnapshot?.nodes}
-        motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
-        motionGraphPlaybackState={effectiveProgramRuntimePlaybackState}
-        motionGraphRuntimeControllerId={activeProgramRuntimeControllerId}
-        motionGraphRuntimeResetValues={activeProgramRuntimeResetValues}
+        motionGraphRuntimeNodes={previewProgramRuntimeSnapshot?.nodes}
+        motionGraphRuntimeEdges={previewProgramRuntimeSnapshot?.edges}
+        motionGraphPlaybackState={previewProgramRuntimePlaybackState}
+        motionGraphRuntimeControllerId={previewProgramRuntimeControllerId}
+        motionGraphRuntimeResetValues={previewProgramRuntimeResetValues}
         runtimeStatusLabel={runtimeStatusLabel}
         runtimePlaybackState={viewerRuntimePlaybackState}
         onPlayRuntime={viewerPlayRuntime}

@@ -220,6 +220,26 @@ describe("graphRuntimeStore", () => {
       message: null,
       signature: "animation-v1",
     });
+
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "motiongraph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "motiongraph-v1",
+    });
+    store.setState((state) =>
+      resolveRuntimeBundleAcknowledgementPatch(state, {
+        source: { key: "motiongraph", signature: "motiongraph-v1" },
+        graphCount: 4,
+      }),
+    );
+
+    expect(store.getState().runtimeViewGraphCount).toBe(4);
+    expect(store.getState().authoringCompileTargets.motiongraph).toMatchObject({
+      status: "registered",
+      message: null,
+      signature: "motiongraph-v1",
+    });
   });
 
   it("applies sourced runtime errors without failing unrelated targets", () => {

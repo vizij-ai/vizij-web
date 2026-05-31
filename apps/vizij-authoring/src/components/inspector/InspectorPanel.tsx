@@ -8,7 +8,14 @@ import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
 import { EmptyState } from "../ui/EmptyState";
 import { usePoseRig } from "../../state/PoseRigProvider";
-import { useBindingAuthoring } from "../../state/RigControllerProvider";
+import {
+  useBindingAuthoring,
+  useGraphRuntime,
+} from "../../state/RigControllerProvider";
+import {
+  AUTHORING_COMPILE_TARGETS,
+  resolveVisibleAuthoringCompileState,
+} from "../../state/graphRuntimeStore";
 import { cn } from "../../utils/cn";
 import type {
   PoseDefinition,
@@ -291,6 +298,102 @@ function InspectorEntryButton({
         </div>
       </button>
       {action}
+    </div>
+  );
+}
+
+function AuthoringCompileStatusBar() {
+  const graphStatus = useGraphRuntime((state) => state.graphStatus);
+  const graphWarning = useGraphRuntime((state) => state.graphWarning);
+  const graphError = useGraphRuntime((state) => state.graphError);
+  const authoringCompileTarget = useGraphRuntime(
+    (state) => state.authoringCompileTarget,
+  );
+  const authoringCompileTargets = useGraphRuntime(
+    (state) => state.authoringCompileTargets,
+  );
+  const visibleAuthoringCompileState = resolveVisibleAuthoringCompileState({
+    authoringCompileTarget,
+    authoringCompileTargets,
+  });
+  const authoringCompileStatus = visibleAuthoringCompileState.status;
+  const visibleAuthoringCompileTarget = visibleAuthoringCompileState.target;
+  const authoringCompileMessage = visibleAuthoringCompileState.message;
+  const statusTone =
+    graphStatus === "ready"
+      ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
+      : graphStatus === "loading"
+        ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+        : graphStatus === "error"
+          ? "text-red-300 border-red-500/40 bg-red-500/10"
+          : "text-text-muted border-border-default/50 bg-bg-panel/30";
+  const resolveCompileTone = (status: typeof authoringCompileStatus) =>
+    status === "registered"
+      ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
+      : status === "compiling" || status === "dirty" || status === "compiled"
+        ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+        : status === "runtime-error"
+          ? "text-red-300 border-red-500/40 bg-red-500/10"
+          : "text-text-muted border-border-default/50 bg-bg-panel/30";
+  const compileTone = resolveCompileTone(authoringCompileStatus);
+  const compileLabel = visibleAuthoringCompileTarget
+    ? `${visibleAuthoringCompileTarget} ${authoringCompileStatus}`
+    : `asset ${authoringCompileStatus}`;
+  const activeTargetStates = AUTHORING_COMPILE_TARGETS.map((target) => ({
+    target,
+    state: authoringCompileTargets[target],
+  })).filter(({ state }) => state.status !== "idle");
+
+  return (
+    <div
+      className="flex items-center gap-1.5 flex-wrap px-2 py-1 border-b border-border-default/40"
+      data-testid="authoring-compile-status-bar"
+    >
+      <span
+        data-testid="authoring-graph-status-chip"
+        className={cn(
+          "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
+          statusTone,
+        )}
+      >
+        Compile {graphStatus}
+      </span>
+      <span
+        data-testid="authoring-compile-state-chip"
+        className={cn(
+          "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
+          compileTone,
+        )}
+      >
+        {compileLabel}
+      </span>
+      {activeTargetStates.map(({ target, state }) => (
+        <span
+          key={target}
+          data-testid={`authoring-compile-target-${target}`}
+          className={cn(
+            "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
+            resolveCompileTone(state.status),
+          )}
+        >
+          {target} {state.status}
+        </span>
+      ))}
+      {authoringCompileMessage ? (
+        <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200 truncate max-w-[260px]">
+          {authoringCompileMessage}
+        </span>
+      ) : null}
+      {graphWarning ? (
+        <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200 truncate max-w-[260px]">
+          {graphWarning}
+        </span>
+      ) : null}
+      {graphError ? (
+        <span className="text-[9px] px-1.5 py-0.5 rounded border border-red-500/40 bg-red-500/10 text-red-200 truncate max-w-[260px]">
+          {graphError}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -1082,6 +1185,7 @@ export function InspectorPanel({
       }
     >
       <div className="flex flex-col h-full min-h-0">
+        <AuthoringCompileStatusBar />
         {!showDedicatedInspector && (
           <div className="flex-1 min-h-0 overflow-y-auto">
             {showProgramTargetInspector && selectedProgramTarget ? (
