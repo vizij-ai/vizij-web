@@ -406,6 +406,222 @@ describe("studio support package", () => {
     });
   });
 
+  it("does not re-register graphs for deeply equal freshly allocated graph payloads", () => {
+    const previous = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: {
+          nodes: [{ type: "input", id: "smile" }],
+          edges: [],
+        },
+        ir: {
+          nodes: [{ op: "input", id: "smile" }],
+          edges: [],
+        } as any,
+        subscriptions: { inputs: ["controls/smile"], outputs: [] },
+        inputMetadata: [{ path: "controls/smile", defaultValue: 0 }],
+      },
+      pose: {
+        graph: {
+          id: "pose.graph",
+          spec: {
+            nodes: [{ id: "pose-out", type: "output" }],
+            edges: [],
+          },
+          inputMetadata: [{ defaultValue: 0, path: "pose/control/smile" }],
+        },
+        config: {
+          poses: [],
+          neutralInputs: { smile: 0 },
+          version: 1,
+        } as any,
+      },
+    });
+    const next = makeBaseBundle({
+      rig: {
+        id: "rig",
+        spec: {
+          edges: [],
+          nodes: [{ id: "smile", type: "input" }],
+        },
+        ir: {
+          edges: [],
+          nodes: [{ id: "smile", op: "input" }],
+        } as any,
+        subscriptions: { outputs: [], inputs: ["controls/smile"] },
+        inputMetadata: [{ defaultValue: 0, path: "controls/smile" }],
+      },
+      pose: {
+        graph: {
+          id: "pose.graph",
+          spec: {
+            edges: [],
+            nodes: [{ type: "output", id: "pose-out" }],
+          },
+          inputMetadata: [{ path: "pose/control/smile", defaultValue: 0 }],
+        },
+        config: {
+          version: 1,
+          neutralInputs: { smile: 0 },
+          poses: [],
+        } as any,
+      },
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: false,
+    });
+  });
+
+  it("does not re-register controllers for deeply equal animation and program payloads", () => {
+    const previous = makeBaseBundle({
+      animations: [
+        {
+          id: "blink",
+          weight: 1,
+          setup: { mode: "replace" } as any,
+          clip: {
+            id: "blink",
+            duration: 1,
+            tracks: [
+              {
+                channel: "controls/blink",
+                keyframes: [{ value: 1, time: 0.1 }],
+              },
+            ],
+          },
+        },
+      ],
+      programs: [
+        {
+          id: "program",
+          graph: {
+            id: "program.graph",
+            spec: {
+              nodes: [{ id: "out", type: "output" }],
+              edges: [],
+            },
+            subscriptions: {
+              inputs: [],
+              outputs: ["rig/face/smile"],
+            },
+          },
+          resetValues: { "rig/face/smile": 0 },
+        },
+      ],
+    });
+    const next = makeBaseBundle({
+      animations: [
+        {
+          id: "blink",
+          weight: 1,
+          setup: { mode: "replace" } as any,
+          clip: {
+            id: "blink",
+            tracks: [
+              {
+                keyframes: [{ time: 0.1, value: 1 }],
+                channel: "controls/blink",
+              },
+            ],
+            duration: 1,
+          },
+        },
+      ],
+      programs: [
+        {
+          id: "program",
+          graph: {
+            id: "program.graph",
+            spec: {
+              edges: [],
+              nodes: [{ type: "output", id: "out" }],
+            },
+            subscriptions: {
+              outputs: ["rig/face/smile"],
+              inputs: [],
+            },
+          },
+          resetValues: { "rig/face/smile": 0 },
+        },
+      ],
+    });
+
+    expect(resolveRuntimeUpdatePlan(previous, next, "graphs")).toEqual({
+      reloadAssets: false,
+      reregisterGraphs: false,
+    });
+  });
+
+  it("reloads world assets when world animatables or embedded bundle payload changes", () => {
+    const previous = makeBaseBundle({
+      glb: {
+        kind: "world",
+        world: {
+          nodes: [{ id: "face" }],
+        },
+        animatables: {
+          smile: { default: 0 },
+        },
+        bundle: {
+          version: 1,
+          graphs: [],
+        },
+      },
+    });
+
+    expect(
+      resolveRuntimeUpdatePlan(
+        previous,
+        makeBaseBundle({
+          glb: {
+            kind: "world",
+            world: {
+              nodes: [{ id: "face" }],
+            },
+            animatables: {
+              smile: { default: 1 },
+            },
+            bundle: {
+              version: 1,
+              graphs: [],
+            },
+          },
+        }),
+        "graphs",
+      ),
+    ).toEqual({
+      reloadAssets: true,
+      reregisterGraphs: false,
+    });
+
+    expect(
+      resolveRuntimeUpdatePlan(
+        previous,
+        makeBaseBundle({
+          glb: {
+            kind: "world",
+            world: {
+              nodes: [{ id: "face" }],
+            },
+            animatables: {
+              smile: { default: 0 },
+            },
+            bundle: {
+              version: 1,
+              graphs: [{ id: "rig", kind: "rig", spec: { nodes: [] } }],
+            } as any,
+          },
+        }),
+        "graphs",
+      ),
+    ).toEqual({
+      reloadAssets: true,
+      reregisterGraphs: false,
+    });
+  });
+
   it("plans rig re-registration when only subscriptions change", () => {
     const previous = makeBaseBundle({
       rig: {

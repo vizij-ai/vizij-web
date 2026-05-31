@@ -76,8 +76,31 @@ function normalizeSpecPayload(value: unknown): string {
   if (!value) {
     return "";
   }
+
+  const seen = new WeakSet<object>();
   try {
-    return JSON.stringify(value);
+    return (
+      JSON.stringify(value, (_key, currentValue) => {
+        if (!currentValue || typeof currentValue !== "object") {
+          return currentValue;
+        }
+        if (seen.has(currentValue as object)) {
+          return "[Circular]";
+        }
+        seen.add(currentValue as object);
+        if (Array.isArray(currentValue)) {
+          return currentValue;
+        }
+        const record = currentValue as Record<string, unknown>;
+        const sorted: Record<string, unknown> = {};
+        Object.keys(record)
+          .sort((left, right) => left.localeCompare(right))
+          .forEach((key) => {
+            sorted[key] = record[key];
+          });
+        return sorted;
+      }) ?? String(value)
+    );
   } catch {
     return String(value);
   }
@@ -98,7 +121,11 @@ function glbSignature(glb: VizijAssetBundle["glb"]): string {
     });
     return `blob:${getBlobIdentity(glb.blob)}:${importOptions}`;
   }
-  return `world:${normalizeSpecPayload(glb.world)}`;
+  return `world:${normalizeSpecPayload({
+    animatables: glb.animatables,
+    bundle: glb.bundle ?? null,
+    world: glb.world,
+  })}`;
 }
 
 function graphSignature(graph?: VizijAssetBundle["rig"]): string {
@@ -106,10 +133,11 @@ function graphSignature(graph?: VizijAssetBundle["rig"]): string {
     return "";
   }
   const id = graph.id ?? "";
-  const graphPayload = normalizeSpecPayload(graph.spec ?? graph.ir ?? null);
+  const specPayload = normalizeSpecPayload(graph.spec ?? null);
+  const irPayload = normalizeSpecPayload(graph.ir ?? null);
   const subscriptions = normalizeSpecPayload(graph.subscriptions ?? null);
   const inputMetadata = normalizeSpecPayload(graph.inputMetadata ?? null);
-  return `${id}:${graphPayload}:${subscriptions}:${inputMetadata}`;
+  return `${id}:${specPayload}:${irPayload}:${subscriptions}:${inputMetadata}`;
 }
 
 function poseSignature(pose?: VizijAssetBundle["pose"]): string {
@@ -170,21 +198,7 @@ export function resolveRuntimeUpdatePlan(
   const glbChanged = glbSignature(previous.glb) !== glbSignature(next.glb);
   const rigChanged = graphSignature(previous.rig) !== graphSignature(next.rig);
   const poseChanged = poseSignature(previous.pose) !== poseSignature(next.pose);
-  const rigReferenceChanged =
-    previous.rig?.id !== next.rig?.id ||
-    previous.rig?.spec !== next.rig?.spec ||
-    previous.rig?.ir !== next.rig?.ir ||
-    previous.rig?.subscriptions !== next.rig?.subscriptions ||
-    previous.rig?.inputMetadata !== next.rig?.inputMetadata;
-  const poseReferenceChanged =
-    previous.pose?.graph?.id !== next.pose?.graph?.id ||
-    previous.pose?.graph?.spec !== next.pose?.graph?.spec ||
-    previous.pose?.graph?.ir !== next.pose?.graph?.ir ||
-    previous.pose?.graph?.subscriptions !== next.pose?.graph?.subscriptions ||
-    previous.pose?.graph?.inputMetadata !== next.pose?.graph?.inputMetadata ||
-    previous.pose?.config !== next.pose?.config;
-  const graphsChanged =
-    rigChanged || poseChanged || rigReferenceChanged || poseReferenceChanged;
+  const graphsChanged = rigChanged || poseChanged;
   const animationsChanged =
     animationsSignature(previous.animations) !==
     animationsSignature(next.animations);

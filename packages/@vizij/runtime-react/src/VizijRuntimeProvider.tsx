@@ -101,12 +101,6 @@ import type {
 } from "./types";
 import { resolveProviderAnimationBackend } from "./utils/animationTransport";
 
-export {
-  deriveProgramInputSeedValues,
-  mergeAssetBundle,
-  toStoredAnimationClip,
-} from "@vizij/studio-support";
-
 type ProviderProps = PropsWithChildren<VizijRuntimeProviderProps>;
 
 type AnimationState = {

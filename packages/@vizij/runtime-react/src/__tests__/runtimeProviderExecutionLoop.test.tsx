@@ -482,6 +482,98 @@ describe("VizijRuntimeProvider execution loop", () => {
     ]);
   });
 
+  it("acknowledges stable-hash graph updates without redundant registration", async () => {
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        rig: {
+          id: "rig",
+          spec: {
+            nodes: [
+              {
+                id: "out",
+                type: "output",
+                params: { path: "rig/face/smile" },
+              },
+            ],
+            edges: [],
+          },
+          ir: {
+            nodes: [{ id: "out", op: "output" }],
+            edges: [],
+          } as any,
+          subscriptions: {
+            inputs: ["controls/smile"],
+            outputs: ["rig/face/smile"],
+          },
+          inputMetadata: [{ path: "controls/smile", defaultValue: 0 }],
+        },
+      }),
+      {
+        onRuntimeGraphBundleApplied: (event) => {
+          applied.push(event);
+        },
+      },
+    );
+
+    calls.splice(0);
+    await act(async () => {
+      runtime().setGraphBundle(
+        {
+          rig: {
+            id: "rig",
+            spec: {
+              edges: [],
+              nodes: [
+                {
+                  params: { path: "rig/face/smile" },
+                  type: "output",
+                  id: "out",
+                },
+              ],
+            },
+            ir: {
+              edges: [],
+              nodes: [{ op: "output", id: "out" }],
+            } as any,
+            subscriptions: {
+              outputs: ["rig/face/smile"],
+              inputs: ["controls/smile"],
+            },
+            inputMetadata: [{ defaultValue: 0, path: "controls/smile" }],
+          },
+        },
+        {
+          tier: "graphs",
+          source: {
+            key: "runtime-graph",
+            signature: "runtime-graph:same",
+          },
+        },
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      calls.filter(
+        (call) =>
+          call.kind === "registerGraph" ||
+          call.kind === "registerMergedGraph" ||
+          call.kind === "removeGraph",
+      ),
+    ).toEqual([]);
+    expect(applied).toHaveLength(1);
+    expect(applied[0]).toMatchObject({
+      source: {
+        key: "runtime-graph",
+        signature: "runtime-graph:same",
+      },
+      reregistered: false,
+      reloadedAssets: false,
+    });
+  });
+
   it("does not report graph bundle application when registration fails", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const applied: RuntimeGraphBundleAppliedEvent[] = [];
