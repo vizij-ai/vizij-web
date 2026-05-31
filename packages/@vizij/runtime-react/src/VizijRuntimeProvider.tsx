@@ -29,7 +29,6 @@ import {
 import {
   deriveProgramInputSeedValues,
   deriveProgramResetValues,
-  advanceClipTime,
   buildAnimationControllerCommandPath,
   buildAnimationControllerPlayInputs,
   buildLegacyPoseWeightFallbackMap,
@@ -81,6 +80,10 @@ import {
 } from "./host/controllerRegistration";
 import { prepareRuntimeFrameWrites } from "./host/frameWrites";
 import {
+  createHostAnimationFallbackPlayback,
+  type HostAnimationFallbackClipState,
+} from "./host/hostAnimationFallback";
+import {
   clearRuntimeDebugState,
   isRuntimeDebugStateEnabled,
   setRuntimeDebugState,
@@ -120,17 +123,7 @@ type AnimationState = {
   resolve: () => void;
 };
 
-type ClipPlaybackState = {
-  id: string;
-  time: number;
-  duration: number;
-  speed: number;
-  weight: number;
-  loop: boolean;
-  playing: boolean;
-  resolve: (() => void) | null;
-  completion: Promise<void> | null;
-};
+type ClipPlaybackState = HostAnimationFallbackClipState;
 
 type RuntimeDebugFrameWriteSample = {
   path: string;
@@ -1595,6 +1588,22 @@ function VizijRuntimeProviderInner({
     [syncClipOutputs],
   );
 
+  const hostAnimationFallback = useMemo(
+    () =>
+      createHostAnimationFallbackPlayback<VizijAnimationAsset>({
+        resolveClipById,
+        resolveClipPromise,
+        writeClipOutputs,
+        clearClipOutputs,
+        resolveClipDuration: (clip, fallbackDuration) =>
+          resolveClipDurationSeconds(
+            clip.clip as AnimationClipLike,
+            fallbackDuration,
+          ),
+      }),
+    [clearClipOutputs, resolveClipById, resolveClipPromise, writeClipOutputs],
+  );
+
   const createClipPlaybackState = useCallback(
     (clip: VizijAnimationAsset): ClipPlaybackState => {
       const duration = resolveClipDurationSeconds(
@@ -1644,52 +1653,14 @@ function VizijRuntimeProviderInner({
       if (clipPlaybackRef.current.size === 0) {
         return;
       }
-      const hostOwnsClipOutputs =
-        animationTransportRef.current !== "orchestrator";
-      const toDelete: string[] = [];
-      clipPlaybackRef.current.forEach((state, key) => {
-        const clip = resolveClipById(state.id);
-        if (!clip) {
-          toDelete.push(key);
-          resolveClipPromise(state);
-          return;
-        }
-
-        state.duration = resolveClipDurationSeconds(
-          clip.clip as AnimationClipLike,
-          state.duration,
-        );
-
-        const { time, completed } = advanceClipTime(
-          {
-            time: state.time,
-            duration: state.duration,
-            speed: state.speed,
-            loop: state.loop,
-            playing: state.playing,
-          },
-          dt,
-        );
-        state.time = clampAnimationTime(time, state.duration);
-
-        if (hostOwnsClipOutputs && (state.playing || completed)) {
-          writeClipOutputs(clip, state);
-        }
-
-        if (completed) {
-          toDelete.push(key);
-          resolveClipPromise(state);
-        }
-      });
-
-      toDelete.forEach((key) => {
-        clipPlaybackRef.current.delete(key);
-        if (hostOwnsClipOutputs && animationSystemActiveRef.current) {
-          clearClipOutputs(key);
-        }
+      hostAnimationFallback.advance({
+        states: clipPlaybackRef.current,
+        dt,
+        hostOwnsClipOutputs: animationTransportRef.current !== "orchestrator",
+        animationSystemActive: animationSystemActiveRef.current,
       });
     },
-    [clearClipOutputs, resolveClipById, resolveClipPromise, writeClipOutputs],
+    [hostAnimationFallback],
   );
 
   const animateValue = useCallback(
