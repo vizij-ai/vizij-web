@@ -25,13 +25,13 @@ import ReactFlow, {
   applyNodeChanges,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { useEditorStore } from "../store/useEditorStore";
-import { useRegistry } from "../contexts/RegistryProvider";
-import { checkConnectionCompatibility } from "../utils/connectionValidation";
 import {
   buildInitialInputDefaultsForPorts,
   defaultVariadicCount,
-} from "../utils/inputDefaults";
+} from "@vizij/studio-support";
+import { useEditorStore } from "../store/useEditorStore";
+import { useRegistry } from "../contexts/RegistryProvider";
+import { checkConnectionCompatibility } from "../utils/connectionValidation";
 import { LEGEND_TYPES } from "../utils/portColors";
 import { createNodeRenderer } from "./GraphNode";
 import { unwrapDefault } from "./MgNodeInspector";

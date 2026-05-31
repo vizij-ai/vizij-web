@@ -1,4 +1,13 @@
-import type { PortSpec, VariadicSpec } from "../contexts/RegistryProvider";
+export type MotionGraphDefaultPortSpec = {
+  id: string;
+  type: string;
+};
+
+export type MotionGraphDefaultVariadicSpec = {
+  id: string;
+  type: string;
+  min?: number;
+} | null;
 
 const FLOAT_TYPES = new Set(["f32", "float", "f64", "double"]);
 const INT_TYPES = new Set(["i32", "int", "integer"]);
@@ -8,8 +17,12 @@ export function formatVariadicPortId(groupId: string, index: number): string {
   return `${groupId}_${index}`;
 }
 
-export function defaultVariadicCount(spec: VariadicSpec | null): number {
-  if (!spec) return 0;
+export function defaultVariadicCount(
+  spec: MotionGraphDefaultVariadicSpec,
+): number {
+  if (!spec) {
+    return 0;
+  }
   return Math.max(spec.min ?? 0, 2);
 }
 
@@ -27,8 +40,8 @@ export function defaultInputValueForPortType(
 }
 
 export function buildInitialInputDefaultsForPorts(
-  inputs: readonly PortSpec[],
-  variadicInputs: VariadicSpec | null,
+  inputs: readonly MotionGraphDefaultPortSpec[],
+  variadicInputs: MotionGraphDefaultVariadicSpec,
   variadicInputCount = defaultVariadicCount(variadicInputs),
 ): Record<string, unknown> | undefined {
   const inputDefaults: Record<string, unknown> = {};

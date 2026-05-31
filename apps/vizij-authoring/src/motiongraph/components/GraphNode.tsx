@@ -6,16 +6,16 @@ import {
   type ComponentType,
 } from "react";
 import { Handle, Position, useUpdateNodeInternals } from "reactflow";
+import {
+  defaultVariadicCount,
+  formatVariadicPortId,
+} from "@vizij/studio-support";
 import type {
   ParamSpec,
   PortSpec,
   VariadicSpec,
   NormalizedNodeSchema,
 } from "../contexts/RegistryProvider";
-import {
-  defaultVariadicCount,
-  formatVariadicPortId,
-} from "../utils/inputDefaults";
 import { getPortColor } from "../utils/portColors";
 import { useEditorStore } from "../store/useEditorStore";
 import { unwrapDefault } from "./MgNodeInspector";

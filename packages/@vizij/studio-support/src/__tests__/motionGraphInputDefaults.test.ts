@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInitialInputDefaultsForPorts } from "./inputDefaults";
+import { buildInitialInputDefaultsForPorts } from "../utils/motionGraphInputDefaults";
 
 describe("motion graph input defaults", () => {
   it("stores visible numeric and boolean port defaults for new nodes", () => {
@@ -8,21 +8,15 @@ describe("motion graph input defaults", () => {
         [
           {
             id: "amount",
-            name: "Amount",
             type: "f32",
-            direction: "input",
           },
           {
             id: "enabled",
-            name: "Enabled",
             type: "bool",
-            direction: "input",
           },
           {
             id: "label",
-            name: "Label",
             type: "string",
-            direction: "input",
           },
         ],
         {

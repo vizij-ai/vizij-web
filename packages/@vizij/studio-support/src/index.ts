@@ -189,6 +189,14 @@ export {
   type MotionGraphSpecNode,
 } from "./utils/motionGraphSpec";
 export {
+  buildInitialInputDefaultsForPorts,
+  defaultInputValueForPortType,
+  defaultVariadicCount,
+  formatVariadicPortId,
+  type MotionGraphDefaultPortSpec,
+  type MotionGraphDefaultVariadicSpec,
+} from "./utils/motionGraphInputDefaults";
+export {
   specToEditorState,
   type SpecToEditorResult,
 } from "./utils/motionGraphEditor";
