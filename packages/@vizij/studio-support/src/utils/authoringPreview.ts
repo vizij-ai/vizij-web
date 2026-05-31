@@ -51,6 +51,65 @@ export interface AuthoringPreviewUpdateSource {
   signature: string;
 }
 
+export interface AuthoringRuntimeErrorSourceLike {
+  key?: string | null;
+  signature?: string | null;
+}
+
+const AUTHORING_PREVIEW_TARGET_KEYS = new Set<AuthoringPreviewTarget>([
+  "runtime-graph",
+  "animation",
+  "motiongraph",
+]);
+
+export function parseAuthoringPreviewTarget(
+  value: string | null | undefined,
+): AuthoringPreviewTarget | null {
+  return AUTHORING_PREVIEW_TARGET_KEYS.has(value as AuthoringPreviewTarget)
+    ? (value as AuthoringPreviewTarget)
+    : null;
+}
+
+export function resolveAuthoringRuntimeErrorStates({
+  sources,
+  fallbackTarget = null,
+  fallbackSignature = null,
+  message,
+}: {
+  sources?: readonly AuthoringRuntimeErrorSourceLike[] | null;
+  fallbackTarget?: AuthoringPreviewTarget | null;
+  fallbackSignature?: string | null;
+  message: string;
+}): AuthoringPreviewCompileState[] {
+  const states = new Map<
+    AuthoringPreviewTarget,
+    AuthoringPreviewCompileState
+  >();
+  (sources ?? []).forEach((source) => {
+    const target = parseAuthoringPreviewTarget(source.key);
+    if (!target) {
+      return;
+    }
+    states.set(target, {
+      target,
+      status: "runtime-error",
+      message,
+      signature: source.signature ?? null,
+    });
+  });
+
+  if (states.size === 0 && fallbackTarget) {
+    states.set(fallbackTarget, {
+      target: fallbackTarget,
+      status: "runtime-error",
+      message,
+      signature: fallbackSignature,
+    });
+  }
+
+  return Array.from(states.values());
+}
+
 export function resolveAuthoringCompileTargetState({
   current,
   status,

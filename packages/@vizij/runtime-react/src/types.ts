@@ -41,6 +41,7 @@ export type {
 export type RuntimeError = {
   message: string;
   cause?: unknown;
+  sources?: RuntimeGraphBundleUpdateSource[];
   phase?:
     | "assets"
     | "orchestrator"

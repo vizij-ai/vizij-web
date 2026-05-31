@@ -11,6 +11,7 @@ import {
   planAnimationPreviewTransaction,
   planMotionGraphPreviewTransaction,
   planRuntimeGraphPreviewTransaction,
+  resolveAuthoringRuntimeErrorStates,
   resolveAuthoringCompileTargetState,
   type AnimationClipIR,
   type MotionGraphEditorEdge,
@@ -52,6 +53,43 @@ describe("authoring preview bundle assembly", () => {
       message: null,
       signature: "animation-v2",
     });
+  });
+
+  it("resolves runtime errors to source targets before falling back to active target", () => {
+    expect(
+      resolveAuthoringRuntimeErrorStates({
+        sources: [
+          { key: "runtime-graph", signature: "graph-v2" },
+          { key: "other", signature: "ignored" },
+        ],
+        fallbackTarget: "animation",
+        fallbackSignature: "animation-v1",
+        message: "graph registration failed",
+      }),
+    ).toEqual([
+      {
+        target: "runtime-graph",
+        status: "runtime-error",
+        message: "graph registration failed",
+        signature: "graph-v2",
+      },
+    ]);
+
+    expect(
+      resolveAuthoringRuntimeErrorStates({
+        sources: [{ key: "other", signature: "ignored" }],
+        fallbackTarget: "animation",
+        fallbackSignature: "animation-v1",
+        message: "registration failed",
+      }),
+    ).toEqual([
+      {
+        target: "animation",
+        status: "runtime-error",
+        message: "registration failed",
+        signature: "animation-v1",
+      },
+    ]);
   });
 
   it("builds graph preview patches from canonical runtime graph inputs", () => {

@@ -19,8 +19,9 @@ import {
   buildRuntimeInputCatalogFromConstraints,
   planMotionGraphPreviewTransaction,
   planRuntimeGraphPreviewTransaction,
+  parseAuthoringPreviewTarget,
+  resolveAuthoringRuntimeErrorStates,
   toDeterministicSignature,
-  type AuthoringPreviewTarget,
   type AnimationClipIR,
 } from "@vizij/studio-support";
 import type { StandardRigInput } from "@vizij/utils";
@@ -58,20 +59,6 @@ import {
   buildLockedRuntimeOutputIndex,
 } from "./runtimeOutputLocks";
 import type { FacePresetAssetOption } from "./facePresetAssets";
-
-const AUTHORING_PREVIEW_TARGET_KEYS = new Set<AuthoringPreviewTarget>([
-  "runtime-graph",
-  "animation",
-  "motiongraph",
-]);
-
-function parseAuthoringPreviewTarget(
-  value: string | undefined,
-): AuthoringPreviewTarget | null {
-  return AUTHORING_PREVIEW_TARGET_KEYS.has(value as AuthoringPreviewTarget)
-    ? (value as AuthoringPreviewTarget)
-    : null;
-}
 
 type RuntimeRenderableSelectionType =
   | "group"
@@ -431,15 +418,37 @@ function RuntimeStatusDebug() {
       return;
     }
     const currentState = graphRuntimeStore.getState();
-    const currentTarget = currentState.authoringCompileTarget;
-    if (!currentTarget) {
+    const errorStates = resolveAuthoringRuntimeErrorStates({
+      sources: error.sources,
+      fallbackTarget: currentState.authoringCompileTarget,
+      fallbackSignature: currentState.authoringCompileSignature,
+      message: error.message,
+    });
+    if (errorStates.length === 0) {
       return;
     }
-    graphRuntimeStore.setState({
-      authoringCompileStatus: "runtime-error",
-      authoringCompileTarget: currentTarget,
-      authoringCompileMessage: error.message,
-      authoringCompileSignature: currentState.authoringCompileSignature,
+
+    graphRuntimeStore.setState((state) => {
+      const nextTargets = { ...state.authoringCompileTargets };
+      errorStates.forEach((errorState) => {
+        nextTargets[errorState.target] = {
+          status: errorState.status,
+          message: errorState.message ?? null,
+          signature: errorState.signature ?? null,
+        };
+      });
+      const activeError =
+        errorStates.find(
+          (errorState) => errorState.target === state.authoringCompileTarget,
+        ) ?? errorStates[0];
+
+      return {
+        authoringCompileStatus: activeError.status,
+        authoringCompileTarget: activeError.target,
+        authoringCompileMessage: activeError.message ?? null,
+        authoringCompileSignature: activeError.signature ?? null,
+        authoringCompileTargets: nextTargets,
+      };
     });
   }, [error, graphRuntimeStore]);
   const runtimeState = ready ? "ready" : loading ? "loading" : "idle";

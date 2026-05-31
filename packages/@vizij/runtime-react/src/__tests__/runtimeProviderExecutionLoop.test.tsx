@@ -409,6 +409,79 @@ describe("VizijRuntimeProvider execution loop", () => {
     expect(applied[1]?.controllers.anims.length).toBeGreaterThan(0);
   });
 
+  it("reports only the latest graph bundle application for a superseded source", async () => {
+    const applied: RuntimeGraphBundleAppliedEvent[] = [];
+    const { runtime } = await mountRuntime(makeBundle(), {
+      onRuntimeGraphBundleApplied: (event) => {
+        applied.push(event);
+      },
+    });
+
+    await act(async () => {
+      runtime().setGraphBundle(
+        {
+          animations: [
+            {
+              id: "blink",
+              clip: {
+                id: "blink",
+                duration: 1,
+                tracks: [
+                  {
+                    channel: "rig/face/smile",
+                    keyframes: [{ time: 0, value: 0 }],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          tier: "graphs",
+          source: {
+            key: "animation",
+            signature: "animation:sig-1",
+          },
+        },
+      );
+      runtime().setGraphBundle(
+        {
+          animations: [
+            {
+              id: "blink",
+              clip: {
+                id: "blink",
+                duration: 1,
+                tracks: [
+                  {
+                    channel: "rig/face/smile",
+                    keyframes: [{ time: 0, value: 1 }],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          tier: "graphs",
+          source: {
+            key: "animation",
+            signature: "animation:sig-2",
+          },
+        },
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(applied.map((event) => event.source)).toEqual([
+      {
+        key: "animation",
+        signature: "animation:sig-2",
+      },
+    ]);
+  });
+
   it("does not report graph bundle application when registration fails", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const applied: RuntimeGraphBundleAppliedEvent[] = [];
@@ -455,6 +528,83 @@ describe("VizijRuntimeProvider execution loop", () => {
 
       expect(applied).toEqual([]);
       expect(runtime().error?.message).toBe("Failed to register rig graphs");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("reports registration errors with the failed pending update source", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { runtime } = await mountRuntime(makeBundle(), {
+        configureOrchestrator: (orchestrator) => {
+          orchestrator.registerGraph = vi.fn(() => {
+            throw new Error("graph register failed");
+          });
+        },
+      });
+
+      await act(async () => {
+        runtime().setGraphBundle(
+          {
+            rig: {
+              id: "rig",
+              spec: {
+                nodes: [
+                  {
+                    id: "out",
+                    type: "output",
+                    params: { path: "rig/face/smile" },
+                  },
+                ],
+                edges: [],
+              },
+            },
+          },
+          {
+            tier: "graphs",
+            source: {
+              key: "runtime-graph",
+              signature: "runtime-graph:sig-1",
+            },
+          },
+        );
+        runtime().setGraphBundle(
+          {
+            animations: [
+              {
+                id: "blink",
+                clip: {
+                  id: "blink",
+                  duration: 1,
+                  tracks: [
+                    {
+                      channel: "rig/face/smile",
+                      keyframes: [{ time: 0, value: 1 }],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            tier: "graphs",
+            source: {
+              key: "animation",
+              signature: "animation:sig-1",
+            },
+          },
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(runtime().error?.sources).toEqual([
+        {
+          key: "runtime-graph",
+          signature: "runtime-graph:sig-1",
+        },
+      ]);
     } finally {
       warn.mockRestore();
     }

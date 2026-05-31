@@ -47,6 +47,7 @@ const runtimeErrorState = vi.hoisted(() => ({
     message: string;
     timestamp: number;
     phase?: string;
+    sources?: Array<{ key?: string; signature?: string | null }>;
   } | null,
 }));
 const stepSpy = vi.fn();
@@ -622,6 +623,66 @@ describe("Viewer", () => {
     expect(store.getState().authoringCompileTargets.animation).toMatchObject({
       status: "runtime-error",
       message: "animation registration failed",
+    });
+  });
+
+  it("applies sourced runtime errors to the matching compile target", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "runtime-graph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "graph-v2",
+    });
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+    runtimeErrorState.current = {
+      message: "graph registration failed",
+      phase: "registration",
+      timestamp: 1,
+      sources: [{ key: "runtime-graph", signature: "graph-v2" }],
+    };
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: {
+                kind: "world",
+                world: {},
+                animatables: {},
+                bundle: null,
+              },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"],
+    ).toMatchObject({
+      status: "runtime-error",
+      message: "graph registration failed",
+      signature: "graph-v2",
+    });
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      message: null,
     });
   });
 
