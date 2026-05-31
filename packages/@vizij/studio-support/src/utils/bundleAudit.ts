@@ -1,8 +1,8 @@
-import type { VizijBundleExtension } from "@vizij/render";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { cloneDeepSafe } from "@vizij/utils";
+import type { VizijBundleExtension } from "../types";
 import type { GraphDiffResult } from "./graphDiff";
 import { diffGraphSpecs } from "./graphDiff";
 import { normalizeGraphPath } from "./graphPaths";

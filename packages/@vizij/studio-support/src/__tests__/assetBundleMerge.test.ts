@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { VizijBundleExtension } from "@vizij/render";
 import { mergeAssetBundle, toStoredAnimationClip } from "../index";
 import type {
   VizijAnimationAsset,
   VizijAssetBundle,
+  VizijBundleExtension,
   VizijProgramAsset,
 } from "../types";
 

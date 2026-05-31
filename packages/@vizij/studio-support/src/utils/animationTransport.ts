@@ -2,7 +2,7 @@ import type {
   AnimationRegistrationConfig,
   OrchestratorBackend,
   ValueJSON,
-} from "@vizij/orchestrator-react";
+} from "../types";
 
 export type AnimationTransportPreference = "auto" | "host" | "orchestrator";
 export type ResolvedAnimationTransportMode = "host" | "orchestrator";

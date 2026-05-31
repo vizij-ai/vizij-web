@@ -3,7 +3,7 @@ import type {
   RawValue,
   VectorDescriptorType,
 } from "@vizij/utils";
-import type { Feature } from "@vizij/render";
+import type { Feature } from "../types";
 
 const XYZ_COMPONENTS = ["x", "y", "z"] as const;
 const RGB_COMPONENTS = ["r", "g", "b"] as const;

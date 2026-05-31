@@ -513,14 +513,6 @@ export function useVizijExport(
           defaultGroupBlendMode: poseRig.blendMode ?? "average",
           crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
         },
-        buildPoseGraphSpec: (config, standardInputs, options) =>
-          PoseGraphService.buildSpec(
-            config as PoseRigConfigFile,
-            standardInputs,
-            options,
-          ),
-        validatePoseGraphSpec: (spec, standardInputs) =>
-          PoseGraphService.validate(spec, standardInputs),
         animatablesForExport,
         animatableComponents,
         bindings,

@@ -1,10 +1,10 @@
-import type { VizijBundleExtension } from "@vizij/render";
 import type { AnimatableValue } from "@vizij/utils";
-import type { World } from "@vizij/render";
 import type {
   PoseRigConfig,
   VizijAssetBundle,
+  VizijBundleExtension,
   VizijGraphAsset,
+  World,
 } from "../types";
 
 type BuildRuntimeBundleOptions = {

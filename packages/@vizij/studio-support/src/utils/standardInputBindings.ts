@@ -1,8 +1,8 @@
-import type { VizijBundleExtension } from "@vizij/render";
 import {
   deriveStandardRigInputIdFromPath,
   normalizeStandardRigInputPath,
 } from "@vizij/utils";
+import type { VizijBundleExtension } from "../types";
 
 export interface StandardInputBindingInfo {
   inputId: string;

@@ -3,12 +3,12 @@ import type {
   StandardInputValues,
 } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import type { World } from "@vizij/render";
 import type {
   AnimatableComponent,
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
+import type { World } from "../types";
 import { buildAutoRigInputBlueprints } from "./autoRigInputs";
 import type { AutoRigInputBlueprintMetadata } from "./autoRigInputs";
 import {

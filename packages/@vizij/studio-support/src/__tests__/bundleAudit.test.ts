@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { VizijBundleExtension } from "@vizij/render";
 import {
   auditBundleGraphs,
   resolveBundleContractViolationMessage,
   type BundleGraphAuditEntry,
 } from "../utils/bundleAudit";
+import type { VizijBundleExtension } from "../types";
 
 describe("auditBundleGraphs", () => {
   it("reports missing IR graphs without compiling", async () => {

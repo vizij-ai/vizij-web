@@ -15,7 +15,7 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import { exportScene } from "@vizij/render";
+import { exportScene, type ExportSceneOptions } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
@@ -1195,17 +1195,6 @@ describe("useVizijExport", () => {
     mockedNormalizeGraphSpec.mockResolvedValue({
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
-    mockedPoseGraphService.buildSpec.mockReturnValue({
-      spec: {
-        nodes: [
-          { id: "pose_neutral_record", type: "constant" },
-          { id: "pose_record_pose_1", type: "constant" },
-        ],
-      } as GraphSpec,
-      summary: { inputs: [], outputs: [] },
-    });
-    mockedPoseGraphService.validate.mockReturnValue([]);
-
     const options = createOptions({
       poseRig: {
         poseGraphSpec: null,
@@ -1238,39 +1227,26 @@ describe("useVizijExport", () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedPoseGraphService.buildSpec).toHaveBeenCalledWith(
-      options.poseRig.poseConfigDraft,
-      Array.from(options.standardInputsById.values()),
-      expect.objectContaining({
-        defaultGroupBlendMode: "additive",
-        crossGroupBlendMode: "additive",
-      }),
-    );
-    expect(mockedPoseGraphService.validate).toHaveBeenCalledWith(
-      {
-        nodes: [
-          { id: "pose_neutral_record", type: "constant" },
-          { id: "pose_record_pose_1", type: "constant" },
-        ],
-      },
-      Array.from(options.standardInputsById.values()),
-    );
+    expect(mockedPoseGraphService.buildSpec).not.toHaveBeenCalled();
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    expect(mockedExportScene.mock.calls[0]?.[1]).toMatchObject({
-      bundle: {
-        graphs: expect.arrayContaining([
-          expect.objectContaining({
-            kind: "pose-driver",
-            spec: {
-              nodes: [
-                { id: "pose_neutral_record", type: "constant" },
-                { id: "pose_record_pose_1", type: "constant" },
-              ],
-            },
-          }),
-        ]),
-      },
-    });
+    const exportOptions = mockedExportScene.mock.calls[0]?.[1] as
+      | ExportSceneOptions
+      | undefined;
+    const exportedBundle = exportOptions?.bundle;
+    const poseGraph = exportedBundle?.graphs?.find(
+      (graph) => graph.kind === "pose-driver",
+    );
+    expect(poseGraph?.spec?.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "pose_neutral_record" }),
+        expect.objectContaining({ id: "pose_record_pose_1" }),
+        expect.objectContaining({
+          id: "pose_group_add_input_a_1_default",
+          type: "add",
+        }),
+      ]),
+    );
     hook.unmount();
   });
 
@@ -1468,16 +1444,7 @@ describe("useVizijExport", () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedPoseGraphService.buildSpec).toHaveBeenCalledWith(
-      expect.objectContaining({
-        faceId: "vizij",
-      }),
-      Array.from(options.standardInputsById.values()),
-      expect.objectContaining({
-        defaultGroupBlendMode: "average",
-        crossGroupBlendMode: "additive",
-      }),
-    );
+    expect(mockedPoseGraphService.buildSpec).not.toHaveBeenCalled();
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
     expect(mockedExportScene.mock.calls[0]?.[1]).toMatchObject({
       bundle: {
@@ -1601,7 +1568,7 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
-  it("blocks export when authored pose graph is invalid", async () => {
+  it("exports authored pose values through the support-owned pose compiler", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
@@ -1611,17 +1578,6 @@ describe("useVizijExport", () => {
     mockedNormalizeGraphSpec.mockResolvedValue({
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
-    mockedPoseGraphService.buildSpec.mockReturnValue({
-      spec: {
-        nodes: [
-          { id: "pose_neutral_record", type: "constant" },
-          { id: "pose_record_pose_1", type: "constant" },
-        ],
-      } as GraphSpec,
-      summary: { inputs: [], outputs: [] },
-    });
-    mockedPoseGraphService.validate.mockReturnValue(["pose invalid"]);
-
     const options = createOptions({
       poseRig: {
         poseGraphSpec: null,
@@ -1637,7 +1593,7 @@ describe("useVizijExport", () => {
               id: "pose_1",
               name: "Smile",
               values: {
-                input_a: 0.75,
+                missing_input: 0.75,
               },
               createdAt: "2026-02-19T00:00:00.000Z",
               updatedAt: "2026-02-19T00:00:00.000Z",
@@ -1656,8 +1612,23 @@ describe("useVizijExport", () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedExportScene).not.toHaveBeenCalled();
-    expect(options.alertDialog).toHaveBeenCalledTimes(1);
+    expect(mockedPoseGraphService.buildSpec).not.toHaveBeenCalled();
+    expect(mockedPoseGraphService.validate).not.toHaveBeenCalled();
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(options.alertDialog).not.toHaveBeenCalled();
+    const exportOptions = mockedExportScene.mock.calls[0]?.[1] as
+      | ExportSceneOptions
+      | undefined;
+    const exportedBundle = exportOptions?.bundle;
+    const poseGraph = exportedBundle?.graphs?.find(
+      (graph) => graph.kind === "pose-driver",
+    );
+    expect(poseGraph?.spec?.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "pose_neutral_record" }),
+        expect.objectContaining({ id: "pose_record_pose_1" }),
+      ]),
+    );
     hook.unmount();
   });
 

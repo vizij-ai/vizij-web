@@ -4,7 +4,6 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
-import type { World } from "@vizij/render";
 import {
   cloneRawValue,
   getLookup,
@@ -13,6 +12,7 @@ import {
   type RawValue,
   type StandardRigInput,
 } from "@vizij/utils";
+import type { World } from "../types";
 import { buildAuthoringRigGraphArtifacts } from "./bundleAssembly";
 import { buildAutoRigInputBlueprints } from "./autoRigInputs";
 import {

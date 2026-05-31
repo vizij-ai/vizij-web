@@ -1,10 +1,4 @@
 import {
-  type VizijBundleAnimationEntry,
-  type VizijBundleExtension,
-  type VizijPoseRigConfig,
-  type VizijSpeechConfig,
-} from "@vizij/render";
-import {
   buildRigGraphSpec,
   type BindingMap,
   type InputBindingMap,
@@ -16,11 +10,18 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import { cloneDeepSafe } from "@vizij/utils";
+import type {
+  VizijBundleAnimationEntry,
+  VizijBundleExtension,
+  VizijPoseRigConfig,
+  VizijSpeechConfig,
+} from "../types";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_METADATA_ORIGIN,
   type AnimationClipIR,
 } from "../types/animationClipIr";
+import type { PoseRigConfigFile } from "../types/poseRig";
 import {
   clipIrToBundleAnimationEntry,
   findCanonicalAuthoredTimelineConflict,
@@ -38,6 +39,7 @@ import {
   resolveBundleContractViolationMessage,
   type BundleGraphAuditEntry,
 } from "./bundleAudit";
+import { PoseGraphService } from "./poseRigGraphService";
 
 export interface MotionGraphBundleEntry {
   id: string;
@@ -646,6 +648,28 @@ function resolveFallbackMotionGraph(
   };
 }
 
+function buildPoseGraphSpecForExport(
+  config: AuthoringPoseConfig,
+  standardInputs: StandardRigInput[],
+  options: {
+    defaultGroupBlendMode?: "average" | "additive";
+    crossGroupBlendMode?: "average" | "additive";
+  },
+): { spec: GraphSpec } {
+  return PoseGraphService.buildSpec(
+    config as unknown as PoseRigConfigFile,
+    standardInputs,
+    options,
+  );
+}
+
+function validatePoseGraphSpecForExport(
+  spec: GraphSpec,
+  standardInputs: StandardRigInput[],
+): string[] {
+  return PoseGraphService.validate(spec, standardInputs);
+}
+
 export async function prepareAuthoringVizijBundleForExport(
   options: PrepareAuthoringVizijBundleForExportOptions,
 ): Promise<PrepareAuthoringVizijBundleForExportResult> {
@@ -661,10 +685,14 @@ export async function prepareAuthoringVizijBundleForExport(
   let poseGraphBuilt = false;
   let poseGraphNodeCount: number | null = null;
   let poseGraphHasPoseConstants = false;
+  const buildPoseGraphSpec =
+    options.buildPoseGraphSpec ?? buildPoseGraphSpecForExport;
+  const validatePoseGraphSpec =
+    options.validatePoseGraphSpec ?? validatePoseGraphSpecForExport;
 
-  if (poseConfigForExport && options.buildPoseGraphSpec) {
+  if (poseConfigForExport) {
     try {
-      const { spec } = options.buildPoseGraphSpec(
+      const { spec } = buildPoseGraphSpec(
         poseConfigForExport,
         standardInputs,
         options.poseGraphBuildOptions ?? {},
@@ -817,8 +845,8 @@ export async function prepareAuthoringVizijBundleForExport(
     }
   }
 
-  if (poseGraphSpecForExport && options.validatePoseGraphSpec) {
-    const poseWarnings = options.validatePoseGraphSpec(
+  if (poseGraphSpecForExport) {
+    const poseWarnings = validatePoseGraphSpec(
       poseGraphSpecForExport,
       standardInputs,
     );

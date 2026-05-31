@@ -10,10 +10,6 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@vizij/render": ["../render/src"],
-      "@vizij/render/*": ["../render/src/*"],
-      "@vizij/orchestrator-react": ["../orchestrator-react/src"],
-      "@vizij/orchestrator-react/*": ["../orchestrator-react/src/*"],
       "@vizij/node-graph-authoring": ["../node-graph-authoring/src"],
       "@vizij/node-graph-authoring/*": ["../node-graph-authoring/src/*"],
       "@vizij/utils": ["../utils/src"],

@@ -1,5 +1,5 @@
-import type { VizijBundleAnimationEntry } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
+import type { VizijBundleAnimationEntry } from "../types";
 import type {
   AnimationClipIR,
   AnimationInterpolation,
