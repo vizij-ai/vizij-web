@@ -2,8 +2,8 @@ import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
 import type {
   RuntimeGraphBundleAppliedEvent,
   RuntimeOutputWrite,
-  VizijAssetBundle,
 } from "@vizij/runtime-react";
+import type { VizijAssetBundle } from "@vizij/studio-support";
 import {
   useCallback,
   useEffect,

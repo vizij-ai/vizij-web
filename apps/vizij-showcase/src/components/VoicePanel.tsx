@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
-import {
-  buildSemanticPoseWeightPathMap,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
+import { buildSemanticPoseWeightPathMap } from "@vizij/studio-support";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { SPEECH_STATUS_COPY, type SpeechStatus } from "../data/speech";
 import { POLLY_VOICES, type PollyVoice } from "../data/pollyVoices";

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   buildRigInputPath,
   mapNormalizedControlValue,
   resolveFaceControls,
-  useVizijRuntime,
   type FaceScalarControl,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 import { formatPathLabel } from "../lib/bundleSummary";
 import { IconButton } from "./IconButton";
 import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PoseDefinition, PoseGroupDefinition } from "@vizij/runtime-react";
+import type {
+  PoseDefinition,
+  PoseGroupDefinition,
+} from "@vizij/studio-support";
 import type { PollyVoice } from "../data/pollyVoices";
 import type { VisemeData } from "../types/polly";
 import type { SelectOption } from "../components/ui/Select";

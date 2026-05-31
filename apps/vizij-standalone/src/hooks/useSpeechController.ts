@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { VizijSpeechConfig } from "@vizij/render";
-import type { PoseDefinition, PoseGroupDefinition } from "@vizij/runtime-react";
+import type {
+  PoseDefinition,
+  PoseGroupDefinition,
+} from "@vizij/studio-support";
 import {
   useSpeechRecognition,
   useConversation,

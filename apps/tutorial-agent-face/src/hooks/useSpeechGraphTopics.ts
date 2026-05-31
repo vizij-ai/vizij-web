@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { buildRigInputPath, useVizijRuntime } from "@vizij/runtime-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
+import { buildRigInputPath } from "@vizij/studio-support";
 import type { SpeechTopicPaths } from "../utils/speechRuntime";
 
 type SpeechGraphTopicValues = {

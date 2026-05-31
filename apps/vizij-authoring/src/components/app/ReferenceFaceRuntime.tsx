@@ -6,11 +6,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  type VizijAssetBundle,
-  VizijRuntimeProvider,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { VizijRuntimeProvider, useVizijRuntime } from "@vizij/runtime-react";
+import type { VizijAssetBundle } from "@vizij/studio-support";
 import type { VizijBundleExtension } from "@vizij/render";
 import {
   normalizeStandardRigInputPath,

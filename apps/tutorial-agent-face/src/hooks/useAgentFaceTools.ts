@@ -5,12 +5,12 @@ import type {
   FunctionResponse,
 } from "@google/genai";
 import { Type, type Tool } from "@google/genai";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   mapNormalizedControlValue,
   mapUnitControlValue,
   resolveFaceControls,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 import {
   canonicalEmotionName,
   isEmotionBinding,

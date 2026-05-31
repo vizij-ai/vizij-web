@@ -162,6 +162,9 @@ importers:
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
+      '@vizij/studio-support':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/studio-support
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
@@ -416,6 +419,9 @@ importers:
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
+      '@vizij/studio-support':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/studio-support
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -456,6 +462,9 @@ importers:
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
+      '@vizij/studio-support':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/studio-support
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -608,6 +617,9 @@ importers:
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
+      '@vizij/studio-support':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/studio-support
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -684,6 +696,9 @@ importers:
       '@vizij/speech-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/speech-react
+      '@vizij/studio-support':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/studio-support
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
@@ -1036,9 +1051,9 @@ importers:
       '@vizij/render':
         specifier: workspace:*
         version: link:../render
-      '@vizij/runtime-react':
+      '@vizij/studio-support':
         specifier: workspace:*
-        version: link:../runtime-react
+        version: link:../studio-support
     devDependencies:
       '@types/react':
         specifier: ^19.2.7

@@ -1,4 +1,4 @@
-import type { VizijAssetBundle } from "@vizij/runtime-react";
+import type { VizijAssetBundle } from "@vizij/studio-support";
 
 const FACE_ASSET_PATHS = {
   quoriCurrentExtended: new URL(

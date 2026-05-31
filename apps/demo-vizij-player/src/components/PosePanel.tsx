@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   buildPoseWeightPathMap,
   getPoseSemanticKey,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 import { useAppState } from "../state/AppStateContext";
 import { IconButton } from "./IconButton";
 import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";

@@ -36,7 +36,7 @@ This package is not a standalone face runtime. It assumes your app already has a
 
 ## Relationship To `@vizij/runtime-react`
 
-`@vizij/speech-react` depends on `@vizij/runtime-react` for shared pose/runtime contracts:
+`@vizij/speech-react` is designed to run above `@vizij/runtime-react`, while its shared pose/path contracts come from `@vizij/studio-support`:
 
 - `PoseDefinition` and `PoseGroupDefinition`
 - canonical pose-weight and rig input paths

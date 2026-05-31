@@ -2,7 +2,7 @@ import type {
   PoseDefinition,
   PoseGroupDefinition,
   VizijAssetBundle,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 
 export type DemoBundleSummary = {
   faceId: string | null;

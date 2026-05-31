@@ -1,4 +1,4 @@
-import type { VizijAssetBundle } from "@vizij/runtime-react";
+import type { VizijAssetBundle } from "@vizij/studio-support";
 import type { DemoFaceSource, DemoSampleId } from "../state/types";
 
 const SAMPLE_ASSET_URLS = {

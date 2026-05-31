@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@vizij/runtime-react": "workspace:*",
+    "@vizij/studio-support": "workspace:*",
     "@vizij/utils": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

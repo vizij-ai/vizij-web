@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   mapNormalizedControlValue,
   mapUnitControlValue,
   resolveFaceControls,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 
 const GLANCE_DELAY_RANGE = [1600, 4200] as const;
 const BLINK_DELAY_RANGE = [2200, 5200] as const;

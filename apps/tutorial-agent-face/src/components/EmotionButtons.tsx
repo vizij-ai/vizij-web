@@ -1,8 +1,6 @@
 import { useMemo, useCallback, useEffect, useRef } from "react";
-import {
-  EXPRESSIVE_EMOTION_POSE_KEYS,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
+import { EXPRESSIVE_EMOTION_POSE_KEYS } from "@vizij/studio-support";
 import { isEmotionBinding } from "../utils/emotions";
 import type { PoseHotkeyBinding } from "../hooks/usePoseHotkeys";
 

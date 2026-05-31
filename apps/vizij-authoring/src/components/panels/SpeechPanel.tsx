@@ -8,6 +8,10 @@ import {
   X,
 } from "lucide-react";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
+import type {
+  PoseDefinition,
+  PoseGroupDefinition,
+} from "@vizij/studio-support";
 import { useGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
@@ -113,8 +117,8 @@ function parseEmotionResponse(
   return null;
 }
 
-const EMPTY_POSES: import("@vizij/runtime-react").PoseDefinition[] = [];
-const EMPTY_GROUPS: import("@vizij/runtime-react").PoseGroupDefinition[] = [];
+const EMPTY_POSES: PoseDefinition[] = [];
+const EMPTY_GROUPS: PoseGroupDefinition[] = [];
 
 interface SpeechPanelProps {
   onClosePanel?: () => void;

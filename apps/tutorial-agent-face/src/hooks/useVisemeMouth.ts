@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
-import {
-  buildSemanticPoseWeightPathMap,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
+import { buildSemanticPoseWeightPathMap } from "@vizij/studio-support";
 import {
   PHONEME_TO_VISEME,
   buildPhonemeTimeline,

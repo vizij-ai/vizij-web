@@ -5,7 +5,7 @@ import type {
   MachineReport,
 } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import type { PoseRigConfig } from "@vizij/runtime-react";
+import type { PoseRigConfig } from "@vizij/studio-support";
 import type { VizijStoreSetter, World } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import {

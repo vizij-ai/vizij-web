@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   buildPoseWeightPathMap,
   EXPRESSIVE_EMOTION_POSE_KEYS,
@@ -6,8 +7,7 @@ import {
   getPoseSemanticKey,
   type PoseRigConfig,
   type PoseDefinition,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 
 const HOTKEY_LAYOUT = [
   { code: "Digit1", label: "1" },

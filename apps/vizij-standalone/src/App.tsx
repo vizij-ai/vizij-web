@@ -7,8 +7,8 @@ import {
   VizijRuntimeProvider,
   VizijRuntimeFace,
   useVizijRuntime,
-  type VizijAssetBundle,
 } from "@vizij/runtime-react";
+import type { VizijAssetBundle } from "@vizij/studio-support";
 import type { VizijSpeechConfig } from "@vizij/render";
 import { useWebSocketSync } from "./hooks/useWebSocketSync";
 import { useSpeechController } from "./hooks/useSpeechController";

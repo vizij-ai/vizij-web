@@ -1,11 +1,8 @@
 import { useEffect } from "react";
 import type { ReactNode, RefObject } from "react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
-import {
-  VizijRuntimeFace,
-  useVizijRuntime,
-  type RootBounds,
-} from "@vizij/runtime-react";
+import { VizijRuntimeFace, useVizijRuntime } from "@vizij/runtime-react";
+import type { RootBounds } from "@vizij/studio-support";
 import { FACE_ROOT_BOUNDS } from "../config/runtimeFace";
 
 export type RuntimeFaceFrameProps = {

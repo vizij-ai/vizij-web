@@ -1,4 +1,4 @@
-import type { PoseGroupDefinition } from "@vizij/runtime-react";
+import type { PoseGroupDefinition } from "@vizij/studio-support";
 
 export const POSE_WEIGHT_INPUT_PATH_PREFIX = "/poses/";
 

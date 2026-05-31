@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   mapNormalizedControlValue,
   resolveFaceControls,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 
 function clamp(value: number, min = -1, max = 1) {
   return Math.min(Math.max(value, min), max);

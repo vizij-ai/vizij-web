@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   mapNormalizedControlValue,
   resolveFaceControls,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+} from "@vizij/studio-support";
 
 const POINTER_IDLE_TIMEOUT_MS = 1400;
 

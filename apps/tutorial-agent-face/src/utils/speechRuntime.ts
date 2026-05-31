@@ -1,4 +1,7 @@
-import { buildRigInputPath, type VizijAssetBundle } from "@vizij/runtime-react";
+import {
+  buildRigInputPath,
+  type VizijAssetBundle,
+} from "@vizij/studio-support";
 
 export const DEFAULT_SPEECH_TOPIC_PATHS = {
   speakingInputPath: "/speech/speaking",

@@ -3,8 +3,8 @@ import {
   VizijRuntimeProvider,
   VizijRuntimeFace,
   useVizijRuntime,
-  type VizijAssetBundle,
 } from "@vizij/runtime-react";
+import type { VizijAssetBundle } from "@vizij/studio-support";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { useIdleGazeBehavior } from "./hooks/useIdleGazeBehavior";
 import { usePoseHotkeys, POSE_HOTKEY_LAYOUT } from "./hooks/usePoseHotkeys";
