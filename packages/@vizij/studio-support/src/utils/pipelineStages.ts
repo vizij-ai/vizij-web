@@ -931,10 +931,3 @@ export function buildCompiledPipelineEquation(params: {
   }
   return `effective = ${selected}`;
 }
-
-export function formatPipelineValue(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) {
-    return "n/a";
-  }
-  return value.toFixed(3);
-}

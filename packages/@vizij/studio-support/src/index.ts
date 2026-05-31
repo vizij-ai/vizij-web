@@ -158,6 +158,46 @@ export {
   type RigGraphInputMetadata,
 } from "./utils/rigGraphCompiler";
 export {
+  assessLegacyBindingMigration,
+  buildCompiledPipelineEquation,
+  buildDefaultParentContributionFormula,
+  buildDefaultParentVariableFormula,
+  buildLegacyMigrationLinkUpserts,
+  computePipelineDiagnostics,
+  computePoseContribution,
+  isAutoParentBlendExpression,
+  mergePipelineMetadata,
+  resolveEffectiveParentExpressionVariable,
+  resolveParentBlendExpressionUpdate,
+  resolvePipelineStageSettings,
+  type LegacyBindingMigrationAssessment,
+  type PipelineDiagnosticsRow,
+  type PipelineStageSettings,
+  type PoseContributionSample,
+} from "./utils/pipelineStages";
+export {
+  resolveControllableInputId,
+  resolveEffectiveBindingInputId,
+  resolveEffectiveBindingStandardInput,
+  resolveEffectiveControllableBindingStandardInput,
+  type BindingResolutionBlockedCode,
+} from "./utils/bindingSlotResolution";
+export {
+  resolveFaceInspectorCurrentValue,
+  type FaceInspectorCurrentValueResolution,
+  type FaceInspectorCurrentValueSourceKind,
+} from "./utils/faceInspectorSemantics";
+export {
+  computePoseContributionSemantics,
+  type PoseContributionSemantics,
+} from "./utils/poseContributionSemantics";
+export {
+  deriveAliasFromInputDescriptor,
+  resolveAuthoringParentExpressionVariable,
+  resolveBindingSlotAlias,
+  syncBindingParentAliasReferences,
+} from "./utils/rigPipelineAliases";
+export {
   extractGraphFaceId,
   extractVizijPipelineConfigMap,
   extractVizijPipelineConfigMapFromMetadata,

@@ -3,6 +3,7 @@ import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { assessLegacyBindingMigration } from "@vizij/studio-support";
 import {
   Activity,
   Play,
@@ -30,7 +31,6 @@ import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { cloneSerializable } from "../../utils/serialization";
 import { usePoseRigStore } from "../../poseRig/store";
-import { assessLegacyBindingMigration } from "../inspector/pipelineStages";
 import { collectGlobalUnmatchedPoseOutputs } from "../inspector/rigConnections";
 
 type HealthTabId =

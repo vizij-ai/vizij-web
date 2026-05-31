@@ -34,10 +34,3 @@ export function computePoseContributionSemantics({
       : null,
   };
 }
-
-export function formatContributionStrength(strength: number | null): string {
-  if (strength === null || !Number.isFinite(strength)) {
-    return "N/A";
-  }
-  return `${(strength * 100).toFixed(0)}%`;
-}

@@ -2,13 +2,12 @@ import {
   formatStandardRigInputDisplayPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import {
+  resolveFaceInspectorCurrentValue as resolveFaceInspectorCurrentValueCore,
+  type FaceInspectorCurrentValueSourceKind,
+} from "@vizij/studio-support";
 
-export type FaceInspectorCurrentValueSourceKind =
-  | "propsrig-channel"
-  | "standard-input-channel"
-  | "unresolved-channel"
-  | "blocked-channel"
-  | "static-channel";
+export type { FaceInspectorCurrentValueSourceKind };
 
 export interface FaceInspectorCurrentValueResolution {
   currentValue: number;
@@ -25,63 +24,32 @@ interface ResolveFaceInspectorCurrentValueArgs {
   staticValue: number;
 }
 
-function coerceFiniteNumber(value: unknown, fallback: number): number {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return fallback;
+function formatSourceLabel(
+  resolved: ReturnType<typeof resolveFaceInspectorCurrentValueCore>,
+): string {
+  if (resolved.sourceKind === "blocked-channel") {
+    return `Blocked channel (${resolved.blockedReason ?? "blocked"})`;
   }
-  return value;
+  if (resolved.sourceKind === "unresolved-channel") {
+    return `Unresolved channel (${resolved.unresolvedInputId ?? "unknown"})`;
+  }
+  if (resolved.sourcePath) {
+    return formatStandardRigInputDisplayPath(resolved.sourcePath);
+  }
+  if (resolved.sourceInputId) {
+    return resolved.sourceInputId;
+  }
+  return "Static channel value";
 }
 
-export function resolveFaceInspectorCurrentValue({
-  inputId,
-  standardInput,
-  unresolvedInputId,
-  blockedReason,
-  inputValues,
-  staticValue,
-}: ResolveFaceInspectorCurrentValueArgs): FaceInspectorCurrentValueResolution {
-  const fallback = coerceFiniteNumber(staticValue, 0);
-
-  if (blockedReason) {
-    return {
-      currentValue: fallback,
-      sourceLabel: `Blocked channel (${blockedReason})`,
-      sourceKind: "blocked-channel",
-    };
-  }
-
-  if (inputId && standardInput) {
-    const staged = inputValues[inputId];
-    const defaultValue = coerceFiniteNumber(
-      standardInput.defaultValue,
-      fallback,
-    );
-    const sourcePath = standardInput.path || "";
-    const sourceLabel = sourcePath
-      ? formatStandardRigInputDisplayPath(sourcePath)
-      : standardInput.id;
-    return {
-      currentValue: coerceFiniteNumber(staged, defaultValue),
-      sourceLabel,
-      sourceKind: sourcePath.startsWith("/propsrig/")
-        ? "propsrig-channel"
-        : "standard-input-channel",
-    };
-  }
-
-  const unresolved = unresolvedInputId ?? inputId;
-  if (unresolved) {
-    return {
-      currentValue: fallback,
-      sourceLabel: `Unresolved channel (${unresolved})`,
-      sourceKind: "unresolved-channel",
-    };
-  }
-
+export function resolveFaceInspectorCurrentValue(
+  args: ResolveFaceInspectorCurrentValueArgs,
+): FaceInspectorCurrentValueResolution {
+  const resolved = resolveFaceInspectorCurrentValueCore(args);
   return {
-    currentValue: fallback,
-    sourceLabel: "Static channel value",
-    sourceKind: "static-channel",
+    currentValue: resolved.currentValue,
+    sourceKind: resolved.sourceKind,
+    sourceLabel: formatSourceLabel(resolved),
   };
 }
 

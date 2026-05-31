@@ -5,8 +5,8 @@ import {
   toggleInspectorChannelLock,
 } from "./faceInspectorSemantics";
 
-describe("face inspector channel semantics", () => {
-  it("resolves current value from propsrig channel authority", () => {
+describe("face inspector channel UI semantics", () => {
+  it("formats current value source labels for propsrig channel authority", () => {
     const resolved = resolveFaceInspectorCurrentValue({
       inputId: "propsrig-face-x",
       standardInput: {
@@ -25,7 +25,7 @@ describe("face inspector channel semantics", () => {
     expect(resolved.sourceLabel).toBe("/face/trans/x");
   });
 
-  it("falls back to static value for unresolved channel authority", () => {
+  it("formats unresolved channel labels locally", () => {
     const resolved = resolveFaceInspectorCurrentValue({
       inputId: "missing-channel",
       standardInput: null,

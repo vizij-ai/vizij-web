@@ -17,7 +17,7 @@ import {
   buildDefaultParentVariableFormula,
   isAutoParentBlendExpression,
   mergePipelineMetadata,
-} from "../components/inspector/pipelineStages";
+} from "./pipelineStages";
 
 type JsonObject = Record<string, unknown>;
 

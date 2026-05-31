@@ -12,7 +12,7 @@ import {
   resolveEffectiveParentExpressionVariable,
   resolveParentBlendExpressionUpdate,
   resolvePipelineStageSettings,
-} from "./pipelineStages";
+} from "../utils/pipelineStages";
 
 function createBinding(
   overrides: Partial<AnimatableBinding> = {},

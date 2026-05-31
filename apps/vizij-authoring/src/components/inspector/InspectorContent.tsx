@@ -38,6 +38,20 @@ import {
   type RigPipelineV1ParentContributionSource,
   SELF_BINDING_ID,
 } from "@vizij/utils";
+import {
+  assessLegacyBindingMigration,
+  buildCompiledPipelineEquation,
+  buildDefaultParentContributionFormula,
+  buildDefaultParentVariableFormula,
+  buildLegacyMigrationLinkUpserts,
+  computePipelineDiagnostics,
+  computePoseContribution,
+  isAutoParentBlendExpression,
+  mergePipelineMetadata,
+  resolveAuthoringParentExpressionVariable,
+  resolveParentBlendExpressionUpdate,
+  resolvePipelineStageSettings,
+} from "@vizij/studio-support";
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import { NumberField } from "../ui/NumberField";
@@ -59,7 +73,6 @@ import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { cn } from "../../utils/cn";
 import { promptDialog, alertDialog } from "../../utils/dialogs";
 import { cleanLabel } from "../../utils/labels";
-import { resolveAuthoringParentExpressionVariable } from "../../utils/rigPipelineAliases";
 import {
   fromRotationDisplayValue,
   shouldDisplayRotationInDegrees,
@@ -101,19 +114,6 @@ import {
   type InspectorChainNode,
 } from "./inspectorChainPath";
 import { resolveRigMetadataReactivity } from "./rigMetadataReactivity";
-import {
-  assessLegacyBindingMigration,
-  buildDefaultParentContributionFormula,
-  buildLegacyMigrationLinkUpserts,
-  buildDefaultParentVariableFormula,
-  buildCompiledPipelineEquation,
-  computePipelineDiagnostics,
-  computePoseContribution,
-  isAutoParentBlendExpression,
-  mergePipelineMetadata,
-  resolveParentBlendExpressionUpdate,
-  resolvePipelineStageSettings,
-} from "./pipelineStages";
 
 type PoseVariableItem = {
   varId: string;

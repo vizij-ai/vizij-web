@@ -1,5 +1,9 @@
 import React from "react";
 import { ArrowRight, Plus, Trash2 } from "lucide-react";
+import {
+  resolveEffectiveParentExpressionVariable,
+  type PipelineDiagnosticsRow,
+} from "@vizij/studio-support";
 import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
@@ -10,11 +14,6 @@ import {
   shouldDisplayRotationInDegrees,
   toRotationDisplayValue,
 } from "../../utils/rotationDisplay";
-import {
-  formatPipelineValue,
-  resolveEffectiveParentExpressionVariable,
-  type PipelineDiagnosticsRow,
-} from "./pipelineStages";
 
 export interface PipelineStageLinkItem {
   id: string;
@@ -42,6 +41,13 @@ export interface PipelineStageLinkItem {
     onScaleChange?: (value: number) => void;
     onOffsetChange?: (value: number) => void;
   };
+}
+
+function formatPipelineValue(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) {
+    return "n/a";
+  }
+  return value.toFixed(3);
 }
 
 export interface PipelineStagePoseItem {

@@ -57,10 +57,14 @@ import {
   buildStandardInputIdRemap,
   buildRuntimeInputRouteSnapshot,
   createEmptyRuntimeInputRouteSnapshot,
+  assessLegacyBindingMigration,
+  buildLegacyMigrationLinkUpserts,
   derivePipelineConfigFromInputBindings,
+  deriveAliasFromInputDescriptor,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
   flushQueuedRuntimeInputs,
+  mergePipelineMetadata,
   mergeImportedAndLocalPipelineConfigByInputId,
   mergeImportedAndLocalPipelineLinksById,
   normalizeGraphPath,
@@ -71,6 +75,7 @@ import {
   readPipelineLinkPatch,
   remapPipelineMetadataInputIds,
   sanitizePipelineConfigAndLinksForAvailableInputs,
+  syncBindingParentAliasReferences,
   type RuntimeInputRoute,
   type VizijPipelineMetadataV1,
 } from "@vizij/studio-support";
@@ -92,16 +97,7 @@ import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";
 import type { SelectionStore } from "../state/selectionStore";
 import { useAnimationStore } from "../state/animationStore";
-import {
-  assessLegacyBindingMigration,
-  buildLegacyMigrationLinkUpserts,
-  mergePipelineMetadata,
-} from "../components/inspector/pipelineStages";
 import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions";
-import {
-  deriveAliasFromInputDescriptor,
-  syncBindingParentAliasReferences,
-} from "../utils/rigPipelineAliases";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { FEATURE_FLAG_DEFAULTS, useFeatureLabels } from "./useFeatureLabels";

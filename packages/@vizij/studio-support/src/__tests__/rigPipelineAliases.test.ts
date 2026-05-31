@@ -9,11 +9,11 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import { describe, expect, it } from "vitest";
-import { mergePipelineMetadata } from "../components/inspector/pipelineStages";
+import { mergePipelineMetadata } from "../utils/pipelineStages";
 import {
   resolveAuthoringParentExpressionVariable,
   syncBindingParentAliasReferences,
-} from "./rigPipelineAliases";
+} from "../utils/rigPipelineAliases";
 
 function makeInput(path: string): StandardRigInput {
   return createStandardRigInputFromPath(path);
