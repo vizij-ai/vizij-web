@@ -1,3 +1,5 @@
+import type { VizijProgramAsset } from "../types";
+
 export const MOTION_GRAPH_OUTPUT_TARGET_TYPE = "__output_target" as const;
 export const MOTION_GRAPH_OUTPUT_TARGET_PORT_ID = "input";
 export const MOTION_GRAPH_INPUT_SOURCE_TYPE = "__input_source" as const;
@@ -45,6 +47,14 @@ export interface BuiltGraphSpec {
   inputPaths: string[];
   /** True when at least one output target has an incoming edge. */
   hasConnectedOutputs: boolean;
+}
+
+export interface BuildMotionGraphProgramAssetOptions {
+  id: string;
+  label?: string;
+  nodes: MotionGraphEditorNode[];
+  edges: MotionGraphEditorEdge[];
+  resetValues?: Record<string, number>;
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
@@ -337,4 +347,38 @@ export function buildGraphSpecForExport(
   edges: MotionGraphEditorEdge[],
 ): BuiltGraphSpec["spec"] {
   return buildGraphSpecInternal(nodes, edges, null).spec;
+}
+
+export function buildMotionGraphProgramAsset(
+  options: BuildMotionGraphProgramAssetOptions,
+): VizijProgramAsset | null {
+  const id = options.id.trim();
+  if (!id) {
+    return null;
+  }
+
+  const built = buildGraphSpecInternal(options.nodes, options.edges, null);
+  if (!built.hasConnectedOutputs) {
+    return null;
+  }
+
+  const resetValues = Object.fromEntries(
+    Object.entries(options.resetValues ?? {}).filter(
+      (entry): entry is [string, number] => {
+        const [path, value] = entry;
+        return path.trim().length > 0 && Number.isFinite(value);
+      },
+    ),
+  );
+  const label = options.label?.trim();
+
+  return {
+    id,
+    ...(label ? { label } : {}),
+    graph: {
+      id: `${id}.graph`,
+      spec: built.spec,
+    },
+    ...(Object.keys(resetValues).length > 0 ? { resetValues } : {}),
+  };
 }

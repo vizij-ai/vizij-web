@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { VizijBundleExtension } from "@vizij/render";
 import {
   OrchestratorContext,
   type OrchestratorFrame,
@@ -21,6 +22,27 @@ import { VizijRuntimeProvider } from "../VizijRuntimeProvider";
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+
+const loadedBundleMock = vi.hoisted(() => ({
+  current: null as VizijBundleExtension | null,
+}));
+
+vi.mock("@vizij/render", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@vizij/render")>();
+  return {
+    ...actual,
+    loadGLTFWithBundle: vi.fn(async () => ({
+      world: {},
+      animatables: {},
+      bundle: loadedBundleMock.current,
+    })),
+    loadGLTFFromBlobWithBundle: vi.fn(async () => ({
+      world: {},
+      animatables: {},
+      bundle: loadedBundleMock.current,
+    })),
+  };
+});
 
 type RuntimeCall =
   | { kind: "registerGraph"; config: unknown }
@@ -57,6 +79,32 @@ function makeBundle(
     },
     bundle: null,
     ...overrides,
+  };
+}
+
+function makeProgramBundle(id = "live-program") {
+  return {
+    programs: [
+      {
+        id,
+        graph: {
+          id: `${id}.graph`,
+          spec: {
+            nodes: [
+              {
+                id: "out",
+                type: "output",
+                params: { path: "rig/face/smile" },
+              },
+            ],
+            edges: [],
+          },
+        },
+        resetValues: {
+          "rig/face/smile": 0,
+        },
+      },
+    ],
   };
 }
 
@@ -158,11 +206,11 @@ async function mountRuntime(
     return null;
   }
 
-  await act(async () => {
+  const renderRuntime = (nextAssetBundle: VizijAssetBundle) => {
     root.render(
       <OrchestratorContext.Provider value={orchestrator}>
         <VizijRuntimeProvider
-          assetBundle={assetBundle}
+          assetBundle={nextAssetBundle}
           orchestratorScope="shared"
           autoCreate={false}
           autostart={false}
@@ -174,6 +222,10 @@ async function mountRuntime(
         </VizijRuntimeProvider>
       </OrchestratorContext.Provider>,
     );
+  };
+
+  await act(async () => {
+    renderRuntime(assetBundle);
     await Promise.resolve();
   });
 
@@ -184,11 +236,19 @@ async function mountRuntime(
   mountedRoots.push({ root, container });
   return {
     calls,
+    rerender: async (nextAssetBundle: VizijAssetBundle) => {
+      await act(async () => {
+        renderRuntime(nextAssetBundle);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    },
     runtime: () => runtime as VizijRuntimeContextValue,
   };
 }
 
 afterEach(() => {
+  loadedBundleMock.current = null;
   mountedRoots.splice(0).forEach(({ root, container }) => {
     act(() => {
       root.unmount();
@@ -363,6 +423,135 @@ describe("VizijRuntimeProvider execution loop", () => {
           call.kind === "registerGraph" || call.kind === "registerMergedGraph",
       ),
     ).toBe(false);
+  });
+
+  it("keeps extracted bundle assets while applying graph-only program updates", async () => {
+    loadedBundleMock.current = {
+      version: 1,
+      graphs: [
+        {
+          id: "bundle-rig",
+          kind: "rig",
+          spec: {
+            nodes: [
+              {
+                id: "out",
+                type: "output",
+                params: { path: "rig/face/smile" },
+              },
+            ],
+            edges: [],
+          },
+        },
+      ],
+    };
+
+    const { runtime } = await mountRuntime(
+      makeBundle({
+        glb: {
+          kind: "url",
+          src: "/face.glb",
+        },
+        programs: [],
+        bundle: null,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(runtime().assetBundle.bundle).toBe(loadedBundleMock.current);
+    expect(runtime().assetBundle.rig?.id).toBe("bundle-rig");
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle(), { tier: "graphs" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(runtime().assetBundle.bundle).toBe(loadedBundleMock.current);
+    expect(runtime().assetBundle.rig?.id).toBe("bundle-rig");
+    expect(
+      runtime().assetBundle.programs?.map((program) => program.id),
+    ).toEqual(["live-program"]);
+  });
+
+  it("registers and plays programs added through the runtime graph bundle", async () => {
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        rig: undefined,
+        pose: undefined,
+        programs: [],
+      }),
+    );
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle(), { tier: "graphs" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    calls.splice(0);
+    await act(async () => {
+      runtime().playProgram("live-program");
+    });
+
+    expect(calls.filter((call) => call.kind === "registerGraph")).toMatchObject(
+      [
+        {
+          kind: "registerGraph",
+          config: {
+            id: "demo-face/graph/live-program.graph",
+            spec: {
+              nodes: [
+                {
+                  id: "out",
+                  type: "output",
+                  params: { path: "demo-face/rig/face/smile" },
+                },
+              ],
+            },
+            subs: {
+              outputs: ["demo-face/rig/face/smile"],
+            },
+          },
+        },
+      ],
+    );
+  });
+
+  it("clears graph bundle overrides when the source asset bundle changes", async () => {
+    const { rerender, runtime } = await mountRuntime(
+      makeBundle({
+        programs: [],
+      }),
+    );
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle("live-program"), {
+        tier: "graphs",
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      runtime().assetBundle.programs?.map((program) => program.id),
+    ).toEqual(["live-program"]);
+
+    await rerender(
+      makeBundle({
+        faceId: "reloaded-face",
+        programs: makeProgramBundle("imported-program").programs,
+      }),
+    );
+
+    expect(runtime().assetBundle.faceId).toBe("reloaded-face");
+    expect(
+      runtime().assetBundle.programs?.map((program) => program.id),
+    ).toEqual(["imported-program"]);
   });
 
   it("routes animation playback through orchestrator commands for Arora web runtimes", async () => {

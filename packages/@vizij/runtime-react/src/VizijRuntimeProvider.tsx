@@ -33,6 +33,7 @@ import {
   applyRuntimeGraphBundle,
   buildAnimationControllerCommandPath,
   buildAnimationControllerPlayInputs,
+  buildGraphRegistrationConfig,
   buildPoseWeightPathMap,
   buildRigInputPath,
   clampAnimationTime,
@@ -329,7 +330,9 @@ function VizijRuntimeProviderInner({
 }: VizijRuntimeProviderInnerProps) {
   const [assetBundleOverride, setAssetBundleOverride] =
     useState<VizijAssetBundle | null>(null);
+  const initialAssetBundleRef = useRef(initialAssetBundle);
   const [graphUpdateToken, setGraphUpdateToken] = useState(0);
+  const [programRegistrationToken, setProgramRegistrationToken] = useState(0);
   const effectiveAssetBundle = assetBundleOverride ?? initialAssetBundle;
   const latestEffectiveAssetBundleRef =
     useRef<VizijAssetBundle>(effectiveAssetBundle);
@@ -346,6 +349,9 @@ function VizijRuntimeProviderInner({
       }
       return null;
     });
+  const extractedBundleRef = useRef<VizijBundleExtension | null>(
+    extractedBundle,
+  );
   const [extractedAnimations, setExtractedAnimations] = useState<
     VizijAnimationAsset[]
   >([]);
@@ -355,6 +361,14 @@ function VizijRuntimeProviderInner({
     typeof resolveRuntimeUpdatePlan
   > | null>(null);
   const updateTierRef = useRef<RuntimeUpdateTier>(updateTier);
+
+  useEffect(() => {
+    if (initialAssetBundleRef.current === initialAssetBundle) {
+      return;
+    }
+    initialAssetBundleRef.current = initialAssetBundle;
+    setAssetBundleOverride(null);
+  }, [initialAssetBundle]);
 
   useEffect(() => {
     if (effectiveAssetBundle.bundle) {
@@ -383,6 +397,10 @@ function VizijRuntimeProviderInner({
   );
   const assetBundle = runtimeAssetView.assetBundle;
   const resolvedProgramAssets = runtimeAssetView.programs;
+
+  useEffect(() => {
+    extractedBundleRef.current = extractedBundle;
+  }, [extractedBundle]);
 
   useEffect(() => {
     latestEffectiveAssetBundleRef.current = effectiveAssetBundle;
@@ -1102,6 +1120,7 @@ function VizijRuntimeProviderInner({
     inputConstraintsRef.current = result.inputConstraints;
     setInputConstraints(result.inputConstraints);
     programRegistrationMapRef.current = result.programRegistrationMap;
+    setProgramRegistrationToken((prev) => prev + 1);
     outputPathsRef.current = result.outputPaths;
     baseOutputPathsRef.current = result.baseOutputPaths;
     namespacedOutputPathsRef.current = result.namespacedOutputPaths;
@@ -2020,7 +2039,24 @@ function VizijRuntimeProviderInner({
         return;
       }
 
-      const registration = programRegistrationMapRef.current.get(program.id);
+      let registration = programRegistrationMapRef.current.get(program.id);
+      if (!registration) {
+        const builtRegistration = buildGraphRegistrationConfig({
+          asset: program.graph,
+          namespace,
+          context: `${program.id ?? "program"} graph`,
+        });
+        if (builtRegistration) {
+          registration = {
+            assetId: program.id,
+            config: builtRegistration.config,
+            spec: builtRegistration.spec,
+            inputs: builtRegistration.inputs,
+            outputs: builtRegistration.outputs,
+          };
+          programRegistrationMapRef.current.set(program.id, registration);
+        }
+      }
       if (!registration) {
         pushError({
           message: `Program ${id} is missing a usable graph payload.`,
@@ -2049,6 +2085,7 @@ function VizijRuntimeProviderInner({
     refreshControllerStatus,
     registerGraph,
     removeGraph,
+    namespace,
     resolvedProgramAssets,
     resolveProgramById,
   ]);
@@ -2163,6 +2200,7 @@ function VizijRuntimeProviderInner({
     syncProgramPlaybackControllers();
   }, [
     graphUpdateToken,
+    programRegistrationToken,
     ready,
     resolvedProgramAssets,
     status.loading,
@@ -2360,10 +2398,20 @@ function VizijRuntimeProviderInner({
   const setGraphBundle = useCallback(
     (bundle: RuntimeGraphBundle, options?: { tier?: RuntimeUpdateTier }) => {
       const baseAssetBundle = latestEffectiveAssetBundleRef.current;
-      const nextAssetBundle = applyRuntimeGraphBundle(baseAssetBundle, bundle);
+      const baseAssetBundleWithExtractedBundle =
+        !baseAssetBundle.bundle && extractedBundleRef.current
+          ? {
+              ...baseAssetBundle,
+              bundle: extractedBundleRef.current,
+            }
+          : baseAssetBundle;
+      const nextAssetBundle = applyRuntimeGraphBundle(
+        baseAssetBundleWithExtractedBundle,
+        bundle,
+      );
 
       const plan = resolveRuntimeUpdatePlan(
-        baseAssetBundle,
+        baseAssetBundleWithExtractedBundle,
         nextAssetBundle,
         options?.tier ?? updateTierRef.current,
       );

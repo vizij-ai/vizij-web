@@ -28,8 +28,14 @@ const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const runtimeAssetBundleState: {
   animations: Array<{ id: string; clip: { tracks: unknown[] } }>;
+  programs: Array<{
+    id: string;
+    graph: { id: string; spec: { nodes: unknown[]; edges: unknown[] } };
+    resetValues?: Record<string, number>;
+  }>;
 } = {
   animations: [],
+  programs: [],
 };
 const setGraphBundleSpy = vi.fn((payload: unknown) => {
   if (
@@ -42,12 +48,25 @@ const setGraphBundleSpy = vi.fn((payload: unknown) => {
       ? (animations as Array<{ id: string; clip: { tracks: unknown[] } }>)
       : [];
   }
+  if (
+    payload &&
+    typeof payload === "object" &&
+    Object.prototype.hasOwnProperty.call(payload, "programs")
+  ) {
+    const programs = (payload as { programs?: unknown }).programs;
+    runtimeAssetBundleState.programs = Array.isArray(programs)
+      ? (programs as typeof runtimeAssetBundleState.programs)
+      : [];
+  }
 });
 const setVizijStoreSpy = vi.fn();
 const stopAnimationSpy = vi.fn();
 const setAnimationActiveSpy = vi.fn();
 const pauseAnimationSpy = vi.fn();
 const getAnimationStateSpy = vi.fn().mockReturnValue(null);
+const playProgramSpy = vi.fn();
+const pauseProgramSpy = vi.fn();
+const stopProgramSpy = vi.fn();
 
 vi.mock("@vizij/render", () => ({
   useVizijStore: <T,>(
@@ -83,7 +102,7 @@ vi.mock("@vizij/runtime-react", () => ({
     loading: false,
     rootId: "root",
     error: null,
-    controllers: { graphs: [] },
+    controllers: { graphs: [], anims: [] },
     outputPaths: [],
     assetBundle: runtimeAssetBundleState,
     setGraphBundle: setGraphBundleSpy,
@@ -91,6 +110,9 @@ vi.mock("@vizij/runtime-react", () => ({
     setAnimationActive: setAnimationActiveSpy,
     pauseAnimation: pauseAnimationSpy,
     getAnimationState: getAnimationStateSpy,
+    playProgram: playProgramSpy,
+    pauseProgram: pauseProgramSpy,
+    stopProgram: stopProgramSpy,
   }),
 }));
 
@@ -110,13 +132,34 @@ vi.mock("../../motiongraph/components/InputValueBridge", () => ({
   InputValueBridge: () => <div data-testid="input-value-bridge" />,
 }));
 
-vi.mock("../../motiongraph/MotionGraphDriverBridge", () => ({
-  MotionGraphDriverBridge: () => (
-    <div data-testid="motiongraph-driver-bridge" />
-  ),
-}));
-
 type ViewerProps = React.ComponentProps<typeof Viewer>;
+
+function makeRuntimeProgramGraph() {
+  return {
+    nodes: [
+      {
+        id: "constant",
+        type: "constant",
+        position: { x: 0, y: 0 },
+        data: { params: { value: "0.35" } },
+      },
+      {
+        id: "target",
+        type: "__output_target",
+        position: { x: 120, y: 0 },
+        data: { outputPath: "rig/face/standard/brow/inner_up" },
+      },
+    ],
+    edges: [
+      {
+        id: "e-constant-target",
+        source: "constant",
+        target: "target",
+        targetHandle: "input",
+      },
+    ],
+  };
+}
 
 function renderViewer(props: ViewerProps) {
   const container = document.createElement("div");
@@ -158,11 +201,15 @@ describe("Viewer", () => {
     vi.clearAllMocks();
     motionGraphValueSamplerSpy.mockReset();
     runtimeAssetBundleState.animations = [];
+    runtimeAssetBundleState.programs = [];
     setVizijStoreSpy.mockReset();
     stopAnimationSpy.mockReset();
     setAnimationActiveSpy.mockReset();
     pauseAnimationSpy.mockReset();
     getAnimationStateSpy.mockClear();
+    playProgramSpy.mockReset();
+    pauseProgramSpy.mockReset();
+    stopProgramSpy.mockReset();
     useAnimationStore.getState().reset();
     useEditorStore.getState().clear();
   });
@@ -855,6 +902,7 @@ describe("Viewer", () => {
   it("keeps motion-graph sampling active while plotting a runtime snapshot", () => {
     const store = createGraphRuntimeStore();
     const bindingStore = createBindingAuthoringStore();
+    const graph = makeRuntimeProgramGraph();
 
     render(
       <GraphRuntimeStoreProvider store={store}>
@@ -869,8 +917,8 @@ describe("Viewer", () => {
             }}
             motionGraphPlaybackState="playing"
             motionGraphRuntimeControllerId="graph:test"
-            motionGraphRuntimeNodes={[]}
-            motionGraphRuntimeEdges={[]}
+            motionGraphRuntimeNodes={graph.nodes}
+            motionGraphRuntimeEdges={graph.edges}
             onClearSelection={() => {}}
             showSelectionGlow={false}
             onImportClick={() => {}}
@@ -889,9 +937,130 @@ describe("Viewer", () => {
     });
   });
 
-  it("resets program-owned outputs when the runtime session stops", () => {
+  it("publishes active procedural programs through the runtime graph bundle", () => {
     const store = createGraphRuntimeStore();
     const bindingStore = createBindingAuthoringStore();
+    const graph = makeRuntimeProgramGraph();
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphPlaybackState="playing"
+            motionGraphRuntimeControllerId="graph:test"
+            motionGraphRuntimeNodes={graph.nodes}
+            motionGraphRuntimeEdges={graph.edges}
+            motionGraphRuntimeResetValues={[
+              {
+                path: "rig/face/standard/brow/inner_up",
+                value: 0.35,
+              },
+            ]}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledWith(
+      {
+        programs: [
+          expect.objectContaining({
+            id: "graph:test",
+            graph: expect.objectContaining({
+              id: "graph:test.graph",
+              spec: expect.objectContaining({
+                nodes: expect.arrayContaining([
+                  {
+                    id: "target",
+                    type: "output",
+                    params: { path: "rig/face/standard/brow/inner_up" },
+                  },
+                ]),
+              }),
+            }),
+            resetValues: {
+              "rig/face/standard/brow/inner_up": 0.35,
+            },
+          }),
+        ],
+      },
+      { tier: "graphs" },
+    );
+  });
+
+  it("preserves unrelated bundle programs when publishing the active procedural program", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const graph = makeRuntimeProgramGraph();
+    runtimeAssetBundleState.programs = [
+      {
+        id: "bundle:idle",
+        graph: {
+          id: "bundle:idle.graph",
+          spec: {
+            nodes: [
+              {
+                id: "out",
+                type: "output",
+                params: { path: "rig/face/standard/gaze/left_right" },
+              },
+            ],
+            edges: [],
+          },
+        },
+      },
+    ];
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphPlaybackState="playing"
+            motionGraphRuntimeControllerId="graph:test"
+            motionGraphRuntimeNodes={graph.nodes}
+            motionGraphRuntimeEdges={graph.edges}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(setGraphBundleSpy).toHaveBeenCalledWith(
+      {
+        programs: [
+          expect.objectContaining({ id: "bundle:idle" }),
+          expect.objectContaining({ id: "graph:test" }),
+        ],
+      },
+      { tier: "graphs" },
+    );
+  });
+
+  it("drives active procedural program playback through the runtime API", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const graph = makeRuntimeProgramGraph();
     const view = render(
       <GraphRuntimeStoreProvider store={store}>
         <BindingAuthoringStoreProvider store={bindingStore}>
@@ -905,8 +1074,63 @@ describe("Viewer", () => {
             }}
             motionGraphPlaybackState="playing"
             motionGraphRuntimeControllerId="graph:test"
-            motionGraphRuntimeNodes={[]}
-            motionGraphRuntimeEdges={[]}
+            motionGraphRuntimeNodes={graph.nodes}
+            motionGraphRuntimeEdges={graph.edges}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    view.rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphPlaybackState="playing"
+            motionGraphRuntimeControllerId="graph:test"
+            motionGraphRuntimeNodes={graph.nodes}
+            motionGraphRuntimeEdges={graph.edges}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(playProgramSpy).toHaveBeenCalledWith("graph:test");
+  });
+
+  it("stops and clears the managed runtime program when the runtime session stops", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const graph = makeRuntimeProgramGraph();
+    const view = render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            motionGraphPlaybackState="playing"
+            motionGraphRuntimeControllerId="graph:test"
+            motionGraphRuntimeNodes={graph.nodes}
+            motionGraphRuntimeEdges={graph.edges}
             motionGraphRuntimeResetValues={[
               {
                 path: "rig/face/standard/brow/inner_up",
@@ -947,9 +1171,10 @@ describe("Viewer", () => {
       </GraphRuntimeStoreProvider>,
     );
 
-    expect(setInputSpy).toHaveBeenCalledWith(
-      "rig/face/standard/brow/inner_up",
-      { float: 0.35 },
+    expect(stopProgramSpy).toHaveBeenCalledWith("graph:test");
+    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+      { programs: [] },
+      { tier: "graphs" },
     );
   });
 });

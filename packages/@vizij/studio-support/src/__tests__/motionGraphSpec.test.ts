@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildGraphSpec,
   buildGraphSpecForExport,
+  buildMotionGraphProgramAsset,
   MOTION_GRAPH_INPUT_SOURCE_PORT_ID,
   MOTION_GRAPH_INPUT_SOURCE_TYPE,
   MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
@@ -192,5 +193,80 @@ describe("motion graph spec builder", () => {
       target: { x: 10, y: 20 },
       constant: { x: -10, y: 20 },
     });
+  });
+
+  it("builds runtime program assets from portable editor graph specs", () => {
+    const nodes: MotionGraphEditorNode[] = [
+      {
+        id: "constant",
+        type: "constant",
+        position: { x: 0, y: 0 },
+        data: { params: { value: "0.75" } },
+      },
+      {
+        id: "target",
+        type: MOTION_GRAPH_OUTPUT_TARGET_TYPE,
+        position: { x: 120, y: 0 },
+        data: { outputPath: "rig/face/standard/brow/inner_up" },
+      },
+    ];
+    const edges: MotionGraphEditorEdge[] = [
+      {
+        id: "e-constant-target",
+        source: "constant",
+        target: "target",
+        targetHandle: MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
+      },
+    ];
+
+    const program = buildMotionGraphProgramAsset({
+      id: "authoring.motiongraph.program.1",
+      label: "Brow lift",
+      nodes,
+      edges,
+      resetValues: {
+        "rig/face/standard/brow/inner_up": 0,
+        "": 1,
+        "rig/face/not-finite": Number.NaN,
+      },
+    });
+
+    expect(program).toMatchObject({
+      id: "authoring.motiongraph.program.1",
+      label: "Brow lift",
+      graph: {
+        id: "authoring.motiongraph.program.1.graph",
+        spec: {
+          nodes: [
+            { id: "constant", type: "constant", params: { value: 0.75 } },
+            {
+              id: "target",
+              type: "output",
+              params: { path: "rig/face/standard/brow/inner_up" },
+            },
+          ],
+        },
+      },
+      resetValues: {
+        "rig/face/standard/brow/inner_up": 0,
+      },
+    });
+  });
+
+  it("skips runtime program assets without connected outputs", () => {
+    const program = buildMotionGraphProgramAsset({
+      id: "authoring.motiongraph.program.empty",
+      nodes: [
+        {
+          id: "constant",
+          type: "constant",
+          position: { x: 0, y: 0 },
+          data: { params: { value: 1 } },
+        },
+      ],
+      edges: [],
+    });
+
+    expect(program).toBeNull();
   });
 });

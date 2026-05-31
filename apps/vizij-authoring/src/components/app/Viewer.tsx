@@ -13,12 +13,13 @@ import {
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import {
+  buildMotionGraphProgramAsset,
   buildRuntimeInputCatalogFromConstraints,
   type AnimationClipIR,
+  type VizijProgramAsset,
 } from "@vizij/studio-support";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
-import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
 import { InputValueBridge } from "../../motiongraph/components/InputValueBridge";
 import { MotionGraphValueSampler } from "../../motiongraph/components/MotionGraphValueSampler";
 import {
@@ -86,6 +87,34 @@ function toDeterministicSignature(value: unknown): string {
       });
     return sorted;
   });
+}
+
+function mergeManagedProgramAsset(
+  currentPrograms: readonly VizijProgramAsset[],
+  programAsset: VizijProgramAsset | null,
+  previousManagedProgramId: string | null,
+): VizijProgramAsset[] {
+  const managedId = programAsset?.id ?? previousManagedProgramId;
+  if (!managedId) {
+    return [...currentPrograms];
+  }
+
+  let replaced = false;
+  const nextPrograms = currentPrograms
+    .filter((program) => program.id !== managedId || programAsset)
+    .map((program) => {
+      if (!programAsset || program.id !== managedId) {
+        return program;
+      }
+      replaced = true;
+      return programAsset;
+    });
+
+  if (programAsset && !replaced) {
+    nextPrograms.push(programAsset);
+  }
+
+  return nextPrograms.sort((left, right) => left.id.localeCompare(right.id));
 }
 
 interface RuntimeSelectionBridgeProps {
@@ -452,21 +481,133 @@ function MotionGraphRuntimeBridge({
   resetValues?: readonly MotionGraphRuntimeResetEntry[];
   plotActive?: boolean;
 }) {
-  const { setInput } = useVizijRuntime();
+  const {
+    assetBundle,
+    controllers,
+    pauseProgram,
+    playProgram,
+    setGraphBundle,
+    stopProgram,
+  } = useVizijRuntime();
   const previousSessionRef = useRef<{
     controllerId: string | null;
     playbackState: "playing" | "paused" | "stopped";
-    resetValues: readonly MotionGraphRuntimeResetEntry[];
   }>({
     controllerId: null,
     playbackState: "stopped",
-    resetValues: [],
   });
+  const stopProgramRef = useRef(stopProgram);
+  const touchedProgramBundleRef = useRef(false);
+  const managedProgramIdRef = useRef<string | null>(null);
+  const appliedProgramSignatureRef = useRef<string | null>(null);
+  const lastProgramSignatureRef = useRef<string | null>(null);
+  const lastPlaybackCommandRef = useRef<string | null>(null);
+  useEffect(() => {
+    stopProgramRef.current = stopProgram;
+  }, [stopProgram]);
+  const currentPrograms = useMemo(
+    () =>
+      [...(assetBundle.programs ?? [])].sort((left, right) =>
+        left.id.localeCompare(right.id),
+      ),
+    [assetBundle.programs],
+  );
+  const currentProgramSignature = useMemo(
+    () => toDeterministicSignature(currentPrograms),
+    [currentPrograms],
+  );
+  const resetValueMap = useMemo(
+    () =>
+      Object.fromEntries(
+        resetValues
+          .filter(
+            (entry) =>
+              entry.path.trim().length > 0 && Number.isFinite(entry.value),
+          )
+          .map((entry) => [entry.path, entry.value]),
+      ),
+    [resetValues],
+  );
+  const programAsset = useMemo<VizijProgramAsset | null>(() => {
+    if (!controllerId || !Array.isArray(nodes) || !Array.isArray(edges)) {
+      return null;
+    }
+    return buildMotionGraphProgramAsset({
+      id: controllerId,
+      nodes,
+      edges,
+      resetValues: resetValueMap,
+    });
+  }, [controllerId, edges, nodes, resetValueMap]);
+  useEffect(() => {
+    if (programAsset) {
+      managedProgramIdRef.current = programAsset.id;
+    }
+  }, [programAsset]);
+  const desiredPrograms = useMemo(
+    () =>
+      mergeManagedProgramAsset(
+        currentPrograms,
+        programAsset,
+        managedProgramIdRef.current,
+      ),
+    [currentPrograms, programAsset],
+  );
+  const desiredProgramSignature = useMemo(
+    () => toDeterministicSignature(desiredPrograms),
+    [desiredPrograms],
+  );
+  const controllerSignature = useMemo(
+    () => toDeterministicSignature(controllers),
+    [controllers],
+  );
   const active =
     playbackState === "playing" &&
-    Boolean(controllerId) &&
-    Array.isArray(nodes) &&
-    Array.isArray(edges);
+    programAsset !== null &&
+    Array.isArray(nodes);
+
+  useEffect(() => {
+    if (lastProgramSignatureRef.current !== currentProgramSignature) {
+      lastProgramSignatureRef.current = currentProgramSignature;
+      if (currentProgramSignature !== desiredProgramSignature) {
+        appliedProgramSignatureRef.current = null;
+      }
+    }
+
+    if (!programAsset && !touchedProgramBundleRef.current) {
+      return;
+    }
+
+    if (currentProgramSignature === desiredProgramSignature) {
+      appliedProgramSignatureRef.current = desiredProgramSignature;
+      if (desiredPrograms.length === 0) {
+        touchedProgramBundleRef.current = false;
+      }
+      if (!programAsset) {
+        managedProgramIdRef.current = null;
+      }
+      return;
+    }
+
+    if (appliedProgramSignatureRef.current === desiredProgramSignature) {
+      return;
+    }
+
+    appliedProgramSignatureRef.current = desiredProgramSignature;
+    touchedProgramBundleRef.current = true;
+    setGraphBundle(
+      {
+        programs: desiredPrograms,
+      },
+      { tier: "graphs" },
+    );
+  }, [
+    currentProgramSignature,
+    desiredProgramSignature,
+    desiredPrograms,
+    programAsset,
+    setGraphBundle,
+  ]);
 
   useLayoutEffect(() => {
     const previous = previousSessionRef.current;
@@ -476,27 +617,65 @@ function MotionGraphRuntimeBridge({
       previous.controllerId !== null &&
       previous.playbackState !== "stopped" &&
       playbackState === "stopped";
-    if (targetChanged || transitionedToStopped) {
-      previous.resetValues.forEach(({ path, value }) => {
-        setInput(path, { float: Number.isFinite(value) ? value : 0 });
-      });
+    if ((targetChanged || transitionedToStopped) && previous.controllerId) {
+      stopProgram(previous.controllerId);
     }
     previousSessionRef.current = {
       controllerId,
       playbackState,
-      resetValues,
     };
-  }, [controllerId, playbackState, resetValues, setInput]);
+  }, [controllerId, playbackState, stopProgram]);
+
+  useEffect(() => {
+    if (!programAsset) {
+      return;
+    }
+
+    const commandKey = `${programAsset.id}:${desiredProgramSignature}:${playbackState}`;
+    if (lastPlaybackCommandRef.current === commandKey) {
+      return;
+    }
+
+    try {
+      if (playbackState === "playing") {
+        playProgram(programAsset.id);
+      } else if (playbackState === "paused") {
+        pauseProgram(programAsset.id);
+      } else {
+        stopProgram(programAsset.id);
+      }
+      lastPlaybackCommandRef.current = commandKey;
+    } catch (error) {
+      console.warn("[motiongraph] Failed to apply runtime program command", {
+        programId: programAsset.id,
+        playbackState,
+        error,
+      });
+      lastPlaybackCommandRef.current = null;
+    }
+  }, [
+    controllerSignature,
+    desiredProgramSignature,
+    pauseProgram,
+    playbackState,
+    playProgram,
+    programAsset,
+    stopProgram,
+  ]);
+
+  useEffect(
+    () => () => {
+      const previous = previousSessionRef.current.controllerId;
+      if (previous) {
+        stopProgramRef.current(previous);
+      }
+    },
+    [],
+  );
 
   return (
     <>
       <InputValueBridge active={active} nodes={nodes ?? undefined} />
-      <MotionGraphDriverBridge
-        active={active}
-        controllerId={controllerId ?? undefined}
-        nodes={nodes ?? undefined}
-        edges={edges ?? undefined}
-      />
       <MotionGraphValueSampler active={active && plotActive} />
     </>
   );

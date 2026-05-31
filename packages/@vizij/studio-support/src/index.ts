@@ -142,8 +142,10 @@ export {
   type PoseGraphOutputEntry,
 } from "./utils/poseGraphImport";
 export {
+  buildMotionGraphProgramAsset,
   buildGraphSpec,
   buildGraphSpecForExport,
+  type BuildMotionGraphProgramAssetOptions,
   MOTION_GRAPH_INPUT_SOURCE_PORT_ID,
   MOTION_GRAPH_INPUT_SOURCE_TYPE,
   MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
