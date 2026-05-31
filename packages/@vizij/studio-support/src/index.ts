@@ -488,6 +488,13 @@ export {
   remapStandardInputValues,
 } from "./utils/standardInputRemapApplication";
 export {
+  planShapeInputRename,
+  type PersistedAutoStandardInputLike,
+  type ShapeInputRenameAutoInputState,
+  type ShapeInputRenamePlan,
+  type ShapeInputRenamePlanOptions,
+} from "./utils/shapeInputRename";
+export {
   ensureStandardPathInput,
   inferStandardSuggestion,
 } from "./utils/standardInputPaths";

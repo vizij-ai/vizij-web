@@ -512,6 +512,12 @@ export function useRigController(
   >([]);
   const [selectedStandardInputSubgroups, setSelectedStandardInputSubgroups] =
     useState<string[]>([]);
+  const selectedStandardInputRootsRef = useRef<readonly string[]>(
+    selectedStandardInputRoots,
+  );
+  const selectedStandardInputSubgroupsRef = useRef<readonly string[]>(
+    selectedStandardInputSubgroups,
+  );
   const [disabledStandardInputIds, setDisabledStandardInputIds] = useState<
     string[]
   >([]);
@@ -558,6 +564,7 @@ export function useRigController(
     handleFeatureFlagChange,
     handleUpdateFeatureLabel,
   } = useFeatureLabels();
+  const featureLabelOverridesRef = useRef(featureLabelOverrides);
 
   const handleSetStandardInputSchema = useCallback(
     (
@@ -830,6 +837,7 @@ export function useRigController(
     maybeAutoAliasSlot,
     debugLog,
   });
+  const bindingsRef = useRef<BindingMap>(bindings);
   useEffect(() => {
     if (rootId) {
       return;
@@ -1640,8 +1648,24 @@ export function useRigController(
   }, [componentsById]);
 
   useEffect(() => {
+    bindingsRef.current = bindings;
+  }, [bindings]);
+
+  useEffect(() => {
     inputBindingsRef.current = inputBindings;
   }, [inputBindings]);
+
+  useEffect(() => {
+    selectedStandardInputRootsRef.current = selectedStandardInputRoots;
+  }, [selectedStandardInputRoots]);
+
+  useEffect(() => {
+    selectedStandardInputSubgroupsRef.current = selectedStandardInputSubgroups;
+  }, [selectedStandardInputSubgroups]);
+
+  useEffect(() => {
+    featureLabelOverridesRef.current = featureLabelOverrides;
+  }, [featureLabelOverrides]);
 
   useEffect(() => {
     const validTargetIds = new Set(
@@ -1921,17 +1945,24 @@ export function useRigController(
         setCustomInputs,
         setAutoInputs,
         allStandardInputsRef,
+        disabledStandardInputIdsRef,
         setDisabledStandardInputIds,
         disabledInputBindingCacheRef,
+        inputValuesRef,
         updateInputValues,
+        bindingsRef,
         setBindings,
         componentsByIdRef,
+        inputBindingsRef,
         setInputBindings,
         pendingInputBindingDefinitionsRef,
         persistedAutoInputsRef,
         refreshAutoMetadataForShape,
+        selectedStandardInputRootsRef,
         setSelectedStandardInputRoots,
+        selectedStandardInputSubgroupsRef,
         setSelectedStandardInputSubgroups,
+        featureLabelOverridesRef,
         setFeatureLabelOverrides,
         resolvePersistedAutoKey,
       });
@@ -1939,10 +1970,17 @@ export function useRigController(
     },
     [
       applyStandardInputIdRemapSideEffects,
+      bindingsRef,
       componentsByIdRef,
+      disabledStandardInputIdsRef,
+      featureLabelOverridesRef,
+      inputBindingsRef,
+      inputValuesRef,
       pendingInputBindingDefinitionsRef,
       persistedAutoInputsRef,
       refreshAutoMetadataForShape,
+      selectedStandardInputRootsRef,
+      selectedStandardInputSubgroupsRef,
       setAutoInputs,
       setBindings,
       setCustomInputs,

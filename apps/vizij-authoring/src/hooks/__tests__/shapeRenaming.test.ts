@@ -77,9 +77,9 @@ describe("applyShapeInputRename", () => {
         [input.id, input],
       ]),
     };
-    const [, setDisabled] = createSetter<string[]>([]);
+    const [getDisabled, setDisabled] = createSetter<string[]>([input.id]);
     const disabledInputBindingCacheRef = { current: new Map<string, any>() };
-    const [, setInputValues] = createSetter<StandardInputValues>({
+    const [getInputValues, setInputValues] = createSetter<StandardInputValues>({
       [input.id]: 0,
     });
     const [getBindings, setBindings] = createSetter<BindingMap>({
@@ -172,17 +172,24 @@ describe("applyShapeInputRename", () => {
       setCustomInputs,
       setAutoInputs,
       allStandardInputsRef,
+      disabledStandardInputIdsRef: { current: new Set(getDisabled()) },
       setDisabledStandardInputIds: setDisabled,
       disabledInputBindingCacheRef,
+      inputValuesRef: { current: getInputValues() },
       updateInputValues: setInputValues,
+      bindingsRef: { current: getBindings() },
       setBindings,
       componentsByIdRef,
+      inputBindingsRef: { current: getInputBindings() },
       setInputBindings,
       pendingInputBindingDefinitionsRef,
       persistedAutoInputsRef,
       refreshAutoMetadataForShape: () => {},
+      selectedStandardInputRootsRef: { current: ["foo"] },
       setSelectedStandardInputRoots,
+      selectedStandardInputSubgroupsRef: { current: ["foo/eyes"] },
       setSelectedStandardInputSubgroups,
+      featureLabelOverridesRef: { current: featureOverrides },
       setFeatureLabelOverrides,
       resolvePersistedAutoKey: (_sourceId, sourcePath) =>
         sourcePath ? normalizeStandardRigInputPath(sourcePath) : null,
