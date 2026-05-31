@@ -537,8 +537,13 @@ export {
 } from "./utils/clipPlayback";
 export {
   applyRuntimeGraphBundle,
+  hasRuntimeGraphBundlePendingRevision,
   planRuntimeGraphBundleApplication,
+  queueRuntimeGraphBundlePendingUpdate,
+  removeRuntimeGraphBundlePendingUpdates,
+  resolveRuntimeGraphBundleErrorSources,
   resolveRuntimeUpdatePlan,
+  shouldAcknowledgeRuntimeGraphBundleImmediately,
 } from "./updatePolicy";
 
 type GraphSubscriptionsLike = Partial<GraphSubscriptions>;

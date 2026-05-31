@@ -36,6 +36,7 @@ import {
   buildRigInputPath,
   clampAnimationTime,
   diffAnimationAggregateValues,
+  hasRuntimeGraphBundlePendingRevision,
   namespaceTypedPath,
   normalisePath,
   planRuntimeProgramControllerSync,
@@ -43,12 +44,16 @@ import {
   pickExtractedAnimations,
   prepareRuntimeRegistrationPlan,
   prepareRuntimeAssetView,
+  queueRuntimeGraphBundlePendingUpdate,
+  removeRuntimeGraphBundlePendingUpdates,
   resolveClipDurationSeconds,
   resolveAnimationTransportMode,
   resolvePoseControlInputPath,
+  resolveRuntimeGraphBundleErrorSources,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
   shouldUseLegacyPoseWeightFallback,
+  shouldAcknowledgeRuntimeGraphBundleImmediately,
   stripNamespace,
   type RuntimeGraphBundle,
   type RuntimeProgramRegistrationSupportResult,
@@ -153,37 +158,6 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 
 const DEFAULT_DURATION = 0.35;
 
-function copyRuntimeUpdateSources(
-  updates: readonly RuntimeGraphBundlePendingUpdate[],
-): RuntimeGraphBundleUpdateSource[] {
-  return updates.map((update) => ({ ...update.source }));
-}
-
-function resolveRuntimeErrorSources(
-  error: RuntimeControllerHostError,
-  updates: readonly RuntimeGraphBundlePendingUpdate[],
-): RuntimeGraphBundleUpdateSource[] | undefined {
-  if (updates.length === 0) {
-    return undefined;
-  }
-  if (updates.length === 1) {
-    return copyRuntimeUpdateSources(updates);
-  }
-
-  const matchingUpdates = updates.filter((update) => {
-    if (error.phase === "animation") {
-      return update.source.key === "animation";
-    }
-    if (error.phase === "registration") {
-      return update.source.key !== "animation";
-    }
-    return true;
-  });
-
-  return copyRuntimeUpdateSources(
-    matchingUpdates.length > 0 ? matchingUpdates : updates,
-  );
-}
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 let runtimeDebugInstanceSequence = 0;
 
@@ -886,12 +860,10 @@ function VizijRuntimeProviderInner({
       if (updates.length === 0) {
         return;
       }
-      const appliedRevisions = new Set(
-        updates.map((update) => update.revision),
-      );
       pendingGraphBundleUpdatesRef.current =
-        pendingGraphBundleUpdatesRef.current.filter(
-          (update) => !appliedRevisions.has(update.revision),
+        removeRuntimeGraphBundlePendingUpdates(
+          pendingGraphBundleUpdatesRef.current,
+          updates,
         );
       updates.forEach((update) => {
         onRuntimeGraphBundleApplied?.({
@@ -928,7 +900,10 @@ function VizijRuntimeProviderInner({
     result.errors.forEach((error) => {
       pushHostError(
         error,
-        resolveRuntimeErrorSources(error, pendingGraphBundleUpdatesRef.current),
+        resolveRuntimeGraphBundleErrorSources(
+          error,
+          pendingGraphBundleUpdatesRef.current,
+        ),
       );
     });
     registeredGraphsRef.current = [];
@@ -1212,7 +1187,10 @@ function VizijRuntimeProviderInner({
       }
       pushHostError(
         error,
-        resolveRuntimeErrorSources(error, pendingGraphBundleUpdatesRef.current),
+        resolveRuntimeGraphBundleErrorSources(
+          error,
+          pendingGraphBundleUpdatesRef.current,
+        ),
       );
     });
 
@@ -2476,21 +2454,11 @@ function VizijRuntimeProviderInner({
           : undefined,
       });
       const { nextAssetBundle, updatePlan: plan, pendingUpdate } = application;
-      if (pendingUpdate) {
-        const pendingSourceKey = pendingUpdate.source.key;
-        pendingGraphBundleUpdatesRef.current = [
-          ...pendingGraphBundleUpdatesRef.current.filter((update) => {
-            if (pendingSourceKey != null) {
-              return update.source.key !== pendingSourceKey;
-            }
-            return (
-              update.source.key !== pendingUpdate.source.key ||
-              update.source.signature !== pendingUpdate.source.signature
-            );
-          }),
+      pendingGraphBundleUpdatesRef.current =
+        queueRuntimeGraphBundlePendingUpdate(
+          pendingGraphBundleUpdatesRef.current,
           pendingUpdate,
-        ];
-      }
+        );
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
       latestEffectiveAssetBundleRef.current = nextAssetBundle;
@@ -2511,11 +2479,18 @@ function VizijRuntimeProviderInner({
           loading: false,
         }));
       }
-      if (pendingUpdate && !plan.reregisterGraphs && !plan.reloadAssets) {
+      if (
+        pendingUpdate &&
+        shouldAcknowledgeRuntimeGraphBundleImmediately({
+          plan,
+          pendingUpdate,
+        })
+      ) {
         void Promise.resolve().then(() => {
           if (
-            !pendingGraphBundleUpdatesRef.current.some(
-              (update) => update.revision === pendingUpdate.revision,
+            !hasRuntimeGraphBundlePendingRevision(
+              pendingGraphBundleUpdatesRef.current,
+              pendingUpdate.revision,
             )
           ) {
             return;

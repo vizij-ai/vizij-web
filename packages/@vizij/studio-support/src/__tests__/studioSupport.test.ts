@@ -4,12 +4,17 @@ import {
   buildGraphRegistrationConfig,
   buildProgramRegistrationConfig,
   diffAnimationAggregateValues,
+  hasRuntimeGraphBundlePendingRevision,
   prepareRuntimeAssetBundle,
   prepareRuntimeAssetView,
   planRuntimeGraphBundleApplication,
   planRuntimeProgramControllerSync,
+  queueRuntimeGraphBundlePendingUpdate,
+  removeRuntimeGraphBundlePendingUpdates,
+  resolveRuntimeGraphBundleErrorSources,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
+  shouldAcknowledgeRuntimeGraphBundleImmediately,
   toStoredAnimationClip,
 } from "../index";
 import type { VizijAssetBundle, VizijGraphAsset } from "../types";
@@ -404,6 +409,122 @@ describe("studio support package", () => {
       reregistered: true,
       reloadedAssets: false,
     });
+  });
+
+  it("dedupes pending graph bundle updates by source key and removes applied revisions", () => {
+    const current = [
+      {
+        revision: 1,
+        source: { key: "runtime-graph", signature: "graph:v1" },
+        reregistered: true,
+        reloadedAssets: false,
+      },
+      {
+        revision: 2,
+        source: { key: "animation", signature: "animation:v1" },
+        reregistered: true,
+        reloadedAssets: false,
+      },
+    ];
+    const pending = {
+      revision: 3,
+      source: { key: "animation", signature: "animation:v2" },
+      reregistered: true,
+      reloadedAssets: false,
+    };
+
+    const queued = queueRuntimeGraphBundlePendingUpdate(current, pending);
+
+    expect(queued.map((update) => update.revision)).toEqual([1, 3]);
+    expect(hasRuntimeGraphBundlePendingRevision(queued, 3)).toBe(true);
+    expect(
+      removeRuntimeGraphBundlePendingUpdates(queued, [pending]).map(
+        (update) => update.revision,
+      ),
+    ).toEqual([1]);
+
+    const anonymousQueued = queueRuntimeGraphBundlePendingUpdate(
+      [
+        {
+          revision: 4,
+          source: { signature: "same" },
+          reregistered: false,
+          reloadedAssets: false,
+        },
+        {
+          revision: 5,
+          source: { signature: "other" },
+          reregistered: false,
+          reloadedAssets: false,
+        },
+      ],
+      {
+        revision: 6,
+        source: { signature: "same" },
+        reregistered: false,
+        reloadedAssets: false,
+      },
+    );
+
+    expect(anonymousQueued.map((update) => update.revision)).toEqual([5, 6]);
+  });
+
+  it("plans immediate graph bundle acknowledgement only when no host work is required", () => {
+    const pendingUpdate = {
+      revision: 1,
+      source: { key: "runtime-graph", signature: "graph:v1" },
+      reregistered: false,
+      reloadedAssets: false,
+    };
+
+    expect(
+      shouldAcknowledgeRuntimeGraphBundleImmediately({
+        pendingUpdate,
+        plan: { reloadAssets: false, reregisterGraphs: false },
+      }),
+    ).toBe(true);
+    expect(
+      shouldAcknowledgeRuntimeGraphBundleImmediately({
+        pendingUpdate,
+        plan: { reloadAssets: false, reregisterGraphs: true },
+      }),
+    ).toBe(false);
+    expect(
+      shouldAcknowledgeRuntimeGraphBundleImmediately({
+        pendingUpdate: null,
+        plan: { reloadAssets: false, reregisterGraphs: false },
+      }),
+    ).toBe(false);
+  });
+
+  it("resolves graph bundle error sources by host failure phase", () => {
+    const updates = [
+      {
+        revision: 1,
+        source: { key: "runtime-graph", signature: "graph:v1" },
+        reregistered: true,
+        reloadedAssets: false,
+      },
+      {
+        revision: 2,
+        source: { key: "animation", signature: "animation:v1" },
+        reregistered: true,
+        reloadedAssets: false,
+      },
+    ];
+
+    expect(
+      resolveRuntimeGraphBundleErrorSources({ phase: "animation" }, updates),
+    ).toEqual([{ key: "animation", signature: "animation:v1" }]);
+    expect(
+      resolveRuntimeGraphBundleErrorSources({ phase: "registration" }, updates),
+    ).toEqual([{ key: "runtime-graph", signature: "graph:v1" }]);
+    expect(
+      resolveRuntimeGraphBundleErrorSources({ phase: "other" }, updates),
+    ).toEqual([
+      { key: "runtime-graph", signature: "graph:v1" },
+      { key: "animation", signature: "animation:v1" },
+    ]);
   });
 
   it("does not re-register graphs for deeply equal freshly allocated graph payloads", () => {

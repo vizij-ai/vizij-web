@@ -4,6 +4,7 @@ import type {
   RuntimeUpdatePlan,
   RuntimeGraphBundle,
   RuntimeGraphBundleApplicationPlan,
+  RuntimeGraphBundlePendingUpdate,
   RuntimeGraphBundleUpdateSource,
 } from "./types";
 
@@ -269,4 +270,85 @@ export function planRuntimeGraphBundleApplication(args: {
     updatePlan,
     pendingUpdate,
   };
+}
+
+export function queueRuntimeGraphBundlePendingUpdate(
+  current: readonly RuntimeGraphBundlePendingUpdate[],
+  pendingUpdate: RuntimeGraphBundlePendingUpdate | null,
+): RuntimeGraphBundlePendingUpdate[] {
+  if (!pendingUpdate) {
+    return [...current];
+  }
+  const pendingSourceKey = pendingUpdate.source.key;
+  const retained = current.filter((update) => {
+    if (pendingSourceKey != null) {
+      return update.source.key !== pendingSourceKey;
+    }
+    return (
+      update.source.key !== pendingUpdate.source.key ||
+      update.source.signature !== pendingUpdate.source.signature
+    );
+  });
+  return [...retained, pendingUpdate];
+}
+
+export function removeRuntimeGraphBundlePendingUpdates(
+  current: readonly RuntimeGraphBundlePendingUpdate[],
+  applied: readonly RuntimeGraphBundlePendingUpdate[],
+): RuntimeGraphBundlePendingUpdate[] {
+  if (applied.length === 0) {
+    return [...current];
+  }
+  const appliedRevisions = new Set(applied.map((update) => update.revision));
+  return current.filter((update) => !appliedRevisions.has(update.revision));
+}
+
+export function shouldAcknowledgeRuntimeGraphBundleImmediately(args: {
+  plan: RuntimeUpdatePlan;
+  pendingUpdate: RuntimeGraphBundlePendingUpdate | null;
+}): boolean {
+  return (
+    args.pendingUpdate !== null &&
+    !args.plan.reregisterGraphs &&
+    !args.plan.reloadAssets
+  );
+}
+
+export function hasRuntimeGraphBundlePendingRevision(
+  updates: readonly RuntimeGraphBundlePendingUpdate[],
+  revision: number,
+): boolean {
+  return updates.some((update) => update.revision === revision);
+}
+
+function copyRuntimeUpdateSources(
+  updates: readonly RuntimeGraphBundlePendingUpdate[],
+): RuntimeGraphBundleUpdateSource[] {
+  return updates.map((update) => ({ ...update.source }));
+}
+
+export function resolveRuntimeGraphBundleErrorSources(
+  error: { phase?: string | null },
+  updates: readonly RuntimeGraphBundlePendingUpdate[],
+): RuntimeGraphBundleUpdateSource[] | undefined {
+  if (updates.length === 0) {
+    return undefined;
+  }
+  if (updates.length === 1) {
+    return copyRuntimeUpdateSources(updates);
+  }
+
+  const matchingUpdates = updates.filter((update) => {
+    if (error.phase === "animation") {
+      return update.source.key === "animation";
+    }
+    if (error.phase === "registration") {
+      return update.source.key !== "animation";
+    }
+    return true;
+  });
+
+  return copyRuntimeUpdateSources(
+    matchingUpdates.length > 0 ? matchingUpdates : updates,
+  );
 }
