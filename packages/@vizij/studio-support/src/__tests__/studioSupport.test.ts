@@ -11,7 +11,9 @@ import {
   planRuntimeProgramControllerSync,
   queueRuntimeGraphBundlePendingUpdate,
   removeRuntimeGraphBundlePendingUpdates,
+  prepareRuntimeLoadedAssetPayload,
   resolveRuntimeGraphBundleErrorSources,
+  resolveInitialRuntimeExtractedBundle,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
   shouldAcknowledgeRuntimeGraphBundleImmediately,
@@ -114,6 +116,52 @@ describe("studio support package", () => {
     expect(prepared.programs).toEqual([]);
     expect(prepared.assetBundle.rig).toBeUndefined();
     expect(prepared.assetBundle.pose).toBeUndefined();
+  });
+
+  it("prepares loaded runtime asset payloads outside runtime-react", () => {
+    const embeddedBundle: VizijAssetBundle["bundle"] = {
+      version: 1,
+      graphs: [{ id: "rig", kind: "rig", spec: { nodes: [] } }],
+    };
+    const extractedBundle: VizijAssetBundle["bundle"] = {
+      version: 1,
+      graphs: [{ id: "loaded-rig", kind: "rig", spec: { nodes: [] } }],
+    };
+    const assetBundle = makeBaseBundle({
+      glb: {
+        kind: "url",
+        src: "/face.glb",
+      },
+      bundle: embeddedBundle,
+    });
+
+    expect(resolveInitialRuntimeExtractedBundle(assetBundle)).toBe(
+      embeddedBundle,
+    );
+
+    const payload = prepareRuntimeLoadedAssetPayload(assetBundle, {
+      world: { root: { id: "root", type: "group" } },
+      animatables: { smile: { type: "number", value: 0 } },
+      bundle: extractedBundle,
+      animations: [
+        {
+          name: "blink",
+          duration: 0.2,
+          tracks: [
+            {
+              componentId: "eyes/blink",
+              times: [0, 0.2],
+              values: [0, 1],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(payload.bundle).toBe(extractedBundle);
+    expect(payload.world).toMatchObject({ root: { id: "root" } });
+    expect(payload.animations).toHaveLength(1);
+    expect(payload.animations[0]?.id).toBe("blink");
   });
 
   it("builds namespaced graph registration configs", () => {

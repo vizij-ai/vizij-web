@@ -27,7 +27,6 @@ import {
   type ShapeJSON,
 } from "@vizij/orchestrator-react";
 import {
-  convertExtractedAnimations,
   deriveProgramInputSeedValues,
   deriveProgramResetValues,
   advanceClipTime,
@@ -42,7 +41,7 @@ import {
   normalisePath,
   planRuntimeProgramControllerSync,
   planRuntimeGraphBundleApplication,
-  pickExtractedAnimations,
+  prepareRuntimeLoadedAssetPayload,
   prepareRuntimeRegistrationPlan,
   prepareRuntimeAssetView,
   queueRuntimeGraphBundlePendingUpdate,
@@ -50,6 +49,7 @@ import {
   resolveClipDurationSeconds,
   resolveAnimationTransportMode,
   resolvePoseControlInputPath,
+  resolveInitialRuntimeExtractedBundle,
   resolveRuntimeGraphBundleErrorSources,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
@@ -358,16 +358,7 @@ function VizijRuntimeProviderInner({
     useRef<VizijAssetBundle>(effectiveAssetBundle);
   const [extractedBundle, setExtractedBundle] =
     useState<VizijBundleExtension | null>(() => {
-      if (effectiveAssetBundle.bundle) {
-        return effectiveAssetBundle.bundle;
-      }
-      if (
-        effectiveAssetBundle.glb.kind === "world" &&
-        effectiveAssetBundle.glb.bundle
-      ) {
-        return effectiveAssetBundle.glb.bundle;
-      }
-      return null;
+      return resolveInitialRuntimeExtractedBundle(effectiveAssetBundle);
     });
   const extractedBundleRef = useRef<VizijBundleExtension | null>(
     extractedBundle,
@@ -390,15 +381,9 @@ function VizijRuntimeProviderInner({
   const updateTierRef = useRef<RuntimeUpdateTier>(updateTier);
 
   useEffect(() => {
-    if (effectiveAssetBundle.bundle) {
-      setExtractedBundle(effectiveAssetBundle.bundle);
-      return;
-    }
-    if (effectiveAssetBundle.glb.kind === "world") {
-      setExtractedBundle(effectiveAssetBundle.glb.bundle ?? null);
-    } else {
-      setExtractedBundle(null);
-    }
+    setExtractedBundle(
+      resolveInitialRuntimeExtractedBundle(effectiveAssetBundle),
+    );
   }, [effectiveAssetBundle]);
 
   useEffect(() => {
@@ -416,6 +401,13 @@ function VizijRuntimeProviderInner({
   );
   const assetBundle = runtimeAssetView.assetBundle;
   const resolvedProgramAssets = runtimeAssetView.programs;
+  const sourceAssetBundle = useMemo(
+    () => ({
+      glb: effectiveAssetBundle.glb,
+      bundle: effectiveAssetBundle.bundle ?? null,
+    }),
+    [effectiveAssetBundle.bundle, effectiveAssetBundle.glb],
+  );
 
   useEffect(() => {
     extractedBundleRef.current = extractedBundle;
@@ -977,8 +969,6 @@ function VizijRuntimeProviderInner({
   }, [animationTransport]);
 
   const glbAsset = effectiveAssetBundle.glb;
-  const baseBundle: VizijBundleExtension | null =
-    effectiveAssetBundle.bundle ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -1005,49 +995,45 @@ function VizijRuntimeProviderInner({
 
     const loadAssets = async () => {
       try {
-        let world: Record<string, any>;
-        let animatables: Record<string, AnimatableValue>;
-        let bundle: VizijBundleExtension | null = baseBundle;
-        let gltfAnimations: Parameters<typeof convertExtractedAnimations>[0];
+        let loadedAsset: Parameters<typeof prepareRuntimeLoadedAssetPayload>[1];
 
         if (glbAsset.kind === "url") {
-          const loaded = await loadGLTFWithBundle(
+          loadedAsset = await loadGLTFWithBundle(
             glbAsset.src,
             [namespace],
             glbAsset.aggressiveImport ?? false,
             glbAsset.rootBounds,
           );
-          world = loaded.world as Record<string, any>;
-          animatables = loaded.animatables;
-          bundle = loaded.bundle ?? bundle;
-          gltfAnimations = pickExtractedAnimations(loaded);
         } else if (glbAsset.kind === "blob") {
-          const loaded = await loadGLTFFromBlobWithBundle(
+          loadedAsset = await loadGLTFFromBlobWithBundle(
             glbAsset.blob,
             [namespace],
             glbAsset.aggressiveImport ?? false,
             glbAsset.rootBounds,
           );
-          world = loaded.world as Record<string, any>;
-          animatables = loaded.animatables;
-          bundle = loaded.bundle ?? bundle;
-          gltfAnimations = pickExtractedAnimations(loaded);
         } else {
-          world = glbAsset.world as Record<string, any>;
-          animatables = glbAsset.animatables as Record<string, AnimatableValue>;
-          bundle = glbAsset.bundle ?? bundle;
-          gltfAnimations = undefined;
+          loadedAsset = null;
         }
 
         if (cancelled) {
           return;
         }
 
-        setExtractedBundle(bundle ?? null);
-        setExtractedAnimations(convertExtractedAnimations(gltfAnimations));
+        const loadedPayload = prepareRuntimeLoadedAssetPayload(
+          sourceAssetBundle,
+          loadedAsset,
+        );
+        setExtractedBundle(loadedPayload.bundle);
+        setExtractedAnimations(loadedPayload.animations);
 
-        const rootId = findRootId(world);
-        store.getState().addWorldElements(world as any, animatables, true);
+        const rootId = findRootId(loadedPayload.world as Record<string, any>);
+        store
+          .getState()
+          .addWorldElements(
+            loadedPayload.world as any,
+            loadedPayload.animatables as Record<string, AnimatableValue>,
+            true,
+          );
 
         // Clear the initial reloadAssets flag so the status.rootId dep
         // change doesn't re-trigger a full reload (infinite-loop guard).
@@ -1091,7 +1077,7 @@ function VizijRuntimeProviderInner({
     };
   }, [
     glbAsset,
-    baseBundle,
+    sourceAssetBundle,
     namespace,
     faceId,
     store,

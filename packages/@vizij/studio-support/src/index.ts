@@ -1,4 +1,5 @@
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import type { AnimatableValue } from "@vizij/utils";
 import type {
   AnimationRegistrationConfig,
   AnimationClipLike,
@@ -15,6 +16,7 @@ import type {
   RuntimeRegistrationPlan,
   ShapeJSON,
   ValueJSON,
+  World,
   VizijBundleAnimationEntry,
   VizijBundleExtension,
   VizijBundleGraphEntry,
@@ -1180,6 +1182,64 @@ export function pickExtractedAnimations(
     return undefined;
   }
   return animations as ExtractedAnimationClip[];
+}
+
+export type RuntimeLoadedAssetHostResult = {
+  world: World | Record<string, unknown>;
+  animatables: Record<string, AnimatableValue> | Record<string, unknown>;
+  bundle?: VizijBundleExtension | null;
+  animations?: unknown;
+};
+
+export type RuntimeLoadedAssetPayload = {
+  world: World | Record<string, unknown>;
+  animatables: Record<string, AnimatableValue> | Record<string, unknown>;
+  bundle: VizijBundleExtension | null;
+  animations: VizijAnimationAsset[];
+};
+
+export function resolveInitialRuntimeExtractedBundle(
+  assetBundle: Pick<VizijAssetBundle, "glb" | "bundle">,
+): VizijBundleExtension | null {
+  if (assetBundle.bundle) {
+    return assetBundle.bundle;
+  }
+  if (assetBundle.glb.kind === "world") {
+    return assetBundle.glb.bundle ?? null;
+  }
+  return null;
+}
+
+export function prepareRuntimeLoadedAssetPayload(
+  assetBundle: Pick<VizijAssetBundle, "glb" | "bundle">,
+  loadedAsset?: RuntimeLoadedAssetHostResult | null,
+): RuntimeLoadedAssetPayload {
+  const baseBundle = assetBundle.bundle ?? null;
+  const source =
+    loadedAsset ??
+    (assetBundle.glb.kind === "world"
+      ? {
+          world: assetBundle.glb.world,
+          animatables: assetBundle.glb.animatables,
+          bundle: assetBundle.glb.bundle ?? null,
+        }
+      : null);
+
+  if (!source) {
+    return {
+      world: {},
+      animatables: {},
+      bundle: baseBundle,
+      animations: [],
+    };
+  }
+
+  return {
+    world: source.world,
+    animatables: source.animatables,
+    bundle: source.bundle ?? baseBundle,
+    animations: convertExtractedAnimations(pickExtractedAnimations(source)),
+  };
 }
 
 function mergeAnimationLists(
