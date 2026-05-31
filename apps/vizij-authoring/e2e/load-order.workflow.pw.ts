@@ -22,14 +22,21 @@ test("latest preset selection wins when an older preset response arrives late @w
   });
   await page.waitForTimeout(12_000);
 
-  await expect(page.getByTestId("control-authoring-tab-animations")).toHaveText(
-    "Animations (0)",
-  );
-  await expect(page.getByTestId("control-authoring-tab-programs")).toHaveText(
-    "Programs (0)",
-  );
+  await expect(
+    page.getByTestId("control-authoring-tab-animations"),
+  ).toHaveAccessibleName("Animations (0)");
+  await expect(
+    page.getByTestId("control-authoring-tab-programs"),
+  ).toHaveAccessibleName("Programs (1)");
   await expect(page.locator("body")).not.toContainText("Nonesense");
-  await expect(page.locator("body")).not.toContainText(
-    "New Procedural Program",
-  );
+  await expect(page.locator("body")).not.toContainText("Speaks");
+  await expect(page.locator("body")).not.toContainText("Live");
+  await page.getByTestId("control-authoring-tab-programs").click();
+  const programItems = page
+    .getByTestId("control-authoring-panel-programs")
+    .getByTestId("authoring-program-item");
+  await expect(programItems).toHaveCount(1);
+  await expect(
+    programItems.first().getByTestId("authoring-program-item-label"),
+  ).toContainText("motiongraph");
 });

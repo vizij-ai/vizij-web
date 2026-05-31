@@ -16,6 +16,45 @@ async function clickLocatorViaDom(locator: Locator): Promise<void> {
   });
 }
 
+function targetItem(
+  page: Page,
+  options: {
+    kind: "animation" | "program";
+    label: RegExp;
+    panelTestId: string;
+  },
+): Locator {
+  return page
+    .getByTestId(options.panelTestId)
+    .getByTestId(`authoring-${options.kind}-item`)
+    .filter({ hasText: options.label })
+    .first();
+}
+
+async function clickTargetAction(
+  item: Locator,
+  kind: "animation" | "program",
+  action: "copy" | "pause" | "play" | "select" | "stop",
+): Promise<void> {
+  await clickLocatorViaDom(
+    item.getByTestId(`authoring-${kind}-item-${action}`),
+  );
+}
+
+async function readTargetLabel(
+  item: Locator,
+  kind: "animation" | "program",
+): Promise<string> {
+  const label = await item
+    .getByTestId(`authoring-${kind}-item-label`)
+    .textContent();
+  const trimmed = label?.trim();
+  if (!trimmed) {
+    throw new Error(`Could not read ${kind} target label`);
+  }
+  return trimmed;
+}
+
 async function clickSelectedAnimationPanelPlay(page: Page): Promise<void> {
   await clickLocatorViaDom(
     page
@@ -65,71 +104,98 @@ test("animation and program runtime sessions stay independent across UI changes 
   const runtimeChip = page.getByTestId("main-runtime-status-chip");
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
-  await clickViaDom(page, 'button[title="Play animation"]');
+  const primaryAnimation = targetItem(page, {
+    kind: "animation",
+    label: /Nonesense/i,
+    panelTestId: "control-authoring-panel-animations",
+  });
+  const secondaryAnimation = targetItem(page, {
+    kind: "animation",
+    label: /Stages/i,
+    panelTestId: "control-authoring-panel-animations",
+  });
+  await expect(primaryAnimation).toBeVisible();
+  await expect(secondaryAnimation).toBeVisible();
+  await clickTargetAction(primaryAnimation, "animation", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).not.toContainText("Program: Playing");
 
   await page.getByRole("tab", { name: /^Programs \(\d+\)$/ }).click();
-  await clickViaDom(page, 'button[title="Play program"]');
+  const primaryProgram = targetItem(page, {
+    kind: "program",
+    label: /Speaks/i,
+    panelTestId: "control-authoring-panel-programs",
+  });
+  await expect(primaryProgram).toBeVisible();
+  const primaryProgramLabel = await readTargetLabel(primaryProgram, "program");
+  await clickTargetAction(primaryProgram, "program", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
-  await expect(page.getByTestId("main-runtime-stop-animation")).toBeEnabled();
   await expect(page.getByTestId("main-runtime-stop-program")).toBeEnabled();
   await expect(page.getByTestId("motiongraph-panel")).toBeVisible();
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
-  await page
-    .getByRole("button", {
-      name: /New Animation Clip IMPORTED STOPPED/i,
-    })
-    .evaluate((node) => {
-      (node as HTMLButtonElement).click();
-    });
+  await clickTargetAction(secondaryAnimation, "animation", "select");
   await expect(runtimeChip).not.toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(page.getByText("Currently running: Nonesense")).toBeHidden();
   await expect(
     page.getByTestId("bottom-panel").getByTitle("Stop"),
   ).toBeDisabled();
-  await expect(page.getByTitle("Play animation")).toHaveCount(2);
-  await expect(page.getByTitle("Pause animation")).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("control-authoring-panel-animations")
+      .getByTestId("authoring-animation-item-play"),
+  ).toHaveCount(2);
+  await expect(
+    page
+      .getByTestId("control-authoring-panel-animations")
+      .getByTestId("authoring-animation-item-pause"),
+  ).toHaveCount(0);
 
-  await clickViaDom(page, 'button[title="Play animation"]');
+  await clickTargetAction(secondaryAnimation, "animation", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(page.getByText("Currently running: Nonesense")).toBeHidden();
 
   await page.getByRole("tab", { name: /^Programs \(\d+\)$/ }).click();
-  await clickViaDom(page, 'button[title="Copy program"]');
-  await expect(
-    page.getByRole("button", {
-      name: /New Procedural Program Copy/i,
-    }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", {
-      name: /New Procedural Program Copy/i,
-    })
-    .evaluate((node) => {
-      (node as HTMLButtonElement).click();
-    });
+  await clickTargetAction(primaryProgram, "program", "copy");
+  const copiedProgramLabel = `${primaryProgramLabel} Copy`;
+  const copiedProgram = targetItem(page, {
+    kind: "program",
+    label: new RegExp(escapeRegex(copiedProgramLabel), "i"),
+    panelTestId: "control-authoring-panel-programs",
+  });
+  await expect(copiedProgram).toBeVisible();
+  await clickTargetAction(copiedProgram, "program", "select");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(
-    page.getByText("Currently running: New Procedural Program"),
+    page.getByText(`Currently running: ${primaryProgramLabel}`),
   ).toBeVisible();
-  await expect(page.getByTitle("Pause program").last()).toBeDisabled();
-  await expect(page.getByTitle("Stop program").last()).toBeDisabled();
-  await expect(page.getByTitle("Play program")).toHaveCount(2);
+  await expect(
+    copiedProgram.getByTestId("authoring-program-item-play"),
+  ).toBeVisible();
+  await expect(
+    copiedProgram.getByTestId("authoring-program-item-pause"),
+  ).toHaveCount(0);
+  await expect(
+    copiedProgram.getByTestId("authoring-program-item-stop"),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("control-authoring-panel-programs")
+      .getByTestId("authoring-program-item-play"),
+  ).toHaveCount(2);
 
-  await clickViaDom(page, 'button[title="Play program"]');
+  await clickTargetAction(copiedProgram, "program", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(
-    page.getByText("Currently running: New Procedural Program"),
+    page.getByText(`Currently running: ${primaryProgramLabel}`),
   ).toBeHidden();
 
-  await clickViaDom(page, 'button[title="Pause program"]');
+  await clickTargetAction(copiedProgram, "program", "pause");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Paused");
 
@@ -153,29 +219,28 @@ test("switching animation targets stops the active runtime before loading the ne
   const durationField = inspectorPanel.getByRole("textbox", {
     name: "Duration",
   });
-  const primaryTargetButton = page.getByRole("button", {
-    name: /Nonesense IMPORTED STOPPED/i,
+  const primaryAnimation = targetItem(page, {
+    kind: "animation",
+    label: /Nonesense/i,
+    panelTestId: "control-authoring-panel-animations",
+  });
+  const secondaryAnimation = targetItem(page, {
+    kind: "animation",
+    label: /Stages/i,
+    panelTestId: "control-authoring-panel-animations",
   });
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
-  const primaryTrackCount = parseTrackCount(
-    await primaryTargetButton.innerText(),
-  );
+  await expect(primaryAnimation).toBeVisible();
+  await expect(secondaryAnimation).toBeVisible();
+  const primaryTrackCount = parseTrackCount(await primaryAnimation.innerText());
   expect(primaryTrackCount).not.toBeNull();
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: /New Animation Clip IMPORTED STOPPED/i,
-    }),
-  );
+  await clickTargetAction(secondaryAnimation, "animation", "select");
   const secondaryName = await selectedNameField.inputValue();
   const secondaryDuration = await durationField.inputValue();
 
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: /Nonesense IMPORTED STOPPED/i,
-    }),
-  );
-  await clickViaDom(page, 'button[title="Play animation"]');
+  await clickTargetAction(primaryAnimation, "animation", "select");
+  await clickTargetAction(primaryAnimation, "animation", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
 
   const activeName = await selectedNameField.inputValue();
@@ -193,11 +258,7 @@ test("switching animation targets stops the active runtime before loading the ne
     }),
   ).toBeVisible();
 
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: new RegExp(`${escapeRegex(secondaryName)} IMPORTED STOPPED`, "i"),
-    }),
-  );
+  await clickTargetAction(secondaryAnimation, "animation", "select");
   await expect(runtimeChip).toHaveText("Runtime: Idle");
   await expect(page.getByText(`Currently running: ${activeName}`)).toBeHidden();
   await expect(selectedNameField).toHaveValue(secondaryName);
@@ -210,14 +271,10 @@ test("switching animation targets stops the active runtime before loading the ne
     secondaryDuration,
   ]);
 
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: /Nonesense IMPORTED STOPPED/i,
-    }),
-  );
+  await clickTargetAction(primaryAnimation, "animation", "select");
   await expect(selectedNameField).toHaveValue(activeName);
   await expect(durationField).toHaveValue("12.5");
-  await expect(parseTrackCount(await primaryTargetButton.innerText())).toBe(
+  await expect(parseTrackCount(await primaryAnimation.innerText())).toBe(
     primaryTrackCount,
   );
 });

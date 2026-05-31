@@ -42,15 +42,23 @@ Latest validation:
 
 1. `pnpm --filter @vizij/studio-support lint`
 2. `pnpm --filter @vizij/studio-support typecheck`
-3. `pnpm --filter @vizij/studio-support test` - 19 files, 77 tests passed.
+3. `pnpm --filter @vizij/studio-support test` - 20 files, 82 tests passed.
 4. `pnpm --filter @vizij/studio-support build`
 5. `pnpm --filter @vizij/studio-support prettier:check`
-6. `pnpm --filter vizij-authoring lint`
-7. `pnpm --filter vizij-authoring typecheck`
-8. `pnpm --filter vizij-authoring test` - 99 files passed, 698 tests passed, 1 perf test skipped.
-9. `pnpm --filter vizij-authoring prettier:check`
-10. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed, including UI-edited animation and graph execution through Arora Web composed runtime and exported GLB round-trip.
-11. `pnpm --filter vizij-authoring test:e2e:smoke` - 4 smoke tests passed across app load, export dialog, reference-face copy/reset, and motiongraph.
+6. `pnpm --filter @vizij/runtime-react lint`
+7. `pnpm --filter @vizij/runtime-react typecheck`
+8. `pnpm --filter @vizij/runtime-react test` - 8 files, 32 tests passed.
+9. `pnpm --filter @vizij/runtime-react build`
+10. `pnpm --filter @vizij/runtime-react prettier:check`
+11. `pnpm --filter vizij-authoring lint`
+12. `pnpm --filter vizij-authoring typecheck`
+13. `pnpm --filter vizij-authoring prettier:check`
+14. `pnpm --filter vizij-authoring test` - 99 files passed, 698 tests passed, 1 perf test skipped.
+15. `pnpm --filter vizij-authoring exec playwright test --config=playwright.config.ts e2e/load-order.workflow.pw.ts e2e/pose-lifecycle.workflow.pw.ts e2e/pose-roundtrip.workflow.pw.ts e2e/runtime-sessions.workflow.pw.ts --project=workflow --workers=1` - 5 workflow tests passed.
+16. `pnpm --filter vizij-authoring exec playwright test --config=playwright.config.ts --project=smoke --workers=1` - 4 smoke tests passed across app load, export dialog, reference-face copy/reset, and motiongraph.
+17. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed, including UI-edited animation and graph execution through Arora Web composed runtime and exported GLB round-trip.
+
+The 2026-05-31 hardening pass also corrected stale browser assertions in the authoring E2E suite: tab counts now read the stable accessible labels, the delayed-load workflow verifies the current `quori:basic` program target from the rendered Programs panel, and runtime-session tests target concrete animation/program rows instead of page-global button titles.
 
 This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly and reducing duplicate compile semantics.
 

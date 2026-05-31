@@ -170,8 +170,10 @@ export async function readDownloadedText(download: Download): Promise<string> {
 }
 
 export async function readTabCount(locator: Locator): Promise<number> {
-  const text = (await locator.textContent())?.trim() ?? "";
-  const match = text.match(/\((\d+)\)$/);
+  const label = (await locator.getAttribute("aria-label"))?.trim();
+  const visibleText = (await locator.textContent())?.trim() ?? "";
+  const text = label ?? visibleText;
+  const match = text.match(/\((\d+)\)$/) ?? text.match(/(\d+)$/);
   if (!match) {
     throw new Error(`Could not read tab count from "${text}"`);
   }
