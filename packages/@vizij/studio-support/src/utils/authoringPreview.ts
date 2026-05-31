@@ -41,6 +41,16 @@ export interface AuthoringCompileTargetStateLike {
   signature?: string | null;
 }
 
+export interface AuthoringPreviewCompileState
+  extends AuthoringCompileTargetStateLike {
+  target: AuthoringPreviewTarget;
+}
+
+export interface AuthoringPreviewUpdateSource {
+  key: AuthoringPreviewTarget;
+  signature: string;
+}
+
 export function resolveAuthoringCompileTargetState({
   current,
   status,
@@ -77,6 +87,22 @@ export interface RuntimeGraphPreviewBundleResult {
   hasPayload: boolean;
 }
 
+export interface RuntimeGraphPreviewTransactionOptions {
+  preview: RuntimeGraphPreviewBundleResult;
+  lastPublishedSignature?: string | null;
+  managedPayload: boolean;
+}
+
+export interface RuntimeGraphPreviewTransactionPlan {
+  shouldPublish: boolean;
+  bundle: RuntimeGraphPreviewBundleResult["bundle"];
+  source: AuthoringPreviewUpdateSource;
+  compilingState: AuthoringPreviewCompileState;
+  compiledState: AuthoringPreviewCompileState;
+  nextPublishedSignature: string | null;
+  nextManagedPayload: boolean;
+}
+
 export interface AnimationPreviewBundleOptions {
   active: boolean;
   authoredClip?: AnimationClipIR | null;
@@ -91,6 +117,26 @@ export interface AnimationPreviewBundleResult {
   authoredAnimation: VizijAnimationAsset | null;
   outputPaths: string[];
   signature: string;
+}
+
+export interface AnimationPreviewTransactionOptions {
+  preview: AnimationPreviewBundleResult;
+  currentSignature: string;
+  lastCurrentSignature?: string | null;
+  appliedSignature?: string | null;
+  dirtyMessage?: string | null;
+}
+
+export interface AnimationPreviewTransactionPlan {
+  converged: boolean;
+  shouldPublish: boolean;
+  bundle: AnimationPreviewBundleResult["bundle"];
+  source: AuthoringPreviewUpdateSource;
+  dirtyState: AuthoringPreviewCompileState | null;
+  compilingState: AuthoringPreviewCompileState;
+  compiledState: AuthoringPreviewCompileState;
+  nextLastCurrentSignature: string;
+  nextAppliedSignature: string | null;
 }
 
 export interface MotionGraphRuntimeResetEntry {
@@ -113,6 +159,27 @@ export interface MotionGraphPreviewBundleResult {
   programAsset: VizijProgramAsset | null;
   managedProgramId: string | null;
   signature: string;
+}
+
+export interface MotionGraphPreviewTransactionOptions {
+  preview: MotionGraphPreviewBundleResult;
+  currentSignature: string;
+  lastCurrentSignature?: string | null;
+  appliedSignature?: string | null;
+  touchedProgramBundle: boolean;
+}
+
+export interface MotionGraphPreviewTransactionPlan {
+  converged: boolean;
+  shouldPublish: boolean;
+  bundle: MotionGraphPreviewBundleResult["bundle"];
+  source: AuthoringPreviewUpdateSource;
+  compilingState: AuthoringPreviewCompileState;
+  compiledState: AuthoringPreviewCompileState;
+  nextLastCurrentSignature: string;
+  nextAppliedSignature: string | null;
+  nextTouchedProgramBundle: boolean;
+  shouldClearManagedProgramId: boolean;
 }
 
 function resolveStandardInputForRuntimePath(
@@ -177,6 +244,121 @@ export function toDeterministicSignature(value: unknown): string {
       });
     return sorted;
   });
+}
+
+function buildCompileState(
+  target: AuthoringPreviewTarget,
+  status: AuthoringPreviewCompileStatus,
+  signature: string,
+  message: string | null = null,
+): AuthoringPreviewCompileState {
+  return {
+    target,
+    status,
+    message,
+    signature,
+  };
+}
+
+function buildUpdateSource(
+  target: AuthoringPreviewTarget,
+  signature: string,
+): AuthoringPreviewUpdateSource {
+  return { key: target, signature };
+}
+
+export function planRuntimeGraphPreviewTransaction(
+  options: RuntimeGraphPreviewTransactionOptions,
+): RuntimeGraphPreviewTransactionPlan {
+  const signature = options.preview.signature;
+  const shouldPublish =
+    (options.preview.hasPayload || options.managedPayload) &&
+    options.lastPublishedSignature !== signature;
+
+  return {
+    shouldPublish,
+    bundle: options.preview.bundle,
+    source: buildUpdateSource("runtime-graph", signature),
+    compilingState: buildCompileState("runtime-graph", "compiling", signature),
+    compiledState: buildCompileState("runtime-graph", "compiled", signature),
+    nextPublishedSignature: shouldPublish
+      ? signature
+      : (options.lastPublishedSignature ?? null),
+    nextManagedPayload: shouldPublish
+      ? options.preview.hasPayload
+      : options.managedPayload,
+  };
+}
+
+export function planAnimationPreviewTransaction(
+  options: AnimationPreviewTransactionOptions,
+): AnimationPreviewTransactionPlan {
+  const signature = options.preview.signature;
+  const currentChanged =
+    options.lastCurrentSignature !== options.currentSignature;
+  const adjustedAppliedSignature =
+    currentChanged && options.currentSignature !== signature
+      ? null
+      : (options.appliedSignature ?? null);
+  const converged = options.currentSignature === signature;
+  const shouldPublish = !converged && adjustedAppliedSignature !== signature;
+
+  return {
+    converged,
+    shouldPublish,
+    bundle: options.preview.bundle,
+    source: buildUpdateSource("animation", signature),
+    dirtyState: converged
+      ? null
+      : buildCompileState(
+          "animation",
+          "dirty",
+          signature,
+          options.dirtyMessage ?? "Animation preview changed",
+        ),
+    compilingState: buildCompileState("animation", "compiling", signature),
+    compiledState: buildCompileState("animation", "compiled", signature),
+    nextLastCurrentSignature: options.currentSignature,
+    nextAppliedSignature:
+      converged || shouldPublish ? signature : adjustedAppliedSignature,
+  };
+}
+
+export function planMotionGraphPreviewTransaction(
+  options: MotionGraphPreviewTransactionOptions,
+): MotionGraphPreviewTransactionPlan {
+  const signature = options.preview.signature;
+  const currentChanged =
+    options.lastCurrentSignature !== options.currentSignature;
+  const adjustedAppliedSignature =
+    currentChanged && options.currentSignature !== signature
+      ? null
+      : (options.appliedSignature ?? null);
+  const hasProgramAsset = options.preview.programAsset !== null;
+  const converged = options.currentSignature === signature;
+  const activeOrManaged = hasProgramAsset || options.touchedProgramBundle;
+  const shouldPublish =
+    activeOrManaged && !converged && adjustedAppliedSignature !== signature;
+
+  return {
+    converged,
+    shouldPublish,
+    bundle: options.preview.bundle,
+    source: buildUpdateSource("motiongraph", signature),
+    compilingState: buildCompileState("motiongraph", "compiling", signature),
+    compiledState: buildCompileState("motiongraph", "compiled", signature),
+    nextLastCurrentSignature: options.currentSignature,
+    nextAppliedSignature:
+      converged || shouldPublish ? signature : adjustedAppliedSignature,
+    nextTouchedProgramBundle: converged
+      ? options.preview.programs.length === 0
+        ? false
+        : options.touchedProgramBundle
+      : shouldPublish
+        ? true
+        : options.touchedProgramBundle,
+    shouldClearManagedProgramId: converged && !hasProgramAsset,
+  };
 }
 
 function isAuthoredTimelineAnimation(animation: VizijAnimationAsset): boolean {

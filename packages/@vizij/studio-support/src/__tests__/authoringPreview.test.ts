@@ -8,6 +8,9 @@ import {
   mergeManagedProgramAsset,
   MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
   MOTION_GRAPH_OUTPUT_TARGET_TYPE,
+  planAnimationPreviewTransaction,
+  planMotionGraphPreviewTransaction,
+  planRuntimeGraphPreviewTransaction,
   resolveAuthoringCompileTargetState,
   type AnimationClipIR,
   type MotionGraphEditorEdge,
@@ -75,6 +78,53 @@ describe("authoring preview bundle assembly", () => {
     expect(result.signature).toContain("rig-out");
   });
 
+  it("plans runtime graph preview publish and clear transactions", () => {
+    const populated = buildRuntimeGraphPreviewBundle({
+      rigSpec: { nodes: [{ id: "rig-out" }], edges: [] } as any,
+    });
+    const initialPlan = planRuntimeGraphPreviewTransaction({
+      preview: populated,
+      lastPublishedSignature: null,
+      managedPayload: false,
+    });
+
+    expect(initialPlan).toMatchObject({
+      shouldPublish: true,
+      source: { key: "runtime-graph", signature: populated.signature },
+      compilingState: {
+        target: "runtime-graph",
+        status: "compiling",
+        signature: populated.signature,
+      },
+      compiledState: {
+        target: "runtime-graph",
+        status: "compiled",
+        signature: populated.signature,
+      },
+      nextPublishedSignature: populated.signature,
+      nextManagedPayload: true,
+    });
+
+    expect(
+      planRuntimeGraphPreviewTransaction({
+        preview: populated,
+        lastPublishedSignature: populated.signature,
+        managedPayload: true,
+      }).shouldPublish,
+    ).toBe(false);
+
+    const cleared = buildRuntimeGraphPreviewBundle({});
+    const clearPlan = planRuntimeGraphPreviewTransaction({
+      preview: cleared,
+      lastPublishedSignature: populated.signature,
+      managedPayload: true,
+    });
+
+    expect(clearPlan.shouldPublish).toBe(true);
+    expect(clearPlan.bundle).toEqual({ rig: undefined, pose: undefined });
+    expect(clearPlan.nextManagedPayload).toBe(false);
+  });
+
   it("merges authored animation preview clips with inherited playable clips", () => {
     const inherited: VizijAnimationAsset = {
       id: "idle",
@@ -120,6 +170,74 @@ describe("authoring preview bundle assembly", () => {
     expect(result.authoredAnimation?.clip.tracks).toHaveLength(1);
     expect(result.outputPaths).toEqual(["controls/smile"]);
     expect(result.bundle).toEqual({ animations: result.animations });
+  });
+
+  it("plans animation preview publish only until the runtime signature catches up", () => {
+    const preview = buildAnimationPreviewBundle({
+      active: true,
+      authoredClip: {
+        schemaVersion: 1,
+        id: AUTHORED_TIMELINE_CLIP_ID,
+        duration: 1,
+        tracks: [
+          {
+            id: "track-smile",
+            variableId: "smile",
+            channel: "controls/smile",
+            interpolation: "linear",
+            keyframes: [{ id: "kf", time: 0, value: 0.5 }],
+          },
+        ],
+      },
+      currentAnimations: [],
+    });
+
+    const publishPlan = planAnimationPreviewTransaction({
+      preview,
+      currentSignature: "[]",
+      lastCurrentSignature: null,
+      appliedSignature: null,
+    });
+
+    expect(publishPlan).toMatchObject({
+      converged: false,
+      shouldPublish: true,
+      source: { key: "animation", signature: preview.signature },
+      dirtyState: {
+        target: "animation",
+        status: "dirty",
+        message: "Animation preview changed",
+        signature: preview.signature,
+      },
+      nextAppliedSignature: preview.signature,
+    });
+
+    expect(
+      planAnimationPreviewTransaction({
+        preview,
+        currentSignature: "[]",
+        lastCurrentSignature: "[]",
+        appliedSignature: preview.signature,
+      }).shouldPublish,
+    ).toBe(false);
+
+    const convergedPlan = planAnimationPreviewTransaction({
+      preview,
+      currentSignature: preview.signature,
+      lastCurrentSignature: "[]",
+      appliedSignature: preview.signature,
+    });
+
+    expect(convergedPlan).toMatchObject({
+      converged: true,
+      shouldPublish: false,
+      dirtyState: null,
+      compiledState: {
+        target: "animation",
+        status: "compiled",
+        signature: preview.signature,
+      },
+    });
   });
 
   it("mutes the active animation set when preview animation source is disabled", () => {
@@ -193,6 +311,158 @@ describe("authoring preview bundle assembly", () => {
       "idle",
     ]);
     expect(result.bundle).toEqual({ programs: result.programs });
+  });
+
+  it("plans motion graph preview publish and managed-program removal", () => {
+    const nodes: MotionGraphEditorNode[] = [
+      {
+        id: "constant",
+        type: "constant",
+        position: { x: 0, y: 0 },
+        data: { params: { value: "0.75" } },
+      },
+      {
+        id: "target",
+        type: MOTION_GRAPH_OUTPUT_TARGET_TYPE,
+        position: { x: 100, y: 0 },
+        data: { outputPath: "rig/face/smile" },
+      },
+    ];
+    const edges: MotionGraphEditorEdge[] = [
+      {
+        id: "e",
+        source: "constant",
+        target: "target",
+        targetHandle: MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
+      },
+    ];
+    const preview = buildMotionGraphPreviewBundle({
+      controllerId: "authoring.program",
+      nodes,
+      edges,
+      currentPrograms: [],
+    });
+
+    const publishPlan = planMotionGraphPreviewTransaction({
+      preview,
+      currentSignature: "[]",
+      lastCurrentSignature: null,
+      appliedSignature: null,
+      touchedProgramBundle: false,
+    });
+
+    expect(publishPlan).toMatchObject({
+      converged: false,
+      shouldPublish: true,
+      source: { key: "motiongraph", signature: preview.signature },
+      nextAppliedSignature: preview.signature,
+      nextTouchedProgramBundle: true,
+      shouldClearManagedProgramId: false,
+    });
+
+    const cleared = buildMotionGraphPreviewBundle({
+      controllerId: null,
+      nodes: null,
+      edges: null,
+      currentPrograms: preview.programs,
+      previousManagedProgramId: "authoring.program",
+    });
+    const clearPlan = planMotionGraphPreviewTransaction({
+      preview: cleared,
+      currentSignature: preview.signature,
+      lastCurrentSignature: preview.signature,
+      appliedSignature: preview.signature,
+      touchedProgramBundle: true,
+    });
+
+    expect(clearPlan.shouldPublish).toBe(true);
+    expect(clearPlan.bundle).toEqual({ programs: [] });
+
+    const convergedClearPlan = planMotionGraphPreviewTransaction({
+      preview: cleared,
+      currentSignature: cleared.signature,
+      lastCurrentSignature: preview.signature,
+      appliedSignature: cleared.signature,
+      touchedProgramBundle: true,
+    });
+
+    expect(convergedClearPlan).toMatchObject({
+      converged: true,
+      shouldPublish: false,
+      nextTouchedProgramBundle: false,
+      shouldClearManagedProgramId: true,
+    });
+  });
+
+  it("plans managed motion graph removal without dropping unrelated programs", () => {
+    const current: VizijProgramAsset[] = [
+      {
+        id: "bundle:idle",
+        graph: {
+          id: "bundle:idle.graph",
+          spec: {
+            nodes: [
+              {
+                id: "idle-output",
+                type: "output",
+                params: { path: "rig/face/idle" },
+              },
+            ],
+            edges: [],
+          },
+        },
+      },
+      {
+        id: "authoring.program",
+        graph: {
+          id: "authoring.program.graph",
+          spec: { nodes: [], edges: [] },
+        },
+      },
+    ];
+    const currentSignature = JSON.stringify(current);
+    const preview = buildMotionGraphPreviewBundle({
+      controllerId: null,
+      nodes: null,
+      edges: null,
+      currentPrograms: current,
+      previousManagedProgramId: "authoring.program",
+    });
+
+    expect(preview.programs.map((program) => program.id)).toEqual([
+      "bundle:idle",
+    ]);
+    const publishPlan = planMotionGraphPreviewTransaction({
+      preview,
+      currentSignature,
+      lastCurrentSignature: currentSignature,
+      appliedSignature: currentSignature,
+      touchedProgramBundle: true,
+    });
+
+    expect(publishPlan).toMatchObject({
+      shouldPublish: true,
+      nextTouchedProgramBundle: true,
+      shouldClearManagedProgramId: false,
+    });
+    expect(publishPlan.bundle).toEqual({
+      programs: [current[0]],
+    });
+
+    const convergedPlan = planMotionGraphPreviewTransaction({
+      preview,
+      currentSignature: preview.signature,
+      lastCurrentSignature: currentSignature,
+      appliedSignature: preview.signature,
+      touchedProgramBundle: true,
+    });
+
+    expect(convergedPlan).toMatchObject({
+      converged: true,
+      shouldPublish: false,
+      nextTouchedProgramBundle: true,
+      shouldClearManagedProgramId: true,
+    });
   });
 
   it("preserves imported reset values while defaulting new motion graph outputs", () => {

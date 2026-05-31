@@ -10,6 +10,7 @@ import type { VizijStoreSetter, World } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import {
   resolveAuthoringCompileTargetState,
+  type AuthoringPreviewCompileState,
   type AuthoringPreviewCompileStatus,
   type AuthoringPreviewTarget,
 } from "@vizij/studio-support";
@@ -135,6 +136,18 @@ export function createAuthoringCompileTargets(
     animation: { ...state },
     motiongraph: { ...state },
   };
+}
+
+export function applyAuthoringCompileState(
+  graphRuntimeStore: GraphRuntimeStore,
+  state: AuthoringPreviewCompileState,
+) {
+  graphRuntimeStore.setState({
+    authoringCompileStatus: state.status,
+    authoringCompileTarget: state.target,
+    authoringCompileMessage: state.message ?? null,
+    authoringCompileSignature: state.signature ?? null,
+  });
 }
 
 export function resolveVisibleAuthoringCompileState(params: {

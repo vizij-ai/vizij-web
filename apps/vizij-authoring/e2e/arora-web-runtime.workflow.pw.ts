@@ -234,6 +234,32 @@ async function readMainRuntimeDebug(page: Page) {
   });
 }
 
+async function waitForMainRendererWriteCountGreaterThan(
+  page: Page,
+  previousRendererWriteCount: number,
+) {
+  await page.waitForFunction(
+    (previousCount) => {
+      const memoryState = (window as any).__vizijMemoryDebugState;
+      const runtimes = Object.values(memoryState?.runtimes ?? {}) as Array<
+        Record<string, unknown>
+      >;
+      const runtime = runtimes.find(
+        (entry) =>
+          entry.namespace === "default" &&
+          entry.orchestratorBackend === "aroraWeb" &&
+          entry.ready === true,
+      );
+      if (!runtime) {
+        return false;
+      }
+      return Number(runtime.rendererWriteCount ?? 0) > previousCount;
+    },
+    previousRendererWriteCount,
+    { timeout: 30_000 },
+  );
+}
+
 async function readMainAroraDebug(page: Page) {
   return page.evaluate(() => {
     const memoryState = (window as any).__vizijMemoryDebugState;
@@ -738,6 +764,63 @@ function readGraphNodeParam(options: {
   return node.params?.[options.paramId];
 }
 
+function readGraphEndpointNodeId(endpoint: unknown): string | null {
+  if (!endpoint || typeof endpoint !== "object") {
+    return null;
+  }
+  const record = endpoint as Record<string, unknown>;
+  const id = record.node_id ?? record.nodeId;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+function readGraphOutputPathDrivenByNode(options: {
+  graph: Record<string, unknown>;
+  nodeId: string;
+}): string {
+  const spec = options.graph.spec as
+    | { nodes?: unknown; edges?: unknown }
+    | undefined;
+  const nodes = Array.isArray(spec?.nodes) ? spec.nodes : [];
+  const edges = Array.isArray(spec?.edges) ? spec.edges : [];
+  const nodesById = new Map(
+    nodes
+      .map((entry) => {
+        const id = (entry as { id?: unknown }).id;
+        return typeof id === "string" ? [id, entry] : null;
+      })
+      .filter((entry): entry is [string, unknown] => entry !== null),
+  );
+  const visited = new Set<string>();
+  const queue = [options.nodeId];
+
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift()!;
+    if (visited.has(currentNodeId)) {
+      continue;
+    }
+    visited.add(currentNodeId);
+    const node = nodesById.get(currentNodeId) as
+      | { type?: unknown; params?: Record<string, unknown> }
+      | undefined;
+    if (node?.type === "output" && typeof node.params?.path === "string") {
+      return node.params.path;
+    }
+
+    edges.forEach((edge) => {
+      const record = edge as { from?: unknown; to?: unknown };
+      const fromNodeId = readGraphEndpointNodeId(record.from);
+      const toNodeId = readGraphEndpointNodeId(record.to);
+      if (fromNodeId === currentNodeId && toNodeId) {
+        queue.push(toNodeId);
+      }
+    });
+  }
+
+  throw new Error(
+    `Expected graph node ${options.nodeId} to drive a runtime output path`,
+  );
+}
+
 function readLastFacadeRequestArgs(
   arora: Record<string, unknown> | null,
   callName: string,
@@ -1059,6 +1142,15 @@ test("executes UI-edited animation and graph values through Arora web composed r
       }),
     ),
   ).toBeCloseTo(authoredGraphValue, 2);
+  const editedGraphOutputPath = readGraphOutputPathDrivenByNode({
+    graph: registeredGraph,
+    nodeId: "node_1773247042486_236",
+  });
+  expect(editedGraphOutputPath).toMatch(/poses\/.+\.weight$/);
+  await waitForMainRendererWriteCountGreaterThan(
+    page,
+    Number(beforeGraphRuntime?.rendererWriteCount ?? 0),
+  );
   await stopActiveRuntime(page);
 
   await openExportDialog(page);

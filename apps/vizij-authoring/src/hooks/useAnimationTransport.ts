@@ -4,6 +4,7 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
   buildAnimationPreviewBundle,
+  planAnimationPreviewTransaction,
   toDeterministicSignature,
   type AnimationClipIR,
   type VizijAnimationAsset,
@@ -16,6 +17,7 @@ import {
   useAnimationStore,
   type AnimationRuntimeTransportAdapter,
 } from "../state/animationStore";
+import { applyAuthoringCompileState } from "../state/graphRuntimeStore";
 import { isAuthoringDebugEnabled } from "../utils/debug";
 
 export function AnimationRuntimeBridge({
@@ -230,78 +232,50 @@ export function AnimationRuntimeBridge({
   ]);
 
   useEffect(() => {
-    if (
-      lastCurrentAnimationSignatureRef.current !== currentAnimationSignature
-    ) {
-      lastCurrentAnimationSignatureRef.current = currentAnimationSignature;
-      if (currentAnimationSignature !== mergedAnimationSignature) {
-        // Runtime drifted from the authored signature; allow one controlled
-        // retry for the current merged signature.
-        appliedAnimationSignatureRef.current = null;
-      }
-    }
+    const plan = planAnimationPreviewTransaction({
+      preview: previewBundle,
+      currentSignature: currentAnimationSignature,
+      lastCurrentSignature: lastCurrentAnimationSignatureRef.current,
+      appliedSignature: appliedAnimationSignatureRef.current,
+    });
+    lastCurrentAnimationSignatureRef.current = plan.nextLastCurrentSignature;
+    appliedAnimationSignatureRef.current = plan.nextAppliedSignature;
 
-    if (currentAnimationSignature === mergedAnimationSignature) {
-      appliedAnimationSignatureRef.current = mergedAnimationSignature;
-      graphRuntimeStore.setState({
-        authoringCompileStatus: "compiled",
-        authoringCompileTarget: "animation",
-        authoringCompileMessage: null,
-        authoringCompileSignature: mergedAnimationSignature,
-      });
+    if (plan.converged) {
+      applyAuthoringCompileState(graphRuntimeStore, plan.compiledState);
       return;
     }
 
     setTransportRuntimeReady(false, transportSessionKey);
-    graphRuntimeStore.setState({
-      authoringCompileStatus: "dirty",
-      authoringCompileTarget: "animation",
-      authoringCompileMessage: "Animation preview changed",
-      authoringCompileSignature: mergedAnimationSignature,
-    });
-    if (appliedAnimationSignatureRef.current === mergedAnimationSignature) {
+    if (plan.dirtyState) {
+      applyAuthoringCompileState(graphRuntimeStore, plan.dirtyState);
+    }
+    if (!plan.shouldPublish) {
       return;
     }
 
-    // Retry bundle application until runtime state converges to the merged
-    // signature. Another bridge update can race and temporarily drop
-    // animations from the runtime bundle.
-    appliedAnimationSignatureRef.current = mergedAnimationSignature;
     if (setGraphBundle) {
-      graphRuntimeStore.setState({
-        authoringCompileStatus: "compiling",
-        authoringCompileTarget: "animation",
-        authoringCompileMessage: null,
-        authoringCompileSignature: mergedAnimationSignature,
-      });
+      applyAuthoringCompileState(graphRuntimeStore, plan.compilingState);
       if (isAuthoringDebugEnabled("timeline")) {
         console.log("[timeline][animation-bridge] apply animations", {
           currentAnimationSignature,
-          mergedAnimationSignature,
+          mergedAnimationSignature: previewBundle.signature,
           mergedAnimationIds: mergedAnimations.map((animation) => animation.id),
           authoredTrackCount: authoredAnimation?.clip?.tracks?.length ?? 0,
         });
       }
-      setGraphBundle(previewBundle.bundle, {
+      setGraphBundle(plan.bundle, {
         tier: "graphs",
-        source: {
-          key: "animation",
-          signature: mergedAnimationSignature,
-        },
+        source: plan.source,
       });
-      graphRuntimeStore.setState({
-        authoringCompileStatus: "compiled",
-        authoringCompileTarget: "animation",
-        authoringCompileMessage: null,
-        authoringCompileSignature: mergedAnimationSignature,
-      });
+      applyAuthoringCompileState(graphRuntimeStore, plan.compiledState);
     } else {
       graphRuntimeStore.setState({
         authoringCompileStatus: "runtime-error",
         authoringCompileTarget: "animation",
         authoringCompileMessage:
           "Runtime does not support graph bundle updates",
-        authoringCompileSignature: mergedAnimationSignature,
+        authoringCompileSignature: previewBundle.signature,
       });
     }
     if (transportActive && authoredAnimation && seekAnimation) {
@@ -311,9 +285,8 @@ export function AnimationRuntimeBridge({
     authoredAnimation,
     currentAnimationSignature,
     graphRuntimeStore,
-    mergedAnimationSignature,
     mergedAnimations,
-    previewBundle.bundle,
+    previewBundle,
     seekAnimation,
     setGraphBundle,
     setTransportRuntimeReady,

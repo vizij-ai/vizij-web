@@ -17,6 +17,8 @@ import {
   buildMotionGraphPreviewBundle,
   buildRuntimeGraphPreviewBundle,
   buildRuntimeInputCatalogFromConstraints,
+  planMotionGraphPreviewTransaction,
+  planRuntimeGraphPreviewTransaction,
   toDeterministicSignature,
   type AuthoringPreviewTarget,
   type AnimationClipIR,
@@ -35,7 +37,10 @@ import {
   useGraphRuntime,
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
-import { createAuthoringCompileTargets } from "../../state/graphRuntimeStore";
+import {
+  applyAuthoringCompileState,
+  createAuthoringCompileTargets,
+} from "../../state/graphRuntimeStore";
 import { useAnimationStore } from "../../state/animationStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import { isAuthoringDebugEnabled } from "../../utils/debug";
@@ -369,41 +374,31 @@ function RuntimeGraphBridge() {
   const managedPayloadRef = useRef(false);
 
   useEffect(() => {
-    const shouldPublish = previewBundle.hasPayload || managedPayloadRef.current;
-    if (!shouldPublish) {
-      return;
-    }
-    if (lastPayloadSignatureRef.current === previewBundle.signature) {
-      return;
-    }
-    lastPayloadSignatureRef.current = previewBundle.signature;
-    graphRuntimeStore.setState({
-      authoringCompileStatus: "compiling",
-      authoringCompileTarget: "runtime-graph",
-      authoringCompileMessage: null,
-      authoringCompileSignature: previewBundle.signature,
+    const plan = planRuntimeGraphPreviewTransaction({
+      preview: previewBundle,
+      lastPublishedSignature: lastPayloadSignatureRef.current,
+      managedPayload: managedPayloadRef.current,
     });
+    if (!plan.shouldPublish) {
+      lastPayloadSignatureRef.current = plan.nextPublishedSignature;
+      managedPayloadRef.current = plan.nextManagedPayload;
+      return;
+    }
+    lastPayloadSignatureRef.current = plan.nextPublishedSignature;
+    managedPayloadRef.current = plan.nextManagedPayload;
+    applyAuthoringCompileState(graphRuntimeStore, plan.compilingState);
     if (isAuthoringDebugEnabled("runtime")) {
       console.log("[vizij-runtime][graph-bridge]", {
-        hasRig: Boolean(previewBundle.bundle.rig),
-        hasPoseGraph: Boolean(previewBundle.bundle.pose?.graph),
-        hasPoseConfig: Boolean(previewBundle.bundle.pose?.config),
+        hasRig: Boolean(plan.bundle.rig),
+        hasPoseGraph: Boolean(plan.bundle.pose?.graph),
+        hasPoseConfig: Boolean(plan.bundle.pose?.config),
       });
     }
-    setGraphBundle(previewBundle.bundle, {
+    setGraphBundle(plan.bundle, {
       tier: "graphs",
-      source: {
-        key: "runtime-graph",
-        signature: previewBundle.signature,
-      },
+      source: plan.source,
     });
-    managedPayloadRef.current = previewBundle.hasPayload;
-    graphRuntimeStore.setState({
-      authoringCompileStatus: "compiled",
-      authoringCompileTarget: "runtime-graph",
-      authoringCompileMessage: null,
-      authoringCompileSignature: previewBundle.signature,
-    });
+    applyAuthoringCompileState(graphRuntimeStore, plan.compiledState);
   }, [graphRuntimeStore, previewBundle, setGraphBundle]);
 
   return null;
@@ -532,7 +527,6 @@ function MotionGraphRuntimeBridge({
       managedProgramIdRef.current = previewBundle.managedProgramId;
     }
   }, [previewBundle.managedProgramId]);
-  const desiredPrograms = previewBundle.programs;
   const desiredProgramSignature = previewBundle.signature;
   const controllerSignature = useMemo(
     () => toDeterministicSignature(controllers),
@@ -544,60 +538,33 @@ function MotionGraphRuntimeBridge({
     Array.isArray(nodes);
 
   useEffect(() => {
-    if (lastProgramSignatureRef.current !== currentProgramSignature) {
-      lastProgramSignatureRef.current = currentProgramSignature;
-      if (currentProgramSignature !== desiredProgramSignature) {
-        appliedProgramSignatureRef.current = null;
-      }
-    }
-
-    if (!programAsset && !touchedProgramBundleRef.current) {
-      return;
-    }
-
-    if (currentProgramSignature === desiredProgramSignature) {
-      appliedProgramSignatureRef.current = desiredProgramSignature;
-      if (desiredPrograms.length === 0) {
-        touchedProgramBundleRef.current = false;
-      }
-      if (!programAsset) {
-        managedProgramIdRef.current = null;
-      }
-      return;
-    }
-
-    if (appliedProgramSignatureRef.current === desiredProgramSignature) {
-      return;
-    }
-
-    appliedProgramSignatureRef.current = desiredProgramSignature;
-    touchedProgramBundleRef.current = true;
-    graphRuntimeStore.setState({
-      authoringCompileStatus: "compiling",
-      authoringCompileTarget: "motiongraph",
-      authoringCompileMessage: null,
-      authoringCompileSignature: desiredProgramSignature,
+    const plan = planMotionGraphPreviewTransaction({
+      preview: previewBundle,
+      currentSignature: currentProgramSignature,
+      lastCurrentSignature: lastProgramSignatureRef.current,
+      appliedSignature: appliedProgramSignatureRef.current,
+      touchedProgramBundle: touchedProgramBundleRef.current,
     });
-    setGraphBundle(previewBundle.bundle, {
+    lastProgramSignatureRef.current = plan.nextLastCurrentSignature;
+    appliedProgramSignatureRef.current = plan.nextAppliedSignature;
+    touchedProgramBundleRef.current = plan.nextTouchedProgramBundle;
+    if (plan.shouldClearManagedProgramId) {
+      managedProgramIdRef.current = null;
+    }
+    if (!plan.shouldPublish) {
+      return;
+    }
+
+    applyAuthoringCompileState(graphRuntimeStore, plan.compilingState);
+    setGraphBundle(plan.bundle, {
       tier: "graphs",
-      source: {
-        key: "motiongraph",
-        signature: desiredProgramSignature,
-      },
+      source: plan.source,
     });
-    graphRuntimeStore.setState({
-      authoringCompileStatus: "compiled",
-      authoringCompileTarget: "motiongraph",
-      authoringCompileMessage: null,
-      authoringCompileSignature: desiredProgramSignature,
-    });
+    applyAuthoringCompileState(graphRuntimeStore, plan.compiledState);
   }, [
     currentProgramSignature,
-    desiredProgramSignature,
-    desiredPrograms,
     graphRuntimeStore,
-    previewBundle.bundle,
-    programAsset,
+    previewBundle,
     setGraphBundle,
   ]);
 
