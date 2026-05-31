@@ -541,8 +541,12 @@ export {
   type PoseSemanticKind,
 } from "./utils/posePaths";
 export {
+  buildLegacyPoseWeightFallbackMap,
   resolvePoseControlInputPath,
+  resolveLegacyPoseWeightControlWrites,
   shouldUseLegacyPoseWeightFallback,
+  type LegacyPoseWeightControlWrite,
+  type LegacyPoseWeightFallbackMap,
 } from "./utils/poseRuntime";
 export {
   mapNormalizedControlValue,

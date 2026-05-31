@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLegacyPoseWeightFallbackMap,
   resolvePoseControlInputPath,
+  resolveLegacyPoseWeightControlWrites,
   shouldUseLegacyPoseWeightFallback,
 } from "../index";
 
@@ -67,5 +69,91 @@ describe("studio support pose runtime", () => {
     ).toBe(
       "rig/hugo_latest_blender_export/pose/control/propsrig_mouth_translation_y",
     );
+  });
+
+  it("builds legacy pose-weight fallback values from pose config", () => {
+    const fallbackMap = buildLegacyPoseWeightFallbackMap({
+      poseConfig: {
+        faceId: "robot",
+        poses: [
+          {
+            id: "smile",
+            values: {
+              mouth_smile: 0.8,
+              ignored_nan: Number.NaN,
+              ignored_missing: undefined,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(fallbackMap.get("rig/robot/poses/smile.weight")).toEqual({
+      mouth_smile: 0.8,
+    });
+  });
+
+  it("resolves legacy pose-weight writes through rig aliases", () => {
+    const fallbackMap = buildLegacyPoseWeightFallbackMap({
+      poseConfig: {
+        faceId: "robot",
+        poses: [
+          {
+            id: "smile",
+            values: {
+              mouth_smile: 0.5,
+              brow_raise: 0.25,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(
+      resolveLegacyPoseWeightControlWrites({
+        enabled: true,
+        poseWeightPath: "rig/robot/poses/smile.weight",
+        poseWeightValue: 0.6,
+        poseWeightFallbackMap: fallbackMap,
+        faceId: "robot",
+        rigInputPathMap: {
+          mouth_smile: "rig/robot/mouth/smile/value",
+        },
+      }),
+    ).toEqual([
+      {
+        path: "rig/robot/mouth/smile/value",
+        value: 0.3,
+      },
+      {
+        path: "rig/robot/pose/control/brow_raise",
+        value: 0.15,
+      },
+    ]);
+  });
+
+  it("does not resolve legacy pose-weight writes when fallback is disabled", () => {
+    const fallbackMap = buildLegacyPoseWeightFallbackMap({
+      poseConfig: {
+        faceId: "robot",
+        poses: [
+          {
+            id: "smile",
+            values: { mouth_smile: 1 },
+          },
+        ],
+      },
+    });
+
+    expect(
+      resolveLegacyPoseWeightControlWrites({
+        enabled: false,
+        poseWeightPath: "rig/robot/poses/smile.weight",
+        poseWeightValue: 1,
+        poseWeightFallbackMap: fallbackMap,
+        faceId: "robot",
+        rigInputPathMap: {},
+      }),
+    ).toEqual([]);
   });
 });

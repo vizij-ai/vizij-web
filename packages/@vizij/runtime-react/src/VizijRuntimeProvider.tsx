@@ -32,8 +32,7 @@ import {
   advanceClipTime,
   buildAnimationControllerCommandPath,
   buildAnimationControllerPlayInputs,
-  buildPoseWeightPathMap,
-  buildRigInputPath,
+  buildLegacyPoseWeightFallbackMap,
   clampAnimationTime,
   diffAnimationAggregateValues,
   hasRuntimeGraphBundlePendingRevision,
@@ -50,8 +49,8 @@ import {
   resolveRuntimeGraphBundleAppliedUpdates,
   resolveClipDurationSeconds,
   resolveAnimationTransportMode,
-  resolvePoseControlInputPath,
   resolveInitialRuntimeExtractedBundle,
+  resolveLegacyPoseWeightControlWrites,
   resolveRuntimeGraphBundleErrorSources,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
@@ -485,30 +484,14 @@ function VizijRuntimeProviderInner({
   const animationControllerIdsRef = useRef<Map<string, string>>(new Map());
   const mergedGraphRef = useRef<string | null>(null);
   const poseControlBridgeValuesRef = useRef<Map<string, number>>(new Map());
-  const poseWeightFallbackMap = useMemo(() => {
-    const map = new Map<string, Record<string, number>>();
-    const poseConfig = assetBundle.pose?.config;
-    if (!poseConfig) {
-      return map;
-    }
-    const posePaths = buildPoseWeightPathMap(
-      poseConfig.poses ?? [],
-      poseConfig.faceId ?? faceId ?? "face",
-    );
-    (poseConfig.poses ?? []).forEach((pose) => {
-      const posePath = posePaths.get(pose.id);
-      if (!posePath) {
-        return;
-      }
-      const values = Object.fromEntries(
-        Object.entries(pose.values ?? {}).filter(([, value]) =>
-          Number.isFinite(value),
-        ),
-      ) as Record<string, number>;
-      map.set(posePath, values);
-    });
-    return map;
-  }, [assetBundle.pose?.config, faceId]);
+  const poseWeightFallbackMap = useMemo(
+    () =>
+      buildLegacyPoseWeightFallbackMap({
+        poseConfig: assetBundle.pose?.config,
+        faceId,
+      }),
+    [assetBundle.pose?.config, faceId],
+  );
   const useLegacyPoseWeightFallback = useMemo(
     () => shouldUseLegacyPoseWeightFallback(Boolean(assetBundle.pose?.graph)),
     [assetBundle.pose?.graph],
@@ -751,28 +734,17 @@ function VizijRuntimeProviderInner({
         normalisePath(path),
         namespaceRef.current,
       );
-      const poseValues =
-        useLegacyPoseWeightFallback && numericValue != null
-          ? poseWeightFallbackMap.get(basePath)
-          : undefined;
-      if (poseValues && numericValue != null) {
-        const poseFaceId = assetBundle.pose?.config?.faceId ?? faceId ?? "face";
-        const rigMap = rigInputMapRef.current;
-        Object.entries(poseValues).forEach(([inputId, poseValue]) => {
-          if (!Number.isFinite(poseValue)) {
-            return;
-          }
-          const controlPath =
-            resolvePoseControlInputPath({
-              inputId,
-              basePath: buildRigInputPath(
-                poseFaceId,
-                `/pose/control/${inputId}`,
-              ),
-              rigInputPathMap: rigMap,
-              hasNativePoseControlInput: true,
-            }) ?? buildRigInputPath(poseFaceId, `/pose/control/${inputId}`);
-          setInput(controlPath, { float: Number(poseValue) * numericValue });
+      const poseControlWrites = resolveLegacyPoseWeightControlWrites({
+        enabled: useLegacyPoseWeightFallback,
+        poseWeightPath: basePath,
+        poseWeightValue: numericValue,
+        poseWeightFallbackMap,
+        faceId: assetBundle.pose?.config?.faceId ?? faceId ?? "face",
+        rigInputPathMap: rigInputMapRef.current,
+      });
+      if (poseControlWrites.length > 0) {
+        poseControlWrites.forEach((write) => {
+          setInput(write.path, { float: write.value });
         });
         return;
       }
@@ -1733,35 +1705,18 @@ function VizijRuntimeProviderInner({
         normalisePath(path),
         namespaceRef.current,
       );
-      const poseValues =
-        useLegacyPoseWeightFallback && targetValue != null
-          ? poseWeightFallbackMap.get(basePath)
-          : undefined;
-      if (poseValues && targetValue != null) {
-        const poseFaceId = assetBundle.pose?.config?.faceId ?? faceId ?? "face";
-        const rigMap = rigInputMapRef.current;
+      const poseControlWrites = resolveLegacyPoseWeightControlWrites({
+        enabled: useLegacyPoseWeightFallback,
+        poseWeightPath: basePath,
+        poseWeightValue: targetValue,
+        poseWeightFallbackMap,
+        faceId: assetBundle.pose?.config?.faceId ?? faceId ?? "face",
+        rigInputPathMap: rigInputMapRef.current,
+      });
+      if (poseControlWrites.length > 0) {
         return Promise.all(
-          Object.entries(poseValues).flatMap(([inputId, poseValue]) => {
-            if (!Number.isFinite(poseValue)) {
-              return [];
-            }
-            const controlPath =
-              resolvePoseControlInputPath({
-                inputId,
-                basePath: buildRigInputPath(
-                  poseFaceId,
-                  `/pose/control/${inputId}`,
-                ),
-                rigInputPathMap: rigMap,
-                hasNativePoseControlInput: true,
-              }) ?? buildRigInputPath(poseFaceId, `/pose/control/${inputId}`);
-            return [
-              animateValue(
-                controlPath,
-                { float: Number(poseValue) * targetValue },
-                options,
-              ),
-            ];
+          poseControlWrites.map((write) => {
+            return animateValue(write.path, { float: write.value }, options);
           }),
         ).then(() => undefined);
       }
