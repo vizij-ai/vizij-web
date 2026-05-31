@@ -10,6 +10,8 @@ import type {
 import {
   namespaceControllerId,
   prepareAnimationRegistrationForTransport,
+  planRuntimeControllerRemoval,
+  summarizeRuntimeControllerRegistration,
   type InputConstraint,
   type ResolvedAnimationTransportMode,
   type RuntimeProgramRegistrationSupportResult,
@@ -56,28 +58,6 @@ export type RegisterRuntimeControllersResult = {
   errors: RuntimeControllerHostError[];
 };
 
-function uniqueControllerIds(
-  ids: Iterable<ControllerId> | null | undefined,
-): Set<ControllerId> {
-  return new Set(
-    Array.from(ids ?? []).filter(
-      (id): id is ControllerId => typeof id === "string" && id.length > 0,
-    ),
-  );
-}
-
-function isNamespacedControllerId(
-  id: ControllerId,
-  namespace: string | null | undefined,
-  kinds: readonly string[],
-): boolean {
-  const trimmedNamespace = namespace?.trim();
-  if (!trimmedNamespace) {
-    return false;
-  }
-  return kinds.some((kind) => id.startsWith(`${trimmedNamespace}/${kind}/`));
-}
-
 export function clearRuntimeControllers(args: {
   host: Pick<
     RuntimeControllerHost,
@@ -90,21 +70,14 @@ export function clearRuntimeControllers(args: {
   const errors: RuntimeControllerHostError[] = [];
   const removedGraphs: ControllerId[] = [];
   const removedAnimations: ControllerId[] = [];
-  const existing = args.host.listControllers();
-  const graphIds = uniqueControllerIds(args.graphIds);
-  const animationIds = uniqueControllerIds(args.animationIds);
-  const hasNamespace = Boolean(args.namespace?.trim());
-  const removeAllGraphs = graphIds.size === 0 && !hasNamespace;
-  const removeAllAnimations = animationIds.size === 0 && !hasNamespace;
+  const plan = planRuntimeControllerRemoval({
+    controllers: args.host.listControllers(),
+    graphIds: args.graphIds,
+    animationIds: args.animationIds,
+    namespace: args.namespace,
+  });
 
-  existing.graphs.forEach((id) => {
-    if (
-      !removeAllGraphs &&
-      !graphIds.has(id) &&
-      !isNamespacedControllerId(id, args.namespace, ["graph", "merged"])
-    ) {
-      return;
-    }
+  plan.graphIds.forEach((id) => {
     try {
       args.host.removeGraph(id);
       removedGraphs.push(id);
@@ -117,14 +90,7 @@ export function clearRuntimeControllers(args: {
     }
   });
 
-  existing.anims.forEach((id) => {
-    if (
-      !removeAllAnimations &&
-      !animationIds.has(id) &&
-      !isNamespacedControllerId(id, args.namespace, ["animation"])
-    ) {
-      return;
-    }
+  plan.animationIds.forEach((id) => {
     try {
       args.host.removeAnimation(id);
       removedAnimations.push(id);
@@ -161,12 +127,6 @@ export function registerRuntimeControllers(args: {
   const graphIds: ControllerId[] = [];
   const animationIds: ControllerId[] = [];
   const animationControllerIds = new Map<string, ControllerId>();
-  const programRegistrationMap = new Map(
-    args.plan.programRegistrations.map((registration) => [
-      registration.assetId,
-      registration,
-    ]),
-  );
   let mergedGraphId: ControllerId | null = null;
 
   try {
@@ -227,18 +187,25 @@ export function registerRuntimeControllers(args: {
     }
   });
 
-  return {
+  const summary = summarizeRuntimeControllerRegistration({
+    plan: args.plan,
     graphIds,
     animationIds,
     animationControllerIds,
-    programRegistrationMap,
+  });
+
+  return {
+    graphIds: summary.graphIds,
+    animationIds: summary.animationIds,
+    animationControllerIds: summary.animationControllerIds,
+    programRegistrationMap: summary.programRegistrationMap,
     mergedGraphId,
-    outputPaths: new Set(args.plan.outputPaths),
-    baseOutputPaths: new Set(args.plan.baseOutputPaths),
-    namespacedOutputPaths: new Set(args.plan.namespacedOutputPaths),
-    inputConstraints: args.plan.inputConstraints,
-    rigInputMap: args.plan.rigInputMap,
-    rigPoseControlInputIds: new Set(args.plan.rigPoseControlInputIds),
+    outputPaths: summary.outputPaths,
+    baseOutputPaths: summary.baseOutputPaths,
+    namespacedOutputPaths: summary.namespacedOutputPaths,
+    inputConstraints: summary.inputConstraints,
+    rigInputMap: summary.rigInputMap,
+    rigPoseControlInputIds: summary.rigPoseControlInputIds,
     controllers: args.host.listControllers(),
     errors,
   };

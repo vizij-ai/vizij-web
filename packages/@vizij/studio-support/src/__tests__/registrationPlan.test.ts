@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { prepareRuntimeRegistrationPlan } from "../index";
+import {
+  planRuntimeControllerRemoval,
+  prepareRuntimeRegistrationPlan,
+  summarizeRuntimeControllerRegistration,
+} from "../index";
 import type { VizijAssetBundle } from "../types";
 
 function makeBaseBundle(
@@ -283,5 +287,141 @@ describe("prepareRuntimeRegistrationPlan", () => {
     expect(plan.namespacedOutputPaths).toEqual([
       "demo-face/rig/quori_latest/lids/blink",
     ]);
+  });
+});
+
+describe("runtime controller application planning", () => {
+  it("plans namespace-scoped controller removal outside the runtime host", () => {
+    const plan = planRuntimeControllerRemoval({
+      controllers: {
+        graphs: [
+          "face-a/graph/rig",
+          "face-a/merged/merged-face-a",
+          "face-b/graph/rig",
+          "loose-graph",
+        ],
+        anims: [
+          "face-a/animation/blink",
+          "face-b/animation/blink",
+          "loose-anim",
+        ],
+      },
+      namespace: "face-a",
+    });
+
+    expect(plan).toEqual({
+      graphIds: ["face-a/graph/rig", "face-a/merged/merged-face-a"],
+      animationIds: ["face-a/animation/blink"],
+    });
+  });
+
+  it("plans explicit controller removal without touching unrelated controllers", () => {
+    const plan = planRuntimeControllerRemoval({
+      controllers: {
+        graphs: [
+          "owned-graph",
+          "owned-program-graph",
+          "other-face/graph/rig",
+          "loose-graph",
+        ],
+        anims: ["owned-anim", "other-face/animation/blink", "loose-anim"],
+      },
+      graphIds: ["owned-graph", "owned-program-graph"],
+      animationIds: ["owned-anim"],
+    });
+
+    expect(plan).toEqual({
+      graphIds: ["owned-graph", "owned-program-graph"],
+      animationIds: ["owned-anim"],
+    });
+  });
+
+  it("summarizes registered controller bookkeeping from a support-owned registration plan", () => {
+    const plan = prepareRuntimeRegistrationPlan({
+      assetBundle: makeBaseBundle({
+        rig: {
+          id: "rig",
+          spec: {
+            nodes: [
+              {
+                id: "input_blink",
+                type: "input",
+                params: { path: "rig/quori_latest/blink" },
+              },
+              {
+                id: "out",
+                type: "output",
+                params: { path: "rig/quori_latest/blink/value" },
+              },
+            ],
+            edges: [],
+          },
+        },
+        animations: [
+          {
+            id: "blink",
+            clip: {
+              id: "blink",
+              tracks: [
+                {
+                  channel: "blink",
+                  keyframes: [
+                    { time: 0, value: 0 },
+                    { time: 1, value: 1 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+        programs: [
+          {
+            id: "idle-eyes",
+            graph: {
+              id: "idle-eyes-graph",
+              spec: {
+                nodes: [
+                  {
+                    id: "blink",
+                    type: "output",
+                    params: { path: "rig/quori_latest/lids/blink" },
+                  },
+                ],
+                edges: [],
+              },
+            },
+          },
+        ],
+      }),
+      namespace: "demo-face",
+      faceId: "quori_latest",
+    });
+
+    const summary = summarizeRuntimeControllerRegistration({
+      plan,
+      graphIds: ["merged-controller"],
+      animationIds: ["animation-controller"],
+      animationControllerIds: [["blink", "animation-controller"]],
+    });
+
+    expect(summary.graphIds).toEqual(["merged-controller"]);
+    expect(summary.animationIds).toEqual(["animation-controller"]);
+    expect(summary.animationControllerIds.get("blink")).toBe(
+      "animation-controller",
+    );
+    expect(summary.programRegistrationMap.get("idle-eyes")?.assetId).toBe(
+      "idle-eyes",
+    );
+    expect(
+      summary.outputPaths.has("demo-face/rig/quori_latest/lids/blink"),
+    ).toBe(true);
+    expect(summary.baseOutputPaths.has("rig/quori_latest/blink/value")).toBe(
+      true,
+    );
+    expect(
+      summary.namespacedOutputPaths.has(
+        "demo-face/rig/quori_latest/blink/value",
+      ),
+    ).toBe(true);
   });
 });

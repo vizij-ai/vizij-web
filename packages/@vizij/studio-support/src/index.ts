@@ -206,6 +206,15 @@ export {
   type RuntimeProgramControllerSyncPlan,
 } from "./utils/programControllerSync";
 export {
+  planRuntimeControllerRemoval,
+  summarizeRuntimeControllerRegistration,
+  type RuntimeControllerList,
+  type RuntimeControllerRegistrationSummary,
+  type RuntimeControllerRegistrationSummaryOptions,
+  type RuntimeControllerRemovalPlan,
+  type RuntimeControllerRemovalPlanOptions,
+} from "./utils/runtimeControllerApplication";
+export {
   buildAnimationPreviewBundle,
   buildMotionGraphPreviewBundle,
   buildMotionGraphResetValuesForOutputs,
