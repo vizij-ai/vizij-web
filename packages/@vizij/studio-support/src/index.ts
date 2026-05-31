@@ -161,10 +161,17 @@ export {
   withVizijPipelineMetadataV1,
 } from "./utils/graphImport";
 export {
+  buildPoseGraphRemapApplyPlan,
+  collectPoseGraphDeltaInputs,
   listPoseGraphOutputs,
+  remapPoseGraphInputIds,
   remapPoseGraphInputs,
+  resolvePoseGraphSourceInputId,
   updatePoseGraphOutputPath,
+  type PoseGraphInputIdRemap,
   type PoseGraphOutputEntry,
+  type PoseGraphRemapApplyPlan,
+  type PoseGraphRemapApplyRow,
 } from "./utils/poseGraphImport";
 export {
   buildMotionGraphProgramAsset,

@@ -6,17 +6,14 @@ import {
 } from "@vizij/utils";
 import { readJsonFile } from "@vizij/authoring-shared";
 import {
-  ensureStandardPathInput,
+  buildPoseGraphRemapApplyPlan,
+  collectPoseGraphDeltaInputs,
   inferStandardSuggestion,
   listPoseGraphOutputs,
   normalizeGraphPath,
   remapPoseGraphInputs,
-  updatePoseGraphOutputPath,
 } from "@vizij/studio-support";
 import { cloneSerializable } from "../utils/serialization";
-import { collectPoseGraphDeltaInputs } from "../poseRig/graphParser";
-import { remapPoseGraphInputIds } from "../poseRig/graphTransforms";
-import { buildRigInputPath } from "../poseRig/utils";
 import type {
   PoseGraphRemapOption,
   PoseGraphRemapRow,
@@ -51,94 +48,6 @@ export interface UsePoseGraphImportResult {
 
 function extractPoseSlug(nodeId: string): string {
   return nodeId.replace(/^out_/, "");
-}
-
-export function resolvePoseGraphSourceInputId(
-  row: Pick<PoseGraphRemapRow, "currentInputId" | "poseSlug">,
-): string | null {
-  const current = row.currentInputId?.trim();
-  if (current) {
-    return current;
-  }
-  const fallback = row.poseSlug?.trim();
-  return fallback && fallback.length > 0 ? fallback : null;
-}
-
-export type PoseGraphRemapApplyPlan =
-  | { status: "ready"; spec: GraphSpec }
-  | { status: "conflict"; message: string };
-
-export function buildPoseGraphRemapApplyPlan(params: {
-  spec: GraphSpec;
-  rows: PoseGraphRemapRow[];
-  standardInputsByPath: ReadonlyMap<string, StandardRigInput>;
-  faceSegment: string;
-}): PoseGraphRemapApplyPlan {
-  const { spec, rows, standardInputsByPath, faceSegment } = params;
-  const combinedRows = rows.filter((row) => row.suggestedPath);
-  const targetToSourceMap = new Map<string, Set<string>>();
-  const idRemaps: Array<{ fromId: string; toId: string }> = [];
-  const assigned = new Map<string, string>();
-  const outputPathUpdates: Array<{ nodeId: string; path: string }> = [];
-
-  combinedRows.forEach((row) => {
-    const desired = row.suggestedPath?.trim();
-    if (!desired) {
-      return;
-    }
-
-    const standardPath = ensureStandardPathInput(desired);
-    const normalizedStandardPath = normalizeStandardRigInputPath(standardPath);
-    const targetInput = standardInputsByPath.get(normalizedStandardPath);
-    const sourceInputId = resolvePoseGraphSourceInputId(row);
-
-    if (targetInput && sourceInputId) {
-      const sourceSet = targetToSourceMap.get(targetInput.id) ?? new Set();
-      sourceSet.add(sourceInputId);
-      targetToSourceMap.set(targetInput.id, sourceSet);
-    }
-
-    if (
-      targetInput &&
-      sourceInputId &&
-      targetInput.id !== sourceInputId &&
-      assigned.get(sourceInputId) !== targetInput.id
-    ) {
-      assigned.set(sourceInputId, targetInput.id);
-      idRemaps.push({ fromId: sourceInputId, toId: targetInput.id });
-    }
-
-    outputPathUpdates.push({
-      nodeId: row.nodeId,
-      path: buildRigInputPath(faceSegment, standardPath),
-    });
-  });
-
-  const conflictingTargets = Array.from(targetToSourceMap.entries()).filter(
-    ([, sourceSet]) => sourceSet.size > 1,
-  );
-  if (conflictingTargets.length > 0) {
-    const conflictMessage = conflictingTargets
-      .map(
-        ([targetId, sourceSet]) =>
-          `${targetId} <= ${Array.from(sourceSet).join(", ")}`,
-      )
-      .join("\n");
-    return {
-      status: "conflict",
-      message: `Resolve remap conflicts before applying:\n${conflictMessage}`,
-    };
-  }
-
-  const nextSpec = cloneSerializable(spec) as GraphSpec;
-  outputPathUpdates.forEach(({ nodeId, path }) => {
-    updatePoseGraphOutputPath(nextSpec, nodeId, path);
-  });
-  if (idRemaps.length > 0) {
-    remapPoseGraphInputIds(nextSpec, idRemaps);
-  }
-
-  return { status: "ready", spec: nextSpec };
 }
 
 function toConfidence(score: number): PoseRemapConfidence {

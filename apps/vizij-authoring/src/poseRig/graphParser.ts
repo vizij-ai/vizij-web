@@ -160,31 +160,6 @@ export function parsePoseGraphSpec(
   };
 }
 
-export function collectPoseGraphDeltaInputs(spec: GraphSpec): Set<string> {
-  const nodes = spec.nodes ?? [];
-  if (!Array.isArray(nodes)) {
-    throw new Error("Pose graph is missing node definitions.");
-  }
-  const neutralNode = nodes.find((node) => node.id === "pose_neutral_record");
-  if (!neutralNode) {
-    throw new Error("Pose graph did not include the neutral record node.");
-  }
-  const neutralInputs = extractRecord(neutralNode);
-  const activeInputs = new Set<string>();
-  nodes
-    .filter((node) => node.id.startsWith("pose_record_"))
-    .forEach((node) => {
-      const rawValues = extractRecord(node);
-      Object.entries(rawValues).forEach(([inputId, value]) => {
-        const neutralValue = neutralInputs[inputId] ?? 0;
-        if (Math.abs(value - neutralValue) >= POSE_VALUE_EPSILON) {
-          activeInputs.add(inputId);
-        }
-      });
-    });
-  return activeInputs;
-}
-
 function humanizePoseSlug(slug: string): string {
   const cleaned = slug.replace(/_/g, " ").trim();
   if (!cleaned) {

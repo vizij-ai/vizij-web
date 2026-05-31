@@ -96,18 +96,19 @@ The 2026-05-31 verification-led responsibility pass tightened the same architect
 32. Live-preview transaction planning for runtime graph, animation, and motiongraph updates is now package-owned in `@vizij/studio-support`; React bridges apply the planned host effects and store updates instead of rebuilding publish/convergence decisions locally.
 33. The authoring E2E graph proof now traces the UI-edited graph node to its registered runtime output path and waits for renderer writes after playback, matching the actual intermediate pose-weight execution path instead of asserting against a direct renderer-id sample.
 34. Runtime controller removal selection and registration summary bookkeeping are now support-owned pure helpers; `@vizij/runtime-react` still owns only host controller effects, playback-session effects, and error/status reporting.
+35. Pose graph import remap application is now support-owned: delta-input detection, input-id remapping, source-input resolution, and remap apply-plan construction live in `@vizij/studio-support`; the authoring hook keeps file reading, wizard rows, dialogs, and applying the resulting import.
 
 Latest verification for this pass:
 
 1. `pnpm --filter @vizij/studio-support lint`
 2. `pnpm --filter @vizij/studio-support typecheck`
-3. `pnpm --filter @vizij/studio-support test` - 31 files, 167 tests passed.
+3. `pnpm --filter @vizij/studio-support test` - 31 files, 173 tests passed.
 4. `pnpm --filter @vizij/runtime-react lint`
 5. `pnpm --filter @vizij/runtime-react typecheck`
 6. `pnpm --filter @vizij/runtime-react test` - 8 files, 40 tests passed.
 7. `pnpm --filter vizij-authoring lint`
 8. `pnpm --filter vizij-authoring typecheck`
-9. `pnpm --filter vizij-authoring test` - 93 files passed, 676 tests passed, 1 perf file/test skipped.
+9. `pnpm --filter vizij-authoring test` - 91 files passed, 669 tests passed, 1 perf file/test skipped.
 10. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed in 2.5 minutes, including face load, UI-edited animation and graph execution through composed Arora runtime, and exported GLB round-trip.
 11. Source files touched in this pass passed `pnpm exec prettier --check ...`; package-level `prettier:check` scripts include generated `dist` files after local builds, so they were not used as the final source-format gate.
 12. `git diff --check`
@@ -129,6 +130,7 @@ Focused evidence for the live authoring path:
 12. After moving export preparation into Studio support and fixing reviewed runtime correctness risks: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/bundleAssembly.test.ts` - 5 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx` - 34 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/app/Viewer.test.tsx src/hooks/__tests__/rigGraphCompiler.test.ts` - 30 tests passed.
 13. After moving live-preview transaction planning into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/authoringPreview.test.ts src/__tests__/bundleAssembly.test.ts src/__tests__/registrationPlan.test.ts` - 20 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx src/hooks/__tests__/rigGraphCompiler.test.ts src/hooks/__tests__/useVizijExport.test.tsx` - 68 tests passed; `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed.
 14. After moving runtime controller application bookkeeping into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/registrationPlan.test.ts` - 7 tests passed; `pnpm --filter @vizij/runtime-react exec vitest --run src/__tests__/controllerRegistration.test.ts src/__tests__/runtimeProviderExecutionLoop.test.tsx` - 19 tests passed; full `@vizij/studio-support`, `@vizij/runtime-react`, and `vizij-authoring` lint/type/test checks passed; `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed.
+15. After moving pose graph remap application into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/poseGraphImport.test.ts` - 9 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijAssetLoader.test.tsx src/hooks/__tests__/graphRuntime.test.ts` - 8 tests passed; full `@vizij/studio-support` and `vizij-authoring` lint/type/test checks passed.
 
 This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly, reducing duplicate compile semantics, and choosing performance promotions from evidence.
 
