@@ -308,6 +308,21 @@ export {
   type BuildAuthoringDriverGraphOptions,
 } from "./utils/driverGraph";
 export {
+  buildFeatureEntries,
+  type FeatureEntry,
+  type NumberFeatureEntry,
+  type RenderableLike,
+  type SupportedKind,
+  type VectorComponent,
+  type VectorFeatureEntry,
+} from "./utils/featureEntries";
+export {
+  buildAutoRigInputBlueprints,
+  type AutoRigInputBlueprint,
+  type AutoRigInputBlueprintMetadata,
+  type AutoRigInputBlueprintResult,
+} from "./utils/autoRigInputs";
+export {
   buildInitialInputDefaultsForPorts,
   defaultInputValueForPortType,
   defaultVariadicCount,
