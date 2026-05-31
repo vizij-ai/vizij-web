@@ -23,7 +23,6 @@ import {
   normalizeStandardRigInputPath,
   resolveStandardRigInputId,
   type AnimatableComponent,
-  type AnimatableValue,
   type StandardRigInput,
   cloneDeepSafe,
 } from "@vizij/utils";
@@ -140,7 +139,13 @@ interface PropsRigInputCreatedDiagnostic {
   sourceId?: string;
 }
 
+interface FaceIdMismatchDiagnostic {
+  importedFaceId: string;
+  loadedFaceId: string;
+}
+
 export interface ImportNormalizationDiagnostics {
+  faceIdMismatches: FaceIdMismatchDiagnostic[];
   createdPropsRigInputs: PropsRigInputCreatedDiagnostic[];
   inputIdRemaps: BindingInputRemapDiagnostic[];
   targetIdRemaps: BindingTargetRemapDiagnostic[];
@@ -186,8 +191,7 @@ function resolveImportedInputGroup(
 function normalizeImportedInputPath(
   descriptor: VizijGraphMetadataInput,
 ): string {
-  // Preserve the /standard/ prefix for standard inputs - don't strip it
-  // The UI (StdFaceChannelsPanel) expects the /standard/ prefix to be present
+  // The standard path namespace is part of the import/export contract.
   return normalizeStandardRigInputPath(descriptor.path);
 }
 
@@ -198,6 +202,7 @@ function coerceExpression(value: string | null | undefined, fallback: string) {
 
 function createNormalizationDiagnostics(): ImportNormalizationDiagnostics {
   return {
+    faceIdMismatches: [],
     createdPropsRigInputs: [],
     inputIdRemaps: [],
     targetIdRemaps: [],
@@ -896,7 +901,6 @@ export function rehydrateRigDataFromGraph(
   spec: GraphSpec,
   options: {
     faceId: string;
-    animatables: Record<string, AnimatableValue>;
     components: AnimatableComponent[];
     provisionedPropsRigInputs?: StandardRigInput[];
   },
@@ -909,12 +913,12 @@ export function rehydrateRigDataFromGraph(
   }
 
   const importedFaceId = vizij.faceId?.trim() ?? null;
-
+  const faceIdMismatches: FaceIdMismatchDiagnostic[] = [];
   if (importedFaceId && importedFaceId !== options.faceId) {
-    // eslint-disable-next-line no-console -- diagnostics for mismatched assets
-    console.warn(
-      `Imported graph metadata targets faceId "${importedFaceId}" but the loaded GLB is "${options.faceId}". Continuing with the loaded asset.`,
-    );
+    faceIdMismatches.push({
+      importedFaceId,
+      loadedFaceId: options.faceId,
+    });
   }
 
   const inputMetadata = new Map<string, { source?: string; root?: string }>();
@@ -1065,6 +1069,7 @@ export function rehydrateRigDataFromGraph(
       standardInputs: standardInputsById,
       componentIdRemaps,
     });
+  diagnostics.faceIdMismatches.push(...faceIdMismatches);
   diagnostics.createdPropsRigInputs.push(...createdPropsRigInputs);
 
   const { bindings, inputBindings } = buildBindings(

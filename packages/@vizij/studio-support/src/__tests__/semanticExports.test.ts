@@ -12,6 +12,7 @@ describe("studio-support semantic exports", () => {
     expect(support.parsePoseGraphSpec).toBeTypeOf("function");
     expect(support.PoseIrService.fromConfig).toBeTypeOf("function");
     expect(support.PoseGraphService.buildSpecFromIr).toBeTypeOf("function");
+    expect(support.rehydrateRigDataFromGraph).toBeTypeOf("function");
 
     const exported = support as Record<string, unknown>;
     expect(exported.formatPipelineValue).toBeUndefined();

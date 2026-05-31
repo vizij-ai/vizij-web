@@ -20,6 +20,7 @@ import {
   extractVizijPipelineMetadataV1,
   filterBenignGeneratedNodeIdDiffs,
   prepareSpecForImport,
+  rehydrateRigDataFromGraph,
   summarizeGraphEdgeDiffRisk,
   type PoseConfigSnapshot,
   type VizijPipelineConfigMap,
@@ -28,7 +29,6 @@ import {
 import type { ManagedStandardInput } from "../types/standardInputs";
 import type { GraphDiffCategory, GraphDiffResult } from "../types/discrepancy";
 import { buildAutoRigInputBlueprints } from "../rig/autoInputs";
-import { rehydrateRigDataFromGraph } from "../rig/importer";
 
 function resolveFaceId(value: string): string {
   const trimmed = value.trim();
@@ -152,7 +152,6 @@ export async function runRigRoundtripAudit(
     );
     const rehydrated = rehydrateRigDataFromGraph(importPreparedSpec, {
       faceId,
-      animatables: animatablesForExport,
       components: animatableComponents,
       provisionedPropsRigInputs: blueprint.blueprints.map(
         (entry) => entry.input,

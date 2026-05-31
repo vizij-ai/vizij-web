@@ -14,6 +14,7 @@ import {
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineMetadataV1,
   filterBenignGeneratedNodeIdDiffs,
+  rehydrateRigDataFromGraph,
   rewriteGraphFaceNamespace,
   type GraphDiffResult,
   type VizijPipelineMetadataV1,
@@ -27,7 +28,6 @@ import {
 } from "@vizij/utils";
 import type { VizijData, World } from "@vizij/render";
 import { buildAutoRigInputBlueprints } from "../rig/autoInputs";
-import { rehydrateRigDataFromGraph } from "../rig/importer";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 import type { DiscrepancyResolutionResult } from "../types/discrepancy";
@@ -146,7 +146,6 @@ export function useRigGraphImport({
         await waitForNextFrame();
         const rehydrated = rehydrateRigDataFromGraph(spec, {
           faceId: loadedFaceId,
-          animatables,
           components: animatableComponents,
           provisionedPropsRigInputs: blueprint.blueprints.map(
             (entry) => entry.input,

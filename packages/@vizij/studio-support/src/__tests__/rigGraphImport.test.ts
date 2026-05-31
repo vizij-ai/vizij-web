@@ -6,7 +6,7 @@ import type {
 } from "@vizij/node-graph-authoring";
 import { bindingToDefinition } from "@vizij/node-graph-authoring";
 import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
-import { rehydrateRigDataFromGraph } from "./importer";
+import { rehydrateRigDataFromGraph } from "../index";
 
 const JAW_COMPONENT_ID = "component_jaw_open";
 
@@ -152,7 +152,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "legacy_face",
-      animatables: {},
       components: [] as AnimatableComponent[],
     });
 
@@ -183,7 +182,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "legacy_face",
-      animatables: {},
       components: [] as AnimatableComponent[],
     });
 
@@ -224,7 +222,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 
@@ -233,6 +230,12 @@ describe("rehydrateRigDataFromGraph", () => {
       {
         fromTargetId: "/rig/legacy_face/propsrig/mouth/open",
         toTargetId: "propsrig_jaw_open",
+      },
+    ]);
+    expect(result.normalizationDiagnostics.faceIdMismatches).toEqual([
+      {
+        importedFaceId: "legacy_face",
+        loadedFaceId: "robot",
       },
     ]);
     expect(result.inputBindings.propsrig_jaw_open).toBeDefined();
@@ -289,7 +292,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 
@@ -326,7 +328,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 
@@ -363,7 +364,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 
@@ -407,7 +407,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
       provisionedPropsRigInputs: [provisionedPropsRig],
     });
@@ -482,7 +481,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [currentComponent],
       provisionedPropsRigInputs: [provisionedPropsRigInput],
     });
@@ -533,12 +531,10 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const once = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
     const twice = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 
@@ -585,7 +581,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const options = {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
       provisionedPropsRigInputs: [provisionedPropsRig],
     };
@@ -649,7 +644,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 
@@ -725,7 +719,6 @@ describe("rehydrateRigDataFromGraph", () => {
 
     const result = rehydrateRigDataFromGraph(spec, {
       faceId: "robot",
-      animatables: {},
       components: [makeComponent()],
     });
 

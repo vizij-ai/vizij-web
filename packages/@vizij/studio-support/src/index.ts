@@ -276,6 +276,11 @@ export {
   withVizijPipelineMetadataV1,
 } from "./utils/graphImport";
 export {
+  rehydrateRigDataFromGraph,
+  type ImportNormalizationDiagnostics,
+  type RehydratedRigData,
+} from "./utils/rigGraphImport";
+export {
   buildPoseGraphRemapApplyPlan,
   collectPoseGraphDeltaInputs,
   listPoseGraphOutputs,
