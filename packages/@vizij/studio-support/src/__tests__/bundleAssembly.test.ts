@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
@@ -8,6 +9,7 @@ import {
 import {
   buildAuthoringVizijBundle,
   mergeMotionGraphsIntoBundle,
+  prepareAuthoringVizijBundleForExport,
 } from "../utils/bundleAssembly";
 
 const INPUT: StandardRigInput = {
@@ -203,5 +205,148 @@ describe("buildAuthoringVizijBundle", () => {
         "rig/face/smile": 0.2,
       },
     });
+  });
+});
+
+describe("prepareAuthoringVizijBundleForExport", () => {
+  it("prepares pose, authored animation, motiongraph, and validation as one support-owned export transaction", async () => {
+    const poseSpec = {
+      nodes: [{ id: "pose_record_smile", type: "constant" }],
+      edges: [],
+    } as unknown as GraphSpec;
+    const buildPoseGraphSpec = vi.fn().mockReturnValue({ spec: poseSpec });
+    const validatePoseGraphSpec = vi.fn().mockReturnValue([]);
+    const auditBundleGraphs = vi.fn().mockResolvedValue([]);
+
+    const result = await prepareAuthoringVizijBundleForExport({
+      includeVizijBundle: true,
+      includeImportedAnimations: false,
+      faceId: "face",
+      sourceName: "source.glb",
+      loadedBundle: null,
+      poseGraphFileName: "pose_graph",
+      poseConfigCandidate: {
+        version: 1,
+        faceId: "legacy",
+        neutralInputs: { [INPUT.id]: 0 },
+        poses: [
+          {
+            id: "smile",
+            values: { [INPUT.id]: 1 },
+          },
+        ],
+      },
+      poseIr: {
+        version: 1,
+        faceId: "legacy",
+      },
+      buildPoseGraphSpec,
+      validatePoseGraphSpec,
+      animatablesForExport: {},
+      animatableComponents: [],
+      bindings: {} as any,
+      inputBindings: {} as any,
+      standardInputsById: new Map([[INPUT.id, INPUT]]),
+      featureLabelOverrides: {},
+      fallbackAuthoredAnimationClip: CLIP,
+      fallbackMotionGraphSpec: { nodes: [{ id: "n1" }], edges: [] },
+      auditBundleGraphs,
+    });
+
+    expect(result.error).toBeNull();
+    expect(buildPoseGraphSpec).toHaveBeenCalledWith(
+      expect.objectContaining({ faceId: "face" }),
+      [INPUT],
+      {},
+    );
+    expect(validatePoseGraphSpec).toHaveBeenCalledWith(poseSpec, [INPUT]);
+    expect(auditBundleGraphs).toHaveBeenCalledWith(
+      expect.objectContaining({ graphs: expect.any(Array) }),
+      { validOutputTargets: undefined },
+    );
+    expect(result.bundle).toMatchObject({
+      poses: {
+        config: {
+          faceId: "face",
+        },
+      },
+      metadata: {
+        authoredAnimationClips: 1,
+      },
+    });
+    expect(result.bundle?.graphs?.map((graph) => graph.kind)).toContain(
+      "motiongraph",
+    );
+  });
+
+  it("returns a pose validation error before exporting invalid authored pose graphs", async () => {
+    const auditBundleGraphs = vi.fn().mockResolvedValue([]);
+
+    const result = await prepareAuthoringVizijBundleForExport({
+      includeVizijBundle: true,
+      includeImportedAnimations: false,
+      faceId: "face",
+      sourceName: null,
+      loadedBundle: null,
+      poseConfigCandidate: {
+        version: 1,
+        neutralInputs: { [INPUT.id]: 0 },
+        poses: [{ id: "smile", values: { [INPUT.id]: 1 } }],
+      },
+      buildPoseGraphSpec: vi.fn().mockReturnValue({
+        spec: {
+          nodes: [{ id: "pose_record_smile", type: "constant" }],
+          edges: [],
+        } as unknown as GraphSpec,
+      }),
+      validatePoseGraphSpec: vi.fn().mockReturnValue(["pose invalid"]),
+      animatablesForExport: {},
+      animatableComponents: [],
+      bindings: {} as any,
+      inputBindings: {} as any,
+      standardInputsById: new Map([[INPUT.id, INPUT]]),
+      featureLabelOverrides: {},
+      auditBundleGraphs,
+    });
+
+    expect(result.error).toEqual({
+      kind: "pose-graph-validation",
+      message: "Pose graph is invalid:\npose invalid",
+    });
+    expect(auditBundleGraphs).not.toHaveBeenCalled();
+  });
+
+  it("prunes pose payloads when the built pose graph has no pose constants", async () => {
+    const result = await prepareAuthoringVizijBundleForExport({
+      includeVizijBundle: true,
+      includeImportedAnimations: false,
+      faceId: "face",
+      sourceName: null,
+      loadedBundle: null,
+      poseConfigCandidate: {
+        version: 1,
+        neutralInputs: { [INPUT.id]: 0 },
+        poses: [{ id: "smile", values: { [INPUT.id]: 1 } }],
+      },
+      buildPoseGraphSpec: vi.fn().mockReturnValue({
+        spec: {
+          nodes: [{ id: "pose_neutral_record", type: "constant" }],
+          edges: [],
+        } as unknown as GraphSpec,
+      }),
+      validatePoseGraphSpec: vi.fn().mockReturnValue(["pose invalid"]),
+      animatablesForExport: {},
+      animatableComponents: [],
+      bindings: {} as any,
+      inputBindings: {} as any,
+      standardInputsById: new Map([[INPUT.id, INPUT]]),
+      featureLabelOverrides: {},
+      auditBundleGraphs: vi.fn().mockResolvedValue([]),
+    });
+
+    expect(result.error).toBeNull();
+    expect(result.poseConfig).toBeNull();
+    expect(result.poseGraphSpec).toBeNull();
+    expect(result.bundle?.poses).toBeNull();
   });
 });

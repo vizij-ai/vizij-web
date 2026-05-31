@@ -6,7 +6,7 @@ import {
   type VizijData,
 } from "@vizij/render";
 import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -20,8 +20,8 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
   buildAuthoringRigGraphArtifacts,
-  buildAuthoringVizijBundle,
-  resolveBundleContractViolationMessage,
+  hasAuthoringPoseConstantNodes,
+  prepareAuthoringVizijBundleForExport,
   type AnimationClipIR,
   type MotionGraphBundleEntry,
   type PipelineConfigByInputId,
@@ -197,18 +197,6 @@ function resolvePoseConfigFromIr(
 
 function hasAuthoredPoseData(config: PoseRigConfigFile | null): boolean {
   return Boolean(config && Array.isArray(config.poses) && config.poses.length);
-}
-
-function hasPoseConstantNodes(spec: GraphSpec | null | undefined): boolean {
-  if (!spec || !Array.isArray(spec.nodes)) {
-    return false;
-  }
-  return spec.nodes.some((node: { id?: unknown } | null | undefined) => {
-    if (!node || typeof node.id !== "string") {
-      return false;
-    }
-    return node.id.startsWith("pose_record_");
-  });
 }
 
 export function useVizijExport(
@@ -480,7 +468,9 @@ export function useVizijExport(
         poseConfigDraftCount,
         poseIrDraftCount,
         poseGraphNodeCount,
-        poseGraphHasPoseConstants: hasPoseConstantNodes(poseRig.poseGraphSpec),
+        poseGraphHasPoseConstants: hasAuthoringPoseConstantNodes(
+          poseRig.poseGraphSpec,
+        ),
       });
 
       applyDefaultsToRobotData(
@@ -489,59 +479,16 @@ export function useVizijExport(
         featureLabelOverrides,
       );
 
-      const standardInputs = Array.from(standardInputsById.values());
-      let poseGraphSpecForExport: GraphSpec | null = null;
       const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
       const poseConfigCandidate = poseConfigFromIr
         ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
-        : null;
-      let poseConfigForExport = hasAuthoredPoseData(poseConfigCandidate)
-        ? poseConfigCandidate
         : null;
       logVizijExportDebug("export-glb:pose-config", {
         poseConfigCandidateCount: Array.isArray(poseConfigCandidate?.poses)
           ? poseConfigCandidate.poses.length
           : null,
-        hasAuthoredPoseData: Boolean(poseConfigForExport),
+        hasAuthoredPoseData: hasAuthoredPoseData(poseConfigCandidate),
       });
-      if (poseConfigForExport) {
-        try {
-          const { spec } = PoseGraphService.buildSpec(
-            poseConfigForExport,
-            standardInputs,
-            {
-              defaultGroupBlendMode: poseRig.blendMode ?? "average",
-              crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
-            },
-          );
-          const hasConstants = hasPoseConstantNodes(spec);
-          logVizijExportDebug("export-glb:pose-graph-built", {
-            builtPoseGraphNodeCount: Array.isArray(spec.nodes)
-              ? spec.nodes.length
-              : null,
-            hasPoseConstants: hasConstants,
-          });
-          if (hasConstants) {
-            poseGraphSpecForExport = spec;
-          } else {
-            poseGraphSpecForExport = null;
-            poseConfigForExport = null;
-            logVizijExportDebug("export-glb:pose-graph-pruned", {
-              reason: "no-pose-constant-nodes",
-            });
-          }
-        } catch (error) {
-          logVizijExportDebug("export-glb:pose-graph-build-failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          await alertDialog(
-            `Failed to build pose graph for export: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-          return;
-        }
-      }
 
       const animationStore = useAnimationStore.getState();
       const fallbackAuthoredClip =
@@ -551,125 +498,86 @@ export function useVizijExport(
               name: AUTHORED_TIMELINE_CLIP_NAME,
             })
           : null;
-      const authoredClipCandidates =
-        Array.isArray(authoredAnimationClips) &&
-        authoredAnimationClips.length > 0
-          ? authoredAnimationClips
-          : fallbackAuthoredClip
-            ? [fallbackAuthoredClip]
-            : [];
-      const normalizedAuthoredAnimationClips = authoredClipCandidates.filter(
-        (clip) =>
-          clip.tracks.some(
-            (track) =>
-              Array.isArray(track.keyframes) && track.keyframes.length > 0,
-          ),
-      );
 
-      let bundle: VizijBundleExtension | null;
-      try {
-        const fallbackMotionGraph = getMotionGraphSpec
-          ? (() => {
-              const motionGraphSpec = getMotionGraphSpec();
-              return motionGraphSpec && motionGraphSpec.nodes.length > 0
-                ? {
-                    id: "motiongraph",
-                    label: "motiongraph",
-                    spec: motionGraphSpec,
-                  }
-                : null;
-            })()
-          : null;
-        bundle = buildAuthoringVizijBundle({
-          includeVizijBundle,
-          includeImportedAnimations,
-          faceId: exportFaceId,
-          sourceName,
-          loadedBundle,
-          pose: {
-            poseGraphSpec: poseGraphSpecForExport,
-            poseGraphFileName: poseRig.poseGraphFileName,
-            poseConfig: poseConfigForExport,
-            poseIr: poseRig.poseIrDraft,
-            poseDiagnostics: poseRig.poseDiagnostics,
-          },
-          animatablesForExport,
-          animatableComponents,
-          bindings,
-          inputBindings,
-          standardInputsById,
-          featureLabelOverrides,
-          inputMetadata: standardInputMetadataById,
-          pipelineMetadataV1,
-          pipelineConfigByInputId,
-          authoredAnimationClips: normalizedAuthoredAnimationClips,
-          speechConfig: collectSpeechConfigFromLocalStorage(),
-          motionGraphs: authoredMotionGraphs,
-          fallbackMotionGraph,
-          activeMotionGraphId,
+      const preparedBundle = await prepareAuthoringVizijBundleForExport({
+        includeVizijBundle,
+        includeImportedAnimations,
+        faceId: exportFaceId,
+        sourceName,
+        loadedBundle,
+        poseGraphFileName: poseRig.poseGraphFileName,
+        poseConfigCandidate,
+        poseIr: poseRig.poseIrDraft,
+        poseDiagnostics: poseRig.poseDiagnostics,
+        poseGraphBuildOptions: {
+          defaultGroupBlendMode: poseRig.blendMode ?? "average",
+          crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
+        },
+        buildPoseGraphSpec: (config, standardInputs, options) =>
+          PoseGraphService.buildSpec(
+            config as PoseRigConfigFile,
+            standardInputs,
+            options,
+          ),
+        validatePoseGraphSpec: (spec, standardInputs) =>
+          PoseGraphService.validate(spec, standardInputs),
+        animatablesForExport,
+        animatableComponents,
+        bindings,
+        inputBindings,
+        standardInputsById,
+        featureLabelOverrides,
+        inputMetadata: standardInputMetadataById,
+        pipelineMetadataV1,
+        pipelineConfigByInputId,
+        authoredAnimationClips,
+        fallbackAuthoredAnimationClip: fallbackAuthoredClip,
+        speechConfig: collectSpeechConfigFromLocalStorage(),
+        motionGraphs: authoredMotionGraphs,
+        fallbackMotionGraphSpec: getMotionGraphSpec?.() ?? null,
+        activeMotionGraphId,
+        validOutputTargets,
+        auditBundleGraphs,
+      });
+      logVizijExportDebug("export-glb:bundle-prepared", {
+        poseConfigCandidateCount:
+          preparedBundle.diagnostics.poseConfigCandidateCount,
+        hasAuthoredPoseData: preparedBundle.diagnostics.hasAuthoredPoseData,
+        poseGraphBuilt: preparedBundle.diagnostics.poseGraphBuilt,
+        poseGraphNodeCount: preparedBundle.diagnostics.poseGraphNodeCount,
+        poseGraphHasPoseConstants:
+          preparedBundle.diagnostics.poseGraphHasPoseConstants,
+        authoredAnimationClipCount:
+          preparedBundle.diagnostics.authoredAnimationClipCount,
+        fallbackMotionGraphUsed:
+          preparedBundle.diagnostics.fallbackMotionGraphUsed,
+        errorKind: preparedBundle.error?.kind ?? null,
+      });
+      if (
+        preparedBundle.diagnostics.poseGraphBuilt &&
+        !preparedBundle.diagnostics.poseGraphHasPoseConstants
+      ) {
+        logVizijExportDebug("export-glb:pose-graph-pruned", {
+          reason: "no-pose-constant-nodes",
         });
-      } catch (error) {
-        await alertDialog(
-          error instanceof Error ? error.message : String(error),
-        );
+      }
+      if (preparedBundle.error) {
+        if (preparedBundle.error.kind === "pose-graph-build") {
+          logVizijExportDebug("export-glb:pose-graph-build-failed", {
+            error: preparedBundle.error.message,
+          });
+        }
+        await alertDialog(preparedBundle.error.message);
         return;
       }
+      const bundle = preparedBundle.bundle;
 
-      if (bundle?.graphs?.length) {
-        const rigGraph = bundle.graphs.find((graph) => graph.kind === "rig");
-        const fatalIssues = (
-          rigGraph?.metadata as { issues?: { fatal?: unknown[] } } | undefined
-        )?.issues?.fatal;
-        if (Array.isArray(fatalIssues) && fatalIssues.length > 0) {
-          await alertDialog(
-            "Fix rig graph errors before exporting the bundled GLB.",
-          );
-          return;
-        }
-        if (rigGraph?.spec) {
-          try {
-            await normalizeGraphSpec(rigGraph.spec as GraphSpec);
-          } catch (error) {
-            await alertDialog(
-              `Rig graph validation failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-            return;
-          }
-        }
-        if (
-          poseGraphSpecForExport &&
-          hasPoseConstantNodes(poseGraphSpecForExport)
-        ) {
-          logVizijExportDebug("export-glb:pose-graph-validate", {
-            poseGraphNodeCount: Array.isArray(poseGraphSpecForExport.nodes)
-              ? poseGraphSpecForExport.nodes.length
-              : null,
-          });
-          const poseWarnings = PoseGraphService.validate(
-            poseGraphSpecForExport,
-            standardInputs,
-          );
-          if (poseWarnings.length > 0) {
-            logVizijExportDebug("export-glb:pose-graph-invalid", {
-              poseWarnings,
-            });
-            await alertDialog(
-              `Pose graph is invalid:\n${poseWarnings.join("\n")}`,
-            );
-            return;
-          }
-        }
-        const bundleAudits = await auditBundleGraphs(bundle, {
-          validOutputTargets,
+      if (bundle?.graphs?.length && preparedBundle.poseGraphSpec) {
+        logVizijExportDebug("export-glb:pose-graph-validate", {
+          poseGraphNodeCount: Array.isArray(preparedBundle.poseGraphSpec.nodes)
+            ? preparedBundle.poseGraphSpec.nodes.length
+            : null,
         });
-        const contractViolationMessage =
-          resolveBundleContractViolationMessage(bundleAudits);
-        if (contractViolationMessage) {
-          await alertDialog(contractViolationMessage);
-          return;
-        }
       }
 
       logVizijExportDebug("export-glb:export-scene", {
@@ -757,14 +665,14 @@ export function useVizijExport(
         defaultGroupBlendMode: poseRig.blendMode ?? "average",
         crossGroupBlendMode: poseRig.crossGroupBlendMode ?? "additive",
       });
-      const warnings = hasPoseConstantNodes(spec)
+      const warnings = hasAuthoringPoseConstantNodes(spec)
         ? PoseGraphService.validate(spec, inputs)
         : [];
       logVizijExportDebug("export-pose-graph:file", {
         poseGraphNodeCount: Array.isArray(spec.nodes)
           ? spec.nodes.length
           : null,
-        hasPoseConstants: hasPoseConstantNodes(spec),
+        hasPoseConstants: hasAuthoringPoseConstantNodes(spec),
         warningCount: warnings.length,
       });
       if (warnings.length > 0) {

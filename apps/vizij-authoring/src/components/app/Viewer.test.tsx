@@ -39,6 +39,16 @@ const runtimeProviderProps = vi.hoisted(() => ({
     }) => void;
   } | null,
 }));
+const runtimeControllerState = vi.hoisted(() => ({
+  current: { graphs: [] as string[], anims: [] as string[] },
+}));
+const runtimeErrorState = vi.hoisted(() => ({
+  current: null as {
+    message: string;
+    timestamp: number;
+    phase?: string;
+  } | null,
+}));
 const stepSpy = vi.fn();
 const setInputSpy = vi.fn();
 const runtimeAssetBundleState: {
@@ -137,8 +147,8 @@ vi.mock("@vizij/runtime-react", () => ({
     ready: true,
     loading: false,
     rootId: "root",
-    error: null,
-    controllers: { graphs: [], anims: [] },
+    error: runtimeErrorState.current,
+    controllers: runtimeControllerState.current,
     outputPaths: [],
     assetBundle: runtimeAssetBundleState,
     setGraphBundle: setGraphBundleSpy,
@@ -238,6 +248,8 @@ describe("Viewer", () => {
     motionGraphValueSamplerSpy.mockReset();
     runtimeAssetBundleState.animations = [];
     runtimeAssetBundleState.programs = [];
+    runtimeControllerState.current = { graphs: [], anims: [] };
+    runtimeErrorState.current = null;
     runtimeProviderProps.current = null;
     setVizijStoreSpy.mockReset();
     stopAnimationSpy.mockReset();
@@ -551,6 +563,65 @@ describe("Viewer", () => {
       status: "registered",
       message: null,
       signature,
+    });
+  });
+
+  it("applies runtime errors only to the active compile target", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    store.setState({
+      authoringCompileStatus: "registered",
+      authoringCompileTarget: "runtime-graph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "graph-v1",
+    });
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+    runtimeErrorState.current = {
+      message: "animation registration failed",
+      phase: "animation",
+      timestamp: 1,
+    };
+
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: {
+                kind: "world",
+                world: {},
+                animatables: {},
+                bundle: null,
+              },
+              bundle: null,
+            }}
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"],
+    ).toMatchObject({
+      status: "registered",
+      message: null,
+      signature: "graph-v1",
+    });
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "runtime-error",
+      message: "animation registration failed",
     });
   });
 
@@ -1402,6 +1473,64 @@ describe("Viewer", () => {
     );
 
     expect(playProgramSpy).toHaveBeenCalledWith("graph:test");
+  });
+
+  it("retries active procedural program playback after controller registration changes", () => {
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    const graph = makeRuntimeProgramGraph();
+    const props = {
+      rootId: "root",
+      namespace: "default",
+      bundle: {
+        namespace: "default",
+        glb: {
+          kind: "world" as const,
+          world: {},
+          animatables: {},
+          bundle: null,
+        },
+        bundle: null,
+      },
+      motionGraphPlaybackState: "playing" as const,
+      motionGraphRuntimeControllerId: "graph:test",
+      motionGraphRuntimeNodes: graph.nodes,
+      motionGraphRuntimeEdges: graph.edges,
+      onClearSelection: () => {},
+      showSelectionGlow: false,
+      onImportClick: () => {},
+      onLoadQuori: () => {},
+    };
+    const view = render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer {...props} />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(playProgramSpy).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer {...props} />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(playProgramSpy).toHaveBeenCalledTimes(1);
+
+    runtimeControllerState.current = { graphs: ["graph:test"], anims: [] };
+    view.rerender(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer {...props} />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    expect(playProgramSpy).toHaveBeenCalledTimes(2);
   });
 
   it("stops and clears the managed runtime program when the runtime session stops", () => {

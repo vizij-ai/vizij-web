@@ -9,7 +9,7 @@ import {
   type BindingMap,
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -33,6 +33,11 @@ import {
   type PoseConfigSnapshot,
 } from "./pipelineMetadata";
 import type { VizijPipelineMetadataV1 } from "./standardInputRemap";
+import {
+  auditBundleGraphs,
+  resolveBundleContractViolationMessage,
+  type BundleGraphAuditEntry,
+} from "./bundleAudit";
 
 export interface MotionGraphBundleEntry {
   id: string;
@@ -103,6 +108,74 @@ export interface BuildAuthoringVizijBundleOptions {
   activeMotionGraphId?: string | null;
 }
 
+export interface PrepareAuthoringVizijBundleForExportOptions
+  extends Omit<
+    BuildAuthoringVizijBundleOptions,
+    "pose" | "authoredAnimationClips" | "fallbackMotionGraph"
+  > {
+  poseGraphFileName?: string | null;
+  poseConfigCandidate?: AuthoringPoseConfig | null;
+  poseIr?: unknown | null;
+  poseDiagnostics?: AuthoringPoseDiagnostic[];
+  poseGraphBuildOptions?: {
+    defaultGroupBlendMode?: "average" | "additive";
+    crossGroupBlendMode?: "average" | "additive";
+  };
+  buildPoseGraphSpec?: (
+    config: AuthoringPoseConfig,
+    standardInputs: StandardRigInput[],
+    options: {
+      defaultGroupBlendMode?: "average" | "additive";
+      crossGroupBlendMode?: "average" | "additive";
+    },
+  ) => { spec: GraphSpec };
+  validatePoseGraphSpec?: (
+    spec: GraphSpec,
+    standardInputs: StandardRigInput[],
+  ) => string[];
+  authoredAnimationClips?: AnimationClipIR[];
+  fallbackAuthoredAnimationClip?: AnimationClipIR | null;
+  fallbackMotionGraphSpec?: { nodes: unknown[]; edges: unknown[] } | null;
+  fallbackMotionGraphId?: string;
+  fallbackMotionGraphLabel?: string;
+  validOutputTargets?: Set<string>;
+  auditBundleGraphs?: (
+    bundle: VizijBundleExtension,
+    options?: { validOutputTargets?: Set<string> },
+  ) => Promise<BundleGraphAuditEntry[]>;
+}
+
+export interface PrepareAuthoringVizijBundleForExportError {
+  kind:
+    | "bundle-build"
+    | "bundle-contract"
+    | "pose-graph-build"
+    | "pose-graph-validation"
+    | "rig-graph-fatal"
+    | "rig-graph-validation";
+  message: string;
+}
+
+export interface PrepareAuthoringVizijBundleForExportDiagnostics {
+  poseConfigCandidateCount: number | null;
+  hasAuthoredPoseData: boolean;
+  poseGraphBuilt: boolean;
+  poseGraphNodeCount: number | null;
+  poseGraphHasPoseConstants: boolean;
+  authoredAnimationClipCount: number;
+  fallbackMotionGraphUsed: boolean;
+}
+
+export interface PrepareAuthoringVizijBundleForExportResult {
+  bundle: VizijBundleExtension | null;
+  poseGraphSpec: GraphSpec | null;
+  poseConfig: AuthoringPoseConfig | null;
+  authoredAnimationClips: AnimationClipIR[];
+  fallbackMotionGraph: MotionGraphBundleEntry | null;
+  diagnostics: PrepareAuthoringVizijBundleForExportDiagnostics;
+  error: PrepareAuthoringVizijBundleForExportError | null;
+}
+
 export interface BuildAuthoringRigGraphArtifactsOptions {
   faceId: string | null | undefined;
   animatablesForExport: Record<string, AnimatableValue>;
@@ -144,6 +217,28 @@ function faceSlug(value: string | null | undefined): string {
 function resolveExportFaceId(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : faceSlug(value);
+}
+
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function hasAuthoredPoseData(config: AuthoringPoseConfig | null): boolean {
+  return Boolean(config && Array.isArray(config.poses) && config.poses.length);
+}
+
+export function hasAuthoringPoseConstantNodes(
+  spec: GraphSpec | null | undefined,
+): boolean {
+  if (!spec || !Array.isArray(spec.nodes)) {
+    return false;
+  }
+  return spec.nodes.some((node: { id?: unknown } | null | undefined) => {
+    if (!node || typeof node.id !== "string") {
+      return false;
+    }
+    return node.id.startsWith("pose_record_");
+  });
 }
 
 export function buildAuthoringRigGraphArtifacts(
@@ -516,4 +611,262 @@ export function buildAuthoringVizijBundle(
   }
 
   return bundle;
+}
+
+function normalizeAuthoredAnimationClips(
+  authoredAnimationClips: AnimationClipIR[] | undefined,
+  fallbackAuthoredAnimationClip: AnimationClipIR | null | undefined,
+): AnimationClipIR[] {
+  const authoredClipCandidates =
+    Array.isArray(authoredAnimationClips) && authoredAnimationClips.length > 0
+      ? authoredAnimationClips
+      : fallbackAuthoredAnimationClip
+        ? [fallbackAuthoredAnimationClip]
+        : [];
+
+  return authoredClipCandidates.filter((clip) =>
+    clip.tracks.some(
+      (track) => Array.isArray(track.keyframes) && track.keyframes.length > 0,
+    ),
+  );
+}
+
+function resolveFallbackMotionGraph(
+  spec: { nodes: unknown[]; edges: unknown[] } | null | undefined,
+  id = "motiongraph",
+  label = "motiongraph",
+): MotionGraphBundleEntry | null {
+  if (!spec || !Array.isArray(spec.nodes) || spec.nodes.length === 0) {
+    return null;
+  }
+  return {
+    id,
+    label,
+    spec,
+  };
+}
+
+export async function prepareAuthoringVizijBundleForExport(
+  options: PrepareAuthoringVizijBundleForExportOptions,
+): Promise<PrepareAuthoringVizijBundleForExportResult> {
+  const standardInputs = Array.from(options.standardInputsById.values());
+  const exportFaceId = resolveExportFaceId(options.faceId);
+  const poseConfigCandidate = options.poseConfigCandidate
+    ? withPoseConfigFaceId(options.poseConfigCandidate, exportFaceId)
+    : null;
+  let poseConfigForExport = hasAuthoredPoseData(poseConfigCandidate)
+    ? poseConfigCandidate
+    : null;
+  let poseGraphSpecForExport: GraphSpec | null = null;
+  let poseGraphBuilt = false;
+  let poseGraphNodeCount: number | null = null;
+  let poseGraphHasPoseConstants = false;
+
+  if (poseConfigForExport && options.buildPoseGraphSpec) {
+    try {
+      const { spec } = options.buildPoseGraphSpec(
+        poseConfigForExport,
+        standardInputs,
+        options.poseGraphBuildOptions ?? {},
+      );
+      poseGraphBuilt = true;
+      poseGraphNodeCount = Array.isArray(spec.nodes) ? spec.nodes.length : null;
+      poseGraphHasPoseConstants = hasAuthoringPoseConstantNodes(spec);
+      if (poseGraphHasPoseConstants) {
+        poseGraphSpecForExport = spec;
+      } else {
+        poseConfigForExport = null;
+      }
+    } catch (error) {
+      return {
+        bundle: null,
+        poseGraphSpec: null,
+        poseConfig: null,
+        authoredAnimationClips: [],
+        fallbackMotionGraph: null,
+        diagnostics: {
+          poseConfigCandidateCount: Array.isArray(poseConfigCandidate?.poses)
+            ? poseConfigCandidate.poses.length
+            : null,
+          hasAuthoredPoseData: Boolean(poseConfigForExport),
+          poseGraphBuilt,
+          poseGraphNodeCount,
+          poseGraphHasPoseConstants,
+          authoredAnimationClipCount: 0,
+          fallbackMotionGraphUsed: false,
+        },
+        error: {
+          kind: "pose-graph-build",
+          message: `Failed to build pose graph for export: ${formatUnknownError(
+            error,
+          )}`,
+        },
+      };
+    }
+  }
+
+  const authoredAnimationClips = normalizeAuthoredAnimationClips(
+    options.authoredAnimationClips,
+    options.fallbackAuthoredAnimationClip,
+  );
+  const fallbackMotionGraph = resolveFallbackMotionGraph(
+    options.fallbackMotionGraphSpec,
+    options.fallbackMotionGraphId,
+    options.fallbackMotionGraphLabel,
+  );
+
+  let bundle: VizijBundleExtension | null;
+  try {
+    bundle = buildAuthoringVizijBundle({
+      ...options,
+      faceId: exportFaceId,
+      pose: {
+        poseGraphSpec: poseGraphSpecForExport,
+        poseGraphFileName: options.poseGraphFileName,
+        poseConfig: poseConfigForExport,
+        poseIr: options.poseIr,
+        poseDiagnostics: options.poseDiagnostics,
+      },
+      authoredAnimationClips,
+      fallbackMotionGraph,
+    });
+  } catch (error) {
+    return {
+      bundle: null,
+      poseGraphSpec: poseGraphSpecForExport,
+      poseConfig: poseConfigForExport,
+      authoredAnimationClips,
+      fallbackMotionGraph,
+      diagnostics: {
+        poseConfigCandidateCount: Array.isArray(poseConfigCandidate?.poses)
+          ? poseConfigCandidate.poses.length
+          : null,
+        hasAuthoredPoseData: Boolean(poseConfigForExport),
+        poseGraphBuilt,
+        poseGraphNodeCount,
+        poseGraphHasPoseConstants,
+        authoredAnimationClipCount: authoredAnimationClips.length,
+        fallbackMotionGraphUsed: Boolean(fallbackMotionGraph),
+      },
+      error: {
+        kind: "bundle-build",
+        message: formatUnknownError(error),
+      },
+    };
+  }
+
+  const diagnostics: PrepareAuthoringVizijBundleForExportDiagnostics = {
+    poseConfigCandidateCount: Array.isArray(poseConfigCandidate?.poses)
+      ? poseConfigCandidate.poses.length
+      : null,
+    hasAuthoredPoseData: Boolean(poseConfigForExport),
+    poseGraphBuilt,
+    poseGraphNodeCount,
+    poseGraphHasPoseConstants,
+    authoredAnimationClipCount: authoredAnimationClips.length,
+    fallbackMotionGraphUsed: Boolean(fallbackMotionGraph),
+  };
+
+  if (!bundle?.graphs?.length) {
+    return {
+      bundle,
+      poseGraphSpec: poseGraphSpecForExport,
+      poseConfig: poseConfigForExport,
+      authoredAnimationClips,
+      fallbackMotionGraph,
+      diagnostics,
+      error: null,
+    };
+  }
+
+  const rigGraph = bundle.graphs.find((graph) => graph.kind === "rig");
+  const fatalIssues = (
+    rigGraph?.metadata as { issues?: { fatal?: unknown[] } } | undefined
+  )?.issues?.fatal;
+  if (Array.isArray(fatalIssues) && fatalIssues.length > 0) {
+    return {
+      bundle,
+      poseGraphSpec: poseGraphSpecForExport,
+      poseConfig: poseConfigForExport,
+      authoredAnimationClips,
+      fallbackMotionGraph,
+      diagnostics,
+      error: {
+        kind: "rig-graph-fatal",
+        message: "Fix rig graph errors before exporting the bundled GLB.",
+      },
+    };
+  }
+
+  if (rigGraph?.spec) {
+    try {
+      await normalizeGraphSpec(rigGraph.spec as GraphSpec);
+    } catch (error) {
+      return {
+        bundle,
+        poseGraphSpec: poseGraphSpecForExport,
+        poseConfig: poseConfigForExport,
+        authoredAnimationClips,
+        fallbackMotionGraph,
+        diagnostics,
+        error: {
+          kind: "rig-graph-validation",
+          message: `Rig graph validation failed: ${formatUnknownError(error)}`,
+        },
+      };
+    }
+  }
+
+  if (poseGraphSpecForExport && options.validatePoseGraphSpec) {
+    const poseWarnings = options.validatePoseGraphSpec(
+      poseGraphSpecForExport,
+      standardInputs,
+    );
+    if (poseWarnings.length > 0) {
+      return {
+        bundle,
+        poseGraphSpec: poseGraphSpecForExport,
+        poseConfig: poseConfigForExport,
+        authoredAnimationClips,
+        fallbackMotionGraph,
+        diagnostics,
+        error: {
+          kind: "pose-graph-validation",
+          message: `Pose graph is invalid:\n${poseWarnings.join("\n")}`,
+        },
+      };
+    }
+  }
+
+  const auditBundleGraphsForExport =
+    options.auditBundleGraphs ?? auditBundleGraphs;
+  const bundleAudits = await auditBundleGraphsForExport(bundle, {
+    validOutputTargets: options.validOutputTargets,
+  });
+  const contractViolationMessage =
+    resolveBundleContractViolationMessage(bundleAudits);
+  if (contractViolationMessage) {
+    return {
+      bundle,
+      poseGraphSpec: poseGraphSpecForExport,
+      poseConfig: poseConfigForExport,
+      authoredAnimationClips,
+      fallbackMotionGraph,
+      diagnostics,
+      error: {
+        kind: "bundle-contract",
+        message: contractViolationMessage,
+      },
+    };
+  }
+
+  return {
+    bundle,
+    poseGraphSpec: poseGraphSpecForExport,
+    poseConfig: poseConfigForExport,
+    authoredAnimationClips,
+    fallbackMotionGraph,
+    diagnostics,
+    error: null,
+  };
 }

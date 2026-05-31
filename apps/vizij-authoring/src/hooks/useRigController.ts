@@ -3637,14 +3637,20 @@ export function useRigController(
 
     const fatalIssues = rigGraphBuild.issues.fatal;
     if (fatalIssues.length > 0) {
+      const message =
+        fatalIssues.length === 1 ? fatalIssues[0] : fatalIssues.join("; ");
       graphSummaryRef.current = null;
       graphIrRef.current = null;
       resetDrivenAnimatables();
       setGraphStatus("error");
-      setGraphError(
-        fatalIssues.length === 1 ? fatalIssues[0] : fatalIssues.join("; "),
-      );
+      setGraphError(message);
       setGraphWarning(null);
+      graphRuntimeStore.setState({
+        authoringCompileStatus: "runtime-error",
+        authoringCompileTarget: "runtime-graph",
+        authoringCompileMessage: message,
+        authoringCompileSignature: null,
+      });
       emitLoadPhase({
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
@@ -3654,6 +3660,8 @@ export function useRigController(
     }
 
     if (runtimeGraphSpec.blocked || !runtimeGraphSpec.runtimeSpec) {
+      const message =
+        runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.";
       if (!skipRuntimeUnloadRef.current) {
         graphSummaryRef.current = null;
         graphIrRef.current = null;
@@ -3662,10 +3670,14 @@ export function useRigController(
       } else {
         setGraphStatus("ready");
       }
-      setGraphError(
-        runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.",
-      );
+      setGraphError(message);
       setGraphWarning(null);
+      graphRuntimeStore.setState({
+        authoringCompileStatus: "runtime-error",
+        authoringCompileTarget: "runtime-graph",
+        authoringCompileMessage: message,
+        authoringCompileSignature: null,
+      });
       emitLoadPhase({
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
@@ -3709,6 +3721,7 @@ export function useRigController(
   }, [
     faceId,
     emitLoadPhase,
+    graphRuntimeStore,
     resetDrivenAnimatables,
     rigGraphBuild,
     runtimeGraphSpec,

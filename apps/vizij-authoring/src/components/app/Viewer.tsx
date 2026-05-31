@@ -435,17 +435,16 @@ function RuntimeStatusDebug() {
     if (!error) {
       return;
     }
-    const currentTarget = graphRuntimeStore.getState().authoringCompileTarget;
+    const currentState = graphRuntimeStore.getState();
+    const currentTarget = currentState.authoringCompileTarget;
+    if (!currentTarget) {
+      return;
+    }
     graphRuntimeStore.setState({
       authoringCompileStatus: "runtime-error",
       authoringCompileTarget: currentTarget,
       authoringCompileMessage: error.message,
-      authoringCompileSignature: null,
-      authoringCompileTargets: createAuthoringCompileTargets({
-        status: "runtime-error",
-        message: error.message,
-        signature: null,
-      }),
+      authoringCompileSignature: currentState.authoringCompileSignature,
     });
   }, [error, graphRuntimeStore]);
   const runtimeState = ready ? "ready" : loading ? "loading" : "idle";
@@ -624,7 +623,7 @@ function MotionGraphRuntimeBridge({
       return;
     }
 
-    const commandKey = `${programAsset.id}:${desiredProgramSignature}:${playbackState}`;
+    const commandKey = `${programAsset.id}:${desiredProgramSignature}:${playbackState}:${controllerSignature}`;
     if (lastPlaybackCommandRef.current === commandKey) {
       return;
     }

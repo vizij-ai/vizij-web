@@ -132,8 +132,10 @@ export {
 export {
   buildAuthoringRigGraphArtifacts,
   buildAuthoringVizijBundle,
+  hasAuthoringPoseConstantNodes,
   mergeMotionGraphsIntoBundle,
   normalizeMotionGraphResetValues,
+  prepareAuthoringVizijBundleForExport,
   type AuthoringPoseBundleState,
   type AuthoringPoseConfig,
   type AuthoringRigGraphArtifacts,
@@ -141,6 +143,10 @@ export {
   type AuthoringPoseDiagnostic,
   type BuildAuthoringVizijBundleOptions,
   type MotionGraphBundleEntry,
+  type PrepareAuthoringVizijBundleForExportDiagnostics,
+  type PrepareAuthoringVizijBundleForExportError,
+  type PrepareAuthoringVizijBundleForExportOptions,
+  type PrepareAuthoringVizijBundleForExportResult,
 } from "./utils/bundleAssembly";
 export {
   extractGraphFaceId,

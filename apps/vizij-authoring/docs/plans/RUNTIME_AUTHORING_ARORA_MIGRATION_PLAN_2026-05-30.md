@@ -89,18 +89,22 @@ The 2026-05-31 verification-led responsibility pass tightened the same architect
 25. Animation compile status now preserves a matching `registered` target state when the runtime signature catches up and the bridge later observes an already-compiled payload. This prevents a registered animation edit from visually regressing to merely compiled.
 26. Live-edit pipeline metadata derivation, imported/local merge, sanitize, and link-patch reading are now support-owned pure helpers; `useRigController` keeps app-specific binding mutation and UI orchestration.
 27. Inspector compile-status display now ranks all target states before using the latest target as a tie-breaker, so a later animation acknowledgement cannot hide a runtime graph error, dirty state, or compile-in-progress state.
+28. GLB export now uses a support-owned `prepareAuthoringVizijBundleForExport` transaction for authored pose eligibility, pose graph build/validation, authored animation fallback selection, fallback motiongraph selection, rig graph validation, and bundle contract validation. The authoring hook keeps scene body selection, local UI dialogs, localStorage speech settings, and `exportScene`.
+29. Runtime errors now update only the active compile target instead of broadcasting the same `runtime-error` state across runtime graph, animation, and motiongraph targets.
+30. Blocked or fatal rig graph compilation now marks the `runtime-graph` compile target as `runtime-error`, so a stale last-known-good runtime graph cannot look like the current edit was registered.
+31. Motiongraph playback commands now retry when runtime controller registration changes, so `playing` state is not acknowledged permanently while the Arora program registration is still pending.
 
 Latest verification for this pass:
 
 1. `pnpm --filter @vizij/studio-support lint`
 2. `pnpm --filter @vizij/studio-support typecheck`
-3. `pnpm --filter @vizij/studio-support test` - 31 files, 157 tests passed.
+3. `pnpm --filter @vizij/studio-support test` - 31 files, 160 tests passed.
 4. `pnpm --filter @vizij/runtime-react lint`
 5. `pnpm --filter @vizij/runtime-react typecheck`
 6. `pnpm --filter @vizij/runtime-react test` - 8 files, 40 tests passed.
 7. `pnpm --filter vizij-authoring lint`
 8. `pnpm --filter vizij-authoring typecheck`
-9. `pnpm --filter vizij-authoring test` - 93 files passed, 674 tests passed, 1 perf file/test skipped.
+9. `pnpm --filter vizij-authoring test` - 93 files passed, 676 tests passed, 1 perf file/test skipped.
 10. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed in 2.4 minutes, including face load, UI-edited animation and graph execution through composed Arora runtime, and exported GLB round-trip.
 11. Source files touched in this pass passed `pnpm exec prettier --check ...`; package-level `prettier:check` scripts include generated `dist` files after local builds, so they were not used as the final source-format gate.
 12. `git diff --check`
@@ -118,6 +122,7 @@ Focused evidence for the live authoring path:
 9. After support-owned runtime graph gating and rig import/audit comparison cleanup: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/rigRoundtripDiagnostics.test.ts src/__tests__/runtimeGraphSpec.test.ts src/__tests__/bundleAssembly.test.ts src/__tests__/bundleAudit.test.ts src/__tests__/graphDiff.test.ts` - 25 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/rigGraphCompiler.test.ts src/hooks/__tests__/graphRuntime.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx src/state/__tests__/stores.test.ts` - 41 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx` - 34 tests passed.
 10. After correcting the support/runtime host-effect boundary and animation ack retention: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/authoringPreview.test.ts src/__tests__/studioSupport.test.ts` - 22 tests passed; `pnpm --filter @vizij/runtime-react exec vitest --run src/__tests__/controllerRegistration.test.ts src/__tests__/runtimeProviderExecutionLoop.test.tsx src/__tests__/studioSupportExports.test.ts` - 20 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/state/__tests__/stores.test.ts src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx` - 32 tests passed.
 11. After moving live-edit pipeline metadata helpers into Studio support and fixing compile-target display ranking: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/pipelineMetadata.test.ts` - 15 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useRigController.pipelineMerge.test.ts src/state/__tests__/stores.test.ts` - 10 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/inspector/InspectorPanel.test.tsx src/components/app/Viewer.test.tsx src/hooks/__tests__/useAnimationTransport.test.tsx` - 28 tests passed.
+12. After moving export preparation into Studio support and fixing reviewed runtime correctness risks: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/bundleAssembly.test.ts` - 5 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijExport.test.tsx` - 34 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/app/Viewer.test.tsx src/hooks/__tests__/rigGraphCompiler.test.ts` - 30 tests passed.
 
 This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly, reducing duplicate compile semantics, and choosing performance promotions from evidence.
 
