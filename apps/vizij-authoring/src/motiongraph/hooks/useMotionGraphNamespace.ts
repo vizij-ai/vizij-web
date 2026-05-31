@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import type { VizijBundleExtension } from "@vizij/render";
+import { buildGraphSpecForExport } from "@vizij/studio-support";
 import { useEditorStore } from "../store/useEditorStore";
-import { buildGraphSpecForExport } from "../utils/buildGraphSpec";
 
 const MOTIONGRAPH_PREFIX = "motiongraph/";
 const MOTIONGRAPH_GRAPH_ID = "motiongraph";

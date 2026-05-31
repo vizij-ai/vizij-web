@@ -6,9 +6,9 @@ import type {
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
+import type { VizijPipelineMetadataV1 } from "@vizij/studio-support";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import type { AnimationClipIR } from "../types/animationClipIr";
-import type { VizijPipelineMetadataV1 } from "../utils/graphImport";
 import { stableStringify } from "../utils/hash";
 
 interface AuthoredMotionGraphDirtyEntry {

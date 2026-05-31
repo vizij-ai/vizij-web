@@ -7,7 +7,7 @@ import {
   extractVizijPipelineMetadataV1,
   remapGraphSpecFace,
   withVizijPipelineMetadataV1,
-} from "./graphImport";
+} from "../utils/graphImport";
 
 describe("graph import helpers", () => {
   it("extracts the face id from vizij metadata", () => {

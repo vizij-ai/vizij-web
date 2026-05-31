@@ -25,10 +25,12 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
-import { auditBundleGraphs } from "@vizij/studio-support";
+import {
+  auditBundleGraphs,
+  type VizijPipelineMetadataV1,
+} from "@vizij/studio-support";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
-import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";

@@ -29,26 +29,28 @@ This is a sufficient proof to begin the real migration work, with one caveat: th
 
 ## Validation And Hardening Status
 
-As of the 2026-05-30 hardening pass, the first pure-helper promotion slice is complete:
+As of the 2026-05-30 validation pass, the current Studio-support promotion slice is complete:
 
-1. `runtimeBundle`, `standardInputRemap`, `graphDiff`, and `bundleAudit` moved from `apps/vizij-authoring` into `@vizij/studio-support`.
+1. `runtimeBundle`, `standardInputRemap`, `graphDiff`, `bundleAudit`, graph import metadata helpers, pose graph import helpers, and motion graph spec/import helpers moved from `apps/vizij-authoring` into `@vizij/studio-support`.
 2. Authoring callers now import those helpers from the Studio-support package instead of local UI utilities.
 3. App-local graph diff type ownership was removed; authoring discrepancy state re-exports the package-owned graph diff types.
-4. The moved helpers have package-level tests, including bundle-audit coverage for missing-IR graph handling.
-5. The promotion found and fixed one practical monorepo constraint: authoring typecheck already resolved `@vizij/studio-support` to source, but Vite/Vitest needed the same source alias to avoid stale built exports during local dev and tests.
+4. Motion graph compiler/import behavior is now package-owned: reachable-node filtering, editor handle translation, runtime namespace application, export namespace omission, layout preservation, and synthetic default constants.
+5. The UI motion graph node components now re-export the Studio-support synthetic node/handle constants, so UI handles and compiler handles share one canonical source.
+6. The moved helpers have package-level tests, including graph-import coverage, pose-graph import coverage, motion graph spec coverage, and motion graph import/default restoration coverage.
 
 Latest validation:
 
 1. `pnpm --filter @vizij/studio-support lint`
 2. `pnpm --filter @vizij/studio-support typecheck`
-3. `pnpm --filter @vizij/studio-support test` - 15 files, 63 tests passed.
-4. `pnpm --filter vizij-authoring lint`
-5. `pnpm --filter vizij-authoring typecheck`
-6. `pnpm --filter vizij-authoring test` - 101 files passed, 706 tests passed, 1 perf test skipped.
-7. `pnpm --filter @vizij/runtime-react test` - 9 files, 36 tests passed.
-8. `pnpm --filter @vizij/orchestrator-react test` - 2 files, 22 tests passed.
-9. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed, including UI-edited animation and graph execution through Arora Web composed runtime and exported GLB round-trip.
-10. `pnpm --filter vizij-authoring test:e2e:smoke` - 4 smoke tests passed across app load, export dialog, reference-face copy/reset, and motiongraph.
+3. `pnpm --filter @vizij/studio-support test` - 19 files, 77 tests passed.
+4. `pnpm --filter @vizij/studio-support build`
+5. `pnpm --filter @vizij/studio-support prettier:check`
+6. `pnpm --filter vizij-authoring lint`
+7. `pnpm --filter vizij-authoring typecheck`
+8. `pnpm --filter vizij-authoring test` - 99 files passed, 698 tests passed, 1 perf test skipped.
+9. `pnpm --filter vizij-authoring prettier:check`
+10. `pnpm --filter vizij-authoring test:e2e:arora` - 3 workflow tests passed, including UI-edited animation and graph execution through Arora Web composed runtime and exported GLB round-trip.
+11. `pnpm --filter vizij-authoring test:e2e:smoke` - 4 smoke tests passed across app load, export dialog, reference-face copy/reset, and motiongraph.
 
 This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly and reducing duplicate compile semantics.
 
@@ -153,12 +155,19 @@ Acceptance:
 
 Goal: move canonical asset assembly and validation out of UI/runtime React code.
 
+Current state:
+
+1. Runtime registration-plan construction and runtime update planning are already in `@vizij/studio-support`.
+2. Generic graph import metadata helpers are already in `@vizij/studio-support`.
+3. Pose graph import mutation helpers are already in `@vizij/studio-support`.
+4. Motion graph editor/spec conversion is already in `@vizij/studio-support` as an editor-support DTO boundary. This keeps import/export/live preview semantics package-owned now, while leaving a later option to split a stricter engine-neutral DTO from the ReactFlow adapter if the package API starts carrying too much UI shape.
+
 Work:
 
-1. Inventory current `runtime-react` and authoring helper functions by responsibility.
-2. Move pure compile, migration, registration-plan, path-index, and diagnostic functions into `@vizij/studio-support`.
+1. Inventory the remaining `runtime-react` and authoring helper functions by responsibility.
+2. Move remaining pure compile, migration, path-index, audit, export-assembly, and diagnostic functions into `@vizij/studio-support`.
 3. Leave UI hooks as orchestration shells around Studio-support functions.
-4. Add function-level tests in Studio support for every promoted behavior.
+4. Add or preserve function-level tests in Studio support for every promoted behavior.
 5. Keep TypeScript contracts stable for authoring callers during the move.
 
 Acceptance:
@@ -189,13 +198,18 @@ Acceptance:
 
 Goal: make `@vizij/runtime-react` a bridge, not a compiler.
 
+Current state:
+
+1. `prepareRuntimeRegistrationPlan`, `applyRuntimeGraphBundle`, and `resolveRuntimeUpdatePlan` are already support-owned.
+2. The remaining runtime-react concentration is plan application, controller registration, playback session state, backend selection, and renderer frame-write bridging.
+
 Work:
 
-1. Replace internal normalization and registration assembly with Studio-support calls.
-2. Keep playback session state in React only where it is UI/session-facing.
-3. Move deterministic runtime update planning into Studio support.
-4. Keep Arora backend loading in `@vizij/orchestrator-react`.
-5. Add debug counters only for execution evidence, not business logic.
+1. Move plan-derived controller application helpers into Studio support where they can stay backend-agnostic.
+2. Keep host calls, backend loading, playback session state, and renderer writes in runtime React until there is a clear engine/module home for them.
+3. Keep Arora backend loading in `@vizij/orchestrator-react`.
+4. Add debug counters only for execution evidence, not business logic.
+5. Avoid moving renderer frame-write bridging until profiling or native-service requirements justify it.
 
 Acceptance:
 
@@ -277,15 +291,16 @@ Approve the migration if we accept these gates:
 
 ## Recommended Next Slice
 
-The next approvable slice should finish Phase 2 and take the highest-value part of Phase 4:
+The next approvable slice should finish the authoring-backend promotion and take the highest-value part of runtime thinning:
 
-1. Promote runtime registration-plan construction into `@vizij/studio-support` so authoring export, live preview, and runtime registration use one typed assembly path.
-2. Promote remaining import/export audit and graph/animation asset normalization helpers out of `apps/vizij-authoring` where they are not UI-specific.
-3. Replace `@vizij/runtime-react` internal asset-shaping logic with calls into Studio support while keeping React responsible for sessions, backend loading, and renderer writes.
-4. Add compile-status plumbing in authoring: dirty, compiling, compiled, registered, runtime error.
-5. Add debounced live-update plumbing for animation and graph edits using stable asset hashes so repeated edits do not cause redundant Arora registrations.
-6. Profile the compile/update loop before Rust promotion. Treat animation sampling/migration, graph normalization/diffing, and pose/rig IR compilation as the first Rust/Wasm candidates, but move them only when profiling or portability makes the benefit concrete.
-7. Keep the Arora E2E workflow, smoke E2E, full authoring unit suite, runtime tests, and support package tests as the approval gate.
+1. Promote plan-derived controller application helpers out of `@vizij/runtime-react` where they can stay backend-agnostic: merged graph id handling, program registration bookkeeping, output/input path sets, rig input maps, and initial input staging results.
+2. Keep the actual host calls in the runtime adapter unless the extracted helper can remain cleanly typed as a host adapter without importing React or browser concerns.
+3. Promote remaining import/export audit and normalization helpers out of `apps/vizij-authoring` where they are not UI-specific. Highest-value candidates are `rigRoundtripAudit`, `standardInputResolutionIndex`, `standardInputPaths`, `graphPaths`, and the pure bundle/metadata helpers currently embedded in `useVizijExport`.
+4. Route live graph/animation edits through a single Studio-support asset assembly path before registration. The UI may still own immediate gesture state, but the compiled asset handed to Arora should come from the same support-layer compiler used for export/import.
+5. Add compile-status plumbing in authoring: dirty, compiling, compiled, registered, runtime error.
+6. Add debounced live-update plumbing for animation and graph edits using stable asset hashes so repeated edits do not cause redundant Arora registrations.
+7. Profile the compile/update loop before Rust promotion. Treat animation sampling/migration, graph normalization/diffing, and pose/rig IR compilation as the first Rust/Wasm candidates, but move them only when profiling or portability makes the benefit concrete.
+8. Keep the Arora E2E workflow, smoke E2E, full authoring unit suite, runtime tests, and support package tests as the approval gate.
 
 Acceptance for this next slice:
 
@@ -293,6 +308,7 @@ Acceptance for this next slice:
 2. Runtime React does not contain duplicate graph or animation compile semantics.
 3. Authoring UI still owns only interaction state, selection, panels, diagnostics display, and preview controls.
 4. The Arora composed runtime receives exact edited animation and graph assets and executes them without host-sampling fallback.
-5. Any remaining compatibility path is named, tested, and tied to a known legacy input instead of being an open-ended duplicate implementation.
+5. Compile-status UI reports whether the latest editor state is dirty, compiling, compiled, registered, or failed.
+6. Any remaining compatibility path is named, tested, and tied to a known legacy input instead of being an open-ended duplicate implementation.
 
 This is the largest next chunk that improves architecture without reopening the engine/module design or behavior-tree question.

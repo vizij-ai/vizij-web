@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useOrchestrator } from "@vizij/orchestrator-react";
+import { buildGraphSpec } from "@vizij/studio-support";
 import {
   useEditorStore,
   type EditorEdge,
   type EditorNode,
 } from "../store/useEditorStore";
-import { buildGraphSpec } from "../utils/buildGraphSpec";
 
 const DEBOUNCE_MS = 50;
 

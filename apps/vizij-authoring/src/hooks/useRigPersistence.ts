@@ -17,6 +17,7 @@ import {
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
+import type { VizijPipelineMetadataV1 } from "@vizij/studio-support";
 import {
   deleteRigState,
   loadRigState,
@@ -26,7 +27,6 @@ import {
 } from "../rig/persistence";
 import { normalizePersistedStandardInputs } from "../rig/legacyMigration";
 import type { AutoInputState } from "../types/autoInputs";
-import type { VizijPipelineMetadataV1 } from "../utils/graphImport";
 import {
   FEATURE_FLAG_DEFAULTS,
   type FeatureFlagState,

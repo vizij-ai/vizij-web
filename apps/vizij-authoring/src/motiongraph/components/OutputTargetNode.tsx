@@ -1,10 +1,14 @@
 import type { FC } from "react";
 import { Handle, Position } from "reactflow";
+import {
+  MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
+  MOTION_GRAPH_OUTPUT_TARGET_TYPE,
+} from "@vizij/studio-support";
 import { getPortColor } from "../utils/portColors";
 
-export const OUTPUT_TARGET_TYPE = "__output_target" as const;
+export const OUTPUT_TARGET_TYPE = MOTION_GRAPH_OUTPUT_TARGET_TYPE;
 export const OUTPUT_TARGET_PORT_TYPE = "f32";
-export const OUTPUT_TARGET_PORT_ID = "input";
+export const OUTPUT_TARGET_PORT_ID = MOTION_GRAPH_OUTPUT_TARGET_PORT_ID;
 
 export interface OutputTargetNodeData {
   /** Full rig spec Input node path, e.g. "rig/quori_latest/standard/vizij/mouth/morph/jaw_open" */

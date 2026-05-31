@@ -1,10 +1,14 @@
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import { cloneDeepSafe } from "@vizij/utils";
 import type {
   VizijPipelineConfigMap,
   VizijPipelineLinkMap,
   VizijPipelineMetadataV1,
-} from "@vizij/studio-support";
-import { cloneSerializable } from "./serialization";
+} from "./standardInputRemap";
+
+function cloneSerializable<T>(value: T): T {
+  return cloneDeepSafe(value);
+}
 
 /**
  * Extracts the Vizij metadata section from a graph payload and guarantees
@@ -192,7 +196,7 @@ export type {
   VizijPipelineConfigMap,
   VizijPipelineLinkMap,
   VizijPipelineMetadataV1,
-} from "@vizij/studio-support";
+} from "./standardInputRemap";
 
 export function normalizeVizijPipelineConfigMap(
   value: unknown,

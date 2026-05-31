@@ -11,7 +11,11 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { buildRuntimeBaseBundle } from "@vizij/studio-support";
+import {
+  buildGraphSpecForExport,
+  buildRuntimeBaseBundle,
+  specToEditorState,
+} from "@vizij/studio-support";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
   useWorkspaceStore,
@@ -46,8 +50,6 @@ import {
   type EditorEdge,
   type EditorNode,
 } from "./motiongraph/store/useEditorStore";
-import { buildGraphSpecForExport } from "./motiongraph/utils/buildGraphSpec";
-import { specToEditorState } from "./motiongraph/utils/specToEditorState";
 import {
   MotionGraphPanel,
   MotionGraphPalettePanel,

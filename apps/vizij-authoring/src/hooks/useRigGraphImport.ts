@@ -11,9 +11,13 @@ import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import {
   canonicalizeGraphComparable,
   diffGraphSpecs,
+  extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineMetadataV1,
   rewriteGraphFaceNamespace,
   type GraphDiffEntry,
   type GraphDiffResult,
+  type VizijPipelineMetadataV1,
+  withVizijPipelineMetadataV1,
 } from "@vizij/studio-support";
 import {
   SELF_BINDING_ID,
@@ -30,12 +34,6 @@ import { rehydrateRigDataFromGraph } from "../rig/importer";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 import type { DiscrepancyResolutionResult } from "../types/discrepancy";
-import {
-  extractVizijPipelineConfigMapFromMetadata,
-  extractVizijPipelineMetadataV1,
-  withVizijPipelineMetadataV1,
-  type VizijPipelineMetadataV1,
-} from "../utils/graphImport";
 import { sanitizeFaceId } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import {

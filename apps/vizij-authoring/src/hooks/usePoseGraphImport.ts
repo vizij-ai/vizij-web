@@ -9,13 +9,13 @@ import {
   inferStandardSuggestion,
   readJsonFile,
 } from "@vizij/authoring-shared";
+import {
+  listPoseGraphOutputs,
+  remapPoseGraphInputs,
+  updatePoseGraphOutputPath,
+} from "@vizij/studio-support";
 import { cloneSerializable } from "../utils/serialization";
 import { normalizeGraphPath } from "../utils/graphPaths";
-import {
-  remapPoseGraphInputs,
-  listPoseGraphOutputs,
-  updatePoseGraphOutputPath,
-} from "../poseRig/graphImport";
 import { collectPoseGraphDeltaInputs } from "../poseRig/graphParser";
 import { remapPoseGraphInputIds } from "../poseRig/graphTransforms";
 import { buildRigInputPath } from "../poseRig/utils";

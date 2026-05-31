@@ -57,7 +57,12 @@ import {
 } from "@vizij/utils";
 import {
   buildStandardInputIdRemap,
+  extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineLinksMapFromMetadata,
+  normalizeVizijPipelineConfigMap,
+  normalizeVizijPipelineLinkMap,
   remapPipelineMetadataInputIds,
+  type VizijPipelineMetadataV1,
 } from "@vizij/studio-support";
 import { buildRigInputPath } from "../poseRig/utils";
 import { buildSceneGraphData } from "../scene/sceneGraph";
@@ -73,13 +78,6 @@ import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
 import { normalizeGraphPath } from "../utils/graphPaths";
 import { resolveRigMetadataInputId } from "../utils/rigElementInputs";
-import {
-  extractVizijPipelineConfigMapFromMetadata,
-  extractVizijPipelineLinksMapFromMetadata,
-  normalizeVizijPipelineConfigMap,
-  normalizeVizijPipelineLinkMap,
-  type VizijPipelineMetadataV1,
-} from "../utils/graphImport";
 import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";

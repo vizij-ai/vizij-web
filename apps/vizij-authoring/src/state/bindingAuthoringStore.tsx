@@ -11,12 +11,12 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { ManagedStandardInput } from "../types/standardInputs";
-import type { SceneObjectNode } from "../scene/sceneGraph";
 import type {
   VizijPipelineConfigMap,
   VizijPipelineMetadataV1,
-} from "../utils/graphImport";
+} from "@vizij/studio-support";
+import type { ManagedStandardInput } from "../types/standardInputs";
+import type { SceneObjectNode } from "../scene/sceneGraph";
 import {
   FEATURE_FLAG_DEFAULTS,
   type AuthoringFeatureFlag,

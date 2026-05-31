@@ -1,10 +1,14 @@
 import type { FC } from "react";
 import { Handle, Position } from "reactflow";
+import {
+  MOTION_GRAPH_INPUT_SOURCE_PORT_ID,
+  MOTION_GRAPH_INPUT_SOURCE_TYPE,
+} from "@vizij/studio-support";
 import { getPortColor } from "../utils/portColors";
 
-export const INPUT_SOURCE_TYPE = "__input_source" as const;
+export const INPUT_SOURCE_TYPE = MOTION_GRAPH_INPUT_SOURCE_TYPE;
 export const INPUT_SOURCE_PORT_TYPE = "f32";
-export const INPUT_SOURCE_PORT_ID = "output";
+export const INPUT_SOURCE_PORT_ID = MOTION_GRAPH_INPUT_SOURCE_PORT_ID;
 
 export type InputValueType = "f32" | "bool" | "i32";
 export type InputControlMode = "instant" | "trigger" | "grouped";

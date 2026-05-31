@@ -15,6 +15,12 @@ import type { World } from "@vizij/render";
 import {
   canonicalizeGraphComparable,
   diffGraphSpecs,
+  extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineMetadataV1,
+  prepareSpecForImport,
+  type VizijPipelineConfigMap,
+  type VizijPipelineMetadataV1,
+  withVizijPipelineMetadataV1,
 } from "@vizij/studio-support";
 import type { ManagedStandardInput } from "../types/standardInputs";
 import type {
@@ -29,16 +35,6 @@ import {
   type PoseConfigSnapshot,
   withPipelineConfigBuildOptions,
 } from "../hooks/rigController/rigGraphCompiler";
-import type {
-  VizijPipelineConfigMap,
-  VizijPipelineMetadataV1,
-} from "./graphImport";
-import {
-  extractVizijPipelineConfigMapFromMetadata,
-  extractVizijPipelineMetadataV1,
-  prepareSpecForImport,
-  withVizijPipelineMetadataV1,
-} from "./graphImport";
 
 const GENERATED_NODE_ID_PREFIXES = [
   "join_",

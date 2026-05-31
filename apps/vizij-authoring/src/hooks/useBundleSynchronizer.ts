@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import {
+  extractGraphFaceId,
+  prepareSpecForImport,
+} from "@vizij/studio-support";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import {
@@ -9,7 +13,6 @@ import {
 } from "../utils/animationClipCompiler";
 import { waitForNextFrame } from "../utils/frame";
 import { sanitizeFaceId } from "../utils/faceId";
-import { extractGraphFaceId, prepareSpecForImport } from "../utils/graphImport";
 import { logAuthoringDebug } from "../utils/debug";
 import type { BundleGraphWithIr } from "../types/bundle";
 import { useLatestRef } from "./useLatestRef";

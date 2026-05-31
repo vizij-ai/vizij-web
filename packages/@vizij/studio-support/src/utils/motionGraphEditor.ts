@@ -1,14 +1,13 @@
-import type { EditorNode, EditorEdge } from "../store/useEditorStore";
 import {
-  OUTPUT_TARGET_TYPE,
-  OUTPUT_TARGET_PORT_ID,
-} from "../components/OutputTargetNode";
-import {
-  INPUT_SOURCE_TYPE,
-  INPUT_SOURCE_PORT_ID,
-} from "../components/InputSourceNode";
+  MOTION_GRAPH_INPUT_SOURCE_PORT_ID,
+  MOTION_GRAPH_INPUT_SOURCE_TYPE,
+  MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
+  MOTION_GRAPH_OUTPUT_TARGET_TYPE,
+  type MotionGraphEditorEdge,
+  type MotionGraphEditorNode,
+} from "./motionGraphSpec";
 
-/* ── Spec types (mirror buildGraphSpec.ts) ────────────────────────── */
+/* ── Spec types (mirror motionGraphSpec.ts) ───────────────────────── */
 
 interface SpecNode {
   id: string;
@@ -24,8 +23,8 @@ interface SpecEdge {
 /* ── Result ────────────────────────────────────────────────────────── */
 
 export interface SpecToEditorResult {
-  nodes: EditorNode[];
-  edges: EditorEdge[];
+  nodes: MotionGraphEditorNode[];
+  edges: MotionGraphEditorEdge[];
   enabledOutputs: Set<string>;
   enabledInputs: Set<string>;
   customInputPaths: string[];
@@ -33,29 +32,32 @@ export interface SpecToEditorResult {
 
 /* ── Conversion ───────────────────────────────────────────────────── */
 
-const EMPTY: SpecToEditorResult = {
-  nodes: [],
-  edges: [],
-  enabledOutputs: new Set(),
-  enabledInputs: new Set(),
-  customInputPaths: [],
-};
+function emptySpecToEditorResult(): SpecToEditorResult {
+  return {
+    nodes: [],
+    edges: [],
+    enabledOutputs: new Set(),
+    enabledInputs: new Set(),
+    customInputPaths: [],
+  };
+}
 
 /**
  * Convert a bundle graph spec (as stored in `VizijBundleGraphEntry.spec`)
  * back into ReactFlow editor state so the MotionGraph panel can display it.
  *
- * Positions are auto-laid-out since the spec format does not store them.
+ * Saved positions are restored when the spec includes layout metadata;
+ * otherwise nodes are auto-laid-out.
  */
 export function specToEditorState(
   spec: Record<string, unknown> | null | undefined,
 ): SpecToEditorResult {
-  if (!spec) return EMPTY;
+  if (!spec) return emptySpecToEditorResult();
 
   const specNodes: SpecNode[] = Array.isArray(spec.nodes) ? spec.nodes : [];
   const specEdges: SpecEdge[] = Array.isArray(spec.edges) ? spec.edges : [];
 
-  if (specNodes.length === 0) return EMPTY;
+  if (specNodes.length === 0) return emptySpecToEditorResult();
 
   // ── 1. Identify synthetic constant nodes (__const_{nodeId}_{portId}) ──
 
@@ -83,7 +85,7 @@ export function specToEditorState(
 
   // ── 2. Build editor nodes ─────────────────────────────────────────
 
-  const editorNodes: EditorNode[] = [];
+  const editorNodes: MotionGraphEditorNode[] = [];
   const enabledOutputs = new Set<string>();
   const enabledInputs = new Set<string>();
   const customInputPaths: string[] = [];
@@ -98,7 +100,7 @@ export function specToEditorState(
         path.replace(/^rig\/[^/]+\/standard\//, "").replace(/\//g, ".") || path;
       editorNodes.push({
         id: sn.id,
-        type: OUTPUT_TARGET_TYPE,
+        type: MOTION_GRAPH_OUTPUT_TARGET_TYPE,
         position: { x: 0, y: 0 },
         selectable: true,
         deletable: false,
@@ -111,7 +113,7 @@ export function specToEditorState(
       const label = path.split("/").pop() || path;
       editorNodes.push({
         id: sn.id,
-        type: INPUT_SOURCE_TYPE,
+        type: MOTION_GRAPH_INPUT_SOURCE_TYPE,
         position: { x: 0, y: 0 },
         selectable: true,
         deletable: false,
@@ -136,7 +138,7 @@ export function specToEditorState(
   // ── 3. Build editor edges (skip synthetic-constant edges) ─────────
 
   const editorNodeTypes = new Map(editorNodes.map((n) => [n.id, n.type]));
-  const editorEdges: EditorEdge[] = [];
+  const editorEdges: MotionGraphEditorEdge[] = [];
 
   for (const se of specEdges) {
     if (syntheticConstIds.has(se.from.node_id)) continue;
@@ -148,14 +150,20 @@ export function specToEditorState(
     // Translate handle names back to editor conventions
     const targetType = editorNodeTypes.get(se.to.node_id);
     let targetHandle = se.to.input;
-    if (targetType === OUTPUT_TARGET_TYPE && targetHandle === "in") {
-      targetHandle = OUTPUT_TARGET_PORT_ID;
+    if (
+      targetType === MOTION_GRAPH_OUTPUT_TARGET_TYPE &&
+      targetHandle === "in"
+    ) {
+      targetHandle = MOTION_GRAPH_OUTPUT_TARGET_PORT_ID;
     }
 
     const sourceType = editorNodeTypes.get(se.from.node_id);
     let sourceHandle: string | undefined = se.from.output;
-    if (sourceType === INPUT_SOURCE_TYPE && sourceHandle === "out") {
-      sourceHandle = INPUT_SOURCE_PORT_ID;
+    if (
+      sourceType === MOTION_GRAPH_INPUT_SOURCE_TYPE &&
+      sourceHandle === "out"
+    ) {
+      sourceHandle = MOTION_GRAPH_INPUT_SOURCE_PORT_ID;
     }
     // "out" is the default — ReactFlow uses undefined for default handles
     if (sourceHandle === "out") sourceHandle = undefined;
@@ -177,8 +185,8 @@ export function specToEditorState(
     const node = editorNodes.find((n) => n.id === edge.target);
     if (
       !node ||
-      node.type === OUTPUT_TARGET_TYPE ||
-      node.type === INPUT_SOURCE_TYPE
+      node.type === MOTION_GRAPH_OUTPUT_TARGET_TYPE ||
+      node.type === MOTION_GRAPH_INPUT_SOURCE_TYPE
     )
       continue;
     const idx = parseInt(match[2], 10);
@@ -190,8 +198,8 @@ export function specToEditorState(
 
   for (const node of editorNodes) {
     if (
-      node.type === OUTPUT_TARGET_TYPE ||
-      node.type === INPUT_SOURCE_TYPE ||
+      node.type === MOTION_GRAPH_OUTPUT_TARGET_TYPE ||
+      node.type === MOTION_GRAPH_INPUT_SOURCE_TYPE ||
       !node.data?.inputDefaults ||
       typeof node.data.inputDefaults !== "object"
     ) {
@@ -218,8 +226,8 @@ export function specToEditorState(
     const node = editorNodes.find((n) => n.id === edge.source);
     if (
       !node ||
-      node.type === OUTPUT_TARGET_TYPE ||
-      node.type === INPUT_SOURCE_TYPE
+      node.type === MOTION_GRAPH_OUTPUT_TARGET_TYPE ||
+      node.type === MOTION_GRAPH_INPUT_SOURCE_TYPE
     )
       continue;
     const idx = parseInt(match[2], 10);
@@ -236,18 +244,19 @@ export function specToEditorState(
     | undefined;
 
   if (layout && typeof layout === "object") {
-    let hasAnyPosition = false;
+    let allNodesHavePosition = true;
     for (const node of editorNodes) {
       const pos = layout[node.id];
       if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
         node.position = { x: pos.x, y: pos.y };
-        hasAnyPosition = true;
+      } else {
+        allNodesHavePosition = false;
       }
     }
     // If some nodes had no saved position (e.g. added after the layout was
     // saved), fall back to auto-layout for the entire graph so it stays
     // consistent.
-    if (!hasAnyPosition) {
+    if (!allNodesHavePosition) {
       applyAutoLayout(editorNodes, editorEdges);
     }
   } else {
@@ -270,7 +279,10 @@ const NODE_HEIGHT = 80;
 const H_GAP = 100;
 const V_GAP = 40;
 
-function applyAutoLayout(nodes: EditorNode[], edges: EditorEdge[]): void {
+function applyAutoLayout(
+  nodes: MotionGraphEditorNode[],
+  edges: MotionGraphEditorEdge[],
+): void {
   if (nodes.length === 0) return;
 
   // Build adjacency for topological sort

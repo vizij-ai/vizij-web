@@ -1,30 +1,42 @@
-import type { EditorNode, EditorEdge } from "../store/useEditorStore";
-import {
-  OUTPUT_TARGET_TYPE,
-  OUTPUT_TARGET_PORT_ID,
-} from "../components/OutputTargetNode";
-import {
-  INPUT_SOURCE_TYPE,
-  INPUT_SOURCE_PORT_ID,
-} from "../components/InputSourceNode";
+export const MOTION_GRAPH_OUTPUT_TARGET_TYPE = "__output_target" as const;
+export const MOTION_GRAPH_OUTPUT_TARGET_PORT_ID = "input";
+export const MOTION_GRAPH_INPUT_SOURCE_TYPE = "__input_source" as const;
+export const MOTION_GRAPH_INPUT_SOURCE_PORT_ID = "output";
+
+export interface MotionGraphEditorNode {
+  id: string;
+  type?: string;
+  position: { x: number; y: number };
+  selectable?: boolean;
+  deletable?: boolean;
+  data: Record<string, any>;
+}
+
+export interface MotionGraphEditorEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}
 
 /* ── Spec types (match orchestrator-wasm GraphSpec format) ──────── */
 
-interface SpecNode {
+export interface MotionGraphSpecNode {
   id: string;
   type: string;
   params?: Record<string, unknown>;
 }
 
-interface SpecEdge {
+export interface MotionGraphSpecEdge {
   from: { node_id: string; output?: string };
   to: { node_id: string; input: string };
 }
 
 export interface BuiltGraphSpec {
   spec: {
-    nodes: SpecNode[];
-    edges: SpecEdge[];
+    nodes: MotionGraphSpecNode[];
+    edges: MotionGraphSpecEdge[];
     layout?: Record<string, { x: number; y: number }>;
   };
   /** Namespaced output paths written by this graph. */
@@ -69,8 +81,8 @@ function translateTargetHandle(
   handle: string | null | undefined,
 ): string {
   if (
-    targetNodeType === OUTPUT_TARGET_TYPE &&
-    handle === OUTPUT_TARGET_PORT_ID
+    targetNodeType === MOTION_GRAPH_OUTPUT_TARGET_TYPE &&
+    handle === MOTION_GRAPH_OUTPUT_TARGET_PORT_ID
   ) {
     return "in";
   }
@@ -86,14 +98,17 @@ function translateSourceHandle(
   sourceNodeType: string | undefined,
   handle: string | null | undefined,
 ): string {
-  if (sourceNodeType === INPUT_SOURCE_TYPE && handle === INPUT_SOURCE_PORT_ID) {
+  if (
+    sourceNodeType === MOTION_GRAPH_INPUT_SOURCE_TYPE &&
+    handle === MOTION_GRAPH_INPUT_SOURCE_PORT_ID
+  ) {
     return "out";
   }
   return handle ?? "out";
 }
 
 /** Resolve the WASM node type from an editor node. */
-function resolveNodeType(node: EditorNode): string | null {
+function resolveNodeType(node: MotionGraphEditorNode): string | null {
   const t =
     (node.data?.originalType as string) ?? (node.type as string) ?? null;
   return t || null;
@@ -102,15 +117,15 @@ function resolveNodeType(node: EditorNode): string | null {
 /* ── Core builder ────────────────────────────────────────────────── */
 
 function buildGraphSpecInternal(
-  nodes: EditorNode[],
-  edges: EditorEdge[],
+  nodes: MotionGraphEditorNode[],
+  edges: MotionGraphEditorEdge[],
   namespace: string | null,
 ): BuiltGraphSpec {
   // 1. Find output targets that have at least one incoming edge.
   const connectedTargetIds = new Set<string>();
   for (const edge of edges) {
     const targetNode = nodes.find((n) => n.id === edge.target);
-    if (targetNode?.type === OUTPUT_TARGET_TYPE) {
+    if (targetNode?.type === MOTION_GRAPH_OUTPUT_TARGET_TYPE) {
       connectedTargetIds.add(edge.target);
     }
   }
@@ -146,13 +161,13 @@ function buildGraphSpecInternal(
   }
 
   // 3. Build spec nodes (only reachable ones).
-  const specNodes: SpecNode[] = [];
+  const specNodes: MotionGraphSpecNode[] = [];
   const specNodeIds = new Set<string>();
 
   for (const node of nodes) {
     if (!reachableIds.has(node.id)) continue;
 
-    if (node.type === OUTPUT_TARGET_TYPE) {
+    if (node.type === MOTION_GRAPH_OUTPUT_TARGET_TYPE) {
       const outputPath = node.data?.outputPath as string | undefined;
       if (!outputPath) continue;
 
@@ -166,7 +181,7 @@ function buildGraphSpecInternal(
         params: { path },
       });
       specNodeIds.add(node.id);
-    } else if (node.type === INPUT_SOURCE_TYPE) {
+    } else if (node.type === MOTION_GRAPH_INPUT_SOURCE_TYPE) {
       const inputPath = node.data?.inputPath as string | undefined;
       if (!inputPath) continue;
 
@@ -199,13 +214,13 @@ function buildGraphSpecInternal(
 
   // 4. Build spec edges (only between nodes that made it into the spec).
   const nodeTypeMap = new Map(nodes.map((n) => [n.id, n.type]));
-  const specEdges: SpecEdge[] = [];
+  const specEdges: MotionGraphSpecEdge[] = [];
 
   for (const edge of edges) {
     if (!specNodeIds.has(edge.source) || !specNodeIds.has(edge.target))
       continue;
 
-    const from: SpecEdge["from"] = { node_id: edge.source };
+    const from: MotionGraphSpecEdge["from"] = { node_id: edge.source };
     const resolvedSourceHandle = translateSourceHandle(
       nodeTypeMap.get(edge.source),
       edge.sourceHandle,
@@ -305,8 +320,8 @@ function buildGraphSpecInternal(
  * output paths (for live registration with the orchestrator).
  */
 export function buildGraphSpec(
-  nodes: EditorNode[],
-  edges: EditorEdge[],
+  nodes: MotionGraphEditorNode[],
+  edges: MotionGraphEditorEdge[],
   namespace: string,
 ): BuiltGraphSpec {
   return buildGraphSpecInternal(nodes, edges, namespace);
@@ -318,8 +333,8 @@ export function buildGraphSpec(
  * load time by VizijRuntimeProvider.namespaceGraphSpec()).
  */
 export function buildGraphSpecForExport(
-  nodes: EditorNode[],
-  edges: EditorEdge[],
-): { nodes: SpecNode[]; edges: SpecEdge[] } {
+  nodes: MotionGraphEditorNode[],
+  edges: MotionGraphEditorEdge[],
+): BuiltGraphSpec["spec"] {
   return buildGraphSpecInternal(nodes, edges, null).spec;
 }

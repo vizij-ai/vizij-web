@@ -74,6 +74,41 @@ export {
   type BundleGraphOutputAudit,
 } from "./utils/bundleAudit";
 export {
+  extractGraphFaceId,
+  extractVizijPipelineConfigMap,
+  extractVizijPipelineConfigMapFromMetadata,
+  extractVizijPipelineLinksMapFromMetadata,
+  extractVizijPipelineMetadataV1,
+  normalizeVizijPipelineConfigMap,
+  normalizeVizijPipelineLinkMap,
+  prepareSpecForImport,
+  remapGraphSpecFace,
+  withVizijPipelineMetadataV1,
+} from "./utils/graphImport";
+export {
+  listPoseGraphOutputs,
+  remapPoseGraphInputs,
+  updatePoseGraphOutputPath,
+  type PoseGraphOutputEntry,
+} from "./utils/poseGraphImport";
+export {
+  buildGraphSpec,
+  buildGraphSpecForExport,
+  MOTION_GRAPH_INPUT_SOURCE_PORT_ID,
+  MOTION_GRAPH_INPUT_SOURCE_TYPE,
+  MOTION_GRAPH_OUTPUT_TARGET_PORT_ID,
+  MOTION_GRAPH_OUTPUT_TARGET_TYPE,
+  type BuiltGraphSpec,
+  type MotionGraphEditorEdge,
+  type MotionGraphEditorNode,
+  type MotionGraphSpecEdge,
+  type MotionGraphSpecNode,
+} from "./utils/motionGraphSpec";
+export {
+  specToEditorState,
+  type SpecToEditorResult,
+} from "./utils/motionGraphEditor";
+export {
   buildRuntimeBaseBundle,
   buildRuntimeGraphBundle,
 } from "./utils/runtimeBundle";
