@@ -60,11 +60,14 @@ import {
   derivePipelineConfigFromInputBindings,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
+  flushQueuedRuntimeInputs,
   mergeImportedAndLocalPipelineConfigByInputId,
   mergeImportedAndLocalPipelineLinksById,
   normalizeGraphPath,
   normalizeVizijPipelineConfigMap,
   normalizeVizijPipelineLinkMap,
+  queueRuntimeInputWrite,
+  queueRuntimeInputsFromState,
   readPipelineLinkPatch,
   remapPipelineMetadataInputIds,
   sanitizePipelineConfigAndLinksForAvailableInputs,
@@ -123,11 +126,6 @@ import {
   createGraphInsightSnapshot,
   resolveRuntimeGraphSpecWithCache,
 } from "./rigController/rigGraphCompiler";
-import {
-  flushQueuedRuntimeInputs,
-  queueRuntimeInputWrite,
-  queueRuntimeInputsFromState,
-} from "./rigController/runtimeInputStaging";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 

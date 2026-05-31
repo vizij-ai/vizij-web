@@ -358,6 +358,13 @@ export {
   type RuntimeInputRouteSnapshot,
 } from "./utils/runtimeInputRoutes";
 export {
+  flushQueuedRuntimeInputs,
+  queueRuntimeInputWrite,
+  queueRuntimeInputsFromState,
+  type FlushQueuedRuntimeInputsArgs,
+  type QueueRuntimeInputsFromStateArgs,
+} from "./utils/runtimeInputStaging";
+export {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,

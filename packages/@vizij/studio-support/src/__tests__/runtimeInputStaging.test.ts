@@ -3,9 +3,9 @@ import {
   flushQueuedRuntimeInputs,
   queueRuntimeInputWrite,
   queueRuntimeInputsFromState,
-} from "../rigController/runtimeInputStaging";
+} from "../utils/runtimeInputStaging";
 
-describe("queueRuntimeInputWrite", () => {
+describe("runtime input staging", () => {
   it("deduplicates identical writes for a graph path", () => {
     const queue = new Map<string, number>();
     expect(queueRuntimeInputWrite(queue, "rig/face/jaw/open", 0.42)).toBe(true);
@@ -21,9 +21,7 @@ describe("queueRuntimeInputWrite", () => {
     expect(queueRuntimeInputWrite(queue, "rig/face/jaw/open", 0.2)).toBe(true);
     expect(queue.get("rig/face/jaw/open")).toBe(0.2);
   });
-});
 
-describe("queueRuntimeInputsFromState", () => {
   it("queues resolved route values and falls back to defaults", () => {
     const queue = new Map<string, number>([["rig/face/jaw/open", 0.6]]);
     const queuedCount = queueRuntimeInputsFromState({
@@ -54,9 +52,7 @@ describe("queueRuntimeInputsFromState", () => {
     expect(queue.get("rig/face/jaw/open")).toBe(0.6);
     expect(queue.get("rig/face/mouth/smile")).toBe(0.25);
   });
-});
 
-describe("flushQueuedRuntimeInputs", () => {
   it("writes only non-staged changes and clears the queue", () => {
     const queue = new Map<string, number>([
       ["rig/face/jaw/open", 0.5],

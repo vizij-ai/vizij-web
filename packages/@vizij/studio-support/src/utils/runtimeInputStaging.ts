@@ -1,5 +1,5 @@
 import type { StandardInputValues } from "@vizij/node-graph-authoring";
-import type { RuntimeInputRoute } from "@vizij/studio-support";
+import type { RuntimeInputRoute } from "./runtimeInputRoutes";
 
 export interface QueueRuntimeInputsFromStateArgs {
   routesByCanonicalId: Map<string, RuntimeInputRoute>;
