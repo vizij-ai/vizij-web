@@ -1023,7 +1023,7 @@ test("loads authoring face, animation, and program through Arora web composed ex
 test("executes UI-edited animation and graph values through Arora web composed runtime @workflow", async ({
   page,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
   const authoredAnimationValue = 0.55;
   const authoredGraphValue = 0.68;
   const consoleErrors = trackPageErrors(page);
@@ -1182,9 +1182,8 @@ test("executes UI-edited animation and graph values through Arora web composed r
   const download = await expectDownload(page, async () => {
     await clickViaDom(page.getByTestId("export-glb-button"));
   });
-  const exportedBundle = readRootVizijBundleFromGlb(
-    await downloadedFilePath(download),
-  );
+  const exportedGlbPath = await downloadedFilePath(download);
+  const exportedBundle = readRootVizijBundleFromGlb(exportedGlbPath);
   const exportedAnimation = findExportedAnimation(
     exportedBundle,
     "Nonesense Copy",
@@ -1221,6 +1220,89 @@ test("executes UI-edited animation and graph values through Arora web composed r
     ),
   ).toBeCloseTo(authoredGraphValue, 2);
   await page.getByRole("button", { name: "Close" }).click();
+
+  await page
+    .getByTestId("main-import-file-input")
+    .setInputFiles(exportedGlbPath);
+  await waitForMainFaceReady(page);
+  await waitForMainComposedRuntimeDiagnostics(page);
+  await expect(runtimeChip).toHaveText("Runtime: Idle");
+
+  await page.getByTestId("control-authoring-tab-animations").click();
+  const reloadedAnimation = page
+    .getByTestId("control-authoring-panel-animations")
+    .getByTestId("authoring-animation-item")
+    .filter({ hasText: /Nonesense Copy/i })
+    .first();
+  await expect(reloadedAnimation).toBeVisible();
+  const beforeReloadedAnimationRuntime = await readMainRuntimeDebug(page);
+  await playTarget(reloadedAnimation, "animation");
+  await expect(runtimeChip).toContainText("Animation: Playing");
+  await waitForMainAnimationCommandDiagnostics(
+    page,
+    Number(
+      beforeReloadedAnimationRuntime?.orchestratorAnimationCommandCount ?? 0,
+    ),
+  );
+  await waitForMainRendererSample(page, {
+    id: /gaze\/left_right$/,
+    previousFrameWriteCount: Number(
+      beforeReloadedAnimationRuntime?.frameWriteCount ?? 0,
+    ),
+    expectedValue: authoredAnimationValue,
+    tolerance: 0.03,
+  });
+  await stopActiveRuntime(page);
+
+  await ensureAuthoringProgramsVisible(page);
+  const reloadedProgram = page
+    .getByTestId("control-authoring-panel-programs")
+    .getByTestId("authoring-program-item")
+    .filter({ hasText: /Live/i })
+    .first();
+  await expect(reloadedProgram).toBeVisible();
+  const beforeReloadedGraphRuntime = await readMainRuntimeDebug(page);
+  const beforeReloadedGraphArora = await readMainAroraDebug(page);
+  await playTarget(reloadedProgram, "program");
+  await expect(runtimeChip).toContainText("Program: Playing");
+  await waitForMainFacadeCallCountGreaterThan(
+    page,
+    "graph.register",
+    Number(
+      (
+        beforeReloadedGraphArora?.facadeCallCounts as
+          | Record<string, unknown>
+          | undefined
+      )?.["graph.register"] ?? 0,
+    ),
+  );
+  await waitForMainRuntimeWrites(
+    page,
+    Number(beforeReloadedGraphRuntime?.frameWriteCount ?? 0),
+  );
+  const reloadedRegisteredGraphArgs = readLastFacadeRequestArgs(
+    await readMainAroraDebug(page),
+    "graph.register",
+  );
+  const reloadedRegisteredGraph = { spec: reloadedRegisteredGraphArgs.spec };
+  expect(
+    Number(
+      readGraphNodeParam({
+        graph: reloadedRegisteredGraph,
+        nodeId: "node_1772233939116_946",
+        paramId: "frequency",
+      }),
+    ),
+  ).toBe(0);
+  expect(
+    Number(
+      readGraphSyntheticDefault({
+        graph: reloadedRegisteredGraph,
+        nodeId: "node_1773247042486_236",
+        portId: "operand_1",
+      }),
+    ),
+  ).toBeCloseTo(authoredGraphValue, 2);
 
   expect(consoleErrors).toEqual([]);
 });
