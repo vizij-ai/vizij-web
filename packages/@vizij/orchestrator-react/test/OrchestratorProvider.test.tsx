@@ -244,15 +244,27 @@ function dispatchHeader(args: {
   };
 }
 
-function moduleHeader(moduleId: string) {
-  return { id: moduleId, exports: [] };
+function moduleHeader(
+  moduleId: string,
+  exports: Array<Record<string, unknown>> = [],
+) {
+  return { id: moduleId, exports };
 }
 
-function moduleImport(moduleId: string, functionId: string) {
+function functionExport(functionId: string, name = "dispatch_json") {
+  return {
+    type: "function",
+    id: functionId,
+    name,
+  };
+}
+
+function moduleImport(moduleId: string, functionId: string, name?: string) {
   return {
     type: "function",
     module: moduleId,
     id: functionId,
+    ...(name ? { name } : {}),
   };
 }
 
@@ -269,16 +281,25 @@ const COMPOSED_HEADER = dispatchHeader({
     moduleImport(
       VIZIJ_ANIMATION_MODULE_ID,
       "80f5c157-bfc0-457d-9a08-531ba04f5305",
+      "update_nodes_writes",
     ),
     moduleImport(
       VIZIJ_NODE_GRAPH_MODULE_ID,
       "d898a9d4-516d-4cda-bd8c-7dbf3fa75b70",
+      "evaluate",
     ),
   ],
 });
-const VIZIJ_ANIMATION_HEADER = moduleHeader(VIZIJ_ANIMATION_MODULE_ID);
-const VIZIJ_NODE_GRAPH_HEADER = moduleHeader(VIZIJ_NODE_GRAPH_MODULE_ID);
-const CUSTOM_IMPORT_HEADER = moduleHeader(CUSTOM_IMPORT_MODULE_ID);
+const VIZIJ_ANIMATION_HEADER = moduleHeader(VIZIJ_ANIMATION_MODULE_ID, [
+  functionExport("80f5c157-bfc0-457d-9a08-531ba04f5305", "update_nodes_writes"),
+]);
+const VIZIJ_NODE_GRAPH_HEADER = moduleHeader(VIZIJ_NODE_GRAPH_MODULE_ID, [
+  functionExport("14e86906-c4e4-45e8-936d-725dc43ec9bb", "load_graph"),
+  functionExport("d898a9d4-516d-4cda-bd8c-7dbf3fa75b70", "evaluate"),
+]);
+const CUSTOM_IMPORT_HEADER = moduleHeader(CUSTOM_IMPORT_MODULE_ID, [
+  functionExport("ff94ec38-a145-4c73-9a99-d7724acbfa72", "custom_import"),
+]);
 
 function jsonResponse(value: unknown): Response {
   return new Response(JSON.stringify(value), {
@@ -292,6 +313,36 @@ function binaryResponse(value: number[]): Response {
     status: 200,
     headers: { "Content-Type": "application/wasm" },
   });
+}
+
+function aroraWebDataModuleUrl(): string {
+  const source = `
+    export default function init(input) {
+      globalThis.__VIZIJ_TEST_ARORA_WEB_INIT_INPUT__ = input;
+    }
+
+    export class Engine {
+      loadModule(headerJson) {
+        return JSON.parse(headerJson).id ?? "module";
+      }
+
+      call(callJson) {
+        const call = JSON.parse(callJson);
+        const requestJson = call.args?.[0]?.value?.str;
+        const request = requestJson ? JSON.parse(requestJson) : {};
+        const result = request.call === "runtime.create"
+          ? { runtimeHandle: "runtime:manifest", schedule: "SinglePass" }
+          : {};
+        return JSON.stringify({
+          ret: {
+            str: JSON.stringify({ ok: true, result, version: 1 }),
+          },
+          mutated: [],
+        });
+      }
+    }
+  `;
+  return `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`;
 }
 
 vi.mock("@vizij/orchestrator-wasm", async () => {
@@ -883,6 +934,112 @@ describe("OrchestratorProvider", () => {
     );
   });
 
+  it("uses manifest engine URLs while preserving non-plain arora-web init input", async () => {
+    const initInput = new URL("https://example.test/custom_arora_bg.wasm");
+    const dataModuleUrl = aroraWebDataModuleUrl();
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    const createObjectUrl = vi.fn(() => dataModuleUrl);
+    const revokeObjectUrl = vi.fn();
+    URL.createObjectURL = createObjectUrl;
+    URL.revokeObjectURL = revokeObjectUrl;
+    const originalFetch = globalThis.fetch;
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (urlText === "/arora-web/modules/manifest.json") {
+        return jsonResponse({
+          schemaVersion: 1,
+          baseUrl: "/bundle",
+          engine: {
+            js: "pkg/arora_web.js",
+            wasm: "pkg/arora_web_bg.wasm",
+          },
+          orchestrators: {
+            composed: COMPOSED_MODULE_ID,
+          },
+          modules: {
+            [COMPOSED_MODULE_ID]: {
+              id: COMPOSED_MODULE_ID,
+              name: "vizij-orchestrator-composed",
+              headerUrl: "composed/module.json",
+              wasmUrl: "composed/composed.wasm",
+            },
+            [VIZIJ_ANIMATION_MODULE_ID]: {
+              id: VIZIJ_ANIMATION_MODULE_ID,
+              name: "vizij-animation",
+              headerUrl: "animation/module.json",
+              wasmUrl: "animation/animation.wasm",
+            },
+            [VIZIJ_NODE_GRAPH_MODULE_ID]: {
+              id: VIZIJ_NODE_GRAPH_MODULE_ID,
+              name: "vizij-node-graph",
+              headerUrl: "node-graph/module.json",
+              wasmUrl: "node-graph/node-graph.wasm",
+            },
+          },
+        });
+      }
+      if (urlText === "/bundle/pkg/arora_web.js") {
+        return new Response("export {}", {
+          status: 200,
+          headers: { "Content-Type": "text/javascript" },
+        });
+      }
+      if (urlText === "/bundle/composed/module.json") {
+        return jsonResponse(COMPOSED_HEADER);
+      }
+      if (urlText === "/bundle/composed/composed.wasm") {
+        return binaryResponse([0]);
+      }
+      if (urlText === "/bundle/animation/module.json") {
+        return jsonResponse(VIZIJ_ANIMATION_HEADER);
+      }
+      if (urlText === "/bundle/animation/animation.wasm") {
+        return binaryResponse([1]);
+      }
+      if (urlText === "/bundle/node-graph/module.json") {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      if (urlText === "/bundle/node-graph/node-graph.wasm") {
+        return binaryResponse([2]);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+
+    (globalThis as { fetch: typeof globalThis.fetch }).fetch =
+      fetch as unknown as typeof globalThis.fetch;
+    try {
+      await AroraWebOrchestratorRuntime.create(undefined, initInput);
+
+      expect(
+        (
+          globalThis as {
+            __VIZIJ_TEST_ARORA_WEB_INIT_INPUT__?: unknown;
+          }
+        ).__VIZIJ_TEST_ARORA_WEB_INIT_INPUT__,
+      ).toBe(initInput);
+      expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+        "/arora-web/modules/manifest.json",
+        "/bundle/pkg/arora_web.js",
+        "/bundle/composed/module.json",
+        "/bundle/composed/composed.wasm",
+        "/bundle/animation/module.json",
+        "/bundle/node-graph/module.json",
+        "/bundle/animation/animation.wasm",
+        "/bundle/node-graph/node-graph.wasm",
+      ]);
+    } finally {
+      (globalThis as { fetch: typeof globalThis.fetch }).fetch = originalFetch;
+      delete (
+        globalThis as {
+          __VIZIJ_TEST_ARORA_WEB_INIT_INPUT__?: unknown;
+        }
+      ).__VIZIJ_TEST_ARORA_WEB_INIT_INPUT__;
+      URL.createObjectURL = originalCreateObjectUrl;
+      URL.revokeObjectURL = originalRevokeObjectUrl;
+    }
+  });
+
   it("lets explicit module registry entries override browser manifest modules", async () => {
     const aroraWeb = makeAroraWebModule();
     const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
@@ -989,6 +1146,47 @@ describe("OrchestratorProvider", () => {
     ).rejects.toThrow(
       `No aroraWeb module registry entry for imported module ${CUSTOM_IMPORT_MODULE_ID}`,
     );
+    expect(aroraWeb.loadModule).not.toHaveBeenCalled();
+  });
+
+  it("fails early when a default preloaded module does not export the selected module import", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const animationHeaderWithoutImport = moduleHeader(
+      VIZIJ_ANIMATION_MODULE_ID,
+      [functionExport("40a5e98b-0cb3-47a3-9faf-943038c955e8", "other_call")],
+    );
+    const fetch = vi.fn(async (url: Parameters<typeof globalThis.fetch>[0]) => {
+      const urlText = String(url);
+      if (
+        urlText.includes("vizij-animation") &&
+        urlText.endsWith("module.json")
+      ) {
+        return jsonResponse(animationHeaderWithoutImport);
+      }
+      if (
+        urlText.includes("vizij-node-graph") &&
+        urlText.endsWith("module.json")
+      ) {
+        return jsonResponse(VIZIJ_NODE_GRAPH_HEADER);
+      }
+      throw new Error(`unexpected fetch: ${urlText}`);
+    });
+
+    await expect(
+      AroraWebOrchestratorRuntime.create(undefined, {
+        aroraWeb,
+        orchestratorModule: "composed",
+        headerJson: COMPOSED_HEADER,
+        fetch: fetch as unknown as typeof globalThis.fetch,
+        wasmBytes: new Uint8Array([0]),
+      }),
+    ).rejects.toThrow(
+      "Imported aroraWeb function update_nodes_writes (80f5c157-bfc0-457d-9a08-531ba04f5305) is not exported by module aa32e080-b002-428c-9994-6143aab3bf08.",
+    );
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      "/arora-web/modules/vizij-animation/module.json",
+      "/arora-web/modules/vizij-node-graph/module.json",
+    ]);
     expect(aroraWeb.loadModule).not.toHaveBeenCalled();
   });
 

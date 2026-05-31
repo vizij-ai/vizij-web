@@ -187,9 +187,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isPlainConfigRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function normalizeConfig(input?: unknown): AroraWebInitInput {
-  if (!isRecord(input)) {
-    return {};
+  if (!isPlainConfigRecord(input)) {
+    return input === undefined ? {} : { aroraWebInitInput: input };
   }
   return input as AroraWebInitInput;
 }
@@ -214,6 +222,8 @@ function selectedModulePreset(
 
 async function loadAroraWebModule(
   config: AroraWebInitInput,
+  manifest?: AroraWebModuleRegistryManifest,
+  manifestUrl?: string | URL,
 ): Promise<AroraWebModuleExports> {
   if (config.aroraWeb) {
     return typeof config.aroraWeb === "function"
@@ -221,7 +231,10 @@ async function loadAroraWebModule(
       : config.aroraWeb;
   }
 
-  const moduleUrl = config.aroraWebUrl ?? DEFAULT_ARORA_WEB_URL;
+  const moduleUrl =
+    config.aroraWebUrl ??
+    resolvedManifestEngineUrl(manifest, manifestUrl, "js") ??
+    DEFAULT_ARORA_WEB_URL;
   const response = await fetchImpl(config)(moduleUrl);
   if (!response.ok) {
     throw new Error(
@@ -262,12 +275,23 @@ function fetchImpl(config: AroraWebInitInput): typeof fetch {
   return candidate.bind(globalThis) as typeof fetch;
 }
 
-function defaultAroraWebInitInput(config: AroraWebInitInput): unknown {
+function defaultAroraWebInitInput(
+  config: AroraWebInitInput,
+  manifest?: AroraWebModuleRegistryManifest,
+  manifestUrl?: string | URL,
+): unknown {
   if (config.aroraWebInitInput !== undefined) {
     return config.aroraWebInitInput;
   }
-  if (config.aroraWeb) {
+  const manifestWasmUrl =
+    !config.aroraWebUrl && manifestUrl
+      ? resolvedManifestEngineUrl(manifest, manifestUrl, "wasm")
+      : undefined;
+  if (config.aroraWeb && !manifestWasmUrl) {
     return undefined;
+  }
+  if (manifestWasmUrl) {
+    return { module_or_path: manifestWasmUrl };
   }
   const moduleUrl = config.aroraWebUrl ?? DEFAULT_ARORA_WEB_URL;
   if (typeof URL === "undefined") {
@@ -586,6 +610,21 @@ function resolveManifestRelativeUrl(
   return new URL(value, new URL(manifestUrlText, browserBaseUrl())).toString();
 }
 
+function resolvedManifestEngineUrl(
+  manifest: AroraWebModuleRegistryManifest | undefined,
+  manifestUrl: string | URL | undefined,
+  key: "js" | "wasm",
+): string | URL | undefined {
+  if (!manifest || !manifestUrl) {
+    return undefined;
+  }
+  return resolveManifestRelativeUrl(
+    manifest.engine?.[key],
+    manifestUrl,
+    manifest.baseUrl,
+  );
+}
+
 function manifestEntryToArtifact(
   key: string,
   value: unknown,
@@ -707,16 +746,22 @@ function shouldLoadModuleRegistryManifest(config: AroraWebInitInput): boolean {
   );
 }
 
+type LoadedAroraWebModuleRegistry = {
+  manifest?: AroraWebModuleRegistryManifest;
+  manifestUrl?: string | URL;
+  registry: AroraWebModuleRegistry;
+};
+
 async function fetchModuleRegistryManifest(
   config: AroraWebInitInput,
-): Promise<AroraWebModuleRegistry> {
+): Promise<LoadedAroraWebModuleRegistry> {
   if (!shouldLoadModuleRegistryManifest(config)) {
-    return {};
+    return { registry: {} };
   }
   const manifestUrl =
     config.moduleRegistryUrl ?? DEFAULT_MODULE_REGISTRY_MANIFEST_URL;
   if (manifestUrl === false) {
-    return {};
+    return { registry: {} };
   }
   const strict = config.moduleRegistryUrl !== undefined;
   let response: Response;
@@ -724,7 +769,7 @@ async function fetchModuleRegistryManifest(
     response = await fetchImpl(config)(manifestUrl);
   } catch (err) {
     if (!strict) {
-      return {};
+      return { registry: {} };
     }
     const detail = err instanceof Error ? err.message : String(err);
     throw new Error(
@@ -733,7 +778,7 @@ async function fetchModuleRegistryManifest(
   }
   if (!response.ok) {
     if (!strict && response.status === 404) {
-      return {};
+      return { registry: {} };
     }
     throw new Error(
       `Failed to load aroraWeb module registry manifest: ${response.status} ${response.statusText}`,
@@ -743,17 +788,25 @@ async function fetchModuleRegistryManifest(
     await response.text(),
     String(manifestUrl),
   );
-  return moduleRegistryFromManifest(manifest, manifestUrl);
+  return {
+    manifest,
+    manifestUrl,
+    registry: moduleRegistryFromManifest(manifest, manifestUrl),
+  };
 }
 
 async function moduleRegistry(
   config: AroraWebInitInput,
-): Promise<AroraWebModuleRegistry> {
-  const manifestRegistry = await fetchModuleRegistryManifest(config);
+): Promise<LoadedAroraWebModuleRegistry> {
+  const loaded = await fetchModuleRegistryManifest(config);
   return {
-    ...DEFAULT_MODULE_REGISTRY,
-    ...manifestRegistry,
-    ...(config.moduleRegistry ?? {}),
+    manifest: loaded.manifest,
+    manifestUrl: loaded.manifestUrl,
+    registry: {
+      ...DEFAULT_MODULE_REGISTRY,
+      ...loaded.registry,
+      ...(config.moduleRegistry ?? {}),
+    },
   };
 }
 
@@ -854,6 +907,47 @@ type ResolvedAroraWebPreloadModule = {
   wasmBytes?: Uint8Array | ArrayBuffer;
 };
 
+function functionExportIds(header: object): Set<string> {
+  return new Set(
+    functionExports(header)
+      .map((exportValue) => stringField(exportValue.id))
+      .filter((id): id is string => Boolean(id)),
+  );
+}
+
+function validateDefaultPreloadModules(
+  selectedHeader: object,
+  modules: ResolvedAroraWebPreloadModule[],
+): void {
+  const modulesById = new Map<string, ResolvedAroraWebPreloadModule>();
+  for (const moduleConfig of modules) {
+    const moduleId = stringField((moduleConfig.header as { id?: unknown }).id);
+    if (moduleId) {
+      modulesById.set(moduleId, moduleConfig);
+    }
+  }
+
+  for (const importValue of functionImports(selectedHeader)) {
+    const moduleId = stringField(importValue.module);
+    const functionId = stringField(importValue.id);
+    if (!moduleId || !functionId) {
+      continue;
+    }
+    const moduleConfig = modulesById.get(moduleId);
+    if (!moduleConfig) {
+      throw new Error(
+        `Imported aroraWeb module ${moduleId} was not preloaded with a matching module header.`,
+      );
+    }
+    if (!functionExportIds(moduleConfig.header).has(functionId)) {
+      const importName = stringField(importValue.name);
+      throw new Error(
+        `Imported aroraWeb function ${importName ?? functionId} (${functionId}) is not exported by module ${moduleId}.`,
+      );
+    }
+  }
+}
+
 async function loadPreloadHeaderObject(
   config: AroraWebInitInput,
   moduleInput: AroraWebPreloadModule,
@@ -917,8 +1011,9 @@ async function resolvePreloadModules(
   selectedHeader: object,
   registry: AroraWebModuleRegistry,
 ): Promise<ResolvedAroraWebPreloadModule[]> {
-  const modules = Array.isArray(config.preloadModules)
-    ? config.preloadModules
+  const explicitPreloadModules = Array.isArray(config.preloadModules);
+  const modules: AroraWebPreloadModule[] = explicitPreloadModules
+    ? (config.preloadModules ?? [])
     : defaultPreloadModulesForHeader(selectedHeader, registry);
   const resolved: ResolvedAroraWebPreloadModule[] = [];
   for (const moduleInput of modules) {
@@ -938,6 +1033,9 @@ async function resolvePreloadModules(
       wasmUrl,
       ...(moduleConfig?.wasmBytes ? { wasmBytes: moduleConfig.wasmBytes } : {}),
     });
+  }
+  if (!explicitPreloadModules) {
+    validateDefaultPreloadModules(selectedHeader, resolved);
   }
   return resolved;
 }
@@ -1102,10 +1200,22 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
     const config = normalizeConfig(initInput);
     const orchestratorModule =
       config.orchestratorModule ?? DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE;
-    const module = await loadAroraWebModule(config);
-    await initAroraWeb(module, defaultAroraWebInitInput(config));
+    const loadedRegistry = await moduleRegistry(config);
+    const module = await loadAroraWebModule(
+      config,
+      loadedRegistry.manifest,
+      loadedRegistry.manifestUrl,
+    );
+    await initAroraWeb(
+      module,
+      defaultAroraWebInitInput(
+        config,
+        loadedRegistry.manifest,
+        loadedRegistry.manifestUrl,
+      ),
+    );
 
-    const registry = await moduleRegistry(config);
+    const registry = loadedRegistry.registry;
     const selectedModule = await resolveAroraWebModule(config, registry);
     const wasmBytes = await loadWasmBytes(
       config,
