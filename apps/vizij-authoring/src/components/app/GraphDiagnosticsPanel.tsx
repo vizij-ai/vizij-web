@@ -6,13 +6,13 @@ import {
   type MachineDiffResult,
   type MachineReport,
 } from "@vizij/node-graph-authoring";
-import { Download, Search } from "lucide-react";
-import { downloadBlob } from "../../utils/download";
-import { alertDialog } from "../../utils/dialogs";
 import {
   runRigRoundtripAudit,
   type RigRoundtripAuditResult,
-} from "../../utils/rigRoundtripAudit";
+} from "@vizij/studio-support";
+import { Download, Search } from "lucide-react";
+import { downloadBlob } from "../../utils/download";
+import { alertDialog } from "../../utils/dialogs";
 import {
   useBindingAuthoring,
   useGraphRuntime,

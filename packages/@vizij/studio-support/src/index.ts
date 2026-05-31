@@ -420,10 +420,14 @@ export {
   compareImportedRigGraph,
   countGraphDiffsByCategory,
   normalizeRehydratedInputMetadata,
+  runRigRoundtripAudit,
   summarizeGraphEdgeDiffRisk,
   type ImportedRigGraphComparison,
   type ImportedRigGraphComparisonOptions,
   type NormalizedInputMetadata,
+  type RigRoundtripAuditOptions,
+  type RigRoundtripAuditResult,
+  type RigRoundtripManagedStandardInput,
 } from "./utils/rigRoundtripDiagnostics";
 export {
   buildStandardInputIdRemap,

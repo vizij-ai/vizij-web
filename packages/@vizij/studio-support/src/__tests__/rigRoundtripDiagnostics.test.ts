@@ -7,6 +7,7 @@ import {
   compareImportedRigGraph,
   countGraphDiffsByCategory,
   normalizeRehydratedInputMetadata,
+  runRigRoundtripAudit,
   summarizeGraphEdgeDiffRisk,
   type GraphDiffEntry,
 } from "../index";
@@ -141,5 +142,35 @@ describe("rig roundtrip diagnostics", () => {
     expect(comparison.importedSignature).toBe(comparison.rebuiltSignature);
     expect(comparison.diff.entries).toEqual([]);
     expect(comparison.issueCount).toBe(0);
+  });
+
+  it("runs the support-owned round-trip audit transaction", async () => {
+    const result = await runRigRoundtripAudit({
+      faceId: "face",
+      world: {} as any,
+      animatables: {},
+      values: new Map(),
+      animatableComponents: [],
+      managedStandardInputs: [
+        {
+          input: standardInput,
+          source: "custom",
+          metadata: { root: "controls" },
+        },
+      ],
+      bindings: {} as BindingMap,
+      inputBindings: {} as InputBindingMap,
+      pipelineMetadataV1: null,
+      pipelineConfigByInputId: {},
+      featureLabelOverrides: {},
+      poseConfig: null,
+    });
+
+    expect(result.status).toBe("match");
+    expect(result.exportedSpec).toBeTruthy();
+    expect(result.importPreparedSpec).toBeTruthy();
+    expect(result.rebuiltSpec).toBeTruthy();
+    expect(result.diff.entries).toEqual([]);
+    expect(result.exportImportDiff.entries).toEqual([]);
   });
 });
