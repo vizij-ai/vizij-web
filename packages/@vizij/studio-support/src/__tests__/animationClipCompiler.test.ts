@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type {
   AnimationClipIR,
   AnimationTrackIR,
-} from "../../types/animationClipIr";
+} from "../types/animationClipIr";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_METADATA_ORIGIN,
   LEGACY_AUTHORED_TIMELINE_CLIP_ID,
-} from "../../types/animationClipIr";
+} from "../types/animationClipIr";
 import {
   bundleAnimationEntryToClipIr,
   clipIrToBundleAnimationEntry,
@@ -15,7 +15,7 @@ import {
   evaluateAnimationTrackAtTime,
   findCanonicalAuthoredTimelineConflict,
   findAuthoredTimelineBundleAnimation,
-} from "../animationClipCompiler";
+} from "../utils/animationClipCompiler";
 
 describe("compileAnimationClipIr", () => {
   it("sorts tracks by channel then track id and dedupes keyframes by time", () => {

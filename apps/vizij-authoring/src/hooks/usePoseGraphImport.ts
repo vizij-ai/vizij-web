@@ -4,18 +4,16 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import { readJsonFile } from "@vizij/authoring-shared";
 import {
   ensureStandardPathInput,
   inferStandardSuggestion,
-  readJsonFile,
-} from "@vizij/authoring-shared";
-import {
   listPoseGraphOutputs,
+  normalizeGraphPath,
   remapPoseGraphInputs,
   updatePoseGraphOutputPath,
 } from "@vizij/studio-support";
 import { cloneSerializable } from "../utils/serialization";
-import { normalizeGraphPath } from "../utils/graphPaths";
 import { collectPoseGraphDeltaInputs } from "../poseRig/graphParser";
 import { remapPoseGraphInputIds } from "../poseRig/graphTransforms";
 import { buildRigInputPath } from "../poseRig/utils";

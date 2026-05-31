@@ -12,7 +12,10 @@ import {
 } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
-import { buildRuntimeInputCatalogFromConstraints } from "@vizij/studio-support";
+import {
+  buildRuntimeInputCatalogFromConstraints,
+  type AnimationClipIR,
+} from "@vizij/studio-support";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
 import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
@@ -30,7 +33,6 @@ import {
 } from "../../state/RigControllerProvider";
 import { useAnimationStore } from "../../state/animationStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
-import type { AnimationClipIR } from "../../types/animationClipIr";
 import { isAuthoringDebugEnabled } from "../../utils/debug";
 import {
   isPoseControlInputPath,

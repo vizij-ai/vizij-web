@@ -2,15 +2,13 @@ import { useEffect, useRef } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import {
+  bundleAnimationEntryToClipIr,
   extractGraphFaceId,
+  findAuthoredTimelineBundleAnimation,
   prepareSpecForImport,
+  type AnimationClipIR,
 } from "@vizij/studio-support";
 import type { PoseRigConfigFile } from "../poseRig/types";
-import type { AnimationClipIR } from "../types/animationClipIr";
-import {
-  bundleAnimationEntryToClipIr,
-  findAuthoredTimelineBundleAnimation,
-} from "../utils/animationClipCompiler";
 import { waitForNextFrame } from "../utils/frame";
 import { sanitizeFaceId } from "../utils/faceId";
 import { logAuthoringDebug } from "../utils/debug";

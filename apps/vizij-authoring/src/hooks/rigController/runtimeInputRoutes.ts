@@ -5,9 +5,9 @@ import {
   stripStandardInputPathPrefix,
   type StandardRigInput,
 } from "@vizij/utils";
+import { normalizeGraphPath } from "@vizij/studio-support";
 import { isPoseControlInputPath } from "../../poseRig/utils";
 import type { ManagedStandardInput } from "../../types/standardInputs";
-import { normalizeGraphPath } from "../../utils/graphPaths";
 import { buildFallbackGraphPath } from "../graphRuntime";
 
 export interface RuntimeInputRoute {

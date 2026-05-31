@@ -809,6 +809,12 @@ function VizijRuntimeProviderInner({
         removeGraph,
         removeAnimation,
       },
+      namespace,
+      graphIds: [
+        ...registeredGraphsRef.current,
+        ...programControllerIdsRef.current.values(),
+      ],
+      animationIds: registeredAnimationsRef.current,
     });
     result.errors.forEach((error) => {
       pushHostError(error);
@@ -841,7 +847,7 @@ function VizijRuntimeProviderInner({
     orchestratorAnimationFallbackCountRef.current = 0;
     lastAnimationCommandPathsRef.current = [];
     lastHostAnimationSampleIdRef.current = null;
-  }, [listControllers, removeAnimation, removeGraph, pushHostError]);
+  }, [listControllers, namespace, removeAnimation, removeGraph, pushHostError]);
 
   useEffect(() => {
     namespaceRef.current = namespace;

@@ -42,6 +42,33 @@ import {
 } from "./utils/namespacing";
 
 export type {
+  AnimationClipIR,
+  AnimationInterpolation,
+  AnimationKeyframeIR,
+  AnimationTrackIR,
+} from "./types/animationClipIr";
+export {
+  ANIMATION_CLIP_IR_SCHEMA_VERSION,
+  AUTHORED_TIMELINE_CLIP_ID,
+  AUTHORED_TIMELINE_CLIP_NAME,
+  AUTHORED_TIMELINE_METADATA_MARKERS,
+  AUTHORED_TIMELINE_METADATA_ORIGIN,
+  AUTHORED_TIMELINE_METADATA_SCHEMA_VERSION,
+  LEGACY_AUTHORED_TIMELINE_CLIP_ID,
+} from "./types/animationClipIr";
+export {
+  bundleAnimationEntryToClipIr,
+  clipIrToBundleAnimationEntry,
+  compileAnimationClipIr,
+  evaluateAnimationTrackAtTime,
+  findAuthoredTimelineBundleAnimation,
+  findCanonicalAuthoredTimelineConflict,
+  isAuthoredTimelineBundleAnimationEntry,
+  isAuthoredTimelineOriginMetadata,
+  type BundleAnimationToClipOptions,
+  type CompileAnimationClipIrOptions,
+} from "./utils/animationClipCompiler";
+export type {
   AnimationClipLike,
   AnimationKeyframeLike,
   AnimationTrackLike,
@@ -76,6 +103,7 @@ export {
   namespaceTypedPath,
   stripNamespace,
 } from "./utils/namespacing";
+export { normalizeGraphPath } from "./utils/graphPaths";
 export {
   canonicalizeGraphComparable,
   diffGraphSpecs,
@@ -145,6 +173,17 @@ export {
   type VizijPipelineLinkMap,
   type VizijPipelineMetadataV1,
 } from "./utils/standardInputRemap";
+export {
+  ensureStandardPathInput,
+  inferStandardSuggestion,
+} from "./utils/standardInputPaths";
+export {
+  getStandardInputResolutionIndex,
+  resolveUniqueAliasIdFromStandardInputs,
+  type StandardInputResolutionIndex,
+  type StandardInputResolutionMetrics,
+} from "./utils/standardInputResolutionIndex";
+export { extractStandardInputSubgroups } from "./utils/standardInputs";
 export {
   buildPoseWeightInputPathSegment,
   buildPoseWeightPathMap,

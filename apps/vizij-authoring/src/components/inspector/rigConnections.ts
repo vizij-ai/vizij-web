@@ -4,8 +4,8 @@ import type {
   InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID, type StandardRigInput } from "@vizij/utils";
+import { getStandardInputResolutionIndex } from "@vizij/studio-support";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
-import { getStandardInputResolutionIndex } from "../../utils/standardInputResolutionIndex";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 

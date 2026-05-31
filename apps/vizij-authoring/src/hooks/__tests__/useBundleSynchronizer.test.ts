@@ -3,7 +3,7 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_METADATA_ORIGIN,
   LEGACY_AUTHORED_TIMELINE_CLIP_ID,
-} from "../../types/animationClipIr";
+} from "@vizij/studio-support";
 import { hydrateAuthoredTimelineFromBundleAnimations } from "../useBundleSynchronizer";
 
 function createBundleAnimationEntry(

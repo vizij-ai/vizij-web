@@ -26,7 +26,7 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID } from "@vizij/utils";
-import { getStandardInputResolutionIndex } from "../utils/standardInputResolutionIndex";
+import { getStandardInputResolutionIndex } from "@vizij/studio-support";
 import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions";
 
 interface BindingManagerOptions {

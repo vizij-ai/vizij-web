@@ -5,8 +5,8 @@ import {
   stripStandardInputPathPrefix,
   type StandardRigInput,
 } from "@vizij/utils";
+import { extractStandardInputSubgroups } from "@vizij/studio-support";
 import type { ManagedStandardInput } from "../types/standardInputs";
-import { extractStandardInputSubgroups } from "../utils/standardInputs";
 
 export interface StandardInputCollectionsOptions {
   managedStandardInputs: ManagedStandardInput[];

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import {
+  AUTHORED_TIMELINE_CLIP_ID,
+  type AnimationClipIR,
+} from "@vizij/studio-support";
 import { useAnimationStore } from "../animationStore";
-import type { AnimationClipIR } from "../../types/animationClipIr";
-import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
 
 beforeEach(() => {
   useAnimationStore.getState().reset();

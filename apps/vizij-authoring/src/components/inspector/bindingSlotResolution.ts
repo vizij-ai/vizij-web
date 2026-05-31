@@ -3,7 +3,7 @@ import type { StandardRigInput } from "@vizij/utils";
 import {
   getStandardInputResolutionIndex,
   resolveUniqueAliasIdFromStandardInputs,
-} from "../../utils/standardInputResolutionIndex";
+} from "@vizij/studio-support";
 
 interface BindingSlotLike {
   inputId?: string | null;

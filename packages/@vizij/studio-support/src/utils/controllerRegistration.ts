@@ -56,18 +56,55 @@ export type RegisterRuntimeControllersResult = {
   errors: RuntimeControllerHostError[];
 };
 
+function uniqueControllerIds(
+  ids: Iterable<ControllerId> | null | undefined,
+): Set<ControllerId> {
+  return new Set(
+    Array.from(ids ?? []).filter(
+      (id): id is ControllerId => typeof id === "string" && id.length > 0,
+    ),
+  );
+}
+
+function isNamespacedControllerId(
+  id: ControllerId,
+  namespace: string | null | undefined,
+  kinds: readonly string[],
+): boolean {
+  const trimmedNamespace = namespace?.trim();
+  if (!trimmedNamespace) {
+    return false;
+  }
+  return kinds.some((kind) => id.startsWith(`${trimmedNamespace}/${kind}/`));
+}
+
 export function clearRuntimeControllers(args: {
   host: Pick<
     RuntimeControllerHost,
     "listControllers" | "removeGraph" | "removeAnimation"
   >;
+  graphIds?: Iterable<ControllerId>;
+  animationIds?: Iterable<ControllerId>;
+  namespace?: string;
 }): ClearRuntimeControllersResult {
   const errors: RuntimeControllerHostError[] = [];
   const removedGraphs: ControllerId[] = [];
   const removedAnimations: ControllerId[] = [];
   const existing = args.host.listControllers();
+  const graphIds = uniqueControllerIds(args.graphIds);
+  const animationIds = uniqueControllerIds(args.animationIds);
+  const hasNamespace = Boolean(args.namespace?.trim());
+  const removeAllGraphs = graphIds.size === 0 && !hasNamespace;
+  const removeAllAnimations = animationIds.size === 0 && !hasNamespace;
 
   existing.graphs.forEach((id) => {
+    if (
+      !removeAllGraphs &&
+      !graphIds.has(id) &&
+      !isNamespacedControllerId(id, args.namespace, ["graph", "merged"])
+    ) {
+      return;
+    }
     try {
       args.host.removeGraph(id);
       removedGraphs.push(id);
@@ -81,6 +118,13 @@ export function clearRuntimeControllers(args: {
   });
 
   existing.anims.forEach((id) => {
+    if (
+      !removeAllAnimations &&
+      !animationIds.has(id) &&
+      !isNamespacedControllerId(id, args.namespace, ["animation"])
+    ) {
+      return;
+    }
     try {
       args.host.removeAnimation(id);
       removedAnimations.push(id);

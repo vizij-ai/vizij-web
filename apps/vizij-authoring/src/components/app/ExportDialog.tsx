@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useVizijStore } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import type { VizijBundleExtension } from "@vizij/render";
+import type { AnimationClipIR } from "@vizij/studio-support";
 import { ChevronRight } from "lucide-react";
 import {
   useBindingAuthoring,
@@ -19,7 +20,6 @@ import {
 import { cn } from "../../utils/cn";
 import { logAuthoringDebug } from "../../utils/debug";
 import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
-import type { AnimationClipIR } from "../../types/animationClipIr";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";

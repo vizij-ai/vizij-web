@@ -10,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { AUTHORED_TIMELINE_CLIP_ID } from "@vizij/studio-support";
 import {
   GraphRuntimeStoreProvider,
   createGraphRuntimeStore,
@@ -20,7 +21,6 @@ import {
 } from "../../state/bindingAuthoringStore";
 import { useAnimationStore } from "../../state/animationStore";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
-import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
 import { Viewer } from "./Viewer";
 
 const motionGraphValueSamplerSpy = vi.hoisted(() => vi.fn());

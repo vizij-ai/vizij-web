@@ -3,11 +3,11 @@ import { createStandardRigInput, type StandardRigInput } from "@vizij/utils";
 import {
   getStandardInputResolutionIndex,
   type StandardInputResolutionMetrics,
-} from "./standardInputResolutionIndex";
+} from "../utils/standardInputResolutionIndex";
 import {
   ensureStandardPathInput,
   inferStandardSuggestion,
-} from "./standardInputPaths";
+} from "../utils/standardInputPaths";
 
 function makeInput(
   id: string,

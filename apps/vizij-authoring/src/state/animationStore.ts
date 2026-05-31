@@ -1,18 +1,14 @@
 import { create } from "zustand";
-import type {
-  AnimationClipIR,
-  AnimationKeyframeIR,
-  AnimationTrackIR,
-} from "../types/animationClipIr";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
-} from "../types/animationClipIr";
-import {
   compileAnimationClipIr,
   evaluateAnimationTrackAtTime,
-} from "../utils/animationClipCompiler";
+  type AnimationClipIR,
+  type AnimationKeyframeIR,
+  type AnimationTrackIR,
+} from "@vizij/studio-support";
 import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
 
 export type AnimationKeyframe = AnimationKeyframeIR;

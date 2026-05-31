@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { VizijAnimationAsset } from "@vizij/runtime-react";
 import { useOptionalVizijRuntime, useVizijRuntime } from "@vizij/runtime-react";
+import {
+  AUTHORED_TIMELINE_CLIP_ID,
+  AUTHORED_TIMELINE_CLIP_NAME,
+  clipIrToBundleAnimationEntry,
+  LEGACY_AUTHORED_TIMELINE_CLIP_ID,
+  type AnimationClipIR,
+} from "@vizij/studio-support";
 import { useBindingAuthoring } from "../state/RigControllerProvider";
 import {
   useAnimationStore,
   type AnimationRuntimeTransportAdapter,
 } from "../state/animationStore";
-import {
-  AUTHORED_TIMELINE_CLIP_ID,
-  AUTHORED_TIMELINE_CLIP_NAME,
-  LEGACY_AUTHORED_TIMELINE_CLIP_ID,
-  type AnimationClipIR,
-} from "../types/animationClipIr";
-import { clipIrToBundleAnimationEntry } from "../utils/animationClipCompiler";
 import { isAuthoringDebugEnabled } from "../utils/debug";
 
 function toDeterministicSignature(value: unknown): string {

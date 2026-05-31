@@ -5,13 +5,15 @@ import {
   registerRuntimeControllers,
 } from "../utils/controllerRegistration";
 
-function makeHost() {
+function makeHost(
+  controllers: { graphs: string[]; anims: string[] } = {
+    graphs: ["old-graph"],
+    anims: ["old-anim"],
+  },
+) {
   const calls: Array<{ kind: string; payload: unknown }> = [];
   const host = {
-    listControllers: () => ({
-      graphs: ["old-graph"],
-      anims: ["old-anim"],
-    }),
+    listControllers: () => controllers,
     removeGraph: (id: string) => {
       calls.push({ kind: "removeGraph", payload: id });
       return true;
@@ -113,6 +115,65 @@ describe("clearRuntimeControllers", () => {
     expect(calls).toEqual([
       { kind: "removeGraph", payload: "old-graph" },
       { kind: "removeAnimation", payload: "old-anim" },
+    ]);
+  });
+
+  it("removes only controllers owned by the namespace in shared hosts", () => {
+    const { host, calls } = makeHost({
+      graphs: [
+        "face-a/graph/rig",
+        "face-a/merged/merged-face-a",
+        "face-b/graph/rig",
+        "loose-graph",
+      ],
+      anims: ["face-a/animation/blink", "face-b/animation/blink", "loose-anim"],
+    });
+
+    const result = clearRuntimeControllers({
+      host,
+      namespace: "face-a",
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.removedGraphs).toEqual([
+      "face-a/graph/rig",
+      "face-a/merged/merged-face-a",
+    ]);
+    expect(result.removedAnimations).toEqual(["face-a/animation/blink"]);
+    expect(calls).toEqual([
+      { kind: "removeGraph", payload: "face-a/graph/rig" },
+      { kind: "removeGraph", payload: "face-a/merged/merged-face-a" },
+      { kind: "removeAnimation", payload: "face-a/animation/blink" },
+    ]);
+  });
+
+  it("removes explicit controller ids without touching unrelated controllers", () => {
+    const { host, calls } = makeHost({
+      graphs: [
+        "owned-graph",
+        "owned-program-graph",
+        "other-face/graph/rig",
+        "loose-graph",
+      ],
+      anims: ["owned-anim", "other-face/animation/blink", "loose-anim"],
+    });
+
+    const result = clearRuntimeControllers({
+      host,
+      graphIds: ["owned-graph", "owned-program-graph"],
+      animationIds: ["owned-anim"],
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.removedGraphs).toEqual([
+      "owned-graph",
+      "owned-program-graph",
+    ]);
+    expect(result.removedAnimations).toEqual(["owned-anim"]);
+    expect(calls).toEqual([
+      { kind: "removeGraph", payload: "owned-graph" },
+      { kind: "removeGraph", payload: "owned-program-graph" },
+      { kind: "removeAnimation", payload: "owned-anim" },
     ]);
   });
 });

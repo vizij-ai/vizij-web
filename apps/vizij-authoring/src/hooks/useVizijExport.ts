@@ -27,6 +27,12 @@ import {
 } from "@vizij/utils";
 import {
   auditBundleGraphs,
+  AUTHORED_TIMELINE_CLIP_ID,
+  AUTHORED_TIMELINE_CLIP_NAME,
+  AUTHORED_TIMELINE_METADATA_ORIGIN,
+  clipIrToBundleAnimationEntry,
+  findCanonicalAuthoredTimelineConflict,
+  type AnimationClipIR,
   type VizijPipelineMetadataV1,
 } from "@vizij/studio-support";
 import { faceSlug } from "../utils/faceId";
@@ -34,12 +40,6 @@ import { waitForNextFrame } from "../utils/frame";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
 import type { BundleGraphWithIr } from "../types/bundle";
-import {
-  AUTHORED_TIMELINE_CLIP_ID,
-  AUTHORED_TIMELINE_CLIP_NAME,
-  AUTHORED_TIMELINE_METADATA_ORIGIN,
-  type AnimationClipIR,
-} from "../types/animationClipIr";
 import type {
   PoseDiagnostic,
   PoseRigConfigFile,
@@ -49,10 +49,6 @@ import { useAnimationStore } from "../state/animationStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { logAuthoringDebug } from "../utils/debug";
-import {
-  clipIrToBundleAnimationEntry,
-  findCanonicalAuthoredTimelineConflict,
-} from "../utils/animationClipCompiler";
 import {
   buildPoseComposeModeByInputId,
   withPipelineConfigBuildOptions,

@@ -19,13 +19,13 @@ import { exportScene } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
-import { auditBundleGraphs } from "@vizij/studio-support";
-import { useVizijExport } from "../useVizijExport";
-import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import {
+  auditBundleGraphs,
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_METADATA_ORIGIN,
-} from "../../types/animationClipIr";
+} from "@vizij/studio-support";
+import { useVizijExport } from "../useVizijExport";
+import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
   POSE_IR_TARGETING_CONTRACT,

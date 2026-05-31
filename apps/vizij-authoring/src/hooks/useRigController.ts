@@ -59,6 +59,7 @@ import {
   buildStandardInputIdRemap,
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
+  normalizeGraphPath,
   normalizeVizijPipelineConfigMap,
   normalizeVizijPipelineLinkMap,
   remapPipelineMetadataInputIds,
@@ -76,7 +77,6 @@ import type {
 } from "../rig/persistence";
 import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
-import { normalizeGraphPath } from "../utils/graphPaths";
 import { resolveRigMetadataInputId } from "../utils/rigElementInputs";
 import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";

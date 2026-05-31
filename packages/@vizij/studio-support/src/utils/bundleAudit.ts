@@ -5,6 +5,7 @@ import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { cloneDeepSafe } from "@vizij/utils";
 import type { GraphDiffResult } from "./graphDiff";
 import { diffGraphSpecs } from "./graphDiff";
+import { normalizeGraphPath } from "./graphPaths";
 
 export type BundleGraphAuditStatus = "match" | "diff" | "missing-ir" | "error";
 
@@ -65,17 +66,6 @@ function extractGraphFaceId(payload: unknown): string | null {
   }
   const faceId = typeof vizij.faceId === "string" ? vizij.faceId.trim() : "";
   return faceId.length > 0 ? faceId : null;
-}
-
-function normalizeGraphPath(path: string | null | undefined): string | null {
-  if (!path) {
-    return null;
-  }
-  const trimmed = path.trim();
-  if (!trimmed) {
-    return null;
-  }
-  return trimmed.replace(/\\/g, "/").replace(/\/+/g, "/").toLowerCase();
 }
 
 function normalizeMaybeSpec(

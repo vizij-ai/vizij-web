@@ -1,9 +1,9 @@
 import React from "react";
+import type { AnimationClipIR } from "@vizij/studio-support";
 import { DiscrepancyWizard } from "../discrepancy/DiscrepancyWizard";
 import { PoseGraphRemapWizard } from "../poseRig/PoseGraphRemapWizard";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import type { AnimationClipIR } from "../../types/animationClipIr";
 import { ExportDialog } from "./ExportDialog";
 
 interface AuthoredMotionGraphExportEntry {

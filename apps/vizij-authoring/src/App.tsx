@@ -12,9 +12,13 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import {
+  ANIMATION_CLIP_IR_SCHEMA_VERSION,
+  AUTHORED_TIMELINE_CLIP_ID,
   buildGraphSpecForExport,
   buildRuntimeBaseBundle,
+  bundleAnimationEntryToClipIr,
   specToEditorState,
+  type AnimationClipIR,
 } from "@vizij/studio-support";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
@@ -90,7 +94,6 @@ import {
   type RotationAxis,
 } from "./components/app/importOrientation";
 import { useAnimationStore } from "./state/animationStore";
-import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
 import { useManagedTargetLifecycle } from "./hooks/useManagedTargetLifecycle";
 import {
   buildGlbExportDirtySnapshot,
@@ -106,11 +109,6 @@ import {
   synchronizeActiveInspectorTarget,
   type ActiveInspectorTarget,
 } from "./utils/inspectorSelection";
-import {
-  ANIMATION_CLIP_IR_SCHEMA_VERSION,
-  AUTHORED_TIMELINE_CLIP_ID,
-  type AnimationClipIR,
-} from "./types/animationClipIr";
 import { formatPlaybackClock } from "./utils/animationTimeDisplay";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
