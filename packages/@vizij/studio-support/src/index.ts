@@ -149,6 +149,15 @@ export {
   type PrepareAuthoringVizijBundleForExportResult,
 } from "./utils/bundleAssembly";
 export {
+  buildBindingIssuesMap,
+  buildGraphMachineReport,
+  buildRigGraphCompile,
+  createGraphInsightSnapshot,
+  type AuthoringGraphInsightSnapshot,
+  type RigGraphCompileInputs,
+  type RigGraphInputMetadata,
+} from "./utils/rigGraphCompiler";
+export {
   extractGraphFaceId,
   extractVizijPipelineConfigMap,
   extractVizijPipelineConfigMapFromMetadata,

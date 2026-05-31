@@ -99,12 +99,13 @@ The 2026-05-31 verification-led responsibility pass tightened the same architect
 35. Pose graph import remap application is now support-owned: delta-input detection, input-id remapping, source-input resolution, and remap apply-plan construction live in `@vizij/studio-support`; the authoring hook keeps file reading, wizard rows, dialogs, and applying the resulting import.
 36. Runtime input staging queue/flush policy is now support-owned; `useRigController` keeps runtime bridge availability, lifecycle timing, and actual staging effects.
 37. Motion graph initial input-default synthesis is now support-owned; motion graph React components keep rendering, variadic control interactions, and editor-store updates.
+38. Rig graph compile/report helper construction is now support-owned: canonical rig graph build delegation, binding issue maps, machine reports, and neutral graph insight snapshots live in `@vizij/studio-support`; the authoring hook keeps last-known-good runtime graph cache policy and UI/runtime side effects.
 
 Latest verification for this pass:
 
 1. `pnpm --filter @vizij/studio-support lint`
 2. `pnpm --filter @vizij/studio-support typecheck`
-3. `pnpm --filter @vizij/studio-support test` - 31 files, 173 tests passed.
+3. `pnpm --filter @vizij/studio-support test` - 34 files, 184 tests passed.
 4. `pnpm --filter @vizij/runtime-react lint`
 5. `pnpm --filter @vizij/runtime-react typecheck`
 6. `pnpm --filter @vizij/runtime-react test` - 8 files, 40 tests passed.
@@ -135,6 +136,7 @@ Focused evidence for the live authoring path:
 15. After moving pose graph remap application into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/poseGraphImport.test.ts` - 9 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijAssetLoader.test.tsx src/hooks/__tests__/graphRuntime.test.ts` - 8 tests passed; full `@vizij/studio-support` and `vizij-authoring` lint/type/test checks passed.
 16. After moving runtime input staging into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/runtimeInputStaging.test.ts src/__tests__/runtimeInputRoutes.test.ts` - 9 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/app/Viewer.test.tsx src/hooks/__tests__/rigGraphCompiler.test.ts src/hooks/__tests__/graphRuntime.test.ts` - 34 tests passed; `@vizij/studio-support` and `vizij-authoring` typechecks passed.
 17. After moving motion graph input-default synthesis into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/motionGraphInputDefaults.test.ts src/__tests__/motionGraphEditor.test.ts src/__tests__/motionGraphSpec.test.ts` - 8 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/animation/TrackRow.test.tsx src/__tests__/graphAuthoringSmoke.test.ts src/motiongraph/utils/connectionValidation.test.ts` - 11 tests passed; `@vizij/studio-support` and `vizij-authoring` typechecks passed.
+18. After moving rig graph compile/report helper construction into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/runtimeGraphSpec.test.ts src/__tests__/rigRoundtripDiagnostics.test.ts src/__tests__/bundleAudit.test.ts src/__tests__/graphDiff.test.ts src/__tests__/rigGraphCompiler.test.ts` - 29 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/rigGraphCompiler.test.ts src/hooks/__tests__/graphRuntime.test.ts src/hooks/__tests__/useVizijExport.test.tsx` - 41 tests passed; `@vizij/studio-support` and `vizij-authoring` typechecks and lints passed; full `@vizij/studio-support` test passed with 34 files and 184 tests; source prettier and `git diff --check` passed. Arora E2E was not rerun for this helper-only slice because the browser runtime registration path was unchanged and was already covered at the previous checkpoint.
 
 This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly, reducing duplicate compile semantics, and choosing performance promotions from evidence.
 
