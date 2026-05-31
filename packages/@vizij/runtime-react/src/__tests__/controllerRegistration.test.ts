@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AnimationRegistrationConfig } from "@vizij/orchestrator-react";
+import type { RuntimeProgramRegistrationSupportResult } from "@vizij/studio-support";
 import {
+  applyRuntimeControllerRegistrationResult,
   clearRuntimeControllers,
   registerRuntimeControllers,
 } from "../host/controllerRegistration";
@@ -252,5 +254,72 @@ describe("registerRuntimeControllers", () => {
       "registerAnimation",
       "setInput",
     ]);
+  });
+});
+
+describe("applyRuntimeControllerRegistrationResult", () => {
+  it("moves registration outputs into runtime state refs", () => {
+    const { host } = makeHost();
+    const registration = registerRuntimeControllers({
+      host,
+      namespace: "demo-face",
+      animationTransport: "orchestrator",
+      plan: makePlan(),
+    });
+    const inputConstraints: Array<typeof registration.inputConstraints> = [];
+    let tokenBumps = 0;
+    const state = {
+      rigInputMapRef: { current: {} },
+      rigPoseControlInputIdsRef: { current: new Set<string>() },
+      inputConstraintsRef: { current: {} },
+      setInputConstraints: (
+        constraints: typeof registration.inputConstraints,
+      ) => {
+        inputConstraints.push(constraints);
+      },
+      programRegistrationMapRef: {
+        current: new Map<string, RuntimeProgramRegistrationSupportResult>(),
+      },
+      bumpProgramRegistrationToken: () => {
+        tokenBumps += 1;
+      },
+      outputPathsRef: { current: new Set<string>() },
+      baseOutputPathsRef: { current: new Set<string>() },
+      namespacedOutputPathsRef: { current: new Set<string>() },
+      mergedGraphRef: { current: null as string | null },
+      registeredGraphsRef: { current: [] as string[] },
+      registeredAnimationsRef: { current: [] as string[] },
+      animationControllerIdsRef: { current: new Map<string, string>() },
+    };
+
+    const applied = applyRuntimeControllerRegistrationResult(
+      registration,
+      state,
+    );
+
+    expect(applied.outputPaths).toEqual(["demo-face/rig/face/smile"]);
+    expect(state.rigInputMapRef.current).toEqual({ smile: "rig/face/smile" });
+    expect(state.rigPoseControlInputIdsRef.current.has("smile")).toBe(true);
+    expect(state.inputConstraintsRef.current).toBe(
+      registration.inputConstraints,
+    );
+    expect(inputConstraints).toEqual([registration.inputConstraints]);
+    expect(state.programRegistrationMapRef.current.get("program-a")).toBe(
+      registration.programRegistrationMap.get("program-a"),
+    );
+    expect(tokenBumps).toBe(1);
+    expect(state.outputPathsRef.current).toBe(registration.outputPaths);
+    expect(state.baseOutputPathsRef.current).toBe(registration.baseOutputPaths);
+    expect(state.namespacedOutputPathsRef.current).toBe(
+      registration.namespacedOutputPaths,
+    );
+    expect(state.mergedGraphRef.current).toBe("merged-controller");
+    expect(state.registeredGraphsRef.current).toEqual(["merged-controller"]);
+    expect(state.registeredAnimationsRef.current).toEqual([
+      "anim-clip-controller",
+    ]);
+    expect(state.animationControllerIdsRef.current.get("clip-a")).toBe(
+      "anim-clip-controller",
+    );
   });
 });

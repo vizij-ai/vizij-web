@@ -73,6 +73,7 @@ import {
   type StagedRuntimeInputs,
 } from "./host/executionLoop";
 import {
+  applyRuntimeControllerRegistrationResult,
   clearRuntimeControllers,
   registerRuntimeControllers,
   type RuntimeControllerHostError,
@@ -1194,23 +1195,29 @@ function VizijRuntimeProviderInner({
       );
     });
 
-    rigInputMapRef.current = result.rigInputMap;
-    rigPoseControlInputIdsRef.current = result.rigPoseControlInputIds;
-    inputConstraintsRef.current = result.inputConstraints;
-    setInputConstraints(result.inputConstraints);
-    programRegistrationMapRef.current = result.programRegistrationMap;
-    setProgramRegistrationToken((prev) => prev + 1);
-    outputPathsRef.current = result.outputPaths;
-    baseOutputPathsRef.current = result.baseOutputPaths;
-    namespacedOutputPathsRef.current = result.namespacedOutputPaths;
-    mergedGraphRef.current = result.mergedGraphId;
-    registeredGraphsRef.current = result.graphIds;
+    const appliedRegistration = applyRuntimeControllerRegistrationResult(
+      result,
+      {
+        rigInputMapRef,
+        rigPoseControlInputIdsRef,
+        inputConstraintsRef,
+        setInputConstraints,
+        programRegistrationMapRef,
+        bumpProgramRegistrationToken: () => {
+          setProgramRegistrationToken((prev) => prev + 1);
+        },
+        outputPathsRef,
+        baseOutputPathsRef,
+        namespacedOutputPathsRef,
+        mergedGraphRef,
+        registeredGraphsRef,
+        registeredAnimationsRef,
+        animationControllerIdsRef,
+      },
+    );
     if (isRuntimeDebugEnabled()) {
       console.log("[vizij-runtime] registered graph ids", result.graphIds);
     }
-
-    registeredAnimationsRef.current = result.animationIds;
-    animationControllerIdsRef.current = result.animationControllerIds;
 
     if (isRuntimeDebugEnabled()) {
       console.log("[vizij-runtime] controllers after register", {
@@ -1226,7 +1233,7 @@ function VizijRuntimeProviderInner({
       ready: runtimeReady,
       loading: false,
       controllers: result.controllers,
-      outputPaths: runtimeReady ? Array.from(outputPathsRef.current) : [],
+      outputPaths: runtimeReady ? appliedRegistration.outputPaths : [],
     }));
     if (runtimeReady) {
       onRegisterControllers?.(result.controllers);

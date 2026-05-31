@@ -58,6 +58,55 @@ export type RegisterRuntimeControllersResult = {
   errors: RuntimeControllerHostError[];
 };
 
+type RuntimeMutableRef<T> = {
+  current: T;
+};
+
+export type RuntimeControllerRegistrationState = {
+  rigInputMapRef: RuntimeMutableRef<Record<string, string>>;
+  rigPoseControlInputIdsRef: RuntimeMutableRef<Set<string>>;
+  inputConstraintsRef: RuntimeMutableRef<Record<string, InputConstraint>>;
+  setInputConstraints: (constraints: Record<string, InputConstraint>) => void;
+  programRegistrationMapRef: RuntimeMutableRef<
+    Map<string, RuntimeProgramRegistrationSupportResult>
+  >;
+  bumpProgramRegistrationToken: () => void;
+  outputPathsRef: RuntimeMutableRef<Set<string>>;
+  baseOutputPathsRef: RuntimeMutableRef<Set<string>>;
+  namespacedOutputPathsRef: RuntimeMutableRef<Set<string>>;
+  mergedGraphRef: RuntimeMutableRef<ControllerId | null>;
+  registeredGraphsRef: RuntimeMutableRef<ControllerId[]>;
+  registeredAnimationsRef: RuntimeMutableRef<ControllerId[]>;
+  animationControllerIdsRef: RuntimeMutableRef<Map<string, ControllerId>>;
+};
+
+export type AppliedRuntimeControllerRegistration = {
+  outputPaths: string[];
+};
+
+export function applyRuntimeControllerRegistrationResult(
+  result: RegisterRuntimeControllersResult,
+  state: RuntimeControllerRegistrationState,
+): AppliedRuntimeControllerRegistration {
+  state.rigInputMapRef.current = result.rigInputMap;
+  state.rigPoseControlInputIdsRef.current = result.rigPoseControlInputIds;
+  state.inputConstraintsRef.current = result.inputConstraints;
+  state.setInputConstraints(result.inputConstraints);
+  state.programRegistrationMapRef.current = result.programRegistrationMap;
+  state.bumpProgramRegistrationToken();
+  state.outputPathsRef.current = result.outputPaths;
+  state.baseOutputPathsRef.current = result.baseOutputPaths;
+  state.namespacedOutputPathsRef.current = result.namespacedOutputPaths;
+  state.mergedGraphRef.current = result.mergedGraphId;
+  state.registeredGraphsRef.current = result.graphIds;
+  state.registeredAnimationsRef.current = result.animationIds;
+  state.animationControllerIdsRef.current = result.animationControllerIds;
+
+  return {
+    outputPaths: Array.from(result.outputPaths),
+  };
+}
+
 export function clearRuntimeControllers(args: {
   host: Pick<
     RuntimeControllerHost,
