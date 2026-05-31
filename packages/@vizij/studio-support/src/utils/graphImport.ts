@@ -200,6 +200,97 @@ export async function normalizeRuntimeGraphSpec(
   return normalizeGraphSpec(spec);
 }
 
+export type BundleGraphSpecReplacementErrorKind =
+  | "missing-audit"
+  | "missing-audit-entry"
+  | "missing-compiled-spec"
+  | "missing-bundle"
+  | "missing-graph";
+
+export interface BundleGraphSpecReplacementAuditEntry {
+  id: string;
+  compiledSpec?: GraphSpec | null;
+}
+
+export interface PlanBundleGraphSpecReplacementOptions {
+  bundle: VizijBundleExtension | null | undefined;
+  audits: readonly BundleGraphSpecReplacementAuditEntry[] | null | undefined;
+  graphId: string;
+  reconciledAt: string;
+}
+
+export interface PlanBundleGraphSpecReplacementResult {
+  bundle: VizijBundleExtension | null;
+  error: { kind: BundleGraphSpecReplacementErrorKind } | null;
+}
+
+export function planBundleGraphSpecReplacement({
+  bundle,
+  audits,
+  graphId,
+  reconciledAt,
+}: PlanBundleGraphSpecReplacementOptions): PlanBundleGraphSpecReplacementResult {
+  if (!audits) {
+    return {
+      bundle: bundle ?? null,
+      error: { kind: "missing-audit" },
+    };
+  }
+  const target = audits.find((entry) => entry.id === graphId);
+  if (!target) {
+    return {
+      bundle: bundle ?? null,
+      error: { kind: "missing-audit-entry" },
+    };
+  }
+  if (!target.compiledSpec) {
+    return {
+      bundle: bundle ?? null,
+      error: { kind: "missing-compiled-spec" },
+    };
+  }
+  if (!bundle?.graphs?.length) {
+    return {
+      bundle: bundle ?? null,
+      error: { kind: "missing-bundle" },
+    };
+  }
+
+  let replaced = false;
+  const graphs = bundle.graphs.map((graph) => {
+    if (graph.id !== graphId) {
+      return graph;
+    }
+    replaced = true;
+    return {
+      ...graph,
+      spec: cloneSerializable(target.compiledSpec as GraphSpec) as Record<
+        string,
+        unknown
+      >,
+      metadata: {
+        ...(graph.metadata ?? {}),
+        reconciledAt,
+      },
+    };
+  });
+
+  if (!replaced) {
+    return {
+      bundle,
+      error: { kind: "missing-graph" },
+    };
+  }
+
+  return {
+    bundle: {
+      ...bundle,
+      graphs,
+    },
+    error: null,
+  };
+}
+
 export type RenameBundleGraphOutputPathErrorKind =
   | "missing-bundle"
   | "missing-graph"

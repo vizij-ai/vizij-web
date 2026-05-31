@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
 import {
   assessLegacyBindingMigration,
+  planBundleGraphSpecReplacement,
   renameBundleGraphOutputPath,
 } from "@vizij/studio-support";
 import {
@@ -31,7 +31,6 @@ import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
 import { useBundleAudit } from "../../hooks/useBundleAudit";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
-import { cloneSerializable } from "../../utils/serialization";
 import { usePoseRigStore } from "../../poseRig/store";
 import { collectGlobalUnmatchedPoseOutputs } from "../inspector/rigConnections";
 
@@ -202,52 +201,27 @@ export function DebugPanel({
   // Callbacks for Bundle Audit
   const handleOverwriteBundleGraph = useCallback(
     async (graphId: string) => {
-      if (!bundleAudit) {
-        await showAlert(
-          "Unable to find audit data. Run the bundle audit again and retry.",
-        );
-        return;
-      }
-      const target = bundleAudit.find((entry) => entry.id === graphId);
-      if (!target) {
-        await showAlert(
-          "Unable to find audit entry for the selected graph. Run the audit again and retry.",
-        );
-        return;
-      }
-      if (!target.compiledSpec) {
-        await showAlert(
-          "This graph did not produce a compiled IR spec, so it cannot be overwritten automatically.",
-        );
-        return;
-      }
-      updateBundle((previous) => {
-        if (!previous?.graphs?.length) {
-          return previous;
-        }
-        const graphs = previous.graphs.map((graph) => {
-          if (graph.id !== graphId) {
-            return graph;
-          }
-          return {
-            ...graph,
-            spec: cloneSerializable(target.compiledSpec as GraphSpec) as Record<
-              string,
-              unknown
-            >,
-            metadata: {
-              ...(graph.metadata ?? {}),
-              reconciledAt: new Date().toISOString(),
-            },
-          };
-        });
-        return {
-          ...previous,
-          graphs,
-        };
+      const result = planBundleGraphSpecReplacement({
+        bundle: loadedBundle,
+        audits: bundleAudit,
+        graphId,
+        reconciledAt: new Date().toISOString(),
       });
+      if (result.error) {
+        const message =
+          result.error.kind === "missing-audit"
+            ? "Unable to find audit data. Run the bundle audit again and retry."
+            : result.error.kind === "missing-audit-entry"
+              ? "Unable to find audit entry for the selected graph. Run the audit again and retry."
+              : result.error.kind === "missing-compiled-spec"
+                ? "This graph did not produce a compiled IR spec, so it cannot be overwritten automatically."
+                : "Unable to update the selected graph in the bundle.";
+        await showAlert(message);
+        return;
+      }
+      updateBundle(result.bundle as VizijBundleExtension | null);
     },
-    [bundleAudit, showAlert, updateBundle],
+    [bundleAudit, loadedBundle, showAlert, updateBundle],
   );
 
   const handleRenameBundleOutput = useCallback(

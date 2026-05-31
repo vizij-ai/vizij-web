@@ -7,6 +7,7 @@ import {
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineLinksMapFromMetadata,
   extractVizijPipelineMetadataV1,
+  planBundleGraphSpecReplacement,
   remapGraphSpecFace,
   renameBundleGraphOutputPath,
   withVizijPipelineMetadataV1,
@@ -97,6 +98,114 @@ describe("graph import helpers", () => {
         params: { path: "rig/face/smile" },
       }),
     ]);
+  });
+
+  it("plans bundle graph spec replacement from an audit compiled spec", () => {
+    const bundle: VizijBundleExtension = {
+      version: 1,
+      graphs: [
+        {
+          id: "rig",
+          kind: "rig",
+          spec: {
+            nodes: [{ id: "old", type: "input" }],
+          },
+          metadata: {
+            exportedAt: "before",
+          },
+        },
+        {
+          id: "pose",
+          kind: "pose",
+          spec: { nodes: [] },
+        },
+      ],
+    };
+
+    const result = planBundleGraphSpecReplacement({
+      bundle,
+      audits: [
+        {
+          id: "rig",
+          compiledSpec: {
+            nodes: [{ id: "compiled", type: "input" }],
+          },
+        },
+      ],
+      graphId: "rig",
+      reconciledAt: "2026-05-31T12:00:00.000Z",
+    });
+
+    expect(result.error).toBeNull();
+    expect(result.bundle).not.toBe(bundle);
+    expect(result.bundle?.graphs?.[0]).toMatchObject({
+      id: "rig",
+      spec: {
+        nodes: [{ id: "compiled", type: "input" }],
+      },
+      metadata: {
+        exportedAt: "before",
+        reconciledAt: "2026-05-31T12:00:00.000Z",
+      },
+    });
+    expect(result.bundle?.graphs?.[1]).toBe(bundle.graphs?.[1]);
+    expect(bundle.graphs?.[0]?.spec).toEqual({
+      nodes: [{ id: "old", type: "input" }],
+    });
+  });
+
+  it("reports why a bundle graph spec replacement cannot be planned", () => {
+    const bundle: VizijBundleExtension = {
+      version: 1,
+      graphs: [
+        {
+          id: "rig",
+          kind: "rig",
+          spec: { nodes: [] },
+        },
+      ],
+    };
+
+    expect(
+      planBundleGraphSpecReplacement({
+        bundle,
+        audits: null,
+        graphId: "rig",
+        reconciledAt: "now",
+      }).error,
+    ).toEqual({ kind: "missing-audit" });
+    expect(
+      planBundleGraphSpecReplacement({
+        bundle,
+        audits: [],
+        graphId: "rig",
+        reconciledAt: "now",
+      }).error,
+    ).toEqual({ kind: "missing-audit-entry" });
+    expect(
+      planBundleGraphSpecReplacement({
+        bundle,
+        audits: [{ id: "rig" }],
+        graphId: "rig",
+        reconciledAt: "now",
+      }).error,
+    ).toEqual({ kind: "missing-compiled-spec" });
+    expect(
+      planBundleGraphSpecReplacement({
+        bundle: null,
+        audits: [{ id: "rig", compiledSpec: { nodes: [] } }],
+        graphId: "rig",
+        reconciledAt: "now",
+      }).error,
+    ).toEqual({ kind: "missing-bundle" });
+    expect(
+      planBundleGraphSpecReplacement({
+        bundle,
+        audits: [{ id: "missing", compiledSpec: { nodes: [] } }],
+        graphId: "missing",
+        reconciledAt: "now",
+      }).error,
+    ).toEqual({ kind: "missing-graph" });
   });
 
   it("remaps rig prefixes and updates metadata when face ids differ", () => {
