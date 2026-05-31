@@ -833,6 +833,41 @@ export function assessLegacyBindingMigration(
   // unreachable
 }
 
+export function planLegacyBindingPipelineMigration(args: {
+  binding: AnimatableBinding | null | undefined;
+  childInputId: string;
+  defaultOffset: number;
+  resolveInputId: (rawInputId: string) => string | null;
+}): {
+  canMigrate: boolean;
+  patch: Parameters<typeof mergePipelineMetadata>[1] | null;
+} {
+  const assessment = assessLegacyBindingMigration(args.binding);
+  if (assessment.kind !== "convertible") {
+    return { canMigrate: false, patch: null };
+  }
+  const linkUpserts = buildLegacyMigrationLinkUpserts({
+    binding: args.binding,
+    childInputId: args.childInputId,
+    factorsByInputId: assessment.parentFactorsByInputId ?? {},
+    defaultOffset: args.defaultOffset,
+    resolveInputId: (rawInputId) => args.resolveInputId(rawInputId) ?? "",
+  });
+  return {
+    canMigrate: true,
+    patch: {
+      directInputEnabled: true,
+      overrideEnabled: false,
+      overrideValue: args.defaultOffset,
+      clampEnabled: true,
+      ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
+      migrationStatus: "migrated",
+      migrationSource: "canonical-self-parent",
+      migrationExpression: assessment.expression,
+    },
+  };
+}
+
 export function computePoseContribution(
   samples: readonly PoseContributionSample[],
   baseline: number,

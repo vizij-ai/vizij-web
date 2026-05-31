@@ -238,6 +238,7 @@ export {
   computePoseContribution,
   isAutoParentBlendExpression,
   mergePipelineMetadata,
+  planLegacyBindingPipelineMigration,
   resolveEffectiveParentExpressionVariable,
   resolveParentBlendExpressionUpdate,
   resolvePipelineStageSettings,

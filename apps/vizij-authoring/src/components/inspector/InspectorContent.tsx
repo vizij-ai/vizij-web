@@ -43,11 +43,11 @@ import {
   buildCompiledPipelineEquation,
   buildDefaultParentContributionFormula,
   buildDefaultParentVariableFormula,
-  buildLegacyMigrationLinkUpserts,
   computePipelineDiagnostics,
   computePoseContribution,
   isAutoParentBlendExpression,
   mergePipelineMetadata,
+  planLegacyBindingPipelineMigration,
   resolveAuthoringParentExpressionVariable,
   resolveParentBlendExpressionUpdate,
   resolvePipelineStageSettings,
@@ -4773,28 +4773,17 @@ export function InspectorContent({
         }
       };
       const handleMigrateLegacyBinding = () => {
-        if (legacyMigrationAssessment.kind !== "convertible") {
-          return;
-        }
-        const linkUpserts = buildLegacyMigrationLinkUpserts({
+        const migrationPlan = planLegacyBindingPipelineMigration({
           binding: parentBinding,
           childInputId: input.id,
-          factorsByInputId:
-            legacyMigrationAssessment.parentFactorsByInputId ?? {},
           defaultOffset: input.defaultValue,
           resolveInputId: (rawInputId) =>
             resolveRigMetadataInputId(rawInputId, standardInputsById),
         });
-        applyPipelineMetadataPatch({
-          directInputEnabled: true,
-          overrideEnabled: false,
-          overrideValue: input.defaultValue,
-          clampEnabled: true,
-          ...(Object.keys(linkUpserts).length > 0 ? { linkUpserts } : {}),
-          migrationStatus: "migrated",
-          migrationSource: "canonical-self-parent",
-          migrationExpression: legacyMigrationAssessment.expression,
-        });
+        if (!migrationPlan.canMigrate || !migrationPlan.patch) {
+          return;
+        }
+        applyPipelineMetadataPatch(migrationPlan.patch);
         stageRuntimeGraphPathValue(overrideEnabledPath, 0);
         stageRuntimeGraphPathValue(overrideValuePath, input.defaultValue);
         setRigLifecycleMessage({

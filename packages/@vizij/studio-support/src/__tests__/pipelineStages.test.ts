@@ -9,6 +9,7 @@ import {
   buildParentContributionDisplayExpression,
   computePipelineDiagnostics,
   mergePipelineMetadata,
+  planLegacyBindingPipelineMigration,
   resolveEffectiveParentExpressionVariable,
   resolveParentBlendExpressionUpdate,
   resolvePipelineStageSettings,
@@ -279,6 +280,30 @@ describe("pipelineStages", () => {
       scale: -2,
       offset: 0.4,
       enabled: true,
+    });
+  });
+
+  it("plans legacy self-parent binding migration metadata", () => {
+    expect(
+      planLegacyBindingPipelineMigration({
+        binding: createBinding({
+          expression: "self + jaw * 0.5",
+        }),
+        childInputId: "child",
+        defaultOffset: 0.25,
+        resolveInputId: (rawInputId) => rawInputId,
+      }),
+    ).toEqual({
+      canMigrate: true,
+      patch: expect.objectContaining({
+        directInputEnabled: true,
+        overrideEnabled: false,
+        overrideValue: 0.25,
+        clampEnabled: true,
+        migrationStatus: "migrated",
+        migrationSource: "canonical-self-parent",
+        migrationExpression: "self + jaw * 0.5",
+      }),
     });
   });
 });
