@@ -15,19 +15,19 @@ Use this file when working under `apps/`.
 
 ## App Directory Map
 
-| App                            | Notes                                                                 |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `demo-animation-studio`        | Advanced animation playground with preset + rig editors.              |
-| `demo-graph-studio`            | Node graph editor; depends heavily on `@vizij/node-graph-react`.      |
-| `vizij-authoring`              | GLB inspector/exporter without rig/orchestrator dependencies.         |
-| `demo-vizij-player`            | Facial rig + orchestrator authoring surface for end-to-end workflows. |
-| `minimal-demo-animation`       | Minimal animation runtime smoke test.                                 |
-| `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters. |
-| `minimal-demo-graph`           | Lightweight node-graph playground (inputs/outputs/staging demos).     |
-| `minimal-demo-orchestrator`    | Blackboard visualiser to test orchestrator controller coordination.   |
-| `tutorial-agent-face`          | Tutorial/demo surface with agent interaction and runtime wiring.      |
-| `tutorial-fullscreen-face`     | Lightweight getting-started face demo for the runtime provider.       |
-| `vizij-showcase`               | Larger face showcase with advanced controls and staging helpers.      |
-| `vizij-standalone`             | Tauri desktop runtime with local Arora control and optional ROS2.     |
+| App                            | Notes                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `demo-animation-studio`        | Advanced animation playground with preset + rig editors.                |
+| `demo-graph-studio`            | Node graph editor; depends heavily on `@vizij/node-graph-react`.        |
+| `vizij-authoring`              | Runtime-truthful GLB authoring with rig/pose editing and Arora preview. |
+| `demo-vizij-player`            | Facial rig + orchestrator authoring surface for end-to-end workflows.   |
+| `minimal-demo-animation`       | Minimal animation runtime smoke test.                                   |
+| `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters.   |
+| `minimal-demo-graph`           | Lightweight node-graph playground (inputs/outputs/staging demos).       |
+| `minimal-demo-orchestrator`    | Blackboard visualiser to test orchestrator controller coordination.     |
+| `tutorial-agent-face`          | Tutorial/demo surface with agent interaction and runtime wiring.        |
+| `tutorial-fullscreen-face`     | Lightweight getting-started face demo for the runtime provider.         |
+| `vizij-showcase`               | Larger face showcase with advanced controls and staging helpers.        |
+| `vizij-standalone`             | Tauri desktop runtime with local Arora control and optional ROS2.       |
 
 Each app directory contains its own `AGENTS.md` (if not, add one before doing extensive work) alongside README/setup instructions.

@@ -1,7 +1,7 @@
 # Runtime and Authoring Arora Migration Plan
 
 Date: 2026-05-30
-Status: In progress; remaining target shape proposed for approval
+Status: Active implementation; Phase 1 is locked, Phase 2 is in closeout, and the next high-value work should move directly into Phase 3 and Phase 4 slices.
 Scope: `apps/vizij-authoring`, `@vizij/runtime-react`, `@vizij/studio-support`, Arora-backed Vizij modules
 
 ## Executive Summary
@@ -142,7 +142,19 @@ Focused evidence for the live authoring path:
 19. After moving inspector/pipeline semantics into Studio support and trimming UI-only exports after review: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/pipelineStages.test.ts src/__tests__/bindingSlotResolution.test.ts src/__tests__/faceInspectorSemantics.test.ts src/__tests__/poseContributionSemantics.test.ts src/__tests__/rigPipelineAliases.test.ts src/__tests__/semanticExports.test.ts` - 35 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/inspector/bindingSlotResolution.test.ts src/components/inspector/faceInspectorSemantics.test.ts src/components/inspector/VariablePipelineStages.test.tsx src/components/inspector/InspectorPanel.test.tsx src/components/app/Viewer.test.tsx src/hooks/__tests__/useRigController.pipelineMerge.test.ts` - 46 tests passed; `@vizij/studio-support` and `vizij-authoring` typechecks and lints passed; full `@vizij/studio-support` test passed with 40 files and 219 tests; source prettier and `git diff --check` passed.
 20. After moving the pose-rig compiler/service boundary into Studio support: `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/poseRigGraphBuilder.test.ts src/__tests__/poseRigTopologyGolden.test.ts src/__tests__/poseRigConfigService.test.ts src/__tests__/poseRigGraphService.test.ts src/__tests__/poseRigIrService.test.ts src/__tests__/poseRigSnapshotService.test.ts` - 84 tests passed; package semantic export and pose-path focused tests passed with 91 tests total; `pnpm --filter vizij-authoring exec vitest --run src/poseRig/store.test.ts src/poseRig/usePoseRigAuthoring.test.tsx src/state/PoseRigProvider.test.tsx src/hooks/__tests__/useVizijExport.test.tsx` - 94 tests passed; `pnpm --filter vizij-authoring exec vitest --run src/components/panels/VariablesPanel.test.tsx src/components/inspector/poseCompositionPreview.test.ts src/components/panels/VariablesPanel.perf.test.tsx` - 87 tests passed and 1 perf test skipped; full `@vizij/studio-support`, `@vizij/runtime-react`, and `vizij-authoring` lint/type/test checks passed. Arora E2E was not rerun for this support-boundary move because the browser runtime registration contract did not change.
 
-This means the current branch is past the weekend-demo proof point for browser authoring execution. The remaining work is no longer about proving that edited assets can reach Arora; it is about finishing the responsibility migration cleanly, reducing duplicate compile semantics, and choosing performance promotions from evidence.
+Additional closeout: rig graph import planning is now support-owned. Auto-input blueprint matching, imported face-id resolution, pipeline metadata canonicalization, locked-inspector target derivation, default-value restoration, and imported/rebuilt graph comparison live in `@vizij/studio-support`; the authoring hook keeps import phases, discrepancy wizard orchestration, placeholder-input choices, and applying planned app state.
+
+Latest focused verification for the rig import planning closeout:
+
+1. `pnpm --filter @vizij/studio-support exec vitest --run src/__tests__/rigGraphImport.test.ts src/__tests__/rigRoundtripDiagnostics.test.ts` - 18 tests passed.
+2. `pnpm --filter @vizij/studio-support typecheck`
+3. `pnpm --filter vizij-authoring typecheck`
+4. `pnpm --filter vizij-authoring exec vitest --run src/hooks/__tests__/useVizijAssetLoader.test.tsx src/components/app/importOrientation.test.ts src/hooks/__tests__/rigGraphCompiler.test.ts --passWithNoTests` - 11 tests passed.
+5. `pnpm --filter @vizij/studio-support lint`
+6. `pnpm --filter @vizij/studio-support build`
+7. `git diff --check`
+
+This means the current branch is past the weekend-demo proof point for browser authoring execution, and Phase 2 should now be treated as closeout rather than an open-ended migration bucket. The remaining work is no longer about proving that edited assets can reach Arora; it is about promoting the independent animation and node-graph module boundary, thinning the runtime adapter, and choosing performance promotions from evidence.
 
 ## Target Responsibility Model
 
@@ -251,14 +263,15 @@ Current state:
 2. Generic graph import metadata helpers are already in `@vizij/studio-support`.
 3. Pose graph import mutation helpers are already in `@vizij/studio-support`.
 4. Motion graph editor/spec conversion is already in `@vizij/studio-support` as an editor-support DTO boundary. This keeps import/export/live preview semantics package-owned now, while leaving a later option to split a stricter engine-neutral DTO from the ReactFlow adapter if the package API starts carrying too much UI shape.
+5. Export preparation, live-preview planning, rig graph compile/report construction, pose-rig services, semantic inspector helpers, runtime input staging, and rig graph import planning are now package-owned.
+6. Remaining Phase 2 work should be opportunistic cleanup of newly discovered pure helpers, not a blocker before starting Phase 3 and Phase 4.
 
-Work:
+Closeout work:
 
-1. Inventory the remaining `runtime-react` and authoring helper functions by responsibility.
-2. Move remaining pure compile, migration, path-index, audit, export-assembly, and diagnostic functions into `@vizij/studio-support`.
-3. Leave UI hooks as orchestration shells around Studio-support functions.
-4. Add or preserve function-level tests in Studio support for every promoted behavior.
-5. Keep TypeScript contracts stable for authoring callers during the move.
+1. Move any remaining pure compile, migration, path-index, audit, export-assembly, or diagnostic helpers into `@vizij/studio-support` only when they are found during adjacent Phase 3/4 work.
+2. Leave UI hooks as orchestration shells around Studio-support functions.
+3. Add or preserve function-level tests in Studio support for every promoted behavior.
+4. Keep TypeScript contracts stable for authoring callers during the move.
 
 Acceptance:
 
@@ -381,14 +394,14 @@ Approve the migration if we accept these gates:
 
 ## Recommended Remaining Migration Plan
 
-The next approvable slice should finish the authoring-backend promotion, add realish-time compile feedback, and make the runtime adapter thinner without moving browser or renderer responsibilities prematurely.
+The next approvable slice should stop treating Phase 2 as the main project. Phase 2 is close enough to advance: move into Phase 3 module promotion and Phase 4 runtime thinning, while taking small Phase 2 cleanup wins only when they fall directly out of that work.
 
-### Step 1: Finish The Remaining Support-Owned Compile Boundary
+### Step 1: Close Remaining Support-Owned Compile Gaps Opportunistically
 
-Bundle assembly, live preview assembly, pipeline metadata normalization, generated-node diff filtering, bundle-audit violation formatting, rig round-trip diagnostic primitives, standard-input binding extraction, runtime input route/path resolution, and standard-input collection/index construction are now support-owned. The next cleanup should move only the remaining pure compile/diagnostic helpers out of React-facing authoring code:
+Bundle assembly, live preview assembly, pipeline metadata normalization, generated-node diff filtering, bundle-audit violation formatting, rig round-trip diagnostic primitives, standard-input binding extraction, runtime input route/path resolution, standard-input collection/index construction, rig import planning, and pose-rig services are now support-owned. The next cleanup should move only concrete remaining pure compile/diagnostic helpers out of React-facing authoring code:
 
 1. Keep `rigRoundtripAudit` UI invocation, file handling, and app-specific orchestration in the authoring app, but continue moving pure comparison helpers to support if more duplication appears.
-2. Continue auditing `useVizijExport`, import hooks, and runtime bridge code for pure helpers that still assemble canonical asset semantics locally.
+2. Continue auditing `useVizijExport`, import hooks, and runtime bridge code for pure helpers that still assemble canonical asset semantics locally, but do this as part of Phase 3/4 changes rather than as a separate perfection pass.
 3. Keep support package tests at the function boundary; keep app tests for user workflows and integration only.
 
 ### Step 2: Route Live Authoring Through One Compile Path
