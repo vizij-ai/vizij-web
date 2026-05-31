@@ -15,7 +15,13 @@ import type {
   AnimationClipLike,
   AnimationKeyframeLike,
   AnimationTrackLike,
+  GraphRegistrationSupportResult,
+  InputConstraint,
   PoseRigConfig,
+  RuntimeAnimationRegistrationSupportResult,
+  RuntimeProgramRegistrationSupportResult,
+  RuntimeRegistrationDiagnostic,
+  RuntimeRegistrationPlan,
   VizijAnimationAsset,
   VizijAssetBundle,
   VizijGraphAsset,
@@ -29,16 +35,27 @@ import {
 } from "./utils/graph";
 import { resolveClipDurationSeconds } from "./utils/clipPlayback";
 import { collectAnimationClipOutputPaths } from "./utils/animationBridge";
+import {
+  namespaceControllerId,
+  namespaceTypedPath,
+  stripNamespace,
+} from "./utils/namespacing";
 
 export type {
   AnimationClipLike,
   AnimationKeyframeLike,
   AnimationTrackLike,
+  GraphRegistrationSupportResult,
+  InputConstraint,
   PoseDefinition,
   PoseBlendMode,
   PoseGroupDefinition,
   PoseRigConfig,
+  RuntimeAnimationRegistrationSupportResult,
   RuntimeGraphBundle,
+  RuntimeProgramRegistrationSupportResult,
+  RuntimeRegistrationDiagnostic,
+  RuntimeRegistrationPlan,
   RuntimeUpdatePlan,
   RuntimeUpdateTier,
   RootBounds,
@@ -54,6 +71,11 @@ export {
   collectInputPaths,
   collectOutputPaths,
 } from "./utils/graph";
+export {
+  namespaceControllerId,
+  namespaceTypedPath,
+  stripNamespace,
+} from "./utils/namespacing";
 export {
   canonicalizeGraphComparable,
   diffGraphSpecs,
@@ -193,56 +215,16 @@ export {
   applyRuntimeGraphBundle,
   resolveRuntimeUpdatePlan,
 } from "./updatePolicy";
-
-export type InputConstraint = {
-  min?: number;
-  max?: number;
-  defaultValue?: number;
-};
+export {
+  clearRuntimeControllers,
+  registerRuntimeControllers,
+  type ClearRuntimeControllersResult,
+  type RegisterRuntimeControllersResult,
+  type RuntimeControllerHost,
+  type RuntimeControllerHostError,
+} from "./utils/controllerRegistration";
 
 type GraphSubscriptionsLike = Partial<GraphSubscriptions>;
-
-export type GraphRegistrationSupportResult = {
-  config: GraphRegistrationConfig;
-  spec: GraphRegistrationConfig["spec"];
-  inputs: string[];
-  outputs: string[];
-};
-
-export type RuntimeRegistrationDiagnostic = {
-  level: "error" | "warn";
-  target: "rig" | "pose" | "program" | "animation";
-  id?: string;
-  message: string;
-};
-
-export type RuntimeAnimationRegistrationSupportResult = {
-  assetId: string;
-  config: AnimationRegistrationConfig;
-  outputPaths: string[];
-};
-
-export type RuntimeProgramRegistrationSupportResult = {
-  assetId: string;
-  config: GraphRegistrationConfig;
-  spec: GraphRegistrationConfig["spec"];
-  inputs: string[];
-  outputs: string[];
-};
-
-export type RuntimeRegistrationPlan = {
-  graphRegistrations: GraphRegistrationSupportResult[];
-  graphConfigs: GraphRegistrationConfig[];
-  animationRegistrations: RuntimeAnimationRegistrationSupportResult[];
-  programRegistrations: RuntimeProgramRegistrationSupportResult[];
-  baseOutputPaths: string[];
-  namespacedOutputPaths: string[];
-  outputPaths: string[];
-  inputConstraints: Record<string, InputConstraint>;
-  rigInputMap: Record<string, string>;
-  rigPoseControlInputIds: string[];
-  diagnostics: RuntimeRegistrationDiagnostic[];
-};
 
 type GraphNodeSpec = NonNullable<
   GraphRegistrationConfig["spec"]["nodes"]
@@ -338,59 +320,6 @@ export function extractInputConstraints(
     }
   });
   return map;
-}
-
-export function namespaceTypedPath(path: string, namespace: string): string {
-  const trimmed = typeof path === "string" ? path.trim() : "";
-  if (!trimmed) {
-    return trimmed;
-  }
-  const prefix = `${namespace}/`;
-  if (trimmed.startsWith(prefix)) {
-    return trimmed;
-  }
-  if (trimmed.startsWith("debug/")) {
-    const rest = trimmed.slice("debug/".length);
-    const namespacedRest = namespaceTypedPath(rest, namespace);
-    return namespacedRest.startsWith("debug/")
-      ? namespacedRest
-      : `debug/${namespacedRest}`;
-  }
-  return `${prefix}${trimmed}`;
-}
-
-export function stripNamespace(path: string, namespace: string): string {
-  const prefix = `${namespace}/`;
-  if (path.startsWith(prefix)) {
-    return path.slice(prefix.length);
-  }
-  const debugPrefix = `debug/${prefix}`;
-  if (path.startsWith(debugPrefix)) {
-    return path.slice(debugPrefix.length);
-  }
-  if (path.startsWith("debug/")) {
-    return path.slice("debug/".length);
-  }
-  return path;
-}
-
-export function namespaceControllerId(
-  id: string | undefined,
-  namespace: string,
-  kind: "graph" | "animation" | "merged" = "graph",
-): string | undefined {
-  if (!id) {
-    return undefined;
-  }
-  const trimmed = id.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const prefix = `${namespace}/${kind}/`;
-  if (trimmed.startsWith(prefix)) {
-    return trimmed;
-  }
-  return `${prefix}${trimmed}`;
 }
 
 function namespaceSubscriptions(

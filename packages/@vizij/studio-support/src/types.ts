@@ -1,4 +1,5 @@
 import type {
+  AnimationRegistrationConfig,
   AnimationSetup,
   GraphRegistrationConfig,
   GraphSubscriptions,
@@ -156,4 +157,52 @@ export type RuntimeGraphBundle = {
   pose?: VizijAssetBundle["pose"];
   animations?: VizijAnimationAsset[];
   programs?: VizijProgramAsset[];
+};
+
+export type InputConstraint = {
+  min?: number;
+  max?: number;
+  defaultValue?: number;
+};
+
+export type GraphRegistrationSupportResult = {
+  config: GraphRegistrationConfig;
+  spec: GraphRegistrationConfig["spec"];
+  inputs: string[];
+  outputs: string[];
+};
+
+export type RuntimeRegistrationDiagnostic = {
+  level: "error" | "warn";
+  target: "rig" | "pose" | "program" | "animation";
+  id?: string;
+  message: string;
+};
+
+export type RuntimeAnimationRegistrationSupportResult = {
+  assetId: string;
+  config: AnimationRegistrationConfig;
+  outputPaths: string[];
+};
+
+export type RuntimeProgramRegistrationSupportResult = {
+  assetId: string;
+  config: GraphRegistrationConfig;
+  spec: GraphRegistrationConfig["spec"];
+  inputs: string[];
+  outputs: string[];
+};
+
+export type RuntimeRegistrationPlan = {
+  graphRegistrations: GraphRegistrationSupportResult[];
+  graphConfigs: GraphRegistrationConfig[];
+  animationRegistrations: RuntimeAnimationRegistrationSupportResult[];
+  programRegistrations: RuntimeProgramRegistrationSupportResult[];
+  baseOutputPaths: string[];
+  namespacedOutputPaths: string[];
+  outputPaths: string[];
+  inputConstraints: Record<string, InputConstraint>;
+  rigInputMap: Record<string, string>;
+  rigPoseControlInputIds: string[];
+  diagnostics: RuntimeRegistrationDiagnostic[];
 };

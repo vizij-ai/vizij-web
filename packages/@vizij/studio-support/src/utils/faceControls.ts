@@ -1,7 +1,9 @@
-import type { VizijAssetBundle, VizijInputMetadata } from "../types";
+import type {
+  InputConstraint,
+  VizijAssetBundle,
+  VizijInputMetadata,
+} from "../types";
 import { buildRigInputPath } from "./posePaths";
-
-type InputConstraint = { min?: number; max?: number; defaultValue?: number };
 
 export type FaceScalarControl = {
   path: string;

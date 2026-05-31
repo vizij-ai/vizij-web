@@ -36,11 +36,13 @@ import {
   buildPoseWeightPathMap,
   buildRigInputPath,
   clampAnimationTime,
+  clearRuntimeControllers,
   diffAnimationAggregateValues,
   namespaceTypedPath,
   normalisePath,
   pickExtractedAnimations,
   prepareRuntimeRegistrationPlan,
+  registerRuntimeControllers,
   prepareRuntimeAssetView,
   resolveClipDurationSeconds,
   resolveAnimationTransportMode,
@@ -52,16 +54,12 @@ import {
   type RuntimeGraphBundle,
   type RuntimeProgramRegistrationSupportResult,
   type RuntimeUpdateTier,
+  type RuntimeControllerHostError,
   type ResolvedAnimationTransportMode,
 } from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
 import { type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
-import {
-  clearRuntimeControllers,
-  registerRuntimeControllers,
-  type RuntimeControllerHostError,
-} from "./host/controllerRegistration";
 import {
   advanceRuntimeExecution,
   clearStagedRuntimeInput,
