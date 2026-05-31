@@ -10,6 +10,14 @@ export type { OrchestratorProviderProps } from "./OrchestratorProvider";
 export { OrchestratorContext } from "./context";
 export { AroraWebOrchestratorRuntime } from "./aroraWeb";
 export { resolveVizijOrchestratorInitInput } from "./aroraWebInit";
+export {
+  DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE,
+  VIZIJ_ARORA_WEB_MODULE_IDS,
+  VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS,
+  resolveVizijAroraWebModuleGraph,
+  type VizijAroraWebIndependentModule,
+  type VizijAroraWebModuleGraph,
+} from "./aroraWebModules";
 export { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
 export type { ModuleFacadeRequest, ModuleFacadeResponse } from "./moduleFacade";
 
@@ -26,7 +34,9 @@ export type {
   InitInput,
   AroraWebInitInput,
   AroraWebModuleArtifact,
+  AroraWebDebugModuleInfo,
   AroraWebModuleExports,
+  AroraWebModuleGraphDebugInfo,
   AroraWebModuleRegistry,
   AroraWebModuleRegistryManifest,
   AroraWebPreloadModule,

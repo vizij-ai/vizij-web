@@ -8,6 +8,8 @@ import type {
   AroraWebOrchestratorModule,
   AroraWebPreloadModule,
   AroraWebPreloadModuleName,
+  AroraWebDebugModuleInfo,
+  AroraWebModuleGraphDebugInfo,
   CreateOrchOptions,
   OrchestratorDebugInfo,
   OrchestratorFrame,
@@ -17,6 +19,11 @@ import type {
   ModuleFacadeResponse,
   ModuleFacadeTransport,
 } from "./moduleFacade";
+import {
+  DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE,
+  VIZIJ_ARORA_WEB_MODULE_IDS,
+  VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS,
+} from "./aroraWebModules";
 
 const DEFAULT_ARORA_WEB_URL = "/arora-web/pkg/arora_web.js";
 const DEFAULT_ARORA_WEB_WASM_URL = "/arora-web/pkg/arora_web_bg.wasm";
@@ -79,13 +86,6 @@ type ResolvedAroraWebModule = AroraWebDispatchBinding & {
   wasmUrl: string | URL;
 };
 
-type AroraWebDebugModuleInfo = {
-  id: string | null;
-  name: string | null;
-  wasmUrl: string | null;
-  engineModuleId: string | null;
-};
-
 type AroraWebDebugInstance = {
   backend: "aroraWeb";
   orchestratorModule: AroraWebOrchestratorModule;
@@ -112,23 +112,6 @@ type GlobalWithAroraWebDebug = typeof globalThis & {
   __VIZIJ_RUNTIME_DEBUG__?: boolean;
   __vizijAroraWebDebugState?: AroraWebDebugState;
 };
-
-const VIZIJ_ORCHESTRATOR_MODULE_ID = "144358c2-b7e0-414d-8755-56d7ac03f811";
-const VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID =
-  "580d9cef-88be-4f1c-b649-f87032acd8fe";
-const VIZIJ_ANIMATION_MODULE_ID = "aa32e080-b002-428c-9994-6143aab3bf08";
-const VIZIJ_NODE_GRAPH_MODULE_ID = "098bd478-8375-4f3a-b649-d64cb1284944";
-
-const VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS: Record<
-  AroraWebOrchestratorModule,
-  string
-> = {
-  compatibility: "vizij-orchestrator",
-  composed: "vizij-orchestrator-composed",
-};
-
-const DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE: AroraWebOrchestratorModule =
-  "composed";
 
 let aroraWebDebugInstanceSequence = 0;
 
@@ -161,7 +144,7 @@ const VIZIJ_PRELOAD_MODULE_PRESETS: Record<
 };
 
 const DEFAULT_MODULE_REGISTRY: AroraWebModuleRegistry = {
-  [VIZIJ_ORCHESTRATOR_MODULE_ID]: {
+  [VIZIJ_ARORA_WEB_MODULE_IDS.orchestratorCompatibility]: {
     headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
   },
@@ -169,7 +152,7 @@ const DEFAULT_MODULE_REGISTRY: AroraWebModuleRegistry = {
     headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
   },
-  [VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID]: {
+  [VIZIJ_ARORA_WEB_MODULE_IDS.orchestratorComposed]: {
     headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
   },
@@ -177,9 +160,9 @@ const DEFAULT_MODULE_REGISTRY: AroraWebModuleRegistry = {
     headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
     wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
   },
-  [VIZIJ_ANIMATION_MODULE_ID]: "vizij-animation",
+  [VIZIJ_ARORA_WEB_MODULE_IDS.animation]: "vizij-animation",
   "vizij-animation": "vizij-animation",
-  [VIZIJ_NODE_GRAPH_MODULE_ID]: "vizij-node-graph",
+  [VIZIJ_ARORA_WEB_MODULE_IDS.nodeGraph]: "vizij-node-graph",
   "vizij-node-graph": "vizij-node-graph",
 };
 
@@ -208,7 +191,7 @@ function selectedModulePreset(
 ): AroraWebModulePreset {
   const moduleName =
     config.orchestratorModule ?? DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE;
-  const registryKey = VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS[moduleName];
+  const registryKey = VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS[moduleName];
   const registryPreset = modulePresetFromInput(registry[registryKey]);
   const preset =
     registryPreset ?? VIZIJ_ORCHESTRATOR_MODULE_PRESETS[moduleName];
@@ -466,7 +449,7 @@ function supportsDeltaFrames(
   const id = stringField((header as { id?: unknown }).id);
   const name = stringField((header as { name?: unknown }).name);
   if (
-    id === VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID ||
+    id === VIZIJ_ARORA_WEB_MODULE_IDS.orchestratorComposed ||
     name === "vizij-orchestrator-composed"
   ) {
     return true;
@@ -480,8 +463,8 @@ function supportsDeltaFrames(
       .filter((moduleId): moduleId is string => Boolean(moduleId)),
   );
   return (
-    importedModuleIds.has(VIZIJ_ANIMATION_MODULE_ID) ||
-    importedModuleIds.has(VIZIJ_NODE_GRAPH_MODULE_ID)
+    importedModuleIds.has(VIZIJ_ARORA_WEB_MODULE_IDS.animation) ||
+    importedModuleIds.has(VIZIJ_ARORA_WEB_MODULE_IDS.nodeGraph)
   );
 }
 
@@ -702,7 +685,7 @@ function moduleRegistryFromManifest(
       if (moduleInput) {
         registry[alias] = moduleInput;
         const registryKey =
-          VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS[
+          VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS[
             alias as AroraWebOrchestratorModule
           ];
         if (registryKey) {
@@ -1180,17 +1163,23 @@ class AroraWebModuleFacade implements ModuleFacadeTransport {
 export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime {
   private readonly useDeltaFrames: boolean;
   private readonly debugInstanceId: string;
+  private readonly moduleGraph: AroraWebModuleGraphDebugInfo | null;
   private stepDeltaAvailable: boolean;
   private deltaFrameVersion: number | undefined;
 
   constructor(
     facade: ModuleFacadeTransport,
-    options: { debugInstanceId?: string; useDeltaFrames?: boolean } = {},
+    options: {
+      debugInstanceId?: string;
+      moduleGraph?: AroraWebModuleGraphDebugInfo | null;
+      useDeltaFrames?: boolean;
+    } = {},
   ) {
     super(facade);
     this.useDeltaFrames = options.useDeltaFrames === true;
     this.stepDeltaAvailable = this.useDeltaFrames;
     this.debugInstanceId = options.debugInstanceId ?? "";
+    this.moduleGraph = options.moduleGraph ?? null;
   }
 
   static async create(
@@ -1238,8 +1227,7 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
     const moduleId = loadModule(engine, selectedModule.headerJson, wasmBytes);
     const debugInstanceId = `arora-web:${aroraWebDebugInstanceSequence++}`;
     const timestamp = nowMs();
-    setAroraWebDebugInstance(debugInstanceId, {
-      backend: "aroraWeb",
+    const moduleGraph: AroraWebModuleGraphDebugInfo = {
       orchestratorModule,
       moduleRegistryUrl:
         config.moduleRegistryUrl === false
@@ -1247,12 +1235,22 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
           : String(
               config.moduleRegistryUrl ?? DEFAULT_MODULE_REGISTRY_MANIFEST_URL,
             ),
+      manifestUrl: loadedRegistry.manifestUrl
+        ? String(loadedRegistry.manifestUrl)
+        : null,
       selectedModule: moduleInfoFromHeader(
         selectedModule.header,
         selectedModule.wasmUrl,
         moduleId,
       ),
       preloadedModules,
+    };
+    setAroraWebDebugInstance(debugInstanceId, {
+      backend: "aroraWeb",
+      orchestratorModule,
+      moduleRegistryUrl: moduleGraph.moduleRegistryUrl,
+      selectedModule: moduleGraph.selectedModule,
+      preloadedModules: moduleGraph.preloadedModules,
       dispatchCount: 0,
       facadeCallCounts: {},
       lastFacadeCall: null,
@@ -1272,6 +1270,7 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
       ),
       {
         debugInstanceId,
+        moduleGraph,
         useDeltaFrames: supportsDeltaFrames(
           selectedModule.header,
           orchestratorModule,
@@ -1285,6 +1284,7 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
   getDebugInfo(): OrchestratorDebugInfo {
     return {
       aroraWebInstanceId: this.debugInstanceId || null,
+      aroraWebModuleGraph: this.moduleGraph,
     };
   }
 

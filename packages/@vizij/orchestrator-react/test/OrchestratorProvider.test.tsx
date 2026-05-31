@@ -738,6 +738,28 @@ describe("OrchestratorProvider", () => {
         }),
       ]),
     );
+    expect(runtime.getDebugInfo()).toMatchObject({
+      aroraWebModuleGraph: {
+        orchestratorModule: "composed",
+        moduleRegistryUrl: "/arora-web/modules/manifest.json",
+        manifestUrl: null,
+        selectedModule: {
+          id: COMPOSED_MODULE_ID,
+          name: null,
+          engineModuleId: COMPOSED_MODULE_ID,
+        },
+        preloadedModules: [
+          {
+            id: VIZIJ_ANIMATION_MODULE_ID,
+            engineModuleId: VIZIJ_ANIMATION_MODULE_ID,
+          },
+          {
+            id: VIZIJ_NODE_GRAPH_MODULE_ID,
+            engineModuleId: VIZIJ_NODE_GRAPH_MODULE_ID,
+          },
+        ],
+      },
+    });
   });
 
   it("derives default composed preloads from the selected module imports", async () => {

@@ -112,8 +112,24 @@ export type OrchestratorBackend = "direct" | "moduleFacade" | "aroraWeb";
 
 export type ControllerId = string;
 
+export type AroraWebDebugModuleInfo = {
+  id: string | null;
+  name: string | null;
+  wasmUrl: string | null;
+  engineModuleId: string | null;
+};
+
+export type AroraWebModuleGraphDebugInfo = {
+  orchestratorModule: AroraWebOrchestratorModule;
+  moduleRegistryUrl: string | null;
+  manifestUrl: string | null;
+  selectedModule: AroraWebDebugModuleInfo;
+  preloadedModules: AroraWebDebugModuleInfo[];
+};
+
 export type OrchestratorDebugInfo = {
   aroraWebInstanceId?: string | null;
+  aroraWebModuleGraph?: AroraWebModuleGraphDebugInfo | null;
 };
 
 export type GraphRegistrationInput = WasmGraphRegistrationInput;
