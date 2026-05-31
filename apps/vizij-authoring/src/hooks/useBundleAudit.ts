@@ -3,7 +3,7 @@ import type { VizijBundleExtension } from "@vizij/render";
 import {
   auditBundleGraphs,
   type BundleGraphAuditEntry,
-} from "../utils/bundleAudit";
+} from "@vizij/studio-support";
 
 export interface UseBundleAuditResult {
   bundleAudit: BundleGraphAuditEntry[] | null;

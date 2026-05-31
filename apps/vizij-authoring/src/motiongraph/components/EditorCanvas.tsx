@@ -28,8 +28,12 @@ import "reactflow/dist/style.css";
 import { useEditorStore } from "../store/useEditorStore";
 import { useRegistry } from "../contexts/RegistryProvider";
 import { checkConnectionCompatibility } from "../utils/connectionValidation";
+import {
+  buildInitialInputDefaultsForPorts,
+  defaultVariadicCount,
+} from "../utils/inputDefaults";
 import { LEGEND_TYPES } from "../utils/portColors";
-import { createNodeRenderer, defaultVariadicCount } from "./GraphNode";
+import { createNodeRenderer } from "./GraphNode";
 import { unwrapDefault } from "./MgNodeInspector";
 import OutputTargetNode, { OUTPUT_TARGET_TYPE } from "./OutputTargetNode";
 import InputSourceNode, { INPUT_SOURCE_TYPE } from "./InputSourceNode";
@@ -712,6 +716,11 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
       // Initialize variadic input count for nodes that support it
       const portsInfo = getPortsRef.current(type);
       const variadicInputCount = defaultVariadicCount(portsInfo.variadicInputs);
+      const inputDefaults = buildInitialInputDefaultsForPorts(
+        portsInfo.inputs,
+        portsInfo.variadicInputs,
+        variadicInputCount,
+      );
 
       const newNode: Node = {
         id,
@@ -721,6 +730,7 @@ export default function EditorCanvas({ onSelectNode }: EditorCanvasProps) {
           label: displayLabel,
           originalType: canonicalType,
           params,
+          ...(inputDefaults ? { inputDefaults } : {}),
           ...(variadicInputCount > 0 ? { variadicInputCount } : {}),
         },
       };

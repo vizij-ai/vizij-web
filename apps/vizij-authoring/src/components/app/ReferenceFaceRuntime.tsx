@@ -17,13 +17,17 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import {
+  buildRuntimeInputCatalogFromConstraints,
+  buildRuntimeInputWritePathMap,
+  resolveRuntimeInputWritePath,
+} from "@vizij/studio-support";
+import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
   isPoseWeightInputPath,
 } from "../../poseRig/utils";
 import { Button } from "../ui";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
-import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -70,109 +74,6 @@ interface ReferenceOverrideInputRoute {
 
 function normalizeGraphInputPath(path: string): string {
   return path.trim().replace(/^\/+/, "");
-}
-
-function stripRuntimeNamespacePrefix(path: string, namespace: string): string {
-  const trimmed = path.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-  const namespacePrefix = `${namespace}/`;
-  if (trimmed.startsWith(namespacePrefix)) {
-    return trimmed.slice(namespacePrefix.length);
-  }
-  const debugPrefix = `debug/${namespacePrefix}`;
-  if (trimmed.startsWith(debugPrefix)) {
-    return trimmed.slice(debugPrefix.length);
-  }
-  if (trimmed.startsWith("debug/")) {
-    return trimmed.slice("debug/".length);
-  }
-  return trimmed;
-}
-
-function runtimePathCandidateScore(path: string): number {
-  if (/^rig\/[^/]+\/.+/.test(path)) {
-    return 3;
-  }
-  if (path.startsWith("rig/")) {
-    return 2;
-  }
-  return 1;
-}
-
-function buildRuntimeWritePathMap(params: {
-  inputConstraints: Record<string, unknown> | null | undefined;
-  namespace: string;
-  graphSpec?: unknown;
-}): Map<string, string> {
-  const bestByNormalized = new Map<string, { path: string; score: number }>();
-  const registerPath = (rawPath: string, source: "constraints" | "graph") => {
-    if (!rawPath || rawPath.trim().length === 0) {
-      return;
-    }
-    const namespacedPath = stripRuntimeNamespacePrefix(
-      rawPath,
-      params.namespace,
-    );
-    const candidatePath = normalizeGraphInputPath(namespacedPath);
-    if (!candidatePath) {
-      return;
-    }
-    const normalizedInputPath = normalizeStandardRigInputPath(candidatePath);
-    if (!normalizedInputPath || normalizedInputPath === "/custom/input") {
-      return;
-    }
-    const score =
-      runtimePathCandidateScore(candidatePath) + (source === "graph" ? 2 : 0);
-    if (score <= 0) {
-      return;
-    }
-    const existing = bestByNormalized.get(normalizedInputPath);
-    if (!existing || score > existing.score) {
-      bestByNormalized.set(normalizedInputPath, {
-        path: candidatePath,
-        score,
-      });
-    }
-  };
-  const constraints = params.inputConstraints;
-  if (constraints) {
-    Object.keys(constraints).forEach((rawPath) => {
-      registerPath(rawPath, "constraints");
-    });
-  }
-
-  const specRecord =
-    params.graphSpec && typeof params.graphSpec === "object"
-      ? (params.graphSpec as {
-          nodes?: unknown;
-        })
-      : null;
-  const nodes = Array.isArray(specRecord?.nodes) ? specRecord.nodes : [];
-  nodes.forEach((nodeEntry) => {
-    const node =
-      nodeEntry && typeof nodeEntry === "object"
-        ? (nodeEntry as {
-            type?: unknown;
-            params?: { path?: unknown };
-          })
-        : null;
-    if (!node || node.type !== "input") {
-      return;
-    }
-    const rawPath = node.params?.path;
-    if (typeof rawPath !== "string") {
-      return;
-    }
-    registerPath(rawPath, "graph");
-  });
-
-  const byNormalized = new Map<string, string>();
-  bestByNormalized.forEach((entry, normalizedPath) => {
-    byNormalized.set(normalizedPath, entry.path);
-  });
-  return byNormalized;
 }
 
 function buildOverrideRoutesByInputId(
@@ -304,7 +205,7 @@ export function ReferenceFaceRuntime({
       assetBundle={activeBundleConfig.bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
-      orchestratorScope="shared"
+      orchestratorBackend="aroraWeb"
     >
       <ReferenceFaceBridge
         onStandardInputsReady={onStandardInputsReady}
@@ -401,7 +302,7 @@ function ReferenceFaceBridge({
   }, [overrideRoutesByInputId]);
   const runtimeWritePathByNormalizedInputPath = useMemo(
     () =>
-      buildRuntimeWritePathMap({
+      buildRuntimeInputWritePathMap({
         inputConstraints: ready ? inputConstraints : null,
         namespace,
         graphSpec: assetBundle.rig?.spec,
@@ -417,19 +318,12 @@ function ReferenceFaceBridge({
   }, [runtimeWritePathByNormalizedInputPath]);
 
   const resolveRuntimeWritePath = useCallback((inputPath: string) => {
-    const normalizedPath = normalizeStandardRigInputPath(inputPath);
-    if (!normalizedPath || normalizedPath === "/custom/input") {
-      return null;
-    }
-    const mappedPath =
-      runtimeWritePathByNormalizedInputPathRef.current.get(normalizedPath);
-    if (mappedPath) {
-      return mappedPath;
-    }
-    const currentFaceId = faceIdRef.current;
-    return currentFaceId
-      ? `rig/${currentFaceId}${normalizedPath}`
-      : `rig/face${normalizedPath}`;
+    return resolveRuntimeInputWritePath({
+      inputPath,
+      writePathByNormalizedInputPath:
+        runtimeWritePathByNormalizedInputPathRef.current,
+      faceId: faceIdRef.current,
+    });
   }, []);
 
   const stageStandardInputPath = useCallback(

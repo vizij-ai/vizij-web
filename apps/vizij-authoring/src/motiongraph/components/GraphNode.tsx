@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useRef,
   useMemo,
   type FC,
   type ComponentType,
@@ -13,6 +12,10 @@ import type {
   VariadicSpec,
   NormalizedNodeSchema,
 } from "../contexts/RegistryProvider";
+import {
+  defaultVariadicCount,
+  formatVariadicPortId,
+} from "../utils/inputDefaults";
 import { getPortColor } from "../utils/portColors";
 import { useEditorStore } from "../store/useEditorStore";
 import { unwrapDefault } from "./MgNodeInspector";
@@ -28,11 +31,6 @@ type PortsForType = {
   variadicOutputs: VariadicSpec | null;
 };
 
-/** Build a handle ID for a variadic port instance. */
-export function formatVariadicPortId(groupId: string, index: number): string {
-  return `${groupId}_${index}`;
-}
-
 /** Generate PortSpec entries for the current variadic input count. */
 function buildVariadicPorts(spec: VariadicSpec, count: number): PortSpec[] {
   const ports: PortSpec[] = [];
@@ -45,12 +43,6 @@ function buildVariadicPorts(spec: VariadicSpec, count: number): PortSpec[] {
     });
   }
   return ports;
-}
-
-/** Default number of variadic slots when a node is first created. */
-export function defaultVariadicCount(spec: VariadicSpec | null): number {
-  if (!spec) return 0;
-  return Math.max(spec.min ?? 0, 2);
 }
 
 const nodeCache = new Map<string, ComponentType<any>>();
@@ -147,19 +139,27 @@ export function createNodeRenderer(
 
     const updateInputDefault = useCallback(
       (portId: string, value: unknown) => {
-        setNodes((prev) =>
-          prev.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    inputDefaults: { ...n.data.inputDefaults, [portId]: value },
-                  },
-                }
-              : n,
-          ),
-        );
+        setNodes((prev) => {
+          let changed = false;
+          const next = prev.map((n) => {
+            if (n.id !== id) {
+              return n;
+            }
+            const inputDefaults = n.data.inputDefaults ?? {};
+            if (Object.is(inputDefaults[portId], value)) {
+              return n;
+            }
+            changed = true;
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                inputDefaults: { ...inputDefaults, [portId]: value },
+              },
+            };
+          });
+          return changed ? next : prev;
+        });
       },
       [id, setNodes],
     );
@@ -290,6 +290,9 @@ export function createNodeRenderer(
 
     return (
       <div
+        data-testid="motiongraph-node"
+        data-node-id={id}
+        data-node-type={typeId}
         className={`relative rounded-lg border-2 bg-gradient-to-br from-neutral-800 to-neutral-900 text-neutral-100 w-56 shadow-lg transition-colors ${
           selected ? "border-blue-500 shadow-blue-500/25" : "border-neutral-600"
         }`}
@@ -337,6 +340,8 @@ export function createNodeRenderer(
                   </span>
                   {!isConnected && (
                     <InlinePortDefault
+                      nodeId={id}
+                      portId={p.id}
                       portType={p.type}
                       value={data?.inputDefaults?.[p.id]}
                       onChange={(v) => updateInputDefault(p.id, v)}
@@ -383,6 +388,8 @@ export function createNodeRenderer(
                   )}
                   {!isConnected && !variadicSpec?.keyed && (
                     <InlinePortDefault
+                      nodeId={id}
+                      portId={p.id}
                       portType={p.type}
                       value={data?.inputDefaults?.[p.id]}
                       onChange={(v) => updateInputDefault(p.id, v)}
@@ -513,6 +520,7 @@ export function createNodeRenderer(
           <div className="px-2 py-1.5 border-t border-neutral-700 space-y-1">
             {schema.params.map((p) => (
               <InlineParam
+                nodeId={id}
                 key={p.id}
                 param={p}
                 value={data?.params?.[p.id]}
@@ -532,10 +540,12 @@ export function createNodeRenderer(
 // ─── Compact inline parameter editor ─────────────────────────────────
 
 function InlineParam({
+  nodeId,
   param,
   value,
   onChange,
 }: {
+  nodeId: string;
   param: ParamSpec;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -551,6 +561,9 @@ function InlineParam({
           {param.name}
         </span>
         <button
+          data-testid="motiongraph-param-input"
+          data-node-id={nodeId}
+          data-param-id={param.id}
           onClick={() => onChange(!checked)}
           className={`w-6 h-3 rounded-full transition-colors relative flex-shrink-0 ${
             checked ? "bg-blue-600" : "bg-neutral-700"
@@ -578,6 +591,9 @@ function InlineParam({
           {param.name}
         </span>
         <input
+          data-testid="motiongraph-param-input"
+          data-node-id={nodeId}
+          data-param-id={param.id}
           type="number"
           value={num}
           step={step}
@@ -598,6 +614,9 @@ function InlineParam({
         {param.name}
       </span>
       <input
+        data-testid="motiongraph-param-input"
+        data-node-id={nodeId}
+        data-param-id={param.id}
         type="text"
         value={str}
         onChange={(e) => onChange(e.target.value)}
@@ -610,36 +629,27 @@ function InlineParam({
 // ─── Inline default value for unconnected input ports ────────────────
 
 function InlinePortDefault({
+  nodeId,
+  portId,
   portType,
   value,
   onChange,
 }: {
+  nodeId: string;
+  portId: string;
   portType: string;
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
   const type = portType.toLowerCase();
 
-  // Seed the store with the display default when value has never been set.
-  // This ensures buildGraphSpec can synthesize implicit Constant nodes for
-  // all unconnected ports, not just ones the user has manually edited.
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (seeded.current || value != null) return;
-    seeded.current = true;
-    if (BOOL_TYPES.has(type)) {
-      onChange(false);
-    } else if (FLOAT_TYPES.has(type) || INT_TYPES.has(type)) {
-      onChange(0);
-    }
-    // Only run on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   if (BOOL_TYPES.has(type)) {
     const checked = value === true || value === "true";
     return (
       <button
+        data-testid="motiongraph-port-default-input"
+        data-node-id={nodeId}
+        data-port-id={portId}
         onClick={() => onChange(!checked)}
         className={`nopan nodrag ml-1 w-6 h-3 rounded-full transition-colors relative flex-shrink-0 ${
           checked ? "bg-blue-600" : "bg-neutral-700"
@@ -662,6 +672,9 @@ function InlinePortDefault({
       : (s: string) => parseFloat(s) || 0;
     return (
       <input
+        data-testid="motiongraph-port-default-input"
+        data-node-id={nodeId}
+        data-port-id={portId}
         type="number"
         value={num}
         step={step}
@@ -675,6 +688,9 @@ function InlinePortDefault({
   const str = value != null ? String(value) : "";
   return (
     <input
+      data-testid="motiongraph-port-default-input"
+      data-node-id={nodeId}
+      data-port-id={portId}
       type="text"
       value={str}
       onChange={(e) => onChange(e.target.value)}

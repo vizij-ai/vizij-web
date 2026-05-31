@@ -9,6 +9,13 @@ import {
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import {
+  canonicalizeGraphComparable,
+  diffGraphSpecs,
+  rewriteGraphFaceNamespace,
+  type GraphDiffEntry,
+  type GraphDiffResult,
+} from "@vizij/studio-support";
+import {
   SELF_BINDING_ID,
   createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
@@ -22,16 +29,7 @@ import { buildAutoRigInputBlueprints } from "../rig/autoInputs";
 import { rehydrateRigDataFromGraph } from "../rig/importer";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
-import type {
-  DiscrepancyResolutionResult,
-  GraphDiffEntry,
-  GraphDiffResult,
-} from "../types/discrepancy";
-import {
-  canonicalizeGraphComparable,
-  diffGraphSpecs,
-  rewriteGraphFaceNamespace,
-} from "../utils/graphDiff";
+import type { DiscrepancyResolutionResult } from "../types/discrepancy";
 import {
   extractVizijPipelineConfigMapFromMetadata,
   extractVizijPipelineMetadataV1,

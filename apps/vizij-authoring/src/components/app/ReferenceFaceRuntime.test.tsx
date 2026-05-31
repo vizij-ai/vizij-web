@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
 
 const capturedAssetBundles: unknown[] = [];
+const capturedRuntimeProviderProps: Array<Record<string, unknown>> = [];
 const mockUseVizijRuntime = vi.fn(() => ({
   ready: false,
   loading: false,
@@ -18,11 +19,12 @@ vi.mock("@vizij/runtime-react", () => ({
   VizijRuntimeProvider: ({
     assetBundle,
     children,
-  }: {
-    assetBundle: unknown;
+    ...props
+  }: Record<string, unknown> & {
     children: React.ReactNode;
   }) => {
     capturedAssetBundles.push(assetBundle);
+    capturedRuntimeProviderProps.push({ assetBundle, ...props });
     return <div data-testid="runtime-provider">{children}</div>;
   },
   useVizijRuntime: () => mockUseVizijRuntime(),
@@ -67,6 +69,7 @@ describe("ReferenceFaceRuntime", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedAssetBundles.length = 0;
+    capturedRuntimeProviderProps.length = 0;
     Object.defineProperty(URL, "createObjectURL", {
       value: vi.fn(() => "blob:mock-url"),
       configurable: true,
@@ -146,6 +149,26 @@ describe("ReferenceFaceRuntime", () => {
         writable: true,
       });
     }
+  });
+
+  it("creates an Arora Web runtime provider only when a reference file is active", async () => {
+    const file = new File(["ref"], "ref.glb", { type: "model/gltf-binary" });
+    const { rerender } = render(<ReferenceFaceRuntime file={null} active />);
+    expect(capturedRuntimeProviderProps).toHaveLength(0);
+
+    rerender(<ReferenceFaceRuntime file={file} active />);
+
+    await waitFor(() => {
+      expect(capturedRuntimeProviderProps.length).toBeGreaterThan(0);
+    });
+    expect(capturedRuntimeProviderProps.at(-1)).toMatchObject({
+      orchestratorBackend: "aroraWeb",
+      autostart: true,
+      driveOrchestrator: false,
+    });
+    expect(capturedRuntimeProviderProps.at(-1)).not.toHaveProperty(
+      "orchestratorScope",
+    );
   });
 
   it("resets reference inputs by id and reports reset values through onStandardInputChange", async () => {

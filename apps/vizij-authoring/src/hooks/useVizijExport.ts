@@ -25,6 +25,7 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
+import { auditBundleGraphs } from "@vizij/studio-support";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
@@ -45,7 +46,6 @@ import type {
 import { useAnimationStore } from "../state/animationStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
-import { auditBundleGraphs } from "../utils/bundleAudit";
 import { logAuthoringDebug } from "../utils/debug";
 import {
   clipIrToBundleAnimationEntry,
@@ -1102,6 +1102,7 @@ export function useVizijExport(
     animatableComponents,
     animatables,
     activeMotionGraphId,
+    authoredAnimationClips,
     authoredMotionGraphs,
     bindings,
     collectAnimatableExportState,

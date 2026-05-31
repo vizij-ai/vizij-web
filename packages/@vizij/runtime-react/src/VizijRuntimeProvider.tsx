@@ -26,12 +26,13 @@ import {
   type ShapeJSON,
 } from "@vizij/orchestrator-react";
 import {
-  convertBundlePrograms,
   convertExtractedAnimations,
   deriveProgramInputSeedValues,
   deriveProgramResetValues,
   advanceClipTime,
   applyRuntimeGraphBundle,
+  buildAnimationControllerCommandPath,
+  buildAnimationControllerPlayInputs,
   buildPoseWeightPathMap,
   buildRigInputPath,
   clampAnimationTime,
@@ -40,8 +41,9 @@ import {
   normalisePath,
   pickExtractedAnimations,
   prepareRuntimeRegistrationPlan,
-  prepareRuntimeAssetBundle,
+  prepareRuntimeAssetView,
   resolveClipDurationSeconds,
+  resolveAnimationTransportMode,
   resolvePoseControlInputPath,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
@@ -50,6 +52,7 @@ import {
   type RuntimeGraphBundle,
   type RuntimeProgramRegistrationSupportResult,
   type RuntimeUpdateTier,
+  type ResolvedAnimationTransportMode,
 } from "@vizij/studio-support";
 import { valueAsNumber } from "@vizij/value-json";
 import { type AnimatableValue, type RawValue } from "@vizij/utils";
@@ -69,6 +72,7 @@ import {
 import { prepareRuntimeFrameWrites } from "./host/frameWrites";
 import {
   clearRuntimeDebugState,
+  isRuntimeDebugStateEnabled,
   setRuntimeDebugState,
 } from "./memoryInvestigation";
 import { resolveVizijOrchestratorInitInput } from "./orchestratorInit";
@@ -91,13 +95,7 @@ import type {
   VizijRuntimeStatus,
   RuntimeOutputWrite,
 } from "./types";
-import {
-  buildAnimationControllerCommandPath,
-  buildAnimationControllerPlayInputs,
-  resolveAnimationTransportMode,
-  resolveProviderAnimationBackend,
-  type ResolvedAnimationTransportMode,
-} from "./utils/animationTransport";
+import { resolveProviderAnimationBackend } from "./utils/animationTransport";
 
 export {
   deriveProgramInputSeedValues,
@@ -129,6 +127,16 @@ type ClipPlaybackState = {
   completion: Promise<void> | null;
 };
 
+type RuntimeDebugFrameWriteSample = {
+  path: string;
+  value: ValueJSON;
+};
+
+type RuntimeDebugRendererWriteSample = {
+  id: string;
+  value: RawValue;
+};
+
 type ProgramTransportState = {
   id: string;
   state: ProgramPlaybackState["state"];
@@ -148,19 +156,15 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 const DEFAULT_DURATION = 0.35;
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 let runtimeDebugInstanceSequence = 0;
-const DEV_MODE = (() => {
-  const nodeEnv = (globalThis as { process?: { env?: { NODE_ENV?: string } } })
-    .process?.env?.NODE_ENV;
-  return typeof nodeEnv === "string" && nodeEnv === "development";
-})();
 
 function isRuntimeDebugEnabled(): boolean {
-  if (DEV_MODE) {
-    return true;
-  }
+  const globalObj = globalThis as {
+    __VIZIJ_RUNTIME_DEBUG__?: boolean;
+    __VIZIJ_MEMORY_INVESTIGATION__?: { enabled?: boolean };
+  };
   return Boolean(
-    (globalThis as { __VIZIJ_RUNTIME_DEBUG__?: boolean })
-      .__VIZIJ_RUNTIME_DEBUG__,
+    globalObj.__VIZIJ_RUNTIME_DEBUG__ ||
+      globalObj.__VIZIJ_MEMORY_INVESTIGATION__?.enabled,
   );
 }
 
@@ -228,12 +232,11 @@ export function VizijRuntimeProvider({
   const parentOrchestrator = useContext(OrchestratorContext);
   const hasParentOrchestrator = Boolean(parentOrchestrator);
   const shouldProvideOrchestrator =
-    orchestratorScope === "isolated" ||
-    (!hasParentOrchestrator && orchestratorScope !== "shared");
+    orchestratorScope === "isolated" || !hasParentOrchestrator;
 
   if (orchestratorScope === "shared" && !hasParentOrchestrator) {
-    console.warn(
-      '[vizij-runtime] orchestratorScope="shared" requires an OrchestratorProvider higher in the tree; falling back to an isolated provider.',
+    throw new Error(
+      '[vizij-runtime] orchestratorScope="shared" requires an OrchestratorProvider higher in the tree.',
     );
   }
 
@@ -371,15 +374,17 @@ function VizijRuntimeProviderInner({
     updateTierRef.current = updateTier;
   }, [updateTier]);
 
-  const assetBundle = useMemo(
+  const runtimeAssetView = useMemo(
     () =>
-      prepareRuntimeAssetBundle(
+      prepareRuntimeAssetView(
         effectiveAssetBundle,
         extractedBundle,
         extractedAnimations,
       ),
     [effectiveAssetBundle, extractedBundle, extractedAnimations],
   );
+  const assetBundle = runtimeAssetView.assetBundle;
+  const resolvedProgramAssets = runtimeAssetView.programs;
 
   useEffect(() => {
     latestEffectiveAssetBundleRef.current = effectiveAssetBundle;
@@ -404,6 +409,7 @@ function VizijRuntimeProviderInner({
   }, [effectiveAssetBundle]);
 
   const {
+    backend,
     ready,
     createOrchestrator,
     registerGraph,
@@ -416,6 +422,7 @@ function VizijRuntimeProviderInner({
     setInput: orchestratorSetInput,
     getPathSnapshot,
     step: stepRuntime,
+    getDebugInfo,
   } = useOrchestrator();
   const frame = useOrchFrame();
 
@@ -423,7 +430,6 @@ function VizijRuntimeProviderInner({
   const faceId =
     faceIdProp ??
     assetBundle.faceId ??
-    assetBundle.pose?.config?.faceId ??
     assetBundle.pose?.config?.faceId ??
     undefined;
 
@@ -488,13 +494,6 @@ function VizijRuntimeProviderInner({
     () => shouldUseLegacyPoseWeightFallback(Boolean(assetBundle.pose?.graph)),
     [assetBundle.pose?.graph],
   );
-  const resolvedProgramAssets = useMemo(
-    () =>
-      assetBundle.programs && assetBundle.programs.length > 0
-        ? assetBundle.programs
-        : convertBundlePrograms(assetBundle.bundle?.graphs),
-    [assetBundle.bundle?.graphs, assetBundle.programs],
-  );
   const [inputConstraints, setInputConstraints] = useState<
     Record<string, { min?: number; max?: number; defaultValue?: number }>
   >({});
@@ -503,6 +502,22 @@ function VizijRuntimeProviderInner({
   >({});
   const avgStepDtRef = useRef<number | null>(null);
   const inputDriverIdsRef = useRef<Set<string>>(new Set());
+  const frameCountRef = useRef(0);
+  const frameWriteCountRef = useRef(0);
+  const rendererWriteCountRef = useRef(0);
+  const lastFrameWriteCountRef = useRef(0);
+  const lastRendererWriteCountRef = useRef(0);
+  const lastFrameWritePathsRef = useRef<string[]>([]);
+  const lastRendererWriteIdsRef = useRef<string[]>([]);
+  const lastFrameWriteSamplesRef = useRef<RuntimeDebugFrameWriteSample[]>([]);
+  const lastRendererWriteSamplesRef = useRef<RuntimeDebugRendererWriteSample[]>(
+    [],
+  );
+  const hostAnimationSampleCountRef = useRef(0);
+  const orchestratorAnimationCommandCountRef = useRef(0);
+  const orchestratorAnimationFallbackCountRef = useRef(0);
+  const lastAnimationCommandPathsRef = useRef<string[]>([]);
+  const lastHostAnimationSampleIdRef = useRef<string | null>(null);
 
   const animationTweensRef = useRef<Map<string, AnimationState>>(new Map());
   const clipPlaybackRef = useRef<Map<string, ClipPlaybackState>>(new Map());
@@ -534,16 +549,25 @@ function VizijRuntimeProviderInner({
   }, []);
 
   const publishRuntimeDebugState = useCallback(() => {
+    if (!isRuntimeDebugStateEnabled()) {
+      return;
+    }
     const storeState = store.getState();
+    const orchestratorDebugInfo = getDebugInfo?.();
     setRuntimeDebugState(runtimeDebugInstanceIdRef.current, {
       namespace,
       faceId: faceId ?? null,
       rootId: status.rootId,
       ready: status.ready,
       loading: status.loading,
+      orchestratorBackend: backend,
+      orchestratorReady: ready,
+      aroraWebDebugInstanceId:
+        orchestratorDebugInfo?.aroraWebInstanceId ?? null,
       autostart,
       driveOrchestrator,
       loopMode,
+      animationTransport,
       outputCount: status.outputPaths.length,
       graphControllerCount: status.controllers.graphs.length,
       animationControllerCount: status.controllers.anims.length,
@@ -560,15 +584,41 @@ function VizijRuntimeProviderInner({
       valuesSize:
         storeState.values instanceof Map ? storeState.values.size : null,
       stepHz: status.stepHz ?? null,
+      frameCount: frameCountRef.current,
+      frameWriteCount: frameWriteCountRef.current,
+      rendererWriteCount: rendererWriteCountRef.current,
+      lastFrameWriteCount: lastFrameWriteCountRef.current,
+      lastRendererWriteCount: lastRendererWriteCountRef.current,
+      lastFrameWritePaths: lastFrameWritePathsRef.current,
+      lastRendererWriteIds: lastRendererWriteIdsRef.current,
+      lastFrameWriteSamples: lastFrameWriteSamplesRef.current,
+      lastRendererWriteSamples: lastRendererWriteSamplesRef.current,
+      hostAnimationSampleCount: hostAnimationSampleCountRef.current,
+      orchestratorAnimationCommandCount:
+        orchestratorAnimationCommandCountRef.current,
+      orchestratorAnimationFallbackCount:
+        orchestratorAnimationFallbackCountRef.current,
+      lastAnimationCommandPaths: lastAnimationCommandPathsRef.current,
+      lastHostAnimationSampleId: lastHostAnimationSampleIdRef.current,
+      errorCount: status.errors.length,
+      latestErrorMessage: status.error?.message ?? null,
+      latestErrorPhase: status.error?.phase ?? null,
     });
   }, [
     autostart,
+    animationTransport,
+    backend,
     driveOrchestrator,
     faceId,
+    getDebugInfo,
     loopMode,
     namespace,
+    ready,
     status.controllers.anims.length,
     status.controllers.graphs.length,
+    status.error?.message,
+    status.error?.phase,
+    status.errors.length,
     status.loading,
     status.outputPaths.length,
     status.ready,
@@ -578,6 +628,9 @@ function VizijRuntimeProviderInner({
   ]);
 
   useEffect(() => {
+    if (!isRuntimeDebugStateEnabled()) {
+      return;
+    }
     publishRuntimeDebugState();
     const unsubscribe = store.subscribe(() => {
       publishRuntimeDebugState();
@@ -776,6 +829,20 @@ function VizijRuntimeProviderInner({
     rigPoseControlInputIdsRef.current = new Set();
     clipOutputValuesRef.current.clear();
     clipAggregateValuesRef.current.clear();
+    frameCountRef.current = 0;
+    frameWriteCountRef.current = 0;
+    rendererWriteCountRef.current = 0;
+    lastFrameWriteCountRef.current = 0;
+    lastRendererWriteCountRef.current = 0;
+    lastFrameWritePathsRef.current = [];
+    lastRendererWriteIdsRef.current = [];
+    lastFrameWriteSamplesRef.current = [];
+    lastRendererWriteSamplesRef.current = [];
+    hostAnimationSampleCountRef.current = 0;
+    orchestratorAnimationCommandCountRef.current = 0;
+    orchestratorAnimationFallbackCountRef.current = 0;
+    lastAnimationCommandPathsRef.current = [];
+    lastHostAnimationSampleIdRef.current = null;
   }, [listControllers, removeAnimation, removeGraph, pushHostError]);
 
   useEffect(() => {
@@ -957,6 +1024,10 @@ function VizijRuntimeProviderInner({
       programs: resolvedProgramAssets,
     });
 
+    const errorDiagnostics = plan.diagnostics.filter(
+      (diagnostic) => diagnostic.level === "error",
+    );
+
     plan.diagnostics.forEach((diagnostic) => {
       if (diagnostic.level === "error") {
         pushError({
@@ -1046,13 +1117,18 @@ function VizijRuntimeProviderInner({
         animationIds: result.animationIds,
       });
     }
+    const runtimeReady =
+      errorDiagnostics.length === 0 && result.errors.length === 0;
     reportStatus((prev) => ({
       ...prev,
-      ready: true,
+      ready: runtimeReady,
+      loading: false,
       controllers: result.controllers,
-      outputPaths: Array.from(outputPathsRef.current),
+      outputPaths: runtimeReady ? Array.from(outputPathsRef.current) : [],
     }));
-    onRegisterControllers?.(result.controllers);
+    if (runtimeReady) {
+      onRegisterControllers?.(result.controllers);
+    }
   }, [
     assetBundle,
     animationTransport,
@@ -1099,7 +1175,25 @@ function VizijRuntimeProviderInner({
       return;
     }
     const writes = frame.merged_writes ?? [];
+    frameCountRef.current += 1;
+    lastFrameWriteCountRef.current = writes.length;
+    frameWriteCountRef.current += writes.length;
+    lastFrameWritePathsRef.current = writes
+      .map((write) => write.path)
+      .filter((path): path is string => typeof path === "string")
+      .slice(0, 20);
+    lastFrameWriteSamplesRef.current = writes
+      .map((write) => ({ path: write.path, value: write.value }))
+      .filter(
+        (write): write is RuntimeDebugFrameWriteSample =>
+          typeof write.path === "string",
+      )
+      .slice(0, 20);
     if (!writes.length) {
+      lastRendererWriteCountRef.current = 0;
+      lastRendererWriteIdsRef.current = [];
+      lastRendererWriteSamplesRef.current = [];
+      publishRuntimeDebugState();
       return;
     }
     const setWorldValues = store.getState().setValues;
@@ -1118,10 +1212,26 @@ function VizijRuntimeProviderInner({
     prepared.poseControlInputs.forEach(({ path, value }) => {
       setInput(path, value);
     });
+    lastRendererWriteCountRef.current = prepared.rendererWrites.length;
+    rendererWriteCountRef.current += prepared.rendererWrites.length;
+    lastRendererWriteIdsRef.current = prepared.rendererWrites
+      .map((write) => write.id)
+      .slice(0, 20);
+    lastRendererWriteSamplesRef.current = prepared.rendererWrites
+      .map((write) => ({ id: write.id, value: write.value }))
+      .slice(0, 20);
     if (prepared.rendererWrites.length > 0) {
       setWorldValues(prepared.rendererWrites);
     }
-  }, [frame, setInput, status.namespace, store, transformOutputWrite]);
+    publishRuntimeDebugState();
+  }, [
+    frame,
+    publishRuntimeDebugState,
+    setInput,
+    status.namespace,
+    store,
+    transformOutputWrite,
+  ]);
 
   const stagePoseNeutral = useCallback(
     (force = false) => {
@@ -1268,6 +1378,11 @@ function VizijRuntimeProviderInner({
           orchestratorSetInput(path, value);
         });
         stepRuntime(0);
+        orchestratorAnimationCommandCountRef.current += inputs.length;
+        lastAnimationCommandPathsRef.current = inputs
+          .map(({ path }) => path)
+          .slice(0, 20);
+        publishRuntimeDebugState();
       } catch (err: unknown) {
         pushError({
           message: `Failed to stage animation command for ${id}`,
@@ -1287,7 +1402,13 @@ function VizijRuntimeProviderInner({
       }
       return true;
     },
-    [orchestratorSetInput, pushError, removeInput, stepRuntime],
+    [
+      orchestratorSetInput,
+      publishRuntimeDebugState,
+      pushError,
+      removeInput,
+      stepRuntime,
+    ],
   );
 
   const pulseAnimationControllerCommands = useCallback(
@@ -1370,13 +1491,14 @@ function VizijRuntimeProviderInner({
       if (!animationSystemActiveRef.current) {
         return;
       }
-      clipOutputValuesRef.current.set(
-        clip.id,
-        buildClipOutputValues(clip, state),
-      );
+      const outputValues = buildClipOutputValues(clip, state);
+      hostAnimationSampleCountRef.current += 1;
+      lastHostAnimationSampleIdRef.current = clip.id;
+      clipOutputValuesRef.current.set(clip.id, outputValues);
       syncClipOutputs(options);
+      publishRuntimeDebugState();
     },
-    [buildClipOutputValues, syncClipOutputs],
+    [buildClipOutputValues, publishRuntimeDebugState, syncClipOutputs],
   );
 
   const clearClipOutputs = useCallback(
@@ -1571,6 +1693,49 @@ function VizijRuntimeProviderInner({
     ],
   );
 
+  const recordOrchestratorAnimationFallback = useCallback(
+    (id: string) => {
+      if (animationTransportRef.current !== "orchestrator") {
+        return;
+      }
+      orchestratorAnimationFallbackCountRef.current += 1;
+      lastHostAnimationSampleIdRef.current = id;
+      publishRuntimeDebugState();
+    },
+    [publishRuntimeDebugState],
+  );
+
+  const pushMissingAnimationControllerError = useCallback(
+    (id: string, action: string): Error => {
+      const error = new Error(
+        `Cannot ${action} animation ${id} through orchestrator transport because no animation controller was registered.`,
+      );
+      pushError({
+        message: error.message,
+        cause: error,
+        phase: "animation",
+        timestamp: performance.now(),
+      });
+      return error;
+    },
+    [pushError],
+  );
+
+  const requireAnimationControllerId = useCallback(
+    (id: string, action: string): string | null => {
+      if (animationTransportRef.current !== "orchestrator") {
+        return null;
+      }
+      const controllerId = animationControllerIdsRef.current.get(id);
+      if (!controllerId) {
+        pushMissingAnimationControllerError(id, action);
+        return null;
+      }
+      return controllerId;
+    },
+    [pushMissingAnimationControllerError],
+  );
+
   const playAnimation = useCallback(
     (id: string, options?: PlayAnimationOptions) => {
       const ensured = ensureClipPlaybackState(id);
@@ -1580,6 +1745,20 @@ function VizijRuntimeProviderInner({
         );
       }
       const { clip, state } = ensured;
+      const orchestratorControllerId =
+        animationTransportRef.current === "orchestrator"
+          ? requireAnimationControllerId(id, "play")
+          : null;
+      if (
+        animationTransportRef.current === "orchestrator" &&
+        !orchestratorControllerId
+      ) {
+        return Promise.reject(
+          new Error(
+            `Cannot play animation ${id} through orchestrator transport because no animation controller was registered.`,
+          ),
+        );
+      }
       const shouldReset = options?.reset === true;
       if (shouldReset) {
         resolveClipPromise(state);
@@ -1598,14 +1777,10 @@ function VizijRuntimeProviderInner({
 
       const completion = ensureClipPromise(state);
       clipPlaybackRef.current.set(id, state);
-      if (
-        animationTransportRef.current === "orchestrator" &&
-        animationControllerIdsRef.current.has(id)
-      ) {
-        const controllerId = animationControllerIdsRef.current.get(id)!;
+      if (orchestratorControllerId) {
         pulseAnimationControllerInputs(
           id,
-          buildAnimationControllerPlayInputs(controllerId, {
+          buildAnimationControllerPlayInputs(orchestratorControllerId, {
             reset: shouldReset,
             loop: state.loop,
             speed: state.speed,
@@ -1613,6 +1788,7 @@ function VizijRuntimeProviderInner({
           }),
         );
       } else {
+        recordOrchestratorAnimationFallback(id);
         writeClipOutputs(clip, state);
       }
       markActivity();
@@ -1623,6 +1799,8 @@ function VizijRuntimeProviderInner({
       ensureClipPromise,
       markActivity,
       pulseAnimationControllerInputs,
+      recordOrchestratorAnimationFallback,
+      requireAnimationControllerId,
       resolveClipPromise,
       writeClipOutputs,
     ],
@@ -1635,17 +1813,21 @@ function VizijRuntimeProviderInner({
         return;
       }
       state.playing = false;
-      if (
-        animationTransportRef.current === "orchestrator" &&
-        animationControllerIdsRef.current.has(id)
-      ) {
+      if (animationTransportRef.current === "orchestrator") {
+        if (!requireAnimationControllerId(id, "pause")) {
+          return;
+        }
         pulseAnimationControllerCommands(id, [
           { action: "pause", value: { bool: true } },
         ]);
       }
       updateLoopMode();
     },
-    [pulseAnimationControllerCommands, updateLoopMode],
+    [
+      pulseAnimationControllerCommands,
+      requireAnimationControllerId,
+      updateLoopMode,
+    ],
   );
 
   const seekAnimation = useCallback(
@@ -1655,22 +1837,27 @@ function VizijRuntimeProviderInner({
         return;
       }
       const { clip, state } = ensured;
+      if (animationTransportRef.current === "orchestrator") {
+        if (!requireAnimationControllerId(id, "seek")) {
+          return;
+        }
+      }
       state.time = clampAnimationTime(timeSeconds, state.duration);
       clipPlaybackRef.current.set(id, state);
-      if (
-        animationTransportRef.current === "orchestrator" &&
-        animationControllerIdsRef.current.has(id)
-      ) {
+      if (animationTransportRef.current === "orchestrator") {
         pulseAnimationControllerCommands(id, [
           { action: "seek", value: { float: state.time } },
         ]);
       } else {
+        recordOrchestratorAnimationFallback(id);
         writeClipOutputs(clip, state, { immediate: true });
       }
     },
     [
       ensureClipPlaybackState,
       pulseAnimationControllerCommands,
+      recordOrchestratorAnimationFallback,
+      requireAnimationControllerId,
       writeClipOutputs,
     ],
   );
@@ -1681,19 +1868,26 @@ function VizijRuntimeProviderInner({
       if (!ensured) {
         return;
       }
+      if (animationTransportRef.current === "orchestrator") {
+        if (!requireAnimationControllerId(id, "set loop for")) {
+          return;
+        }
+      }
       ensured.state.loop = Boolean(enabled);
       clipPlaybackRef.current.set(id, ensured.state);
-      if (
-        animationTransportRef.current === "orchestrator" &&
-        animationControllerIdsRef.current.has(id)
-      ) {
+      if (animationTransportRef.current === "orchestrator") {
         pulseAnimationControllerCommands(id, [
           { action: "set_loop", value: enabled ? "loop" : "once" },
         ]);
       }
       updateLoopMode();
     },
-    [ensureClipPlaybackState, pulseAnimationControllerCommands, updateLoopMode],
+    [
+      ensureClipPlaybackState,
+      pulseAnimationControllerCommands,
+      requireAnimationControllerId,
+      updateLoopMode,
+    ],
   );
 
   const getAnimationState = useCallback(
@@ -1721,14 +1915,16 @@ function VizijRuntimeProviderInner({
         state.playing = false;
         resolveClipPromise(state);
       }
-      const orchestratorOwnsAnimation =
-        animationTransportRef.current === "orchestrator" &&
-        animationControllerIdsRef.current.has(id);
-      if (orchestratorOwnsAnimation) {
+      if (animationTransportRef.current === "orchestrator") {
+        if (!requireAnimationControllerId(id, "stop")) {
+          updateLoopMode();
+          return;
+        }
         pulseAnimationControllerCommands(id, [
           { action: "stop", value: { bool: true } },
         ]);
       } else if (options?.clearOutputs !== false) {
+        recordOrchestratorAnimationFallback(id);
         clearClipOutputs(id);
       }
       updateLoopMode();
@@ -1736,6 +1932,8 @@ function VizijRuntimeProviderInner({
     [
       clearClipOutputs,
       pulseAnimationControllerCommands,
+      recordOrchestratorAnimationFallback,
+      requireAnimationControllerId,
       resolveClipPromise,
       updateLoopMode,
     ],

@@ -55,6 +55,40 @@ export {
   collectOutputPaths,
 } from "./utils/graph";
 export {
+  canonicalizeGraphComparable,
+  diffGraphSpecs,
+  rewriteGraphFaceNamespace,
+  type GraphDiffCategory,
+  type GraphDiffConnectionContext,
+  type GraphDiffConnectionEndpoint,
+  type GraphDiffContext,
+  type GraphDiffEntry,
+  type GraphDiffEntityType,
+  type GraphDiffKind,
+  type GraphDiffResult,
+} from "./utils/graphDiff";
+export {
+  auditBundleGraphs,
+  type BundleGraphAuditEntry,
+  type BundleGraphAuditStatus,
+  type BundleGraphOutputAudit,
+} from "./utils/bundleAudit";
+export {
+  buildRuntimeBaseBundle,
+  buildRuntimeGraphBundle,
+} from "./utils/runtimeBundle";
+export {
+  buildStandardInputIdRemap,
+  remapPipelineMetadataInputIds,
+  remapPoseConfigInputIds,
+  remapPoseIrInputIds,
+  type RemappablePoseConfig,
+  type RemappablePoseIr,
+  type VizijPipelineConfigMap,
+  type VizijPipelineLinkMap,
+  type VizijPipelineMetadataV1,
+} from "./utils/standardInputRemap";
+export {
   buildPoseWeightInputPathSegment,
   buildPoseWeightPathMap,
   buildPoseWeightRelativePath,
@@ -83,12 +117,32 @@ export {
   type ResolvedFaceControls,
 } from "./utils/faceControls";
 export {
+  buildRuntimeInputCatalogFromConstraints,
+  buildRuntimeInputWritePathMap,
+  resolveRuntimeInputWritePath,
+  stripRuntimeNamespacePrefix,
+  type BuildRuntimeInputCatalogOptions,
+  type RuntimeInputCatalog,
+  type RuntimeInputConstraint,
+  type RuntimeInputWritePathMapOptions,
+} from "./utils/runtimeInputs";
+export {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,
   sampleAnimationClipOutputValues,
   type AnimationAggregateOperation,
 } from "./utils/animationBridge";
+export {
+  buildAnimationControllerCommandPath,
+  buildAnimationControllerInstancePath,
+  buildAnimationControllerPlayInputs,
+  prepareAnimationRegistrationForTransport,
+  resolveAnimationTransportMode,
+  type AnimationControllerInput,
+  type AnimationTransportPreference,
+  type ResolvedAnimationTransportMode,
+} from "./utils/animationTransport";
 export {
   advanceClipTime,
   clampAnimationTime,
@@ -1139,6 +1193,27 @@ export function prepareRuntimeAssetBundle(
   extractedAnimations: VizijAnimationAsset[] | undefined,
 ): VizijAssetBundle {
   return mergeAssetBundle(base, extracted, extractedAnimations);
+}
+
+export type RuntimeAssetView = {
+  assetBundle: VizijAssetBundle;
+  programs: VizijProgramAsset[];
+};
+
+export function prepareRuntimeAssetView(
+  base: VizijAssetBundle,
+  extracted: VizijBundleExtension | null,
+  extractedAnimations: VizijAnimationAsset[] | undefined,
+): RuntimeAssetView {
+  const assetBundle = prepareRuntimeAssetBundle(
+    base,
+    extracted,
+    extractedAnimations,
+  );
+  return {
+    assetBundle,
+    programs: assetBundle.programs ?? [],
+  };
 }
 
 export function buildGraphRegistrationConfig(args: {

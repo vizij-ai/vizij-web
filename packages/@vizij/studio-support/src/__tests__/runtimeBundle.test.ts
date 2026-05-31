@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRuntimeBaseBundle } from "../runtimeBundle";
+import { buildRuntimeBaseBundle } from "../utils/runtimeBundle";
 
 describe("buildRuntimeBaseBundle", () => {
   it("uses provided world and animatables", () => {

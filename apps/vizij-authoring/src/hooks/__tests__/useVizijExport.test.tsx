@@ -19,6 +19,7 @@ import { exportScene } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
+import { auditBundleGraphs } from "@vizij/studio-support";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import {
@@ -29,7 +30,6 @@ import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
   POSE_IR_TARGETING_CONTRACT,
 } from "../../poseRig/types";
-import { auditBundleGraphs } from "../../utils/bundleAudit";
 import { useAnimationStore } from "../../state/animationStore";
 
 vi.mock("@vizij/render", () => ({
@@ -78,9 +78,15 @@ vi.mock("../../poseRig/services/poseGraphService", () => ({
   },
 }));
 
-vi.mock("../../utils/bundleAudit", () => ({
-  auditBundleGraphs: vi.fn(),
-}));
+vi.mock("@vizij/studio-support", async () => {
+  const actual = await vi.importActual<typeof import("@vizij/studio-support")>(
+    "@vizij/studio-support",
+  );
+  return {
+    ...actual,
+    auditBundleGraphs: vi.fn(),
+  };
+});
 
 const mockedExportScene = vi.mocked(exportScene);
 const mockedNormalizeGraphSpec = vi.mocked(normalizeGraphSpec);

@@ -11,6 +11,7 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import { buildRuntimeBaseBundle } from "@vizij/studio-support";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
   useWorkspaceStore,
@@ -77,7 +78,6 @@ import type {
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
-import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { useSessionResetEffect } from "./hooks/authoringSessionLifecycle";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
@@ -321,6 +321,12 @@ function createEmptyAnimationClip(
   };
 }
 
+function animationClipHasKeyframes(clip: AnimationClipIR): boolean {
+  return clip.tracks.some(
+    (track) => Array.isArray(track.keyframes) && track.keyframes.length > 0,
+  );
+}
+
 function motionGraphRuntimeControllerId(targetId: string): string {
   return `motiongraph-runtime:${encodeURIComponent(targetId)}`;
 }
@@ -344,19 +350,22 @@ function stableValueFingerprint(value: unknown): string {
 
 function nextAuthoredAnimationClipOrdinal(
   targets: readonly AuthoredAnimationTarget[],
+  reservedClipIds: readonly string[] = [],
 ): number {
   const prefix = "authoring.timeline.clip.";
   let maxOrdinal = 0;
-  targets.forEach((target) => {
-    if (!target.clipId.startsWith(prefix)) {
+  const visitClipId = (clipId: string) => {
+    if (!clipId.startsWith(prefix)) {
       return;
     }
-    const raw = target.clipId.slice(prefix.length);
+    const raw = clipId.slice(prefix.length);
     const parsed = Number.parseInt(raw, 10);
     if (Number.isFinite(parsed) && parsed > maxOrdinal) {
       maxOrdinal = parsed;
     }
-  });
+  };
+  targets.forEach((target) => visitClipId(target.clipId));
+  reservedClipIds.forEach(visitClipId);
   return maxOrdinal + 1;
 }
 
@@ -1053,6 +1062,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setHiddenBundleAnimationTargetIds({});
     setHiddenBundleProceduralTargetIds({});
     setActiveInspectorTarget(null);
+    setWorkspacePanelVisibility("motiongraph", false);
+    setWorkspacePanelVisibility("motiongraphPalette", false);
     uiActions.setActiveRuntimeSource("none");
     useAnimationStore.getState().reset();
     const editorStore = useEditorStore.getState();
@@ -1062,6 +1073,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     clearAnimationRuntimeState,
     clearProgramRuntimeState,
     poseRig,
+    setWorkspacePanelVisibility,
     uiActions,
   ]);
   useSessionResetEffect(authoringSessionKey, resetAuthoringSessionState);
@@ -1105,6 +1117,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.handleImportGraphSpec,
   );
   const bundleSessionKey = rootId ?? faceLoadSessionToken ?? "__no-bundle__";
+
+  const importedAnimationClipIds = useMemo(
+    () =>
+      (loadedBundle?.animations ?? []).flatMap((entry) =>
+        typeof entry.id === "string" && entry.id.trim().length > 0
+          ? [entry.id.trim()]
+          : [],
+      ),
+    [loadedBundle?.animations],
+  );
 
   const bundleAnimationTargetOptions = useMemo(() => {
     const entries = loadedBundle?.animations ?? [];
@@ -2167,6 +2189,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
     const nextOrdinal = nextAuthoredAnimationClipOrdinal(
       authoredAnimationTargets,
+      importedAnimationClipIds,
     );
     const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
     const nextClipName = `Animation Clip ${nextOrdinal}`;
@@ -2180,6 +2203,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [
     animationDuration,
     authoredAnimationTargets,
+    importedAnimationClipIds,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
@@ -2188,6 +2212,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (targetId: string) => {
       const nextOrdinal = nextAuthoredAnimationClipOrdinal(
         authoredAnimationTargets,
+        importedAnimationClipIds,
       );
       const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
       let sourceClip: AnimationClipIR | null = null;
@@ -2248,11 +2273,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setWorkspacePanelVisibility("animation", true);
       setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
       setSelectedAnimationTargetId(nextTarget.targetId);
+      importAnimationClipIr(nextClip);
     },
     [
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
+      importedAnimationClipIds,
+      importAnimationClipIr,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
       setWorkspacePanelVisibility,
@@ -2349,7 +2377,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         liveActiveClip &&
         target.targetId === selectedAuthoredAnimationTarget?.targetId
       ) {
-        return liveActiveClip;
+        return animationClipHasKeyframes(liveActiveClip) ||
+          !animationClipHasKeyframes(target.clip)
+          ? liveActiveClip
+          : target.clip;
       }
       return target.clip;
     });
@@ -4334,6 +4365,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         ref={refFaceFileInputRef}
         type="file"
         accept=".glb,.gltf"
+        data-testid="reference-face-import-file-input"
         className="hidden"
         onChange={handleRefFaceFileChange}
       />
@@ -4623,6 +4655,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       <input
         type="file"
         ref={fileInputRef}
+        data-testid="main-import-file-input"
         className="hidden"
         accept=".glb,.gltf"
         onChange={(e) => void handleFileChange(e)}

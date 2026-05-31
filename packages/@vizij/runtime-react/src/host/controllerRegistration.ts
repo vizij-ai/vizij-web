@@ -9,14 +9,12 @@ import type {
 } from "@vizij/orchestrator-react";
 import {
   namespaceControllerId,
+  prepareAnimationRegistrationForTransport,
   type InputConstraint,
   type RuntimeProgramRegistrationSupportResult,
   type RuntimeRegistrationPlan,
-} from "@vizij/studio-support";
-import {
-  prepareAnimationRegistrationForTransport,
   type ResolvedAnimationTransportMode,
-} from "../utils/animationTransport";
+} from "@vizij/studio-support";
 
 type ControllerList = { graphs: ControllerId[]; anims: ControllerId[] };
 

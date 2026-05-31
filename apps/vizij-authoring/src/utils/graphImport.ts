@@ -1,4 +1,9 @@
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
+import type {
+  VizijPipelineConfigMap,
+  VizijPipelineLinkMap,
+  VizijPipelineMetadataV1,
+} from "@vizij/studio-support";
 import { cloneSerializable } from "./serialization";
 
 /**
@@ -183,13 +188,11 @@ export function extractGraphFaceId(payload: unknown): string | null {
   return faceId && faceId.length > 0 ? faceId : null;
 }
 
-export type VizijPipelineConfigMap = Record<string, Record<string, unknown>>;
-export type VizijPipelineLinkMap = Record<string, Record<string, unknown>>;
-
-export type VizijPipelineMetadataV1 = Record<string, unknown> & {
-  byInputId?: VizijPipelineConfigMap;
-  links?: VizijPipelineLinkMap;
-};
+export type {
+  VizijPipelineConfigMap,
+  VizijPipelineLinkMap,
+  VizijPipelineMetadataV1,
+} from "@vizij/studio-support";
 
 export function normalizeVizijPipelineConfigMap(
   value: unknown,

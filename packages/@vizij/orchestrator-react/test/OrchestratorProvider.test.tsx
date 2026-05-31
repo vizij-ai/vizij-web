@@ -45,6 +45,9 @@ const moduleFacadeDispatches: Array<{
 const stepResultRef: { current: OrchestratorFrame | null } = {
   current: null,
 };
+const stepDeltaUnsupportedRef: { current: boolean } = {
+  current: false,
+};
 
 const makeFrame = (
   overrides: Partial<OrchestratorFrame> = {},
@@ -119,6 +122,24 @@ function moduleFacadeResponse(request: { call: string; args?: unknown }) {
         result: stepResultRef.current ?? makeFrame(),
         version: 1,
       };
+    case "orchestrator.stepDelta": {
+      if (stepDeltaUnsupportedRef.current) {
+        return {
+          ok: false,
+          error: "Unsupported facade call: orchestrator.stepDelta",
+          version: 1,
+        };
+      }
+      const args = request.args as { sinceVersion?: number } | undefined;
+      return {
+        ok: true,
+        result: {
+          ...(stepResultRef.current ?? makeFrame()),
+          version: args?.sinceVersion === 1 ? 2 : 1,
+        },
+        version: 1,
+      };
+    }
     case "graph.normalize":
       return {
         ok: true,
@@ -296,11 +317,19 @@ const Harness: FC = () => {
   const ctx = useOrchestrator();
   const frame = useOrchFrame();
   const latest = useOrchTarget("demo/output/value");
+  const debugInfo = (
+    ctx as {
+      getDebugInfo?: () => { aroraWebInstanceId?: string | null };
+    }
+  ).getDebugInfo?.();
 
   return (
     <div>
       <span data-testid="ready">{ctx.ready ? "ready" : "pending"}</span>
       <span data-testid="epoch">{frame?.epoch ?? "none"}</span>
+      <span data-testid="debug-instance">
+        {debugInfo?.aroraWebInstanceId ?? "none"}
+      </span>
       <span data-testid="target">
         {latest === undefined ? "undefined" : JSON.stringify(latest)}
       </span>
@@ -325,6 +354,11 @@ describe("OrchestratorProvider", () => {
     orchestratorInstances.length = 0;
     moduleFacadeDispatches.length = 0;
     stepResultRef.current = null;
+    stepDeltaUnsupportedRef.current = false;
+    delete (globalThis as { __VIZIJ_RUNTIME_DEBUG__?: boolean })
+      .__VIZIJ_RUNTIME_DEBUG__;
+    delete (globalThis as { __vizijAroraWebDebugState?: unknown })
+      .__vizijAroraWebDebugState;
     vi.clearAllMocks();
     cleanup();
     vi.mocked(createOrchestrator).mockImplementation(async () =>
@@ -455,6 +489,132 @@ describe("OrchestratorProvider", () => {
       (request) => request.call === "graph.normalize",
     );
     expect(normalizeDispatch?.runtimeHandle).toBe("runtime:0");
+  });
+
+  it("uses delta frames for composed arora-web runtime steps", async () => {
+    const aroraWeb = makeAroraWebModule();
+    const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: COMPOSED_HEADER,
+      preloadModules: [],
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    runtime.step(1 / 60);
+    runtime.step(1 / 30);
+
+    const deltaDispatches = moduleFacadeDispatches.filter(
+      (request) => request.call === "orchestrator.stepDelta",
+    );
+    expect(deltaDispatches).toHaveLength(2);
+    expect(deltaDispatches[0]?.args).toEqual({ dt: 1 / 60 });
+    expect(deltaDispatches[1]?.args).toEqual({
+      dt: 1 / 30,
+      sinceVersion: 1,
+    });
+    expect(
+      moduleFacadeDispatches.some(
+        (request) => request.call === "orchestrator.step",
+      ),
+    ).toBe(false);
+  });
+
+  it("falls back to full frames when composed arora-web delta frames are unsupported", async () => {
+    stepDeltaUnsupportedRef.current = true;
+    const aroraWeb = makeAroraWebModule();
+    const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: COMPOSED_HEADER,
+      preloadModules: [],
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    runtime.step(1 / 60);
+    runtime.step(1 / 30);
+
+    expect(moduleFacadeDispatches.map((request) => request.call)).toEqual([
+      "runtime.create",
+      "orchestrator.stepDelta",
+      "orchestrator.step",
+      "orchestrator.step",
+    ]);
+  });
+
+  it("publishes arora-web facade call counts for runtime diagnostics", async () => {
+    (
+      globalThis as { __VIZIJ_RUNTIME_DEBUG__?: boolean }
+    ).__VIZIJ_RUNTIME_DEBUG__ = true;
+    const aroraWeb = makeAroraWebModule();
+    const runtime = await AroraWebOrchestratorRuntime.create(undefined, {
+      aroraWeb,
+      orchestratorModule: "composed",
+      headerJson: COMPOSED_HEADER,
+      preloadModules: [],
+      wasmBytes: new Uint8Array([0]),
+    });
+
+    runtime.step(1 / 60);
+    runtime.step(1 / 30);
+
+    const state = (
+      globalThis as {
+        __vizijAroraWebDebugState?: {
+          latestInstanceId: string | null;
+          instances: Record<string, Record<string, unknown>>;
+        };
+      }
+    ).__vizijAroraWebDebugState;
+    const latestId = state?.latestInstanceId;
+    expect(latestId).toBeTruthy();
+    const latest = latestId ? state?.instances[latestId] : null;
+    expect(latest).toMatchObject({
+      dispatchCount: 3,
+      lastFacadeCall: "orchestrator.stepDelta",
+      facadeCallCounts: {
+        "runtime.create": 1,
+        "orchestrator.stepDelta": 2,
+      },
+    });
+  });
+
+  it("exposes the arora-web debug instance id through context", async () => {
+    (
+      globalThis as { __VIZIJ_RUNTIME_DEBUG__?: boolean }
+    ).__VIZIJ_RUNTIME_DEBUG__ = true;
+    const aroraWeb = makeAroraWebModule();
+
+    render(
+      <OrchestratorProvider
+        backend="aroraWeb"
+        initInput={{
+          aroraWeb,
+          orchestratorModule: "composed",
+          headerJson: COMPOSED_HEADER,
+          preloadModules: [],
+          wasmBytes: new Uint8Array([0]),
+        }}
+        autostart={false}
+      >
+        <Harness />
+      </OrchestratorProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ready").textContent).toBe("ready");
+    });
+
+    const state = (
+      globalThis as {
+        __vizijAroraWebDebugState?: {
+          latestInstanceId: string | null;
+        };
+      }
+    ).__vizijAroraWebDebugState;
+    expect(screen.getByTestId("debug-instance").textContent).toBe(
+      state?.latestInstanceId,
+    );
   });
 
   it("preloads the independent Vizij modules by default for the composed arora-web orchestrator", async () => {

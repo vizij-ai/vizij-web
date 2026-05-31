@@ -42,6 +42,10 @@ export default defineConfig(({ mode }) => {
           workspaceRoot,
           "packages/@vizij/runtime-react/src",
         ),
+        "@vizij/studio-support": path.resolve(
+          workspaceRoot,
+          "packages/@vizij/studio-support/src",
+        ),
         "@vizij/render": path.resolve(
           workspaceRoot,
           "packages/@vizij/render/src",

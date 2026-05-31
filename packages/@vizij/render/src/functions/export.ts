@@ -44,6 +44,7 @@ const GLB_JSON_CHUNK_TYPE = 0x4e4f534a;
 const GLB_HEADER_BYTES = 12;
 const GLB_CHUNK_HEADER_BYTES = 8;
 const GLB_JSON_PADDING_BYTE = 0x20;
+const VIZIJ_BUNDLE_EXTENSION = "VIZIJ_bundle";
 
 type GltfNodeLike = {
   name?: unknown;
@@ -60,13 +61,77 @@ type GltfNodeLike = {
 type GltfSceneLike = {
   name?: unknown;
   nodes?: unknown;
+  extensions?: unknown;
 };
 
 type GltfJsonLike = {
   scene?: unknown;
   scenes?: unknown;
   nodes?: unknown;
+  extensions?: unknown;
+  extensionsUsed?: unknown;
 };
+
+function stripVizijBundleExtension(container: {
+  extensions?: unknown;
+}): boolean {
+  if (!container.extensions || typeof container.extensions !== "object") {
+    return false;
+  }
+  const extensions = container.extensions as Record<string, unknown>;
+  if (
+    !Object.prototype.hasOwnProperty.call(extensions, VIZIJ_BUNDLE_EXTENSION)
+  ) {
+    return false;
+  }
+  delete extensions[VIZIJ_BUNDLE_EXTENSION];
+  if (Object.keys(extensions).length === 0) {
+    delete container.extensions;
+  }
+  return true;
+}
+
+function applyBundleToGltfJson(
+  json: GltfJsonLike,
+  bundle: VizijBundleExtension | null | undefined,
+): boolean {
+  if (!bundle) {
+    return false;
+  }
+
+  stripVizijBundleExtension(json);
+  const containers = [
+    ...(Array.isArray(json.nodes) ? json.nodes : []),
+    ...(Array.isArray(json.scenes) ? json.scenes : []),
+  ];
+  containers.forEach((container) => {
+    if (container && typeof container === "object") {
+      stripVizijBundleExtension(container as { extensions?: unknown });
+    }
+  });
+
+  const rootExtensions =
+    json.extensions && typeof json.extensions === "object"
+      ? (json.extensions as Record<string, unknown>)
+      : {};
+  rootExtensions[VIZIJ_BUNDLE_EXTENSION] = bundle;
+  json.extensions = rootExtensions;
+
+  const extensionsUsed = Array.isArray(json.extensionsUsed)
+    ? json.extensionsUsed.filter(
+        (entry): entry is string => typeof entry === "string",
+      )
+    : [];
+  if (!extensionsUsed.includes(VIZIJ_BUNDLE_EXTENSION)) {
+    extensionsUsed.push(VIZIJ_BUNDLE_EXTENSION);
+    extensionsUsed.sort((left, right) => left.localeCompare(right));
+    json.extensionsUsed = extensionsUsed;
+  } else if (!Array.isArray(json.extensionsUsed)) {
+    json.extensionsUsed = extensionsUsed;
+  }
+
+  return true;
+}
 
 function isNearlyEqual(a: number, b: number, epsilon = 1e-6): boolean {
   return Math.abs(a - b) <= epsilon;
@@ -204,6 +269,7 @@ function normalizeExportedSceneJson(
 function sanitizeExportedGlb(
   buffer: ArrayBuffer,
   fallbackSceneName?: string,
+  bundle?: VizijBundleExtension | null,
 ): ArrayBuffer {
   if (buffer.byteLength < GLB_HEADER_BYTES + GLB_CHUNK_HEADER_BYTES) {
     return buffer;
@@ -239,7 +305,12 @@ function sanitizeExportedGlb(
     return buffer;
   }
 
-  const changed = normalizeExportedSceneJson(jsonPayload, fallbackSceneName);
+  const bundleChanged = applyBundleToGltfJson(jsonPayload, bundle);
+  const sceneChanged = normalizeExportedSceneJson(
+    jsonPayload,
+    fallbackSceneName,
+  );
+  const changed = bundleChanged || sceneChanged;
   if (!changed) {
     return buffer;
   }
@@ -340,6 +411,7 @@ export function exportScene(
         const sanitizedGltf = sanitizeExportedGlb(
           gltf,
           data.name?.trim() || undefined,
+          options.bundle,
         );
         const trimmed = fileName.trim();
         const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";

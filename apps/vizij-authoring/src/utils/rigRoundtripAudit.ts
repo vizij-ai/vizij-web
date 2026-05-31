@@ -12,6 +12,10 @@ import {
   type RawValue,
 } from "@vizij/utils";
 import type { World } from "@vizij/render";
+import {
+  canonicalizeGraphComparable,
+  diffGraphSpecs,
+} from "@vizij/studio-support";
 import type { ManagedStandardInput } from "../types/standardInputs";
 import type {
   GraphDiffCategory,
@@ -35,7 +39,6 @@ import {
   prepareSpecForImport,
   withVizijPipelineMetadataV1,
 } from "./graphImport";
-import { canonicalizeGraphComparable, diffGraphSpecs } from "./graphDiff";
 
 const GENERATED_NODE_ID_PREFIXES = [
   "join_",

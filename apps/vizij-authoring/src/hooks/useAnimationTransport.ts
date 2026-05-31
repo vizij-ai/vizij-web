@@ -439,10 +439,6 @@ export function AnimationRuntimeBridge({
       const playbackState = getAnimationState(AUTHORED_TIMELINE_CLIP_ID);
       if (!playbackState) {
         syncMissingPlaybackState();
-        if (!transportActive) {
-          frameHandle = 0;
-          return;
-        }
         frameHandle = requestAnimationFrame(tick);
         return;
       }
@@ -453,9 +449,6 @@ export function AnimationRuntimeBridge({
     const initialPlaybackState = getAnimationState(AUTHORED_TIMELINE_CLIP_ID);
     if (!initialPlaybackState) {
       syncMissingPlaybackState();
-      if (!transportActive) {
-        return;
-      }
     } else {
       syncPlaybackState(initialPlaybackState);
     }
@@ -465,14 +458,7 @@ export function AnimationRuntimeBridge({
         cancelAnimationFrame(frameHandle);
       }
     };
-  }, [
-    active,
-    getAnimationState,
-    setTransportRuntimeReady,
-    syncTransportState,
-    transportActive,
-    transportSessionKey,
-  ]);
+  }, [active, getAnimationState, syncTransportState, transportSessionKey]);
 
   return null;
 }

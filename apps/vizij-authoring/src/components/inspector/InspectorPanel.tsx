@@ -1367,6 +1367,7 @@ export function InspectorPanel({
                       Interp
                     </span>
                     <select
+                      data-testid="animation-track-interpolation-select"
                       className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
                       value={selectedAnimationTrack.interpolation}
                       onChange={(event) =>
@@ -1407,6 +1408,8 @@ export function InspectorPanel({
                           <button
                             key={keyframe.id}
                             type="button"
+                            data-testid="animation-keyframe-item"
+                            data-keyframe-id={keyframe.id}
                             className={cn(
                               "w-full rounded border px-2 py-1.5 text-left text-[10px] font-mono transition-colors",
                               isActive
@@ -1464,6 +1467,7 @@ export function InspectorPanel({
                       </span>
                       <input
                         type="number"
+                        data-testid="animation-keyframe-time-input"
                         step={selectedAnimationTimeFieldStep}
                         className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
                         value={selectedAnimationKeyframeTimeFieldValue}
@@ -1521,6 +1525,7 @@ export function InspectorPanel({
                         />
                         <input
                           type="number"
+                          data-testid="animation-keyframe-value-input"
                           step={selectedAnimationValueStep}
                           min={selectedAnimationValueRange.min}
                           max={selectedAnimationValueRange.max}

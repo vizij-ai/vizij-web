@@ -258,7 +258,7 @@ describe("Viewer", () => {
     }
   });
 
-  it("does not poll animation playback before runtime state exists", () => {
+  it("polls animation playback so direct runtime play can surface state", () => {
     const requestAnimationFrameSpy = vi
       .spyOn(globalThis, "requestAnimationFrame")
       .mockImplementation(() => 1);
@@ -288,9 +288,13 @@ describe("Viewer", () => {
     });
 
     try {
-      expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+      expect(getAnimationStateSpy).toHaveBeenCalledWith(
+        AUTHORED_TIMELINE_CLIP_ID,
+      );
+      expect(requestAnimationFrameSpy).toHaveBeenCalled();
     } finally {
       unmount();
+      expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(1);
       requestAnimationFrameSpy.mockRestore();
       cancelAnimationFrameSpy.mockRestore();
     }

@@ -188,6 +188,28 @@ export function specToEditorState(
     }
   }
 
+  for (const node of editorNodes) {
+    if (
+      node.type === OUTPUT_TARGET_TYPE ||
+      node.type === INPUT_SOURCE_TYPE ||
+      !node.data?.inputDefaults ||
+      typeof node.data.inputDefaults !== "object"
+    ) {
+      continue;
+    }
+    Object.keys(node.data.inputDefaults as Record<string, unknown>).forEach(
+      (portId) => {
+        const match = /^(.+)_(\d+)$/.exec(portId);
+        if (!match) return;
+        const idx = parseInt(match[2], 10);
+        const current = (node.data?.variadicInputCount as number) ?? 0;
+        if (idx + 1 > current) {
+          node.data = { ...node.data, variadicInputCount: idx + 1 };
+        }
+      },
+    );
+  }
+
   // ── 4b. Infer variadicOutputCount from connected handles ─────────
 
   for (const edge of editorEdges) {

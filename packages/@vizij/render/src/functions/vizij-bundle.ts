@@ -3,9 +3,18 @@ import { cloneDeepSafe } from "@vizij/utils";
 import type { VizijBundleExtension } from "../types";
 
 const BUNDLE_KEYS = ["VIZIJ_bundle"];
+const EXTENSION_CONTAINER_KEYS = ["gltfExtensions", "extensions"] as const;
 
 function cloneBundle<T>(value: T): T {
   return cloneDeepSafe(value);
+}
+
+type ExtensionContainerKey = (typeof EXTENSION_CONTAINER_KEYS)[number];
+
+interface RemovedBundleExtension {
+  object: Object3D;
+  containerKey: ExtensionContainerKey;
+  originalValue: unknown;
 }
 
 function readExtensionValue(extensionContainer: Record<string, unknown>) {
@@ -46,6 +55,64 @@ function searchObjectForBundle(object: Object3D): VizijBundleExtension | null {
     }
   }
   return null;
+}
+
+function stripExistingBundles(object: Object3D): RemovedBundleExtension[] {
+  const removed: RemovedBundleExtension[] = [];
+
+  object.traverse((current) => {
+    const userData =
+      (current as any).userData && typeof (current as any).userData === "object"
+        ? ((current as any).userData as Record<string, unknown>)
+        : null;
+    if (!userData) {
+      return;
+    }
+
+    EXTENSION_CONTAINER_KEYS.forEach((containerKey) => {
+      const extensions = userData[containerKey];
+      if (!extensions || typeof extensions !== "object") {
+        return;
+      }
+      const record = extensions as Record<string, unknown>;
+      const hasBundleKey = BUNDLE_KEYS.some((key) =>
+        Object.prototype.hasOwnProperty.call(record, key),
+      );
+      if (!hasBundleKey) {
+        return;
+      }
+
+      removed.push({
+        object: current,
+        containerKey,
+        originalValue: extensions,
+      });
+
+      const nextExtensions = { ...record };
+      BUNDLE_KEYS.forEach((key) => {
+        delete nextExtensions[key];
+      });
+
+      if (Object.keys(nextExtensions).length > 0) {
+        userData[containerKey] = nextExtensions;
+      } else {
+        delete userData[containerKey];
+      }
+    });
+  });
+
+  return removed;
+}
+
+function restoreExistingBundles(removed: RemovedBundleExtension[]): void {
+  [...removed].reverse().forEach(({ object, containerKey, originalValue }) => {
+    const userData =
+      (object as any).userData && typeof (object as any).userData === "object"
+        ? ((object as any).userData as Record<string, unknown>)
+        : {};
+    userData[containerKey] = originalValue;
+    (object as any).userData = userData;
+  });
 }
 
 function searchParserJsonForBundle(
@@ -122,12 +189,21 @@ export function applyVizijBundle(
   object: Object3D,
   bundle: VizijBundleExtension | null,
 ): () => void {
+  const removedBundles = stripExistingBundles(object);
   const userData =
     (object as any).userData && typeof (object as any).userData === "object"
       ? ((object as any).userData as Record<string, unknown>)
       : {};
   const originalExtensions = userData.gltfExtensions;
   let applied = false;
+  let restored = false;
+  const restoreRemovedBundlesOnce = () => {
+    if (restored) {
+      return;
+    }
+    restoreExistingBundles(removedBundles);
+    restored = true;
+  };
 
   if (bundle) {
     userData.gltfExtensions = {
@@ -140,6 +216,7 @@ export function applyVizijBundle(
 
   return () => {
     if (!applied) {
+      restoreRemovedBundlesOnce();
       return;
     }
     if (originalExtensions) {
@@ -153,5 +230,6 @@ export function applyVizijBundle(
       }
     }
     applied = false;
+    restoreRemovedBundlesOnce();
   };
 }

@@ -1,6 +1,60 @@
 import { buildRigPipelineV1LinkId, type StandardRigInput } from "@vizij/utils";
-import type { PoseRigConfigFile, PoseRigIrFile } from "../poseRig/types";
-import type { VizijPipelineMetadataV1 } from "./graphImport";
+
+export type VizijPipelineConfigMap = Record<string, Record<string, unknown>>;
+export type VizijPipelineLinkMap = Record<string, Record<string, unknown>>;
+export type VizijPipelineMetadataV1 = Record<string, unknown> & {
+  byInputId?: VizijPipelineConfigMap;
+  links?: VizijPipelineLinkMap;
+};
+
+type RemappableScopedNeutralDefinition =
+  | {
+      sourceType?: string;
+      values?: Record<string, number>;
+    }
+  | null
+  | undefined;
+
+type RemappableLowLevelSummary = {
+  inputs: string[];
+  bindings: Array<{ inputId?: string | null }>;
+};
+
+export type RemappablePoseConfig = {
+  neutralInputs: Record<string, number>;
+  crossGroupChannelOverrides?: Record<string, unknown>;
+  poses: Array<{
+    values: Record<string, number>;
+    composeModes?: Record<string, unknown>;
+  }>;
+  blendStages?: Array<{
+    neutral?: RemappableScopedNeutralDefinition;
+  }>;
+  poseGroups?: Array<{
+    neutral?: RemappableScopedNeutralDefinition;
+  }>;
+  lowLevel?: RemappableLowLevelSummary | null;
+};
+
+export type RemappablePoseIr = {
+  neutral: {
+    values: Record<string, number>;
+  };
+  crossGroupPolicy: {
+    overrides?: Record<string, unknown>;
+  };
+  poses: Array<{
+    targets: Record<string, number>;
+    composeModes?: Record<string, unknown>;
+  }>;
+  groups: Array<{
+    neutral?: RemappableScopedNeutralDefinition;
+  }>;
+  blendStages?: Array<{
+    neutral?: RemappableScopedNeutralDefinition;
+  }>;
+  lowLevel?: RemappableLowLevelSummary | null;
+};
 
 function normalizeToken(value: string | null | undefined): string | null {
   if (typeof value !== "string") {
@@ -120,10 +174,7 @@ function remapStringRecord<T>(
 }
 
 function remapScopedNeutralDefinition<
-  T extends
-    | { sourceType?: string; values?: Record<string, number> }
-    | null
-    | undefined,
+  T extends RemappableScopedNeutralDefinition,
 >(definition: T, idRemap: ReadonlyMap<string, string>): T {
   if (
     !definition ||
@@ -243,10 +294,10 @@ export function remapPipelineMetadataInputIds(
   return next;
 }
 
-export function remapPoseConfigInputIds(
-  config: PoseRigConfigFile | null,
+export function remapPoseConfigInputIds<T extends RemappablePoseConfig>(
+  config: T | null,
   idRemap: ReadonlyMap<string, string>,
-): PoseRigConfigFile | null {
+): T | null {
   if (!config || idRemap.size === 0) {
     return config;
   }
@@ -293,10 +344,10 @@ export function remapPoseConfigInputIds(
   };
 }
 
-export function remapPoseIrInputIds(
-  ir: PoseRigIrFile | null,
+export function remapPoseIrInputIds<T extends RemappablePoseIr>(
+  ir: T | null,
   idRemap: ReadonlyMap<string, string>,
-): PoseRigIrFile | null {
+): T | null {
   if (!ir || idRemap.size === 0) {
     return ir;
   }

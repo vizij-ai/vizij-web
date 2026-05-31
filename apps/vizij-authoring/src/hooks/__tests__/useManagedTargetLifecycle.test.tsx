@@ -134,6 +134,32 @@ describe("useManagedTargetLifecycle", () => {
     );
   });
 
+  it("hydrates the same selected target again when loader context changes", () => {
+    const setSelectedTargetId = vi.fn();
+    const firstLoadSelectedTarget = vi.fn();
+    const secondLoadSelectedTarget = vi.fn();
+    const harness = createHarness({
+      targetOptions: [{ value: "authored-animation:clip-1" }],
+      selectedTargetId: "authored-animation:clip-1",
+      setSelectedTargetId,
+      loadSelectedTarget: firstLoadSelectedTarget,
+    });
+    unmounts.push(() => harness.unmount());
+
+    firstLoadSelectedTarget.mockClear();
+
+    harness.rerender({
+      targetOptions: [{ value: "authored-animation:clip-1" }],
+      selectedTargetId: "authored-animation:clip-1",
+      setSelectedTargetId,
+      loadSelectedTarget: secondLoadSelectedTarget,
+    });
+
+    expect(secondLoadSelectedTarget).toHaveBeenCalledWith(
+      "authored-animation:clip-1",
+    );
+  });
+
   it("stops invalid runtime playback when the active target disappears", () => {
     const setSelectedTargetId = vi.fn();
     const loadSelectedTarget = vi.fn();

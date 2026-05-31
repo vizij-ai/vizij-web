@@ -5,7 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { Group } from "three";
-import { extractVizijBundle } from "../src/functions/vizij-bundle.ts";
+import {
+  applyVizijBundle,
+  extractVizijBundle,
+} from "../src/functions/vizij-bundle.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,4 +76,41 @@ test("prefers root-level parser extension over node and scene extensions", () =>
   const bundle = extractVizijBundle(rootGroup, parserJson);
   assert.ok(bundle, "bundle should be found");
   assert.equal(bundle.metadata?.source, "root");
+});
+
+test("applyVizijBundle replaces stale subtree bundles while attached", () => {
+  const rootGroup = new Group();
+  rootGroup.name = "Root";
+  rootGroup.userData.gltfExtensions = {
+    VIZIJ_bundle: { version: 1, metadata: { source: "old-root" } },
+    OTHER_extension: { enabled: true },
+  };
+
+  const childGroup = new Group();
+  childGroup.name = "Child";
+  childGroup.userData.gltfExtensions = {
+    VIZIJ_bundle: { version: 1, metadata: { source: "old-child" } },
+  };
+  rootGroup.add(childGroup);
+
+  const restore = applyVizijBundle(rootGroup, {
+    version: 1,
+    metadata: { source: "new-root" },
+  });
+
+  const appliedBundle = extractVizijBundle(rootGroup);
+  assert.ok(appliedBundle, "bundle should be found while applied");
+  assert.equal(appliedBundle.metadata?.source, "new-root");
+  assert.equal(rootGroup.userData.gltfExtensions.OTHER_extension.enabled, true);
+  assert.equal(childGroup.userData.gltfExtensions, undefined);
+
+  restore();
+
+  const restoredBundle = extractVizijBundle(rootGroup);
+  assert.ok(restoredBundle, "bundle should be restored");
+  assert.equal(restoredBundle.metadata?.source, "old-root");
+  assert.equal(
+    childGroup.userData.gltfExtensions.VIZIJ_bundle.metadata.source,
+    "old-child",
+  );
 });

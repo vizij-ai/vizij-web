@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prepare:arora-web": "node ./scripts/prepare-arora-web-assets.mjs",
+    "prepare:arora-web": "node ../../scripts/prepare-arora-web-assets.mjs --app-root . --include-compatibility",
+    "ensure:arora-web": "node ../../scripts/prepare-arora-web-assets.mjs --app-root . --ensure --include-compatibility",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -33,7 +34,6 @@
     "prettier": "^3.4.2",
     "typescript": "^5.9.3",
     "vite": "^6.3.6",
-    "vitest": "^3.2.4",
-    "yaml": "^2.8.1"
+    "vitest": "^3.2.4"
   }
 }

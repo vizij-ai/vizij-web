@@ -6,6 +6,11 @@ import {
   type StandardRigInput,
 } from "@vizij/utils";
 import {
+  buildStandardInputIdRemap,
+  remapPoseConfigInputIds,
+  remapPoseIrInputIds,
+} from "@vizij/studio-support";
+import {
   createPoseRigStore,
   PoseRigStoreProvider,
   type PoseRigState,
@@ -24,11 +29,6 @@ import {
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
-import {
-  buildStandardInputIdRemap,
-  remapPoseConfigInputIds,
-  remapPoseIrInputIds,
-} from "../utils/standardInputRemap";
 import {
   useBindingAuthoring,
   useGraphRuntime,

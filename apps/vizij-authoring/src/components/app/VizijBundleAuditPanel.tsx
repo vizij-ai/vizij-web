@@ -1,4 +1,4 @@
-import type { BundleGraphAuditEntry } from "../../utils/bundleAudit";
+import type { BundleGraphAuditEntry } from "@vizij/studio-support";
 import {
   Button,
   Card,

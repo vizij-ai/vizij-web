@@ -9,6 +9,8 @@ import type {
   AroraWebPreloadModule,
   AroraWebPreloadModuleName,
   CreateOrchOptions,
+  OrchestratorDebugInfo,
+  OrchestratorFrame,
 } from "./types";
 import type {
   ModuleFacadeRequest,
@@ -77,6 +79,40 @@ type ResolvedAroraWebModule = AroraWebDispatchBinding & {
   wasmUrl: string | URL;
 };
 
+type AroraWebDebugModuleInfo = {
+  id: string | null;
+  name: string | null;
+  wasmUrl: string | null;
+  engineModuleId: string | null;
+};
+
+type AroraWebDebugInstance = {
+  backend: "aroraWeb";
+  orchestratorModule: AroraWebOrchestratorModule;
+  moduleRegistryUrl: string | null;
+  selectedModule: AroraWebDebugModuleInfo;
+  preloadedModules: AroraWebDebugModuleInfo[];
+  dispatchCount: number;
+  facadeCallCounts: Record<string, number>;
+  lastFacadeCall: string | null;
+  lastFacadeRequests: Record<string, string>;
+  lastDispatchFunctionId: string | null;
+  lastRequestParamId: string | null;
+  createdAtMs: number;
+  updatedAtMs: number;
+};
+
+type AroraWebDebugState = {
+  latestInstanceId: string | null;
+  instances: Record<string, AroraWebDebugInstance>;
+};
+
+type GlobalWithAroraWebDebug = typeof globalThis & {
+  __VIZIJ_MEMORY_INVESTIGATION__?: { enabled?: boolean };
+  __VIZIJ_RUNTIME_DEBUG__?: boolean;
+  __vizijAroraWebDebugState?: AroraWebDebugState;
+};
+
 const VIZIJ_ORCHESTRATOR_MODULE_ID = "144358c2-b7e0-414d-8755-56d7ac03f811";
 const VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID =
   "580d9cef-88be-4f1c-b649-f87032acd8fe";
@@ -93,6 +129,8 @@ const VIZIJ_ORCHESTRATOR_MODULE_REGISTRY_KEYS: Record<
 
 const DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE: AroraWebOrchestratorModule =
   "composed";
+
+let aroraWebDebugInstanceSequence = 0;
 
 const VIZIJ_ORCHESTRATOR_MODULE_PRESETS: Record<
   AroraWebOrchestratorModule,
@@ -316,6 +354,126 @@ async function loadHeaderObject(
 
 function stringField(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function aroraWebDebugGlobal(): GlobalWithAroraWebDebug {
+  return globalThis as GlobalWithAroraWebDebug;
+}
+
+function isAroraWebDebugEnabled(): boolean {
+  const globalObj = aroraWebDebugGlobal();
+  return Boolean(
+    globalObj.__VIZIJ_RUNTIME_DEBUG__ ||
+      globalObj.__VIZIJ_MEMORY_INVESTIGATION__?.enabled,
+  );
+}
+
+function updateAroraWebDebugState(
+  instanceId: string,
+  updater: (instance: AroraWebDebugInstance) => void,
+): void {
+  if (!isAroraWebDebugEnabled()) {
+    return;
+  }
+  const globalObj = aroraWebDebugGlobal();
+  if (!globalObj.__vizijAroraWebDebugState) {
+    globalObj.__vizijAroraWebDebugState = {
+      latestInstanceId: null,
+      instances: {},
+    };
+  }
+  const state = globalObj.__vizijAroraWebDebugState;
+  const instance = state.instances[instanceId];
+  if (!instance) {
+    return;
+  }
+  updater(instance);
+  instance.updatedAtMs = nowMs();
+}
+
+function setAroraWebDebugInstance(
+  instanceId: string,
+  instance: AroraWebDebugInstance,
+): void {
+  if (!isAroraWebDebugEnabled()) {
+    return;
+  }
+  const globalObj = aroraWebDebugGlobal();
+  if (!globalObj.__vizijAroraWebDebugState) {
+    globalObj.__vizijAroraWebDebugState = {
+      latestInstanceId: null,
+      instances: {},
+    };
+  }
+  globalObj.__vizijAroraWebDebugState.instances[instanceId] = instance;
+  globalObj.__vizijAroraWebDebugState.latestInstanceId = instanceId;
+}
+
+function facadeCallFromRequestJson(requestJson: string): string | null {
+  try {
+    const request = JSON.parse(requestJson) as { call?: unknown };
+    return stringField(request.call);
+  } catch {
+    return null;
+  }
+}
+
+function moduleInfoFromHeader(
+  header: object,
+  wasmUrl: string | URL,
+  engineModuleId: string | null,
+): AroraWebDebugModuleInfo {
+  return {
+    id: stringField((header as { id?: unknown }).id),
+    name: stringField((header as { name?: unknown }).name),
+    wasmUrl: String(wasmUrl),
+    engineModuleId,
+  };
+}
+
+function supportsDeltaFrames(
+  header: object,
+  orchestratorModule: AroraWebOrchestratorModule,
+): boolean {
+  const id = stringField((header as { id?: unknown }).id);
+  const name = stringField((header as { name?: unknown }).name);
+  if (
+    id === VIZIJ_ORCHESTRATOR_COMPOSED_MODULE_ID ||
+    name === "vizij-orchestrator-composed"
+  ) {
+    return true;
+  }
+  if (orchestratorModule !== "composed") {
+    return false;
+  }
+  const importedModuleIds = new Set(
+    functionImports(header)
+      .map((importValue) => stringField(importValue.module))
+      .filter((moduleId): moduleId is string => Boolean(moduleId)),
+  );
+  return (
+    importedModuleIds.has(VIZIJ_ANIMATION_MODULE_ID) ||
+    importedModuleIds.has(VIZIJ_NODE_GRAPH_MODULE_ID)
+  );
+}
+
+function isUnsupportedStepDeltaError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+  return (
+    message.includes("orchestrator.stepDelta") &&
+    /unsupported|unknown|unrecognized|not found|not implemented|no such|does not support/i.test(
+      message,
+    )
+  );
 }
 
 function functionExports(header: object): AroraHeaderExport[] {
@@ -690,6 +848,7 @@ async function resolveAroraWebModule(
 }
 
 type ResolvedAroraWebPreloadModule = {
+  header: object;
   headerJson: string;
   wasmUrl: string | URL;
   wasmBytes?: Uint8Array | ArrayBuffer;
@@ -774,6 +933,7 @@ async function resolvePreloadModules(
       );
     }
     resolved.push({
+      header,
       headerJson: JSON.stringify(header),
       wasmUrl,
       ...(moduleConfig?.wasmBytes ? { wasmBytes: moduleConfig.wasmBytes } : {}),
@@ -812,8 +972,9 @@ async function preloadModules(
   config: AroraWebInitInput,
   selectedHeader: object,
   registry: AroraWebModuleRegistry,
-): Promise<void> {
+): Promise<AroraWebDebugModuleInfo[]> {
   const modules = await resolvePreloadModules(config, selectedHeader, registry);
+  const loadedModules: AroraWebDebugModuleInfo[] = [];
   for (const moduleConfig of modules) {
     const wasmBytes = await loadWasmBytes(
       config,
@@ -821,8 +982,20 @@ async function preloadModules(
       moduleConfig.wasmBytes,
       { useGlobalWasmBytes: false },
     );
-    loadModule(engine, moduleConfig.headerJson, wasmBytes);
+    const engineModuleId = loadModule(
+      engine,
+      moduleConfig.headerJson,
+      wasmBytes,
+    );
+    loadedModules.push(
+      moduleInfoFromHeader(
+        moduleConfig.header,
+        moduleConfig.wasmUrl,
+        engineModuleId,
+      ),
+    );
   }
+  return loadedModules;
 }
 
 function loadModule(
@@ -847,16 +1020,19 @@ class AroraWebModuleFacade implements ModuleFacadeTransport {
   private readonly moduleId: string;
   private readonly dispatchFunctionId: string;
   private readonly requestParamId: string;
+  private readonly debugInstanceId: string;
 
   constructor(
     engine: AroraWebEngine,
     moduleId: string,
     binding: AroraWebDispatchBinding,
+    debugInstanceId: string,
   ) {
     this.engine = engine;
     this.moduleId = moduleId;
     this.dispatchFunctionId = binding.dispatchFunctionId;
     this.requestParamId = binding.requestParamId;
+    this.debugInstanceId = debugInstanceId;
   }
 
   dispatch<TResult = unknown, TArgs = unknown>(
@@ -868,6 +1044,20 @@ class AroraWebModuleFacade implements ModuleFacadeTransport {
   }
 
   dispatchJson(requestJson: string): string {
+    if (isAroraWebDebugEnabled()) {
+      const facadeCall = facadeCallFromRequestJson(requestJson);
+      updateAroraWebDebugState(this.debugInstanceId, (instance) => {
+        instance.dispatchCount += 1;
+        if (facadeCall) {
+          instance.lastFacadeCall = facadeCall;
+          instance.lastFacadeRequests[facadeCall] = requestJson;
+          instance.facadeCallCounts[facadeCall] =
+            (instance.facadeCallCounts[facadeCall] ?? 0) + 1;
+        }
+        instance.lastDispatchFunctionId = this.dispatchFunctionId;
+        instance.lastRequestParamId = this.requestParamId;
+      });
+    }
     const callJson = JSON.stringify({
       module_id: this.moduleId,
       id: this.dispatchFunctionId,
@@ -890,11 +1080,28 @@ class AroraWebModuleFacade implements ModuleFacadeTransport {
 }
 
 export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime {
+  private readonly useDeltaFrames: boolean;
+  private readonly debugInstanceId: string;
+  private stepDeltaAvailable: boolean;
+  private deltaFrameVersion: number | undefined;
+
+  constructor(
+    facade: ModuleFacadeTransport,
+    options: { debugInstanceId?: string; useDeltaFrames?: boolean } = {},
+  ) {
+    super(facade);
+    this.useDeltaFrames = options.useDeltaFrames === true;
+    this.stepDeltaAvailable = this.useDeltaFrames;
+    this.debugInstanceId = options.debugInstanceId ?? "";
+  }
+
   static async create(
     opts?: CreateOrchOptions,
     initInput?: unknown,
   ): Promise<AroraWebOrchestratorRuntime> {
     const config = normalizeConfig(initInput);
+    const orchestratorModule =
+      config.orchestratorModule ?? DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE;
     const module = await loadAroraWebModule(config);
     await initAroraWeb(module, defaultAroraWebInitInput(config));
 
@@ -912,13 +1119,90 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
       throw new Error("arora-web module does not expose Engine.");
     }
     const engine = new module.Engine();
-    await preloadModules(engine, config, selectedModule.header, registry);
+    const preloadedModules = await preloadModules(
+      engine,
+      config,
+      selectedModule.header,
+      registry,
+    );
     const moduleId = loadModule(engine, selectedModule.headerJson, wasmBytes);
+    const debugInstanceId = `arora-web:${aroraWebDebugInstanceSequence++}`;
+    const timestamp = nowMs();
+    setAroraWebDebugInstance(debugInstanceId, {
+      backend: "aroraWeb",
+      orchestratorModule,
+      moduleRegistryUrl:
+        config.moduleRegistryUrl === false
+          ? null
+          : String(
+              config.moduleRegistryUrl ?? DEFAULT_MODULE_REGISTRY_MANIFEST_URL,
+            ),
+      selectedModule: moduleInfoFromHeader(
+        selectedModule.header,
+        selectedModule.wasmUrl,
+        moduleId,
+      ),
+      preloadedModules,
+      dispatchCount: 0,
+      facadeCallCounts: {},
+      lastFacadeCall: null,
+      lastFacadeRequests: {},
+      lastDispatchFunctionId: null,
+      lastRequestParamId: null,
+      createdAtMs: timestamp,
+      updatedAtMs: timestamp,
+    });
 
     const runtime = new AroraWebOrchestratorRuntime(
-      new AroraWebModuleFacade(engine, moduleId, selectedModule),
+      new AroraWebModuleFacade(
+        engine,
+        moduleId,
+        selectedModule,
+        debugInstanceId,
+      ),
+      {
+        debugInstanceId,
+        useDeltaFrames: supportsDeltaFrames(
+          selectedModule.header,
+          orchestratorModule,
+        ),
+      },
     );
     runtime.createRuntime(opts);
     return runtime;
+  }
+
+  getDebugInfo(): OrchestratorDebugInfo {
+    return {
+      aroraWebInstanceId: this.debugInstanceId || null,
+    };
+  }
+
+  step(dt: number): OrchestratorFrame {
+    if (!this.useDeltaFrames || !this.stepDeltaAvailable) {
+      return super.step(dt);
+    }
+
+    let frame: OrchestratorFrame;
+    try {
+      frame = this.call<OrchestratorFrame>("orchestrator.stepDelta", {
+        dt,
+        ...(this.deltaFrameVersion !== undefined
+          ? { sinceVersion: this.deltaFrameVersion }
+          : {}),
+      });
+    } catch (error) {
+      if (!isUnsupportedStepDeltaError(error)) {
+        throw error;
+      }
+      this.stepDeltaAvailable = false;
+      this.deltaFrameVersion = undefined;
+      return super.step(dt);
+    }
+    this.deltaFrameVersion =
+      typeof frame.version === "number" && Number.isFinite(frame.version)
+        ? frame.version
+        : undefined;
+    return frame;
   }
 }

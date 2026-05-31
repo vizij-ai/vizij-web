@@ -4,6 +4,7 @@ import {
   buildGraphRegistrationConfig,
   diffAnimationAggregateValues,
   prepareRuntimeAssetBundle,
+  prepareRuntimeAssetView,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
   toStoredAnimationClip,
@@ -70,6 +71,41 @@ describe("studio support package", () => {
     expect(prepared.animations?.map((animation) => animation.id)).toEqual([
       "blink",
     ]);
+  });
+
+  it("prepares a runtime asset view with authoritative program overrides", () => {
+    const prepared = prepareRuntimeAssetView(
+      makeBaseBundle({
+        rig: undefined,
+        pose: undefined,
+        programs: [],
+      }),
+      {
+        version: 1,
+        graphs: [
+          {
+            id: "wave",
+            kind: "motiongraph",
+            spec: {
+              nodes: [
+                {
+                  id: "out",
+                  type: "output",
+                  params: { path: "rig/face/smile" },
+                },
+              ],
+              edges: [],
+            },
+          },
+        ],
+      },
+      undefined,
+    );
+
+    expect(prepared.assetBundle.programs).toEqual([]);
+    expect(prepared.programs).toEqual([]);
+    expect(prepared.assetBundle.rig).toBeUndefined();
+    expect(prepared.assetBundle.pose).toBeUndefined();
   });
 
   it("builds namespaced graph registration configs", () => {

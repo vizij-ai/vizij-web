@@ -2,11 +2,9 @@ import type { VizijBundleExtension } from "@vizij/render";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
-import type { GraphDiffResult } from "../types/discrepancy";
+import { cloneDeepSafe } from "@vizij/utils";
+import type { GraphDiffResult } from "./graphDiff";
 import { diffGraphSpecs } from "./graphDiff";
-import { extractGraphFaceId } from "./graphImport";
-import { cloneSerializable } from "./serialization";
-import { normalizeGraphPath } from "./graphPaths";
 
 export type BundleGraphAuditStatus = "match" | "diff" | "missing-ir" | "error";
 
@@ -33,6 +31,51 @@ export interface BundleGraphOutputAudit {
 
 interface BundleAuditOptions {
   validOutputTargets?: Set<string>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneSerializable<T>(value: T): T {
+  return cloneDeepSafe(value);
+}
+
+function extractVizijMetadataSection(
+  payload: unknown,
+): Record<string, unknown> | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+  const metadata = payload.metadata;
+  if (!isRecord(metadata)) {
+    return null;
+  }
+  const vizij = metadata.vizij;
+  if (!isRecord(vizij)) {
+    return null;
+  }
+  return cloneSerializable(vizij);
+}
+
+function extractGraphFaceId(payload: unknown): string | null {
+  const vizij = extractVizijMetadataSection(payload);
+  if (!vizij) {
+    return null;
+  }
+  const faceId = typeof vizij.faceId === "string" ? vizij.faceId.trim() : "";
+  return faceId.length > 0 ? faceId : null;
+}
+
+function normalizeGraphPath(path: string | null | undefined): string | null {
+  if (!path) {
+    return null;
+  }
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.replace(/\\/g, "/").replace(/\/+/g, "/").toLowerCase();
 }
 
 function normalizeMaybeSpec(

@@ -14,6 +14,12 @@
       "@vizij/runtime-react": [
         "../../packages/@vizij/runtime-react/src/index.ts"
       ],
+      "@vizij/orchestrator-react": [
+        "../../packages/@vizij/orchestrator-react/src/index.ts"
+      ],
+      "@vizij/studio-support": [
+        "../../packages/@vizij/studio-support/src/index.ts"
+      ],
       "@vizij/utils": ["../../packages/@vizij/utils/src/index.ts"],
       "@vizij/utils/*": ["../../packages/@vizij/utils/src/*"],
       "@vizij/authoring-shared": ["./src/shared/index.ts"],

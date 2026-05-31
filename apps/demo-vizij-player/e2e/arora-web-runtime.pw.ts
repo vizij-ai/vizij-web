@@ -15,6 +15,8 @@ const requiredAroraAssets = [
   "public/arora-web/modules/vizij-animation/vizij_animation.wasm",
   "public/arora-web/modules/vizij-node-graph/module.json",
   "public/arora-web/modules/vizij-node-graph/vizij_node_graph.wasm",
+  "public/arora-web/modules/vizij-orchestrator/module.json",
+  "public/arora-web/modules/vizij-orchestrator/arora_vizij_orchestrator.wasm",
   "public/arora-web/modules/vizij-orchestrator-composed/module.json",
   "public/arora-web/modules/vizij-orchestrator-composed/arora_vizij_orchestrator_composed.wasm",
 ];

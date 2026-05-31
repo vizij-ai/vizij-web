@@ -1,18 +1,19 @@
-import type { GraphSpec } from "@vizij/node-graph-wasm";
 import type { VizijBundleExtension } from "@vizij/render";
-import type { VizijAssetBundle } from "@vizij/runtime-react";
-import type { PoseRigConfig } from "@vizij/runtime-react";
 import type { AnimatableValue } from "@vizij/utils";
 import type { World } from "@vizij/render";
-import type { PoseRigConfigFile } from "../poseRig/types";
+import type {
+  PoseRigConfig,
+  VizijAssetBundle,
+  VizijGraphAsset,
+} from "../types";
 
 type BuildRuntimeBundleOptions = {
   namespace: string;
   world: World | Record<string, unknown> | null;
   animatables: Record<string, AnimatableValue> | Record<string, unknown> | null;
-  rigSpec: GraphSpec | null;
-  poseGraphSpec: GraphSpec | null;
-  poseConfig: PoseRigConfigFile | null;
+  rigSpec: VizijGraphAsset["spec"] | null;
+  poseGraphSpec: VizijGraphAsset["spec"] | null;
+  poseConfig: PoseRigConfig | null;
   loadedBundle: VizijBundleExtension | null;
 };
 

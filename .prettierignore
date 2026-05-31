@@ -9,3 +9,4 @@ build
 pnpm-lock.yaml
 apps/**/src-tauri/target
 apps/demo-vizij-player/public/arora-web
+apps/vizij-authoring/public/arora-web

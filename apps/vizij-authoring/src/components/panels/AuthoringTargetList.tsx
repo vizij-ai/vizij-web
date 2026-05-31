@@ -52,6 +52,13 @@ const SOURCE_FILTERS: ReadonlyArray<{
   { id: "imported", label: "Imported" },
 ];
 
+function testIdPart(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
+}
+
 export function AuthoringTargetList({
   emptyDescription,
   items,
@@ -66,6 +73,7 @@ export function AuthoringTargetList({
 }: AuthoringTargetListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const kindTestId = testIdPart(kindLabel);
   const selectedItem = useMemo(
     () => items.find((item) => item.selected) ?? null,
     [items],
@@ -105,6 +113,7 @@ export function AuthoringTargetList({
           className="h-6 px-2 text-[10px] gap-1"
           onClick={onCreate}
           title={`Create a new ${kindLabel.toLowerCase()}`}
+          data-testid={`authoring-${kindTestId}-create`}
         >
           <Plus size={11} />
           {`New ${kindLabel}`}
@@ -125,6 +134,7 @@ export function AuthoringTargetList({
                 ? `Copy selected ${kindLabel.toLowerCase()}`
                 : `Select a ${kindLabel.toLowerCase()} to copy`
             }
+            data-testid={`authoring-${kindTestId}-copy-selected`}
           >
             <Copy size={11} />
             Copy
@@ -146,6 +156,7 @@ export function AuthoringTargetList({
                 ? `Delete selected ${kindLabel.toLowerCase()}`
                 : `Select a ${kindLabel.toLowerCase()} to delete`
             }
+            data-testid={`authoring-${kindTestId}-delete-selected`}
           >
             <Trash2 size={11} />
             Delete
@@ -159,6 +170,7 @@ export function AuthoringTargetList({
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder={`Search ${kindLabel.toLowerCase()}s...`}
           startContent={<Search className="h-3.5 w-3.5" />}
+          data-testid={`authoring-${kindTestId}-search`}
         />
       </div>
       <div className="flex flex-wrap items-center gap-1 px-1">
@@ -169,6 +181,7 @@ export function AuthoringTargetList({
             size="sm"
             className="h-6 px-2 text-[10px] uppercase tracking-wider"
             onClick={() => setSourceFilter(filter.id)}
+            data-testid={`authoring-${kindTestId}-filter-${filter.id}`}
           >
             {filter.label}
           </Button>
@@ -191,6 +204,8 @@ export function AuthoringTargetList({
               return (
                 <div
                   key={item.id}
+                  data-testid={`authoring-${kindTestId}-item`}
+                  data-target-id={item.id}
                   className={cn(
                     "group flex w-full scroll-mt-24 flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors",
                     item.selected
@@ -202,10 +217,15 @@ export function AuthoringTargetList({
                     type="button"
                     className="flex w-full min-w-0 flex-1 cursor-pointer flex-col items-start justify-center text-left"
                     onClick={() => onSelect(item.id)}
+                    data-testid={`authoring-${kindTestId}-item-select`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-semibold text-text-primary">
-                        {item.label}
+                        <span
+                          data-testid={`authoring-${kindTestId}-item-label`}
+                        >
+                          {item.label}
+                        </span>
                       </span>
                       <Badge
                         tone={item.source === "authored" ? "accent" : "info"}
@@ -237,6 +257,7 @@ export function AuthoringTargetList({
                           onPlay(item.id);
                         }}
                         title={`Play ${kindLabel.toLowerCase()}`}
+                        data-testid={`authoring-${kindTestId}-item-play`}
                       >
                         <Play className="h-3 w-3 fill-current" />
                         Play
@@ -254,6 +275,7 @@ export function AuthoringTargetList({
                           onPause(item.id);
                         }}
                         title={`Pause ${kindLabel.toLowerCase()}`}
+                        data-testid={`authoring-${kindTestId}-item-pause`}
                       >
                         <Pause className="h-3 w-3 fill-current" />
                         Pause
@@ -270,6 +292,7 @@ export function AuthoringTargetList({
                           onStop(item.id);
                         }}
                         title={`Stop ${kindLabel.toLowerCase()}`}
+                        data-testid={`authoring-${kindTestId}-item-stop`}
                       >
                         <Square className="h-3 w-3 fill-current" />
                         Stop
@@ -285,6 +308,7 @@ export function AuthoringTargetList({
                           onDuplicate(item.id);
                         }}
                         title={`Copy ${kindLabel.toLowerCase()}`}
+                        data-testid={`authoring-${kindTestId}-item-copy`}
                       >
                         <Copy className="h-3 w-3" />
                         Copy
@@ -300,6 +324,7 @@ export function AuthoringTargetList({
                           onDelete(item.id);
                         }}
                         title={`Delete ${kindLabel.toLowerCase()}`}
+                        data-testid={`authoring-${kindTestId}-item-delete`}
                       >
                         <Trash2 className="h-3 w-3" />
                         Delete

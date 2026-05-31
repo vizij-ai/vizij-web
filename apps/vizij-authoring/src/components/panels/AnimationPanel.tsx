@@ -313,6 +313,7 @@ export function AnimationPanel({
         <div className="flex items-center gap-2 px-1">
           <div className="flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 shadow-sm">
             <Button
+              data-testid="animation-panel-stop"
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
@@ -323,6 +324,7 @@ export function AnimationPanel({
               <Square className="h-3 w-3 fill-current" />
             </Button>
             <Button
+              data-testid="animation-panel-playback-toggle"
               variant="primary"
               size="sm"
               className="h-6 px-4 rounded-md mx-0.5 text-[10px] uppercase font-bold tracking-wider shadow-sm"
@@ -333,6 +335,11 @@ export function AnimationPanel({
                 effectivePlaybackState === "playing"
                   ? !handlePause
                   : !handlePlay
+              }
+              title={
+                effectivePlaybackState === "playing"
+                  ? "Pause animation"
+                  : "Play animation"
               }
             >
               {effectivePlaybackState === "playing" ? (

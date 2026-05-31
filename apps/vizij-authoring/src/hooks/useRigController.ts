@@ -55,6 +55,10 @@ import {
   type RigBindingSlot,
   type StandardRigInput,
 } from "@vizij/utils";
+import {
+  buildStandardInputIdRemap,
+  remapPipelineMetadataInputIds,
+} from "@vizij/studio-support";
 import { buildRigInputPath } from "../poseRig/utils";
 import { buildSceneGraphData } from "../scene/sceneGraph";
 import {
@@ -76,10 +80,6 @@ import {
   normalizeVizijPipelineLinkMap,
   type VizijPipelineMetadataV1,
 } from "../utils/graphImport";
-import {
-  buildStandardInputIdRemap,
-  remapPipelineMetadataInputIds,
-} from "../utils/standardInputRemap";
 import type { AutoInputState } from "../types/autoInputs";
 import type { GraphRuntimeStore } from "../state/graphRuntimeStore";
 import type { BindingAuthoringStore } from "../state/bindingAuthoringStore";

@@ -11,7 +11,11 @@ import {
   type ValueJSON,
 } from "@vizij/orchestrator-react";
 import { useVizijRuntime } from "../hooks/useVizijRuntime";
-import type { VizijAssetBundle, VizijRuntimeContextValue } from "../types";
+import type {
+  VizijAssetBundle,
+  VizijRuntimeContextValue,
+  VizijRuntimeStatus,
+} from "../types";
 import { VizijRuntimeProvider } from "../VizijRuntimeProvider";
 
 (
@@ -135,10 +139,15 @@ function makeOrchestratorContext(
 
 async function mountRuntime(
   assetBundle = makeBundle(),
-  options: { backend?: OrchestratorReactCtx["backend"] } = {},
+  options: {
+    backend?: OrchestratorReactCtx["backend"];
+    configureOrchestrator?: (orchestrator: OrchestratorReactCtx) => void;
+    onStatusChange?: (status: VizijRuntimeStatus) => void;
+  } = {},
 ) {
   const calls: RuntimeCall[] = [];
   const orchestrator = makeOrchestratorContext(calls, options.backend);
+  options.configureOrchestrator?.(orchestrator);
   let runtime: VizijRuntimeContextValue | null = null;
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -159,6 +168,7 @@ async function mountRuntime(
           autostart={false}
           driveOrchestrator={false}
           namespace="demo-face"
+          onStatusChange={options.onStatusChange}
         >
           <Probe />
         </VizijRuntimeProvider>
@@ -188,6 +198,56 @@ afterEach(() => {
 });
 
 describe("VizijRuntimeProvider execution loop", () => {
+  it("does not report runtime ready when controller registration fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const statuses: VizijRuntimeStatus[] = [];
+    try {
+      const { runtime } = await mountRuntime(
+        makeBundle({
+          rig: {
+            id: "rig",
+            spec: {
+              nodes: [
+                {
+                  id: "in",
+                  type: "input",
+                  params: { path: "rig/face/smile" },
+                },
+                {
+                  id: "out",
+                  type: "output",
+                  params: { path: "rig/face/smile" },
+                },
+              ],
+              edges: [],
+            },
+          },
+        }),
+        {
+          configureOrchestrator: (orchestrator) => {
+            orchestrator.registerGraph = vi.fn(() => {
+              throw new Error("graph register failed");
+            });
+          },
+          onStatusChange: (status) => {
+            statuses.push(status);
+          },
+        },
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(runtime().ready).toBe(false);
+      expect(runtime().loading).toBe(false);
+      expect(runtime().error?.message).toBe("Failed to register rig graphs");
+      expect(statuses.at(-1)?.ready).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("flushes staged public inputs and host animation updates before stepping the runtime", async () => {
     const { calls, runtime } = await mountRuntime();
 
@@ -266,6 +326,43 @@ describe("VizijRuntimeProvider execution loop", () => {
         shape: undefined,
       },
     ]);
+  });
+
+  it("does not rehydrate bundle programs after an explicit empty program override", async () => {
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        rig: undefined,
+        pose: undefined,
+        programs: [],
+        bundle: {
+          version: 1,
+          graphs: [
+            {
+              id: "bundle-program",
+              kind: "motiongraph",
+              spec: {
+                nodes: [
+                  {
+                    id: "out",
+                    type: "output",
+                    params: { path: "rig/face/smile" },
+                  },
+                ],
+                edges: [],
+              },
+            },
+          ],
+        } as VizijAssetBundle["bundle"],
+      }),
+    );
+
+    expect(runtime().assetBundle.programs).toEqual([]);
+    expect(
+      calls.some(
+        (call) =>
+          call.kind === "registerGraph" || call.kind === "registerMergedGraph",
+      ),
+    ).toBe(false);
   });
 
   it("routes animation playback through orchestrator commands for Arora web runtimes", async () => {
@@ -350,5 +447,56 @@ describe("VizijRuntimeProvider execution loop", () => {
       },
       { kind: "step", dt: 0 },
     ]);
+  });
+
+  it("does not host-sample animation playback when Arora web controller registration fails", async () => {
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        animations: [
+          {
+            id: "blink",
+            clip: {
+              id: "blink",
+              duration: 1,
+              tracks: [
+                {
+                  channel: "rig/face/smile",
+                  keyframes: [
+                    { time: 0, value: 0 },
+                    { time: 1, value: 1 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      {
+        backend: "aroraWeb",
+        configureOrchestrator: (orchestrator) => {
+          orchestrator.registerAnimation = vi.fn(() => {
+            throw new Error("animation register failed");
+          });
+        },
+      },
+    );
+
+    calls.splice(0);
+    await act(async () => {
+      await expect(
+        runtime().playAnimation("blink", {
+          reset: true,
+        }),
+      ).rejects.toThrow(
+        "Cannot play animation blink through orchestrator transport because no animation controller was registered.",
+      );
+    });
+
+    expect(
+      calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
+    ).toEqual([]);
+    expect(runtime().error?.message).toBe(
+      "Cannot play animation blink through orchestrator transport because no animation controller was registered.",
+    );
   });
 });

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import { buildRuntimeInputCatalogFromConstraints } from "@vizij/studio-support";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
 import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
@@ -40,7 +41,6 @@ import {
   RuntimeFaceControlsOverlay,
   type RuntimeFaceOverlayAction,
 } from "./RuntimeFaceControlsOverlay";
-import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import {
   applyLockedRuntimeOutputWrite,
   buildLockedRuntimeOutputIndex,
@@ -681,6 +681,7 @@ export function Viewer({
           <VizijRuntimeProvider
             assetBundle={bundle}
             autostart
+            orchestratorBackend="aroraWeb"
             onRegisterControllers={handleRuntimeControllersRegistered}
             transformOutputWrite={transformOutputWrite}
           >

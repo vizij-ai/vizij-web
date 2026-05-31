@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildRigPipelineV1LinkId, type StandardRigInput } from "@vizij/utils";
-import type { PoseRigConfigFile, PoseRigIrFile } from "../poseRig/types";
-import type { VizijPipelineMetadataV1 } from "./graphImport";
 import {
   buildStandardInputIdRemap,
   remapPipelineMetadataInputIds,
   remapPoseConfigInputIds,
   remapPoseIrInputIds,
-} from "./standardInputRemap";
+  type VizijPipelineMetadataV1,
+} from "../utils/standardInputRemap";
 
 function makeInput(
   id: string,
@@ -81,7 +80,7 @@ describe("standardInputRemap", () => {
   });
 
   it("remaps pose config channels across neutral, poses, overrides, and stage neutrals", () => {
-    const config: PoseRigConfigFile = {
+    const config = {
       version: 1,
       faceId: "face",
       neutralInputs: { old_input: 0.1 },
@@ -131,7 +130,7 @@ describe("standardInputRemap", () => {
   });
 
   it("remaps pose ir channels across neutral, targets, overrides, and group neutrals", () => {
-    const ir: PoseRigIrFile = {
+    const ir = {
       version: 1,
       faceId: "face",
       contracts: {

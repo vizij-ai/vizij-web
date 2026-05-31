@@ -15,11 +15,17 @@ function getGlobalMemoryInvestigation(): GlobalWithMemoryInvestigation {
   return globalThis as GlobalWithMemoryInvestigation;
 }
 
+export function isRuntimeDebugStateEnabled(): boolean {
+  return Boolean(
+    getGlobalMemoryInvestigation().__VIZIJ_MEMORY_INVESTIGATION__?.enabled,
+  );
+}
+
 function updateRuntimeMap(
   updater: (runtimeMap: Record<string, Record<string, unknown>>) => void,
 ): void {
   const globalObj = getGlobalMemoryInvestigation();
-  if (!globalObj.__VIZIJ_MEMORY_INVESTIGATION__?.enabled) {
+  if (!isRuntimeDebugStateEnabled()) {
     return;
   }
   if (!globalObj.__vizijMemoryDebugState) {

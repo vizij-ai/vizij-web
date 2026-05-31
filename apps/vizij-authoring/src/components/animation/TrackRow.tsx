@@ -117,6 +117,8 @@ export function TrackRow({
       )}
       onClick={handleTrackClick}
       ref={containerRef}
+      data-testid="animation-track-row"
+      data-track-id={track.id}
     >
       {/* Label / Header */}
       <div className="absolute inset-y-0 left-0 w-48 bg-bg-panel/85 border-r border-border-default/80 z-10 flex items-center px-3">
@@ -145,6 +147,8 @@ export function TrackRow({
           return (
             <div
               key={kf.id}
+              data-testid="animation-timeline-keyframe"
+              data-keyframe-id={kf.id}
               className={cn(
                 "absolute top-1/2 w-2.5 h-2.5 -ml-1.5 -mt-1.5 rotate-45 border border-border-default shadow-sm z-20 hover:scale-125 transition-transform",
                 isKfSelected

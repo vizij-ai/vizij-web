@@ -19,6 +19,7 @@ export default tseslint.config(
       "**/.turbo/**",
       "**/build/**",
       "apps/demo-vizij-player/public/arora-web/**",
+      "apps/vizij-authoring/public/arora-web/**",
     ],
   },
   js.configs.recommended,

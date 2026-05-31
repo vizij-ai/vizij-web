@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
+import {
+  buildRuntimeInputCatalogFromConstraints,
+  buildRuntimeInputWritePathMap,
+  resolveRuntimeInputWritePath,
+} from "../index";
 
 describe("buildRuntimeInputCatalogFromConstraints", () => {
   it("strips runtime namespace variants so controls stage canonical paths", () => {
@@ -41,23 +45,40 @@ describe("buildRuntimeInputCatalogFromConstraints", () => {
     expect(catalog.byId.has("brow_lbrow_midud_value")).toBe(true);
   });
 
-  it("keeps non-namespaced paths untouched when namespace is absent", () => {
-    const catalog = buildRuntimeInputCatalogFromConstraints({
-      "/background/rotation/x": {
-        min: -1,
-        max: 1,
-        defaultValue: 0,
+  it("prefers graph rig paths over generic constraint paths when staging canonical inputs", () => {
+    const writePaths = buildRuntimeInputWritePathMap({
+      namespace: "refface",
+      inputConstraints: {
+        "refface/poses/pose_angry.weight": {},
       },
-      "background/rotation/y": {
-        min: -1,
-        max: 1,
-        defaultValue: 0,
+      graphSpec: {
+        nodes: [
+          {
+            type: "input",
+            params: {
+              path: "rig/quori_latest/poses/pose_angry.weight",
+            },
+          },
+        ],
       },
     });
 
-    expect(catalog.byPath.has("/background/rotation/x")).toBe(true);
-    expect(catalog.byPath.has("/background/rotation/y")).toBe(true);
-    expect(catalog.byId.has("background_rotation_x")).toBe(true);
-    expect(catalog.byId.has("background_rotation_y")).toBe(true);
+    expect(
+      resolveRuntimeInputWritePath({
+        inputPath: "/poses/pose_angry.weight",
+        writePathByNormalizedInputPath: writePaths,
+        faceId: "fallback_face",
+      }),
+    ).toBe("rig/quori_latest/poses/pose_angry.weight");
+  });
+
+  it("falls back to the active face id when no runtime path is discoverable", () => {
+    expect(
+      resolveRuntimeInputWritePath({
+        inputPath: "/standard/vizij/mouth/open",
+        writePathByNormalizedInputPath: new Map(),
+        faceId: "quori_latest",
+      }),
+    ).toBe("rig/quori_latest/standard/vizij/mouth/open");
   });
 });

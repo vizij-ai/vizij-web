@@ -38,6 +38,7 @@ export type OrchestratorTimings = WasmOrchestratorFrame["timings_ms"] & {
 
 export type OrchestratorFrame = Omit<WasmOrchestratorFrame, "merged_writes"> & {
   merged_writes: WriteOp[];
+  version?: number;
 };
 
 export type OrchestratorConflict = ConflictLog;
@@ -110,6 +111,10 @@ export type CreateOrchOptions = {
 export type OrchestratorBackend = "direct" | "moduleFacade" | "aroraWeb";
 
 export type ControllerId = string;
+
+export type OrchestratorDebugInfo = {
+  aroraWebInstanceId?: string | null;
+};
 
 export type GraphRegistrationInput = WasmGraphRegistrationInput;
 export type GraphRegistrationConfig = WasmGraphRegistrationConfig;
@@ -188,6 +193,7 @@ export type OrchestratorReactCtx = {
   getFrameSnapshot: () => OrchestratorFrame | null;
   normalizeGraphSpec?: (spec: object | string) => Promise<object>;
   abiVersion?: () => Promise<number>;
+  getDebugInfo?: () => OrchestratorDebugInfo | null;
 };
 
 export type OrchestratorRuntimeLike = {
@@ -203,4 +209,5 @@ export type OrchestratorRuntimeLike = {
   removeAnimation: (id: ControllerId) => boolean;
   normalizeGraphSpec?: (spec: object | string) => Promise<object>;
   facadeVersion?: () => number;
+  getDebugInfo?: () => OrchestratorDebugInfo | null;
 };

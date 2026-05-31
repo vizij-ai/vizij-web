@@ -43,6 +43,9 @@ vi.mock("@vizij/orchestrator-react", async () => {
     subscribeToFrame: vi.fn(() => () => {}),
     getFrameSnapshot: vi.fn(() => null),
     normalizeGraphSpec: vi.fn(async (spec: unknown) => spec),
+    getDebugInfo: vi.fn(() => ({
+      aroraWebInstanceId: "arora-web:test-runtime",
+    })),
   };
 
   function OrchestratorProvider(props: Record<string, unknown>) {
@@ -116,6 +119,18 @@ async function mountProvider(
 }
 
 afterEach(() => {
+  delete (
+    globalThis as {
+      __VIZIJ_MEMORY_INVESTIGATION__?: unknown;
+      __vizijMemoryDebugState?: unknown;
+    }
+  ).__VIZIJ_MEMORY_INVESTIGATION__;
+  delete (
+    globalThis as {
+      __VIZIJ_MEMORY_INVESTIGATION__?: unknown;
+      __vizijMemoryDebugState?: unknown;
+    }
+  ).__vizijMemoryDebugState;
   orchestratorProviderProps.splice(0);
   mountedRoots.splice(0).forEach(({ root, container }) => {
     act(() => {
@@ -158,5 +173,46 @@ describe("VizijRuntimeProvider orchestrator wiring", () => {
         moduleRegistryUrl: false,
       },
     });
+  });
+
+  it("publishes the backing Arora web debug instance id", async () => {
+    (
+      globalThis as {
+        __VIZIJ_MEMORY_INVESTIGATION__?: { enabled?: boolean };
+      }
+    ).__VIZIJ_MEMORY_INVESTIGATION__ = { enabled: true };
+
+    await mountProvider({ orchestratorBackend: "aroraWeb" });
+
+    const runtimes = Object.values(
+      (
+        globalThis as {
+          __vizijMemoryDebugState?: {
+            runtimes?: Record<string, Record<string, unknown>>;
+          };
+        }
+      ).__vizijMemoryDebugState?.runtimes ?? {},
+    );
+    expect(runtimes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          namespace: "demo-face",
+          aroraWebDebugInstanceId: "arora-web:test-runtime",
+        }),
+      ]),
+    );
+  });
+
+  it("fails closed when shared scope has no parent orchestrator", async () => {
+    await expect(
+      mountProvider({
+        orchestratorBackend: "aroraWeb",
+        orchestratorScope: "shared",
+      }),
+    ).rejects.toThrow(
+      '[vizij-runtime] orchestratorScope="shared" requires an OrchestratorProvider higher in the tree.',
+    );
+
+    expect(orchestratorProviderProps).toHaveLength(0);
   });
 });

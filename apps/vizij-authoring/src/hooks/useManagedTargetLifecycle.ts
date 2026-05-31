@@ -40,7 +40,13 @@ export function useManagedTargetLifecycle({
     () => resolveValidTargetId(targetOptions, selectedTargetId),
     [selectedTargetId, targetOptions],
   );
-  const lastLoadedTargetKeyRef = useRef<string | null | undefined>(undefined);
+  const lastLoadedTargetRef = useRef<
+    | {
+        key: string;
+        loadSelectedTarget: (targetId: string | null) => void;
+      }
+    | undefined
+  >(undefined);
   const resolvedLoadKey = useMemo(
     () =>
       `${sessionKey ?? "__sessionless__"}::${resolvedTargetId ?? "__none__"}`,
@@ -55,11 +61,18 @@ export function useManagedTargetLifecycle({
   }, [resolvedTargetId, selectedTargetId, setSelectedTargetId]);
 
   useEffect(() => {
-    if (lastLoadedTargetKeyRef.current === resolvedLoadKey) {
+    const lastLoadedTarget = lastLoadedTargetRef.current;
+    if (
+      lastLoadedTarget?.key === resolvedLoadKey &&
+      lastLoadedTarget.loadSelectedTarget === loadSelectedTarget
+    ) {
       return;
     }
     loadSelectedTarget(resolvedTargetId);
-    lastLoadedTargetKeyRef.current = resolvedLoadKey;
+    lastLoadedTargetRef.current = {
+      key: resolvedLoadKey,
+      loadSelectedTarget,
+    };
   }, [loadSelectedTarget, resolvedLoadKey, resolvedTargetId]);
 
   useEffect(() => {

@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@vizij/node-graph-authoring": "workspace:*",
+    "@vizij/node-graph-wasm": "^0.6.1",
     "@vizij/orchestrator-react": "workspace:*",
     "@vizij/render": "workspace:*",
     "@vizij/utils": "workspace:*"

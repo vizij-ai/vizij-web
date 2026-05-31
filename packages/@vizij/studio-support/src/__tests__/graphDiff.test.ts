@@ -3,7 +3,7 @@ import {
   canonicalizeGraphComparable,
   diffGraphSpecs,
   rewriteGraphFaceNamespace,
-} from "./graphDiff";
+} from "../utils/graphDiff";
 
 describe("canonicalizeGraphComparable", () => {
   it("treats permutation-only list changes as equivalent", () => {

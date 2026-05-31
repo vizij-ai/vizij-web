@@ -20,10 +20,10 @@ import {
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
+import { remapPipelineMetadataInputIds } from "@vizij/studio-support";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 import type { VizijPipelineMetadataV1 } from "../utils/graphImport";
-import { remapPipelineMetadataInputIds } from "../utils/standardInputRemap";
 
 type AnimatableComponent = AnimComponent;
 

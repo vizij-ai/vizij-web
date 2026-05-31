@@ -42,7 +42,7 @@ export default defineConfig({
         : `pnpm --filter vizij-authoring build && pnpm --filter vizij-authoring preview --host ${host} --port ${port}`,
     cwd: "../..",
     url: baseURL,
-    timeout: 120_000,
+    timeout: process.env.VIZIJ_E2E_ARORA === "1" ? 240_000 : 120_000,
     reuseExistingServer: !process.env.CI,
   },
 });

@@ -358,6 +358,10 @@ export function OrchestratorProvider({
     return orchestratorAbiVersion();
   }, [backend, ensureInit, ensureOrchestrator]);
 
+  const getDebugInfo = useCallback(() => {
+    return orchestratorRef.current?.getDebugInfo?.() ?? null;
+  }, []);
+
   const getLatestFrame = useCallback(() => latestFrameRef.current, []);
   const getFrameSnapshot = useCallback(() => latestFrameRef.current, []);
 
@@ -524,6 +528,7 @@ export function OrchestratorProvider({
       getFrameSnapshot,
       normalizeGraphSpec,
       abiVersion,
+      getDebugInfo,
     }),
     [
       backend,
@@ -546,6 +551,7 @@ export function OrchestratorProvider({
       getFrameSnapshot,
       normalizeGraphSpec,
       abiVersion,
+      getDebugInfo,
     ],
   );
 

@@ -5,6 +5,7 @@
 **/dist/
 **/test-results/
 apps/demo-vizij-player/public/arora-web/
+apps/vizij-authoring/public/arora-web/
 
 # env
 .env
