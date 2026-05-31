@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { InitInput } from "@vizij/orchestrator-react";
-import { resolveVizijOrchestratorInitInput } from "../orchestratorInit";
+import type { InitInput } from "../src";
+import { resolveVizijOrchestratorInitInput } from "../src";
 
 describe("resolveVizijOrchestratorInitInput", () => {
   it("defaults aroraWeb runtimes to the composed Vizij module path", () => {

@@ -10,7 +10,9 @@ const orchestratorProviderProps = vi.hoisted(
   () => [] as Array<Record<string, unknown>>,
 );
 
-vi.mock("@vizij/orchestrator-react", async () => {
+vi.mock("@vizij/orchestrator-react", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@vizij/orchestrator-react")>();
   const React = await vi.importActual<typeof import("react")>("react");
   const OrchestratorContext = React.createContext<Record<
     string,
@@ -65,11 +67,40 @@ vi.mock("@vizij/orchestrator-react", async () => {
     return null;
   }
 
+  function resolveVizijOrchestratorInitInput(
+    backend?: string,
+    initInput?: unknown,
+  ) {
+    if (backend !== "aroraWeb") {
+      return initInput;
+    }
+    const defaults = {
+      orchestratorModule: "composed",
+      moduleRegistryUrl: "/arora-web/modules/manifest.json",
+    };
+    if (!initInput) {
+      return defaults;
+    }
+    if (typeof initInput !== "object" || initInput === null) {
+      return initInput;
+    }
+    const prototype = Object.getPrototypeOf(initInput);
+    if (prototype !== Object.prototype && prototype !== null) {
+      return initInput;
+    }
+    return {
+      ...defaults,
+      ...(initInput as Record<string, unknown>),
+    };
+  }
+
   return {
+    ...actual,
     OrchestratorProvider,
     OrchestratorContext,
     useOrchestrator,
     useOrchFrame,
+    resolveVizijOrchestratorInitInput,
   };
 });
 

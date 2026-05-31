@@ -20,6 +20,7 @@ import {
   OrchestratorContext,
   useOrchestrator,
   useOrchFrame,
+  resolveVizijOrchestratorInitInput,
   type CreateOrchOptions,
   type MergeStrategyOptions,
   type ValueJSON,
@@ -82,7 +83,6 @@ import {
   isRuntimeDebugStateEnabled,
   setRuntimeDebugState,
 } from "./memoryInvestigation";
-import { resolveVizijOrchestratorInitInput } from "./orchestratorInit";
 import type {
   AnimateValueOptions,
   AnimationPlaybackState,

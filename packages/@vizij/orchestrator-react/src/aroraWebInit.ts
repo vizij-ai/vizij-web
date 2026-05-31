@@ -2,7 +2,7 @@ import type {
   AroraWebInitInput,
   InitInput,
   OrchestratorBackend,
-} from "@vizij/orchestrator-react";
+} from "./types";
 
 type MergeableInitInput = Record<string, unknown> & Partial<AroraWebInitInput>;
 

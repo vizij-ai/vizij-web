@@ -9,6 +9,7 @@ export { OrchestratorProvider } from "./OrchestratorProvider";
 export type { OrchestratorProviderProps } from "./OrchestratorProvider";
 export { OrchestratorContext } from "./context";
 export { AroraWebOrchestratorRuntime } from "./aroraWeb";
+export { resolveVizijOrchestratorInitInput } from "./aroraWebInit";
 export { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";
 export type { ModuleFacadeRequest, ModuleFacadeResponse } from "./moduleFacade";
 
