@@ -38,7 +38,6 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
-    "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/orchestrator-react": "workspace:*",
     "@vizij/render": "workspace:*",
     "@vizij/studio-support": "workspace:*",

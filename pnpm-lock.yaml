@@ -999,9 +999,6 @@ importers:
 
   packages/@vizij/runtime-react:
     dependencies:
-      '@vizij/node-graph-authoring':
-        specifier: workspace:*
-        version: link:../node-graph-authoring
       '@vizij/orchestrator-react':
         specifier: workspace:*
         version: link:../orchestrator-react
