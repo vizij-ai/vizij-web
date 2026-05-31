@@ -20,30 +20,16 @@ import type {
   ModuleFacadeTransport,
 } from "./moduleFacade";
 import {
+  DEFAULT_ARORA_WEB_MODULE_REGISTRY,
+  DEFAULT_ARORA_WEB_MODULE_REGISTRY_URL,
+  DEFAULT_ARORA_WEB_URL,
+  DEFAULT_ARORA_WEB_WASM_URL,
   DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE,
   VIZIJ_ARORA_WEB_MODULE_IDS,
+  VIZIJ_ARORA_WEB_ORCHESTRATOR_MODULE_PRESETS,
+  VIZIJ_ARORA_WEB_PRELOAD_MODULE_PRESETS,
   VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS,
 } from "./aroraWebModules";
-
-const DEFAULT_ARORA_WEB_URL = "/arora-web/pkg/arora_web.js";
-const DEFAULT_ARORA_WEB_WASM_URL = "/arora-web/pkg/arora_web_bg.wasm";
-const DEFAULT_MODULE_REGISTRY_MANIFEST_URL = "/arora-web/modules/manifest.json";
-const DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL =
-  "/arora-web/modules/vizij-orchestrator/arora_vizij_orchestrator.wasm";
-const DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL =
-  "/arora-web/modules/vizij-orchestrator/module.json";
-const DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL =
-  "/arora-web/modules/vizij-orchestrator-composed/arora_vizij_orchestrator_composed.wasm";
-const DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL =
-  "/arora-web/modules/vizij-orchestrator-composed/module.json";
-const DEFAULT_VIZIJ_ANIMATION_WASM_URL =
-  "/arora-web/modules/vizij-animation/vizij_animation.wasm";
-const DEFAULT_VIZIJ_ANIMATION_HEADER_URL =
-  "/arora-web/modules/vizij-animation/module.json";
-const DEFAULT_VIZIJ_NODE_GRAPH_WASM_URL =
-  "/arora-web/modules/vizij-node-graph/vizij_node_graph.wasm";
-const DEFAULT_VIZIJ_NODE_GRAPH_HEADER_URL =
-  "/arora-web/modules/vizij-node-graph/module.json";
 
 type AroraWebEngine = InstanceType<AroraWebModuleExports["Engine"]>;
 
@@ -115,57 +101,6 @@ type GlobalWithAroraWebDebug = typeof globalThis & {
 
 let aroraWebDebugInstanceSequence = 0;
 
-const VIZIJ_ORCHESTRATOR_MODULE_PRESETS: Record<
-  AroraWebOrchestratorModule,
-  AroraWebModulePreset
-> = {
-  compatibility: {
-    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
-  },
-  composed: {
-    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
-  },
-};
-
-const VIZIJ_PRELOAD_MODULE_PRESETS: Record<
-  AroraWebPreloadModuleName,
-  AroraWebModulePreset
-> = {
-  "vizij-animation": {
-    headerUrl: DEFAULT_VIZIJ_ANIMATION_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ANIMATION_WASM_URL,
-  },
-  "vizij-node-graph": {
-    headerUrl: DEFAULT_VIZIJ_NODE_GRAPH_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_NODE_GRAPH_WASM_URL,
-  },
-};
-
-const DEFAULT_MODULE_REGISTRY: AroraWebModuleRegistry = {
-  [VIZIJ_ARORA_WEB_MODULE_IDS.orchestratorCompatibility]: {
-    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
-  },
-  "vizij-orchestrator": {
-    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_WASM_URL,
-  },
-  [VIZIJ_ARORA_WEB_MODULE_IDS.orchestratorComposed]: {
-    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
-  },
-  "vizij-orchestrator-composed": {
-    headerUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_HEADER_URL,
-    wasmUrl: DEFAULT_VIZIJ_ORCHESTRATOR_COMPOSED_WASM_URL,
-  },
-  [VIZIJ_ARORA_WEB_MODULE_IDS.animation]: "vizij-animation",
-  "vizij-animation": "vizij-animation",
-  [VIZIJ_ARORA_WEB_MODULE_IDS.nodeGraph]: "vizij-node-graph",
-  "vizij-node-graph": "vizij-node-graph",
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -194,7 +129,7 @@ function selectedModulePreset(
   const registryKey = VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS[moduleName];
   const registryPreset = modulePresetFromInput(registry[registryKey]);
   const preset =
-    registryPreset ?? VIZIJ_ORCHESTRATOR_MODULE_PRESETS[moduleName];
+    registryPreset ?? VIZIJ_ARORA_WEB_ORCHESTRATOR_MODULE_PRESETS[moduleName];
   if (!preset) {
     throw new Error(
       `Unsupported aroraWeb orchestratorModule: ${String(moduleName)}`,
@@ -514,7 +449,7 @@ function preloadPreset(
   if (!presetName) {
     return null;
   }
-  const preset = VIZIJ_PRELOAD_MODULE_PRESETS[presetName];
+  const preset = VIZIJ_ARORA_WEB_PRELOAD_MODULE_PRESETS[presetName];
   if (!preset) {
     throw new Error(`Unsupported aroraWeb preload module: ${presetName}`);
   }
@@ -742,7 +677,7 @@ async function fetchModuleRegistryManifest(
     return { registry: {} };
   }
   const manifestUrl =
-    config.moduleRegistryUrl ?? DEFAULT_MODULE_REGISTRY_MANIFEST_URL;
+    config.moduleRegistryUrl ?? DEFAULT_ARORA_WEB_MODULE_REGISTRY_URL;
   if (manifestUrl === false) {
     return { registry: {} };
   }
@@ -786,7 +721,7 @@ async function moduleRegistry(
     manifest: loaded.manifest,
     manifestUrl: loaded.manifestUrl,
     registry: {
-      ...DEFAULT_MODULE_REGISTRY,
+      ...DEFAULT_ARORA_WEB_MODULE_REGISTRY,
       ...loaded.registry,
       ...(config.moduleRegistry ?? {}),
     },
@@ -898,7 +833,7 @@ function functionExportIds(header: object): Set<string> {
   );
 }
 
-function validateDefaultPreloadModules(
+function validatePreloadModulesSatisfyImports(
   selectedHeader: object,
   modules: ResolvedAroraWebPreloadModule[],
 ): void {
@@ -1017,9 +952,7 @@ async function resolvePreloadModules(
       ...(moduleConfig?.wasmBytes ? { wasmBytes: moduleConfig.wasmBytes } : {}),
     });
   }
-  if (!explicitPreloadModules) {
-    validateDefaultPreloadModules(selectedHeader, resolved);
-  }
+  validatePreloadModulesSatisfyImports(selectedHeader, resolved);
   return resolved;
 }
 
@@ -1233,7 +1166,7 @@ export class AroraWebOrchestratorRuntime extends ModuleFacadeOrchestratorRuntime
         config.moduleRegistryUrl === false
           ? null
           : String(
-              config.moduleRegistryUrl ?? DEFAULT_MODULE_REGISTRY_MANIFEST_URL,
+              config.moduleRegistryUrl ?? DEFAULT_ARORA_WEB_MODULE_REGISTRY_URL,
             ),
       manifestUrl: loadedRegistry.manifestUrl
         ? String(loadedRegistry.manifestUrl)

@@ -300,6 +300,18 @@ const VIZIJ_NODE_GRAPH_HEADER = moduleHeader(VIZIJ_NODE_GRAPH_MODULE_ID, [
 const CUSTOM_IMPORT_HEADER = moduleHeader(CUSTOM_IMPORT_MODULE_ID, [
   functionExport("ff94ec38-a145-4c73-9a99-d7724acbfa72", "custom_import"),
 ]);
+const explicitVizijPreloadModules = [
+  {
+    preset: "vizij-animation" as const,
+    headerJson: VIZIJ_ANIMATION_HEADER,
+    wasmBytes: new Uint8Array([1]),
+  },
+  {
+    preset: "vizij-node-graph" as const,
+    headerJson: VIZIJ_NODE_GRAPH_HEADER,
+    wasmBytes: new Uint8Array([2]),
+  },
+];
 
 function jsonResponse(value: unknown): Response {
   return new Response(JSON.stringify(value), {
@@ -548,7 +560,7 @@ describe("OrchestratorProvider", () => {
       aroraWeb,
       orchestratorModule: "composed",
       headerJson: COMPOSED_HEADER,
-      preloadModules: [],
+      preloadModules: explicitVizijPreloadModules,
       wasmBytes: new Uint8Array([0]),
     });
 
@@ -578,7 +590,7 @@ describe("OrchestratorProvider", () => {
       aroraWeb,
       orchestratorModule: "composed",
       headerJson: COMPOSED_HEADER,
-      preloadModules: [],
+      preloadModules: explicitVizijPreloadModules,
       wasmBytes: new Uint8Array([0]),
     });
 
@@ -602,7 +614,7 @@ describe("OrchestratorProvider", () => {
       aroraWeb,
       orchestratorModule: "composed",
       headerJson: COMPOSED_HEADER,
-      preloadModules: [],
+      preloadModules: explicitVizijPreloadModules,
       wasmBytes: new Uint8Array([0]),
     });
 
@@ -643,7 +655,7 @@ describe("OrchestratorProvider", () => {
           aroraWeb,
           orchestratorModule: "composed",
           headerJson: COMPOSED_HEADER,
-          preloadModules: [],
+          preloadModules: explicitVizijPreloadModules,
           wasmBytes: new Uint8Array([0]),
         }}
         autostart={false}
@@ -1212,7 +1224,7 @@ describe("OrchestratorProvider", () => {
     expect(aroraWeb.loadModule).not.toHaveBeenCalled();
   });
 
-  it("uses explicit preloads as an override without validating selected module imports", async () => {
+  it("requires explicit preloads to satisfy selected module imports", async () => {
     const aroraWeb = makeAroraWebModule();
     const unresolvedImportHeader = dispatchHeader({
       moduleId: COMPOSED_MODULE_ID,
@@ -1226,20 +1238,18 @@ describe("OrchestratorProvider", () => {
       ],
     });
 
-    await AroraWebOrchestratorRuntime.create(undefined, {
-      aroraWeb,
-      orchestratorModule: "composed",
-      headerJson: unresolvedImportHeader,
-      preloadModules: [],
-      wasmBytes: new Uint8Array([0]),
-    });
-
-    expect(aroraWeb.loadModule).toHaveBeenCalledTimes(1);
-    expect(aroraWeb.loadModule).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining(COMPOSED_MODULE_ID),
-      expect.any(Uint8Array),
+    await expect(
+      AroraWebOrchestratorRuntime.create(undefined, {
+        aroraWeb,
+        orchestratorModule: "composed",
+        headerJson: unresolvedImportHeader,
+        preloadModules: [],
+        wasmBytes: new Uint8Array([0]),
+      }),
+    ).rejects.toThrow(
+      `Imported aroraWeb module ${CUSTOM_IMPORT_MODULE_ID} was not preloaded with a matching module header.`,
     );
+    expect(aroraWeb.loadModule).not.toHaveBeenCalled();
   });
 
   it("can preload independent Vizij modules before the composed arora-web orchestrator", async () => {

@@ -11,11 +11,20 @@ export { OrchestratorContext } from "./context";
 export { AroraWebOrchestratorRuntime } from "./aroraWeb";
 export { resolveVizijOrchestratorInitInput } from "./aroraWebInit";
 export {
+  DEFAULT_ARORA_WEB_MODULE_REGISTRY,
+  DEFAULT_ARORA_WEB_MODULE_REGISTRY_URL,
   DEFAULT_ARORA_WEB_ORCHESTRATOR_MODULE,
+  DEFAULT_ARORA_WEB_URL,
+  DEFAULT_ARORA_WEB_WASM_URL,
+  VIZIJ_ARORA_WEB_MODULE_ARTIFACTS,
   VIZIJ_ARORA_WEB_MODULE_IDS,
   VIZIJ_ARORA_WEB_MODULE_REGISTRY_KEYS,
+  VIZIJ_ARORA_WEB_ORCHESTRATOR_MODULE_PRESETS,
+  VIZIJ_ARORA_WEB_PRELOAD_MODULE_PRESETS,
   resolveVizijAroraWebModuleGraph,
+  resolveVizijAroraWebRequiredAssetPaths,
   type VizijAroraWebIndependentModule,
+  type VizijAroraWebModuleKey,
   type VizijAroraWebModuleGraph,
 } from "./aroraWebModules";
 export { ModuleFacadeOrchestratorRuntime } from "./moduleFacade";

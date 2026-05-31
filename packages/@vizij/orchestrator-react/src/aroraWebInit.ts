@@ -3,11 +3,9 @@ import type {
   InitInput,
   OrchestratorBackend,
 } from "./types";
+import { DEFAULT_ARORA_WEB_MODULE_REGISTRY_URL } from "./aroraWebModules";
 
 type MergeableInitInput = Record<string, unknown> & Partial<AroraWebInitInput>;
-
-const DEFAULT_ARORA_WEB_MODULE_REGISTRY_URL =
-  "/arora-web/modules/manifest.json";
 
 function isMergeableInitInput(input: InitInput): input is MergeableInitInput {
   if (typeof input !== "object" || input === null) {
