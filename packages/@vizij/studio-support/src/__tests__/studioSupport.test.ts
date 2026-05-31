@@ -8,18 +8,25 @@ import {
   prepareRuntimeAssetBundle,
   prepareRuntimeAssetView,
   planRuntimeGraphBundleApplication,
+  planRuntimeProgramRegistrationAcknowledgementQueue,
   planRuntimeProgramControllerSync,
   queueRuntimeGraphBundlePendingUpdate,
   removeRuntimeGraphBundlePendingUpdates,
   prepareRuntimeLoadedAssetPayload,
+  resolveRuntimeGraphBundleAppliedUpdates,
   resolveRuntimeGraphBundleErrorSources,
   resolveInitialRuntimeExtractedBundle,
   resolveRuntimeUpdatePlan,
   sampleAnimationClipOutputValues,
   shouldAcknowledgeRuntimeGraphBundleImmediately,
+  shouldDeferRuntimeGraphBundleAcknowledgement,
   toStoredAnimationClip,
 } from "../index";
-import type { VizijAssetBundle, VizijGraphAsset } from "../types";
+import type {
+  RuntimeGraphBundlePendingUpdate,
+  VizijAssetBundle,
+  VizijGraphAsset,
+} from "../types";
 
 function makeBaseBundle(
   overrides: Partial<VizijAssetBundle> = {},
@@ -515,6 +522,76 @@ describe("studio support package", () => {
     );
 
     expect(anonymousQueued.map((update) => update.revision)).toEqual([5, 6]);
+  });
+
+  it("plans deferred program acknowledgement outside runtime-react", () => {
+    const deferred: RuntimeGraphBundlePendingUpdate = {
+      revision: 1,
+      source: {
+        key: "motiongraph",
+        signature: "motiongraph:v1",
+        programId: "live-program",
+      },
+      reregistered: true,
+      reloadedAssets: false,
+    };
+    const immediate: RuntimeGraphBundlePendingUpdate = {
+      revision: 2,
+      source: {
+        key: "runtime-graph",
+        signature: "graph:v1",
+      },
+      reregistered: true,
+      reloadedAssets: false,
+    };
+
+    expect(shouldDeferRuntimeGraphBundleAcknowledgement(deferred)).toBe(true);
+    expect(shouldDeferRuntimeGraphBundleAcknowledgement(immediate)).toBe(false);
+    expect(
+      resolveRuntimeGraphBundleAppliedUpdates([deferred, immediate]),
+    ).toEqual(expect.arrayContaining([immediate]));
+    expect(
+      resolveRuntimeGraphBundleAppliedUpdates([deferred, immediate]),
+    ).not.toEqual(expect.arrayContaining([deferred]));
+    expect(
+      resolveRuntimeGraphBundleAppliedUpdates([deferred, immediate], {
+        includeDeferredProgramUpdates: true,
+      }),
+    ).toEqual([deferred, immediate]);
+
+    const queued = planRuntimeProgramRegistrationAcknowledgementQueue(
+      new Map<string, RuntimeGraphBundlePendingUpdate>([
+        ["previous-program", deferred],
+        [
+          "other-program",
+          {
+            revision: 3,
+            source: {
+              key: "animation",
+              signature: "animation:v1",
+            },
+            reregistered: true,
+            reloadedAssets: false,
+          },
+        ],
+      ]),
+      {
+        revision: 4,
+        source: {
+          key: "motiongraph",
+          signature: "motiongraph:v2",
+          programId: "next-program",
+        },
+        reregistered: true,
+        reloadedAssets: false,
+      },
+    );
+
+    expect(Array.from(queued.keys())).toEqual([
+      "other-program",
+      "next-program",
+    ]);
+    expect(queued.get("next-program")?.revision).toBe(4);
   });
 
   it("plans immediate graph bundle acknowledgement only when no host work is required", () => {

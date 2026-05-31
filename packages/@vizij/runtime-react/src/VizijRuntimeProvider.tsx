@@ -39,6 +39,7 @@ import {
   hasRuntimeGraphBundlePendingRevision,
   namespaceTypedPath,
   normalisePath,
+  planRuntimeProgramRegistrationAcknowledgementQueue,
   planRuntimeProgramControllerSync,
   planRuntimeGraphBundleApplication,
   prepareRuntimeLoadedAssetPayload,
@@ -46,6 +47,7 @@ import {
   prepareRuntimeAssetView,
   queueRuntimeGraphBundlePendingUpdate,
   removeRuntimeGraphBundlePendingUpdates,
+  resolveRuntimeGraphBundleAppliedUpdates,
   resolveClipDurationSeconds,
   resolveAnimationTransportMode,
   resolvePoseControlInputPath,
@@ -161,16 +163,6 @@ const DEFAULT_DURATION = 0.35;
 
 const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 let runtimeDebugInstanceSequence = 0;
-
-function isProgramRegistrationAcknowledgementDeferred(
-  update: RuntimeGraphBundlePendingUpdate,
-): boolean {
-  return (
-    update.source.key === "motiongraph" &&
-    typeof update.source.programId === "string" &&
-    update.source.programId.trim().length > 0
-  );
-}
 
 function isRuntimeDebugEnabled(): boolean {
   const globalObj = globalThis as {
@@ -866,11 +858,10 @@ function VizijRuntimeProviderInner({
       updates: readonly RuntimeGraphBundlePendingUpdate[] = pendingGraphBundleUpdatesRef.current,
       options: { includeDeferredProgramUpdates?: boolean } = {},
     ) => {
-      const appliedUpdates = options.includeDeferredProgramUpdates
-        ? [...updates]
-        : updates.filter(
-            (update) => !isProgramRegistrationAcknowledgementDeferred(update),
-          );
+      const appliedUpdates = resolveRuntimeGraphBundleAppliedUpdates(
+        updates,
+        options,
+      );
       if (appliedUpdates.length === 0) {
         return;
       }
@@ -2490,25 +2481,11 @@ function VizijRuntimeProviderInner({
           pendingGraphBundleUpdatesRef.current,
           pendingUpdate,
         );
-      if (pendingUpdate?.source.key) {
-        for (const [
-          programId,
-          update,
-        ] of pendingProgramRegistrationUpdatesRef.current) {
-          if (update.source.key === pendingUpdate.source.key) {
-            pendingProgramRegistrationUpdatesRef.current.delete(programId);
-          }
-        }
-      }
-      if (
-        pendingUpdate &&
-        isProgramRegistrationAcknowledgementDeferred(pendingUpdate)
-      ) {
-        pendingProgramRegistrationUpdatesRef.current.set(
-          pendingUpdate.source.programId!,
+      pendingProgramRegistrationUpdatesRef.current =
+        planRuntimeProgramRegistrationAcknowledgementQueue(
+          pendingProgramRegistrationUpdatesRef.current,
           pendingUpdate,
         );
-      }
       pendingPlanRef.current = plan;
       previousBundleRef.current = nextAssetBundle;
       latestEffectiveAssetBundleRef.current = nextAssetBundle;

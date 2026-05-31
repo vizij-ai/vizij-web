@@ -609,12 +609,15 @@ export {
 export {
   applyRuntimeGraphBundle,
   hasRuntimeGraphBundlePendingRevision,
+  planRuntimeProgramRegistrationAcknowledgementQueue,
   planRuntimeGraphBundleApplication,
   queueRuntimeGraphBundlePendingUpdate,
   removeRuntimeGraphBundlePendingUpdates,
+  resolveRuntimeGraphBundleAppliedUpdates,
   resolveRuntimeGraphBundleErrorSources,
   resolveRuntimeUpdatePlan,
   shouldAcknowledgeRuntimeGraphBundleImmediately,
+  shouldDeferRuntimeGraphBundleAcknowledgement,
 } from "./updatePolicy";
 
 type GraphSubscriptionsLike = Partial<GraphSubscriptions>;

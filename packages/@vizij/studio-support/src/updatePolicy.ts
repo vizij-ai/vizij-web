@@ -303,6 +303,49 @@ export function removeRuntimeGraphBundlePendingUpdates(
   return current.filter((update) => !appliedRevisions.has(update.revision));
 }
 
+export function shouldDeferRuntimeGraphBundleAcknowledgement(
+  update: RuntimeGraphBundlePendingUpdate,
+): boolean {
+  return (
+    update.source.key === "motiongraph" &&
+    typeof update.source.programId === "string" &&
+    update.source.programId.trim().length > 0
+  );
+}
+
+export function resolveRuntimeGraphBundleAppliedUpdates(
+  updates: readonly RuntimeGraphBundlePendingUpdate[],
+  options: { includeDeferredProgramUpdates?: boolean } = {},
+): RuntimeGraphBundlePendingUpdate[] {
+  if (options.includeDeferredProgramUpdates) {
+    return [...updates];
+  }
+  return updates.filter(
+    (update) => !shouldDeferRuntimeGraphBundleAcknowledgement(update),
+  );
+}
+
+export function planRuntimeProgramRegistrationAcknowledgementQueue(
+  current: ReadonlyMap<string, RuntimeGraphBundlePendingUpdate>,
+  pendingUpdate: RuntimeGraphBundlePendingUpdate | null,
+): Map<string, RuntimeGraphBundlePendingUpdate> {
+  const next = new Map(current);
+  if (pendingUpdate?.source.key) {
+    for (const [programId, update] of next) {
+      if (update.source.key === pendingUpdate.source.key) {
+        next.delete(programId);
+      }
+    }
+  }
+  if (
+    pendingUpdate &&
+    shouldDeferRuntimeGraphBundleAcknowledgement(pendingUpdate)
+  ) {
+    next.set(pendingUpdate.source.programId!.trim(), pendingUpdate);
+  }
+  return next;
+}
+
 export function shouldAcknowledgeRuntimeGraphBundleImmediately(args: {
   plan: RuntimeUpdatePlan;
   pendingUpdate: RuntimeGraphBundlePendingUpdate | null;
