@@ -9,7 +9,10 @@ import type { PoseRigConfig } from "@vizij/runtime-react";
 import type { VizijStoreSetter, World } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import {
+  parseAuthoringPreviewTarget,
   resolveAuthoringCompileTargetState,
+  resolveAuthoringRuntimeErrorStates,
+  type AuthoringRuntimeErrorSourceLike,
   type AuthoringPreviewCompileState,
   type AuthoringPreviewCompileStatus,
   type AuthoringPreviewTarget,
@@ -52,6 +55,14 @@ const AUTHORING_COMPILE_STATUS_RANK = {
 export interface VisibleAuthoringCompileState
   extends AuthoringCompileTargetState {
   target: AuthoringPreviewTarget | null;
+}
+
+export interface RuntimeBundleAcknowledgementLike {
+  source: {
+    key?: string | null;
+    signature?: string | null;
+  };
+  graphCount: number;
 }
 
 export interface GraphRuntimeState {
@@ -200,6 +211,94 @@ export function resolveVisibleAuthoringCompileState(params: {
   return {
     target: rankedTarget,
     ...rankedState,
+  };
+}
+
+export function resolveRuntimeBundleAcknowledgementPatch(
+  state: GraphRuntimeState,
+  event: RuntimeBundleAcknowledgementLike,
+): Partial<GraphRuntimeState> {
+  const target = parseAuthoringPreviewTarget(event.source.key);
+  const signature = event.source.signature ?? null;
+  const baseUpdate = {
+    runtimeViewGraphCount: event.graphCount,
+  };
+  if (!target) {
+    return baseUpdate;
+  }
+
+  const targetState = state.authoringCompileTargets[target];
+  const targetMatches =
+    targetState?.signature === signature &&
+    (targetState.status === "compiled" || targetState.status === "compiling");
+  if (!targetMatches) {
+    return baseUpdate;
+  }
+
+  const globalMatches =
+    state.authoringCompileTarget === target &&
+    state.authoringCompileSignature === signature &&
+    (state.authoringCompileStatus === "compiled" ||
+      state.authoringCompileStatus === "compiling");
+  if (globalMatches) {
+    return {
+      ...baseUpdate,
+      authoringCompileStatus: "registered",
+      authoringCompileTarget: target,
+      authoringCompileMessage: null,
+      authoringCompileSignature: signature,
+    };
+  }
+
+  return {
+    ...baseUpdate,
+    authoringCompileTargets: {
+      ...state.authoringCompileTargets,
+      [target]: {
+        status: "registered",
+        message: null,
+        signature,
+      },
+    },
+  };
+}
+
+export function resolveRuntimeErrorCompilePatch(
+  state: GraphRuntimeState,
+  error: {
+    message: string;
+    sources?: readonly AuthoringRuntimeErrorSourceLike[] | null;
+  },
+): Partial<GraphRuntimeState> | undefined {
+  const errorStates = resolveAuthoringRuntimeErrorStates({
+    sources: error.sources,
+    fallbackTarget: state.authoringCompileTarget,
+    fallbackSignature: state.authoringCompileSignature,
+    message: error.message,
+  });
+  if (errorStates.length === 0) {
+    return undefined;
+  }
+
+  const nextTargets = { ...state.authoringCompileTargets };
+  errorStates.forEach((errorState) => {
+    nextTargets[errorState.target] = {
+      status: errorState.status,
+      message: errorState.message ?? null,
+      signature: errorState.signature ?? null,
+    };
+  });
+  const activeError =
+    errorStates.find(
+      (errorState) => errorState.target === state.authoringCompileTarget,
+    ) ?? errorStates[0];
+
+  return {
+    authoringCompileStatus: activeError.status,
+    authoringCompileTarget: activeError.target,
+    authoringCompileMessage: activeError.message ?? null,
+    authoringCompileSignature: activeError.signature ?? null,
+    authoringCompileTargets: nextTargets,
   };
 }
 

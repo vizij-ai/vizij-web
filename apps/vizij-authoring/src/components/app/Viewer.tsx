@@ -19,8 +19,6 @@ import {
   buildRuntimeInputCatalogFromConstraints,
   planMotionGraphPreviewTransaction,
   planRuntimeGraphPreviewTransaction,
-  parseAuthoringPreviewTarget,
-  resolveAuthoringRuntimeErrorStates,
   toDeterministicSignature,
   type AnimationClipIR,
 } from "@vizij/studio-support";
@@ -41,6 +39,8 @@ import {
 import {
   applyAuthoringCompileState,
   createAuthoringCompileTargets,
+  resolveRuntimeBundleAcknowledgementPatch,
+  resolveRuntimeErrorCompilePatch,
 } from "../../state/graphRuntimeStore";
 import { useAnimationStore } from "../../state/animationStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
@@ -417,38 +417,8 @@ function RuntimeStatusDebug() {
     if (!error) {
       return;
     }
-    const currentState = graphRuntimeStore.getState();
-    const errorStates = resolveAuthoringRuntimeErrorStates({
-      sources: error.sources,
-      fallbackTarget: currentState.authoringCompileTarget,
-      fallbackSignature: currentState.authoringCompileSignature,
-      message: error.message,
-    });
-    if (errorStates.length === 0) {
-      return;
-    }
-
     graphRuntimeStore.setState((state) => {
-      const nextTargets = { ...state.authoringCompileTargets };
-      errorStates.forEach((errorState) => {
-        nextTargets[errorState.target] = {
-          status: errorState.status,
-          message: errorState.message ?? null,
-          signature: errorState.signature ?? null,
-        };
-      });
-      const activeError =
-        errorStates.find(
-          (errorState) => errorState.target === state.authoringCompileTarget,
-        ) ?? errorStates[0];
-
-      return {
-        authoringCompileStatus: activeError.status,
-        authoringCompileTarget: activeError.target,
-        authoringCompileMessage: activeError.message ?? null,
-        authoringCompileSignature: activeError.signature ?? null,
-        authoringCompileTargets: nextTargets,
-      };
+      return resolveRuntimeErrorCompilePatch(state, error);
     });
   }, [error, graphRuntimeStore]);
   const runtimeState = ready ? "ready" : loading ? "loading" : "idle";
@@ -812,51 +782,11 @@ export function Viewer({
   );
   const handleRuntimeGraphBundleApplied = useCallback(
     (event: RuntimeGraphBundleAppliedEvent) => {
-      const target = parseAuthoringPreviewTarget(event.source.key);
-      const signature = event.source.signature ?? null;
       graphRuntimeStore.setState((state) => {
-        const baseUpdate = {
-          runtimeViewGraphCount: event.controllers.graphs.length,
-        };
-        if (!target) {
-          return baseUpdate;
-        }
-
-        const targetState = state.authoringCompileTargets[target];
-        const targetMatches =
-          targetState?.signature === signature &&
-          (targetState.status === "compiled" ||
-            targetState.status === "compiling");
-        if (!targetMatches) {
-          return baseUpdate;
-        }
-
-        const globalMatches =
-          state.authoringCompileTarget === target &&
-          state.authoringCompileSignature === signature &&
-          (state.authoringCompileStatus === "compiled" ||
-            state.authoringCompileStatus === "compiling");
-        if (globalMatches) {
-          return {
-            ...baseUpdate,
-            authoringCompileStatus: "registered" as const,
-            authoringCompileTarget: target,
-            authoringCompileMessage: null,
-            authoringCompileSignature: signature,
-          };
-        }
-
-        return {
-          ...baseUpdate,
-          authoringCompileTargets: {
-            ...state.authoringCompileTargets,
-            [target]: {
-              status: "registered" as const,
-              message: null,
-              signature,
-            },
-          },
-        };
+        return resolveRuntimeBundleAcknowledgementPatch(state, {
+          source: event.source,
+          graphCount: event.controllers.graphs.length,
+        });
       });
     },
     [graphRuntimeStore],

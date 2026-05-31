@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createAuthoringCompileTargets,
   createGraphRuntimeStore,
+  resolveRuntimeBundleAcknowledgementPatch,
+  resolveRuntimeErrorCompilePatch,
   resolveVisibleAuthoringCompileState,
 } from "../graphRuntimeStore";
 import { createBindingAuthoringStore } from "../bindingAuthoringStore";
@@ -181,6 +183,77 @@ describe("graphRuntimeStore", () => {
       target: "motiongraph",
       status: "compiled",
       signature: "motiongraph-v1",
+    });
+  });
+
+  it("promotes only matching runtime bundle acknowledgements to registered", () => {
+    const store = createGraphRuntimeStore();
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+
+    store.setState((state) =>
+      resolveRuntimeBundleAcknowledgementPatch(state, {
+        source: { key: "animation", signature: "stale" },
+        graphCount: 2,
+      }),
+    );
+
+    expect(store.getState().runtimeViewGraphCount).toBe(2);
+    expect(store.getState().authoringCompileTargets.animation.status).toBe(
+      "compiled",
+    );
+
+    store.setState((state) =>
+      resolveRuntimeBundleAcknowledgementPatch(state, {
+        source: { key: "animation", signature: "animation-v1" },
+        graphCount: 3,
+      }),
+    );
+
+    expect(store.getState().runtimeViewGraphCount).toBe(3);
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "registered",
+      message: null,
+      signature: "animation-v1",
+    });
+  });
+
+  it("applies sourced runtime errors without failing unrelated targets", () => {
+    const store = createGraphRuntimeStore();
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "runtime-graph",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "graph-v1",
+    });
+    store.setState({
+      authoringCompileStatus: "compiled",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+
+    store.setState((state) =>
+      resolveRuntimeErrorCompilePatch(state, {
+        message: "graph registration failed",
+        sources: [{ key: "runtime-graph", signature: "graph-v1" }],
+      }),
+    );
+
+    expect(
+      store.getState().authoringCompileTargets["runtime-graph"],
+    ).toMatchObject({
+      status: "runtime-error",
+      message: "graph registration failed",
+      signature: "graph-v1",
+    });
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      message: null,
     });
   });
 });
