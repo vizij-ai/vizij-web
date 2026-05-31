@@ -437,6 +437,19 @@ export {
   type VizijPipelineMetadataV1,
 } from "./utils/standardInputRemap";
 export {
+  appendStandardInputPathSuffix,
+  remapAnimatableBindings,
+  remapBindingDefinition,
+  remapBindingDefinitionCache,
+  remapBindingDefinitionRecord,
+  remapBindingInputIds,
+  remapBindingMetadataInputIds,
+  remapInputBindings,
+  remapInputIdList,
+  remapInputIdSet,
+  remapStandardInputValues,
+} from "./utils/standardInputRemapApplication";
+export {
   ensureStandardPathInput,
   inferStandardSuggestion,
 } from "./utils/standardInputPaths";

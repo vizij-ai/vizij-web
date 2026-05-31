@@ -4,10 +4,7 @@ import {
   bindingTargetFromComponent,
   bindingTargetFromInput,
   bindingToDefinition,
-  ensureBindingStructure,
-  type AnimatableBinding,
   type BindingMap,
-  type BindingTarget,
   type InputBindingMap,
   type StandardInputValues,
 } from "@vizij/node-graph-authoring";
@@ -20,10 +17,7 @@ import {
   type RigBindingDefinition,
   type StandardRigInput,
 } from "@vizij/utils";
-import {
-  remapPipelineMetadataInputIds,
-  type VizijPipelineMetadataV1,
-} from "@vizij/studio-support";
+import { remapBindingInputIds } from "@vizij/studio-support";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
 
@@ -551,107 +545,4 @@ function replaceSlugInPath(
   }
   segments[offset] = newSlug;
   return normalizeStandardRigInputPath(`/${segments.join("/")}`);
-}
-
-function remapBindingInputIds(
-  binding: AnimatableBinding,
-  target: BindingTarget,
-  idRemap: Map<string, string>,
-): AnimatableBinding {
-  if (idRemap.size === 0) {
-    return ensureBindingStructure(binding, target);
-  }
-  const ensured = ensureBindingStructure(binding, target);
-  let changed = false;
-
-  const remappedInputId =
-    ensured.inputId && idRemap.has(ensured.inputId)
-      ? (idRemap.get(ensured.inputId) ?? ensured.inputId)
-      : ensured.inputId;
-  if (remappedInputId !== ensured.inputId) {
-    changed = true;
-  }
-  if (ensured.targetId !== target.id) {
-    changed = true;
-  }
-
-  const remappedSlots = ensured.slots.map((slot) => {
-    if (!slot.inputId) {
-      return slot;
-    }
-    const mapped = idRemap.get(slot.inputId);
-    if (!mapped || mapped === slot.inputId) {
-      return slot;
-    }
-    changed = true;
-    return {
-      ...slot,
-      inputId: mapped,
-    };
-  });
-
-  if (!changed) {
-    const remappedMetadata = remapBindingMetadataInputIds(
-      ensured.metadata,
-      idRemap,
-    );
-    if (remappedMetadata === ensured.metadata) {
-      return ensured;
-    }
-    return {
-      ...ensured,
-      metadata: remappedMetadata,
-      targetId: target.id,
-    };
-  }
-
-  return ensureBindingStructure(
-    {
-      ...ensured,
-      inputId: remappedInputId ?? null,
-      slots: remappedSlots,
-      metadata: remapBindingMetadataInputIds(ensured.metadata, idRemap),
-      targetId: target.id,
-    },
-    target,
-  );
-}
-
-function remapBindingMetadataInputIds(
-  metadata: AnimatableBinding["metadata"],
-  idRemap: ReadonlyMap<string, string>,
-): AnimatableBinding["metadata"] {
-  if (!metadata || idRemap.size === 0) {
-    return metadata;
-  }
-  const metadataRecord =
-    metadata && typeof metadata === "object" && !Array.isArray(metadata)
-      ? (metadata as Record<string, unknown>)
-      : null;
-  if (!metadataRecord) {
-    return metadata;
-  }
-  const vizij =
-    metadataRecord.vizij &&
-    typeof metadataRecord.vizij === "object" &&
-    !Array.isArray(metadataRecord.vizij)
-      ? (metadataRecord.vizij as Record<string, unknown>)
-      : null;
-  const remappedPipeline = vizij
-    ? remapPipelineMetadataInputIds(
-        (vizij.pipelineV1 as VizijPipelineMetadataV1 | null | undefined) ??
-          null,
-        idRemap,
-      )
-    : null;
-  if (!remappedPipeline || remappedPipeline === vizij?.pipelineV1) {
-    return metadata;
-  }
-  return {
-    ...metadataRecord,
-    vizij: {
-      ...(vizij ?? {}),
-      pipelineV1: remappedPipeline,
-    },
-  };
 }
