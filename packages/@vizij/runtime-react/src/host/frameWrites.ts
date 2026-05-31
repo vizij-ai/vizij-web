@@ -1,14 +1,13 @@
 import { getLookup, type RawValue } from "@vizij/utils";
-import type { ValueJSON, WriteOp } from "@vizij/orchestrator-react";
+import type { WriteOp } from "@vizij/orchestrator-react";
 import {
   normalisePath,
-  resolvePoseControlInputPath,
+  planPoseControlBridgeWrite,
   stripNamespace,
+  type PoseControlBridgeWrite,
 } from "@vizij/studio-support";
 import type { RuntimeOutputWrite } from "../types";
 import { valueJSONToRaw } from "../utils/valueConversion";
-
-const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 
 export type RuntimeFrameWriteInput = {
   writes: WriteOp[];
@@ -26,14 +25,14 @@ export type RuntimeFrameWriteInput = {
 
 export type PreparedRuntimeFrameWrites = {
   rendererWrites: RuntimeOutputWrite[];
-  poseControlInputs: Array<{ path: string; value: ValueJSON }>;
+  poseControlInputs: PoseControlBridgeWrite[];
 };
 
 export function prepareRuntimeFrameWrites(
   args: RuntimeFrameWriteInput,
 ): PreparedRuntimeFrameWrites {
   const rendererWrites: RuntimeOutputWrite[] = [];
-  const poseControlInputs: Array<{ path: string; value: ValueJSON }> = [];
+  const poseControlInputs: PoseControlBridgeWrite[] = [];
 
   args.writes.forEach((write) => {
     const path = normalisePath(write.path);
@@ -50,15 +49,17 @@ export function prepareRuntimeFrameWrites(
       return;
     }
 
-    maybeBridgePoseControlInput({
+    const bridgeWrite = planPoseControlBridgeWrite({
       basePath,
-      raw,
+      rawValue: raw,
       namespace: args.namespace,
       rigInputPathMap: args.rigInputPathMap,
       rigPoseControlInputIds: args.rigPoseControlInputIds,
-      poseControlBridgeValues: args.poseControlBridgeValues,
-      poseControlInputs,
+      state: { previousValues: args.poseControlBridgeValues },
     });
+    if (bridgeWrite) {
+      poseControlInputs.push(bridgeWrite);
+    }
 
     const targetPath = args.baseOutputPaths.has(basePath) ? basePath : path;
     const currentValue = args.currentValues.get(
@@ -82,56 +83,4 @@ export function prepareRuntimeFrameWrites(
   });
 
   return { rendererWrites, poseControlInputs };
-}
-
-function maybeBridgePoseControlInput(args: {
-  basePath: string;
-  raw: RawValue;
-  namespace: string;
-  rigInputPathMap: Record<string, string>;
-  rigPoseControlInputIds: Set<string>;
-  poseControlBridgeValues: Map<string, number>;
-  poseControlInputs: Array<{ path: string; value: ValueJSON }>;
-}) {
-  const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
-    args.basePath,
-  );
-  if (
-    !poseControlMatch ||
-    typeof args.raw !== "number" ||
-    !Number.isFinite(args.raw)
-  ) {
-    return;
-  }
-
-  const inputId = (poseControlMatch[1] ?? "").trim();
-  const hasNativePoseControlInput =
-    inputId.length > 0 && args.rigPoseControlInputIds.has(inputId);
-  const mappedInputPath =
-    inputId.length === 0
-      ? undefined
-      : resolvePoseControlInputPath({
-          inputId,
-          basePath: args.basePath,
-          rigInputPathMap: args.rigInputPathMap,
-          hasNativePoseControlInput,
-        });
-  if (!mappedInputPath) {
-    return;
-  }
-
-  const bridgeKey = `${args.namespace}:${mappedInputPath}`;
-  const previousValue = args.poseControlBridgeValues.get(bridgeKey);
-  if (
-    previousValue !== undefined &&
-    Math.abs(previousValue - args.raw) <= POSE_CONTROL_BRIDGE_EPSILON
-  ) {
-    return;
-  }
-
-  args.poseControlBridgeValues.set(bridgeKey, args.raw);
-  args.poseControlInputs.push({
-    path: mappedInputPath,
-    value: { float: args.raw },
-  });
 }

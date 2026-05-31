@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLegacyPoseWeightFallbackMap,
+  planPoseControlBridgeWrite,
   resolvePoseControlInputPath,
   resolveLegacyPoseWeightControlWrites,
   shouldUseLegacyPoseWeightFallback,
+  type PoseControlBridgeState,
 } from "../index";
 
 describe("studio support pose runtime", () => {
@@ -69,6 +71,39 @@ describe("studio support pose runtime", () => {
     ).toBe(
       "rig/hugo_latest_blender_export/pose/control/propsrig_mouth_translation_y",
     );
+  });
+
+  it("plans pose-control frame output bridge writes through rig aliases", () => {
+    const state: PoseControlBridgeState = { previousValues: new Map() };
+
+    expect(
+      planPoseControlBridgeWrite({
+        basePath: "rig/quori_latest/pose/control/happy",
+        rawValue: 0.75,
+        namespace: "demo-face",
+        rigInputPathMap: {
+          happy: "rig/quori_latest/mouth/smile",
+        },
+        rigPoseControlInputIds: new Set(["happy"]),
+        state,
+      }),
+    ).toEqual({
+      path: "rig/quori_latest/mouth/smile",
+      value: { float: 0.75 },
+    });
+
+    expect(
+      planPoseControlBridgeWrite({
+        basePath: "rig/quori_latest/pose/control/happy",
+        rawValue: 0.75,
+        namespace: "demo-face",
+        rigInputPathMap: {
+          happy: "rig/quori_latest/mouth/smile",
+        },
+        rigPoseControlInputIds: new Set(["happy"]),
+        state,
+      }),
+    ).toBeNull();
   });
 
   it("builds legacy pose-weight fallback values from pose config", () => {

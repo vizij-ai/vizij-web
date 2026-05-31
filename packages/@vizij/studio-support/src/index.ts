@@ -542,11 +542,14 @@ export {
 } from "./utils/posePaths";
 export {
   buildLegacyPoseWeightFallbackMap,
+  planPoseControlBridgeWrite,
   resolvePoseControlInputPath,
   resolveLegacyPoseWeightControlWrites,
   shouldUseLegacyPoseWeightFallback,
   type LegacyPoseWeightControlWrite,
   type LegacyPoseWeightFallbackMap,
+  type PoseControlBridgeState,
+  type PoseControlBridgeWrite,
 } from "./utils/poseRuntime";
 export {
   mapNormalizedControlValue,

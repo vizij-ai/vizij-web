@@ -160,7 +160,6 @@ const DEFAULT_MERGE: MergeStrategyOptions = {
 
 const DEFAULT_DURATION = 0.35;
 
-const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 let runtimeDebugInstanceSequence = 0;
 
 function isRuntimeDebugEnabled(): boolean {
@@ -1546,7 +1545,6 @@ function VizijRuntimeProviderInner({
       diffAnimationAggregateValues(
         clipAggregateValuesRef.current,
         nextAggregate,
-        POSE_CONTROL_BRIDGE_EPSILON,
       ).forEach((operation) => {
         if (operation.kind === "clear") {
           clearAnimationInput(operation.path);

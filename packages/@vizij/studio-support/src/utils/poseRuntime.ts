@@ -1,11 +1,22 @@
-import type { PoseRigConfig } from "../types";
+import type { PoseRigConfig, ValueJSON } from "../types";
 import { buildPoseWeightPathMap, buildRigInputPath } from "./posePaths";
+
+const POSE_CONTROL_BRIDGE_EPSILON = 1e-6;
 
 export type LegacyPoseWeightFallbackMap = Map<string, Record<string, number>>;
 
 export type LegacyPoseWeightControlWrite = {
   path: string;
   value: number;
+};
+
+export type PoseControlBridgeState = {
+  previousValues: Map<string, number>;
+};
+
+export type PoseControlBridgeWrite = {
+  path: string;
+  value: ValueJSON;
 };
 
 export function shouldUseLegacyPoseWeightFallback(hasPoseGraph: boolean) {
@@ -33,6 +44,62 @@ export function resolvePoseControlInputPath({
     rigInputPathMap[`direct_${inputId}`] ??
     (hasNativePoseControlInput ? basePath : undefined)
   );
+}
+
+export function planPoseControlBridgeWrite({
+  basePath,
+  rawValue,
+  namespace,
+  rigInputPathMap,
+  rigPoseControlInputIds,
+  state,
+}: {
+  basePath: string;
+  rawValue: unknown;
+  namespace: string;
+  rigInputPathMap: Record<string, string>;
+  rigPoseControlInputIds: Set<string>;
+  state: PoseControlBridgeState;
+}): PoseControlBridgeWrite | null {
+  const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(basePath);
+  if (
+    !poseControlMatch ||
+    typeof rawValue !== "number" ||
+    !Number.isFinite(rawValue)
+  ) {
+    return null;
+  }
+
+  const inputId = (poseControlMatch[1] ?? "").trim();
+  if (inputId.length === 0) {
+    return null;
+  }
+
+  const hasNativePoseControlInput = rigPoseControlInputIds.has(inputId);
+  const mappedInputPath = resolvePoseControlInputPath({
+    inputId,
+    basePath,
+    rigInputPathMap,
+    hasNativePoseControlInput,
+  });
+  if (!mappedInputPath) {
+    return null;
+  }
+
+  const bridgeKey = `${namespace}:${mappedInputPath}`;
+  const previousValue = state.previousValues.get(bridgeKey);
+  if (
+    previousValue !== undefined &&
+    Math.abs(previousValue - rawValue) <= POSE_CONTROL_BRIDGE_EPSILON
+  ) {
+    return null;
+  }
+
+  state.previousValues.set(bridgeKey, rawValue);
+  return {
+    path: mappedInputPath,
+    value: { float: rawValue },
+  };
 }
 
 export function buildLegacyPoseWeightFallbackMap({
