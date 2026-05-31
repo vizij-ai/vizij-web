@@ -457,3 +457,15 @@ Acceptance for this next slice:
 6. Any remaining compatibility path is named, tested, and tied to a known legacy input instead of being an open-ended duplicate implementation.
 
 This is the largest next chunk that improves architecture without reopening the engine/module design or behavior-tree question.
+
+## 2026-05-31 Runtime Thinning Closeout
+
+The runtime React and Studio support thinning closeout is complete. Remaining semantic bridge items were moved into `@vizij/studio-support`, leaving `@vizij/runtime-react` with host effects and leaving the authoring app with UI workflow plus application of support-owned plans.
+
+Completed closeout areas:
+
+1. Pose-control frame-write bridge planning moved from runtime React to Studio support.
+2. Host animation fallback was isolated and documented as compatibility-only host behavior.
+3. Runtime semantic re-exports were documented as compatibility surfaces rather than the preferred import source.
+4. Shape rename planning, legacy binding migration planning, imported bundle target derivation, imported animation/program resolution, and debug graph repair planning moved into Studio support.
+5. Browser-first acceptance remains green, including UI-edited animation and graph execution through the Arora web composed runtime.

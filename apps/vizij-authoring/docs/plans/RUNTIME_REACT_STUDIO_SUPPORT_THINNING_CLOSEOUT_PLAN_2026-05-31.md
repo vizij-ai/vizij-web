@@ -8,6 +8,30 @@
 
 **Tech Stack:** TypeScript, React, Vitest, Playwright, `@vizij/studio-support`, `@vizij/runtime-react`, `apps/vizij-authoring`.
 
+## Completion Status
+
+Completed on 2026-05-31. The closeout moved the remaining planned semantic helpers into `@vizij/studio-support`, documented `@vizij/runtime-react` semantic re-exports as compatibility-only, and kept React packages focused on host/runtime effects or UI workflow application.
+
+Verification completed:
+
+```bash
+pnpm --filter @vizij/studio-support typecheck
+pnpm --filter @vizij/studio-support test
+pnpm --filter @vizij/runtime-react typecheck
+pnpm --filter @vizij/runtime-react test
+pnpm --filter vizij-authoring typecheck
+pnpm --filter vizij-authoring test
+pnpm --filter vizij-authoring test:e2e:arora
+pnpm --filter vizij-authoring test:e2e:smoke
+git diff --check
+```
+
+Ownership searches confirmed:
+
+1. Runtime React has no remaining pose-control bridge planning implementation; `pose/control` only appears in focused frame-write tests.
+2. App-local imported bundle target constants and target-id construction were removed from `apps/vizij-authoring/src/App.tsx`.
+3. Inspector legacy migration patch construction moved to support; the remaining `migrationStatus: "migrated"` in `InspectorContent.tsx` belongs to staged link authoring.
+
 ---
 
 ## Scope
