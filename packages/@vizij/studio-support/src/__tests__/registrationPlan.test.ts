@@ -111,6 +111,11 @@ describe("prepareRuntimeRegistrationPlan", () => {
         },
       },
     });
+    const storedAnimation = plan.animationRegistrations[0]?.config.setup
+      ?.animation as { tracks?: Array<{ animatableId?: string }> };
+    expect(
+      (storedAnimation.tracks ?? []).map((track) => track.animatableId).sort(),
+    ).toEqual(["demo-face/blink", "demo-face/rig/quori_latest/blink"]);
     expect(plan.rigInputMap).toMatchObject({
       blink: "rig/quori_latest/blink",
       happy: "rig/quori_latest/pose/control/happy",

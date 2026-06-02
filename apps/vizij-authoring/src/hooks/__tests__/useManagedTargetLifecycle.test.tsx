@@ -5,12 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useManagedTargetLifecycle } from "../useManagedTargetLifecycle";
 
 interface HarnessProps {
+  sessionKey?: string | null;
   targetOptions: { value: string }[];
   selectedTargetId: string | null;
   activeRuntimeTargetId?: string | null;
   setSelectedTargetId: (targetId: string | null) => void;
   loadSelectedTarget: (targetId: string | null) => void;
   clearInvalidActiveRuntimeTarget?: () => void;
+  autoSelectFirstTarget?: boolean;
 }
 
 function createHarness(initialProps: HarnessProps) {
@@ -78,6 +80,23 @@ describe("useManagedTargetLifecycle", () => {
     );
   });
 
+  it("can leave the editor empty instead of auto-loading the first target", () => {
+    const setSelectedTargetId = vi.fn();
+    const loadSelectedTarget = vi.fn();
+    const harness = createHarness({
+      targetOptions: [{ value: "bundle-animation:session-a:0" }],
+      selectedTargetId: null,
+      setSelectedTargetId,
+      loadSelectedTarget,
+      autoSelectFirstTarget: false,
+    });
+    unmounts.push(() => harness.unmount());
+
+    expect(harness.resolvedTargetId).toBeNull();
+    expect(setSelectedTargetId).not.toHaveBeenCalled();
+    expect(loadSelectedTarget).toHaveBeenCalledWith(null);
+  });
+
   it("resets the editor when the current selection disappears", () => {
     const setSelectedTargetId = vi.fn();
     const loadSelectedTarget = vi.fn();
@@ -134,7 +153,35 @@ describe("useManagedTargetLifecycle", () => {
     );
   });
 
-  it("hydrates the same selected target again when loader context changes", () => {
+  it("resets an invalid selected target without replacing it when auto-load is disabled", () => {
+    const setSelectedTargetId = vi.fn();
+    const loadSelectedTarget = vi.fn();
+    const harness = createHarness({
+      targetOptions: [{ value: "bundle-program:session-a:0" }],
+      selectedTargetId: "bundle-program:session-a:0",
+      setSelectedTargetId,
+      loadSelectedTarget,
+      autoSelectFirstTarget: false,
+    });
+    unmounts.push(() => harness.unmount());
+
+    setSelectedTargetId.mockClear();
+    loadSelectedTarget.mockClear();
+
+    harness.rerender({
+      targetOptions: [{ value: "bundle-program:session-b:0" }],
+      selectedTargetId: "bundle-program:session-a:0",
+      setSelectedTargetId,
+      loadSelectedTarget,
+      autoSelectFirstTarget: false,
+    });
+
+    expect(harness.resolvedTargetId).toBeNull();
+    expect(setSelectedTargetId).toHaveBeenCalledWith(null);
+    expect(loadSelectedTarget).toHaveBeenCalledWith(null);
+  });
+
+  it("does not rehydrate the same selected target only because the loader callback changes", () => {
     const setSelectedTargetId = vi.fn();
     const firstLoadSelectedTarget = vi.fn();
     const secondLoadSelectedTarget = vi.fn();
@@ -155,7 +202,32 @@ describe("useManagedTargetLifecycle", () => {
       loadSelectedTarget: secondLoadSelectedTarget,
     });
 
-    expect(secondLoadSelectedTarget).toHaveBeenCalledWith(
+    expect(secondLoadSelectedTarget).not.toHaveBeenCalled();
+  });
+
+  it("hydrates the same selected target again when the explicit session key changes", () => {
+    const setSelectedTargetId = vi.fn();
+    const loadSelectedTarget = vi.fn();
+    const harness = createHarness({
+      sessionKey: "session-a",
+      targetOptions: [{ value: "authored-animation:clip-1" }],
+      selectedTargetId: "authored-animation:clip-1",
+      setSelectedTargetId,
+      loadSelectedTarget,
+    });
+    unmounts.push(() => harness.unmount());
+
+    loadSelectedTarget.mockClear();
+
+    harness.rerender({
+      sessionKey: "session-b",
+      targetOptions: [{ value: "authored-animation:clip-1" }],
+      selectedTargetId: "authored-animation:clip-1",
+      setSelectedTargetId,
+      loadSelectedTarget,
+    });
+
+    expect(loadSelectedTarget).toHaveBeenCalledWith(
       "authored-animation:clip-1",
     );
   });

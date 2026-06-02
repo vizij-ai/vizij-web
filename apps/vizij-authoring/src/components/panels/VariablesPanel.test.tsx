@@ -4195,12 +4195,9 @@ describe("VariablesPanel", () => {
     expect(tablist?.className).toContain("overflow-visible");
   });
 
-  it("routes animation and program list actions through the provided callbacks", () => {
+  it("routes animation selection and program list actions through the provided callbacks", () => {
     const onSelectAnimationTarget = vi.fn();
     const onCreateAnimationTarget = vi.fn();
-    const onPlayAnimationTarget = vi.fn();
-    const onPauseAnimationTarget = vi.fn();
-    const onStopAnimationTarget = vi.fn();
     const onDeleteAnimationTarget = vi.fn();
     const onSelectProgramTarget = vi.fn();
     const onCreateProgramTarget = vi.fn();
@@ -4232,9 +4229,6 @@ describe("VariablesPanel", () => {
         ]}
         onSelectAnimationTarget={onSelectAnimationTarget}
         onCreateAnimationTarget={onCreateAnimationTarget}
-        onPlayAnimationTarget={onPlayAnimationTarget}
-        onPauseAnimationTarget={onPauseAnimationTarget}
-        onStopAnimationTarget={onStopAnimationTarget}
         onDeleteAnimationTarget={onDeleteAnimationTarget}
         programTargets={[
           {
@@ -4270,17 +4264,14 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New Animation" }));
     fireEvent.click(screen.getByText("Wave Clip"));
-    fireEvent.click(screen.getByTitle("Play animation"));
-    fireEvent.click(screen.getByTitle("Pause animation"));
-    fireEvent.click(screen.getByTitle("Stop animation"));
     fireEvent.click(screen.getAllByTitle("Delete animation")[0]!);
 
     expect(onCreateAnimationTarget).toHaveBeenCalledTimes(1);
     expect(onSelectAnimationTarget).toHaveBeenCalledWith("animation:wave");
-    expect(onPlayAnimationTarget).toHaveBeenCalledWith("animation:wave");
-    expect(onPauseAnimationTarget).toHaveBeenCalledWith("animation:live");
-    expect(onStopAnimationTarget).toHaveBeenCalledWith("animation:live");
     expect(onDeleteAnimationTarget).toHaveBeenCalledWith("animation:wave");
+    expect(screen.queryByTitle("Play animation")).toBeNull();
+    expect(screen.queryByTitle("Pause animation")).toBeNull();
+    expect(screen.queryByTitle("Stop animation")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Programs (2)" }));
 

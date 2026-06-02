@@ -76,6 +76,40 @@ export function buildAnimationControllerPlayInputs(
   ];
 }
 
+export function buildAnimationControllerPauseInputs(
+  controllerId: string,
+): AnimationControllerInput[] {
+  return [
+    {
+      path: buildAnimationControllerCommandPath(controllerId, "set_speed"),
+      value: { float: 0 },
+    },
+    {
+      path: buildAnimationControllerCommandPath(controllerId, "pause"),
+      value: { bool: true },
+    },
+  ];
+}
+
+export function buildAnimationControllerStopInputs(
+  controllerId: string,
+): AnimationControllerInput[] {
+  return [
+    {
+      path: buildAnimationControllerCommandPath(controllerId, "set_speed"),
+      value: { float: 0 },
+    },
+    {
+      path: buildAnimationControllerInstancePath(controllerId, "weight"),
+      value: { float: 0 },
+    },
+    {
+      path: buildAnimationControllerCommandPath(controllerId, "stop"),
+      value: { bool: true },
+    },
+  ];
+}
+
 export function prepareAnimationRegistrationForTransport(
   config: AnimationRegistrationConfig,
   transport: ResolvedAnimationTransportMode,
@@ -92,6 +126,10 @@ export function prepareAnimationRegistrationForTransport(
       player: {
         ...(setup.player ?? {}),
         speed: 0,
+      },
+      instance: {
+        ...(setup.instance ?? {}),
+        weight: 0,
       },
     },
   };

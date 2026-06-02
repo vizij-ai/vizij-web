@@ -916,6 +916,46 @@ describe("VizijRuntimeProvider execution loop", () => {
     );
   });
 
+  it("flushes program stop resets before reporting the runtime idle", async () => {
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        rig: undefined,
+        pose: undefined,
+        programs: [],
+      }),
+    );
+
+    await act(async () => {
+      runtime().setGraphBundle(makeProgramBundle(), { tier: "graphs" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      runtime().playProgram("live-program");
+    });
+
+    calls.splice(0);
+    await act(async () => {
+      runtime().stopProgram("live-program");
+    });
+
+    expect(calls.filter((call) => call.kind === "removeGraph")).toMatchObject([
+      { kind: "removeGraph", id: "graph-1" },
+    ]);
+    expect(
+      calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
+    ).toEqual([
+      {
+        kind: "setInput",
+        path: "demo-face/rig/face/smile",
+        value: { float: 0 },
+        shape: undefined,
+      },
+      { kind: "step", dt: 0 },
+    ]);
+  });
+
   it("defers motiongraph acknowledgements until the program graph registers", async () => {
     const applied: RuntimeGraphBundleAppliedEvent[] = [];
     const { calls, runtime } = await mountRuntime(
@@ -1229,11 +1269,20 @@ describe("VizijRuntimeProvider execution loop", () => {
         player: {
           speed: 0,
         },
+        instance: {
+          weight: 0,
+        },
       },
     });
 
+    await act(async () => {
+      runtime().setInput("rig/face/smile", { float: 0.25 });
+      runtime().step(0, { forceRuntime: true });
+    });
     calls.splice(0);
     await act(async () => {
+      runtime().setAnimationActive(false);
+      expect(runtime().isAnimationActive()).toBe(false);
       void runtime().playAnimation("blink", {
         reset: true,
         speed: 1.25,
@@ -1241,6 +1290,7 @@ describe("VizijRuntimeProvider execution loop", () => {
       });
     });
 
+    expect(runtime().isAnimationActive()).toBe(true);
     expect(
       calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
     ).toEqual([
@@ -1266,6 +1316,181 @@ describe("VizijRuntimeProvider execution loop", () => {
         kind: "setInput",
         path: "anim/controller/anim-1/player/0/instance/0/weight",
         value: { float: 0.5 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/play",
+        value: { bool: true },
+        shape: undefined,
+      },
+      { kind: "step", dt: 0 },
+    ]);
+
+    calls.splice(0);
+    act(() => {
+      runtime().pauseAnimation("blink");
+    });
+
+    expect(runtime().getAnimationState("blink")?.playing).toBe(false);
+    expect(
+      calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
+    ).toEqual([
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/set_speed",
+        value: { float: 0 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/pause",
+        value: { bool: true },
+        shape: undefined,
+      },
+      { kind: "step", dt: 0 },
+    ]);
+
+    calls.splice(0);
+    act(() => {
+      runtime().stopAnimation("blink");
+    });
+
+    expect(runtime().getAnimationState("blink")).toBeNull();
+    expect(
+      calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
+    ).toEqual([
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/set_speed",
+        value: { float: 0 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/instance/0/weight",
+        value: { float: 0 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/stop",
+        value: { bool: true },
+        shape: undefined,
+      },
+      { kind: "step", dt: 0 },
+      {
+        kind: "setInput",
+        path: "demo-face/rig/face/smile",
+        value: { float: 0.25 },
+        shape: undefined,
+      },
+      {
+        kind: "step",
+        dt: 0,
+      },
+    ]);
+  });
+
+  it("reissues orchestrator animation play commands after controller re-registration", async () => {
+    const animation = {
+      id: "blink",
+      clip: {
+        id: "blink",
+        duration: 1,
+        tracks: [
+          {
+            channel: "rig/face/smile",
+            keyframes: [
+              { time: 0, value: 0 },
+              { time: 1, value: 1 },
+            ],
+          },
+        ],
+      },
+    };
+    const { calls, runtime } = await mountRuntime(
+      makeBundle({
+        animations: [animation],
+      }),
+      { backend: "aroraWeb" },
+    );
+
+    calls.splice(0);
+    await act(async () => {
+      void runtime().playAnimation("blink", {
+        reset: true,
+      });
+    });
+    expect(
+      calls.some(
+        (call) =>
+          call.kind === "setInput" &&
+          call.path === "anim/controller/anim-1/player/0/cmd/play",
+      ),
+    ).toBe(true);
+
+    calls.splice(0);
+    await act(async () => {
+      runtime().setGraphBundle(
+        {
+          animations: [
+            {
+              ...animation,
+              clip: {
+                ...animation.clip,
+                tracks: [
+                  {
+                    channel: "rig/face/smile",
+                    keyframes: [
+                      { time: 0, value: 0 },
+                      { time: 0.5, value: 0.5 },
+                      { time: 1, value: 1 },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          tier: "graphs",
+          source: {
+            key: "animation",
+            signature: "animation:sig-reregister",
+          },
+        },
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      calls.filter((call) => call.kind === "setInput" || call.kind === "step"),
+    ).toEqual([
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/seek",
+        value: { float: 0 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/set_loop",
+        value: "once",
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/cmd/set_speed",
+        value: { float: 1 },
+        shape: undefined,
+      },
+      {
+        kind: "setInput",
+        path: "anim/controller/anim-1/player/0/instance/0/weight",
+        value: { float: 1 },
         shape: undefined,
       },
       {

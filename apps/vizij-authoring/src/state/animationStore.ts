@@ -257,6 +257,7 @@ interface AnimationState {
   transportEnabled: boolean;
   transportPlaybackState: AnimationTransportPlaybackState;
   runtimeTransportAdapter: AnimationRuntimeTransportAdapter | null;
+  runtimeClipId: string;
   transportSessionKey: number;
   transportRuntimeReady: boolean;
   timeDisplayMode: AnimationTimeDisplayMode;
@@ -295,6 +296,7 @@ interface AnimationState {
   setRuntimeTransportAdapter: (
     adapter: AnimationRuntimeTransportAdapter | null,
   ) => void;
+  setRuntimeClipId: (clipId: string | null | undefined) => void;
   setTransportEnabled: (enabled: boolean) => void;
   setTimeDisplayMode: (mode: AnimationTimeDisplayMode) => void;
 
@@ -345,6 +347,7 @@ const INITIAL_STATE: Pick<
   | "transportEnabled"
   | "transportPlaybackState"
   | "runtimeTransportAdapter"
+  | "runtimeClipId"
   | "transportSessionKey"
   | "transportRuntimeReady"
   | "timeDisplayMode"
@@ -363,6 +366,7 @@ const INITIAL_STATE: Pick<
   transportEnabled: true,
   transportPlaybackState: "stopped",
   runtimeTransportAdapter: null,
+  runtimeClipId: AUTHORED_TIMELINE_CLIP_ID,
   transportSessionKey: 0,
   transportRuntimeReady: false,
   timeDisplayMode: "seconds",
@@ -511,6 +515,16 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         ? state
         : { runtimeTransportAdapter },
     ),
+  setRuntimeClipId: (runtimeClipId) =>
+    set((state) => {
+      const nextRuntimeClipId =
+        typeof runtimeClipId === "string" && runtimeClipId.trim().length > 0
+          ? runtimeClipId.trim()
+          : AUTHORED_TIMELINE_CLIP_ID;
+      return state.runtimeClipId === nextRuntimeClipId
+        ? state
+        : { runtimeClipId: nextRuntimeClipId };
+    }),
   setTransportEnabled: (transportEnabled) =>
     set((state) =>
       state.transportEnabled === transportEnabled
@@ -793,6 +807,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         duration: compiled.duration,
         currentTime: clampTime(state.currentTime, compiled.duration),
         isPlaying: false,
+        runtimeClipId: AUTHORED_TIMELINE_CLIP_ID,
         selectedTrackId: null,
         selectedKeyframeId: null,
         nextTrackOrdinal: normalized.nextTrackOrdinal,
@@ -817,6 +832,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     set((state) => ({
       ...INITIAL_STATE,
       runtimeTransportAdapter: state.runtimeTransportAdapter,
+      runtimeClipId: state.runtimeClipId,
       transportSessionKey: state.transportSessionKey,
     })),
 

@@ -18,7 +18,7 @@ export type RuntimeFaceControlsOverlayProps = {
   showReadyFlag?: boolean;
   runtimeStatusLabel?: string;
   runtimeStatusTestId?: string;
-  runtimePlaybackState?: "playing" | "paused" | "stopped";
+  runtimePlaybackState?: "starting" | "playing" | "paused" | "stopped";
   onPlayRuntime?: () => void;
   onPauseRuntime?: () => void;
   resetButtonLabel?: string;
@@ -80,7 +80,9 @@ export function RuntimeFaceControlsOverlay({
             >
               <Pause className="h-3 w-3 fill-current" />
             </button>
-          ) : runtimePlaybackState !== "playing" && onPlayRuntime ? (
+          ) : runtimePlaybackState !== "playing" &&
+            runtimePlaybackState !== "starting" &&
+            onPlayRuntime ? (
             <button
               data-testid="main-runtime-play"
               onClick={onPlayRuntime}

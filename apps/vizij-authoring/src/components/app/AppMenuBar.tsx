@@ -132,10 +132,14 @@ export function AppMenuBar({
       return;
     }
     if (panel === "animation") {
+      setPanelVisibility("variables", true);
+      onSelectAuthoringSurface("animations");
       onSelectEditFocus("animation");
       return;
     }
     if (panel === "motiongraph") {
+      setPanelVisibility("variables", true);
+      onSelectAuthoringSurface("programs");
       onSelectEditFocus("procedural-animation-programming");
       return;
     }

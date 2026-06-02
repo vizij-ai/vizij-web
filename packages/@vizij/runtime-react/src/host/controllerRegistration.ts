@@ -46,6 +46,7 @@ export type RegisterRuntimeControllersResult = {
   graphIds: ControllerId[];
   animationIds: ControllerId[];
   animationControllerIds: Map<string, ControllerId>;
+  animationOutputPaths: Map<string, string[]>;
   programRegistrationMap: Map<string, RuntimeProgramRegistrationSupportResult>;
   mergedGraphId: ControllerId | null;
   outputPaths: Set<string>;
@@ -78,10 +79,12 @@ export type RuntimeControllerRegistrationState = {
   registeredGraphsRef: RuntimeMutableRef<ControllerId[]>;
   registeredAnimationsRef: RuntimeMutableRef<ControllerId[]>;
   animationControllerIdsRef: RuntimeMutableRef<Map<string, ControllerId>>;
+  animationOutputPathsRef: RuntimeMutableRef<Map<string, string[]>>;
 };
 
 export type AppliedRuntimeControllerRegistration = {
   outputPaths: string[];
+  animationOutputPaths: Record<string, string[]>;
 };
 
 export function applyRuntimeControllerRegistrationResult(
@@ -101,9 +104,11 @@ export function applyRuntimeControllerRegistrationResult(
   state.registeredGraphsRef.current = result.graphIds;
   state.registeredAnimationsRef.current = result.animationIds;
   state.animationControllerIdsRef.current = result.animationControllerIds;
+  state.animationOutputPathsRef.current = result.animationOutputPaths;
 
   return {
     outputPaths: Array.from(result.outputPaths),
+    animationOutputPaths: Object.fromEntries(result.animationOutputPaths),
   };
 }
 
@@ -247,6 +252,7 @@ export function registerRuntimeControllers(args: {
     graphIds: summary.graphIds,
     animationIds: summary.animationIds,
     animationControllerIds: summary.animationControllerIds,
+    animationOutputPaths: summary.animationOutputPaths,
     programRegistrationMap: summary.programRegistrationMap,
     mergedGraphId,
     outputPaths: summary.outputPaths,

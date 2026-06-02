@@ -14,6 +14,7 @@ import {
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
 import {
+  AUTHORED_TIMELINE_CLIP_ID,
   buildMotionGraphPreviewBundle,
   buildRuntimeGraphPreviewBundle,
   buildRuntimeInputCatalogFromConstraints,
@@ -605,7 +606,7 @@ function MotionGraphRuntimeBridge({
     () => () => {
       const previous = previousSessionRef.current.controllerId;
       if (previous) {
-        stopProgramRef.current(previous);
+        stopProgramRef.current(previous, { resetOutputs: false });
       }
     },
     [],
@@ -634,7 +635,7 @@ export interface ViewerProps {
   motionGraphRuntimeResetValues?: readonly MotionGraphRuntimeResetEntry[];
   runtimeStatusLabel?: string;
   runtimeActions?: RuntimeFaceOverlayAction[];
-  runtimePlaybackState?: "playing" | "paused" | "stopped";
+  runtimePlaybackState?: "starting" | "playing" | "paused" | "stopped";
   onPlayRuntime?: () => void;
   onPauseRuntime?: () => void;
   selectedSceneId?: string | null;
@@ -643,6 +644,7 @@ export interface ViewerProps {
     inputs: StandardRigInput[],
     byId: Map<string, StandardRigInput>,
   ) => void;
+  onResetRuntimeSources?: () => void;
   onClearSelection: () => void;
   showSelectionGlow: boolean;
   onImportClick: () => void;
@@ -673,6 +675,7 @@ export function Viewer({
   selectedSceneId = null,
   onSelectScene,
   onRuntimeInputsReady,
+  onResetRuntimeSources,
   onClearSelection,
   showSelectionGlow,
   onImportClick,
@@ -696,6 +699,11 @@ export function Viewer({
     (state) => state.applyStandardInputBatch,
   );
   const stopAnimationTimeline = useAnimationStore((state) => state.stop);
+  const editorAnimationTrackCount = useAnimationStore(
+    (state) => state.tracks.length,
+  );
+  const authoredAnimationTrackCount =
+    animationRuntimeClip?.tracks.length ?? editorAnimationTrackCount;
   const lockedRuntimeOutputIndex = useMemo(
     () => buildLockedRuntimeOutputIndex(lockedInspectorTargetIds),
     [lockedInspectorTargetIds],
@@ -744,12 +752,17 @@ export function Viewer({
   }, [managedStandardInputs]);
 
   const handleResetInputs = useCallback(() => {
-    if (Object.keys(resetInputEntries).length === 0) {
-      return;
+    onResetRuntimeSources?.();
+    if (Object.keys(resetInputEntries).length > 0) {
+      applyStandardInputBatch(resetInputEntries);
     }
-    applyStandardInputBatch(resetInputEntries);
     stopAnimationTimeline();
-  }, [applyStandardInputBatch, resetInputEntries, stopAnimationTimeline]);
+  }, [
+    applyStandardInputBatch,
+    onResetRuntimeSources,
+    resetInputEntries,
+    stopAnimationTimeline,
+  ]);
 
   useEffect(() => {
     if (rootId && bundle && runtimeEnabled) {
@@ -780,13 +793,98 @@ export function Viewer({
     },
     [graphRuntimeStore],
   );
+  const setAnimationTransportRuntimeReady = useAnimationStore(
+    (state) => state.setTransportRuntimeReady,
+  );
   const handleRuntimeGraphBundleApplied = useCallback(
     (event: RuntimeGraphBundleAppliedEvent) => {
+      const currentState = graphRuntimeStore.getState();
+      const animationSignature = event.source.signature ?? null;
+      const animationTargetState =
+        currentState.authoringCompileTargets.animation;
+      const activeAnimationClipId =
+        animationRuntimeClip?.id ?? AUTHORED_TIMELINE_CLIP_ID;
+      const authoredAnimationRouteCount =
+        event.animationOutputPaths?.[activeAnimationClipId]?.length ?? 0;
+      const authoredAnimationRoutesReady =
+        authoredAnimationTrackCount === 0 || authoredAnimationRouteCount > 0;
+      const animationSignatureMatches =
+        animationTargetState.signature === animationSignature;
+      const animationTargetCanRegister =
+        animationTargetState.status === "compiled" ||
+        animationTargetState.status === "compiling" ||
+        animationTargetState.status === "registered";
+      const shouldMarkAnimationReady =
+        event.source.key === "animation" &&
+        animationSignatureMatches &&
+        authoredAnimationRoutesReady &&
+        animationTargetCanRegister;
+      if (
+        isAuthoringDebugEnabled("timeline") &&
+        event.source.key === "animation"
+      ) {
+        console.log("[timeline][animation-ack]", {
+          source: event.source,
+          animationSignature,
+          animationTargetState,
+          authoredAnimationTrackCount,
+          authoredAnimationRouteCount,
+          authoredAnimationRoutesReady,
+          animationSignatureMatches,
+          animationTargetCanRegister,
+          shouldMarkAnimationReady,
+        });
+      }
       graphRuntimeStore.setState((state) => {
-        return resolveRuntimeBundleAcknowledgementPatch(state, event);
+        if (event.source.key !== "animation") {
+          return resolveRuntimeBundleAcknowledgementPatch(state, event);
+        }
+        if (shouldMarkAnimationReady) {
+          return {
+            runtimeViewGraphCount: event.controllers.graphs.length,
+            authoringCompileStatus: "registered",
+            authoringCompileTarget: "animation",
+            authoringCompileMessage: null,
+            authoringCompileSignature: animationSignature,
+            authoringCompileTargets: {
+              ...state.authoringCompileTargets,
+              animation: {
+                status: "registered",
+                message: null,
+                signature: animationSignature,
+              },
+            },
+          };
+        }
+        return {
+          runtimeViewGraphCount: event.controllers.graphs.length,
+          authoringCompileTargets: {
+            ...state.authoringCompileTargets,
+            animation: {
+              ...state.authoringCompileTargets.animation,
+              status: "compiled",
+              message: "Waiting for animation output routing",
+              signature: animationSignature,
+            },
+          },
+        };
       });
+      if (shouldMarkAnimationReady) {
+        setAnimationTransportRuntimeReady(true, animationTransportSessionKey);
+      } else if (
+        event.source.key === "animation" &&
+        animationSignatureMatches
+      ) {
+        setAnimationTransportRuntimeReady(false, animationTransportSessionKey);
+      }
     },
-    [graphRuntimeStore],
+    [
+      animationTransportSessionKey,
+      animationRuntimeClip?.id,
+      authoredAnimationTrackCount,
+      graphRuntimeStore,
+      setAnimationTransportRuntimeReady,
+    ],
   );
 
   return (

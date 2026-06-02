@@ -49,6 +49,8 @@ export interface AuthoringPreviewCompileState
 export interface AuthoringPreviewUpdateSource {
   key: AuthoringPreviewTarget;
   signature: string;
+  animationId?: string | null;
+  requiresOutputRoutes?: boolean;
   programId?: string | null;
 }
 
@@ -356,6 +358,13 @@ export function planAnimationPreviewTransaction(
   options: AnimationPreviewTransactionOptions,
 ): AnimationPreviewTransactionPlan {
   const signature = options.preview.signature;
+  const authoredClipTracks = Array.isArray(
+    options.preview.authoredAnimation?.clip?.tracks,
+  )
+    ? options.preview.authoredAnimation.clip.tracks
+    : [];
+  const requiresOutputRoutes =
+    authoredClipTracks.length > 0 || options.preview.outputPaths.length > 0;
   const currentChanged =
     options.lastCurrentSignature !== options.currentSignature;
   const adjustedAppliedSignature =
@@ -369,7 +378,10 @@ export function planAnimationPreviewTransaction(
     converged,
     shouldPublish,
     bundle: options.preview.bundle,
-    source: buildUpdateSource("animation", signature),
+    source: buildUpdateSource("animation", signature, {
+      animationId: options.preview.authoredAnimation?.id ?? null,
+      requiresOutputRoutes,
+    }),
     dirtyState: converged
       ? null
       : buildCompileState(
@@ -519,8 +531,11 @@ export function buildAnimationPreviewBundle(
   const currentAnimations = [...options.currentAnimations].sort((left, right) =>
     left.id.localeCompare(right.id),
   );
+  const authoredAnimationId = authoredAnimation?.id ?? null;
   const inheritedAssetAnimations = currentAnimations.filter(
-    (animation) => !isAuthoredTimelineAnimation(animation),
+    (animation) =>
+      !isAuthoredTimelineAnimation(animation) &&
+      animation.id !== authoredAnimationId,
   );
   const playableInheritedAssetAnimations = inheritedAssetAnimations.filter(
     (animation) => hasAnimationTracks(animation),

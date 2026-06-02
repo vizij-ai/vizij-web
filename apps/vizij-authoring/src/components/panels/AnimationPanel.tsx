@@ -14,6 +14,7 @@ import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { TimelineEditor } from "../animation/TimelineEditor";
+import { CurveEditor } from "../animation/CurveEditor";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../../hooks/useAnimationTransport";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
@@ -91,7 +92,7 @@ function collectLockedPropsRigComponentIds(
 interface AnimationPanelProps {
   onClosePanel?: () => void;
   onInspectTrack?: (trackId: string) => void;
-  playbackState?: "playing" | "paused" | "stopped";
+  playbackState?: "starting" | "playing" | "paused" | "stopped";
   onPlayTransport?: () => void;
   onPauseTransport?: () => void;
   onStopTransport?: () => void;
@@ -332,14 +333,18 @@ export function AnimationPanel({
                 effectivePlaybackState === "playing" ? handlePause : handlePlay
               }
               disabled={
-                effectivePlaybackState === "playing"
-                  ? !handlePause
-                  : !handlePlay
+                effectivePlaybackState === "starting"
+                  ? true
+                  : effectivePlaybackState === "playing"
+                    ? !handlePause
+                    : !handlePlay
               }
               title={
-                effectivePlaybackState === "playing"
-                  ? "Pause animation"
-                  : "Play animation"
+                effectivePlaybackState === "starting"
+                  ? "Starting animation"
+                  : effectivePlaybackState === "playing"
+                    ? "Pause animation"
+                    : "Play animation"
               }
             >
               {effectivePlaybackState === "playing" ? (
@@ -430,6 +435,11 @@ export function AnimationPanel({
             {statusMessage}
           </p>
         ) : null}
+
+        <CurveEditor
+          timeDisplayMode={timeDisplayMode}
+          onInspectTrack={onInspectTrack}
+        />
 
         <TimelineEditor
           onSeek={handleSeek}

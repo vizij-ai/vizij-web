@@ -2945,9 +2945,6 @@ interface VariablesPanelProps {
   onCreateAnimationTarget?: () => void;
   onDuplicateAnimationTarget?: (id: string) => void;
   onDeleteAnimationTarget?: (id: string) => void;
-  onPlayAnimationTarget?: (id: string) => void;
-  onPauseAnimationTarget?: (id: string) => void;
-  onStopAnimationTarget?: (id: string) => void;
   programTargets?: AuthoringTargetItem[];
   onSelectProgramTarget?: (id: string) => void;
   onCreateProgramTarget?: () => void;
@@ -2987,9 +2984,6 @@ export function VariablesPanel({
   onCreateAnimationTarget,
   onDuplicateAnimationTarget,
   onDeleteAnimationTarget,
-  onPlayAnimationTarget,
-  onPauseAnimationTarget,
-  onStopAnimationTarget,
   programTargets = [],
   onSelectProgramTarget,
   onCreateProgramTarget,
@@ -6627,9 +6621,6 @@ export function VariablesPanel({
                     onDuplicate={onDuplicateAnimationTarget}
                     onDelete={onDeleteAnimationTarget}
                     onSelect={(targetId) => onSelectAnimationTarget?.(targetId)}
-                    onPlay={onPlayAnimationTarget}
-                    onPause={onPauseAnimationTarget}
-                    onStop={onStopAnimationTarget}
                   />
                 );
               }

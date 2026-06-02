@@ -261,6 +261,15 @@ async function clickButtonByTitle(page: Page, title: string): Promise<void> {
     });
 }
 
+async function clickFirstTestId(page: Page, testId: string): Promise<void> {
+  await page
+    .getByTestId(testId)
+    .first()
+    .evaluate((node) => {
+      (node as HTMLButtonElement).click();
+    });
+}
+
 async function resetMainScene(page: Page): Promise<void> {
   await page.getByTestId("app-menu-file").click();
   await page.getByRole("menuitem", { name: "New" }).click();
@@ -448,10 +457,11 @@ async function runPlaybackScenario(
     async (record) => {
       await record("start");
       await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
+      await clickFirstTestId(page, "authoring-animation-item-select");
       for (let index = 0; index < PLAYBACK_CYCLES; index += 1) {
         await clickButtonByTitle(page, "Play animation");
         await clickButtonByTitle(page, "Pause animation");
-        await clickButtonByTitle(page, "Stop animation");
+        await clickFirstTestId(page, "animation-panel-stop");
         if (
           (index + 1) % CHECKPOINT_INTERVAL === 0 ||
           index === PLAYBACK_CYCLES - 1

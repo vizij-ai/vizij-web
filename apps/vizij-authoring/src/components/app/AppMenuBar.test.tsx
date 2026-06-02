@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createInitialWorkspacePanels,
@@ -13,7 +14,7 @@ import {
 import { useThemeStore } from "../../state/themeStore";
 import { AppMenuBar } from "./AppMenuBar";
 
-function renderMenuBar() {
+function renderMenuBar(props: Partial<ComponentProps<typeof AppMenuBar>> = {}) {
   return render(
     <AppMenuBar
       onNew={vi.fn()}
@@ -32,6 +33,7 @@ function renderMenuBar() {
       onSelectRotationDisplayMode={vi.fn()}
       activeAuthoringSurface="variables"
       onSelectAuthoringSurface={vi.fn()}
+      {...props}
     />,
   );
 }
@@ -106,7 +108,9 @@ describe("AppMenuBar", () => {
   });
 
   it("treats Program as a center-panel mode and reveals the Node Palette", async () => {
-    renderMenuBar();
+    const onSelectEditFocus = vi.fn();
+    const onSelectAuthoringSurface = vi.fn();
+    renderMenuBar({ onSelectEditFocus, onSelectAuthoringSurface });
 
     fireEvent.click(screen.getByTestId("app-menu-view"));
     fireEvent.click(await screen.findByText("Program"));
@@ -116,5 +120,29 @@ describe("AppMenuBar", () => {
     expect(panels.motiongraphPalette.isVisible).toBe(true);
     expect(panels.animation.isVisible).toBe(false);
     expect(panels.referenceFace.isVisible).toBe(false);
+    expect(panels.variables.isVisible).toBe(true);
+    expect(onSelectAuthoringSurface).toHaveBeenCalledWith("programs");
+    expect(onSelectEditFocus).toHaveBeenCalledWith(
+      "procedural-animation-programming",
+    );
+  });
+
+  it("opens the Animations authoring surface when opening the animation panel", async () => {
+    const onSelectEditFocus = vi.fn();
+    const onSelectAuthoringSurface = vi.fn();
+    renderMenuBar({ onSelectEditFocus, onSelectAuthoringSurface });
+
+    useWorkspaceStore.getState().setPanelVisibility("variables", false);
+
+    fireEvent.click(screen.getByTestId("app-menu-view"));
+    fireEvent.click(await screen.findByText("Animation"));
+
+    const panels = useWorkspaceStore.getState().panels;
+    expect(panels.animation.isVisible).toBe(true);
+    expect(panels.motiongraph.isVisible).toBe(false);
+    expect(panels.referenceFace.isVisible).toBe(false);
+    expect(panels.variables.isVisible).toBe(true);
+    expect(onSelectAuthoringSurface).toHaveBeenCalledWith("animations");
+    expect(onSelectEditFocus).toHaveBeenCalledWith("animation");
   });
 });

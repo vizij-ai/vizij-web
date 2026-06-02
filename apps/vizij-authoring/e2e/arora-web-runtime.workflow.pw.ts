@@ -431,6 +431,81 @@ async function waitForMainRendererSample(
   return snapshot as RendererSample;
 }
 
+async function readMainRendererSampleValue(
+  page: Page,
+  id: RegExp,
+): Promise<number | null> {
+  return page.evaluate(
+    ({ idPattern, idFlags }) => {
+      function numericValue(value: unknown): number | null {
+        if (typeof value === "number" && Number.isFinite(value)) {
+          return value;
+        }
+        if (!value || typeof value !== "object") {
+          return null;
+        }
+        const record = value as Record<string, unknown>;
+        const candidates = [record.float, record.number, record.value];
+        for (const candidate of candidates) {
+          if (typeof candidate === "number" && Number.isFinite(candidate)) {
+            return candidate;
+          }
+        }
+        return null;
+      }
+
+      const memoryState = (window as any).__vizijMemoryDebugState;
+      const runtimes = Object.values(memoryState?.runtimes ?? {}) as Array<
+        Record<string, unknown>
+      >;
+      const runtime = runtimes.find(
+        (entry) =>
+          entry.namespace === "default" &&
+          entry.orchestratorBackend === "aroraWeb" &&
+          entry.ready === true,
+      );
+      if (!runtime) {
+        return null;
+      }
+      const idRegex = new RegExp(idPattern, idFlags);
+      const samples = Array.isArray(runtime.lastRendererWriteSamples)
+        ? runtime.lastRendererWriteSamples
+        : [];
+      for (const sample of samples) {
+        if (!sample || typeof sample !== "object") {
+          continue;
+        }
+        const sampleId = String((sample as { id?: unknown }).id ?? "");
+        if (!idRegex.test(sampleId)) {
+          continue;
+        }
+        return numericValue((sample as { value?: unknown }).value);
+      }
+      return null;
+    },
+    { idPattern: id.source, idFlags: id.flags },
+  );
+}
+
+async function expectMainRendererSampleStable(
+  page: Page,
+  id: RegExp,
+  options: { durationMs?: number; tolerance?: number } = {},
+): Promise<void> {
+  const durationMs = options.durationMs ?? 1_200;
+  const tolerance = options.tolerance ?? 0.005;
+  const before = await readMainRendererSampleValue(page, id);
+  await page.waitForTimeout(durationMs);
+  const after = await readMainRendererSampleValue(page, id);
+  if (before === null || after === null) {
+    expect(after).toBeNull();
+    return;
+  }
+  expect(Math.abs(Number(after) - Number(before))).toBeLessThanOrEqual(
+    tolerance,
+  );
+}
+
 async function captureMainRuntimeCanvasPixels(
   page: Page,
 ): Promise<CanvasPixelSnapshot> {
@@ -934,7 +1009,17 @@ async function duplicateFirstTarget(options: {
   return { copiedItem, copiedLabel };
 }
 
-async function playTarget(item: Locator, targetKind: "animation" | "program") {
+async function playTarget(
+  page: Page,
+  item: Locator,
+  targetKind: "animation" | "program",
+) {
+  if (targetKind === "animation") {
+    await clickViaDom(item.getByTestId("authoring-animation-item-select"));
+    await ensureAnimationPanelVisible(page);
+    await clickViaDom(page.getByTestId("animation-panel-playback-toggle"));
+    return;
+  }
   await clickViaDom(item.getByTestId(`authoring-${targetKind}-item-play`));
 }
 
@@ -947,8 +1032,8 @@ async function stopActiveRuntime(page: Page): Promise<void> {
   if (await stopProgram.isVisible().catch(() => false)) {
     await clickViaDom(stopProgram);
   }
-  await expect(page.getByTestId("main-runtime-status-chip")).toHaveText(
-    "Runtime: Idle",
+  await expect(page.getByTestId("main-runtime-status-chip")).toContainText(
+    "Idle",
   );
 }
 
@@ -993,10 +1078,32 @@ test("loads authoring face, animation, and program through Arora web composed ex
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
   await ensureAnimationPanelVisible(page);
+  await clickViaDom(
+    page
+      .getByTestId("control-authoring-panel-animations")
+      .getByTestId("authoring-animation-item")
+      .filter({ hasText: /Nonesense/i })
+      .first()
+      .getByTestId("authoring-animation-item-select"),
+  );
   const idleCanvas = await captureMainRuntimeCanvasPixels(page);
   await clickViaDom(page.getByTestId("animation-panel-playback-toggle"));
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expectMainRuntimeCanvasVisualChange(page, idleCanvas);
+  const beforePauseRuntime = await readMainRuntimeDebug(page);
+  await clickViaDom(page.getByTestId("animation-panel-playback-toggle"));
+  await expect(runtimeChip).toContainText("Animation: Paused");
+  const pausedRuntime = await waitForMainAnimationCommandDiagnostics(
+    page,
+    Number(beforePauseRuntime?.orchestratorAnimationCommandCount ?? 0),
+  );
+  expect(pausedRuntime.lastAnimationCommandPaths).toEqual([
+    "anim/controller/default/animation/authoring.timeline.main/player/0/cmd/set_speed",
+    "anim/controller/default/animation/authoring.timeline.main/player/0/cmd/pause",
+  ]);
+  await expectMainRendererSampleStable(page, /gaze\/left_right$/);
+  await clickViaDom(page.getByTestId("animation-panel-playback-toggle"));
+  await expect(runtimeChip).toContainText("Animation: Playing");
 
   await ensureAuthoringProgramsVisible(page);
   await clickViaDom(
@@ -1062,13 +1169,32 @@ test("executes UI-edited animation and graph values through Arora web composed r
   await expect(
     inspector.getByTestId("animation-track-interpolation-select"),
   ).toBeVisible();
+
+  const curveEditor = page.getByTestId("animation-curve-editor");
+  await expect(curveEditor).toBeVisible();
+  await curveEditor
+    .getByTestId("animation-curve-segment-mode-select")
+    .selectOption("cubic");
+  await expect(
+    curveEditor.getByTestId("animation-curve-handle-out"),
+  ).toBeVisible();
+  await clickViaDom(editedTrackRow.getByTestId("animation-timeline-keyframe"));
+  const outTangentInput = inspector.getByTestId(
+    "animation-keyframe-out-tangent-input",
+  );
+  await expect(outTangentInput).toBeVisible();
+  await outTangentInput.fill("1.75");
+  await expect(outTangentInput).toHaveValue("1.75");
+
   await inspector
     .getByTestId("animation-track-interpolation-select")
     .selectOption("step");
-  await clickViaDom(editedTrackRow.getByTestId("animation-timeline-keyframe"));
   await expect(
     inspector.getByTestId("animation-keyframe-item").first(),
   ).toBeVisible();
+  await inspector
+    .getByTestId("animation-keyframe-interpolation-select")
+    .selectOption("step");
   const keyframeValueInput = inspector.getByTestId(
     "animation-keyframe-value-input",
   );
@@ -1081,7 +1207,7 @@ test("executes UI-edited animation and graph values through Arora web composed r
 
   const beforeAnimationRuntime = await readMainRuntimeDebug(page);
   const beforeAnimationCanvas = await captureMainRuntimeCanvasPixels(page);
-  await playTarget(copiedAnimation, "animation");
+  await playTarget(page, copiedAnimation, "animation");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await waitForMainAnimationCommandDiagnostics(
     page,
@@ -1126,7 +1252,7 @@ test("executes UI-edited animation and graph values through Arora web composed r
 
   const beforeGraphRuntime = await readMainRuntimeDebug(page);
   const beforeGraphArora = await readMainAroraDebug(page);
-  await playTarget(liveProgram, "program");
+  await playTarget(page, liveProgram, "program");
   await expect(runtimeChip).toContainText("Program: Playing");
   await waitForMainFacadeCallCountGreaterThan(
     page,
@@ -1236,7 +1362,7 @@ test("executes UI-edited animation and graph values through Arora web composed r
     .first();
   await expect(reloadedAnimation).toBeVisible();
   const beforeReloadedAnimationRuntime = await readMainRuntimeDebug(page);
-  await playTarget(reloadedAnimation, "animation");
+  await playTarget(page, reloadedAnimation, "animation");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await waitForMainAnimationCommandDiagnostics(
     page,
@@ -1263,7 +1389,7 @@ test("executes UI-edited animation and graph values through Arora web composed r
   await expect(reloadedProgram).toBeVisible();
   const beforeReloadedGraphRuntime = await readMainRuntimeDebug(page);
   const beforeReloadedGraphArora = await readMainAroraDebug(page);
-  await playTarget(reloadedProgram, "program");
+  await playTarget(page, reloadedProgram, "program");
   await expect(runtimeChip).toContainText("Program: Playing");
   await waitForMainFacadeCallCountGreaterThan(
     page,
@@ -1340,7 +1466,7 @@ test("round-trips authored animation and program targets through exported GLB an
   });
   const beforeCopiedAnimationCanvas =
     await captureMainRuntimeCanvasPixels(page);
-  await playTarget(copiedAnimation, "animation");
+  await playTarget(page, copiedAnimation, "animation");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await waitForMainAnimationCommandDiagnostics(
     page,
@@ -1359,7 +1485,7 @@ test("round-trips authored animation and program targets through exported GLB an
     });
   const beforeProgramDiagnostics =
     await waitForMainComposedRuntimeDiagnostics(page);
-  await playTarget(copiedProgram, "program");
+  await playTarget(page, copiedProgram, "program");
   await expect(runtimeChip).toContainText("Program: Playing");
   await waitForMainRuntimeWrites(
     page,
@@ -1412,7 +1538,7 @@ test("round-trips authored animation and program targets through exported GLB an
   await expect(reloadedAnimation).toBeVisible();
   const beforeReloadedAnimationDiagnostics =
     await waitForMainComposedRuntimeDiagnostics(page);
-  await playTarget(reloadedAnimation, "animation");
+  await playTarget(page, reloadedAnimation, "animation");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await waitForMainAnimationCommandDiagnostics(
     page,
@@ -1436,7 +1562,7 @@ test("round-trips authored animation and program targets through exported GLB an
   await expect(reloadedProgram).toBeVisible();
   const beforeReloadedProgramDiagnostics =
     await waitForMainComposedRuntimeDiagnostics(page);
-  await playTarget(reloadedProgram, "program");
+  await playTarget(page, reloadedProgram, "program");
   await expect(runtimeChip).toContainText("Program: Playing");
   await waitForMainRuntimeWrites(
     page,

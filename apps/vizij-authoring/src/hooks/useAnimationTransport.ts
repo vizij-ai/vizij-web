@@ -41,6 +41,14 @@ export function AnimationRuntimeBridge({
     typeof runtime.getAnimationState === "function"
       ? runtime.getAnimationState
       : null;
+  const hasAnimationController =
+    typeof runtime.hasAnimationController === "function"
+      ? runtime.hasAnimationController
+      : null;
+  const getAnimationOutputPaths =
+    typeof runtime.getAnimationOutputPaths === "function"
+      ? runtime.getAnimationOutputPaths
+      : null;
   const seekAnimation =
     typeof runtime.seekAnimation === "function" ? runtime.seekAnimation : null;
   const standardInputsById = useBindingAuthoring(
@@ -57,6 +65,7 @@ export function AnimationRuntimeBridge({
   const setRuntimeTransportAdapter = useAnimationStore(
     (state) => state.setRuntimeTransportAdapter,
   );
+  const setRuntimeClipId = useAnimationStore((state) => state.setRuntimeClipId);
   const setTransportEnabled = useAnimationStore(
     (state) => state.setTransportEnabled,
   );
@@ -73,6 +82,7 @@ export function AnimationRuntimeBridge({
     [exportClipIr, tracks],
   );
   const authoredClip = clip ?? editorClip;
+  const runtimeClipId = authoredClip?.id ?? AUTHORED_TIMELINE_CLIP_ID;
 
   const playableInheritedAssetAnimations = useMemo(
     () =>
@@ -126,6 +136,8 @@ export function AnimationRuntimeBridge({
   const authoredAnimation = previewBundle.authoredAnimation;
   const authoredOutputPaths = previewBundle.outputPaths;
   const mergedAnimations = previewBundle.animations;
+  const authoredAnimationTrackCount =
+    authoredAnimation?.clip?.tracks?.length ?? 0;
 
   const currentAnimationSignature = useMemo(
     () => toDeterministicSignature(currentAnimations),
@@ -148,20 +160,16 @@ export function AnimationRuntimeBridge({
     const wasActive = wasActiveRef.current;
     wasActiveRef.current = active;
     setTransportEnabled(active);
+    setRuntimeClipId(runtimeClipId);
     if (!active) {
       setRuntimeTransportAdapter(null);
       if (wasActive) {
         if (typeof runtime.stopAnimation === "function") {
-          runtime.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+          runtime.stopAnimation(runtimeClipId, {
             clearOutputs: true,
           });
         } else if (typeof runtime.pauseAnimation === "function") {
-          runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
-        }
-        if (typeof runtime.setInput === "function") {
-          authoredOutputPaths.forEach((path) => {
-            runtime.setInput(path, { float: 0 });
-          });
+          runtime.pauseAnimation(runtimeClipId);
         }
       }
       if (typeof runtime.setAnimationActive === "function") {
@@ -207,10 +215,7 @@ export function AnimationRuntimeBridge({
       getAnimationState: runtime.getAnimationState,
     };
     setRuntimeTransportAdapter(adapter);
-    setTransportRuntimeReady(
-      currentAnimationSignature === mergedAnimationSignature,
-      transportSessionKey,
-    );
+    setTransportRuntimeReady(false, transportSessionKey);
     return () => {
       setRuntimeTransportAdapter(null);
       if (typeof runtime.setAnimationActive === "function") {
@@ -220,10 +225,9 @@ export function AnimationRuntimeBridge({
     };
   }, [
     active,
-    authoredOutputPaths,
-    currentAnimationSignature,
-    mergedAnimationSignature,
     runtime,
+    runtimeClipId,
+    setRuntimeClipId,
     setRuntimeTransportAdapter,
     setTransportEnabled,
     setTransportRuntimeReady,
@@ -232,6 +236,10 @@ export function AnimationRuntimeBridge({
   ]);
 
   useEffect(() => {
+    if (!active) {
+      setTransportRuntimeReady(false, transportSessionKey);
+      return;
+    }
     const plan = planAnimationPreviewTransaction({
       preview: previewBundle,
       currentSignature: currentAnimationSignature,
@@ -242,7 +250,33 @@ export function AnimationRuntimeBridge({
     appliedAnimationSignatureRef.current = plan.nextAppliedSignature;
 
     if (plan.converged) {
-      applyAuthoringCompileState(graphRuntimeStore, plan.compiledState);
+      const animationTarget =
+        graphRuntimeStore.getState().authoringCompileTargets.animation;
+      const runtimeControllerReady =
+        authoredAnimation !== null &&
+        (hasAnimationController?.(runtimeClipId) ?? false);
+      const runtimeOutputRoutesReady =
+        authoredAnimationTrackCount === 0 ||
+        (getAnimationOutputPaths?.(runtimeClipId)?.length ?? 0) > 0;
+      const registeredInRuntime =
+        runtimeControllerReady && runtimeOutputRoutesReady;
+      const alreadyRegistered =
+        active &&
+        authoredAnimation !== null &&
+        ((animationTarget.status === "registered" &&
+          animationTarget.signature === plan.compiledState.signature) ||
+          registeredInRuntime);
+      applyAuthoringCompileState(
+        graphRuntimeStore,
+        alreadyRegistered
+          ? {
+              ...plan.compiledState,
+              status: "registered",
+              message: null,
+            }
+          : plan.compiledState,
+      );
+      setTransportRuntimeReady(alreadyRegistered, transportSessionKey);
       return;
     }
 
@@ -279,14 +313,19 @@ export function AnimationRuntimeBridge({
       });
     }
     if (transportActive && authoredAnimation && seekAnimation) {
-      seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTimeRef.current);
+      seekAnimation(runtimeClipId, currentTimeRef.current);
     }
   }, [
+    active,
     authoredAnimation,
+    authoredAnimationTrackCount,
     currentAnimationSignature,
+    getAnimationOutputPaths,
     graphRuntimeStore,
+    hasAnimationController,
     mergedAnimations,
     previewBundle,
+    runtimeClipId,
     seekAnimation,
     setGraphBundle,
     setTransportRuntimeReady,
@@ -328,7 +367,6 @@ export function AnimationRuntimeBridge({
       syncTransportState(
         {
           currentTime: playbackState.time,
-          duration: playbackState.duration,
           isPlaying: playbackState.playing,
           loop: playbackState.loop,
           playSpeed: playbackState.speed,
@@ -342,31 +380,33 @@ export function AnimationRuntimeBridge({
       syncMissingPlaybackState();
       return;
     }
-    let frameHandle = 0;
+    const syncIntervalMs = 50;
     const tick = () => {
-      const playbackState = getAnimationState(AUTHORED_TIMELINE_CLIP_ID);
+      const playbackState = getAnimationState(runtimeClipId);
       if (!playbackState) {
         syncMissingPlaybackState();
-        frameHandle = requestAnimationFrame(tick);
         return;
       }
       syncPlaybackState(playbackState);
-      frameHandle = requestAnimationFrame(tick);
     };
 
-    const initialPlaybackState = getAnimationState(AUTHORED_TIMELINE_CLIP_ID);
+    const initialPlaybackState = getAnimationState(runtimeClipId);
     if (!initialPlaybackState) {
       syncMissingPlaybackState();
     } else {
       syncPlaybackState(initialPlaybackState);
     }
-    frameHandle = requestAnimationFrame(tick);
+    const intervalHandle = window.setInterval(tick, syncIntervalMs);
     return () => {
-      if (frameHandle !== 0) {
-        cancelAnimationFrame(frameHandle);
-      }
+      window.clearInterval(intervalHandle);
     };
-  }, [active, getAnimationState, syncTransportState, transportSessionKey]);
+  }, [
+    active,
+    getAnimationState,
+    runtimeClipId,
+    syncTransportState,
+    transportSessionKey,
+  ]);
 
   return null;
 }
@@ -376,6 +416,7 @@ export function useAnimationTransport() {
   const runtimeTransportAdapter = useAnimationStore(
     (state) => state.runtimeTransportAdapter,
   );
+  const runtimeClipId = useAnimationStore((state) => state.runtimeClipId);
   const transportEnabled = useAnimationStore((state) => state.transportEnabled);
   const {
     tracks,
@@ -384,7 +425,6 @@ export function useAnimationTransport() {
     transportPlaybackState,
     playSpeed,
     loop,
-    play,
     pause,
     stop,
     setLoop,
@@ -400,14 +440,50 @@ export function useAnimationTransport() {
     if (!canDrive || !runtimeTransport) {
       return;
     }
-    runtimeTransport.setAnimationLoop(AUTHORED_TIMELINE_CLIP_ID, loop);
-    runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTime);
-    play();
-    void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+    runtimeTransport.setAnimationLoop(runtimeClipId, loop);
+    runtimeTransport.seekAnimation(runtimeClipId, currentTime);
+    const playPromise = runtimeTransport.playAnimation(runtimeClipId, {
       reset: false,
       speed: playSpeed,
     });
-  }, [canDrive, currentTime, loop, play, playSpeed, runtimeTransport]);
+    const playbackState = runtimeTransport.getAnimationState(runtimeClipId);
+    if (playbackState?.playing) {
+      syncTransportState({
+        currentTime: playbackState.time,
+        duration: playbackState.duration,
+        isPlaying: true,
+        loop: playbackState.loop,
+        playSpeed: playbackState.speed,
+        transportActive: true,
+        transportPlaybackState: "playing",
+      });
+    } else {
+      syncTransportState({
+        isPlaying: false,
+        transportActive: false,
+        transportPlaybackState: "stopped",
+      });
+    }
+    void playPromise.catch((error) => {
+      console.error(
+        "[vizij-authoring] animation transport playback failed",
+        error,
+      );
+      syncTransportState({
+        isPlaying: false,
+        transportActive: false,
+        transportPlaybackState: "stopped",
+      });
+    });
+  }, [
+    canDrive,
+    currentTime,
+    loop,
+    playSpeed,
+    runtimeClipId,
+    runtimeTransport,
+    syncTransportState,
+  ]);
 
   const pauseTransport = useCallback(() => {
     if (!canDrive || !runtimeTransport) {
@@ -418,20 +494,20 @@ export function useAnimationTransport() {
       });
       return;
     }
-    runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+    runtimeTransport.pauseAnimation(runtimeClipId);
     pause();
-  }, [canDrive, pause, runtimeTransport, syncTransportState]);
+  }, [canDrive, pause, runtimeClipId, runtimeTransport, syncTransportState]);
 
   const stopTransport = useCallback(() => {
     if (!canDrive || !runtimeTransport) {
       stop();
       return;
     }
-    runtimeTransport.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+    runtimeTransport.stopAnimation(runtimeClipId, {
       clearOutputs: true,
     });
     stop();
-  }, [canDrive, runtimeTransport, stop]);
+  }, [canDrive, runtimeClipId, runtimeTransport, stop]);
 
   const seekTransport = useCallback(
     (timeSeconds: number) => {
@@ -447,14 +523,14 @@ export function useAnimationTransport() {
       const resumePlaying = isPlaying;
       if (!resumePlaying) {
         if (transportPlaybackState === "stopped") {
-          void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+          void runtimeTransport.playAnimation(runtimeClipId, {
             reset: false,
             speed: playSpeed,
           });
         }
-        runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+        runtimeTransport.pauseAnimation(runtimeClipId);
       }
-      runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, timeSeconds);
+      runtimeTransport.seekAnimation(runtimeClipId, timeSeconds);
       syncTransportState({
         currentTime: timeSeconds,
         isPlaying: resumePlaying,
@@ -466,6 +542,7 @@ export function useAnimationTransport() {
       canDrive,
       isPlaying,
       playSpeed,
+      runtimeClipId,
       runtimeTransport,
       syncTransportState,
       transportPlaybackState,
@@ -478,9 +555,9 @@ export function useAnimationTransport() {
       if (!canDrive || !runtimeTransport) {
         return;
       }
-      runtimeTransport.setAnimationLoop(AUTHORED_TIMELINE_CLIP_ID, enabled);
+      runtimeTransport.setAnimationLoop(runtimeClipId, enabled);
     },
-    [canDrive, runtimeTransport, setLoop],
+    [canDrive, runtimeClipId, runtimeTransport, setLoop],
   );
 
   const setSpeedTransport = useCallback(
@@ -489,17 +566,15 @@ export function useAnimationTransport() {
       if (!canDrive || !runtimeTransport) {
         return;
       }
-      const playbackState = runtimeTransport.getAnimationState(
-        AUTHORED_TIMELINE_CLIP_ID,
-      );
+      const playbackState = runtimeTransport.getAnimationState(runtimeClipId);
       if (playbackState?.playing) {
-        void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+        void runtimeTransport.playAnimation(runtimeClipId, {
           reset: false,
           speed: multiplier,
         });
       }
     },
-    [canDrive, runtimeTransport, setPlaySpeed],
+    [canDrive, runtimeClipId, runtimeTransport, setPlaySpeed],
   );
 
   const stepTransport = useCallback(
@@ -513,10 +588,8 @@ export function useAnimationTransport() {
         });
         return;
       }
-      runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
-      const playbackState = runtimeTransport.getAnimationState(
-        AUTHORED_TIMELINE_CLIP_ID,
-      );
+      runtimeTransport.pauseAnimation(runtimeClipId);
+      const playbackState = runtimeTransport.getAnimationState(runtimeClipId);
       const baseTime = playbackState?.time ?? currentTime;
       const durationSeconds = playbackState?.duration ?? 0;
       const unclampedTime = baseTime + Math.max(0, deltaSeconds);
@@ -524,7 +597,7 @@ export function useAnimationTransport() {
         durationSeconds > 0
           ? Math.max(0, Math.min(unclampedTime, durationSeconds))
           : Math.max(0, unclampedTime);
-      runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, nextTime);
+      runtimeTransport.seekAnimation(runtimeClipId, nextTime);
       syncTransportState({
         currentTime: nextTime,
         isPlaying: false,
@@ -532,7 +605,13 @@ export function useAnimationTransport() {
         transportPlaybackState: "paused",
       });
     },
-    [canDrive, currentTime, runtimeTransport, syncTransportState],
+    [
+      canDrive,
+      currentTime,
+      runtimeClipId,
+      runtimeTransport,
+      syncTransportState,
+    ],
   );
 
   return {

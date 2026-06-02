@@ -26,7 +26,7 @@ export function createEditFocusPanelVisibility(
 
   if (focus === "animation") {
     nextVisibility.hierarchy = false;
-    nextVisibility.variables = false;
+    nextVisibility.variables = true;
     nextVisibility.poses = false;
     nextVisibility.materials = false;
     nextVisibility.inputs = true;
@@ -39,7 +39,7 @@ export function createEditFocusPanelVisibility(
 
   if (focus === "procedural-animation-programming") {
     nextVisibility.hierarchy = false;
-    nextVisibility.variables = false;
+    nextVisibility.variables = true;
     nextVisibility.poses = false;
     nextVisibility.materials = false;
     nextVisibility.inputs = true;

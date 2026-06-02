@@ -199,6 +199,9 @@ describe("registerRuntimeControllers", () => {
     expect(result.animationControllerIds.get("clip-a")).toBe(
       "anim-clip-controller",
     );
+    expect(result.animationOutputPaths.get("clip-a")).toEqual([
+      "rig/face/smile",
+    ]);
     expect(result.programRegistrationMap.get("program-a")?.config.id).toBe(
       "program-controller",
     );
@@ -212,7 +215,7 @@ describe("registerRuntimeControllers", () => {
         kind: "registerAnimation",
         payload: {
           id: "clip-controller",
-          setup: { player: { speed: 0 } },
+          setup: { player: { speed: 0 }, instance: { weight: 0 } },
         },
       },
       {
@@ -290,6 +293,7 @@ describe("applyRuntimeControllerRegistrationResult", () => {
       registeredGraphsRef: { current: [] as string[] },
       registeredAnimationsRef: { current: [] as string[] },
       animationControllerIdsRef: { current: new Map<string, string>() },
+      animationOutputPathsRef: { current: new Map<string, string[]>() },
     };
 
     const applied = applyRuntimeControllerRegistrationResult(
@@ -298,6 +302,9 @@ describe("applyRuntimeControllerRegistrationResult", () => {
     );
 
     expect(applied.outputPaths).toEqual(["demo-face/rig/face/smile"]);
+    expect(applied.animationOutputPaths).toEqual({
+      "clip-a": ["rig/face/smile"],
+    });
     expect(state.rigInputMapRef.current).toEqual({ smile: "rig/face/smile" });
     expect(state.rigPoseControlInputIdsRef.current.has("smile")).toBe(true);
     expect(state.inputConstraintsRef.current).toBe(
@@ -318,6 +325,9 @@ describe("applyRuntimeControllerRegistrationResult", () => {
     expect(state.registeredAnimationsRef.current).toEqual([
       "anim-clip-controller",
     ]);
+    expect(state.animationOutputPathsRef.current).toBe(
+      registration.animationOutputPaths,
+    );
     expect(state.animationControllerIdsRef.current.get("clip-a")).toBe(
       "anim-clip-controller",
     );

@@ -63,13 +63,13 @@ async function clickSelectedAnimationPanelPlay(page: Page): Promise<void> {
   );
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function parseTrackCount(value: string): number | null {
   const match = value.match(/(\d+)\s+tracks?/i);
   return match ? Number.parseInt(match[1]!, 10) : null;
+}
+
+function mainRuntimeStatusChip(page: Page): Locator {
+  return page.locator('[data-testid="main-runtime-status-chip"]:visible');
 }
 
 async function sampleInputValues(
@@ -101,7 +101,7 @@ test("animation and program runtime sessions stay independent across UI changes 
   await bootAuthoring(page);
   await loadMainPreset(page, "quori:latest");
 
-  const runtimeChip = page.getByTestId("main-runtime-status-chip");
+  const runtimeChip = mainRuntimeStatusChip(page);
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
   const primaryAnimation = targetItem(page, {
@@ -116,7 +116,8 @@ test("animation and program runtime sessions stay independent across UI changes 
   });
   await expect(primaryAnimation).toBeVisible();
   await expect(secondaryAnimation).toBeVisible();
-  await clickTargetAction(primaryAnimation, "animation", "play");
+  await clickTargetAction(primaryAnimation, "animation", "select");
+  await clickSelectedAnimationPanelPlay(page);
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).not.toContainText("Program: Playing");
 
@@ -126,7 +127,13 @@ test("animation and program runtime sessions stay independent across UI changes 
     label: /Speaks/i,
     panelTestId: "control-authoring-panel-programs",
   });
+  const secondaryProgram = targetItem(page, {
+    kind: "program",
+    label: /Live/i,
+    panelTestId: "control-authoring-panel-programs",
+  });
   await expect(primaryProgram).toBeVisible();
+  await expect(secondaryProgram).toBeVisible();
   const primaryProgramLabel = await readTargetLabel(primaryProgram, "program");
   await clickTargetAction(primaryProgram, "program", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
@@ -146,56 +153,53 @@ test("animation and program runtime sessions stay independent across UI changes 
     page
       .getByTestId("control-authoring-panel-animations")
       .getByTestId("authoring-animation-item-play"),
-  ).toHaveCount(2);
+  ).toHaveCount(0);
   await expect(
     page
       .getByTestId("control-authoring-panel-animations")
       .getByTestId("authoring-animation-item-pause"),
   ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("control-authoring-panel-animations")
+      .getByTestId("authoring-animation-item-stop"),
+  ).toHaveCount(0);
 
-  await clickTargetAction(secondaryAnimation, "animation", "play");
+  await clickSelectedAnimationPanelPlay(page);
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(page.getByText("Currently running: Nonesense")).toBeHidden();
 
   await page.getByRole("tab", { name: /^Programs \(\d+\)$/ }).click();
-  await clickTargetAction(primaryProgram, "program", "copy");
-  const copiedProgramLabel = `${primaryProgramLabel} Copy`;
-  const copiedProgram = targetItem(page, {
-    kind: "program",
-    label: new RegExp(escapeRegex(copiedProgramLabel), "i"),
-    panelTestId: "control-authoring-panel-programs",
-  });
-  await expect(copiedProgram).toBeVisible();
-  await clickTargetAction(copiedProgram, "program", "select");
+  await clickTargetAction(secondaryProgram, "program", "select");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(
     page.getByText(`Currently running: ${primaryProgramLabel}`),
   ).toBeVisible();
   await expect(
-    copiedProgram.getByTestId("authoring-program-item-play"),
+    secondaryProgram.getByTestId("authoring-program-item-play"),
   ).toBeVisible();
   await expect(
-    copiedProgram.getByTestId("authoring-program-item-pause"),
+    secondaryProgram.getByTestId("authoring-program-item-pause"),
   ).toHaveCount(0);
   await expect(
-    copiedProgram.getByTestId("authoring-program-item-stop"),
+    secondaryProgram.getByTestId("authoring-program-item-stop"),
   ).toHaveCount(0);
   await expect(
     page
       .getByTestId("control-authoring-panel-programs")
       .getByTestId("authoring-program-item-play"),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
 
-  await clickTargetAction(copiedProgram, "program", "play");
+  await clickTargetAction(secondaryProgram, "program", "play");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(
     page.getByText(`Currently running: ${primaryProgramLabel}`),
   ).toBeHidden();
 
-  await clickTargetAction(copiedProgram, "program", "pause");
+  await clickTargetAction(secondaryProgram, "program", "pause");
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Paused");
 
@@ -213,7 +217,7 @@ test("switching animation targets stops the active runtime before loading the ne
   await bootAuthoring(page);
   await loadMainPreset(page, "quori:latest");
 
-  const runtimeChip = page.getByTestId("main-runtime-status-chip");
+  const runtimeChip = mainRuntimeStatusChip(page);
   const inspectorPanel = page.getByTestId("inspector-panel");
   const selectedNameField = inspectorPanel.locator("input").first();
   const durationField = inspectorPanel.getByRole("textbox", {
@@ -240,7 +244,7 @@ test("switching animation targets stops the active runtime before loading the ne
   const secondaryDuration = await durationField.inputValue();
 
   await clickTargetAction(primaryAnimation, "animation", "select");
-  await clickTargetAction(primaryAnimation, "animation", "play");
+  await clickSelectedAnimationPanelPlay(page);
   await expect(runtimeChip).toContainText("Animation: Playing");
 
   const activeName = await selectedNameField.inputValue();

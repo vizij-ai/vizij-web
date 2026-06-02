@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildAnimationControllerCommandPath,
   buildAnimationControllerInstancePath,
+  buildAnimationControllerPauseInputs,
   buildAnimationControllerPlayInputs,
+  buildAnimationControllerStopInputs,
   prepareAnimationRegistrationForTransport,
   resolveAnimationTransportMode,
 } from "../index";
@@ -67,6 +69,40 @@ describe("animation transport support", () => {
     ]);
   });
 
+  it("builds a pause pulse that also freezes player speed", () => {
+    expect(
+      buildAnimationControllerPauseInputs("demo-player/animation/blink"),
+    ).toEqual([
+      {
+        path: "anim/controller/demo-player/animation/blink/player/0/cmd/set_speed",
+        value: { float: 0 },
+      },
+      {
+        path: "anim/controller/demo-player/animation/blink/player/0/cmd/pause",
+        value: { bool: true },
+      },
+    ]);
+  });
+
+  it("builds a stop pulse that removes animation output authority", () => {
+    expect(
+      buildAnimationControllerStopInputs("demo-player/animation/blink"),
+    ).toEqual([
+      {
+        path: "anim/controller/demo-player/animation/blink/player/0/cmd/set_speed",
+        value: { float: 0 },
+      },
+      {
+        path: "anim/controller/demo-player/animation/blink/player/0/instance/0/weight",
+        value: { float: 0 },
+      },
+      {
+        path: "anim/controller/demo-player/animation/blink/player/0/cmd/stop",
+        value: { bool: true },
+      },
+    ]);
+  });
+
   it("pauses registered clips when the orchestrator owns playback transport", () => {
     const config = {
       id: "demo-player/animation/blink",
@@ -82,7 +118,7 @@ describe("animation transport support", () => {
       id: "demo-player/animation/blink",
       setup: {
         player: { name: "blink-player", speed: 0, loopMode: "loop" },
-        instance: { weight: 0.75, active: true },
+        instance: { weight: 0, active: true },
       },
     });
     expect(prepareAnimationRegistrationForTransport(config, "host")).toBe(

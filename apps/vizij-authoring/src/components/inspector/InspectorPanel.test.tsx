@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActiveInspectorTarget } from "../../utils/inspectorSelection";
 import {
   InspectorPanel,
@@ -35,7 +35,29 @@ const bindingState = {
   standardInputsById: new Map(),
 };
 
-const graphRuntimeState = {
+type MockCompileStatus =
+  | "idle"
+  | "dirty"
+  | "compiling"
+  | "compiled"
+  | "registered"
+  | "runtime-error";
+type MockCompileTarget = "runtime-graph" | "animation" | "motiongraph";
+
+const graphRuntimeState: {
+  graphStatus: "idle" | "loading" | "ready" | "error";
+  graphWarning: string | null;
+  graphError: string | null;
+  authoringCompileTarget: MockCompileTarget | null;
+  authoringCompileTargets: Record<
+    MockCompileTarget,
+    {
+      status: MockCompileStatus;
+      message: string | null;
+      signature: string | null;
+    }
+  >;
+} = {
   graphStatus: "ready",
   graphWarning: null,
   graphError: null,
@@ -93,12 +115,61 @@ vi.mock("./InspectorContent", () => ({
 }));
 
 describe("InspectorPanel", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     bindingState.standardInputsById = new Map();
+    graphRuntimeState.graphStatus = "ready";
+    graphRuntimeState.graphWarning = null;
+    graphRuntimeState.graphError = null;
+    graphRuntimeState.authoringCompileTarget = null;
+    graphRuntimeState.authoringCompileTargets = {
+      "runtime-graph": { status: "idle", message: null, signature: null },
+      animation: { status: "idle", message: null, signature: null },
+      motiongraph: { status: "idle", message: null, signature: null },
+    };
     animationStoreState.tracks = [];
     animationStoreState.selectedTrackId = null;
     animationStoreState.selectedKeyframeId = null;
+  });
+
+  it("shows module and target lifecycle state without duplicating the active target", () => {
+    graphRuntimeState.authoringCompileTargets = {
+      "runtime-graph": {
+        status: "registered",
+        message: null,
+        signature: "runtime-v1",
+      },
+      animation: { status: "idle", message: null, signature: null },
+      motiongraph: {
+        status: "compiled",
+        message: null,
+        signature: "program-v1",
+      },
+    };
+
+    render(
+      <InspectorPanel
+        activeInspectorTarget={null}
+        selectedAnimationTarget={null}
+        selectedProgramTarget={null}
+      />,
+    );
+
+    expect(screen.getByTestId("authoring-graph-status-chip").textContent).toBe(
+      "Modules ready",
+    );
+    expect(screen.queryByTestId("authoring-compile-state-chip")).toBeNull();
+    expect(
+      screen.getByTestId("authoring-compile-target-runtime-graph").textContent,
+    ).toBe("Rig graph registered");
+    expect(
+      screen.getByTestId("authoring-compile-target-motiongraph").textContent,
+    ).toBe("Program loaded");
+    expect(screen.getAllByText("Program loaded")).toHaveLength(1);
   });
 
   it("renders the animation asset inspector and commits rename plus navigation", () => {
@@ -252,6 +323,7 @@ describe("InspectorPanel", () => {
             id: "kf-1",
             time: 0.25,
             value: 0.5,
+            outTangent: 1.5,
           },
         ],
       },
@@ -281,5 +353,38 @@ describe("InspectorPanel", () => {
 
     expect(screen.getByText("Keyframes: 1")).toBeTruthy();
     expect(screen.queryByTestId("generic-inspector-content")).toBeNull();
+
+    fireEvent.change(
+      screen.getByTestId("animation-keyframe-interpolation-select"),
+      { target: { value: "cubic" } },
+    );
+    fireEvent.change(
+      screen.getByTestId("animation-keyframe-out-tangent-input"),
+      {
+        target: { value: "2.25" },
+      },
+    );
+    fireEvent.change(
+      screen.getByTestId("animation-keyframe-in-tangent-input"),
+      {
+        target: { value: "-0.5" },
+      },
+    );
+
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-1",
+      { interpolation: "cubic" },
+    );
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-1",
+      { interpolation: "cubic", outTangent: 2.25 },
+    );
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-1",
+      { inTangent: -0.5 },
+    );
   });
 });

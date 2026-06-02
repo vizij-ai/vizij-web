@@ -1,6 +1,6 @@
 # Vizij Authoring Docs
 
-Last updated: 2026-03-01
+Last updated: 2026-05-31
 
 This folder is organized into active execution docs, active contracts, references, and archive history.
 
@@ -36,6 +36,8 @@ Cross-repo authoring status and strategic framing live in `../../../../vizij-doc
    - Plain-English explanation of current pose grouping, blending, and composition behavior.
 4. `apps/vizij-authoring/docs/references/ui-component-inventory.md`
    - UI component inventory for refactor planning.
+5. `apps/vizij-authoring/docs/references/arora-authoring-user-smoke-test-sop.md`
+   - User-facing smoke-test runbook for Arora-backed authoring and runtime consumption.
 
 ## Archive
 

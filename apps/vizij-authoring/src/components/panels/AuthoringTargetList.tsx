@@ -16,7 +16,11 @@ import { Input } from "../ui/Input";
 import { cn } from "../../utils/cn";
 
 export type AuthoringTargetSource = "authored" | "imported";
-export type AuthoringTargetRuntimeState = "playing" | "paused" | "stopped";
+export type AuthoringTargetRuntimeState =
+  | "starting"
+  | "playing"
+  | "paused"
+  | "stopped";
 
 export interface AuthoringTargetItem {
   id: string;
@@ -99,6 +103,7 @@ export function AuthoringTargetList({
     AuthoringTargetRuntimeState,
     "accent" | "info" | "muted"
   > = {
+    starting: "info",
     playing: "accent",
     paused: "info",
     stopped: "muted",

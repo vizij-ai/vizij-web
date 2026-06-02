@@ -33,7 +33,7 @@ interface RuntimeSourceToolbarProps {
   options: RuntimeSourceOption[];
   onChange: (source: RuntimeAuthoringSource) => void;
   layout?: "bar" | "embedded" | "panel";
-  playbackState?: "playing" | "paused" | "stopped";
+  playbackState?: "starting" | "playing" | "paused" | "stopped";
   onPlay?: () => void;
   onPause?: () => void;
   onStop?: () => void;
@@ -135,6 +135,7 @@ export function RuntimeSourceToolbar({
   const hasTargetStats = (targetStats?.length ?? 0) > 0;
   const hasDeleteTargetAction = typeof onDeleteTarget === "function";
   const hasPlaybackControls =
+    playbackState === "starting" ||
     playbackState === "playing" ||
     playbackState === "paused" ||
     playbackState === "stopped";
@@ -169,7 +170,12 @@ export function RuntimeSourceToolbar({
           playbackState === "playing" ? "disabled:opacity-100" : ""
         }`}
         onClick={() => onPlay?.()}
-        disabled={playbackDisabled || playbackState === "playing" || !canPlay}
+        disabled={
+          playbackDisabled ||
+          playbackState === "starting" ||
+          playbackState === "playing" ||
+          !canPlay
+        }
         title="Play runtime source"
       >
         <Play className="mr-1 h-3.5 w-3.5 fill-current" />
@@ -182,7 +188,12 @@ export function RuntimeSourceToolbar({
           playbackState === "paused" ? "disabled:opacity-100" : ""
         }`}
         onClick={() => onPause?.()}
-        disabled={playbackDisabled || playbackState === "paused" || !canPause}
+        disabled={
+          playbackDisabled ||
+          playbackState === "starting" ||
+          playbackState === "paused" ||
+          !canPause
+        }
         title="Pause runtime source"
       >
         <Pause className="mr-1 h-3.5 w-3.5 fill-current" />
@@ -341,11 +352,13 @@ export function RuntimeSourceToolbar({
   ) : null;
 
   const playbackStatusTone =
-    playbackState === "playing"
-      ? "bg-color-success-subtle text-color-success"
-      : playbackState === "paused"
-        ? "bg-color-warning-subtle text-color-warning"
-        : "bg-bg-secondary text-text-secondary";
+    playbackState === "starting"
+      ? "bg-color-info-subtle text-color-info"
+      : playbackState === "playing"
+        ? "bg-color-success-subtle text-color-success"
+        : playbackState === "paused"
+          ? "bg-color-warning-subtle text-color-warning"
+          : "bg-bg-secondary text-text-secondary";
 
   const targetMetadataCard =
     hasTargetSelector ||

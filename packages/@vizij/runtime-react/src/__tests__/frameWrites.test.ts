@@ -85,4 +85,122 @@ describe("prepareRuntimeFrameWrites", () => {
 
     expect(unchanged.poseControlInputs).toEqual([]);
   });
+
+  it("bridges animation-authored rig input outputs through runtime inputs instead of renderer values", () => {
+    const bridgeValues = new Map<string, number>();
+    const result = prepareRuntimeFrameWrites({
+      writes: [
+        {
+          path: "demo-face/gaze/left_right",
+          value: { type: "float", data: 0.25 },
+        } as WriteOp,
+        {
+          path: "demo-face/rig/quori_latest/gaze/left_right",
+          value: { type: "float", data: 0.25 },
+        } as WriteOp,
+        {
+          path: "demo-face/rig/quori_latest/render-target",
+          value: { type: "float", data: 0.75 },
+        } as WriteOp,
+      ],
+      namespace: "demo-face",
+      namespacedOutputPaths: new Set([
+        "demo-face/gaze/left_right",
+        "demo-face/rig/quori_latest/gaze/left_right",
+        "demo-face/rig/quori_latest/render-target",
+      ]),
+      baseOutputPaths: new Set([
+        "gaze/left_right",
+        "rig/quori_latest/gaze/left_right",
+        "rig/quori_latest/render-target",
+      ]),
+      rendererTargetIds: new Set(["rig/quori_latest/render-target"]),
+      rigInputPathMap: {
+        gaze_left_right: "rig/quori_latest/gaze/left_right",
+      },
+      rigPoseControlInputIds: new Set(),
+      poseControlBridgeValues: bridgeValues,
+      currentValues: new Map(),
+    });
+
+    expect(result.poseControlInputs).toEqual([
+      {
+        path: "rig/quori_latest/gaze/left_right",
+        value: { float: 0.25 },
+      },
+    ]);
+    expect(result.rendererWrites).toEqual([
+      {
+        id: "rig/quori_latest/render-target",
+        namespace: "demo-face",
+        value: 0.75,
+      },
+    ]);
+
+    const unchanged = prepareRuntimeFrameWrites({
+      writes: [
+        {
+          path: "demo-face/rig/quori_latest/gaze/left_right",
+          value: { type: "float", data: 0.25 },
+        } as WriteOp,
+      ],
+      namespace: "demo-face",
+      namespacedOutputPaths: new Set([
+        "demo-face/rig/quori_latest/gaze/left_right",
+      ]),
+      baseOutputPaths: new Set(["rig/quori_latest/gaze/left_right"]),
+      rendererTargetIds: new Set(),
+      rigInputPathMap: {
+        gaze_left_right: "rig/quori_latest/gaze/left_right",
+      },
+      rigPoseControlInputIds: new Set(),
+      poseControlBridgeValues: bridgeValues,
+      currentValues: new Map(),
+    });
+
+    expect(unchanged.poseControlInputs).toEqual([]);
+    expect(unchanged.rendererWrites).toEqual([]);
+  });
+
+  it("ignores muted animation outputs before renderer or bridge writes", () => {
+    const bridgeValues = new Map<string, number>();
+    const result = prepareRuntimeFrameWrites({
+      writes: [
+        {
+          path: "demo-face/rig/quori_latest/gaze/left_right",
+          value: { type: "float", data: 0.8 },
+        } as WriteOp,
+        {
+          path: "demo-face/rig/quori_latest/render-target",
+          value: { type: "float", data: 0.4 },
+        } as WriteOp,
+      ],
+      namespace: "demo-face",
+      namespacedOutputPaths: new Set([
+        "demo-face/rig/quori_latest/gaze/left_right",
+        "demo-face/rig/quori_latest/render-target",
+      ]),
+      baseOutputPaths: new Set([
+        "rig/quori_latest/gaze/left_right",
+        "rig/quori_latest/render-target",
+      ]),
+      ignoredOutputPaths: new Set([
+        "rig/quori_latest/gaze/left_right",
+        "demo-face/rig/quori_latest/render-target",
+      ]),
+      rendererTargetIds: new Set([
+        "rig/quori_latest/gaze/left_right",
+        "rig/quori_latest/render-target",
+      ]),
+      rigInputPathMap: {
+        gaze_left_right: "rig/quori_latest/gaze/left_right",
+      },
+      rigPoseControlInputIds: new Set(),
+      poseControlBridgeValues: bridgeValues,
+      currentValues: new Map(),
+    });
+
+    expect(result.poseControlInputs).toEqual([]);
+    expect(result.rendererWrites).toEqual([]);
+  });
 });

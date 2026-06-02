@@ -326,6 +326,8 @@ export type RuntimeGraphBundle = {
 export type RuntimeGraphBundleUpdateSource = {
   key?: string;
   signature?: string | null;
+  animationId?: string | null;
+  requiresOutputRoutes?: boolean;
   programId?: string | null;
 };
 

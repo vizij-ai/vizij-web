@@ -6,6 +6,8 @@ This folder stores active reference docs that support implementation but are not
 
 1. `apps/vizij-authoring/docs/references/ui-component-inventory.md`
    Used for UI decomposition/refactor planning and mapping component work to backlog items.
+2. `apps/vizij-authoring/docs/references/arora-authoring-user-smoke-test-sop.md`
+   Used for manual user smoke testing of Arora-backed authoring, export/reload, and runtime-consumer flows.
 
 ## Usage rules
 

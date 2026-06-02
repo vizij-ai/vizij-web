@@ -292,6 +292,35 @@ describe("graphRuntimeStore", () => {
     });
   });
 
+  it("keeps matching runtime bundle acknowledgements idempotent after registration", () => {
+    const store = createGraphRuntimeStore();
+    store.setState({
+      authoringCompileStatus: "registered",
+      authoringCompileTarget: "animation",
+      authoringCompileMessage: null,
+      authoringCompileSignature: "animation-v1",
+    });
+
+    store.setState((state) =>
+      resolveRuntimeBundleAcknowledgementPatch(state, {
+        source: { key: "animation", signature: "animation-v1" },
+        revision: 2,
+        controllers: { graphs: ["graph-a"], anims: ["animation-a"] },
+        reregistered: true,
+        reloadedAssets: false,
+      }),
+    );
+
+    expect(store.getState().runtimeViewGraphCount).toBe(1);
+    expect(store.getState().authoringCompileStatus).toBe("registered");
+    expect(store.getState().authoringCompileTarget).toBe("animation");
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "registered",
+      message: null,
+      signature: "animation-v1",
+    });
+  });
+
   it("applies sourced runtime errors without failing unrelated targets", () => {
     const store = createGraphRuntimeStore();
     store.setState({

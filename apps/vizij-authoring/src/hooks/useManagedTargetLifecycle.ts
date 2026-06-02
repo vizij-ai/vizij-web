@@ -12,11 +12,13 @@ interface UseManagedTargetLifecycleOptions {
   loadSelectedTarget: (targetId: string | null) => void;
   activeRuntimeTargetId?: string | null;
   clearInvalidActiveRuntimeTarget?: () => void;
+  autoSelectFirstTarget?: boolean;
 }
 
 function resolveValidTargetId(
   targetOptions: readonly ManagedTargetOption[],
   selectedTargetId: string | null,
+  autoSelectFirstTarget: boolean,
 ): string | null {
   if (
     selectedTargetId &&
@@ -24,7 +26,7 @@ function resolveValidTargetId(
   ) {
     return selectedTargetId;
   }
-  return targetOptions[0]?.value ?? null;
+  return autoSelectFirstTarget ? (targetOptions[0]?.value ?? null) : null;
 }
 
 export function useManagedTargetLifecycle({
@@ -35,23 +37,28 @@ export function useManagedTargetLifecycle({
   loadSelectedTarget,
   activeRuntimeTargetId = null,
   clearInvalidActiveRuntimeTarget,
+  autoSelectFirstTarget = true,
 }: UseManagedTargetLifecycleOptions): string | null {
   const resolvedTargetId = useMemo(
-    () => resolveValidTargetId(targetOptions, selectedTargetId),
-    [selectedTargetId, targetOptions],
+    () =>
+      resolveValidTargetId(
+        targetOptions,
+        selectedTargetId,
+        autoSelectFirstTarget,
+      ),
+    [autoSelectFirstTarget, selectedTargetId, targetOptions],
   );
-  const lastLoadedTargetRef = useRef<
-    | {
-        key: string;
-        loadSelectedTarget: (targetId: string | null) => void;
-      }
-    | undefined
-  >(undefined);
+  const loadSelectedTargetRef = useRef(loadSelectedTarget);
+  const lastLoadedTargetKeyRef = useRef<string | undefined>(undefined);
   const resolvedLoadKey = useMemo(
     () =>
       `${sessionKey ?? "__sessionless__"}::${resolvedTargetId ?? "__none__"}`,
     [resolvedTargetId, sessionKey],
   );
+
+  useEffect(() => {
+    loadSelectedTargetRef.current = loadSelectedTarget;
+  }, [loadSelectedTarget]);
 
   useEffect(() => {
     if (selectedTargetId === resolvedTargetId) {
@@ -61,19 +68,12 @@ export function useManagedTargetLifecycle({
   }, [resolvedTargetId, selectedTargetId, setSelectedTargetId]);
 
   useEffect(() => {
-    const lastLoadedTarget = lastLoadedTargetRef.current;
-    if (
-      lastLoadedTarget?.key === resolvedLoadKey &&
-      lastLoadedTarget.loadSelectedTarget === loadSelectedTarget
-    ) {
+    if (lastLoadedTargetKeyRef.current === resolvedLoadKey) {
       return;
     }
-    loadSelectedTarget(resolvedTargetId);
-    lastLoadedTargetRef.current = {
-      key: resolvedLoadKey,
-      loadSelectedTarget,
-    };
-  }, [loadSelectedTarget, resolvedLoadKey, resolvedTargetId]);
+    loadSelectedTargetRef.current(resolvedTargetId);
+    lastLoadedTargetKeyRef.current = resolvedLoadKey;
+  }, [resolvedLoadKey, resolvedTargetId]);
 
   useEffect(() => {
     if (!activeRuntimeTargetId) {

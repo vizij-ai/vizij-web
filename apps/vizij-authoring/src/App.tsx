@@ -56,6 +56,7 @@ import {
   type FacePresetAssetOption,
 } from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
+import { isAuthoringDebugEnabled } from "./utils/debug";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
@@ -74,6 +75,7 @@ import {
   RigControllerProvider,
   useBindingAuthoring,
   useGraphRuntime,
+  useGraphRuntimeStoreApi,
 } from "./state/RigControllerProvider";
 import {
   AuthoringUiProvider,
@@ -261,9 +263,10 @@ type AuthoredMotionGraphExportEntry = MotionGraphBundleEntry & {
 };
 
 type RuntimePlaybackState = "playing" | "paused" | "stopped";
+type AnimationRuntimePlaybackState = "starting" | RuntimePlaybackState;
 
 interface AnimationTargetPlaybackStatus {
-  state: RuntimePlaybackState;
+  state: AnimationRuntimePlaybackState;
   timeLabel: string | null;
 }
 
@@ -788,6 +791,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const runtimeViewGraphCount = useGraphRuntime(
     (state) => state.runtimeViewGraphCount,
   );
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
 
@@ -806,8 +810,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pendingAnimationRuntimePlayTargetId,
     setPendingAnimationRuntimePlayTargetId,
   ] = useState<string | null>(null);
-  const [pendingAnimationTargetSwitchId, setPendingAnimationTargetSwitchId] =
-    useState<string | null>(null);
   const [activeAuthoringSurface, setActiveAuthoringSurface] =
     useState<AuthoringSurface>("variables");
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
@@ -1041,10 +1043,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [advanceAnimationTransportSessionKey],
   );
   const clearAnimationRuntimeState = useCallback(() => {
+    const runtimeClipId =
+      useAnimationStore.getState().runtimeClipId || AUTHORED_TIMELINE_CLIP_ID;
     advanceAnimationTransportSessionKey();
-    animationRuntimeTransportAdapter?.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+    animationRuntimeTransportAdapter?.stopAnimation(runtimeClipId, {
       clearOutputs: true,
     });
+    useAnimationStore.getState().stop();
     setPendingAnimationRuntimePlayTargetId(null);
     setActiveAnimationRuntimeTargetId(null);
   }, [advanceAnimationTransportSessionKey, animationRuntimeTransportAdapter]);
@@ -1052,10 +1057,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setProgramRuntimePlaybackState("stopped");
     setActiveProgramRuntimeTargetId(null);
   }, []);
-  const resetAuthoringSessionState = useCallback(() => {
+  const clearRuntimeSourceState = useCallback(() => {
     clearAnimationRuntimeState();
     clearProgramRuntimeState();
-    setPendingAnimationTargetSwitchId(null);
+  }, [clearAnimationRuntimeState, clearProgramRuntimeState]);
+  const resetAuthoringSessionState = useCallback(() => {
+    clearRuntimeSourceState();
     poseRig.resetPoseState();
     setAuthoredAnimationTargets([]);
     setSelectedAnimationTargetId(null);
@@ -1077,8 +1084,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     editorStore.clear();
     editorStore.setSelected(null);
   }, [
-    clearAnimationRuntimeState,
-    clearProgramRuntimeState,
+    clearRuntimeSourceState,
     poseRig,
     setWorkspacePanelVisibility,
     uiActions,
@@ -1278,10 +1284,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [bundleProceduralEntries, bundleProceduralSnapshotOverrides],
   );
-  const effectiveAnimationRuntimePlaybackState: RuntimePlaybackState =
+  const effectiveAnimationRuntimePlaybackState: AnimationRuntimePlaybackState =
     activeAnimationRuntimeTargetId
       ? pendingAnimationRuntimePlayTargetId === activeAnimationRuntimeTargetId
-        ? "playing"
+        ? "starting"
         : animationPlaybackState
       : "stopped";
   const effectiveProgramRuntimePlaybackState: RuntimePlaybackState =
@@ -1526,14 +1532,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
   useEffect(() => {
-    if (!selectedAnimationTargetId || pendingAnimationTargetSwitchId) {
+    if (!selectedAnimationTargetId) {
       return;
     }
     saveAnimationTarget(selectedAnimationTargetId);
   }, [
     animationDuration,
     animationTracks,
-    pendingAnimationTargetSwitchId,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
@@ -1850,6 +1855,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     resolveImportedAnimationClip,
     selectedAnimationTargetId,
   ]);
+  const activeAnimationRuntimeClipId =
+    activeAnimationRuntimeClip?.id ?? AUTHORED_TIMELINE_CLIP_ID;
   const activeProgramRuntimeSnapshot =
     useMemo<ProceduralProgramSnapshot | null>(() => {
       if (!activeProgramRuntimeTargetId) {
@@ -1950,18 +1957,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [authoredProceduralTargets, resolveImportedProceduralSnapshot],
   );
-  useEffect(() => {
-    if (!pendingAnimationTargetSwitchId || activeAnimationRuntimeTargetId) {
-      return;
-    }
-    setSelectedAnimationTargetId(pendingAnimationTargetSwitchId);
-    loadSelectedAnimationTarget(pendingAnimationTargetSwitchId);
-    setPendingAnimationTargetSwitchId(null);
-  }, [
-    activeAnimationRuntimeTargetId,
-    loadSelectedAnimationTarget,
-    pendingAnimationTargetSwitchId,
-  ]);
   const resolvedSelectedAnimationTargetId = useManagedTargetLifecycle({
     sessionKey: authoringSessionKey,
     targetOptions: animationTargetOptions,
@@ -1970,6 +1965,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     loadSelectedTarget: loadSelectedAnimationTarget,
     activeRuntimeTargetId: activeAnimationRuntimeTargetId,
     clearInvalidActiveRuntimeTarget: clearAnimationRuntimeState,
+    autoSelectFirstTarget: false,
   });
   const resolvedSelectedProceduralTargetId = useManagedTargetLifecycle({
     sessionKey: authoringSessionKey,
@@ -1979,6 +1975,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     loadSelectedTarget: loadSelectedProceduralTarget,
     activeRuntimeTargetId: activeProgramRuntimeTargetId,
     clearInvalidActiveRuntimeTarget: clearProgramRuntimeState,
+    autoSelectFirstTarget: false,
   });
   const selectedProgramRuntimeSnapshot =
     useMemo<ProceduralProgramSnapshot | null>(() => {
@@ -2068,16 +2065,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (targetId === selectedAnimationTargetId) {
         return;
       }
-      if (selectedAnimationTargetId) {
+      if (
+        selectedAnimationTargetId &&
+        selectedAnimationTargetId !== activeAnimationRuntimeTargetId
+      ) {
         saveAnimationTarget(selectedAnimationTargetId);
       }
       if (
         activeAnimationRuntimeTargetId &&
         activeAnimationRuntimeTargetId !== targetId
       ) {
-        setPendingAnimationTargetSwitchId(targetId);
         clearAnimationRuntimeState();
-        useAnimationStore.getState().reset();
+        setSelectedAnimationTargetId(targetId);
+        loadSelectedAnimationTarget(targetId);
         return;
       }
       setSelectedAnimationTargetId(targetId);
@@ -2089,7 +2089,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       loadSelectedAnimationTarget,
       saveAnimationTarget,
       selectedAnimationTargetId,
-      setPendingAnimationTargetSwitchId,
     ],
   );
 
@@ -2360,7 +2359,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (targetId === selectedProceduralTargetId) {
         return;
       }
-      if (selectedProceduralTargetId) {
+      if (
+        selectedProceduralTargetId &&
+        selectedProceduralTargetId !== activeProgramRuntimeTargetId
+      ) {
         saveProceduralTarget(selectedProceduralTargetId);
       }
 
@@ -2368,6 +2370,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       loadSelectedProceduralTarget(targetId);
     },
     [
+      activeProgramRuntimeTargetId,
       loadSelectedProceduralTarget,
       saveProceduralTarget,
       selectedProceduralTargetId,
@@ -2604,15 +2607,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         animationRuntimeTransportAdapter
       ) {
         animationRuntimeTransportAdapter.setAnimationLoop(
-          AUTHORED_TIMELINE_CLIP_ID,
+          activeAnimationRuntimeClipId,
           animationLoopEnabled,
         );
         animationRuntimeTransportAdapter.seekAnimation(
-          AUTHORED_TIMELINE_CLIP_ID,
+          activeAnimationRuntimeClipId,
           animationCurrentTime,
         );
         void animationRuntimeTransportAdapter.playAnimation(
-          AUTHORED_TIMELINE_CLIP_ID,
+          activeAnimationRuntimeClipId,
           {
             reset: false,
             speed: animationPlaySpeed,
@@ -2625,6 +2628,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       activeAnimationRuntimeTargetId,
+      activeAnimationRuntimeClipId,
       startAnimationRuntimeSession,
       animationCurrentTime,
       animationLoopEnabled,
@@ -2649,11 +2653,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       uiActions.setActiveRuntimeSource("animation");
       animationRuntimeTransportAdapter?.pauseAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
+        activeAnimationRuntimeClipId,
       );
     },
     [
       activeAnimationRuntimeTargetId,
+      activeAnimationRuntimeClipId,
       animationRuntimeTransportAdapter,
       uiActions,
     ],
@@ -2675,7 +2680,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handlePlayProgramTarget = useCallback(
     (targetId: string) => {
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
-      setWorkspacePanelVisibility("motiongraph", true);
       if (targetId !== selectedProceduralTargetId) {
         handleSelectProceduralTarget(targetId);
       }
@@ -2693,7 +2697,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       handleSelectProceduralTarget,
       programRuntimePlaybackState,
       selectedProceduralTargetId,
-      setWorkspacePanelVisibility,
       uiActions,
     ],
   );
@@ -3080,6 +3083,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       !animationRuntimeTransportAdapter ||
       !animationTransportRuntimeReady
     ) {
+      if (
+        pendingAnimationRuntimePlayTargetId &&
+        isAuthoringDebugEnabled("timeline")
+      ) {
+        console.log("[timeline][animation-pending-play] waiting", {
+          pendingAnimationRuntimePlayTargetId,
+          activeAnimationRuntimeTargetId,
+          hasActiveAnimationRuntimeClip: Boolean(activeAnimationRuntimeClip),
+          hasAnimationRuntimeTransportAdapter: Boolean(
+            animationRuntimeTransportAdapter,
+          ),
+          animationTransportRuntimeReady,
+        });
+      }
       return;
     }
     let cancelled = false;
@@ -3090,14 +3107,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       const playPromise = animationRuntimeTransportAdapter.playAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
+        activeAnimationRuntimeClipId,
         { reset: true, speed: 1 },
       );
       if (
         animationRuntimeTransportAdapter.getAnimationState(
-          AUTHORED_TIMELINE_CLIP_ID,
-        )
+          activeAnimationRuntimeClipId,
+        )?.playing === true
       ) {
+        if (isAuthoringDebugEnabled("timeline")) {
+          console.log("[timeline][animation-pending-play] started", {
+            pendingAnimationRuntimePlayTargetId,
+            playbackState: animationRuntimeTransportAdapter.getAnimationState(
+              activeAnimationRuntimeClipId,
+            ),
+          });
+        }
         setPendingAnimationRuntimePlayTargetId(null);
         void playPromise.catch((error) => {
           if (!cancelled) {
@@ -3112,7 +3137,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       void playPromise.catch((error) => {
         if (
           error instanceof Error &&
-          error.message.includes("is not part of the current asset bundle")
+          (error.message.includes("is not part of the current asset bundle") ||
+            error.message.includes("no animation controller was registered"))
         ) {
           return;
         }
@@ -3135,6 +3161,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     };
   }, [
     activeAnimationRuntimeClip,
+    activeAnimationRuntimeClipId,
     activeAnimationRuntimeTargetId,
     animationTransportRuntimeReady,
     animationRuntimeTransportAdapter,
@@ -3274,13 +3301,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [activeEditFocus, setWorkspacePanelVisibility]);
   useEffect(() => {
     if (activeEditFocus === "animation") {
+      setActiveAuthoringSurface("animations");
+      setWorkspacePanelVisibility("variables", true);
       uiActions.setActiveRuntimeSource("animation");
       return;
     }
     if (activeEditFocus === "procedural-animation-programming") {
+      setActiveAuthoringSurface("programs");
+      setWorkspacePanelVisibility("variables", true);
       uiActions.setActiveRuntimeSource("procedural-animation-programming");
     }
-  }, [activeEditFocus, uiActions]);
+  }, [activeEditFocus, setWorkspacePanelVisibility, uiActions]);
   const centerAuthoringMode: CenterAuthoringMode = motionGraphPanelVisible
     ? "procedural-animation-programming"
     : animationPanelVisible
@@ -3288,7 +3319,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       : referenceFacePanelVisible
         ? "reference-face"
         : "none";
-  const selectedAnimationPanelPlaybackState: RuntimePlaybackState =
+  const selectedAnimationPanelPlaybackState: AnimationRuntimePlaybackState =
     resolvedSelectedAnimationTargetId &&
     resolvedSelectedAnimationTargetId === activeAnimationRuntimeTargetId
       ? effectiveAnimationRuntimePlaybackState
@@ -3312,14 +3343,22 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ? (programTargetLabelById.get(activeProgramRuntimeTargetId) ??
       "Untitled Program")
     : null;
-  const animationPanelStatusMessage =
-    activeAnimationRuntimeTargetId &&
-    resolvedSelectedAnimationTargetId !== activeAnimationRuntimeTargetId
-      ? `Currently running: ${activeAnimationRuntimeName}`
-      : null;
-  const programPanelStatusMessage =
-    activeProgramRuntimeTargetId &&
-    resolvedSelectedProceduralTargetId !== activeProgramRuntimeTargetId
+  const animationPanelStatusMessage = !resolvedSelectedAnimationTargetId
+    ? animationTargetOptions.length > 0
+      ? "No animation loaded"
+      : null
+    : pendingAnimationRuntimePlayTargetId === resolvedSelectedAnimationTargetId
+      ? "Starting animation runtime"
+      : activeAnimationRuntimeTargetId &&
+          resolvedSelectedAnimationTargetId !== activeAnimationRuntimeTargetId
+        ? `Currently running: ${activeAnimationRuntimeName}`
+        : null;
+  const programPanelStatusMessage = !resolvedSelectedProceduralTargetId
+    ? proceduralTargetOptions.length > 0
+      ? "No program loaded"
+      : null
+    : activeProgramRuntimeTargetId &&
+        resolvedSelectedProceduralTargetId !== activeProgramRuntimeTargetId
       ? `Currently running: ${activeProgramRuntimeName}`
       : null;
   const handlePlayAnimationRuntime = useCallback(() => {
@@ -3374,11 +3413,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     if (activeAnimationRuntimeTargetId) {
       parts.push(
         `Animation: ${
-          effectiveAnimationRuntimePlaybackState === "playing"
-            ? "Playing"
-            : effectiveAnimationRuntimePlaybackState === "paused"
-              ? "Paused"
-              : "Idle"
+          effectiveAnimationRuntimePlaybackState === "starting"
+            ? "Starting"
+            : effectiveAnimationRuntimePlaybackState === "playing"
+              ? "Playing"
+              : effectiveAnimationRuntimePlaybackState === "paused"
+                ? "Paused"
+                : "Idle"
         }`,
       );
     }
@@ -3463,7 +3504,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     resolvedSelectedProceduralTargetId,
     selectedProgramRuntimeSnapshot,
   ]);
-  const viewerRuntimePlaybackState: RuntimePlaybackState | undefined =
+  const viewerRuntimePlaybackState: AnimationRuntimePlaybackState | undefined =
     viewerRuntimeControlKind === "program"
       ? effectiveProgramRuntimePlaybackState
       : viewerRuntimeControlKind === "animation"
@@ -4238,6 +4279,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         onSelectScene={handleSelectObjectWithInspectorSync}
         onRuntimeInputsReady={handleMainRuntimeInputsReady}
         onRuntimeExportBodiesChange={handleRuntimeExportBodiesChange}
+        onResetRuntimeSources={clearRuntimeSourceState}
         onClearSelection={handleClearSelectionWithInspectorSync}
         showSelectionGlow={showSelectionGlow}
         onImportClick={handleImportClick}
@@ -4392,9 +4434,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onCreateAnimationTarget={handleCreateAndInspectAnimationTarget}
               onDuplicateAnimationTarget={handleDuplicateAnimationTarget}
               onDeleteAnimationTarget={deleteAnimationTargetById}
-              onPlayAnimationTarget={handlePlayAnimationTarget}
-              onPauseAnimationTarget={handlePauseAnimationTarget}
-              onStopAnimationTarget={handleStopAnimationTarget}
               programTargets={authoringProgramTargets}
               onSelectProgramTarget={handleInspectProgramTarget}
               onCreateProgramTarget={handleCreateAndInspectProgramTarget}

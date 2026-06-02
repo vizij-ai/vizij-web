@@ -237,7 +237,9 @@ export function resolveRuntimeBundleAcknowledgementPatch(
   const targetState = state.authoringCompileTargets[target];
   const targetMatches =
     targetState?.signature === signature &&
-    (targetState.status === "compiled" || targetState.status === "compiling");
+    (targetState.status === "compiled" ||
+      targetState.status === "compiling" ||
+      targetState.status === "registered");
   if (!targetMatches) {
     return baseUpdate;
   }
@@ -246,7 +248,8 @@ export function resolveRuntimeBundleAcknowledgementPatch(
     state.authoringCompileTarget === target &&
     state.authoringCompileSignature === signature &&
     (state.authoringCompileStatus === "compiled" ||
-      state.authoringCompileStatus === "compiling");
+      state.authoringCompileStatus === "compiling" ||
+      state.authoringCompileStatus === "registered");
   if (globalMatches) {
     return {
       ...baseUpdate,

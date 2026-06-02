@@ -12,10 +12,7 @@ import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
-import {
-  AUTHORING_COMPILE_TARGETS,
-  resolveVisibleAuthoringCompileState,
-} from "../../state/graphRuntimeStore";
+import { AUTHORING_COMPILE_TARGETS } from "../../state/graphRuntimeStore";
 import { cn } from "../../utils/cn";
 import type {
   PoseDefinition,
@@ -306,19 +303,12 @@ function AuthoringCompileStatusBar() {
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
   const graphWarning = useGraphRuntime((state) => state.graphWarning);
   const graphError = useGraphRuntime((state) => state.graphError);
-  const authoringCompileTarget = useGraphRuntime(
-    (state) => state.authoringCompileTarget,
-  );
   const authoringCompileTargets = useGraphRuntime(
     (state) => state.authoringCompileTargets,
   );
-  const visibleAuthoringCompileState = resolveVisibleAuthoringCompileState({
-    authoringCompileTarget,
-    authoringCompileTargets,
-  });
-  const authoringCompileStatus = visibleAuthoringCompileState.status;
-  const visibleAuthoringCompileTarget = visibleAuthoringCompileState.target;
-  const authoringCompileMessage = visibleAuthoringCompileState.message;
+  const targetStatusMessages = AUTHORING_COMPILE_TARGETS.map(
+    (target) => authoringCompileTargets[target]?.message,
+  ).filter(Boolean);
   const statusTone =
     graphStatus === "ready"
       ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
@@ -327,7 +317,9 @@ function AuthoringCompileStatusBar() {
         : graphStatus === "error"
           ? "text-red-300 border-red-500/40 bg-red-500/10"
           : "text-text-muted border-border-default/50 bg-bg-panel/30";
-  const resolveCompileTone = (status: typeof authoringCompileStatus) =>
+  const resolveCompileTone = (
+    status: (typeof authoringCompileTargets)[keyof typeof authoringCompileTargets]["status"],
+  ) =>
     status === "registered"
       ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
       : status === "compiling" || status === "dirty" || status === "compiled"
@@ -335,10 +327,28 @@ function AuthoringCompileStatusBar() {
         : status === "runtime-error"
           ? "text-red-300 border-red-500/40 bg-red-500/10"
           : "text-text-muted border-border-default/50 bg-bg-panel/30";
-  const compileTone = resolveCompileTone(authoringCompileStatus);
-  const compileLabel = visibleAuthoringCompileTarget
-    ? `${visibleAuthoringCompileTarget} ${authoringCompileStatus}`
-    : `asset ${authoringCompileStatus}`;
+  const formatTargetLabel = (
+    target: (typeof AUTHORING_COMPILE_TARGETS)[number],
+    status: (typeof authoringCompileTargets)[keyof typeof authoringCompileTargets]["status"],
+  ) => {
+    const targetLabel =
+      target === "runtime-graph"
+        ? "Rig graph"
+        : target === "motiongraph"
+          ? "Program"
+          : "Animation";
+    const statusLabel =
+      status === "dirty"
+        ? "editing"
+        : status === "compiling"
+          ? "loading"
+          : status === "compiled"
+            ? "loaded"
+            : status === "runtime-error"
+              ? "runtime error"
+              : status;
+    return `${targetLabel} ${statusLabel}`;
+  };
   const activeTargetStates = AUTHORING_COMPILE_TARGETS.map((target) => ({
     target,
     state: authoringCompileTargets[target],
@@ -356,16 +366,7 @@ function AuthoringCompileStatusBar() {
           statusTone,
         )}
       >
-        Compile {graphStatus}
-      </span>
-      <span
-        data-testid="authoring-compile-state-chip"
-        className={cn(
-          "text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase tracking-wide",
-          compileTone,
-        )}
-      >
-        {compileLabel}
+        Modules {graphStatus}
       </span>
       {activeTargetStates.map(({ target, state }) => (
         <span
@@ -376,12 +377,12 @@ function AuthoringCompileStatusBar() {
             resolveCompileTone(state.status),
           )}
         >
-          {target} {state.status}
+          {formatTargetLabel(target, state.status)}
         </span>
       ))}
-      {authoringCompileMessage ? (
+      {targetStatusMessages[0] ? (
         <span className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-200 truncate max-w-[260px]">
-          {authoringCompileMessage}
+          {targetStatusMessages[0]}
         </span>
       ) : null}
       {graphWarning ? (
@@ -1372,6 +1373,7 @@ export function InspectorPanel({
                         Duration
                       </span>
                       <NumberField
+                        key={`${selectedAnimationTarget.targetId}:duration`}
                         value={selectedAnimationTarget.duration}
                         min={0}
                         step={0.01}
@@ -1655,6 +1657,102 @@ export function InspectorPanel({
                           }}
                         />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                        Interp
+                      </span>
+                      <select
+                        data-testid="animation-keyframe-interpolation-select"
+                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                        value={
+                          selectedAnimationKeyframe.interpolation ?? "__track__"
+                        }
+                        onChange={(event) =>
+                          updateAnimationKeyframe(
+                            selectedAnimationTrack.id,
+                            selectedAnimationKeyframe.id,
+                            {
+                              interpolation:
+                                event.target.value === "__track__"
+                                  ? undefined
+                                  : (event.target.value as
+                                      | "linear"
+                                      | "step"
+                                      | "cubic"),
+                            },
+                          )
+                        }
+                      >
+                        <option value="__track__">Track default</option>
+                        <option value="linear">Linear</option>
+                        <option value="step">Step</option>
+                        <option value="cubic">Cubic</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                        Out Tan
+                      </span>
+                      <input
+                        type="number"
+                        data-testid="animation-keyframe-out-tangent-input"
+                        step="0.01"
+                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                        value={selectedAnimationKeyframe.outTangent ?? ""}
+                        onChange={(event) => {
+                          const rawValue = event.target.value.trim();
+                          if (!rawValue) {
+                            updateAnimationKeyframe(
+                              selectedAnimationTrack.id,
+                              selectedAnimationKeyframe.id,
+                              { outTangent: undefined },
+                            );
+                            return;
+                          }
+                          const nextValue = Number.parseFloat(rawValue);
+                          if (!Number.isFinite(nextValue)) {
+                            return;
+                          }
+                          updateAnimationKeyframe(
+                            selectedAnimationTrack.id,
+                            selectedAnimationKeyframe.id,
+                            { interpolation: "cubic", outTangent: nextValue },
+                          );
+                        }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                        In Tan
+                      </span>
+                      <input
+                        type="number"
+                        data-testid="animation-keyframe-in-tangent-input"
+                        step="0.01"
+                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                        value={selectedAnimationKeyframe.inTangent ?? ""}
+                        onChange={(event) => {
+                          const rawValue = event.target.value.trim();
+                          if (!rawValue) {
+                            updateAnimationKeyframe(
+                              selectedAnimationTrack.id,
+                              selectedAnimationKeyframe.id,
+                              { inTangent: undefined },
+                            );
+                            return;
+                          }
+                          const nextValue = Number.parseFloat(rawValue);
+                          if (!Number.isFinite(nextValue)) {
+                            return;
+                          }
+                          updateAnimationKeyframe(
+                            selectedAnimationTrack.id,
+                            selectedAnimationKeyframe.id,
+                            { inTangent: nextValue },
+                          );
+                        }}
+                      />
                     </div>
                   </div>
                 ) : (

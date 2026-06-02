@@ -72,6 +72,50 @@ async function loadCuratedSample(page: Page, query = "") {
   await expect(page.getByText("No runtime errors captured.")).toBeVisible();
 }
 
+async function enableRuntimeDebug(page: Page) {
+  await page.addInitScript(() => {
+    (
+      globalThis as typeof globalThis & {
+        __VIZIJ_MEMORY_INVESTIGATION__?: { enabled?: boolean };
+      }
+    ).__VIZIJ_MEMORY_INVESTIGATION__ = { enabled: true };
+  });
+}
+
+async function waitForGraphDrivenAnimationWrites(page: Page) {
+  await page.waitForFunction(
+    () => {
+      const memoryState = (window as any).__vizijMemoryDebugState;
+      const runtimes = Object.values(memoryState?.runtimes ?? {}) as Array<
+        Record<string, unknown>
+      >;
+      const runtime = runtimes.find(
+        (entry) =>
+          entry.orchestratorBackend === "aroraWeb" && entry.ready === true,
+      );
+      if (!runtime) {
+        return false;
+      }
+      if (
+        Number(runtime.orchestratorAnimationCommandCount ?? 0) <= 0 ||
+        Number(runtime.orchestratorAnimationFallbackCount ?? 0) !== 0 ||
+        Number(runtime.hostAnimationSampleCount ?? 0) !== 0
+      ) {
+        return false;
+      }
+      const samples = Array.isArray(runtime.lastRendererWriteSamples)
+        ? runtime.lastRendererWriteSamples
+        : [];
+      return samples.some((sample) => {
+        const id = String((sample as { id?: unknown }).id ?? "");
+        return /(^|\/)pose\/control\//.test(id);
+      });
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
+}
+
 test.beforeAll(() => {
   assertPreparedAroraAssets();
 });
@@ -79,6 +123,7 @@ test.beforeAll(() => {
 test("loads the curated face through the composed Arora web backend and drives animation", async ({
   page,
 }) => {
+  await enableRuntimeDebug(page);
   const consoleErrors = trackPageErrors(page);
   await loadCuratedSample(page);
 
@@ -94,6 +139,7 @@ test("loads the curated face through the composed Arora web backend and drives a
   ).toBeVisible();
   await animationPanel.getByRole("button", { name: /^Play / }).click();
   await expect(animationPanel.getByText("Playing").first()).toBeVisible();
+  await waitForGraphDrivenAnimationWrites(page);
 
   const enableLoopButton = animationPanel.getByRole("button", {
     name: /^Enable loop /,

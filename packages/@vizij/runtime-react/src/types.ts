@@ -91,8 +91,9 @@ export type PlayAnimationOptions = {
 
 export type StopAnimationOptions = {
   /**
-   * Host transport removes sampled clip inputs. Orchestrator transport delegates
-   * stop/reset semantics to the animation controller instead of deleting output paths.
+   * Clears host-staged clip aggregates and asks orchestrator-backed animation
+   * controllers to drop their player weight so stopped clips no longer
+   * contribute output poses.
    */
   clearOutputs?: boolean;
 };
@@ -150,6 +151,8 @@ export type RuntimeGraphBundleAppliedEvent = {
     graphs: string[];
     anims: string[];
   };
+  outputPaths?: string[];
+  animationOutputPaths?: Record<string, string[]>;
   reregistered: boolean;
   reloadedAssets: boolean;
 };
@@ -188,6 +191,8 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   pauseAnimation: (id: string) => void;
   seekAnimation: (id: string, timeSeconds: number) => void;
   setAnimationLoop: (id: string, enabled: boolean) => void;
+  hasAnimationController: (id: string) => boolean;
+  getAnimationOutputPaths: (id: string) => string[];
   getAnimationState: (id: string) => AnimationPlaybackState | null;
   stopAnimation: (id: string, options?: StopAnimationOptions) => void;
   playProgram: (id: string) => void;

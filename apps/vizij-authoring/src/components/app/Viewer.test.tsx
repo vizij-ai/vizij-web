@@ -33,6 +33,7 @@ const runtimeProviderProps = vi.hoisted(() => ({
     onRuntimeGraphBundleApplied?: (event: {
       source: { key?: string; signature?: string | null };
       controllers: { graphs: string[]; anims: string[] };
+      animationOutputPaths?: Record<string, string[]>;
       revision: number;
       reregistered: boolean;
       reloadedAssets: boolean;
@@ -93,6 +94,7 @@ const getAnimationStateSpy = vi.fn().mockReturnValue(null);
 const playProgramSpy = vi.fn();
 const pauseProgramSpy = vi.fn();
 const stopProgramSpy = vi.fn();
+const stagePoseNeutralSpy = vi.fn();
 
 vi.mock("@vizij/render", () => ({
   useVizijStore: <T,>(
@@ -128,6 +130,7 @@ vi.mock("@vizij/runtime-react", () => ({
     onRuntimeGraphBundleApplied?: (event: {
       source: { key?: string; signature?: string | null };
       controllers: { graphs: string[]; anims: string[] };
+      animationOutputPaths?: Record<string, string[]>;
       revision: number;
       reregistered: boolean;
       reloadedAssets: boolean;
@@ -160,6 +163,7 @@ vi.mock("@vizij/runtime-react", () => ({
     playProgram: playProgramSpy,
     pauseProgram: pauseProgramSpy,
     stopProgram: stopProgramSpy,
+    stagePoseNeutral: stagePoseNeutralSpy,
   }),
 }));
 
@@ -260,6 +264,7 @@ describe("Viewer", () => {
     playProgramSpy.mockReset();
     pauseProgramSpy.mockReset();
     stopProgramSpy.mockReset();
+    stagePoseNeutralSpy.mockReset();
     useAnimationStore.getState().reset();
     useEditorStore.getState().clear();
   });
@@ -356,11 +361,14 @@ describe("Viewer", () => {
   });
 
   it("polls animation playback so direct runtime play can surface state", () => {
-    const requestAnimationFrameSpy = vi
-      .spyOn(globalThis, "requestAnimationFrame")
-      .mockImplementation(() => 1);
-    const cancelAnimationFrameSpy = vi
-      .spyOn(globalThis, "cancelAnimationFrame")
+    const intervalHandle = 1 as unknown as ReturnType<
+      typeof window.setInterval
+    >;
+    const setIntervalSpy = vi
+      .spyOn(window, "setInterval")
+      .mockImplementation(() => intervalHandle);
+    const clearIntervalSpy = vi
+      .spyOn(window, "clearInterval")
       .mockImplementation(() => {});
     const animationStore = useAnimationStore.getState();
     animationStore.addTrack("rig/face/standard/blink", "Blink");
@@ -388,12 +396,12 @@ describe("Viewer", () => {
       expect(getAnimationStateSpy).toHaveBeenCalledWith(
         AUTHORED_TIMELINE_CLIP_ID,
       );
-      expect(requestAnimationFrameSpy).toHaveBeenCalled();
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 50);
     } finally {
       unmount();
-      expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(1);
-      requestAnimationFrameSpy.mockRestore();
-      cancelAnimationFrameSpy.mockRestore();
+      expect(clearIntervalSpy).toHaveBeenCalledWith(intervalHandle);
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
     }
   });
 
@@ -783,7 +791,7 @@ describe("Viewer", () => {
     expect(setAnimationActiveSpy).toHaveBeenCalledWith(false);
   });
 
-  it("removes inherited runtime animations while inactive and restores them when re-enabled", () => {
+  it("leaves inherited runtime animations untouched while toggling animation activity", () => {
     runtimeAssetBundleState.animations = [
       {
         id: "bundle.imported.blink",
@@ -827,21 +835,7 @@ describe("Viewer", () => {
         typeof payload === "object" &&
         Array.isArray((payload as { animations?: unknown }).animations),
     );
-    expect(inactiveAnimationCalls.length).toBeGreaterThan(0);
-    expect(
-      inactiveAnimationCalls.some(([payload]) =>
-        (
-          payload as {
-            animations: Array<{ id: string; clip: { tracks: unknown[] } }>;
-          }
-        ).animations.some(
-          (animation) =>
-            animation.id === "bundle.imported.blink" &&
-            Array.isArray(animation.clip?.tracks) &&
-            animation.clip.tracks.length === 0,
-        ),
-      ),
-    ).toBe(true);
+    expect(inactiveAnimationCalls).toHaveLength(0);
 
     rerender(
       <GraphRuntimeStoreProvider store={store}>
@@ -870,14 +864,9 @@ describe("Viewer", () => {
         typeof payload === "object" &&
         Array.isArray((payload as { animations?: unknown }).animations),
     );
-    expect(animationCalls.length).toBeGreaterThan(0);
-    expect(
-      animationCalls.some(([payload]) =>
-        (payload as { animations: Array<{ id: string }> }).animations.some(
-          (animation) => animation.id === "bundle.imported.blink",
-        ),
-      ),
-    ).toBe(true);
+    expect(animationCalls).toHaveLength(0);
+    expect(setAnimationActiveSpy).toHaveBeenCalledWith(false);
+    expect(setAnimationActiveSpy).toHaveBeenCalledWith(true);
   });
 
   it("injects authored timeline animation bundle when animation source is active", () => {
@@ -971,6 +960,7 @@ describe("Viewer", () => {
       status: "compiled",
       signature,
     });
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(false);
 
     act(() => {
       runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
@@ -980,6 +970,9 @@ describe("Viewer", () => {
           signature,
         },
         controllers: { graphs: [], anims: [AUTHORED_TIMELINE_CLIP_ID] },
+        animationOutputPaths: {
+          [AUTHORED_TIMELINE_CLIP_ID]: ["rig/root/controls/input_a"],
+        },
         reregistered: true,
         reloadedAssets: false,
       });
@@ -989,6 +982,7 @@ describe("Viewer", () => {
       status: "registered",
       signature,
     });
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(true);
 
     act(() => {
       rerender(renderSubject());
@@ -998,6 +992,172 @@ describe("Viewer", () => {
       status: "registered",
       signature,
     });
+  });
+
+  it("waits for authored animation output routing before marking runtime transport ready", () => {
+    useAnimationStore
+      .getState()
+      .addTrack("input_a", "Input A", "controls/input_a");
+
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    const animationCall = (
+      setGraphBundleSpy.mock.calls as Array<
+        [unknown, { source?: { signature?: string | null } }?]
+      >
+    )
+      .filter(
+        ([payload]) =>
+          payload &&
+          typeof payload === "object" &&
+          Array.isArray((payload as { animations?: unknown }).animations),
+      )
+      .at(-1);
+    const signature = animationCall?.[1]?.source?.signature;
+    expect(signature).toEqual(expect.any(String));
+
+    act(() => {
+      runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
+        revision: 1,
+        source: {
+          key: "animation",
+          signature,
+        },
+        controllers: { graphs: [], anims: [AUTHORED_TIMELINE_CLIP_ID] },
+        animationOutputPaths: {
+          [AUTHORED_TIMELINE_CLIP_ID]: [],
+        },
+        reregistered: true,
+        reloadedAssets: false,
+      });
+    });
+
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      message: "Waiting for animation output routing",
+      signature,
+    });
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(false);
+
+    act(() => {
+      runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
+        revision: 2,
+        source: {
+          key: "animation",
+          signature,
+        },
+        controllers: { graphs: [], anims: [AUTHORED_TIMELINE_CLIP_ID] },
+        animationOutputPaths: {
+          [AUTHORED_TIMELINE_CLIP_ID]: ["rig/root/controls/input_a"],
+        },
+        reregistered: true,
+        reloadedAssets: false,
+      });
+    });
+
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "registered",
+      message: null,
+      signature,
+    });
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(true);
+  });
+
+  it("keeps routed animation acknowledgement pending until the local target signature catches up", () => {
+    useAnimationStore
+      .getState()
+      .addTrack("input_a", "Input A", "controls/input_a");
+
+    const store = createGraphRuntimeStore();
+    const bindingStore = createBindingAuthoringStore();
+    render(
+      <GraphRuntimeStoreProvider store={store}>
+        <BindingAuthoringStoreProvider store={bindingStore}>
+          <Viewer
+            rootId="root"
+            namespace="default"
+            bundle={{
+              namespace: "default",
+              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
+              bundle: null,
+            }}
+            animationSourceActive
+            onClearSelection={() => {}}
+            showSelectionGlow={false}
+            onImportClick={() => {}}
+            onLoadQuori={() => {}}
+          />
+        </BindingAuthoringStoreProvider>
+      </GraphRuntimeStoreProvider>,
+    );
+
+    const animationCall = (
+      setGraphBundleSpy.mock.calls as Array<
+        [unknown, { source?: { signature?: string | null } }?]
+      >
+    )
+      .filter(
+        ([payload]) =>
+          payload &&
+          typeof payload === "object" &&
+          Array.isArray((payload as { animations?: unknown }).animations),
+      )
+      .at(-1);
+    const signature = animationCall?.[1]?.source?.signature;
+    expect(signature).toEqual(expect.any(String));
+
+    act(() => {
+      store.setState({
+        authoringCompileStatus: "compiled",
+        authoringCompileTarget: "animation",
+        authoringCompileMessage: null,
+        authoringCompileSignature: "previous-animation-signature",
+      });
+    });
+
+    act(() => {
+      runtimeProviderProps.current?.onRuntimeGraphBundleApplied?.({
+        revision: 2,
+        source: {
+          key: "animation",
+          signature,
+        },
+        controllers: { graphs: [], anims: [AUTHORED_TIMELINE_CLIP_ID] },
+        animationOutputPaths: {
+          [AUTHORED_TIMELINE_CLIP_ID]: ["rig/root/controls/input_a"],
+        },
+        reregistered: true,
+        reloadedAssets: false,
+      });
+    });
+
+    expect(store.getState().authoringCompileTargets.animation).toMatchObject({
+      status: "compiled",
+      message: "Waiting for animation output routing",
+      signature,
+    });
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(false);
   });
 
   it("emits add/update/remove graph bundle transitions", () => {
@@ -1160,6 +1320,7 @@ describe("Viewer", () => {
   it("resets managed input IDs to their defaults", () => {
     const store = createGraphRuntimeStore();
     const applyStandardInputBatchSpy = vi.fn();
+    const onResetRuntimeSources = vi.fn();
     const bindingStore = createBindingAuthoringStore({
       managedStandardInputs: [
         {
@@ -1223,6 +1384,7 @@ describe("Viewer", () => {
               showSelectionGlow={false}
               onImportClick={() => {}}
               onLoadQuori={() => {}}
+              onResetRuntimeSources={onResetRuntimeSources}
             />
           </BindingAuthoringStoreProvider>
         </GraphRuntimeStoreProvider>,
@@ -1235,6 +1397,7 @@ describe("Viewer", () => {
     expect(resetButton).toBeTruthy();
     fireEvent.click(resetButton as HTMLButtonElement);
 
+    expect(onResetRuntimeSources).toHaveBeenCalledTimes(1);
     expect(applyStandardInputBatchSpy).toHaveBeenCalledWith({
       jaw_open: 0.5,
       pose_smile_weight: 0,
@@ -1246,9 +1409,10 @@ describe("Viewer", () => {
     container.remove();
   });
 
-  it("skips runtime reset when only pose-control inputs exist", () => {
+  it("clears runtime sources when only pose-control inputs exist", () => {
     const store = createGraphRuntimeStore();
     const applyStandardInputBatchSpy = vi.fn();
+    const onResetRuntimeSources = vi.fn();
     const bindingStore = createBindingAuthoringStore({
       managedStandardInputs: [
         {
@@ -1291,6 +1455,7 @@ describe("Viewer", () => {
               showSelectionGlow={false}
               onImportClick={() => {}}
               onLoadQuori={() => {}}
+              onResetRuntimeSources={onResetRuntimeSources}
             />
           </BindingAuthoringStoreProvider>
         </GraphRuntimeStoreProvider>,
@@ -1303,6 +1468,7 @@ describe("Viewer", () => {
     expect(resetButton).toBeTruthy();
     fireEvent.click(resetButton as HTMLButtonElement);
 
+    expect(onResetRuntimeSources).toHaveBeenCalledTimes(1);
     expect(applyStandardInputBatchSpy).not.toHaveBeenCalled();
 
     act(() => {
@@ -1656,6 +1822,7 @@ describe("Viewer", () => {
     );
 
     expect(stopProgramSpy).toHaveBeenCalledWith("graph:test");
+    expect(stagePoseNeutralSpy).not.toHaveBeenCalled();
     expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
       { programs: [] },
       expect.objectContaining({

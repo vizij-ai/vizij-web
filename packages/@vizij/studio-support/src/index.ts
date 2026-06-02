@@ -32,7 +32,10 @@ import {
   collectOutputPaths,
 } from "./utils/graph";
 import { resolveClipDurationSeconds } from "./utils/clipPlayback";
-import { collectAnimationClipOutputPaths } from "./utils/animationBridge";
+import {
+  collectAnimationClipOutputPaths,
+  resolveAnimationBridgeOutputPaths,
+} from "./utils/animationBridge";
 import {
   namespaceControllerId,
   namespaceTypedPath,
@@ -636,7 +639,9 @@ export {
 export {
   buildAnimationControllerCommandPath,
   buildAnimationControllerInstancePath,
+  buildAnimationControllerPauseInputs,
   buildAnimationControllerPlayInputs,
+  buildAnimationControllerStopInputs,
   prepareAnimationRegistrationForTransport,
   resolveAnimationTransportMode,
   type AnimationControllerInput,
@@ -1833,7 +1838,11 @@ export function prepareRuntimeRegistrationPlan(args: {
       animation.id;
     const animationPayload =
       animation.setup?.animation ??
-      toStoredAnimationClip(animation.id, animation.clip as AnimationClipLike);
+      toStoredAnimationClip(animation.id, animation.clip as AnimationClipLike, {
+        namespace: args.namespace,
+        faceId: args.faceId,
+        rigInputMap,
+      });
     animationRegistrations.push({
       assetId: animation.id,
       outputPaths,
@@ -1900,25 +1909,76 @@ function normalizeStoredAnimationInterpolation(
   return "linear";
 }
 
-function buildStoredAnimationTransitions(mode: "linear" | "step" | "cubic") {
-  if (mode === "cubic") {
+function roundStoredTransitionDelta(value: number): number {
+  const rounded = Math.round(value * 1_000_000) / 1_000_000;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function buildStoredAnimationPointTransitions(
+  keyframes: Array<{
+    time: number;
+    value: number;
+    mode: "linear" | "step" | "cubic";
+    inTangent?: number | null;
+    outTangent?: number | null;
+  }>,
+  keyframeIndex: number,
+) {
+  const keyframe = keyframes[keyframeIndex];
+  if (!keyframe) {
     return undefined;
   }
-  if (mode === "step") {
-    return {
-      in: "linear",
-      out: { x: 0, y: 0 },
-    };
+
+  const previous = keyframes[keyframeIndex - 1];
+  const next = keyframes[keyframeIndex + 1];
+  const transitions: {
+    in?: "linear" | { x: number; y: number };
+    out?: "linear" | { x: number; y: number };
+  } = {};
+
+  if (previous) {
+    if (previous.mode === "linear" || previous.mode === "step") {
+      transitions.in = "linear";
+    } else if (typeof keyframe.inTangent === "number") {
+      const spanSeconds = keyframe.time - previous.time;
+      if (spanSeconds > 0) {
+        transitions.in = {
+          x: roundStoredTransitionDelta((-spanSeconds * 1000) / 3),
+          y: roundStoredTransitionDelta(
+            (-keyframe.inTangent * spanSeconds) / 3,
+          ),
+        };
+      }
+    }
+  } else if (keyframe.mode === "linear" || keyframe.mode === "step") {
+    transitions.in = "linear";
   }
-  return {
-    in: "linear",
-    out: "linear",
-  };
+
+  if (keyframe.mode === "linear") {
+    transitions.out = "linear";
+  } else if (keyframe.mode === "step") {
+    transitions.out = { x: 0, y: 0 };
+  } else if (next && typeof keyframe.outTangent === "number") {
+    const spanSeconds = next.time - keyframe.time;
+    if (spanSeconds > 0) {
+      transitions.out = {
+        x: roundStoredTransitionDelta((spanSeconds * 1000) / 3),
+        y: roundStoredTransitionDelta((keyframe.outTangent * spanSeconds) / 3),
+      };
+    }
+  }
+
+  return Object.keys(transitions).length > 0 ? transitions : undefined;
 }
 
 export function toStoredAnimationClip(
   fallbackId: string,
   clip: AnimationClipLike,
+  options: {
+    namespace?: string;
+    faceId?: string;
+    rigInputMap?: Record<string, string>;
+  } = {},
 ): Record<string, unknown> {
   const clipId =
     typeof clip.id === "string" && clip.id.trim().length > 0
@@ -1932,11 +1992,11 @@ export function toStoredAnimationClip(
   const durationMs = Math.max(1, Math.round(durationSeconds * 1000));
 
   const tracks = (Array.isArray(clip.tracks) ? clip.tracks : [])
-    .map((rawTrack, trackIndex) => {
+    .flatMap((rawTrack, trackIndex) => {
       const channel =
         typeof rawTrack.channel === "string" ? rawTrack.channel.trim() : "";
       if (!channel) {
-        return null;
+        return [];
       }
       const keyframes = (
         Array.isArray(rawTrack.keyframes) ? rawTrack.keyframes : []
@@ -1946,6 +2006,8 @@ export function toStoredAnimationClip(
           const value = Number(keyframe.value);
           const keyframeId = keyframe["id"];
           const keyframeInterpolation = keyframe["interpolation"];
+          const inTangent = keyframe["inTangent"];
+          const outTangent = keyframe["outTangent"];
           if (!Number.isFinite(time) || !Number.isFinite(value)) {
             return null;
           }
@@ -1959,6 +2021,14 @@ export function toStoredAnimationClip(
             mode: normalizeStoredAnimationInterpolation(
               keyframeInterpolation ?? rawTrack.interpolation,
             ),
+            inTangent:
+              typeof inTangent === "number" && Number.isFinite(inTangent)
+                ? inTangent
+                : undefined,
+            outTangent:
+              typeof outTangent === "number" && Number.isFinite(outTangent)
+                ? outTangent
+                : undefined,
           };
         })
         .filter(Boolean) as Array<{
@@ -1966,10 +2036,12 @@ export function toStoredAnimationClip(
         time: number;
         value: number;
         mode: "linear" | "step" | "cubic";
+        inTangent?: number;
+        outTangent?: number;
       }>;
 
       if (keyframes.length === 0) {
-        return null;
+        return [];
       }
 
       keyframes.sort((left, right) => {
@@ -1989,21 +2061,40 @@ export function toStoredAnimationClip(
         typeof rawTrackName === "string" && rawTrackName.trim().length > 0
           ? rawTrackName.trim()
           : channel.replace(/^\/+/, "") || trackId;
-      return {
-        id: trackId,
-        name: trackName,
-        animatableId: channel,
-        points: keyframes.map((keyframe) => {
-          const stamp = Math.max(0, Math.round(keyframe.time * 1000));
-          const transitions = buildStoredAnimationTransitions(keyframe.mode);
-          return {
-            id: keyframe.id,
-            stamp,
-            value: keyframe.value,
-            ...(transitions ? { transitions } : {}),
-          };
-        }),
-      };
+      const bridgeOutputPaths =
+        options.namespace && options.namespace.trim().length > 0
+          ? resolveAnimationBridgeOutputPaths(
+              channel,
+              options.faceId,
+              options.rigInputMap,
+            ).map((path) => namespaceTypedPath(path, options.namespace!))
+          : [channel];
+      const uniqueOutputPaths = Array.from(new Set(bridgeOutputPaths));
+
+      return uniqueOutputPaths.map((outputPath, outputIndex) => {
+        const usesSourceChannel = outputPath === channel;
+        const bridgedTrackId = usesSourceChannel
+          ? trackId
+          : `${trackId}:bridge:${outputIndex}:${outputPath.replace(/[^A-Za-z0-9_.:-]+/g, "_")}`;
+        return {
+          id: bridgedTrackId,
+          name: usesSourceChannel ? trackName : `${trackName} (${outputPath})`,
+          animatableId: outputPath,
+          points: keyframes.map((keyframe, keyframeIndex) => {
+            const stamp = Math.max(0, Math.round(keyframe.time * 1000));
+            const transitions = buildStoredAnimationPointTransitions(
+              keyframes,
+              keyframeIndex,
+            );
+            return {
+              id: keyframe.id,
+              stamp,
+              value: keyframe.value,
+              ...(transitions ? { transitions } : {}),
+            };
+          }),
+        };
+      });
     })
     .filter(Boolean);
 

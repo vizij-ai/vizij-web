@@ -343,6 +343,45 @@ describe("studio support package", () => {
     ]);
   });
 
+  it("converts cubic tangents into Studio v2 explicit transition handles", () => {
+    const stored = toStoredAnimationClip("fallback", {
+      id: "authoring.timeline.main",
+      duration: 1.5,
+      tracks: [
+        {
+          channel: "controls/gaze/left_right",
+          interpolation: "cubic",
+          keyframes: [
+            { id: "k0", time: 0, value: 0, outTangent: 2 },
+            { id: "k1", time: 1.5, value: 1, inTangent: 0 },
+          ],
+        },
+      ],
+    });
+
+    expect(stored.tracks).toEqual([
+      {
+        id: "authoring.timeline.main:track-0000",
+        name: "controls/gaze/left_right",
+        animatableId: "controls/gaze/left_right",
+        points: [
+          {
+            id: "k0",
+            stamp: 0,
+            value: 0,
+            transitions: { out: { x: 500, y: 1 } },
+          },
+          {
+            id: "k1",
+            stamp: 1500,
+            value: 1,
+            transitions: { in: { x: -500, y: 0 } },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("samples animation outputs onto bridge target paths", () => {
     const outputs = sampleAnimationClipOutputValues(
       {

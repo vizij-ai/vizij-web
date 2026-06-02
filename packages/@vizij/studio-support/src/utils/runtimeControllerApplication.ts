@@ -32,6 +32,7 @@ export type RuntimeControllerRegistrationSummary = {
   graphIds: string[];
   animationIds: string[];
   animationControllerIds: Map<string, string>;
+  animationOutputPaths: Map<string, string[]>;
   programRegistrationMap: Map<string, RuntimeProgramRegistrationSupportResult>;
   outputPaths: Set<string>;
   baseOutputPaths: Set<string>;
@@ -95,6 +96,12 @@ export function summarizeRuntimeControllerRegistration(
     graphIds: Array.from(options.graphIds),
     animationIds: Array.from(options.animationIds),
     animationControllerIds: new Map(options.animationControllerIds ?? []),
+    animationOutputPaths: new Map(
+      options.plan.animationRegistrations.map((registration) => [
+        registration.assetId,
+        [...registration.outputPaths],
+      ]),
+    ),
     programRegistrationMap: new Map(
       options.plan.programRegistrations.map((registration) => [
         registration.assetId,
