@@ -29,7 +29,10 @@ import { parsePoseWeightInputSourceId } from "../../poseRig/utils";
 import MgNodeInspector from "../../motiongraph/components/MgNodeInspector";
 import {
   useAnimationStore,
+  type AnimationCurveSelection,
+  type AnimationKeyframe,
   type AnimationTimeDisplayMode,
+  type AnimationTrack,
 } from "../../state/animationStore";
 import type { ActiveInspectorTarget } from "../../utils/inspectorSelection";
 import {
@@ -116,6 +119,139 @@ function clamp01(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
+}
+
+type AnimationHandle = { x: number; y: number };
+type AnimationSegmentInspectorModel = {
+  segmentIndex: number;
+  start: AnimationKeyframe;
+  end: AnimationKeyframe;
+  interpolation: AnimationTrack["interpolation"];
+  outHandle: AnimationHandle;
+  inHandle: AnimationHandle;
+};
+type AnimationSegmentHandleSide = "out" | "in";
+
+const ANIMATION_HANDLE_EPSILON = 1e-6;
+const ANIMATION_CUBIC_EASE_HANDLE_X = 0.65;
+const ANIMATION_STEP_HOLD_HANDLE_X = 0.98;
+
+function quantizeAnimationHandleValue(value: number): number {
+  const rounded = Math.round(value * 1_000_000) / 1_000_000;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function normalizeAnimationHandle(value: unknown): AnimationHandle | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as Partial<AnimationHandle>;
+  const x = Number(record.x);
+  const y = Number(record.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return {
+    x: quantizeAnimationHandleValue(x),
+    y: quantizeAnimationHandleValue(y),
+  };
+}
+
+function resolveAnimationPresetHandles(
+  interpolation: AnimationTrack["interpolation"],
+  start: AnimationKeyframe,
+  end: AnimationKeyframe,
+): { outHandle: AnimationHandle; inHandle: AnimationHandle } {
+  const span = Math.max(end.time - start.time, ANIMATION_HANDLE_EPSILON);
+  const valueDelta = end.value - start.value;
+  if (interpolation === "linear") {
+    return {
+      outHandle: { x: span / 3, y: valueDelta / 3 },
+      inHandle: { x: -span / 3, y: -valueDelta / 3 },
+    };
+  }
+  if (interpolation === "step") {
+    return {
+      outHandle: { x: span * ANIMATION_STEP_HOLD_HANDLE_X, y: 0 },
+      inHandle: {
+        x: -span * (1 - ANIMATION_STEP_HOLD_HANDLE_X),
+        y: -valueDelta,
+      },
+    };
+  }
+  return {
+    outHandle: { x: span * ANIMATION_CUBIC_EASE_HANDLE_X, y: 0 },
+    inHandle: { x: -span * ANIMATION_CUBIC_EASE_HANDLE_X, y: 0 },
+  };
+}
+
+function resolveAnimationSegmentInspectorModel(
+  keyframes: ReadonlyArray<AnimationKeyframe>,
+  trackInterpolation: AnimationTrack["interpolation"],
+  segmentIndex: number,
+): AnimationSegmentInspectorModel | null {
+  const start = keyframes[segmentIndex];
+  const end = keyframes[segmentIndex + 1];
+  if (!start || !end || end.time <= start.time + ANIMATION_HANDLE_EPSILON) {
+    return null;
+  }
+  const interpolation = start.interpolation ?? trackInterpolation;
+  const presetHandles = resolveAnimationPresetHandles(
+    interpolation,
+    start,
+    end,
+  );
+  const outHandle =
+    interpolation === "spline"
+      ? (normalizeAnimationHandle(start.outHandle) ??
+        (typeof start.outTangent === "number"
+          ? {
+              x: (end.time - start.time) / 3,
+              y: (start.outTangent * (end.time - start.time)) / 3,
+            }
+          : null) ??
+        presetHandles.outHandle)
+      : presetHandles.outHandle;
+  const inHandle =
+    interpolation === "spline"
+      ? (normalizeAnimationHandle(end.inHandle) ??
+        (typeof end.inTangent === "number"
+          ? {
+              x: -(end.time - start.time) / 3,
+              y: (-end.inTangent * (end.time - start.time)) / 3,
+            }
+          : null) ??
+        presetHandles.inHandle)
+      : presetHandles.inHandle;
+  return {
+    segmentIndex,
+    start,
+    end,
+    interpolation,
+    outHandle: {
+      x: quantizeAnimationHandleValue(outHandle.x),
+      y: quantizeAnimationHandleValue(outHandle.y),
+    },
+    inHandle: {
+      x: quantizeAnimationHandleValue(inHandle.x),
+      y: quantizeAnimationHandleValue(inHandle.y),
+    },
+  };
+}
+
+function resolveSelectedAnimationSegmentInspectorModel(
+  selection: AnimationCurveSelection | null,
+  keyframes: ReadonlyArray<AnimationKeyframe>,
+  trackInterpolation: AnimationTrack["interpolation"],
+): AnimationSegmentInspectorModel | null {
+  if (selection?.kind !== "segment" && selection?.kind !== "handle") {
+    return null;
+  }
+  return resolveAnimationSegmentInspectorModel(
+    keyframes,
+    trackInterpolation,
+    selection.segmentIndex,
+  );
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -454,6 +590,9 @@ export function InspectorPanel({
   const selectedAnimationKeyframeId = useAnimationStore(
     (state) => state.selectedKeyframeId,
   );
+  const selectedAnimationCurveItem = useAnimationStore(
+    (state) => state.selectedCurveItem,
+  );
   const setAnimationTrackInterpolation = useAnimationStore(
     (state) => state.setTrackInterpolation,
   );
@@ -467,6 +606,9 @@ export function InspectorPanel({
   const selectAnimationTrack = useAnimationStore((state) => state.selectTrack);
   const selectAnimationKeyframe = useAnimationStore(
     (state) => state.selectKeyframe,
+  );
+  const selectAnimationCurveItem = useAnimationStore(
+    (state) => state.selectCurveItem,
   );
   const animationTimeDisplayMode = useAnimationStore(
     (state) => state.timeDisplayMode,
@@ -1067,15 +1209,28 @@ export function InspectorPanel({
     [animationTracks, selectedAnimationTrackId],
   );
   const selectedAnimationKeyframe = useMemo(() => {
-    if (!selectedAnimationTrack || !selectedAnimationKeyframeId) {
+    if (!selectedAnimationTrack) {
+      return null;
+    }
+    const keyframeId =
+      selectedAnimationCurveItem?.kind === "keyframe"
+        ? selectedAnimationCurveItem.keyframeId
+        : selectedAnimationCurveItem
+          ? null
+          : selectedAnimationKeyframeId;
+    if (!keyframeId) {
       return null;
     }
     return (
       selectedAnimationTrack.keyframes.find(
-        (keyframe) => keyframe.id === selectedAnimationKeyframeId,
+        (keyframe) => keyframe.id === keyframeId,
       ) ?? null
     );
-  }, [selectedAnimationKeyframeId, selectedAnimationTrack]);
+  }, [
+    selectedAnimationCurveItem,
+    selectedAnimationKeyframeId,
+    selectedAnimationTrack,
+  ]);
   const selectedAnimationTrackKeyframes = useMemo(() => {
     if (!selectedAnimationTrack) {
       return [];
@@ -1087,6 +1242,65 @@ export function InspectorPanel({
       return left.id.localeCompare(right.id);
     });
   }, [selectedAnimationTrack]);
+  const selectedAnimationKeyframeIndex = useMemo(() => {
+    if (!selectedAnimationKeyframe) {
+      return -1;
+    }
+    return selectedAnimationTrackKeyframes.findIndex(
+      (keyframe) => keyframe.id === selectedAnimationKeyframe.id,
+    );
+  }, [selectedAnimationKeyframe, selectedAnimationTrackKeyframes]);
+  const selectedAnimationIncomingSegment = useMemo(() => {
+    if (!selectedAnimationTrack || selectedAnimationKeyframeIndex <= 0) {
+      return null;
+    }
+    return resolveAnimationSegmentInspectorModel(
+      selectedAnimationTrackKeyframes,
+      selectedAnimationTrack.interpolation,
+      selectedAnimationKeyframeIndex - 1,
+    );
+  }, [
+    selectedAnimationKeyframeIndex,
+    selectedAnimationTrack,
+    selectedAnimationTrackKeyframes,
+  ]);
+  const selectedAnimationOutgoingSegment = useMemo(() => {
+    if (
+      !selectedAnimationTrack ||
+      selectedAnimationKeyframeIndex < 0 ||
+      selectedAnimationKeyframeIndex >=
+        selectedAnimationTrackKeyframes.length - 1
+    ) {
+      return null;
+    }
+    return resolveAnimationSegmentInspectorModel(
+      selectedAnimationTrackKeyframes,
+      selectedAnimationTrack.interpolation,
+      selectedAnimationKeyframeIndex,
+    );
+  }, [
+    selectedAnimationKeyframeIndex,
+    selectedAnimationTrack,
+    selectedAnimationTrackKeyframes,
+  ]);
+  const selectedAnimationSegment = useMemo(() => {
+    if (!selectedAnimationTrack) {
+      return null;
+    }
+    return resolveSelectedAnimationSegmentInspectorModel(
+      selectedAnimationCurveItem,
+      selectedAnimationTrackKeyframes,
+      selectedAnimationTrack.interpolation,
+    );
+  }, [
+    selectedAnimationCurveItem,
+    selectedAnimationTrack,
+    selectedAnimationTrackKeyframes,
+  ]);
+  const selectedAnimationHandleSide: AnimationSegmentHandleSide | null =
+    selectedAnimationCurveItem?.kind === "handle"
+      ? selectedAnimationCurveItem.side
+      : null;
   const selectedAnimationInput = useMemo(() => {
     if (!selectedAnimationTrack) {
       return undefined;
@@ -1123,6 +1337,217 @@ export function InspectorPanel({
   const selectedAnimationTimeFieldLabel = resolveAnimationTimeFieldLabel(
     animationTimeDisplayMode,
   );
+  const commitAnimationSegmentMode = (
+    segment: AnimationSegmentInspectorModel,
+    interpolation: AnimationTrack["interpolation"],
+  ) => {
+    const handles =
+      interpolation === "spline"
+        ? {
+            outHandle: segment.outHandle,
+            inHandle: segment.inHandle,
+          }
+        : resolveAnimationPresetHandles(
+            interpolation,
+            segment.start,
+            segment.end,
+          );
+    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.start.id, {
+      interpolation,
+      outHandle: {
+        x: quantizeAnimationHandleValue(handles.outHandle.x),
+        y: quantizeAnimationHandleValue(handles.outHandle.y),
+      },
+      outTangent: undefined,
+    });
+    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.end.id, {
+      inHandle: {
+        x: quantizeAnimationHandleValue(handles.inHandle.x),
+        y: quantizeAnimationHandleValue(handles.inHandle.y),
+      },
+      inTangent: undefined,
+    });
+  };
+  const commitAnimationSegmentHandle = (
+    segment: AnimationSegmentInspectorModel,
+    side: "out" | "in",
+    axis: "x" | "y",
+    value: number,
+  ) => {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    const nextValue = quantizeAnimationHandleValue(value);
+    if (side === "out") {
+      updateAnimationKeyframe(selectedAnimationTrack!.id, segment.start.id, {
+        interpolation: "spline",
+        outHandle: {
+          ...segment.outHandle,
+          [axis]: nextValue,
+        },
+        outTangent: undefined,
+      });
+      return;
+    }
+    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.start.id, {
+      interpolation: "spline",
+      outTangent: undefined,
+    });
+    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.end.id, {
+      inHandle: {
+        ...segment.inHandle,
+        [axis]: nextValue,
+      },
+      inTangent: undefined,
+    });
+  };
+  const renderAnimationHandleFields = ({
+    title,
+    segment,
+    handleSide,
+    testIdPrefix,
+    selected = false,
+  }: {
+    title: string;
+    segment: AnimationSegmentInspectorModel | null;
+    handleSide: AnimationSegmentHandleSide;
+    testIdPrefix: string;
+    selected?: boolean;
+  }) => {
+    if (!segment) {
+      return (
+        <div className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5 text-[10px] text-text-muted">
+          No {title.toLowerCase()}.
+        </div>
+      );
+    }
+    const handle = handleSide === "out" ? segment.outHandle : segment.inHandle;
+    return (
+      <div
+        className={cn(
+          "rounded border bg-bg-input/25 px-2 py-2",
+          selected
+            ? "border-accent/70 shadow-[0_0_0_1px_rgba(45,212,191,0.25)]"
+            : "border-border-default/50",
+        )}
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+            {title}
+          </span>
+          <span className="font-mono text-[9px] text-text-muted">
+            {formatKeyframeTime(segment.start.time, animationTimeDisplayMode)} -
+            {formatKeyframeTime(segment.end.time, animationTimeDisplayMode)}
+          </span>
+        </div>
+        <div className="grid grid-cols-[76px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-text-muted">
+            Handle
+          </span>
+          <input
+            type="number"
+            data-testid={`${testIdPrefix}-x-input`}
+            step="0.01"
+            className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+            value={handle.x}
+            onChange={(event) =>
+              commitAnimationSegmentHandle(
+                segment,
+                handleSide,
+                "x",
+                Number.parseFloat(event.target.value),
+              )
+            }
+            aria-label={`${title} handle x`}
+          />
+          <input
+            type="number"
+            data-testid={`${testIdPrefix}-y-input`}
+            step="0.01"
+            className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+            value={handle.y}
+            onChange={(event) =>
+              commitAnimationSegmentHandle(
+                segment,
+                handleSide,
+                "y",
+                Number.parseFloat(event.target.value),
+              )
+            }
+            aria-label={`${title} handle y`}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderAnimationSegmentInspector = (
+    segment: AnimationSegmentInspectorModel | null,
+    selectedHandleSide: AnimationSegmentHandleSide | null,
+  ) => {
+    if (!segment) {
+      return (
+        <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 text-[10px] text-text-muted">
+          Select a segment or handle in the timeline to inspect interpolation
+          controls.
+        </div>
+      );
+    }
+    return (
+      <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+            {selectedHandleSide ? "Handle" : "Segment"}
+          </span>
+          <span className="font-mono text-[9px] text-text-muted">
+            {formatKeyframeTime(segment.start.time, animationTimeDisplayMode)} -
+            {formatKeyframeTime(segment.end.time, animationTimeDisplayMode)}
+          </span>
+        </div>
+        <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-text-muted">
+            Mode
+          </span>
+          <select
+            data-testid="animation-segment-mode-select"
+            className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+            value={segment.interpolation}
+            onChange={(event) =>
+              commitAnimationSegmentMode(
+                segment,
+                event.target.value as AnimationTrack["interpolation"],
+              )
+            }
+          >
+            <option value="linear">Linear</option>
+            <option value="step">Step</option>
+            <option value="cubic">Cubic</option>
+            <option value="spline">Custom spline</option>
+          </select>
+        </div>
+        {selectedHandleSide ? (
+          <div className="rounded border border-accent/40 bg-accent/10 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-accent">
+            Selected {selectedHandleSide === "out" ? "outgoing" : "incoming"}{" "}
+            handle
+          </div>
+        ) : null}
+        {renderAnimationHandleFields({
+          title: "Outgoing Handle",
+          segment,
+          handleSide: "out",
+          testIdPrefix: "animation-segment-out-handle",
+          selected: selectedHandleSide === "out",
+        })}
+        {renderAnimationHandleFields({
+          title: "Incoming Handle",
+          segment,
+          handleSide: "in",
+          testIdPrefix: "animation-segment-in-handle",
+          selected: selectedHandleSide === "in",
+        })}
+      </div>
+    );
+  };
 
   const activeInspectorKind = activeInspectorTarget?.kind ?? null;
   const showPoseGroupInspector =
@@ -1450,7 +1875,7 @@ export function InspectorPanel({
                         className="h-6 px-2 text-[10px]"
                         onClick={() => {
                           selectAnimationTrack(null);
-                          selectAnimationKeyframe(null);
+                          selectAnimationCurveItem(null);
                         }}
                       >
                         Clear
@@ -1479,13 +1904,15 @@ export function InspectorPanel({
                       onChange={(event) =>
                         setAnimationTrackInterpolation(
                           selectedAnimationTrack.id,
-                          event.target.value as "linear" | "step" | "cubic",
+                          event.target
+                            .value as typeof selectedAnimationTrack.interpolation,
                         )
                       }
                     >
                       <option value="linear">Linear</option>
                       <option value="step">Step</option>
                       <option value="cubic">Cubic</option>
+                      <option value="spline">Spline</option>
                     </select>
                   </div>
                   <div className="text-[10px] text-text-muted font-mono">
@@ -1509,7 +1936,8 @@ export function InspectorPanel({
                     <div className="flex flex-col gap-1.5">
                       {selectedAnimationTrackKeyframes.map((keyframe) => {
                         const isActive =
-                          selectedAnimationKeyframeId === keyframe.id;
+                          selectedAnimationCurveItem?.kind === "keyframe" &&
+                          selectedAnimationCurveItem.keyframeId === keyframe.id;
                         return (
                           <button
                             key={keyframe.id}
@@ -1546,7 +1974,12 @@ export function InspectorPanel({
                   )}
                 </div>
 
-                {selectedAnimationKeyframe ? (
+                {selectedAnimationSegment ? (
+                  renderAnimationSegmentInspector(
+                    selectedAnimationSegment,
+                    selectedAnimationHandleSide,
+                  )
+                ) : selectedAnimationKeyframe ? (
                   <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] uppercase tracking-wider text-text-muted">
@@ -1658,107 +2091,23 @@ export function InspectorPanel({
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                        Interp
-                      </span>
-                      <select
-                        data-testid="animation-keyframe-interpolation-select"
-                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                        value={
-                          selectedAnimationKeyframe.interpolation ?? "__track__"
-                        }
-                        onChange={(event) =>
-                          updateAnimationKeyframe(
-                            selectedAnimationTrack.id,
-                            selectedAnimationKeyframe.id,
-                            {
-                              interpolation:
-                                event.target.value === "__track__"
-                                  ? undefined
-                                  : (event.target.value as
-                                      | "linear"
-                                      | "step"
-                                      | "cubic"),
-                            },
-                          )
-                        }
-                      >
-                        <option value="__track__">Track default</option>
-                        <option value="linear">Linear</option>
-                        <option value="step">Step</option>
-                        <option value="cubic">Cubic</option>
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                        Out Tan
-                      </span>
-                      <input
-                        type="number"
-                        data-testid="animation-keyframe-out-tangent-input"
-                        step="0.01"
-                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                        value={selectedAnimationKeyframe.outTangent ?? ""}
-                        onChange={(event) => {
-                          const rawValue = event.target.value.trim();
-                          if (!rawValue) {
-                            updateAnimationKeyframe(
-                              selectedAnimationTrack.id,
-                              selectedAnimationKeyframe.id,
-                              { outTangent: undefined },
-                            );
-                            return;
-                          }
-                          const nextValue = Number.parseFloat(rawValue);
-                          if (!Number.isFinite(nextValue)) {
-                            return;
-                          }
-                          updateAnimationKeyframe(
-                            selectedAnimationTrack.id,
-                            selectedAnimationKeyframe.id,
-                            { interpolation: "cubic", outTangent: nextValue },
-                          );
-                        }}
-                      />
-                    </div>
-                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                        In Tan
-                      </span>
-                      <input
-                        type="number"
-                        data-testid="animation-keyframe-in-tangent-input"
-                        step="0.01"
-                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                        value={selectedAnimationKeyframe.inTangent ?? ""}
-                        onChange={(event) => {
-                          const rawValue = event.target.value.trim();
-                          if (!rawValue) {
-                            updateAnimationKeyframe(
-                              selectedAnimationTrack.id,
-                              selectedAnimationKeyframe.id,
-                              { inTangent: undefined },
-                            );
-                            return;
-                          }
-                          const nextValue = Number.parseFloat(rawValue);
-                          if (!Number.isFinite(nextValue)) {
-                            return;
-                          }
-                          updateAnimationKeyframe(
-                            selectedAnimationTrack.id,
-                            selectedAnimationKeyframe.id,
-                            { inTangent: nextValue },
-                          );
-                        }}
-                      />
-                    </div>
+                    {renderAnimationHandleFields({
+                      title: "Incoming Handle",
+                      segment: selectedAnimationIncomingSegment,
+                      handleSide: "in",
+                      testIdPrefix: "animation-keyframe-in-handle",
+                    })}
+                    {renderAnimationHandleFields({
+                      title: "Outgoing Handle",
+                      segment: selectedAnimationOutgoingSegment,
+                      handleSide: "out",
+                      testIdPrefix: "animation-keyframe-out-handle",
+                    })}
                   </div>
                 ) : (
                   <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 text-[10px] text-text-muted">
-                    Select a keyframe in the timeline to inspect timing and
-                    value controls.
+                    Select a keyframe, segment, or handle in the timeline to
+                    inspect animation controls.
                   </div>
                 )}
               </div>

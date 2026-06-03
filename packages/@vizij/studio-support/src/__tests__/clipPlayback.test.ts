@@ -8,7 +8,7 @@ import {
 } from "../index";
 
 describe("Studio clip playback helpers", () => {
-  it("samples linear, step, and cubic tracks with Studio-compatible timing", () => {
+  it("samples linear, step, cubic, and spline tracks with Studio-compatible timing", () => {
     expect(
       sampleTrackAtTime(
         {
@@ -23,59 +23,122 @@ describe("Studio clip playback helpers", () => {
       ),
     ).toBeCloseTo(2.5, 6);
 
-    expect(
-      sampleTrackAtTime(
-        {
-          channel: "jaw/open",
-          interpolation: "step",
-          keyframes: [
-            { time: 0, value: 0 },
-            { time: 1, value: 10 },
-          ],
-        },
-        0.75,
-      ),
-    ).toBe(0);
+    const stepSample = sampleTrackAtTime(
+      {
+        channel: "jaw/open",
+        interpolation: "step",
+        keyframes: [
+          {
+            time: 0,
+            value: 0,
+            outHandle: { x: 0.65, y: 4 },
+            outTangent: 9,
+          },
+          {
+            time: 1,
+            value: 10,
+            inHandle: { x: -0.65, y: -4 },
+            inTangent: 9,
+          },
+        ],
+      },
+      0.75,
+    );
+    expect(stepSample).toBeGreaterThan(0);
+    expect(stepSample).toBeLessThan(1);
 
+    const cubicQuarter = sampleTrackAtTime(
+      {
+        channel: "jaw/open",
+        interpolation: "cubic",
+        keyframes: [
+          {
+            time: 0,
+            value: 0,
+            outHandle: { x: 0.1, y: 1 },
+            outTangent: 12,
+          },
+          {
+            time: 1,
+            value: 1,
+            inHandle: { x: -0.1, y: -1 },
+            inTangent: 12,
+          },
+        ],
+      },
+      0.25,
+    );
+    expect(cubicQuarter).toBeGreaterThan(0);
+    expect(cubicQuarter).toBeLessThan(0.25);
     expect(
       sampleTrackAtTime(
         {
           channel: "jaw/open",
           interpolation: "cubic",
           keyframes: [
-            { time: 0, value: 0, outTangent: 2 },
-            { time: 1, value: 1, inTangent: 0 },
+            { time: 0, value: 0 },
+            { time: 1, value: 1 },
           ],
         },
         0.5,
       ),
-    ).toBeCloseTo(0.75, 6);
+    ).toBeCloseTo(0.5, 6);
+
+    const splineQuarter = sampleTrackAtTime(
+      {
+        channel: "jaw/open",
+        interpolation: "spline",
+        keyframes: [
+          { time: 0, value: 0, outHandle: { x: 0.65, y: 0 } },
+          { time: 1, value: 1, inHandle: { x: -0.65, y: 0 } },
+        ],
+      },
+      0.25,
+    );
+    expect(splineQuarter).toBeGreaterThan(0);
+    expect(splineQuarter).toBeLessThan(0.25);
+
+    const overriddenSplineQuarter = sampleTrackAtTime(
+      {
+        channel: "jaw/open",
+        interpolation: "linear",
+        keyframes: [
+          {
+            time: 0,
+            value: 0,
+            interpolation: "spline",
+            outHandle: { x: 0.65, y: 0 },
+          },
+          { time: 1, value: 1, inHandle: { x: -0.65, y: 0 } },
+        ],
+      },
+      0.25,
+    );
+    expect(overriddenSplineQuarter).toBeCloseTo(splineQuarter, 6);
   });
 
   it("samples clips onto animation input paths with weight applied", () => {
-    expect(
-      sampleClipAtTime(
-        "authoring.timeline.main",
-        {
-          tracks: [
-            {
-              channel: "/controls/jaw/open",
-              keyframes: [
-                { time: 0, value: 0 },
-                { time: 1, value: 4 },
-              ],
-            },
-          ],
-        },
-        0.5,
-        0.25,
-      ),
-    ).toEqual([
+    const samples = sampleClipAtTime(
+      "authoring.timeline.main",
       {
-        path: "animation/authoring.timeline.main/controls/jaw/open",
-        value: 0.5,
+        tracks: [
+          {
+            channel: "/controls/jaw/open",
+            keyframes: [
+              { time: 0, value: 0 },
+              { time: 1, value: 4 },
+            ],
+          },
+        ],
       },
-    ]);
+      0.5,
+      0.25,
+    );
+
+    expect(samples[0]?.path).toBe(
+      "animation/authoring.timeline.main/controls/jaw/open",
+    );
+    expect(samples[0]?.value).toBeCloseTo(0.5, 6);
   });
 
   it("clamps and samples deterministic seek times", () => {

@@ -5,12 +5,17 @@ import type {
 } from "../types";
 
 const EPSILON = 1e-6;
+const CUBIC_EASE_HANDLE_X = 0.65;
+const STEP_HOLD_HANDLE_X = 0.98;
 
 type NumericKeyframe = {
   time: number;
   value: number;
+  interpolation?: AnimationTrackLike["interpolation"];
   inTangent?: number | null;
   outTangent?: number | null;
+  inHandle?: { x: number; y: number } | null;
+  outHandle?: { x: number; y: number } | null;
 };
 
 export type TrackSample = {
@@ -49,6 +54,8 @@ function asNumericKeyframe(
   }
   const inTangentRaw = keyframe.inTangent;
   const outTangentRaw = keyframe.outTangent;
+  const inHandle = asNumericHandle(keyframe.inHandle);
+  const outHandle = asNumericHandle(keyframe.outHandle);
   const inTangent =
     inTangentRaw == null || Number.isFinite(Number(inTangentRaw))
       ? (inTangentRaw as number | null | undefined)
@@ -60,9 +67,24 @@ function asNumericKeyframe(
   return {
     time,
     value,
+    interpolation: keyframe.interpolation as
+      | AnimationTrackLike["interpolation"]
+      | undefined,
     inTangent,
     outTangent,
+    inHandle,
+    outHandle,
   };
+}
+
+function asNumericHandle(value: unknown): { x: number; y: number } | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as { x?: unknown; y?: unknown };
+  const x = Number(record.x);
+  const y = Number(record.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined;
 }
 
 function getNumericKeyframes(track: AnimationTrackLike): NumericKeyframe[] {
@@ -78,7 +100,7 @@ function getNumericKeyframes(track: AnimationTrackLike): NumericKeyframe[] {
 
 function normaliseInterpolation(
   interpolation: AnimationTrackLike["interpolation"],
-): "linear" | "step" | "cubic" {
+): "linear" | "step" | "cubic" | "spline" {
   const mode =
     typeof interpolation === "string"
       ? interpolation.trim().toLowerCase()
@@ -86,10 +108,28 @@ function normaliseInterpolation(
   if (mode === "step") {
     return "step";
   }
+  if (mode === "spline") {
+    return "spline";
+  }
   if (mode === "cubic" || mode === "cubicspline") {
     return "cubic";
   }
   return "linear";
+}
+
+function resolveHandleTangent(
+  handle: NumericKeyframe["inHandle"] | NumericKeyframe["outHandle"],
+  fallback: number,
+): number {
+  if (
+    handle &&
+    Number.isFinite(handle.x) &&
+    Number.isFinite(handle.y) &&
+    Math.abs(handle.x) > EPSILON
+  ) {
+    return handle.y / handle.x;
+  }
+  return fallback;
 }
 
 function resolveTangent(
@@ -101,6 +141,63 @@ function resolveTangent(
     return parsed;
   }
   return fallback;
+}
+
+function resolveDefaultCubicHandles(
+  current: NumericKeyframe,
+  next: NumericKeyframe,
+): {
+  outHandle: NonNullable<NumericKeyframe["outHandle"]>;
+  inHandle: NonNullable<NumericKeyframe["inHandle"]>;
+} {
+  const duration = next.time - current.time;
+  return {
+    outHandle: {
+      x: duration * CUBIC_EASE_HANDLE_X,
+      y: 0,
+    },
+    inHandle: {
+      x: -duration * CUBIC_EASE_HANDLE_X,
+      y: 0,
+    },
+  };
+}
+
+function resolvePresetHandles(
+  mode: "linear" | "step" | "cubic",
+  current: NumericKeyframe,
+  next: NumericKeyframe,
+): {
+  outHandle: NonNullable<NumericKeyframe["outHandle"]>;
+  inHandle: NonNullable<NumericKeyframe["inHandle"]>;
+} {
+  const duration = next.time - current.time;
+  const valueDelta = next.value - current.value;
+  if (mode === "linear") {
+    return {
+      outHandle: {
+        x: duration / 3,
+        y: valueDelta / 3,
+      },
+      inHandle: {
+        x: -duration / 3,
+        y: -valueDelta / 3,
+      },
+    };
+  }
+  if (mode === "step") {
+    return {
+      outHandle: {
+        x: duration * STEP_HOLD_HANDLE_X,
+        y: 0,
+      },
+      inHandle: {
+        x: -duration * (1 - STEP_HOLD_HANDLE_X),
+        y: -valueDelta,
+      },
+    };
+  }
+  return resolveDefaultCubicHandles(current, next);
 }
 
 function sampleHermite(
@@ -123,6 +220,106 @@ function sampleHermite(
     h10 * outTangent * duration +
     h01 * endValue +
     h11 * inTangent * duration
+  );
+}
+
+function cubicCoordinate(
+  start: number,
+  cp1: number,
+  cp2: number,
+  end: number,
+  t: number,
+): number {
+  const inverse = 1 - t;
+  return (
+    inverse * inverse * inverse * start +
+    3 * inverse * inverse * t * cp1 +
+    3 * inverse * t * t * cp2 +
+    t * t * t * end
+  );
+}
+
+function solveCubicParameterForTime(
+  startTime: number,
+  cp1Time: number,
+  cp2Time: number,
+  endTime: number,
+  time: number,
+): number {
+  let low = 0;
+  let high = 1;
+  for (let iteration = 0; iteration < 28; iteration += 1) {
+    const mid = (low + high) / 2;
+    const candidate = cubicCoordinate(
+      startTime,
+      cp1Time,
+      cp2Time,
+      endTime,
+      mid,
+    );
+    if (candidate < time) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return (low + high) / 2;
+}
+
+function sampleExplicitHandleSegment(
+  current: NumericKeyframe,
+  next: NumericKeyframe,
+  time: number,
+): number | null {
+  if (!current.outHandle && !next.inHandle) {
+    return null;
+  }
+  const { outHandle: fallbackOut, inHandle: fallbackIn } =
+    resolveDefaultCubicHandles(current, next);
+  const outHandle = current.outHandle ?? fallbackOut;
+  const inHandle = next.inHandle ?? fallbackIn;
+  return sampleHandleSegment(current, next, time, outHandle, inHandle);
+}
+
+function sampleDefaultCubicSegment(
+  current: NumericKeyframe,
+  next: NumericKeyframe,
+  time: number,
+): number {
+  const { outHandle, inHandle } = resolveDefaultCubicHandles(current, next);
+  return sampleHandleSegment(current, next, time, outHandle, inHandle);
+}
+
+function samplePresetHandleSegment(
+  mode: "linear" | "step" | "cubic",
+  current: NumericKeyframe,
+  next: NumericKeyframe,
+  time: number,
+): number {
+  const { outHandle, inHandle } = resolvePresetHandles(mode, current, next);
+  return sampleHandleSegment(current, next, time, outHandle, inHandle);
+}
+
+function sampleHandleSegment(
+  current: NumericKeyframe,
+  next: NumericKeyframe,
+  time: number,
+  outHandle: NonNullable<NumericKeyframe["outHandle"]>,
+  inHandle: NonNullable<NumericKeyframe["inHandle"]>,
+): number {
+  const t = solveCubicParameterForTime(
+    current.time,
+    current.time + outHandle.x,
+    next.time + inHandle.x,
+    next.time,
+    time,
+  );
+  return cubicCoordinate(
+    current.value,
+    current.value + outHandle.y,
+    next.value + inHandle.y,
+    next.value,
+    t,
   );
 }
 
@@ -224,7 +421,7 @@ export function sampleTrackAtTime(
   if (keyframes.length === 1) {
     return keyframes[0]!.value;
   }
-  const mode = normaliseInterpolation(track.interpolation);
+  const trackMode = normaliseInterpolation(track.interpolation);
   const time = Number.isFinite(timeSeconds) ? timeSeconds : 0;
   const first = keyframes[0]!;
   if (time <= first.time + EPSILON) {
@@ -255,13 +452,30 @@ export function sampleTrackAtTime(
 
     if (time < end) {
       const factor = (time - start) / duration;
-      if (mode === "step") {
-        return current.value;
+      const mode = normaliseInterpolation(current.interpolation ?? trackMode);
+      if (mode === "linear" || mode === "step" || mode === "cubic") {
+        return samplePresetHandleSegment(mode, current, next, time);
       }
-      if (mode === "cubic") {
+      if (mode === "spline") {
+        const explicitSample = sampleExplicitHandleSegment(current, next, time);
+        if (explicitSample !== null) {
+          return explicitSample;
+        }
+        const hasTangent =
+          typeof current.outTangent === "number" ||
+          typeof next.inTangent === "number";
+        if (!hasTangent) {
+          return sampleDefaultCubicSegment(current, next, time);
+        }
         const slope = (next.value - current.value) / duration;
-        const outTangent = resolveTangent(current.outTangent, slope);
-        const inTangent = resolveTangent(next.inTangent, slope);
+        const outTangent = resolveTangent(
+          current.outTangent,
+          resolveHandleTangent(current.outHandle, slope),
+        );
+        const inTangent = resolveTangent(
+          next.inTangent,
+          resolveHandleTangent(next.inHandle, slope),
+        );
         return sampleHermite(
           current.value,
           next.value,

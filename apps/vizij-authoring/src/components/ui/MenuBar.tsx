@@ -103,11 +103,13 @@ export function MenuLabel({ children }: { children: React.ReactNode }) {
 export function MenuCheckboxItem({
   children,
   checked,
+  closeOnClick = false,
   onCheckedChange,
   testId,
 }: {
   children: React.ReactNode;
   checked: boolean;
+  closeOnClick?: boolean;
   onCheckedChange: (checked: boolean) => void;
   testId?: string;
 }) {
@@ -115,6 +117,7 @@ export function MenuCheckboxItem({
     <BaseMenu.CheckboxItem
       data-testid={testId}
       checked={checked}
+      closeOnClick={closeOnClick}
       onCheckedChange={onCheckedChange}
       className={cn(
         "group relative flex w-full items-center rounded-lg py-2 pl-9 pr-3 text-sm transition-all cursor-pointer active:scale-[0.98] outline-none select-none",

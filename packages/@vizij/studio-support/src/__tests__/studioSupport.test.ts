@@ -330,20 +330,20 @@ describe("studio support package", () => {
             id: "k0",
             stamp: 0,
             value: 0,
-            transitions: { in: "linear", out: { x: 0, y: 0 } },
+            transitions: { in: "linear", out: { x: 1470, y: 0 } },
           },
           {
             id: "k1",
             stamp: 1500,
             value: 1,
-            transitions: { in: "linear", out: { x: 0, y: 0 } },
+            transitions: { in: { x: -30, y: -1 }, out: { x: 0, y: 0 } },
           },
         ],
       },
     ]);
   });
 
-  it("converts cubic tangents into Studio v2 explicit transition handles", () => {
+  it("converts cubic into Studio v2 default cubic transition handles", () => {
     const stored = toStoredAnimationClip("fallback", {
       id: "authoring.timeline.main",
       duration: 1.5,
@@ -369,13 +369,13 @@ describe("studio support package", () => {
             id: "k0",
             stamp: 0,
             value: 0,
-            transitions: { out: { x: 500, y: 1 } },
+            transitions: { out: { x: 975, y: 0 } },
           },
           {
             id: "k1",
             stamp: 1500,
             value: 1,
-            transitions: { in: { x: -500, y: 0 } },
+            transitions: { in: { x: -975, y: 0 } },
           },
         ],
       },

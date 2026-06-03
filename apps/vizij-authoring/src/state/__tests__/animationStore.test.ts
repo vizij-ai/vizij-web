@@ -99,7 +99,7 @@ describe("animationStore deterministic behavior", () => {
     expect(state.tracks[0]?.keyframes[1]?.interpolation).toBeUndefined();
   });
 
-  it("preserves cubic tangent edits through exported clip IR", () => {
+  it("exports cubic tracks with Studio default cubic evaluation", () => {
     const store = useAnimationStore.getState();
     store.addTrack("input_a", "Input A", "controls/a");
     store.addKeyframe("track-0001", 0, 0);
@@ -108,10 +108,12 @@ describe("animationStore deterministic behavior", () => {
     store.updateKeyframe("track-0001", "kf-000001", {
       interpolation: "cubic",
       outTangent: 2,
+      outHandle: { x: 0.1, y: 1 },
     });
     store.updateKeyframe("track-0001", "kf-000002", {
       interpolation: "cubic",
-      inTangent: 0,
+      inTangent: 2,
+      inHandle: { x: -0.1, y: -1 },
     });
 
     const exported = store.exportClipIr();
@@ -120,13 +122,43 @@ describe("animationStore deterministic behavior", () => {
     expect(exportedTrack?.interpolation).toBe("cubic");
     expect(exportedTrack?.keyframes[0]).toMatchObject({
       outTangent: 2,
+      outHandle: { x: 0.1, y: 1 },
     });
     expect(exportedTrack?.keyframes[1]).toMatchObject({
-      inTangent: 0,
+      inTangent: 2,
+      inHandle: { x: -0.1, y: -1 },
     });
-    expect(evaluateAnimationTrackAtTime(exportedTrack!, 0.5)).toBeCloseTo(
-      0.75,
-      6,
+    expect(evaluateAnimationTrackAtTime(exportedTrack!, 0.25)).toBeLessThan(
+      0.25,
+    );
+    expect(evaluateAnimationTrackAtTime(exportedTrack!, 0.5)).toBeCloseTo(0.5);
+  });
+
+  it("preserves spline handle edits through exported clip IR", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 1, 1);
+    store.updateKeyframe("track-0001", "kf-000001", {
+      interpolation: "spline",
+      outHandle: { x: 0.65, y: 0 },
+    });
+    store.updateKeyframe("track-0001", "kf-000002", {
+      inHandle: { x: -0.65, y: 0 },
+    });
+
+    const exported = store.exportClipIr();
+    const exportedTrack = exported.tracks[0];
+
+    expect(exportedTrack?.keyframes[0]).toMatchObject({
+      interpolation: "spline",
+      outHandle: { x: 0.65, y: 0 },
+    });
+    expect(exportedTrack?.keyframes[1]).toMatchObject({
+      inHandle: { x: -0.65, y: 0 },
+    });
+    expect(evaluateAnimationTrackAtTime(exportedTrack!, 0.25)).toBeLessThan(
+      0.25,
     );
   });
 
@@ -212,6 +244,44 @@ describe("animationStore deterministic behavior", () => {
 
     state = useAnimationStore.getState();
     expect(state.tracks[0]?.keyframes).toHaveLength(2);
+  });
+
+  it("keeps curve selection explicit across keyframes, segments, and handles", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+
+    let state = useAnimationStore.getState();
+    expect(state.selectedKeyframeId).toBe("kf-000001");
+    expect(state.selectedCurveItem).toEqual({
+      kind: "keyframe",
+      keyframeId: "kf-000001",
+    });
+
+    store.selectCurveItem({ kind: "segment", segmentIndex: 0 });
+    state = useAnimationStore.getState();
+    expect(state.selectedKeyframeId).toBeNull();
+    expect(state.selectedCurveItem).toEqual({
+      kind: "segment",
+      segmentIndex: 0,
+    });
+
+    store.selectCurveItem({ kind: "handle", segmentIndex: 0, side: "out" });
+    state = useAnimationStore.getState();
+    expect(state.selectedKeyframeId).toBeNull();
+    expect(state.selectedCurveItem).toEqual({
+      kind: "handle",
+      segmentIndex: 0,
+      side: "out",
+    });
+
+    store.selectKeyframe("kf-000001");
+    state = useAnimationStore.getState();
+    expect(state.selectedKeyframeId).toBe("kf-000001");
+    expect(state.selectedCurveItem).toEqual({
+      kind: "keyframe",
+      keyframeId: "kf-000001",
+    });
   });
 
   it("keeps transport active while playback is paused", () => {

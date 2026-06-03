@@ -189,6 +189,7 @@ export function AppMenuBar({
         <MenuCheckboxItem
           testId="app-menu-mode-default"
           checked={activeEditFocus === "default"}
+          closeOnClick
           onCheckedChange={(checked) => {
             if (checked) {
               onSelectEditFocus("default");
@@ -200,6 +201,7 @@ export function AppMenuBar({
         <MenuCheckboxItem
           testId="app-menu-mode-animation"
           checked={activeEditFocus === "animation"}
+          closeOnClick
           onCheckedChange={(checked) => {
             if (checked) {
               onSelectEditFocus("animation");
@@ -211,6 +213,7 @@ export function AppMenuBar({
         <MenuCheckboxItem
           testId="app-menu-mode-pose-creation"
           checked={activeEditFocus === "pose-creation"}
+          closeOnClick
           onCheckedChange={(checked) => {
             if (checked) {
               onSelectEditFocus("pose-creation");
@@ -222,6 +225,7 @@ export function AppMenuBar({
         <MenuCheckboxItem
           testId="app-menu-mode-pose-editing"
           checked={activeEditFocus === "pose-editing"}
+          closeOnClick
           onCheckedChange={(checked) => {
             if (checked) {
               onSelectEditFocus("pose-editing");
@@ -233,6 +237,7 @@ export function AppMenuBar({
         <MenuCheckboxItem
           testId="app-menu-mode-procedural-animation"
           checked={activeEditFocus === "procedural-animation-programming"}
+          closeOnClick
           onCheckedChange={(checked) => {
             if (checked) {
               onSelectEditFocus("procedural-animation-programming");
@@ -244,6 +249,7 @@ export function AppMenuBar({
         <MenuCheckboxItem
           testId="app-menu-mode-reference-face"
           checked={activeEditFocus === "reference-face"}
+          closeOnClick
           onCheckedChange={(checked) => {
             if (checked) {
               onSelectEditFocus("reference-face");

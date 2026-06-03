@@ -63,13 +63,15 @@ export interface VizijBundleAnimationKeyframe {
   easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" | string;
   inTangent?: number | null;
   outTangent?: number | null;
+  inHandle?: { x?: number; y?: number } | null;
+  outHandle?: { x?: number; y?: number } | null;
   [key: string]: unknown;
 }
 
 export interface VizijBundleAnimationTrack {
   channel: string;
   keyframes: VizijBundleAnimationKeyframe[];
-  interpolation?: "step" | "linear" | "cubic" | string;
+  interpolation?: "step" | "linear" | "cubic" | "spline" | string;
   [key: string]: unknown;
 }
 

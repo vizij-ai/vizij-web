@@ -2,6 +2,7 @@ import type { StandardRigInput } from "@vizij/utils";
 import type { VizijBundleAnimationEntry } from "../types";
 import type {
   AnimationClipIR,
+  AnimationHandleIR,
   AnimationInterpolation,
   AnimationKeyframeIR,
   AnimationTrackIR,
@@ -16,6 +17,8 @@ import {
 
 const DECIMAL_PRECISION = 6;
 const EPSILON = 1e-6;
+const CUBIC_EASE_HANDLE_X = 0.65;
+const STEP_HOLD_HANDLE_X = 0.98;
 
 function quantize(value: number): number {
   if (!Number.isFinite(value)) {
@@ -30,13 +33,206 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function normalizeInterpolation(value: unknown): AnimationInterpolation {
-  if (value === "linear" || value === "step" || value === "cubic") {
+  if (
+    value === "linear" ||
+    value === "step" ||
+    value === "cubic" ||
+    value === "spline"
+  ) {
     return value;
   }
   if (value === "smooth") {
     return "cubic";
   }
   return "linear";
+}
+
+function normalizeHandle(value: unknown): AnimationHandleIR | undefined {
+  const record = asRecord(value);
+  const x = Number(record?.x);
+  const y = Number(record?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return undefined;
+  }
+  return { x: quantize(x), y: quantize(y) };
+}
+
+function resolveTangentFromHandle(
+  handle: AnimationHandleIR | null | undefined,
+  fallback: number,
+): number {
+  if (
+    handle &&
+    Number.isFinite(handle.x) &&
+    Number.isFinite(handle.y) &&
+    Math.abs(handle.x) > EPSILON
+  ) {
+    return handle.y / handle.x;
+  }
+  return fallback;
+}
+
+function resolveDefaultCubicHandles(
+  start: AnimationKeyframeIR,
+  end: AnimationKeyframeIR,
+): {
+  outHandle: AnimationHandleIR;
+  inHandle: AnimationHandleIR;
+} {
+  const span = end.time - start.time;
+  return {
+    outHandle: {
+      x: span * CUBIC_EASE_HANDLE_X,
+      y: 0,
+    },
+    inHandle: {
+      x: -span * CUBIC_EASE_HANDLE_X,
+      y: 0,
+    },
+  };
+}
+
+function resolvePresetHandles(
+  interpolation: Exclude<AnimationInterpolation, "spline">,
+  start: AnimationKeyframeIR,
+  end: AnimationKeyframeIR,
+): {
+  outHandle: AnimationHandleIR;
+  inHandle: AnimationHandleIR;
+} {
+  const span = end.time - start.time;
+  const valueDelta = end.value - start.value;
+  if (interpolation === "linear") {
+    return {
+      outHandle: {
+        x: span / 3,
+        y: valueDelta / 3,
+      },
+      inHandle: {
+        x: -span / 3,
+        y: -valueDelta / 3,
+      },
+    };
+  }
+  if (interpolation === "step") {
+    return {
+      outHandle: {
+        x: span * STEP_HOLD_HANDLE_X,
+        y: 0,
+      },
+      inHandle: {
+        x: -span * (1 - STEP_HOLD_HANDLE_X),
+        y: -valueDelta,
+      },
+    };
+  }
+  return resolveDefaultCubicHandles(start, end);
+}
+
+function cubicCoordinate(
+  start: number,
+  cp1: number,
+  cp2: number,
+  end: number,
+  t: number,
+): number {
+  const inverse = 1 - t;
+  return (
+    inverse * inverse * inverse * start +
+    3 * inverse * inverse * t * cp1 +
+    3 * inverse * t * t * cp2 +
+    t * t * t * end
+  );
+}
+
+function solveCubicParameterForTime(
+  startTime: number,
+  cp1Time: number,
+  cp2Time: number,
+  endTime: number,
+  time: number,
+): number {
+  let low = 0;
+  let high = 1;
+  for (let iteration = 0; iteration < 28; iteration += 1) {
+    const mid = (low + high) / 2;
+    const candidate = cubicCoordinate(
+      startTime,
+      cp1Time,
+      cp2Time,
+      endTime,
+      mid,
+    );
+    if (candidate < time) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return (low + high) / 2;
+}
+
+function sampleExplicitHandleSegment(
+  start: AnimationKeyframeIR,
+  end: AnimationKeyframeIR,
+  time: number,
+): number | null {
+  if (!start.outHandle && !end.inHandle) {
+    return null;
+  }
+  const { outHandle: fallbackOut, inHandle: fallbackIn } =
+    resolveDefaultCubicHandles(start, end);
+  const outHandle = start.outHandle ?? fallbackOut;
+  const inHandle = end.inHandle ?? fallbackIn;
+  return sampleHandleSegment(start, end, time, outHandle, inHandle);
+}
+
+function sampleDefaultCubicSegment(
+  start: AnimationKeyframeIR,
+  end: AnimationKeyframeIR,
+  time: number,
+): number {
+  const { outHandle, inHandle } = resolveDefaultCubicHandles(start, end);
+  return sampleHandleSegment(start, end, time, outHandle, inHandle);
+}
+
+function samplePresetHandleSegment(
+  interpolation: Exclude<AnimationInterpolation, "spline">,
+  start: AnimationKeyframeIR,
+  end: AnimationKeyframeIR,
+  time: number,
+): number {
+  const { outHandle, inHandle } = resolvePresetHandles(
+    interpolation,
+    start,
+    end,
+  );
+  return sampleHandleSegment(start, end, time, outHandle, inHandle);
+}
+
+function sampleHandleSegment(
+  start: AnimationKeyframeIR,
+  end: AnimationKeyframeIR,
+  time: number,
+  outHandle: AnimationHandleIR,
+  inHandle: AnimationHandleIR,
+): number {
+  const cp1Time = start.time + outHandle.x;
+  const cp2Time = end.time + inHandle.x;
+  const t = solveCubicParameterForTime(
+    start.time,
+    cp1Time,
+    cp2Time,
+    end.time,
+    time,
+  );
+  return cubicCoordinate(
+    start.value,
+    start.value + outHandle.y,
+    end.value + inHandle.y,
+    end.value,
+    t,
+  );
 }
 
 function normalizeChannel(value: string): string {
@@ -107,6 +303,8 @@ function normalizeKeyframes(
         typeof keyframe.outTangent === "number"
           ? quantize(keyframe.outTangent)
           : (keyframe.outTangent ?? undefined),
+      inHandle: normalizeHandle(keyframe.inHandle),
+      outHandle: normalizeHandle(keyframe.outHandle),
     } satisfies AnimationKeyframeIR;
   });
 
@@ -223,19 +421,25 @@ export function clipIrToBundleAnimationEntry(
           channel: track.channel,
           interpolation: track.interpolation,
           targetInputId: track.variableId,
-          keyframes: track.keyframes.map((keyframe) => ({
-            time: keyframe.time,
-            value: keyframe.value,
-            interpolation: keyframe.interpolation ?? track.interpolation,
-            inTangent:
-              typeof keyframe.inTangent === "number"
-                ? keyframe.inTangent
-                : undefined,
-            outTangent:
-              typeof keyframe.outTangent === "number"
-                ? keyframe.outTangent
-                : undefined,
-          })),
+          keyframes: track.keyframes.map((keyframe) => {
+            const inHandle = normalizeHandle(keyframe.inHandle);
+            const outHandle = normalizeHandle(keyframe.outHandle);
+            return {
+              time: keyframe.time,
+              value: keyframe.value,
+              interpolation: keyframe.interpolation ?? track.interpolation,
+              inTangent:
+                typeof keyframe.inTangent === "number"
+                  ? keyframe.inTangent
+                  : undefined,
+              outTangent:
+                typeof keyframe.outTangent === "number"
+                  ? keyframe.outTangent
+                  : undefined,
+              ...(inHandle ? { inHandle } : {}),
+              ...(outHandle ? { outHandle } : {}),
+            };
+          }),
         })),
       metadata: {
         ...(compiled.metadata ?? {}),
@@ -323,6 +527,8 @@ export function bundleAnimationEntryToClipIr(
           typeof record?.outTangent === "number"
             ? quantize(record.outTangent)
             : undefined,
+        inHandle: normalizeHandle(record?.inHandle),
+        outHandle: normalizeHandle(record?.outHandle),
       });
     });
 
@@ -464,16 +670,34 @@ export function evaluateAnimationTrackAtTime(
       start.interpolation ?? track.interpolation,
     );
 
-    if (interpolation === "step") {
-      return start.value;
+    if (
+      interpolation === "linear" ||
+      interpolation === "step" ||
+      interpolation === "cubic"
+    ) {
+      return samplePresetHandleSegment(interpolation, start, end, time);
     }
 
-    if (interpolation === "cubic") {
+    if (interpolation === "spline") {
+      const explicitSample = sampleExplicitHandleSegment(start, end, time);
+      if (explicitSample !== null) {
+        return explicitSample;
+      }
+      const hasTangent =
+        typeof start.outTangent === "number" ||
+        typeof end.inTangent === "number";
+      if (!hasTangent) {
+        return sampleDefaultCubicSegment(start, end, time);
+      }
       const slope = (end.value - start.value) / span;
       const startTangent =
-        typeof start.outTangent === "number" ? start.outTangent : slope;
+        typeof start.outTangent === "number"
+          ? start.outTangent
+          : resolveTangentFromHandle(start.outHandle, slope);
       const endTangent =
-        typeof end.inTangent === "number" ? end.inTangent : slope;
+        typeof end.inTangent === "number"
+          ? end.inTangent
+          : resolveTangentFromHandle(end.inHandle, slope);
       const t2 = alpha * alpha;
       const t3 = t2 * alpha;
       const h00 = 2 * t3 - 3 * t2 + 1;
@@ -487,8 +711,6 @@ export function evaluateAnimationTrackAtTime(
         h11 * endTangent * span
       );
     }
-
-    return start.value + (end.value - start.value) * alpha;
   }
 
   return last.value;

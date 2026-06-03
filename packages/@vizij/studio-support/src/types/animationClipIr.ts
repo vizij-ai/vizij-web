@@ -1,4 +1,15 @@
-export type AnimationInterpolation = "linear" | "step" | "cubic";
+export type AnimationInterpolation = "linear" | "step" | "cubic" | "spline";
+
+export interface AnimationHandleIR {
+  /**
+   * Time delta, in seconds, relative to the keyframe this handle belongs to.
+   * Outgoing handles use positive x values; incoming handles use negative x
+   * values.
+   */
+  x: number;
+  /** Value delta relative to the keyframe this handle belongs to. */
+  y: number;
+}
 
 export interface AnimationKeyframeIR {
   id: string;
@@ -7,6 +18,8 @@ export interface AnimationKeyframeIR {
   interpolation?: AnimationInterpolation;
   inTangent?: number | null;
   outTangent?: number | null;
+  inHandle?: AnimationHandleIR | null;
+  outHandle?: AnimationHandleIR | null;
 }
 
 export interface AnimationTrackIR {

@@ -15,6 +15,10 @@ export type AnimationKeyframe = AnimationKeyframeIR;
 export type AnimationTrack = AnimationTrackIR;
 export type AnimationTransportPlaybackState = "playing" | "paused" | "stopped";
 export type AnimationTimeDisplayMode = "seconds" | "frames";
+export type AnimationCurveSelection =
+  | { kind: "keyframe"; keyframeId: string }
+  | { kind: "segment"; segmentIndex: number }
+  | { kind: "handle"; segmentIndex: number; side: "out" | "in" };
 export type AnimationRuntimePlaybackState = {
   time: number;
   duration: number;
@@ -124,7 +128,12 @@ function normalizeKeyframesForTrack(
   const normalizeInterpolationOverride = (
     value: unknown,
   ): AnimationTrack["interpolation"] | undefined => {
-    if (value === "linear" || value === "step" || value === "cubic") {
+    if (
+      value === "linear" ||
+      value === "step" ||
+      value === "cubic" ||
+      value === "spline"
+    ) {
       return value;
     }
     return undefined;
@@ -265,6 +274,7 @@ interface AnimationState {
   // Selection
   selectedTrackId: string | null;
   selectedKeyframeId: string | null;
+  selectedCurveItem: AnimationCurveSelection | null;
   nextTrackOrdinal: number;
   nextKeyframeOrdinal: number;
 
@@ -325,6 +335,7 @@ interface AnimationState {
 
   selectTrack: (trackId: string | null) => void;
   selectKeyframe: (keyframeId: string | null) => void;
+  selectCurveItem: (selection: AnimationCurveSelection | null) => void;
 
   replaceTracks: (tracks: AnimationTrack[]) => void;
   importClipIr: (clip: AnimationClipIR) => void;
@@ -353,6 +364,7 @@ const INITIAL_STATE: Pick<
   | "timeDisplayMode"
   | "selectedTrackId"
   | "selectedKeyframeId"
+  | "selectedCurveItem"
   | "nextTrackOrdinal"
   | "nextKeyframeOrdinal"
 > = {
@@ -372,6 +384,7 @@ const INITIAL_STATE: Pick<
   timeDisplayMode: "seconds",
   selectedTrackId: null,
   selectedKeyframeId: null,
+  selectedCurveItem: null,
   nextTrackOrdinal: 1,
   nextKeyframeOrdinal: 1,
 };
@@ -581,6 +594,8 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         state.selectedTrackId === trackId ? null : state.selectedTrackId,
       selectedKeyframeId:
         state.selectedTrackId === trackId ? null : state.selectedKeyframeId,
+      selectedCurveItem:
+        state.selectedTrackId === trackId ? null : state.selectedCurveItem,
     })),
 
   addKeyframe: (trackId, time, value) =>
@@ -618,6 +633,10 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         tracks: updatedTracks,
         selectedTrackId: trackId,
         selectedKeyframeId: newKeyframe.id,
+        selectedCurveItem: {
+          kind: "keyframe",
+          keyframeId: newKeyframe.id,
+        },
         nextKeyframeOrdinal: state.nextKeyframeOrdinal + 1,
       };
     }),
@@ -651,6 +670,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       let nextKeyframeOrdinal = state.nextKeyframeOrdinal;
       let selectedTrackId = state.selectedTrackId;
       let selectedKeyframeId = state.selectedKeyframeId;
+      let selectedCurveItem = state.selectedCurveItem;
       const nextTracks = state.tracks.map((track) => ({
         ...track,
         keyframes: [...track.keyframes],
@@ -693,6 +713,10 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           );
           selectedTrackId = track.id;
           selectedKeyframeId = existingKeyframe.id;
+          selectedCurveItem = {
+            kind: "keyframe",
+            keyframeId: existingKeyframe.id,
+          };
           return;
         }
         const newKeyframe: AnimationKeyframe = {
@@ -708,6 +732,10 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         );
         selectedTrackId = track.id;
         selectedKeyframeId = newKeyframe.id;
+        selectedCurveItem = {
+          kind: "keyframe",
+          keyframeId: newKeyframe.id,
+        };
       });
 
       return {
@@ -717,6 +745,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         nextKeyframeOrdinal,
         selectedTrackId,
         selectedKeyframeId,
+        selectedCurveItem,
       };
     }),
 
@@ -733,6 +762,11 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         state.selectedKeyframeId === keyframeId
           ? null
           : state.selectedKeyframeId,
+      selectedCurveItem:
+        state.selectedCurveItem?.kind === "keyframe" &&
+        state.selectedCurveItem.keyframeId === keyframeId
+          ? null
+          : state.selectedCurveItem,
     })),
 
   updateKeyframe: (trackId, keyframeId, updates) =>
@@ -768,7 +802,21 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     })),
 
   selectTrack: (selectedTrackId) => set({ selectedTrackId }),
-  selectKeyframe: (selectedKeyframeId) => set({ selectedKeyframeId }),
+  selectKeyframe: (selectedKeyframeId) =>
+    set({
+      selectedKeyframeId,
+      selectedCurveItem: selectedKeyframeId
+        ? { kind: "keyframe", keyframeId: selectedKeyframeId }
+        : null,
+    }),
+  selectCurveItem: (selectedCurveItem) =>
+    set({
+      selectedCurveItem,
+      selectedKeyframeId:
+        selectedCurveItem?.kind === "keyframe"
+          ? selectedCurveItem.keyframeId
+          : null,
+    }),
 
   replaceTracks: (tracks) =>
     set((state) => {
@@ -789,6 +837,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         tracks: normalized.tracks,
         selectedTrackId: null,
         selectedKeyframeId: null,
+        selectedCurveItem: null,
         nextTrackOrdinal: normalized.nextTrackOrdinal,
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
       };
@@ -810,6 +859,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         runtimeClipId: AUTHORED_TIMELINE_CLIP_ID,
         selectedTrackId: null,
         selectedKeyframeId: null,
+        selectedCurveItem: null,
         nextTrackOrdinal: normalized.nextTrackOrdinal,
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
       };

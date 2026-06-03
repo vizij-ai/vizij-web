@@ -8,8 +8,14 @@ const animationStoreState: {
   currentTime: number;
   selectedTrackId: string | null;
   selectedKeyframeId: string | null;
+  selectedCurveItem:
+    | { kind: "keyframe"; keyframeId: string }
+    | { kind: "segment"; segmentIndex: number }
+    | { kind: "handle"; segmentIndex: number; side: "out" | "in" }
+    | null;
   selectTrack: ReturnType<typeof vi.fn>;
   selectKeyframe: ReturnType<typeof vi.fn>;
+  selectCurveItem: ReturnType<typeof vi.fn>;
   updateKeyframe: ReturnType<typeof vi.fn>;
 } = {
   tracks: [],
@@ -17,8 +23,10 @@ const animationStoreState: {
   currentTime: 0,
   selectedTrackId: null,
   selectedKeyframeId: null,
+  selectedCurveItem: null,
   selectTrack: vi.fn(),
   selectKeyframe: vi.fn(),
+  selectCurveItem: vi.fn(),
   updateKeyframe: vi.fn(),
 };
 
@@ -53,6 +61,10 @@ describe("CurveEditor", () => {
     animationStoreState.currentTime = 0.25;
     animationStoreState.selectedTrackId = "track-1";
     animationStoreState.selectedKeyframeId = "kf-1";
+    animationStoreState.selectedCurveItem = {
+      kind: "keyframe",
+      keyframeId: "kf-1",
+    };
     animationStoreState.tracks = [
       {
         id: "track-1",
@@ -80,7 +92,7 @@ describe("CurveEditor", () => {
     ]);
   });
 
-  it("renders a baked preview path and promotes a segment to cubic handles", () => {
+  it("renders a baked preview path and applies cubic preset handles", () => {
     render(<CurveEditor />);
 
     expect(screen.getByTestId("animation-curve-editor")).toBeTruthy();
@@ -98,26 +110,73 @@ describe("CurveEditor", () => {
       "kf-1",
       expect.objectContaining({
         interpolation: "cubic",
-        outTangent: 1,
+        outHandle: { x: 0.65, y: 0 },
       }),
     );
     expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
       "track-1",
       "kf-2",
       expect.objectContaining({
-        inTangent: 1,
+        inHandle: { x: -0.65, y: 0 },
       }),
     );
-    expect(animationStoreState.selectKeyframe).toHaveBeenCalledWith("kf-1");
+    expect(animationStoreState.selectCurveItem).toHaveBeenCalledWith({
+      kind: "segment",
+      segmentIndex: 0,
+    });
   });
 
-  it("writes explicit tangent edits when dragging a cubic handle", () => {
+  it("applies step hold handles when switching a segment to step", () => {
+    render(<CurveEditor />);
+
+    fireEvent.change(
+      screen.getByTestId("animation-curve-segment-mode-select"),
+      {
+        target: { value: "step" },
+      },
+    );
+
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-1",
+      expect.objectContaining({
+        interpolation: "step",
+        outHandle: { x: 0.98, y: 0 },
+      }),
+    );
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-2",
+      expect.objectContaining({
+        inHandle: { x: -0.02, y: -1 },
+      }),
+    );
+  });
+
+  it("selects a segment when clicking a curve segment", () => {
+    render(<CurveEditor />);
+
+    fireEvent.mouseDown(
+      screen.getByTestId("animation-curve-segment-hit-area"),
+      {
+        button: 0,
+      },
+    );
+
+    expect(animationStoreState.selectTrack).toHaveBeenCalledWith("track-1");
+    expect(animationStoreState.selectCurveItem).toHaveBeenCalledWith({
+      kind: "segment",
+      segmentIndex: 0,
+    });
+  });
+
+  it("writes explicit visual handle edits when dragging a spline handle", () => {
     animationStoreState.tracks[0]!.keyframes = [
       {
         id: "kf-1",
         time: 0,
         value: 0,
-        interpolation: "cubic",
+        interpolation: "spline",
         outTangent: 1,
       },
       { id: "kf-2", time: 1, value: 1, inTangent: 1 },
@@ -157,10 +216,18 @@ describe("CurveEditor", () => {
       ([trackId, keyframeId, updates]) =>
         trackId === "track-1" &&
         keyframeId === "kf-1" &&
-        typeof updates.outTangent === "number",
+        updates.interpolation === "spline" &&
+        updates.outHandle,
     );
     expect(tangentCall).toBeTruthy();
-    expect(tangentCall?.[2]).toMatchObject({ interpolation: "cubic" });
-    expect(tangentCall?.[2].outTangent).not.toBe(1);
+    expect(tangentCall?.[2]).toMatchObject({ interpolation: "spline" });
+    expect(tangentCall?.[2].outHandle.x).toBeCloseTo(0.448262, 5);
+    expect(tangentCall?.[2].outHandle.y).toBeCloseTo(0.908027, 5);
+    expect(tangentCall?.[2].outTangent).toBeUndefined();
+    expect(animationStoreState.selectCurveItem).toHaveBeenCalledWith({
+      kind: "handle",
+      segmentIndex: 0,
+      side: "out",
+    });
   });
 });

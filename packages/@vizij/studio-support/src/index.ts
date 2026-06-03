@@ -44,6 +44,7 @@ import {
 
 export type {
   AnimationClipIR,
+  AnimationHandleIR,
   AnimationInterpolation,
   AnimationKeyframeIR,
   AnimationTrackIR,
@@ -1116,9 +1117,11 @@ export function convertExtractedAnimations(
       const interpolation: AnimationTrackLike["interpolation"] =
         interpolationRaw === "step"
           ? "step"
-          : interpolationRaw === "cubic" || interpolationRaw === "cubicspline"
-            ? "cubic"
-            : "linear";
+          : interpolationRaw === "spline"
+            ? "spline"
+            : interpolationRaw === "cubic" || interpolationRaw === "cubicspline"
+              ? "cubic"
+              : "linear";
       const isCubic = interpolation === "cubic";
 
       const hasTripletTangents =
@@ -1895,13 +1898,16 @@ export function prepareRuntimeRegistrationPlan(args: {
 
 function normalizeStoredAnimationInterpolation(
   interpolation: unknown,
-): "linear" | "step" | "cubic" {
+): "linear" | "step" | "cubic" | "spline" {
   const mode =
     typeof interpolation === "string"
       ? interpolation.trim().toLowerCase()
       : "linear";
   if (mode === "step") {
     return "step";
+  }
+  if (mode === "spline") {
+    return "spline";
   }
   if (mode === "cubic" || mode === "cubicspline") {
     return "cubic";
@@ -1914,13 +1920,36 @@ function roundStoredTransitionDelta(value: number): number {
   return Object.is(rounded, -0) ? 0 : rounded;
 }
 
+const STORED_CUBIC_EASE_HANDLE_X = 0.65;
+const STORED_STEP_HOLD_HANDLE_X = 0.98;
+
+function normalizeStoredHandle(
+  value: unknown,
+): { x: number; y: number } | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as { x?: unknown; y?: unknown };
+  const x = Number(record.x);
+  const y = Number(record.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return undefined;
+  }
+  return {
+    x: roundStoredTransitionDelta(x),
+    y: roundStoredTransitionDelta(y),
+  };
+}
+
 function buildStoredAnimationPointTransitions(
   keyframes: Array<{
     time: number;
     value: number;
-    mode: "linear" | "step" | "cubic";
+    mode: "linear" | "step" | "cubic" | "spline";
     inTangent?: number | null;
     outTangent?: number | null;
+    inHandle?: { x: number; y: number };
+    outHandle?: { x: number; y: number };
   }>,
   keyframeIndex: number,
 ) {
@@ -1937,16 +1966,44 @@ function buildStoredAnimationPointTransitions(
   } = {};
 
   if (previous) {
-    if (previous.mode === "linear" || previous.mode === "step") {
+    const spanSeconds = keyframe.time - previous.time;
+    if (previous.mode === "linear") {
       transitions.in = "linear";
-    } else if (typeof keyframe.inTangent === "number") {
-      const spanSeconds = keyframe.time - previous.time;
-      if (spanSeconds > 0) {
+    } else if (previous.mode === "step" && spanSeconds > 0) {
+      transitions.in = {
+        x: roundStoredTransitionDelta(
+          -spanSeconds * (1 - STORED_STEP_HOLD_HANDLE_X) * 1000,
+        ),
+        y: roundStoredTransitionDelta(previous.value - keyframe.value),
+      };
+    } else if (previous.mode === "cubic" && spanSeconds > 0) {
+      transitions.in = {
+        x: roundStoredTransitionDelta(
+          -spanSeconds * STORED_CUBIC_EASE_HANDLE_X * 1000,
+        ),
+        y: 0,
+      };
+    } else if (previous.mode === "spline") {
+      if (keyframe.inHandle) {
         transitions.in = {
-          x: roundStoredTransitionDelta((-spanSeconds * 1000) / 3),
-          y: roundStoredTransitionDelta(
-            (-keyframe.inTangent * spanSeconds) / 3,
+          x: roundStoredTransitionDelta(keyframe.inHandle.x * 1000),
+          y: keyframe.inHandle.y,
+        };
+      } else if (typeof keyframe.inTangent === "number") {
+        if (spanSeconds > 0) {
+          transitions.in = {
+            x: roundStoredTransitionDelta((-spanSeconds * 1000) / 3),
+            y: roundStoredTransitionDelta(
+              (-keyframe.inTangent * spanSeconds) / 3,
+            ),
+          };
+        }
+      } else if (spanSeconds > 0) {
+        transitions.in = {
+          x: roundStoredTransitionDelta(
+            -spanSeconds * STORED_CUBIC_EASE_HANDLE_X * 1000,
           ),
+          y: 0,
         };
       }
     }
@@ -1957,13 +2014,47 @@ function buildStoredAnimationPointTransitions(
   if (keyframe.mode === "linear") {
     transitions.out = "linear";
   } else if (keyframe.mode === "step") {
-    transitions.out = { x: 0, y: 0 };
-  } else if (next && typeof keyframe.outTangent === "number") {
-    const spanSeconds = next.time - keyframe.time;
-    if (spanSeconds > 0) {
+    if (next && next.time > keyframe.time) {
       transitions.out = {
-        x: roundStoredTransitionDelta((spanSeconds * 1000) / 3),
-        y: roundStoredTransitionDelta((keyframe.outTangent * spanSeconds) / 3),
+        x: roundStoredTransitionDelta(
+          (next.time - keyframe.time) * STORED_STEP_HOLD_HANDLE_X * 1000,
+        ),
+        y: 0,
+      };
+    } else {
+      transitions.out = { x: 0, y: 0 };
+    }
+  } else if (keyframe.mode === "cubic") {
+    if (next && next.time > keyframe.time) {
+      transitions.out = {
+        x: roundStoredTransitionDelta(
+          (next.time - keyframe.time) * STORED_CUBIC_EASE_HANDLE_X * 1000,
+        ),
+        y: 0,
+      };
+    }
+  } else if (keyframe.mode === "spline") {
+    if (keyframe.outHandle) {
+      transitions.out = {
+        x: roundStoredTransitionDelta(keyframe.outHandle.x * 1000),
+        y: keyframe.outHandle.y,
+      };
+    } else if (next && typeof keyframe.outTangent === "number") {
+      const spanSeconds = next.time - keyframe.time;
+      if (spanSeconds > 0) {
+        transitions.out = {
+          x: roundStoredTransitionDelta((spanSeconds * 1000) / 3),
+          y: roundStoredTransitionDelta(
+            (keyframe.outTangent * spanSeconds) / 3,
+          ),
+        };
+      }
+    } else if (next && next.time > keyframe.time) {
+      transitions.out = {
+        x: roundStoredTransitionDelta(
+          (next.time - keyframe.time) * STORED_CUBIC_EASE_HANDLE_X * 1000,
+        ),
+        y: 0,
       };
     }
   }
@@ -2008,6 +2099,8 @@ export function toStoredAnimationClip(
           const keyframeInterpolation = keyframe["interpolation"];
           const inTangent = keyframe["inTangent"];
           const outTangent = keyframe["outTangent"];
+          const inHandle = normalizeStoredHandle(keyframe["inHandle"]);
+          const outHandle = normalizeStoredHandle(keyframe["outHandle"]);
           if (!Number.isFinite(time) || !Number.isFinite(value)) {
             return null;
           }
@@ -2029,15 +2122,19 @@ export function toStoredAnimationClip(
               typeof outTangent === "number" && Number.isFinite(outTangent)
                 ? outTangent
                 : undefined,
+            inHandle,
+            outHandle,
           };
         })
         .filter(Boolean) as Array<{
         id: string;
         time: number;
         value: number;
-        mode: "linear" | "step" | "cubic";
+        mode: "linear" | "step" | "cubic" | "spline";
         inTangent?: number;
         outTangent?: number;
+        inHandle?: { x: number; y: number };
+        outHandle?: { x: number; y: number };
       }>;
 
       if (keyframes.length === 0) {

@@ -9,6 +9,7 @@ import {
 import {
   evaluateTrack,
   useAnimationStore,
+  type AnimationCurveSelection,
   type AnimationKeyframe,
   type AnimationTimeDisplayMode,
   type AnimationTrack,
@@ -22,15 +23,29 @@ type DragTarget =
   | { kind: "outHandle"; segmentIndex: number }
   | { kind: "inHandle"; segmentIndex: number };
 
+type DragSession = {
+  target: DragTarget;
+  svgOffsetX: number;
+  svgOffsetY: number;
+};
+
 type PlotPoint = {
   time: number;
   value: number;
+};
+
+type HandleDelta = {
+  x: number;
+  y: number;
 };
 
 type SegmentGeometry = {
   start: AnimationKeyframe;
   end: AnimationKeyframe;
   startIndex: number;
+  interpolation: AnimationTrack["interpolation"];
+  outHandle: HandleDelta;
+  inHandle: HandleDelta;
   cp1: PlotPoint;
   cp2: PlotPoint;
 };
@@ -44,6 +59,8 @@ const PLOT = {
   bottom: 22,
 };
 const EPSILON = 1e-6;
+const CUBIC_EASE_HANDLE_X = 0.65;
+const STEP_HOLD_HANDLE_X = 0.98;
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
@@ -52,6 +69,111 @@ const quantize = (value: number): number => {
   const rounded = Math.round(value * 1_000_000) / 1_000_000;
   return Object.is(rounded, -0) ? 0 : rounded;
 };
+
+function normalizeHandle(value: unknown): HandleDelta | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const maybe = value as Partial<HandleDelta>;
+  const x = Number(maybe.x);
+  const y = Number(maybe.y);
+  return Number.isFinite(x) && Number.isFinite(y)
+    ? { x: quantize(x), y: quantize(y) }
+    : null;
+}
+
+function quantizeHandles(handles: {
+  outHandle: HandleDelta;
+  inHandle: HandleDelta;
+}): { outHandle: HandleDelta; inHandle: HandleDelta } {
+  return {
+    outHandle: {
+      x: quantize(handles.outHandle.x),
+      y: quantize(handles.outHandle.y),
+    },
+    inHandle: {
+      x: quantize(handles.inHandle.x),
+      y: quantize(handles.inHandle.y),
+    },
+  };
+}
+
+function resolvePresetHandles(
+  interpolation: AnimationTrack["interpolation"],
+  start: AnimationKeyframe,
+  end: AnimationKeyframe,
+): { outHandle: HandleDelta; inHandle: HandleDelta } {
+  const span = Math.max(end.time - start.time, EPSILON);
+  const valueDelta = end.value - start.value;
+
+  if (interpolation === "linear") {
+    return {
+      outHandle: { x: span / 3, y: valueDelta / 3 },
+      inHandle: { x: -span / 3, y: -valueDelta / 3 },
+    };
+  }
+
+  if (interpolation === "step") {
+    return {
+      outHandle: { x: span * STEP_HOLD_HANDLE_X, y: 0 },
+      inHandle: {
+        x: -span * (1 - STEP_HOLD_HANDLE_X),
+        y: -valueDelta,
+      },
+    };
+  }
+
+  return {
+    outHandle: { x: span * CUBIC_EASE_HANDLE_X, y: 0 },
+    inHandle: { x: -span * CUBIC_EASE_HANDLE_X, y: 0 },
+  };
+}
+
+function resolveSegmentHandles(
+  interpolation: AnimationTrack["interpolation"],
+  start: AnimationKeyframe,
+  end: AnimationKeyframe,
+): { outHandle: HandleDelta; inHandle: HandleDelta } {
+  const span = Math.max(end.time - start.time, EPSILON);
+  const preset = resolvePresetHandles(interpolation, start, end);
+
+  if (interpolation !== "spline") {
+    return {
+      outHandle: {
+        x: quantize(preset.outHandle.x),
+        y: quantize(preset.outHandle.y),
+      },
+      inHandle: {
+        x: quantize(preset.inHandle.x),
+        y: quantize(preset.inHandle.y),
+      },
+    };
+  }
+
+  const outHandle =
+    normalizeHandle(start.outHandle) ??
+    (typeof start.outTangent === "number"
+      ? { x: span / 3, y: (start.outTangent * span) / 3 }
+      : null) ??
+    preset.outHandle;
+  const inHandle =
+    normalizeHandle(end.inHandle) ??
+    (typeof end.inTangent === "number"
+      ? { x: -span / 3, y: (-end.inTangent * span) / 3 }
+      : null) ??
+    preset.inHandle;
+
+  return {
+    outHandle: {
+      x: quantize(outHandle.x),
+      y: quantize(outHandle.y),
+    },
+    inHandle: {
+      x: quantize(inHandle.x),
+      y: quantize(inHandle.y),
+    },
+  };
+}
 
 function resolveTrackRange(
   track: AnimationTrack,
@@ -77,14 +199,25 @@ function resolveTrackRange(
 
 function resolveSelectedSegmentIndex(
   track: AnimationTrack,
+  selectedCurveItem: AnimationCurveSelection | null,
   selectedKeyframeId: string | null,
 ): number {
   const segmentCount = Math.max(track.keyframes.length - 1, 0);
   if (segmentCount === 0) {
     return 0;
   }
+  if (
+    selectedCurveItem?.kind === "segment" ||
+    selectedCurveItem?.kind === "handle"
+  ) {
+    return clamp(selectedCurveItem.segmentIndex, 0, segmentCount - 1);
+  }
+  const keyframeId =
+    selectedCurveItem?.kind === "keyframe"
+      ? selectedCurveItem.keyframeId
+      : selectedKeyframeId;
   const keyframeIndex = track.keyframes.findIndex(
-    (keyframe) => keyframe.id === selectedKeyframeId,
+    (keyframe) => keyframe.id === keyframeId,
   );
   if (keyframeIndex < 0) {
     return 0;
@@ -105,21 +238,26 @@ function resolveSegmentGeometry(
   if (span <= EPSILON) {
     return null;
   }
-  const slope = (end.value - start.value) / span;
-  const outTangent =
-    typeof start.outTangent === "number" ? start.outTangent : slope;
-  const inTangent = typeof end.inTangent === "number" ? end.inTangent : slope;
+  const interpolation = start.interpolation ?? track.interpolation;
+  const { outHandle, inHandle } = resolveSegmentHandles(
+    interpolation,
+    start,
+    end,
+  );
   return {
     start,
     end,
     startIndex: segmentIndex,
+    interpolation,
+    outHandle,
+    inHandle,
     cp1: {
-      time: start.time + span / 3,
-      value: start.value + (outTangent * span) / 3,
+      time: start.time + outHandle.x,
+      value: start.value + outHandle.y,
     },
     cp2: {
-      time: end.time - span / 3,
-      value: end.value - (inTangent * span) / 3,
+      time: end.time + inHandle.x,
+      value: end.value + inHandle.y,
     },
   };
 }
@@ -128,7 +266,7 @@ function resolveSegmentInterpolation(
   track: AnimationTrack,
   geometry: SegmentGeometry | null,
 ): AnimationTrack["interpolation"] {
-  return geometry?.start.interpolation ?? track.interpolation;
+  return geometry?.interpolation ?? track.interpolation;
 }
 
 function capturePointer(target: Element, pointerId: number) {
@@ -150,15 +288,17 @@ export function CurveEditor({
 }: CurveEditorProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
-  const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+  const [dragSession, setDragSession] = useState<DragSession | null>(null);
   const {
     tracks,
     duration,
     currentTime,
     selectedTrackId,
     selectedKeyframeId,
+    selectedCurveItem,
     selectTrack,
     selectKeyframe,
+    selectCurveItem,
     updateKeyframe,
   } = useAnimationStore();
   const standardInputsById = useBindingAuthoring(
@@ -183,7 +323,11 @@ export function CurveEditor({
     [selectedInputRange, selectedTrack],
   );
   const segmentIndex = selectedTrack
-    ? resolveSelectedSegmentIndex(selectedTrack, selectedKeyframeId)
+    ? resolveSelectedSegmentIndex(
+        selectedTrack,
+        selectedCurveItem,
+        selectedKeyframeId,
+      )
     : 0;
   const geometry = selectedTrack
     ? resolveSegmentGeometry(selectedTrack, segmentIndex)
@@ -217,12 +361,35 @@ export function CurveEditor({
       ),
     };
   };
-  const fromClientPoint = (
-    clientX: number,
-    clientY: number,
-  ): PlotPoint | null => {
-    const svgPoint = fromClientSvgPoint(clientX, clientY);
-    return svgPoint ? { time: svgPoint.time, value: svgPoint.value } : null;
+  const fromSvgPlotPoint = (svgX: number, svgY: number): PlotPoint => {
+    return {
+      time: clamp(((svgX - PLOT.left) / plotWidth) * safeDuration, 0, duration),
+      value: clamp(
+        range.min + (1 - (svgY - PLOT.top) / plotHeight) * valueSpan,
+        range.min,
+        range.max,
+      ),
+    };
+  };
+  const resolveTargetSvgPoint = (
+    track: AnimationTrack,
+    target: DragTarget,
+  ): { svgX: number; svgY: number } | null => {
+    if (target.kind === "keyframe") {
+      const keyframe = track.keyframes.find(
+        (candidate) => candidate.id === target.keyframeId,
+      );
+      return keyframe
+        ? { svgX: toX(keyframe.time), svgY: toY(keyframe.value) }
+        : null;
+    }
+    const targetGeometry = resolveSegmentGeometry(track, target.segmentIndex);
+    if (!targetGeometry) {
+      return null;
+    }
+    const point =
+      target.kind === "outHandle" ? targetGeometry.cp1 : targetGeometry.cp2;
+    return { svgX: toX(point.time), svgY: toY(point.value) };
   };
 
   const resolveDragTargetFromClient = (
@@ -237,31 +404,43 @@ export function CurveEditor({
       return null;
     }
     const threshold = 18;
-    if (geometry && segmentInterpolation === "cubic") {
+    let nearestHandle: { distance: number; target: DragTarget } | null = null;
+    for (const segment of visibleSegmentGeometries) {
       const outDistance = Math.hypot(
-        svgPoint.svgX - toX(geometry.cp1.time),
-        svgPoint.svgY - toY(geometry.cp1.value),
+        svgPoint.svgX - toX(segment.cp1.time),
+        svgPoint.svgY - toY(segment.cp1.value),
       );
       if (outDistance <= threshold) {
-        return {
-          target: {
-            kind: "outHandle",
-            segmentIndex: geometry.startIndex,
-          },
-        };
+        nearestHandle =
+          !nearestHandle || outDistance < nearestHandle.distance
+            ? {
+                distance: outDistance,
+                target: {
+                  kind: "outHandle",
+                  segmentIndex: segment.startIndex,
+                },
+              }
+            : nearestHandle;
       }
       const inDistance = Math.hypot(
-        svgPoint.svgX - toX(geometry.cp2.time),
-        svgPoint.svgY - toY(geometry.cp2.value),
+        svgPoint.svgX - toX(segment.cp2.time),
+        svgPoint.svgY - toY(segment.cp2.value),
       );
       if (inDistance <= threshold) {
-        return {
-          target: {
-            kind: "inHandle",
-            segmentIndex: geometry.startIndex,
-          },
-        };
+        nearestHandle =
+          !nearestHandle || inDistance < nearestHandle.distance
+            ? {
+                distance: inDistance,
+                target: {
+                  kind: "inHandle",
+                  segmentIndex: segment.startIndex,
+                },
+              }
+            : nearestHandle;
       }
+    }
+    if (nearestHandle) {
+      return { target: nearestHandle.target };
     }
 
     let nearest: {
@@ -308,17 +487,92 @@ export function CurveEditor({
     }
     return parts.join(" ");
   }, [range.max, range.min, safeDuration, selectedTrack]);
+  const selectedKeyframeForSelection = useMemo(() => {
+    if (!selectedTrack) {
+      return null;
+    }
+    const keyframeId =
+      selectedCurveItem?.kind === "keyframe"
+        ? selectedCurveItem.keyframeId
+        : selectedKeyframeId;
+    return keyframeId
+      ? (selectedTrack.keyframes.find(
+          (keyframe) => keyframe.id === keyframeId,
+        ) ?? null)
+      : null;
+  }, [selectedCurveItem, selectedKeyframeId, selectedTrack]);
+  const segmentGeometries = useMemo(() => {
+    if (!selectedTrack || selectedTrack.keyframes.length < 2) {
+      return [];
+    }
+    return selectedTrack.keyframes
+      .slice(0, -1)
+      .map((_, index) => resolveSegmentGeometry(selectedTrack, index))
+      .filter((segment): segment is SegmentGeometry => Boolean(segment));
+  }, [selectedTrack]);
+  const visibleSegmentGeometries = useMemo(() => {
+    if (!selectedTrack) {
+      return [];
+    }
+    if (
+      selectedCurveItem?.kind === "segment" ||
+      selectedCurveItem?.kind === "handle"
+    ) {
+      return geometry ? [geometry] : [];
+    }
+    if (selectedKeyframeForSelection) {
+      const keyframeIndex = selectedTrack.keyframes.findIndex(
+        (keyframe) => keyframe.id === selectedKeyframeForSelection.id,
+      );
+      return [keyframeIndex - 1, keyframeIndex]
+        .map((index) =>
+          index >= 0 ? resolveSegmentGeometry(selectedTrack, index) : null,
+        )
+        .filter((segment): segment is SegmentGeometry => Boolean(segment));
+    }
+    return geometry ? [geometry] : [];
+  }, [
+    geometry,
+    selectedCurveItem,
+    selectedKeyframeForSelection,
+    selectedTrack,
+  ]);
+  const formatSegmentPath = (segment: SegmentGeometry) =>
+    [
+      `M ${toX(segment.start.time).toFixed(2)} ${toY(segment.start.value).toFixed(2)}`,
+      `C ${toX(segment.cp1.time).toFixed(2)} ${toY(segment.cp1.value).toFixed(2)}`,
+      `${toX(segment.cp2.time).toFixed(2)} ${toY(segment.cp2.value).toFixed(2)}`,
+      `${toX(segment.end.time).toFixed(2)} ${toY(segment.end.value).toFixed(2)}`,
+    ].join(" ");
+  const selectSegment = (
+    event: MouseEvent<SVGPathElement> | PointerEvent<SVGPathElement>,
+    segment: SegmentGeometry,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selectedTrack) {
+      return;
+    }
+    selectTrack(selectedTrack.id);
+    selectCurveItem({ kind: "segment", segmentIndex: segment.startIndex });
+    onInspectTrack?.(selectedTrack.id);
+  };
 
   const applyDragAt = (
     track: AnimationTrack,
-    target: DragTarget,
+    session: DragSession,
     clientX: number,
     clientY: number,
   ) => {
-    const point = fromClientPoint(clientX, clientY);
-    if (!point) {
+    const svgPoint = fromClientSvgPoint(clientX, clientY);
+    if (!svgPoint) {
       return;
     }
+    const point = fromSvgPlotPoint(
+      svgPoint.svgX - session.svgOffsetX,
+      svgPoint.svgY - session.svgOffsetY,
+    );
+    const { target } = session;
     if (target.kind === "keyframe") {
       updateKeyframe(track.id, target.keyframeId, {
         time: quantize(point.time),
@@ -338,29 +592,35 @@ export function CurveEditor({
       time: clamp(point.time, minTime, maxTime),
     };
     if (target.kind === "outHandle") {
-      const span = Math.max(handle.time - targetGeometry.start.time, EPSILON);
+      const outHandle = {
+        x: quantize(handle.time - targetGeometry.start.time),
+        y: quantize(handle.value - targetGeometry.start.value),
+      };
       updateKeyframe(track.id, targetGeometry.start.id, {
-        interpolation: "cubic",
-        outTangent: quantize(
-          (handle.value - targetGeometry.start.value) / span,
-        ),
+        interpolation: "spline",
+        outHandle,
+        outTangent: undefined,
       });
       return;
     }
-    const span = Math.max(targetGeometry.end.time - handle.time, EPSILON);
+    const inHandle = {
+      x: quantize(handle.time - targetGeometry.end.time),
+      y: quantize(handle.value - targetGeometry.end.value),
+    };
     updateKeyframe(track.id, targetGeometry.start.id, {
-      interpolation: "cubic",
+      interpolation: "spline",
     });
     updateKeyframe(track.id, targetGeometry.end.id, {
-      inTangent: quantize((targetGeometry.end.value - handle.value) / span),
+      inHandle,
+      inTangent: undefined,
     });
   };
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
-    if (!dragTarget || !selectedTrack) {
+    if (!dragSession || !selectedTrack) {
       return;
     }
-    applyDragAt(selectedTrack, dragTarget, event.clientX, event.clientY);
+    applyDragAt(selectedTrack, dragSession, event.clientX, event.clientY);
   };
 
   const selectSegmentInterpolation = (
@@ -369,22 +629,24 @@ export function CurveEditor({
     if (!selectedTrack || !geometry) {
       return;
     }
-    const span = Math.max(geometry.end.time - geometry.start.time, EPSILON);
-    const slope = (geometry.end.value - geometry.start.value) / span;
+    const handles = quantizeHandles(
+      interpolation === "spline"
+        ? {
+            outHandle: geometry.outHandle,
+            inHandle: geometry.inHandle,
+          }
+        : resolvePresetHandles(interpolation, geometry.start, geometry.end),
+    );
     updateKeyframe(selectedTrack.id, geometry.start.id, {
       interpolation,
-      outTangent:
-        interpolation === "cubic"
-          ? (geometry.start.outTangent ?? slope)
-          : undefined,
+      outHandle: handles.outHandle,
+      outTangent: undefined,
     });
     updateKeyframe(selectedTrack.id, geometry.end.id, {
-      inTangent:
-        interpolation === "cubic"
-          ? (geometry.end.inTangent ?? slope)
-          : undefined,
+      inHandle: handles.inHandle,
+      inTangent: undefined,
     });
-    selectKeyframe(geometry.start.id);
+    selectCurveItem({ kind: "segment", segmentIndex: geometry.startIndex });
   };
 
   const beginDrag = (
@@ -397,20 +659,36 @@ export function CurveEditor({
     if (!selectedTrack) {
       return;
     }
+    const pointerSvg = fromClientSvgPoint(event.clientX, event.clientY);
+    const targetSvg = resolveTargetSvgPoint(selectedTrack, target);
+    if (!pointerSvg || !targetSvg) {
+      return;
+    }
+    const session: DragSession = {
+      target,
+      svgOffsetX: pointerSvg.svgX - targetSvg.svgX,
+      svgOffsetY: pointerSvg.svgY - targetSvg.svgY,
+    };
     capturePointer(svgRef.current ?? event.currentTarget, event.pointerId);
     dragCleanupRef.current?.();
-    setDragTarget(target);
+    setDragSession(session);
     selectTrack(selectedTrack.id);
     onInspectTrack?.(selectedTrack.id);
     if (keyframeId) {
       selectKeyframe(keyframeId);
+    } else if (target.kind === "outHandle" || target.kind === "inHandle") {
+      selectCurveItem({
+        kind: "handle",
+        segmentIndex: target.segmentIndex,
+        side: target.kind === "outHandle" ? "out" : "in",
+      });
     }
     const dragTrack = selectedTrack;
     const handleWindowPointerMove = (moveEvent: globalThis.PointerEvent) => {
-      applyDragAt(dragTrack, target, moveEvent.clientX, moveEvent.clientY);
+      applyDragAt(dragTrack, session, moveEvent.clientX, moveEvent.clientY);
     };
     const endWindowDrag = () => {
-      setDragTarget(null);
+      setDragSession(null);
       window.removeEventListener("pointermove", handleWindowPointerMove);
       window.removeEventListener("pointerup", endWindowDrag);
       window.removeEventListener("pointercancel", endWindowDrag);
@@ -435,19 +713,35 @@ export function CurveEditor({
     if (!selectedTrack) {
       return;
     }
+    const pointerSvg = fromClientSvgPoint(event.clientX, event.clientY);
+    const targetSvg = resolveTargetSvgPoint(selectedTrack, target);
+    if (!pointerSvg || !targetSvg) {
+      return;
+    }
+    const session: DragSession = {
+      target,
+      svgOffsetX: pointerSvg.svgX - targetSvg.svgX,
+      svgOffsetY: pointerSvg.svgY - targetSvg.svgY,
+    };
     dragCleanupRef.current?.();
-    setDragTarget(target);
+    setDragSession(session);
     selectTrack(selectedTrack.id);
     onInspectTrack?.(selectedTrack.id);
     if (keyframeId) {
       selectKeyframe(keyframeId);
+    } else if (target.kind === "outHandle" || target.kind === "inHandle") {
+      selectCurveItem({
+        kind: "handle",
+        segmentIndex: target.segmentIndex,
+        side: target.kind === "outHandle" ? "out" : "in",
+      });
     }
     const dragTrack = selectedTrack;
     const handleWindowMouseMove = (moveEvent: globalThis.MouseEvent) => {
-      applyDragAt(dragTrack, target, moveEvent.clientX, moveEvent.clientY);
+      applyDragAt(dragTrack, session, moveEvent.clientX, moveEvent.clientY);
     };
     const endWindowMouseDrag = () => {
-      setDragTarget(null);
+      setDragSession(null);
       window.removeEventListener("mousemove", handleWindowMouseMove);
       window.removeEventListener("mouseup", endWindowMouseDrag);
       dragCleanupRef.current = null;
@@ -487,9 +781,7 @@ export function CurveEditor({
   }
 
   const selectedKeyframe =
-    selectedTrack.keyframes.find(
-      (keyframe) => keyframe.id === selectedKeyframeId,
-    ) ??
+    selectedKeyframeForSelection ??
     geometry?.start ??
     selectedTrack.keyframes[0] ??
     null;
@@ -535,6 +827,7 @@ export function CurveEditor({
               <option value="linear">Linear</option>
               <option value="step">Step</option>
               <option value="cubic">Cubic</option>
+              <option value="spline">Custom spline</option>
             </select>
           </label>
           <div className="hidden grid-cols-3 gap-1 font-mono text-[10px] text-text-muted md:grid">
@@ -559,8 +852,8 @@ export function CurveEditor({
         aria-label="Animation curve and baked preview"
         onPointerMove={handlePointerMove}
         onMouseDown={handleSvgMouseDown}
-        onPointerUp={() => setDragTarget(null)}
-        onPointerCancel={() => setDragTarget(null)}
+        onPointerUp={() => setDragSession(null)}
+        onPointerCancel={() => setDragSession(null)}
       >
         <rect
           x={PLOT.left}
@@ -637,70 +930,115 @@ export function CurveEditor({
           strokeWidth="2.25"
           strokeLinecap="round"
         />
+        {segmentGeometries.map((segment) => (
+          <path
+            key={`${segment.start.id}:${segment.end.id}`}
+            data-testid="animation-curve-segment-hit-area"
+            d={formatSegmentPath(segment)}
+            fill="none"
+            stroke="transparent"
+            strokeWidth="14"
+            strokeLinecap="round"
+            style={{ pointerEvents: "stroke" }}
+            onPointerDown={(event) => selectSegment(event, segment)}
+            onMouseDown={(event) => selectSegment(event, segment)}
+          />
+        ))}
 
-        {geometry && segmentInterpolation === "cubic" ? (
-          <g>
-            <line
-              x1={toX(geometry.start.time)}
-              y1={toY(geometry.start.value)}
-              x2={toX(geometry.cp1.time)}
-              y2={toY(geometry.cp1.value)}
-              className="stroke-blue-300/55"
-              strokeWidth="1.5"
-            />
-            <line
-              x1={toX(geometry.end.time)}
-              y1={toY(geometry.end.value)}
-              x2={toX(geometry.cp2.time)}
-              y2={toY(geometry.cp2.value)}
-              className="stroke-emerald-300/55"
-              strokeWidth="1.5"
-            />
-            <circle
-              data-testid="animation-curve-handle-out"
-              cx={toX(geometry.cp1.time)}
-              cy={toY(geometry.cp1.value)}
-              r="9"
-              className="cursor-grab fill-blue-300 stroke-bg-app stroke-2 active:cursor-grabbing"
-              style={{ pointerEvents: "all" }}
-              onPointerDown={(event) =>
-                beginDrag(event, {
-                  kind: "outHandle",
-                  segmentIndex: geometry.startIndex,
-                })
-              }
-              onMouseDown={(event) =>
-                beginMouseDrag(event, {
-                  kind: "outHandle",
-                  segmentIndex: geometry.startIndex,
-                })
-              }
-            />
-            <circle
-              data-testid="animation-curve-handle-in"
-              cx={toX(geometry.cp2.time)}
-              cy={toY(geometry.cp2.value)}
-              r="9"
-              className="cursor-grab fill-emerald-300 stroke-bg-app stroke-2 active:cursor-grabbing"
-              style={{ pointerEvents: "all" }}
-              onPointerDown={(event) =>
-                beginDrag(event, {
-                  kind: "inHandle",
-                  segmentIndex: geometry.startIndex,
-                })
-              }
-              onMouseDown={(event) =>
-                beginMouseDrag(event, {
-                  kind: "inHandle",
-                  segmentIndex: geometry.startIndex,
-                })
-              }
-            />
-          </g>
-        ) : null}
+        {visibleSegmentGeometries.map((segment) => {
+          const editable = segment.interpolation === "spline";
+          const selectedOutHandle =
+            selectedCurveItem?.kind === "handle" &&
+            selectedCurveItem.segmentIndex === segment.startIndex &&
+            selectedCurveItem.side === "out";
+          const selectedInHandle =
+            selectedCurveItem?.kind === "handle" &&
+            selectedCurveItem.segmentIndex === segment.startIndex &&
+            selectedCurveItem.side === "in";
+          return (
+            <g key={`handles-${segment.start.id}-${segment.end.id}`}>
+              <line
+                x1={toX(segment.start.time)}
+                y1={toY(segment.start.value)}
+                x2={toX(segment.cp1.time)}
+                y2={toY(segment.cp1.value)}
+                className={cn(
+                  "stroke-blue-300",
+                  editable ? "opacity-55" : "opacity-30",
+                )}
+                strokeWidth="1.5"
+              />
+              <line
+                x1={toX(segment.end.time)}
+                y1={toY(segment.end.value)}
+                x2={toX(segment.cp2.time)}
+                y2={toY(segment.cp2.value)}
+                className={cn(
+                  "stroke-emerald-300",
+                  editable ? "opacity-55" : "opacity-30",
+                )}
+                strokeWidth="1.5"
+              />
+              <circle
+                data-testid="animation-curve-handle-out"
+                cx={toX(segment.cp1.time)}
+                cy={toY(segment.cp1.value)}
+                r={selectedOutHandle ? 10.5 : 9}
+                className={cn(
+                  "fill-blue-300 stroke-bg-app stroke-2",
+                  editable
+                    ? "cursor-grab active:cursor-grabbing"
+                    : "cursor-pointer opacity-45",
+                  selectedOutHandle ? "stroke-accent" : "",
+                )}
+                style={{ pointerEvents: "all" }}
+                onPointerDown={(event) =>
+                  beginDrag(event, {
+                    kind: "outHandle",
+                    segmentIndex: segment.startIndex,
+                  })
+                }
+                onMouseDown={(event) =>
+                  beginMouseDrag(event, {
+                    kind: "outHandle",
+                    segmentIndex: segment.startIndex,
+                  })
+                }
+              />
+              <circle
+                data-testid="animation-curve-handle-in"
+                cx={toX(segment.cp2.time)}
+                cy={toY(segment.cp2.value)}
+                r={selectedInHandle ? 10.5 : 9}
+                className={cn(
+                  "fill-emerald-300 stroke-bg-app stroke-2",
+                  editable
+                    ? "cursor-grab active:cursor-grabbing"
+                    : "cursor-pointer opacity-45",
+                  selectedInHandle ? "stroke-accent" : "",
+                )}
+                style={{ pointerEvents: "all" }}
+                onPointerDown={(event) =>
+                  beginDrag(event, {
+                    kind: "inHandle",
+                    segmentIndex: segment.startIndex,
+                  })
+                }
+                onMouseDown={(event) =>
+                  beginMouseDrag(event, {
+                    kind: "inHandle",
+                    segmentIndex: segment.startIndex,
+                  })
+                }
+              />
+            </g>
+          );
+        })}
 
         {selectedTrack.keyframes.map((keyframe) => {
-          const selected = keyframe.id === selectedKeyframe?.id;
+          const selected =
+            selectedCurveItem?.kind === "keyframe" &&
+            keyframe.id === selectedKeyframe?.id;
           return (
             <circle
               key={keyframe.id}

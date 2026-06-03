@@ -93,6 +93,30 @@ describe("AppMenuBar", () => {
     });
   });
 
+  it("closes Mode after selecting a focus", async () => {
+    const onSelectEditFocus = vi.fn();
+    renderMenuBar({ onSelectEditFocus });
+
+    fireEvent.click(screen.getByTestId("app-menu-mode"));
+    fireEvent.click(await screen.findByText("Animations"));
+
+    expect(onSelectEditFocus).toHaveBeenCalledWith("animation");
+    await waitFor(() => {
+      expect(screen.queryByText("Edit Focus")).toBeNull();
+    });
+  });
+
+  it("keeps View open after toggling a panel", async () => {
+    renderMenuBar();
+
+    fireEvent.click(screen.getByTestId("app-menu-view"));
+    fireEvent.click(await screen.findByText("Animation"));
+
+    expect(useWorkspaceStore.getState().panels.animation.isVisible).toBe(true);
+    expect(screen.getByText("Center Panel")).toBeTruthy();
+    expect(screen.getByText("Program")).toBeTruthy();
+  });
+
   it("moves rotation, highlight, and theme toggles into Settings", async () => {
     renderMenuBar();
 

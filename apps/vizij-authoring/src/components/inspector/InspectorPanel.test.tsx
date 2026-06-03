@@ -80,23 +80,31 @@ const animationStoreState: {
   tracks: any[];
   selectedTrackId: string | null;
   selectedKeyframeId: string | null;
+  selectedCurveItem:
+    | { kind: "keyframe"; keyframeId: string }
+    | { kind: "segment"; segmentIndex: number }
+    | { kind: "handle"; segmentIndex: number; side: "out" | "in" }
+    | null;
   setTrackInterpolation: ReturnType<typeof vi.fn>;
   updateKeyframe: ReturnType<typeof vi.fn>;
   removeTrack: ReturnType<typeof vi.fn>;
   removeKeyframe: ReturnType<typeof vi.fn>;
   selectTrack: ReturnType<typeof vi.fn>;
   selectKeyframe: ReturnType<typeof vi.fn>;
+  selectCurveItem: ReturnType<typeof vi.fn>;
   timeDisplayMode: "seconds";
 } = {
   tracks: [],
   selectedTrackId: null,
   selectedKeyframeId: null,
+  selectedCurveItem: null,
   setTrackInterpolation: vi.fn(),
   updateKeyframe: vi.fn(),
   removeTrack: vi.fn(),
   removeKeyframe: vi.fn(),
   selectTrack: vi.fn(),
   selectKeyframe: vi.fn(),
+  selectCurveItem: vi.fn(),
   timeDisplayMode: "seconds" as const,
 };
 
@@ -134,6 +142,7 @@ describe("InspectorPanel", () => {
     animationStoreState.tracks = [];
     animationStoreState.selectedTrackId = null;
     animationStoreState.selectedKeyframeId = null;
+    animationStoreState.selectedCurveItem = null;
   });
 
   it("shows module and target lifecycle state without duplicating the active target", () => {
@@ -309,7 +318,7 @@ describe("InspectorPanel", () => {
     expect(onInspectProgramInput).toHaveBeenCalledWith("jaw.open");
   });
 
-  it("renders the track inspector only when the active target is the track", () => {
+  it("renders selected keyframe handles without showing segment controls", () => {
     animationStoreState.tracks = [
       {
         id: "track-1",
@@ -320,16 +329,35 @@ describe("InspectorPanel", () => {
         interpolation: "linear",
         keyframes: [
           {
+            id: "kf-0",
+            time: 0,
+            value: 0,
+            interpolation: "spline",
+            outHandle: { x: 0.12, y: 0.04 },
+          },
+          {
             id: "kf-1",
-            time: 0.25,
+            time: 0.5,
             value: 0.5,
-            outTangent: 1.5,
+            interpolation: "spline",
+            inHandle: { x: -0.1, y: 0.2 },
+            outHandle: { x: 0.15, y: -0.05 },
+          },
+          {
+            id: "kf-2",
+            time: 1,
+            value: 1,
+            inHandle: { x: -0.1, y: -0.04 },
           },
         ],
       },
     ];
     animationStoreState.selectedTrackId = "track-1";
     animationStoreState.selectedKeyframeId = "kf-1";
+    animationStoreState.selectedCurveItem = {
+      kind: "keyframe",
+      keyframeId: "kf-1",
+    };
     bindingState.standardInputsById = new Map([
       [
         "jaw.open",
@@ -351,40 +379,131 @@ describe("InspectorPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Keyframes: 1")).toBeTruthy();
+    expect(screen.getByText("Keyframes: 3")).toBeTruthy();
     expect(screen.queryByTestId("generic-inspector-content")).toBeNull();
+    expect(screen.queryByTestId("animation-segment-mode-select")).toBeNull();
 
     fireEvent.change(
-      screen.getByTestId("animation-keyframe-interpolation-select"),
-      { target: { value: "cubic" } },
-    );
-    fireEvent.change(
-      screen.getByTestId("animation-keyframe-out-tangent-input"),
+      screen.getByTestId("animation-keyframe-in-handle-x-input"),
       {
-        target: { value: "2.25" },
+        target: { value: "-0.2" },
       },
     );
     fireEvent.change(
-      screen.getByTestId("animation-keyframe-in-tangent-input"),
+      screen.getByTestId("animation-keyframe-out-handle-y-input"),
       {
-        target: { value: "-0.5" },
+        target: { value: "0.3" },
       },
     );
 
     expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
       "track-1",
-      "kf-1",
-      { interpolation: "cubic" },
+      "kf-0",
+      {
+        interpolation: "spline",
+        outTangent: undefined,
+      },
     );
     expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
       "track-1",
       "kf-1",
-      { interpolation: "cubic", outTangent: 2.25 },
+      {
+        inHandle: { x: -0.2, y: 0.2 },
+        inTangent: undefined,
+      },
     );
     expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
       "track-1",
       "kf-1",
-      { inTangent: -0.5 },
+      {
+        interpolation: "spline",
+        outHandle: { x: 0.15, y: 0.3 },
+        outTangent: undefined,
+      },
+    );
+  });
+
+  it("renders selected segment and handle controls independently from keyframes", () => {
+    animationStoreState.tracks = [
+      {
+        id: "track-1",
+        label: "Jaw Open",
+        variableId: "jaw.open",
+        channel: "/propsrig/jaw/open",
+        color: "#ffffff",
+        interpolation: "linear",
+        keyframes: [
+          {
+            id: "kf-1",
+            time: 0.25,
+            value: 0.5,
+            interpolation: "spline",
+            outHandle: { x: 0.2, y: 0.1 },
+          },
+          {
+            id: "kf-2",
+            time: 0.75,
+            value: 0.75,
+            inHandle: { x: -0.2, y: -0.1 },
+          },
+        ],
+      },
+    ];
+    animationStoreState.selectedTrackId = "track-1";
+    animationStoreState.selectedCurveItem = {
+      kind: "handle",
+      segmentIndex: 0,
+      side: "in",
+    };
+
+    render(
+      <InspectorPanel
+        activeInspectorTarget={{
+          kind: "animation-track",
+          targetId: "authored-animation:blink",
+          trackId: "track-1",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Selected incoming handle")).toBeTruthy();
+    expect(screen.queryByTestId("animation-keyframe-time-input")).toBeNull();
+
+    fireEvent.change(screen.getByTestId("animation-segment-mode-select"), {
+      target: { value: "cubic" },
+    });
+    fireEvent.change(
+      screen.getByTestId("animation-segment-out-handle-y-input"),
+      {
+        target: { value: "0.25" },
+      },
+    );
+
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-1",
+      {
+        interpolation: "cubic",
+        outHandle: { x: 0.325, y: 0 },
+        outTangent: undefined,
+      },
+    );
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-2",
+      {
+        inHandle: { x: -0.325, y: 0 },
+        inTangent: undefined,
+      },
+    );
+    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+      "track-1",
+      "kf-1",
+      {
+        interpolation: "spline",
+        outHandle: { x: 0.2, y: 0.25 },
+        outTangent: undefined,
+      },
     );
   });
 });

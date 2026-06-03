@@ -105,6 +105,49 @@ describe("compileAnimationClipIr", () => {
       "linear",
     );
   });
+
+  it("preserves spline handles through compilation", () => {
+    const clip: AnimationClipIR = {
+      schemaVersion: 1,
+      id: "clip-spline",
+      duration: 1,
+      tracks: [
+        {
+          id: "track-1",
+          variableId: "input_a",
+          channel: "controls/a",
+          interpolation: "spline",
+          keyframes: [
+            {
+              id: "kf-1",
+              time: 0,
+              value: 0,
+              interpolation: "spline",
+              outHandle: { x: 0.65, y: 0 },
+            },
+            {
+              id: "kf-2",
+              time: 1,
+              value: 1,
+              interpolation: "spline",
+              inHandle: { x: -0.65, y: 0 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const compiled = compileAnimationClipIr({ clip });
+    expect(compiled.tracks[0]?.interpolation).toBe("spline");
+    expect(compiled.tracks[0]?.keyframes[0]?.outHandle).toEqual({
+      x: 0.65,
+      y: 0,
+    });
+    expect(compiled.tracks[0]?.keyframes[1]?.inHandle).toEqual({
+      x: -0.65,
+      y: 0,
+    });
+  });
 });
 
 describe("bundle conversion", () => {
@@ -195,7 +238,7 @@ describe("bundle conversion", () => {
 });
 
 describe("evaluateAnimationTrackAtTime", () => {
-  it("supports linear, step, and cubic semantics", () => {
+  it("supports linear, step, cubic, and spline semantics", () => {
     const linearTrack: AnimationTrackIR = {
       id: "linear-track",
       variableId: "linear",
@@ -212,8 +255,22 @@ describe("evaluateAnimationTrackAtTime", () => {
       channel: "controls/step",
       interpolation: "step",
       keyframes: [
-        { id: "kf-1", time: 0, value: 0, interpolation: "step" },
-        { id: "kf-2", time: 1, value: 1, interpolation: "step" },
+        {
+          id: "kf-1",
+          time: 0,
+          value: 0,
+          interpolation: "step",
+          outHandle: { x: 0.65, y: 1 },
+          outTangent: 8,
+        },
+        {
+          id: "kf-2",
+          time: 1,
+          value: 1,
+          interpolation: "step",
+          inHandle: { x: -0.65, y: -1 },
+          inTangent: 8,
+        },
       ],
     };
     const cubicTrack: AnimationTrackIR = {
@@ -227,21 +284,51 @@ describe("evaluateAnimationTrackAtTime", () => {
           time: 0,
           value: 0,
           interpolation: "cubic",
-          outTangent: 0,
+          outHandle: { x: 0.1, y: 1 },
+          outTangent: 8,
         },
         {
           id: "kf-2",
           time: 1,
           value: 1,
           interpolation: "cubic",
-          inTangent: 0,
+          inHandle: { x: -0.1, y: -1 },
+          inTangent: 8,
+        },
+      ],
+    };
+    const splineTrack: AnimationTrackIR = {
+      id: "spline-track",
+      variableId: "spline",
+      channel: "controls/spline",
+      interpolation: "spline",
+      keyframes: [
+        {
+          id: "kf-1",
+          time: 0,
+          value: 0,
+          interpolation: "spline",
+          outHandle: { x: 0.65, y: 0 },
+        },
+        {
+          id: "kf-2",
+          time: 1,
+          value: 1,
+          interpolation: "spline",
+          inHandle: { x: -0.65, y: 0 },
         },
       ],
     };
 
     expect(evaluateAnimationTrackAtTime(linearTrack, 0.5)).toBeCloseTo(0.5, 6);
-    expect(evaluateAnimationTrackAtTime(stepTrack, 0.75)).toBe(0);
+    expect(evaluateAnimationTrackAtTime(stepTrack, 0.75)).toBeGreaterThan(0);
+    expect(evaluateAnimationTrackAtTime(stepTrack, 0.75)).toBeLessThan(0.1);
+    expect(evaluateAnimationTrackAtTime(cubicTrack, 0.25)).toBeGreaterThan(0);
+    expect(evaluateAnimationTrackAtTime(cubicTrack, 0.25)).toBeLessThan(0.25);
     expect(evaluateAnimationTrackAtTime(cubicTrack, 0.5)).toBeCloseTo(0.5, 6);
+    expect(evaluateAnimationTrackAtTime(splineTrack, 0.25)).toBeGreaterThan(0);
+    expect(evaluateAnimationTrackAtTime(splineTrack, 0.25)).toBeLessThan(0.25);
+    expect(evaluateAnimationTrackAtTime(splineTrack, 0.5)).toBeCloseTo(0.5, 6);
   });
 });
 
