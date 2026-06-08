@@ -4,6 +4,8 @@
 **/.turbo/        # if you ever use turbo
 **/dist/
 **/test-results/
+output/
+apps/**/output/
 apps/demo-vizij-player/public/arora-web/
 apps/vizij-authoring/public/arora-web/
 

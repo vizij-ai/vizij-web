@@ -1,6 +1,8 @@
 dist
 test-results
 coverage
+output
+apps/**/output
 node_modules
 .pnpm
 .turbo
