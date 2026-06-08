@@ -30,7 +30,9 @@ function assertPreparedAroraAssets() {
       [
         "Missing prepared Arora web assets for demo-vizij-player.",
         "Run:",
-        "ARORA_ENGINE_PATH=/home/chris/Code/semio_ws/_worktrees/engine-vizij-backend-experiment pnpm --filter demo-vizij-player prepare:arora-web",
+        "ARORA_ENGINE_PATH=/path/to/engine-vizij-backend-experiment pnpm --filter demo-vizij-player prepare:arora-web",
+        "",
+        "If the engine checkout is a sibling named engine-vizij-backend-experiment, ARORA_ENGINE_PATH can be omitted.",
         "",
         "Missing:",
         ...missing.map((file) => `- ${file}`),

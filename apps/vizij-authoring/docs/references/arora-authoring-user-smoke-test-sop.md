@@ -38,10 +38,11 @@ Out of scope for this runbook:
 
 ## Preconditions
 
-Run from the Arora integration worktree:
+Run from the Arora integration worktree. Replace `<workspace>` with the parent
+directory where you checked out the three experiment repos:
 
 ```bash
-cd /home/chris/Code/semio_ws/_worktrees/vizij-web-vizij-engine-backend-experiment
+cd <workspace>/vizij-web-vizij-engine-backend-experiment
 ```
 
 Install dependencies if the workspace is fresh:
@@ -64,10 +65,10 @@ pnpm --filter vizij-authoring prepare:arora-web
 
 The prepare script defaults to a sibling engine checkout named
 `engine-vizij-backend-experiment`. If your engine checkout is somewhere else,
-set it explicitly:
+replace `/path/to/engine-vizij-backend-experiment` with that checkout path:
 
 ```bash
-ARORA_ENGINE_PATH=/path/to/engine pnpm --filter vizij-authoring prepare:arora-web
+ARORA_ENGINE_PATH=/path/to/engine-vizij-backend-experiment pnpm --filter vizij-authoring prepare:arora-web
 ```
 
 ## Automated Confidence Gate

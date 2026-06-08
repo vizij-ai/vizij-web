@@ -4,7 +4,7 @@
 set -e
 
 # Ensure pnpm/node are on PATH (needed when run from autostart/desktop)
-export PATH="/home/touchpi/.local/share/pnpm:$PATH"
+export PATH="${PNPM_HOME:-$HOME/.local/share/pnpm}:$PATH"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 

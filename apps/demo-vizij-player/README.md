@@ -71,9 +71,13 @@ composed orchestrator dispatches to the imported `vizij-animation` and
 From this repo:
 
 ```bash
-ARORA_ENGINE_PATH=/home/chris/Code/semio_ws/_worktrees/engine-vizij-backend-experiment pnpm --filter demo-vizij-player prepare:arora-web
+ARORA_ENGINE_PATH=/path/to/engine-vizij-backend-experiment pnpm --filter demo-vizij-player prepare:arora-web
 NODE_ENV=development pnpm --filter demo-vizij-player dev --force --host 127.0.0.1 --port 5174
 ```
+
+If the engine checkout is a sibling named `engine-vizij-backend-experiment`,
+`ARORA_ENGINE_PATH` can be omitted. Otherwise replace
+`/path/to/engine-vizij-backend-experiment` with your local engine checkout.
 
 The diagnostics panel should show `Backend: Arora web engine (composed)`, and
 loading a sample should register graph/animation controllers through the
