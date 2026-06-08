@@ -6,13 +6,20 @@ import {
   compileAnimationClipIr,
   evaluateAnimationTrackAtTime,
   type AnimationClipIR,
+  type AnimationHandleIR,
   type AnimationKeyframeIR,
   type AnimationTrackIR,
 } from "@vizij/studio-support";
 import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
 
-export type AnimationKeyframe = AnimationKeyframeIR;
-export type AnimationTrack = AnimationTrackIR;
+export type AnimationHandle = AnimationHandleIR;
+export type AnimationHandleLock = "smooth";
+export type AnimationKeyframe = AnimationKeyframeIR & {
+  handleLock?: AnimationHandleLock;
+};
+export type AnimationTrack = Omit<AnimationTrackIR, "keyframes"> & {
+  keyframes: AnimationKeyframe[];
+};
 export type AnimationTransportPlaybackState = "playing" | "paused" | "stopped";
 export type AnimationTimeDisplayMode = "seconds" | "frames";
 export type AnimationCurveSelection =
@@ -48,11 +55,14 @@ export interface AnimationInputKeyframeEntry {
 const MIN_DURATION_SECONDS = 0;
 const TIME_EPSILON = 1e-6;
 const FRAME_TIME_MATCH_TOLERANCE_SECONDS = 1 / ANIMATION_TIMELINE_FPS;
+const CUBIC_EASE_HANDLE_X = 0.65;
+const STEP_HOLD_HANDLE_X = 0.98;
 const TRACK_ID_PREFIX = "track-";
 const KEYFRAME_ID_PREFIX = "kf-";
 
 function quantizeTime(value: number): number {
-  return Math.round(value * 1_000_000) / 1_000_000;
+  const rounded = Math.round(value * 1_000_000) / 1_000_000;
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
 function clampTime(value: number, duration: number): number {
@@ -67,6 +77,381 @@ function clampTime(value: number, duration: number): number {
 
 function isSameTime(left: number, right: number): boolean {
   return Math.abs(left - right) <= TIME_EPSILON;
+}
+
+function quantizeHandle(handle: AnimationHandle): AnimationHandle {
+  return {
+    x: quantizeTime(handle.x),
+    y: quantizeTime(handle.y),
+  };
+}
+
+function normalizeHandle(value: unknown): AnimationHandle | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as Partial<AnimationHandle>;
+  const x = Number(record.x);
+  const y = Number(record.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return quantizeHandle({ x, y });
+}
+
+function invertHandle(handle: AnimationHandle): AnimationHandle {
+  return quantizeHandle({
+    x: -handle.x,
+    y: -handle.y,
+  });
+}
+
+function resolvePresetHandles(
+  interpolation: AnimationTrack["interpolation"],
+  start: AnimationKeyframe,
+  end: AnimationKeyframe,
+): { outHandle: AnimationHandle; inHandle: AnimationHandle } {
+  const span = Math.max(end.time - start.time, TIME_EPSILON);
+  const valueDelta = end.value - start.value;
+  if (interpolation === "linear") {
+    return {
+      outHandle: { x: span / 3, y: valueDelta / 3 },
+      inHandle: { x: -span / 3, y: -valueDelta / 3 },
+    };
+  }
+  if (interpolation === "step") {
+    return {
+      outHandle: { x: span * STEP_HOLD_HANDLE_X, y: 0 },
+      inHandle: {
+        x: -span * (1 - STEP_HOLD_HANDLE_X),
+        y: -valueDelta,
+      },
+    };
+  }
+  return {
+    outHandle: { x: span * CUBIC_EASE_HANDLE_X, y: 0 },
+    inHandle: { x: -span * CUBIC_EASE_HANDLE_X, y: 0 },
+  };
+}
+
+function resolveSegmentHandles(
+  track: AnimationTrack,
+  segmentIndex: number,
+): { outHandle: AnimationHandle; inHandle: AnimationHandle } | null {
+  const start = track.keyframes[segmentIndex];
+  const end = track.keyframes[segmentIndex + 1];
+  if (!start || !end || end.time <= start.time + TIME_EPSILON) {
+    return null;
+  }
+  const interpolation = start.interpolation ?? track.interpolation;
+  const preset = resolvePresetHandles(interpolation, start, end);
+  if (interpolation !== "spline") {
+    return {
+      outHandle: quantizeHandle(preset.outHandle),
+      inHandle: quantizeHandle(preset.inHandle),
+    };
+  }
+  const span = end.time - start.time;
+  const outHandle =
+    normalizeHandle(start.outHandle) ??
+    (typeof start.outTangent === "number"
+      ? { x: span / 3, y: (start.outTangent * span) / 3 }
+      : null) ??
+    preset.outHandle;
+  const inHandle =
+    normalizeHandle(end.inHandle) ??
+    (typeof end.inTangent === "number"
+      ? { x: -span / 3, y: (-end.inTangent * span) / 3 }
+      : null) ??
+    preset.inHandle;
+  return {
+    outHandle: quantizeHandle(outHandle),
+    inHandle: quantizeHandle(inHandle),
+  };
+}
+
+function keyframeCanLockHandles(
+  track: AnimationTrack,
+  keyframeIndex: number,
+): boolean {
+  return keyframeIndex > 0 && keyframeIndex < track.keyframes.length - 1;
+}
+
+function orientHandleForSide(
+  handle: AnimationHandle,
+  side: "out" | "in",
+): AnimationHandle {
+  const xMagnitude = Math.max(0, Math.abs(handle.x));
+  return quantizeHandle({
+    x: side === "out" ? xMagnitude : -xMagnitude,
+    y: handle.y,
+  });
+}
+
+function clampSmoothHandleForKeyframe(
+  track: AnimationTrack,
+  keyframeIndex: number,
+  sourceSide: "out" | "in",
+  sourceHandle: AnimationHandle,
+): AnimationHandle {
+  const current = track.keyframes[keyframeIndex];
+  const previous = track.keyframes[keyframeIndex - 1];
+  const next = track.keyframes[keyframeIndex + 1];
+  const oriented = orientHandleForSide(sourceHandle, sourceSide);
+  if (!current || !previous || !next) {
+    return oriented;
+  }
+  const maxMagnitude = Math.max(
+    0,
+    Math.min(current.time - previous.time, next.time - current.time) -
+      TIME_EPSILON,
+  );
+  if (maxMagnitude <= 0) {
+    return { ...oriented, x: 0 };
+  }
+  const xMagnitude = Math.min(Math.abs(oriented.x), maxMagnitude);
+  return quantizeHandle({
+    x: sourceSide === "out" ? xMagnitude : -xMagnitude,
+    y: oriented.y,
+  });
+}
+
+function patchKeyframe(
+  keyframes: AnimationKeyframe[],
+  index: number,
+  patch: Partial<AnimationKeyframe>,
+) {
+  const keyframe = keyframes[index];
+  if (!keyframe) {
+    return;
+  }
+  keyframes[index] = {
+    ...keyframe,
+    ...patch,
+  };
+}
+
+function sortKeyframesByTime(
+  keyframes: ReadonlyArray<AnimationKeyframe>,
+): AnimationKeyframe[] {
+  return [...keyframes].sort((left, right) => {
+    if (left.time !== right.time) {
+      return left.time - right.time;
+    }
+    return left.id.localeCompare(right.id);
+  });
+}
+
+function applySmoothLockAtKeyframe(
+  track: AnimationTrack,
+  keyframes: AnimationKeyframe[],
+  keyframeIndex: number,
+  sourceSide: "out" | "in",
+  sourceHandle: AnimationHandle,
+) {
+  if (!keyframeCanLockHandles(track, keyframeIndex)) {
+    return;
+  }
+  const source = clampSmoothHandleForKeyframe(
+    track,
+    keyframeIndex,
+    sourceSide,
+    sourceHandle,
+  );
+  const outHandle = sourceSide === "out" ? source : invertHandle(source);
+  const inHandle = sourceSide === "in" ? source : invertHandle(source);
+  patchKeyframe(keyframes, keyframeIndex - 1, {
+    interpolation: "spline",
+    outTangent: undefined,
+  });
+  patchKeyframe(keyframes, keyframeIndex, {
+    handleLock: "smooth",
+    interpolation: "spline",
+    inHandle,
+    outHandle,
+    inTangent: undefined,
+    outTangent: undefined,
+  });
+}
+
+function resolveSmoothLockSourceHandle(
+  track: AnimationTrack,
+  keyframeIndex: number,
+  sourceSide?: "out" | "in",
+): { side: "out" | "in"; handle: AnimationHandle } | null {
+  const incoming = resolveSegmentHandles(track, keyframeIndex - 1)?.inHandle;
+  const outgoing = resolveSegmentHandles(track, keyframeIndex)?.outHandle;
+  if (sourceSide === "in" && incoming) {
+    return { side: "in", handle: incoming };
+  }
+  if (sourceSide === "out" && outgoing) {
+    return { side: "out", handle: outgoing };
+  }
+  if (incoming && outgoing) {
+    return {
+      side: "out",
+      handle: quantizeHandle({
+        x: (outgoing.x - incoming.x) / 2,
+        y: (outgoing.y - incoming.y) / 2,
+      }),
+    };
+  }
+  if (outgoing) {
+    return { side: "out", handle: outgoing };
+  }
+  if (incoming) {
+    return { side: "in", handle: incoming };
+  }
+  return null;
+}
+
+function updateTrackSegmentHandle(
+  track: AnimationTrack,
+  segmentIndex: number,
+  side: "out" | "in",
+  handle: AnimationHandle,
+): AnimationTrack {
+  const start = track.keyframes[segmentIndex];
+  const end = track.keyframes[segmentIndex + 1];
+  if (!start || !end) {
+    return track;
+  }
+  const keyframes = track.keyframes.map((keyframe) => ({ ...keyframe }));
+  const anchorIndex = side === "out" ? segmentIndex : segmentIndex + 1;
+  const anchor = track.keyframes[anchorIndex];
+  const anchorLocked =
+    anchor?.handleLock === "smooth" &&
+    keyframeCanLockHandles(track, anchorIndex);
+  const sourceHandle = anchorLocked
+    ? clampSmoothHandleForKeyframe(track, anchorIndex, side, handle)
+    : orientHandleForSide(handle, side);
+
+  if (side === "out") {
+    patchKeyframe(keyframes, segmentIndex, {
+      interpolation: "spline",
+      outHandle: sourceHandle,
+      outTangent: undefined,
+    });
+  } else {
+    patchKeyframe(keyframes, segmentIndex, {
+      interpolation: "spline",
+      outTangent: undefined,
+    });
+    patchKeyframe(keyframes, segmentIndex + 1, {
+      inHandle: sourceHandle,
+      inTangent: undefined,
+    });
+  }
+
+  if (anchorLocked) {
+    applySmoothLockAtKeyframe(
+      track,
+      keyframes,
+      anchorIndex,
+      side,
+      sourceHandle,
+    );
+  }
+
+  return {
+    ...track,
+    keyframes: sortKeyframesByTime(keyframes),
+  };
+}
+
+function updateTrackSegmentInterpolation(
+  track: AnimationTrack,
+  segmentIndex: number,
+  interpolation: AnimationTrack["interpolation"],
+  handles: { outHandle: AnimationHandle; inHandle: AnimationHandle },
+): AnimationTrack {
+  const start = track.keyframes[segmentIndex];
+  const end = track.keyframes[segmentIndex + 1];
+  if (!start || !end) {
+    return track;
+  }
+  const keyframes = track.keyframes.map((keyframe) => ({ ...keyframe }));
+  patchKeyframe(keyframes, segmentIndex, {
+    interpolation,
+    outHandle: quantizeHandle(handles.outHandle),
+    outTangent: undefined,
+  });
+  patchKeyframe(keyframes, segmentIndex + 1, {
+    inHandle: quantizeHandle(handles.inHandle),
+    inTangent: undefined,
+  });
+
+  if (
+    start.handleLock === "smooth" &&
+    keyframeCanLockHandles(track, segmentIndex)
+  ) {
+    applySmoothLockAtKeyframe(
+      track,
+      keyframes,
+      segmentIndex,
+      "out",
+      handles.outHandle,
+    );
+  }
+
+  if (
+    end.handleLock === "smooth" &&
+    keyframeCanLockHandles(track, segmentIndex + 1)
+  ) {
+    applySmoothLockAtKeyframe(
+      track,
+      keyframes,
+      segmentIndex + 1,
+      "in",
+      handles.inHandle,
+    );
+  }
+
+  return {
+    ...track,
+    keyframes: sortKeyframesByTime(keyframes),
+  };
+}
+
+function updateTrackKeyframeHandleLock(
+  track: AnimationTrack,
+  keyframeId: string,
+  locked: boolean,
+  sourceSide?: "out" | "in",
+): AnimationTrack {
+  const keyframeIndex = track.keyframes.findIndex(
+    (keyframe) => keyframe.id === keyframeId,
+  );
+  if (keyframeIndex < 0) {
+    return track;
+  }
+  const keyframes = track.keyframes.map((keyframe) => ({ ...keyframe }));
+  if (!locked) {
+    patchKeyframe(keyframes, keyframeIndex, { handleLock: undefined });
+    return { ...track, keyframes };
+  }
+  if (!keyframeCanLockHandles(track, keyframeIndex)) {
+    return track;
+  }
+  const source = resolveSmoothLockSourceHandle(
+    track,
+    keyframeIndex,
+    sourceSide,
+  );
+  if (!source) {
+    return track;
+  }
+  applySmoothLockAtKeyframe(
+    track,
+    keyframes,
+    keyframeIndex,
+    source.side,
+    source.handle,
+  );
+  return {
+    ...track,
+    keyframes: sortKeyframesByTime(keyframes),
+  };
 }
 
 function findNearestKeyframeWithinFrameTolerance(
@@ -331,6 +716,24 @@ interface AnimationState {
     trackId: string,
     keyframeId: string,
     updates: Partial<AnimationKeyframe>,
+  ) => void;
+  updateSegmentHandle: (
+    trackId: string,
+    segmentIndex: number,
+    side: "out" | "in",
+    handle: AnimationHandle,
+  ) => void;
+  setSegmentInterpolation: (
+    trackId: string,
+    segmentIndex: number,
+    interpolation: AnimationTrack["interpolation"],
+    handles: { outHandle: AnimationHandle; inHandle: AnimationHandle },
+  ) => void;
+  setKeyframeHandleLock: (
+    trackId: string,
+    keyframeId: string,
+    locked: boolean,
+    sourceSide?: "out" | "in",
   ) => void;
 
   selectTrack: (trackId: string | null) => void;
@@ -799,6 +1202,35 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           ),
         };
       }),
+    })),
+  updateSegmentHandle: (trackId, segmentIndex, side, handle) =>
+    set((state) => ({
+      tracks: state.tracks.map((track) =>
+        track.id === trackId
+          ? updateTrackSegmentHandle(track, segmentIndex, side, handle)
+          : track,
+      ),
+    })),
+  setSegmentInterpolation: (trackId, segmentIndex, interpolation, handles) =>
+    set((state) => ({
+      tracks: state.tracks.map((track) =>
+        track.id === trackId
+          ? updateTrackSegmentInterpolation(
+              track,
+              segmentIndex,
+              interpolation,
+              handles,
+            )
+          : track,
+      ),
+    })),
+  setKeyframeHandleLock: (trackId, keyframeId, locked, sourceSide) =>
+    set((state) => ({
+      tracks: state.tracks.map((track) =>
+        track.id === trackId
+          ? updateTrackKeyframeHandleLock(track, keyframeId, locked, sourceSide)
+          : track,
+      ),
     })),
 
   selectTrack: (selectedTrackId) => set({ selectedTrackId }),

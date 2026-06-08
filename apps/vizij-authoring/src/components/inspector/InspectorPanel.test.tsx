@@ -87,6 +87,9 @@ const animationStoreState: {
     | null;
   setTrackInterpolation: ReturnType<typeof vi.fn>;
   updateKeyframe: ReturnType<typeof vi.fn>;
+  updateSegmentHandle: ReturnType<typeof vi.fn>;
+  setSegmentInterpolation: ReturnType<typeof vi.fn>;
+  setKeyframeHandleLock: ReturnType<typeof vi.fn>;
   removeTrack: ReturnType<typeof vi.fn>;
   removeKeyframe: ReturnType<typeof vi.fn>;
   selectTrack: ReturnType<typeof vi.fn>;
@@ -100,6 +103,9 @@ const animationStoreState: {
   selectedCurveItem: null,
   setTrackInterpolation: vi.fn(),
   updateKeyframe: vi.fn(),
+  updateSegmentHandle: vi.fn(),
+  setSegmentInterpolation: vi.fn(),
+  setKeyframeHandleLock: vi.fn(),
   removeTrack: vi.fn(),
   removeKeyframe: vi.fn(),
   selectTrack: vi.fn(),
@@ -383,6 +389,8 @@ describe("InspectorPanel", () => {
     expect(screen.queryByTestId("generic-inspector-content")).toBeNull();
     expect(screen.queryByTestId("animation-segment-mode-select")).toBeNull();
 
+    fireEvent.click(screen.getByRole("button", { name: "Lock" }));
+
     fireEvent.change(
       screen.getByTestId("animation-keyframe-in-handle-x-input"),
       {
@@ -396,29 +404,27 @@ describe("InspectorPanel", () => {
       },
     );
 
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
-      "track-1",
-      "kf-0",
-      {
-        interpolation: "spline",
-        outTangent: undefined,
-      },
-    );
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+    expect(animationStoreState.setKeyframeHandleLock).toHaveBeenCalledWith(
       "track-1",
       "kf-1",
+      true,
+    );
+    expect(animationStoreState.updateSegmentHandle).toHaveBeenCalledWith(
+      "track-1",
+      0,
+      "in",
       {
-        inHandle: { x: -0.2, y: 0.2 },
-        inTangent: undefined,
+        x: -0.2,
+        y: 0.2,
       },
     );
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+    expect(animationStoreState.updateSegmentHandle).toHaveBeenCalledWith(
       "track-1",
-      "kf-1",
+      1,
+      "out",
       {
-        interpolation: "spline",
-        outHandle: { x: 0.15, y: 0.3 },
-        outTangent: undefined,
+        x: 0.15,
+        y: 0.3,
       },
     );
   });
@@ -479,30 +485,22 @@ describe("InspectorPanel", () => {
       },
     );
 
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+    expect(animationStoreState.setSegmentInterpolation).toHaveBeenCalledWith(
       "track-1",
-      "kf-1",
+      0,
+      "cubic",
       {
-        interpolation: "cubic",
         outHandle: { x: 0.325, y: 0 },
-        outTangent: undefined,
-      },
-    );
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
-      "track-1",
-      "kf-2",
-      {
         inHandle: { x: -0.325, y: 0 },
-        inTangent: undefined,
       },
     );
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+    expect(animationStoreState.updateSegmentHandle).toHaveBeenCalledWith(
       "track-1",
-      "kf-1",
+      0,
+      "out",
       {
-        interpolation: "spline",
-        outHandle: { x: 0.2, y: 0.25 },
-        outTangent: undefined,
+        x: 0.2,
+        y: 0.25,
       },
     );
   });

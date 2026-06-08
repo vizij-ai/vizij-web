@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode } from "react";
 import { useMemo } from "react";
-import { Activity, RotateCcw, Trash2, X } from "lucide-react";
+import { Activity, Link2, RotateCcw, Trash2, Unlink2, X } from "lucide-react";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -598,6 +598,15 @@ export function InspectorPanel({
   );
   const updateAnimationKeyframe = useAnimationStore(
     (state) => state.updateKeyframe,
+  );
+  const updateAnimationSegmentHandle = useAnimationStore(
+    (state) => state.updateSegmentHandle,
+  );
+  const setAnimationSegmentInterpolation = useAnimationStore(
+    (state) => state.setSegmentInterpolation,
+  );
+  const setAnimationKeyframeHandleLock = useAnimationStore(
+    (state) => state.setKeyframeHandleLock,
   );
   const removeAnimationTrack = useAnimationStore((state) => state.removeTrack);
   const removeAnimationKeyframe = useAnimationStore(
@@ -1301,6 +1310,39 @@ export function InspectorPanel({
     selectedAnimationCurveItem?.kind === "handle"
       ? selectedAnimationCurveItem.side
       : null;
+  const selectedAnimationHandleAnchor = useMemo(() => {
+    if (
+      !selectedAnimationTrack ||
+      selectedAnimationCurveItem?.kind !== "handle"
+    ) {
+      return null;
+    }
+    const keyframeIndex =
+      selectedAnimationCurveItem.side === "out"
+        ? selectedAnimationCurveItem.segmentIndex
+        : selectedAnimationCurveItem.segmentIndex + 1;
+    const keyframe = selectedAnimationTrackKeyframes[keyframeIndex];
+    if (!keyframe) {
+      return null;
+    }
+    return {
+      keyframe,
+      canLock:
+        keyframeIndex > 0 &&
+        keyframeIndex < selectedAnimationTrackKeyframes.length - 1,
+      locked: keyframe.handleLock === "smooth",
+      sourceSide: selectedAnimationCurveItem.side,
+    };
+  }, [
+    selectedAnimationCurveItem,
+    selectedAnimationTrack,
+    selectedAnimationTrackKeyframes,
+  ]);
+  const selectedAnimationKeyframeCanLockHandles =
+    Boolean(selectedAnimationIncomingSegment) &&
+    Boolean(selectedAnimationOutgoingSegment);
+  const selectedAnimationKeyframeHandlesLocked =
+    selectedAnimationKeyframe?.handleLock === "smooth";
   const selectedAnimationInput = useMemo(() => {
     if (!selectedAnimationTrack) {
       return undefined;
@@ -1352,21 +1394,21 @@ export function InspectorPanel({
             segment.start,
             segment.end,
           );
-    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.start.id, {
+    setAnimationSegmentInterpolation(
+      selectedAnimationTrack!.id,
+      segment.segmentIndex,
       interpolation,
-      outHandle: {
-        x: quantizeAnimationHandleValue(handles.outHandle.x),
-        y: quantizeAnimationHandleValue(handles.outHandle.y),
+      {
+        outHandle: {
+          x: quantizeAnimationHandleValue(handles.outHandle.x),
+          y: quantizeAnimationHandleValue(handles.outHandle.y),
+        },
+        inHandle: {
+          x: quantizeAnimationHandleValue(handles.inHandle.x),
+          y: quantizeAnimationHandleValue(handles.inHandle.y),
+        },
       },
-      outTangent: undefined,
-    });
-    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.end.id, {
-      inHandle: {
-        x: quantizeAnimationHandleValue(handles.inHandle.x),
-        y: quantizeAnimationHandleValue(handles.inHandle.y),
-      },
-      inTangent: undefined,
-    });
+    );
   };
   const commitAnimationSegmentHandle = (
     segment: AnimationSegmentInspectorModel,
@@ -1379,27 +1421,26 @@ export function InspectorPanel({
     }
     const nextValue = quantizeAnimationHandleValue(value);
     if (side === "out") {
-      updateAnimationKeyframe(selectedAnimationTrack!.id, segment.start.id, {
-        interpolation: "spline",
-        outHandle: {
+      updateAnimationSegmentHandle(
+        selectedAnimationTrack!.id,
+        segment.segmentIndex,
+        "out",
+        {
           ...segment.outHandle,
           [axis]: nextValue,
         },
-        outTangent: undefined,
-      });
+      );
       return;
     }
-    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.start.id, {
-      interpolation: "spline",
-      outTangent: undefined,
-    });
-    updateAnimationKeyframe(selectedAnimationTrack!.id, segment.end.id, {
-      inHandle: {
+    updateAnimationSegmentHandle(
+      selectedAnimationTrack!.id,
+      segment.segmentIndex,
+      "in",
+      {
         ...segment.inHandle,
         [axis]: nextValue,
       },
-      inTangent: undefined,
-    });
+    );
   };
   const renderAnimationHandleFields = ({
     title,
@@ -1526,9 +1567,41 @@ export function InspectorPanel({
           </select>
         </div>
         {selectedHandleSide ? (
-          <div className="rounded border border-accent/40 bg-accent/10 px-2 py-1 text-[10px] font-mono uppercase tracking-wide text-accent">
-            Selected {selectedHandleSide === "out" ? "outgoing" : "incoming"}{" "}
-            handle
+          <div className="flex items-center justify-between gap-2 rounded border border-accent/40 bg-accent/10 px-2 py-1">
+            <span className="text-[10px] font-mono uppercase tracking-wide text-accent">
+              Selected {selectedHandleSide === "out" ? "outgoing" : "incoming"}{" "}
+              handle
+            </span>
+            {selectedAnimationHandleAnchor?.canLock ? (
+              <Button
+                variant={
+                  selectedAnimationHandleAnchor.locked ? "primary" : "subtle"
+                }
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() =>
+                  selectedAnimationTrack &&
+                  setAnimationKeyframeHandleLock(
+                    selectedAnimationTrack.id,
+                    selectedAnimationHandleAnchor.keyframe.id,
+                    !selectedAnimationHandleAnchor.locked,
+                    selectedAnimationHandleAnchor.sourceSide,
+                  )
+                }
+                title={
+                  selectedAnimationHandleAnchor.locked
+                    ? "Break smooth handle lock for this point"
+                    : "Lock this point's handles as equal and opposite"
+                }
+              >
+                {selectedAnimationHandleAnchor.locked ? (
+                  <Unlink2 className="mr-1 h-3 w-3" />
+                ) : (
+                  <Link2 className="mr-1 h-3 w-3" />
+                )}
+                {selectedAnimationHandleAnchor.locked ? "Break" : "Lock"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
         {renderAnimationHandleFields({
@@ -1985,20 +2058,54 @@ export function InspectorPanel({
                       <span className="text-[10px] uppercase tracking-wider text-text-muted">
                         Keyframe
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[10px] text-color-danger"
-                        onClick={() =>
-                          removeAnimationKeyframe(
-                            selectedAnimationTrack.id,
-                            selectedAnimationKeyframe.id,
-                          )
-                        }
-                      >
-                        <Trash2 className="mr-1 h-3 w-3" />
-                        Key
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {selectedAnimationKeyframeCanLockHandles ? (
+                          <Button
+                            variant={
+                              selectedAnimationKeyframeHandlesLocked
+                                ? "primary"
+                                : "subtle"
+                            }
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() =>
+                              setAnimationKeyframeHandleLock(
+                                selectedAnimationTrack.id,
+                                selectedAnimationKeyframe.id,
+                                !selectedAnimationKeyframeHandlesLocked,
+                              )
+                            }
+                            title={
+                              selectedAnimationKeyframeHandlesLocked
+                                ? "Break smooth handle lock for this point"
+                                : "Lock this point's handles as equal and opposite"
+                            }
+                          >
+                            {selectedAnimationKeyframeHandlesLocked ? (
+                              <Unlink2 className="mr-1 h-3 w-3" />
+                            ) : (
+                              <Link2 className="mr-1 h-3 w-3" />
+                            )}
+                            {selectedAnimationKeyframeHandlesLocked
+                              ? "Break"
+                              : "Lock"}
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] text-color-danger"
+                          onClick={() =>
+                            removeAnimationKeyframe(
+                              selectedAnimationTrack.id,
+                              selectedAnimationKeyframe.id,
+                            )
+                          }
+                        >
+                          <Trash2 className="mr-1 h-3 w-3" />
+                          Key
+                        </Button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
                       <span className="text-[10px] uppercase tracking-wide text-text-muted">

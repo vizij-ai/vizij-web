@@ -300,6 +300,8 @@ export function CurveEditor({
     selectKeyframe,
     selectCurveItem,
     updateKeyframe,
+    updateSegmentHandle,
+    setSegmentInterpolation,
   } = useAnimationStore();
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
@@ -596,24 +598,14 @@ export function CurveEditor({
         x: quantize(handle.time - targetGeometry.start.time),
         y: quantize(handle.value - targetGeometry.start.value),
       };
-      updateKeyframe(track.id, targetGeometry.start.id, {
-        interpolation: "spline",
-        outHandle,
-        outTangent: undefined,
-      });
+      updateSegmentHandle(track.id, target.segmentIndex, "out", outHandle);
       return;
     }
     const inHandle = {
       x: quantize(handle.time - targetGeometry.end.time),
       y: quantize(handle.value - targetGeometry.end.value),
     };
-    updateKeyframe(track.id, targetGeometry.start.id, {
-      interpolation: "spline",
-    });
-    updateKeyframe(track.id, targetGeometry.end.id, {
-      inHandle,
-      inTangent: undefined,
-    });
+    updateSegmentHandle(track.id, target.segmentIndex, "in", inHandle);
   };
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
@@ -637,15 +629,12 @@ export function CurveEditor({
           }
         : resolvePresetHandles(interpolation, geometry.start, geometry.end),
     );
-    updateKeyframe(selectedTrack.id, geometry.start.id, {
+    setSegmentInterpolation(
+      selectedTrack.id,
+      geometry.startIndex,
       interpolation,
-      outHandle: handles.outHandle,
-      outTangent: undefined,
-    });
-    updateKeyframe(selectedTrack.id, geometry.end.id, {
-      inHandle: handles.inHandle,
-      inTangent: undefined,
-    });
+      handles,
+    );
     selectCurveItem({ kind: "segment", segmentIndex: geometry.startIndex });
   };
 

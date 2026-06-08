@@ -284,6 +284,110 @@ describe("animationStore deterministic behavior", () => {
     });
   });
 
+  it("locks middle keyframe handles as equal and opposite smooth splines", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 1, 1);
+    store.addKeyframe("track-0001", 2, 0);
+
+    store.setKeyframeHandleLock("track-0001", "kf-000002", true);
+
+    let state = useAnimationStore.getState();
+    let keyframes = state.tracks[0]!.keyframes;
+    expect(keyframes[0]).toMatchObject({ interpolation: "spline" });
+    expect(keyframes[1]).toMatchObject({
+      handleLock: "smooth",
+      interpolation: "spline",
+      inHandle: { x: -0.333333, y: 0 },
+      outHandle: { x: 0.333333, y: 0 },
+    });
+
+    store.updateSegmentHandle("track-0001", 1, "out", {
+      x: 0.4,
+      y: 0.2,
+    });
+
+    state = useAnimationStore.getState();
+    keyframes = state.tracks[0]!.keyframes;
+    expect(keyframes[0]).toMatchObject({ interpolation: "spline" });
+    expect(keyframes[1]).toMatchObject({
+      handleLock: "smooth",
+      interpolation: "spline",
+      inHandle: { x: -0.4, y: -0.2 },
+      outHandle: { x: 0.4, y: 0.2 },
+      inTangent: undefined,
+      outTangent: undefined,
+    });
+
+    store.setKeyframeHandleLock("track-0001", "kf-000002", false);
+    store.updateSegmentHandle("track-0001", 1, "out", {
+      x: 0.25,
+      y: 0.6,
+    });
+
+    state = useAnimationStore.getState();
+    keyframes = state.tracks[0]!.keyframes;
+    expect(keyframes[1]?.handleLock).toBeUndefined();
+    expect(keyframes[1]?.outHandle).toEqual({ x: 0.25, y: 0.6 });
+    expect(keyframes[1]?.inHandle).toEqual({ x: -0.4, y: -0.2 });
+  });
+
+  it("clamps locked handle time magnitude to the shorter adjacent segment", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 0.5, 1);
+    store.addKeyframe("track-0001", 2, 0);
+    store.setKeyframeHandleLock("track-0001", "kf-000002", true);
+
+    store.updateSegmentHandle("track-0001", 1, "out", {
+      x: 1.4,
+      y: 0.25,
+    });
+
+    const keyframe = useAnimationStore.getState().tracks[0]!.keyframes[1]!;
+    expect(keyframe.outHandle?.x).toBeCloseTo(0.499999, 6);
+    expect(keyframe.outHandle?.y).toBe(0.25);
+    expect(keyframe.inHandle?.x).toBeCloseTo(-0.499999, 6);
+    expect(keyframe.inHandle?.y).toBe(-0.25);
+  });
+
+  it("keeps locked-adjacent preset changes as custom splines", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 1, 1);
+    store.addKeyframe("track-0001", 2, 0);
+    store.setKeyframeHandleLock("track-0001", "kf-000002", true);
+
+    store.setSegmentInterpolation("track-0001", 1, "step", {
+      outHandle: { x: 0.9, y: 0.15 },
+      inHandle: { x: -0.1, y: 1 },
+    });
+
+    const keyframes = useAnimationStore.getState().tracks[0]!.keyframes;
+    expect(keyframes[0]).toMatchObject({ interpolation: "spline" });
+    expect(keyframes[1]).toMatchObject({
+      handleLock: "smooth",
+      interpolation: "spline",
+      inHandle: { x: -0.9, y: -0.15 },
+      outHandle: { x: 0.9, y: 0.15 },
+    });
+  });
+
+  it("strips keyframe handle lock metadata from exported animation IR", () => {
+    const store = useAnimationStore.getState();
+    store.addTrack("input_a", "Input A", "controls/a");
+    store.addKeyframe("track-0001", 0, 0);
+    store.addKeyframe("track-0001", 1, 1);
+    store.addKeyframe("track-0001", 2, 0);
+    store.setKeyframeHandleLock("track-0001", "kf-000002", true);
+
+    const exported = useAnimationStore.getState().exportClipIr();
+    expect("handleLock" in exported.tracks[0]!.keyframes[1]!).toBe(false);
+  });
+
   it("keeps transport active while playback is paused", () => {
     const store = useAnimationStore.getState();
 

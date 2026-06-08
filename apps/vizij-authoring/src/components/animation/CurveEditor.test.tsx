@@ -17,6 +17,8 @@ const animationStoreState: {
   selectKeyframe: ReturnType<typeof vi.fn>;
   selectCurveItem: ReturnType<typeof vi.fn>;
   updateKeyframe: ReturnType<typeof vi.fn>;
+  updateSegmentHandle: ReturnType<typeof vi.fn>;
+  setSegmentInterpolation: ReturnType<typeof vi.fn>;
 } = {
   tracks: [],
   duration: 1,
@@ -28,6 +30,8 @@ const animationStoreState: {
   selectKeyframe: vi.fn(),
   selectCurveItem: vi.fn(),
   updateKeyframe: vi.fn(),
+  updateSegmentHandle: vi.fn(),
+  setSegmentInterpolation: vi.fn(),
 };
 
 vi.mock("../../state/animationStore", async (importOriginal) => {
@@ -105,20 +109,14 @@ describe("CurveEditor", () => {
       },
     );
 
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+    expect(animationStoreState.setSegmentInterpolation).toHaveBeenCalledWith(
       "track-1",
-      "kf-1",
-      expect.objectContaining({
-        interpolation: "cubic",
+      0,
+      "cubic",
+      {
         outHandle: { x: 0.65, y: 0 },
-      }),
-    );
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
-      "track-1",
-      "kf-2",
-      expect.objectContaining({
         inHandle: { x: -0.65, y: 0 },
-      }),
+      },
     );
     expect(animationStoreState.selectCurveItem).toHaveBeenCalledWith({
       kind: "segment",
@@ -136,20 +134,14 @@ describe("CurveEditor", () => {
       },
     );
 
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
+    expect(animationStoreState.setSegmentInterpolation).toHaveBeenCalledWith(
       "track-1",
-      "kf-1",
-      expect.objectContaining({
-        interpolation: "step",
+      0,
+      "step",
+      {
         outHandle: { x: 0.98, y: 0 },
-      }),
-    );
-    expect(animationStoreState.updateKeyframe).toHaveBeenCalledWith(
-      "track-1",
-      "kf-2",
-      expect.objectContaining({
         inHandle: { x: -0.02, y: -1 },
-      }),
+      },
     );
   });
 
@@ -212,18 +204,13 @@ describe("CurveEditor", () => {
     });
     fireEvent.mouseUp(window);
 
-    const tangentCall = animationStoreState.updateKeyframe.mock.calls.find(
-      ([trackId, keyframeId, updates]) =>
-        trackId === "track-1" &&
-        keyframeId === "kf-1" &&
-        updates.interpolation === "spline" &&
-        updates.outHandle,
+    const handleCall = animationStoreState.updateSegmentHandle.mock.calls.find(
+      ([trackId, segmentIndex, side]) =>
+        trackId === "track-1" && segmentIndex === 0 && side === "out",
     );
-    expect(tangentCall).toBeTruthy();
-    expect(tangentCall?.[2]).toMatchObject({ interpolation: "spline" });
-    expect(tangentCall?.[2].outHandle.x).toBeCloseTo(0.448262, 5);
-    expect(tangentCall?.[2].outHandle.y).toBeCloseTo(0.908027, 5);
-    expect(tangentCall?.[2].outTangent).toBeUndefined();
+    expect(handleCall).toBeTruthy();
+    expect(handleCall?.[3].x).toBeCloseTo(0.448262, 5);
+    expect(handleCall?.[3].y).toBeCloseTo(0.908027, 5);
     expect(animationStoreState.selectCurveItem).toHaveBeenCalledWith({
       kind: "handle",
       segmentIndex: 0,
