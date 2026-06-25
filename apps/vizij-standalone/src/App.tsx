@@ -12,6 +12,7 @@ import {
 import type { VizijSpeechConfig } from "@vizij/render";
 import { useWebSocketSync } from "./hooks/useWebSocketSync";
 import { useSpeechController } from "./hooks/useSpeechController";
+import { saveModel, loadSavedModel, getSavedModelMeta } from "./lib/modelStore";
 
 const DEFAULT_PORT = 9000;
 const NAMESPACE = "vizij-standalone";
@@ -44,6 +45,7 @@ function App() {
   const [bgColor, setBgColor] = useState("#737373");
   const [wsConnected, setWsConnected] = useState(false);
   const [port, setPort] = useState(DEFAULT_PORT);
+  const [modelName, setModelName] = useState<string | null>(null);
   const hasCheckedCliSource = useRef(false);
 
   // Load GLB from URL
@@ -99,6 +101,16 @@ function App() {
           : "model/gltf+json";
         const file = new File([fileContents], fileName, { type: mimeType });
         await loadFromFile(file);
+        // Persist the picked model so it auto-loads on the next launch.
+        try {
+          const meta = await saveModel(selectedFile);
+          setModelName(meta.fileName);
+        } catch (persistErr) {
+          console.warn(
+            "[vizij-standalone] Failed to persist model:",
+            persistErr,
+          );
+        }
       } catch (err) {
         console.error("[vizij-standalone] Error reading file:", err);
         setError(err instanceof Error ? err.message : String(err));
@@ -131,7 +143,15 @@ function App() {
             await loadFromFile(file);
           }
         } else {
-          setLoading(false);
+          // No CLI source — fall back to a previously-saved model.
+          const savedFile = await loadSavedModel();
+          if (savedFile) {
+            const meta = await getSavedModelMeta();
+            setModelName(meta?.fileName ?? savedFile.name);
+            await loadFromFile(savedFile);
+          } else {
+            setLoading(false);
+          }
         }
       } catch (err) {
         console.error("[vizij-standalone] Error checking CLI source:", err);
@@ -259,6 +279,8 @@ function App() {
         wsConnected={wsConnected}
         port={port}
         onBack={() => setAssetBundle(null)}
+        onSwitchModel={handleOpenFile}
+        modelName={modelName}
       />
     </VizijRuntimeProvider>
   );
@@ -270,6 +292,8 @@ interface AppContentProps {
   wsConnected: boolean;
   port: number;
   onBack: () => void;
+  onSwitchModel: () => void | Promise<void>;
+  modelName: string | null;
 }
 
 function AppContent({
@@ -278,8 +302,12 @@ function AppContent({
   wsConnected,
   port,
   onBack,
+  onSwitchModel,
+  modelName,
 }: AppContentProps) {
   const runtime = useVizijRuntime();
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Hook that syncs WebSocket updates using same pattern as useMouseGaze:
   // setInput(`rig/${faceId}/${path}`, { float: value });
@@ -594,6 +622,7 @@ function AppContent({
     <div
       className="h-screen w-full relative"
       style={{ backgroundColor: bgColor }}
+      onClick={() => setControlsVisible((v) => !v)}
     >
       <VizijRuntimeFace />
 
@@ -606,13 +635,29 @@ function AppContent({
         onEnded={speech.handleAudioEnded}
       />
 
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="absolute top-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
-      >
-        Back
-      </button>
+      {/* Tap-revealed controls (tap anywhere on the face to toggle) */}
+      {controlsVisible && (
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onBack();
+            }}
+            className="absolute top-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
+          >
+            Back
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsOpen(true);
+            }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium shadow-lg transition-colors"
+          >
+            Switch model
+          </button>
+        </>
+      )}
 
       {/* Settings panel — dev only */}
       {import.meta.env.DEV && (
@@ -853,42 +898,94 @@ function AppContent({
         </button>
       )}
 
-      {/* Debug button */}
-      <button
-        onClick={() => {
-          console.log("[vizij-standalone] Runtime:", runtime);
-          console.log("[vizij-standalone] Namespace:", namespace);
-          console.log("[vizij-standalone] Constraint count:", constraintCount);
-          console.log(
-            "[vizij-standalone] Sample constraints:",
-            Object.keys(inputConstraints).slice(0, 20),
-          );
-          console.log(
-            "[vizij-standalone] Output paths:",
-            runtime.outputPaths.slice(0, 20),
-          );
-          console.log("[vizij-standalone] Speech config:", speechConfig);
-          console.log("[vizij-standalone] Speech status:", speech.status);
-          console.log(
-            "[vizij-standalone] Bundle metadata:",
-            runtime.assetBundle?.bundle?.metadata ?? null,
-          );
-          const bundleGraphs = runtime.assetBundle?.bundle?.graphs ?? [];
-          console.log(
-            "[vizij-standalone] Bundle graphs (" + bundleGraphs.length + "):",
-            bundleGraphs.map((g) => g.kind + ":" + g.id).join(", "),
-          );
-          const programs = runtime.assetBundle?.programs ?? [];
-          console.log(
-            "[vizij-standalone] Programs (" + programs.length + "):",
-            programs.map((p) => p.id).join(", "),
-          );
-          const meta = runtime.assetBundle?.bundle?.metadata;
-        }}
-        className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
-      >
-        Debug
-      </button>
+      {/* Debug button (dev only) */}
+      {import.meta.env.DEV && controlsVisible && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log("[vizij-standalone] Runtime:", runtime);
+            console.log("[vizij-standalone] Namespace:", namespace);
+            console.log(
+              "[vizij-standalone] Constraint count:",
+              constraintCount,
+            );
+            console.log(
+              "[vizij-standalone] Sample constraints:",
+              Object.keys(inputConstraints).slice(0, 20),
+            );
+            console.log(
+              "[vizij-standalone] Output paths:",
+              runtime.outputPaths.slice(0, 20),
+            );
+            console.log("[vizij-standalone] Speech config:", speechConfig);
+            console.log("[vizij-standalone] Speech status:", speech.status);
+            console.log(
+              "[vizij-standalone] Bundle metadata:",
+              runtime.assetBundle?.bundle?.metadata ?? null,
+            );
+            const bundleGraphs = runtime.assetBundle?.bundle?.graphs ?? [];
+            console.log(
+              "[vizij-standalone] Bundle graphs (" + bundleGraphs.length + "):",
+              bundleGraphs.map((g) => g.kind + ":" + g.id).join(", "),
+            );
+            const programs = runtime.assetBundle?.programs ?? [];
+            console.log(
+              "[vizij-standalone] Programs (" + programs.length + "):",
+              programs.map((p) => p.id).join(", "),
+            );
+            const meta = runtime.assetBundle?.bundle?.metadata;
+          }}
+          className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
+        >
+          Debug
+        </button>
+      )}
+
+      {/* Settings screen — opened from the "Switch model" control */}
+      {settingsOpen && (
+        <div
+          className="absolute inset-0 z-20 flex flex-col bg-neutral-900/95 text-neutral-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 p-4">
+            <h2 className="text-lg font-semibold">Settings</h2>
+            <button
+              onClick={() => setSettingsOpen(false)}
+              className="rounded-lg bg-black/40 px-3 py-2 text-sm hover:bg-black/60"
+            >
+              Close
+            </button>
+          </div>
+          <div className="flex flex-col gap-6 overflow-auto p-6">
+            <div>
+              <p className="mb-1 text-xs uppercase tracking-wide text-neutral-400">
+                Current model
+              </p>
+              <p className="text-sm">{modelName ?? "Unknown"}</p>
+            </div>
+            <button
+              onClick={async () => {
+                await onSwitchModel();
+                setSettingsOpen(false);
+              }}
+              className="self-start rounded-lg bg-blue-600 px-6 py-3 font-medium transition-colors hover:bg-blue-700"
+            >
+              Open GLB/GLTF File
+            </button>
+            <div>
+              <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-400">
+                Background
+              </label>
+              <input
+                type="color"
+                value={bgColor}
+                onChange={(e) => setBgColor(e.target.value)}
+                className="h-10 w-24 cursor-pointer rounded"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

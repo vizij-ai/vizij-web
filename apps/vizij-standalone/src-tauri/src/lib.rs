@@ -133,7 +133,7 @@ enum Commands {
 }
 
 /// Attach to parent console on Windows (needed for CLI output in GUI apps)
-#[cfg(windows)]
+#[cfg(all(desktop, windows))]
 fn attach_console() {
     use windows::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
     unsafe {
@@ -141,10 +141,11 @@ fn attach_console() {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(all(desktop, not(windows)))]
 fn attach_console() {}
 
 /// List available displays using tao (Tauri's windowing library)
+#[cfg(desktop)]
 fn list_displays() {
     attach_console();
 
@@ -374,6 +375,7 @@ pub fn run() {
     let cli = Cli::parse();
 
     // Handle subcommands that exit early
+    #[cfg(desktop)]
     if let Some(Commands::ListDisplays) = cli.command {
         list_displays();
         return;
@@ -497,101 +499,105 @@ pub fn run() {
                 info!("GLB source: {}", src);
             }
 
-            // Configure window based on CLI arguments
-            if let Some(window) = app.get_webview_window("main") {
-                // Get available monitors
-                let monitors: Vec<_> = window.available_monitors().unwrap_or_default();
+            // Configure window based on CLI arguments (desktop only)
+            #[cfg(desktop)]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    // Get available monitors
+                    let monitors: Vec<_> = window.available_monitors().unwrap_or_default();
 
-                // Select target monitor
-                let target_monitor = if let Some(display_idx) = cli.display {
-                    monitors.get(display_idx).cloned().or_else(|| {
-                        info!("Display {} not found, using primary", display_idx);
+                    // Select target monitor
+                    let target_monitor = if let Some(display_idx) = cli.display {
+                        monitors.get(display_idx).cloned().or_else(|| {
+                            info!("Display {} not found, using primary", display_idx);
+                            window.primary_monitor().ok().flatten()
+                        })
+                    } else {
                         window.primary_monitor().ok().flatten()
-                    })
-                } else {
-                    window.primary_monitor().ok().flatten()
-                };
+                    };
 
-                // Apply window settings
-                if cli.fullscreen {
-                    // For fullscreen: first move to target monitor, set size, then go fullscreen
-                    if let Some(ref monitor) = target_monitor {
-                        let pos = monitor.position();
-                        let size = monitor.size();
+                    // Apply window settings
+                    if cli.fullscreen {
+                        // For fullscreen: first move to target monitor, set size, then go fullscreen
+                        if let Some(ref monitor) = target_monitor {
+                            let pos = monitor.position();
+                            let size = monitor.size();
 
-                        // Move window to target monitor first
-                        if let Err(e) = window.set_position(tauri::Position::Physical(
-                            tauri::PhysicalPosition::new(pos.x, pos.y),
-                        )) {
-                            log::error!("Failed to move window to display: {}", e);
-                        } else if let Some(idx) = cli.display {
-                            info!("Window moved to display {}", idx);
+                            // Move window to target monitor first
+                            if let Err(e) = window.set_position(tauri::Position::Physical(
+                                tauri::PhysicalPosition::new(pos.x, pos.y),
+                            )) {
+                                log::error!("Failed to move window to display: {}", e);
+                            } else if let Some(idx) = cli.display {
+                                info!("Window moved to display {}", idx);
+                            }
+
+                            // Set window size to match monitor's native resolution
+                            if let Err(e) = window.set_size(tauri::Size::Physical(
+                                tauri::PhysicalSize::new(size.width, size.height),
+                            )) {
+                                log::error!("Failed to set window size: {}", e);
+                            } else {
+                                info!(
+                                    "Window size set to monitor resolution: {}x{}",
+                                    size.width, size.height
+                                );
+                            }
                         }
 
-                        // Set window size to match monitor's native resolution
+                        // Now enable fullscreen
+                        if let Err(e) = window.set_fullscreen(true) {
+                            log::error!("Failed to set fullscreen: {}", e);
+                        } else {
+                            info!("Fullscreen mode enabled");
+                        }
+                    } else {
+                        // Set window size
                         if let Err(e) = window.set_size(tauri::Size::Physical(
-                            tauri::PhysicalSize::new(size.width, size.height),
+                            tauri::PhysicalSize::new(cli.width, cli.height),
                         )) {
                             log::error!("Failed to set window size: {}", e);
                         } else {
-                            info!(
-                                "Window size set to monitor resolution: {}x{}",
-                                size.width, size.height
-                            );
+                            info!("Window size: {}x{}", cli.width, cli.height);
+                        }
+
+                        // Center on target monitor
+                        if let Some(monitor) = target_monitor {
+                            let monitor_pos = monitor.position();
+                            let monitor_size = monitor.size();
+                            let x =
+                                monitor_pos.x + (monitor_size.width as i32 - cli.width as i32) / 2;
+                            let y = monitor_pos.y
+                                + (monitor_size.height as i32 - cli.height as i32) / 2;
+                            if let Err(e) = window.set_position(tauri::Position::Physical(
+                                tauri::PhysicalPosition::new(x, y),
+                            )) {
+                                log::error!("Failed to position window: {}", e);
+                            } else if let Some(idx) = cli.display {
+                                info!("Window centered on display {}", idx);
+                            }
                         }
                     }
 
-                    // Now enable fullscreen
-                    if let Err(e) = window.set_fullscreen(true) {
-                        log::error!("Failed to set fullscreen: {}", e);
-                    } else {
-                        info!("Fullscreen mode enabled");
-                    }
-                } else {
-                    // Set window size
-                    if let Err(e) = window.set_size(tauri::Size::Physical(
-                        tauri::PhysicalSize::new(cli.width, cli.height),
-                    )) {
-                        log::error!("Failed to set window size: {}", e);
-                    } else {
-                        info!("Window size: {}x{}", cli.width, cli.height);
+                    // Apply decorations setting
+                    if cli.no_decorations {
+                        if let Err(e) = window.set_decorations(false) {
+                            log::error!("Failed to hide decorations: {}", e);
+                        } else {
+                            info!("Window decorations hidden");
+                        }
                     }
 
-                    // Center on target monitor
-                    if let Some(monitor) = target_monitor {
-                        let monitor_pos = monitor.position();
-                        let monitor_size = monitor.size();
-                        let x = monitor_pos.x + (monitor_size.width as i32 - cli.width as i32) / 2;
-                        let y =
-                            monitor_pos.y + (monitor_size.height as i32 - cli.height as i32) / 2;
-                        if let Err(e) = window.set_position(tauri::Position::Physical(
-                            tauri::PhysicalPosition::new(x, y),
-                        )) {
-                            log::error!("Failed to position window: {}", e);
-                        } else if let Some(idx) = cli.display {
-                            info!("Window centered on display {}", idx);
+                    // Apply always on top setting
+                    if cli.always_on_top {
+                        if let Err(e) = window.set_always_on_top(true) {
+                            log::error!("Failed to set always on top: {}", e);
+                        } else {
+                            info!("Window set to always on top");
                         }
                     }
                 }
-
-                // Apply decorations setting
-                if cli.no_decorations {
-                    if let Err(e) = window.set_decorations(false) {
-                        log::error!("Failed to hide decorations: {}", e);
-                    } else {
-                        info!("Window decorations hidden");
-                    }
-                }
-
-                // Apply always on top setting
-                if cli.always_on_top {
-                    if let Err(e) = window.set_always_on_top(true) {
-                        log::error!("Failed to set always on top: {}", e);
-                    } else {
-                        info!("Window set to always on top");
-                    }
-                }
-            }
+            } // #[cfg(desktop)]
 
             Ok(())
         })

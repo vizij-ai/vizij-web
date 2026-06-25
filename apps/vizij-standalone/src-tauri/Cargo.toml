@@ -30,6 +30,10 @@ log = "0.4"
 clap = { version = "4", features = ["derive"] }
 dotenvy = "0.15"
 base64 = "0.22"
+
+# `tao` (windowing) is desktop-only — used solely by `list_displays()` behind
+# `#[cfg(desktop)]`. Excluding it from Android keeps the mobile build lean.
+[target.'cfg(not(target_os = "android"))'.dependencies]
 tao = "0.30"
 
 [target.'cfg(windows)'.dependencies]

@@ -1,8 +1,17 @@
 # Rust/Cargo build output
 src-tauri/target/
 
-# Tauri auto-generated files
-src-tauri/gen/
+# Tauri-generated schemas + iOS project (regenerated; not tracked).
+# The Android project under src-tauri/gen/android IS tracked (committed) so the
+# signing config and instrumented tests persist; its own nested .gitignore files
+# already exclude build output, .gradle, generated Kotlin, *.so and copied
+# tauri files.
+src-tauri/gen/schemas/
+src-tauri/gen/apple/
+
+# Android signing secrets — never commit.
+src-tauri/gen/android/keystore.properties
+src-tauri/gen/android/key.properties
 
 # Rust debug files
 **/*.pdb
