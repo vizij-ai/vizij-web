@@ -112,7 +112,9 @@ jobs:
           # The action's `script` runs from the repo root, so cd into the Gradle project.
           # Scope to the :app module so only our AppLaunchTest runs — the bundled
           # tauri plugin libraries ship their own (failing) ExampleInstrumentedTest.
-          script: cd ${{ env.ANDROID_DIR }} && ./gradlew :app:connectedDebugAndroidTest
+          # Tauri splits :app into ABI flavors (Arm, Universal); use Universal since
+          # it bundles x86_64 and installs on the x86_64 emulator.
+          script: cd ${{ env.ANDROID_DIR }} && ./gradlew :app:connectedUniversalDebugAndroidTest
 
   # Pushes to main: build a RELEASE APK. It is signed when the keystore secrets
   # are present, otherwise produced unsigned (the build never fails for lack of
