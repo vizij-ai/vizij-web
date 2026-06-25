@@ -110,11 +110,19 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           # The action's `script` runs from the repo root, so cd into the Gradle project.
-          # Scope to the :app module so only our AppLaunchTest runs — the bundled
-          # tauri plugin libraries ship their own (failing) ExampleInstrumentedTest.
-          # Tauri splits :app into ABI flavors (Arm, Universal); use Universal since
-          # it bundles x86_64 and installs on the x86_64 emulator.
-          script: cd ${{ env.ANDROID_DIR }} && ./gradlew :app:connectedUniversalDebugAndroidTest
+          # - :app scope so only our AppLaunchTest runs (the bundled tauri plugin
+          #   libraries ship their own failing ExampleInstrumentedTest).
+          # - Universal flavor: it bundles x86_64 and installs on the x86_64 emulator.
+          # - Exclude the rustBuild* tasks: they shell out to `tauri android
+          #   android-studio-script`, which only works when driven by a parent
+          #   `tauri android build`/`dev` (it connects back to that process over a
+          #   socket). The prior "Build debug APK" step already produced the .so,
+          #   so the test reuses them instead of rebuilding.
+          script: >-
+            cd ${{ env.ANDROID_DIR }} &&
+            ./gradlew :app:connectedUniversalDebugAndroidTest
+            -x rustBuildArm64Debug -x rustBuildArmDebug
+            -x rustBuildX86Debug -x rustBuildX86_64Debug
 
   # Pushes to main: build a RELEASE APK. It is signed when the keystore secrets
   # are present, otherwise produced unsigned (the build never fails for lack of
