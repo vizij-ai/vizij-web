@@ -254,10 +254,10 @@ works on desktop too.
 pnpm --filter vizij-standalone exec tauri android dev -- --no-default-features
 
 # debug APK (installable, auto-signed)
-pnpm --filter vizij-standalone exec tauri android build --debug --apk --no-default-features
+pnpm --filter vizij-standalone exec tauri android build --debug --apk -- --no-default-features
 
 # release APK
-pnpm --filter vizij-standalone exec tauri android build --apk --no-default-features
+pnpm --filter vizij-standalone exec tauri android build --apk -- --no-default-features
 ```
 
 APKs land under `src-tauri/gen/android/app/build/outputs/apk/`. The generated
