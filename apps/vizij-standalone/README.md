@@ -221,6 +221,78 @@ pnpm --filter vizij-standalone tauri build
 
 Build outputs land under `apps/vizij-standalone/src-tauri/target/`.
 
+## Android
+
+The app also builds as an Android APK through Tauri's mobile support. The same
+React shell runs inside a single WebView — there is no separate native Activity.
+
+### GLB loading on Android (and desktop)
+
+Picking a `.glb` copies it into the app's private storage
+([`src/lib/modelStore.ts`](./src/lib/modelStore.ts), under `appLocalDataDir`), so
+the model **auto-loads on the next launch**. To change models, tap the
+fullscreen face to reveal the controls, tap **Switch model**, then pick a new
+file from the in-app settings screen. This persistence is cross-platform — it
+works on desktop too.
+
+### Prerequisites
+
+- Android SDK + an NDK (export `NDK_HOME`), JDK 17.
+- Rust Android targets:
+
+  ```bash
+  rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+  ```
+
+- The default `ros2` feature does not cross-compile to Android, so the Android
+  build drops it with `--no-default-features`.
+
+### Dev / build
+
+```bash
+# live-reload on a connected device/emulator
+pnpm --filter vizij-standalone exec tauri android dev -- --no-default-features
+
+# debug APK (installable, auto-signed)
+pnpm --filter vizij-standalone exec tauri android build --debug --apk --no-default-features
+
+# release APK
+pnpm --filter vizij-standalone exec tauri android build --apk --no-default-features
+```
+
+APKs land under `src-tauri/gen/android/app/build/outputs/apk/`. The generated
+Android project is committed under `src-tauri/gen/android`; only its build output
+is git-ignored.
+
+### CI
+
+[`.github/workflows/android.yml`](../../.github/workflows/android.yml):
+
+- **pull requests** build a debug APK and run the instrumented launch smoke test
+  ([`AppLaunchTest.kt`](./src-tauri/gen/android/app/src/androidTest/java/com/vizij/standalone/AppLaunchTest.kt))
+  on an API-34 x86_64 emulator (`./gradlew connectedDebugAndroidTest`).
+- **pushes to `main`** build a release APK — signed when the keystore secrets are
+  present (see below), unsigned otherwise.
+
+### Release signing
+
+Signing is conditional: if `src-tauri/gen/android/keystore.properties` exists it
+is used, otherwise the release APK is built unsigned. To enable signing in CI:
+
+1. Create an upload keystore:
+
+   ```bash
+   keytool -genkey -v -keystore upload-keystore.jks \
+     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+   ```
+
+2. Add these GitHub repository secrets:
+   - `ANDROID_KEY_ALIAS` — the key alias (e.g. `upload`)
+   - `ANDROID_KEY_PASSWORD` — the keystore/key password
+   - `ANDROID_KEY_BASE64` — the keystore, base64-encoded (`base64 -w0 upload-keystore.jks`)
+
+Never commit `keystore.properties` or the `.jks` (both are git-ignored).
+
 ## Manual Checks
 
 WebSocket/manual panel checks:
