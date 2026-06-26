@@ -34,9 +34,14 @@ per `01` §4), the pipeline layer it owns, and its primary interface.
 | R1 | **Face Designer** | Compose an expressive face from reusable components | designer/animator | `d` | Face Designer |
 | R2 | **Face Rigger** | Map a face-specific vector to face elements (`f → d`) | designer / technical artist | `f → d` rig | Rig Designer |
 | R3 | **Abstraction Rigger** | Define face-agnostic rigs + standards (`c → f`, `c → c`) | researcher / technical artist | `c → f` rig, standards | Rig Designer |
-| R4 | **Animator** | Define values over time (`t`) that drive a rig | designer/animator | `t` | Face Controller |
-| R5 | **Interaction Designer** | Chain behaviors into an interlocutor experience | researcher / product | behavior sequencing | Face Controller |
-| R6 | **Developer** | Programmatically control a face from a robotics stack | researcher / engineer | API control | API + Face Controller (testing) |
+| R4 | **Animator** | Define values over time (`t`) that drive a rig — keyframe + procedural | designer/animator | `t` | **Animation Designer** |
+| R5 | **Interaction Designer** | Sequence animations into behaviors (logic + speech) | researcher / product | behavior | **Behavior Designer** |
+| R6 | **Developer** | Programmatically control a face from a robotics stack | researcher / engineer | API control | **Face Controller** + API |
+
+> The paper grouped roles into three interfaces; we use **five** (`01` §3): Animation
+> Designer and Behavior Designer are split out from what the paper folded into the Face
+> Controller, because the tooling now supports keyframe + procedural animation authoring
+> and behavior design that the paper did not cover.
 
 **Today's friction (from the feature audit), per role**
 
@@ -54,16 +59,17 @@ per `01` §4), the pipeline layer it owns, and its primary interface.
 
 ## 2. Cross-role hand-offs (the seams)
 
-The four artifacts from Fig. 1 are the contracts between roles. The rebuilt asset/library
-model is organized around them; all four travel inside the **Vizij bundle** (GLB with
-embedded rig graphs — the existing format we keep).
+Fig. 1 named four artifacts; we add a fifth (**Behavior**) for the new layer. The rebuilt
+asset/library model is organized around them; all travel inside the **Vizij bundle** (GLB
+with embedded rig graphs — the existing format we keep).
 
 | Artifact | Produced by | Consumed by | Carries |
 | --- | --- | --- | --- |
 | **Face** (Share Face) | R1 Face Designer | R2 Face Rigger | composed components + low-level `d` (GLB/glTF) |
 | **Face-Specific Rig** (Share Rig) | R2 Face Rigger | R3, R4, Controller | `f → d` mapping (node graph) |
 | **Standard / Abstract Rig** (Share Standard) | R3 Abstraction Rigger | R4, R5, R6, other faces | `c → f`, standard feature-space defs |
-| **Animation** (Share Animation) | R4 Animator, R5 Interaction Designer | Controller, R6 Developer | values over time `t`, behaviors |
+| **Animation** (Share Animation) | R4 Animator | R5, Controller, R6 Developer | values over time `t` (keyframe or procedural) |
+| **Behavior** (Share Behavior) *(new)* | R5 Interaction Designer | Controller, R6 Developer | sequences of animations + logic + speech |
 
 ---
 
@@ -78,7 +84,7 @@ Journey format inside each plan: *Stages → Actions → (pain today)*.
 
 ### Interface A — Face Designer
 
-Shared shell for all interfaces: global import, the library of the four artifacts, the
+Shared shell for all interfaces: global import, the library of the five artifacts, the
 preview viewer, and export. The Face Designer interface adds component-composition.
 
 #### A × R1 — Face Designer
@@ -134,49 +140,68 @@ unify poses + node graph from day one, or node-graph-first with poses as a later
 - **Success:** a rig authored against a standard drives a *different* face with no rewiring;
   coverage against the standard is visible at a glance.
 
-### Interface C — Face Controller
+### Interface C — Animation Designer *(new — not a distinct interface in the paper)*
 
-Serves three roles. Loads finished Faces + Rigs/Standards and drives them. Promotes the
-live control surface from today's overlay to a primary surface.
+Authors values over time `t` against a finished rig. **Two modes that emit the same
+Animation artifact:** keyframe (timeline) and procedural (node graph). **Open IA question**
+(`01` §3): one interface with two modes (assumed here) vs. two interfaces.
 
 #### C × R4 — Animator (`t`)
-- **Need:** author behaviors as values over time on a chosen rig, and export them
-  (including video / high-FPS).
-- **Default path:** Load **Face** + **Rig** → drive inputs to find poses → author on the
-  timeline (and/or a procedural source) → scrub/preview → export **Animation** / video.
-  *(today: timeline is solid; procedural sources have a confusing dual authoring/playback
-  role in `App.tsx`; video/high-FPS export likely a gap.)*
-- **Progressive disclosure:** procedural-graph animation sources; curve/interpolation
-  editing; per-track targeting; high-FPS render settings.
-- **Key surfaces:** control surface, timeline + transport, export.
+- **Need:** author animations on a chosen rig via keyframes and/or procedural generation,
+  and export them (including video / high-FPS).
+- **Default path:** Load **Face** + **Rig** → drive inputs to find poses → **keyframe
+  mode**: author on the timeline; **procedural mode**: build a generator graph → scrub/
+  preview → export **Animation** / video. *(today: timeline is solid; procedural
+  "motiongraph" has a confusing dual authoring/playback role in `App.tsx`; video/high-FPS
+  export likely a gap.)*
+- **Progressive disclosure:** curve/interpolation editing; per-track targeting; procedural
+  graph palette + value charts; high-FPS render settings.
+- **Key surfaces:** keyframe timeline + transport, procedural node-graph canvas (§ shared
+  with Rig Designer), preview, export.
 - **Artifacts:** in — **Face**, **Rig**; out — **Animation**, video.
-- **Success:** an animator authors and exports a looping behavior on the default path;
-  procedural and keyframe sources are clearly separated from playback.
+- **Success:** an animator authors and exports a looping animation on the default path;
+  keyframe vs procedural is a clear mode switch, and authoring is separate from playback.
 
-#### C × R5 — Interaction Designer
-- **Need:** sequence behaviors into an interlocutor experience, attach speech/visemes, and
-  simulate — possibly across several faces.
-- **Default path:** Load Face + Standard → assemble a behavior chain → attach speech (TTS
-  + visemes) → simulate the interaction → export **Animation**/scenario. *(today: speech
-  works but is entangled with Polly/Deepgram/OpenAI config and panel chrome.)*
-- **Progressive disclosure:** raw speech/API configuration; branching/conditional chains;
-  multi-face/multi-screen orchestration (**gap to design in**).
-- **Key surfaces:** behavior sequencer, optional speech module, multi-face simulation.
-- **Artifacts:** in — **Standard**, **Animation**; out — **Animation** / scenario.
-- **Success:** an interaction can be assembled and simulated without configuring an API on
-  the default path; speech is an opt-in module, not core chrome.
+### Interface D — Behavior Designer *(new — not in the paper)*
 
-#### C × R6 — Developer
+Sequences animations into behaviors with logic and speech, and simulates an interlocutor
+experience. Backed by the orchestrator (`@vizij/orchestrator-react`, blackboard).
+
+#### D × R5 — Interaction Designer
+- **Need:** compose animations into an experience, attach speech/visemes, add reactive
+  logic, and simulate — possibly across several faces.
+- **Default path:** Load **Face** + **Standard** + **Animation**(s) → assemble a behavior
+  (sequence/state machine) → attach speech (TTS + visemes) → add simple triggers/logic →
+  simulate → publish **Behavior**. *(today: speech works but is entangled with Polly/
+  Deepgram/OpenAI config; sequencing is ad-hoc across `App.tsx`.)*
+- **Progressive disclosure:** raw speech/API configuration; branching/conditional logic on
+  the node-graph canvas; multi-face/multi-screen orchestration (**gap to design in**);
+  blackboard inspector.
+- **Key surfaces:** behavior sequencer/state machine, optional speech module, logic graph,
+  multi-face simulation.
+- **Artifacts:** in — **Standard**, **Animation**; out — **Behavior**.
+- **Success:** a behavior can be assembled and simulated without configuring an API on the
+  default path; speech and logic are opt-in modules, not core chrome.
+
+### Interface E — Face Controller
+
+Connects a Face + rigs + animations + behaviors to render and *drive* them at runtime —
+single or many faces, one or many screens — and is where a Developer tests programmatic
+control. Backed by `@vizij/runtime-react`. Promotes today's control overlay to a primary
+surface. (R4/R5 also use it to preview their work; R6 is the authoring/testing role here.)
+
+#### E × R6 — Developer
 - **Need:** drive a face from code (set values now, over time, or play pre-recorded
-  animations) and verify behavior matches.
-- **Default path:** Export the **Standard** rig + bundle → drive the same face from the
-  robotics stack via API → use the Controller as a reference monitor to verify.
-  *(today: no clear API-testing affordance — a gap.)*
-- **Progressive disclosure:** an in-tool API console / live value inspector; record live
-  control into a reusable **Animation**; protocol/connection diagnostics.
-- **Key surfaces:** API-test surface (**gap to add**), live value inspector, the viewer as
-  reference monitor.
-- **Artifacts:** in — **Standard**, **Animation**; out — recorded **Animation**.
+  animations/behaviors) and verify behavior matches.
+- **Default path:** Export the **Standard** rig + **Behavior**/**Animation** bundle → drive
+  the same face from the robotics stack via API → use the Controller as a reference monitor
+  to verify. *(today: no clear API-testing affordance — a gap.)*
+- **Progressive disclosure:** in-tool API console / live value inspector; record live
+  control into a reusable **Animation**; multi-face/multi-screen routing; protocol/
+  connection diagnostics.
+- **Key surfaces:** API-test surface (**gap to add**), live value inspector, multi-face
+  runtime view, the viewer as reference monitor.
+- **Artifacts:** in — **Standard**, **Animation**, **Behavior**; out — recorded **Animation**.
 - **Success:** a developer drives the standard rig from code and confirms parity in the
   Controller; swapping face/robot needs no code change.
 
@@ -186,9 +211,11 @@ live control surface from today's overlay to a primary surface.
 | --- | --- | --- | --- | --- | --- | --- |
 | Face Designer | ● primary | ○ inspect | ○ inspect | – | – | – |
 | Rig Designer | – | ● primary | ● primary | ○ open rig | – | ○ inspect |
-| Face Controller | – | – | – | ● primary | ● primary | ● primary (API) |
+| Animation Designer | – | – | – | ● primary | ○ uses anims | – |
+| Behavior Designer | – | – | – | ○ uses anims | ● primary | ○ inspect |
+| Face Controller | ○ preview | ○ preview | ○ preview | ● preview | ● preview | ● primary (API) |
 
-● author · ○ read-only/secondary · – not served
+● author · ○ read-only / secondary / preview · – not served
 
 ---
 
@@ -197,8 +224,8 @@ live control surface from today's overlay to a primary surface.
 Validate that the hand-offs connect across roles (and that one persona can span them).
 
 ### UC1 — HRI Researcher comparing two gaze systems (paper Use Case 1)
-1. **R5 Interaction Designer (PI)** defines the study interactions in the Controller,
-   targeting a **Standard** gaze rig.
+1. **R5 Interaction Designer (PI)** defines the study interactions in the Behavior
+   Designer, targeting a **Standard** gaze rig, and drives them in the Face Controller.
 2. **R6 Developer (grad student)** builds two gaze algorithms emitting the standard gaze
    `c`, drives the face via API. Both target the standard → swapping robot/face needs no
    code change.
@@ -219,11 +246,14 @@ Validate that the hand-offs connect across roles (and that one persona can span 
 ## 5. What this feeds into Workstream 4 (IA + sketches)
 
 - A **screen inventory per interface** derived from the §3 plans.
-- A **shared app shell** (import, library of the four artifacts, preview viewer, export).
+- A **shared app shell** (import, library of the five artifacts, preview viewer, export).
 - **Progressive-disclosure boundaries** per interface × role (default vs advanced).
-- **Role-switching fluidity** within a persona (esp. R5↔R6, R1→R2→R4 for a solo user).
-- Two open IA questions to resolve: (a) poses unified with node graph or phased;
-  (b) how multi-face/multi-screen control is represented in the Controller.
+- **Role-switching fluidity** within a persona (esp. R5↔R6, R1→R2→R4→R5 for a solo user).
+- A **shared node-graph canvas** reused by Rig Designer, Animation Designer (procedural),
+  and Behavior Designer (logic) — design it once (`01` §4.7).
+- Open IA questions to resolve: (a) poses unified with the node graph or phased;
+  (b) Animation Designer as one interface (two modes) vs. two interfaces;
+  (c) how multi-face/multi-screen control is represented in the Controller.
 
 > Validation note: walk UC1 and UC2 through the draft screens with one researcher-type and
 > one designer-type user before committing IA (Workstream 6 brings formal testing).

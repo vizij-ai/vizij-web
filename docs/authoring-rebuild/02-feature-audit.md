@@ -44,23 +44,24 @@
 | Standard input coverage (`StandardInputCoveragePanel`) | `c` | Rig Designer | **Keep** | "How complete is my mapping to the standard" is exactly the feedback an Abstraction Rigger needs. Keep as guidance in the standards flow. |
 | Reference-face runtime/playback (`referenceFace/*`, `ReferenceFaceRuntime`, most of `next_steps.md`) | `c→f` validation | Rig Designer | **Simplify (de-risk)** | The single largest source of bugs. Keep "preview my rig against a reference" as a concept; rebuild the runtime/state path cleanly rather than porting the current one. |
 
-### Animation values (`t`)
+### Animation layer (`t`) — Animation Designer (keyframe + procedural)
 
 | Feature | Pipeline | Target interface | Verdict | Notes |
 | --- | --- | --- | --- | --- |
-| Animation timeline + keyframes (`components/animation/TimelineEditor`, `TrackRow`, `state/animationStore`) | `t` | Face Controller | **Keep** | Core Animator capability ("define properties/values over time"). |
-| Transport (play/pause/loop/speed, `useAnimationTransport`, `useGraphPlaybackControls`) | `t` | Face Controller | **Keep** | Needed to drive/preview. |
-| Procedural programs as animation source (motiongraph-as-target in `App.tsx`) | `t` | Face Controller | **Simplify** | Keep "a graph can be an animation source," but the dual authoring/playback role of motiongraph in `App.tsx` is a major complexity driver — separate authoring (Rig Designer) from playback (Controller). |
-| Save animations as video / hi-FPS output (paper requirement) | `t` | Face Controller | **Keep (verify)** | Paper lists video export + high-FPS output as Animator requirements. Confirm current export support; likely a gap to fill. |
+| Animation timeline + keyframes (`components/animation/TimelineEditor`, `TrackRow`, `state/animationStore`) | `t` | **Animation Designer** (keyframe) | **Keep** | Core Animator capability ("define properties/values over time"). |
+| Transport (play/pause/loop/speed, `useAnimationTransport`, `useGraphPlaybackControls`) | `t` | Animation Designer + Controller | **Keep** | Needed to author-preview and to drive. |
+| Procedural programs (motiongraph editor: `motiongraph/*`, motiongraph-as-target in `App.tsx`) | `t` | **Animation Designer** (procedural mode) | **Simplify** | This is the procedural authoring mode. Separate authoring (Animation Designer, on the shared node-graph canvas) from playback (Controller) — the dual authoring/playback role in `App.tsx` is a major complexity driver. |
+| Save animations as video / hi-FPS output (paper requirement) | `t` | Animation Designer | **Keep (verify)** | Paper lists video export + high-FPS output as Animator requirements. Confirm current export support; likely a gap to fill. |
 
-### Face Controller / playback / runtime
+### Behavior, control & runtime — Behavior Designer + Face Controller
 
 | Feature | Pipeline | Target interface | Verdict | Notes |
 | --- | --- | --- | --- | --- |
 | 3D Viewer (`components/app/Viewer`, `@vizij/render`) | render | Face Controller (+ all) | **Keep** | Shared preview surface across interfaces. |
 | Runtime face controls overlay (`RuntimeFaceControlsOverlay`, `RuntimeSourceToolbar`) | control | Face Controller | **Simplify** | The live "drive the face" controls — the Controller's core. Promote from overlay to primary. |
 | Multi-face / multi-screen control (paper requirement) | control | Face Controller | **Gap → add** | Paper explicitly calls for one rig controlling many faces and many screens. Not clearly present today; design in. |
-| Speech / TTS / visemes (`panels/SpeechPanel`, `useSpeech*`, `useConversation`, `data/pollyVoices`, `services/polly|deepgram|openai`, `lib/visemeMapping`) | `c` (visemes) | Face Controller | **Keep, scope carefully** | Strong demo capability and tied to the paper's viseme standard. But it pulls in external API config (Polly/Deepgram/OpenAI). Keep as an optional Controller module, not core chrome. |
+| Speech / TTS / visemes (`panels/SpeechPanel`, `useSpeech*`, `useConversation`, `data/pollyVoices`, `services/polly|deepgram|openai`, `lib/visemeMapping`) | `c` (visemes) / behavior | **Behavior Designer** | **Keep, scope carefully** | Strong demo capability tied to the paper's viseme standard. Pulls in external API config (Polly/Deepgram/OpenAI). Keep as an optional Behavior Designer module, not core chrome. |
+| Behavior sequencing / chaining + orchestration (`@vizij/orchestrator-react`, `minimal-demo-orchestrator`; today ad-hoc in `App.tsx`) | behavior | **Behavior Designer** | **Gap → build** | No first-class behavior-authoring surface today; sequencing is scattered. The Behavior Designer is largely new UI over the existing orchestrator (blackboard) engine. |
 
 ### Import / export / asset & bundle management
 
@@ -78,7 +79,7 @@
 
 | Feature | Verdict | Notes |
 | --- | --- | --- |
-| Workbench tab system (`workbenchConfig`) | **Replace** | Replaced by the three-interface shell. |
+| Workbench tab system (`workbenchConfig`) | **Replace** | Replaced by the five-interface shell. |
 | 13-panel workspace store + show/hide (`workspaceStore`, `WorkspaceLayout`) | **Replace** | Replaced by per-interface layouts with progressive disclosure. |
 | Inspector (`inspector/*`, `InspectorContent` 5,547 lines) | **Simplify (hard split)** | One inspector trying to serve scene/material/binding/pose/variable selection. Split per interface. |
 | Debug panel + memory investigation (`panels/DebugPanel`, `debug/memoryInvestigation`) | **Cut from default** | Dev-only; gate behind a flag. |
@@ -97,8 +98,12 @@
    rebuild as a clean re-implementation against the engine, not a port.
 4. **The UI primitive library (`components/ui/*`) is an asset.** ~40 components ready to
    become the shared design system and the basis for the Figma port.
-5. **Likely gaps vs. the paper to design in:** multi-face/multi-screen control; explicit
-   video / high-FPS animation export; a clear "Developer API" testing affordance.
+5. **Likely gaps vs. the paper to design in:** a first-class **Behavior Designer**
+   (sequencing/logic/speech over the orchestrator); multi-face/multi-screen control;
+   explicit video / high-FPS animation export; a clear "Developer API" testing affordance.
+6. **The paper under-counted interfaces.** Animation authoring (keyframe + procedural) and
+   behavior design were folded into the Face Controller. We split them into their own
+   interfaces (Animation Designer, Behavior Designer) — see `01` §3.
 
 ## Suggested keep/simplify/cut summary
 
@@ -112,9 +117,12 @@
   graph diagnostics (demote to advanced).
 - **Cut from default (debug/flagged or out-of-tool):** RobotData audit, debug + memory
   panels, the 4-workbench + 13-panel chrome, the `App.tsx` orchestration pattern.
-- **Gaps to add:** multi-face/multi-screen control, video/high-FPS export, Developer API
-  testing surface.
+- **Gaps to add:** Behavior Designer (new interface over the orchestrator),
+  multi-face/multi-screen control, video/high-FPS export, Developer API testing surface.
 
-> Open question for review: should the Rig Designer present poses and node-graphs as a
-> single unified model from day one, or ship node-graph-first with poses as a later mode?
-> This affects Workstream 4 (IA) and Workstream 7 (architecture).
+> Open questions for review (affect Workstream 4 IA + Workstream 7 architecture):
+> (a) does the Rig Designer present poses and node-graphs as one unified model from day one,
+> or node-graph-first with poses later?
+> (b) is the Animation Designer one interface with keyframe + procedural modes, or two?
+> (c) how literally do procedural animation, rig transforms, and behavior logic share one
+> node-graph canvas implementation?
