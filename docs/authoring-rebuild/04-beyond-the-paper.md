@@ -41,11 +41,13 @@ face is reactive, not just played back.
 
 5. **Input/event sources.** Sensor data, conversation events, app state driving behaviors
    (e.g. gaze follows a detected person). Behaviors need triggers and live inputs, not
-   only timelines. **Direction (decided):** the procedural / motion-graph editor is where
-   we started exploring inputs (rig inputs, custom paths, instant/trigger/grouped control
-   modes), but it **needs significant refinement** — scattered affordances, no staging
-   feedback, brittle custom inputs, implicit pose-weight inputs. Planned as a deep-dive
-   **with variations** in `05-inputs-model-and-variations.md`.
+   only timelines. **Direction:** the procedural / motion-graph editor is the *current
+   under-the-hood plumbing* where we started exploring inputs (rig inputs, custom paths,
+   instant/trigger/grouped control modes) — but it is **not a mandated UI** (`01` §4). It
+   **needs significant refinement**: scattered affordances, no staging feedback, brittle
+   custom inputs, implicit pose-weight inputs. The input *UX* is open and may depart
+   entirely from the motion graph while reusing the engine. Deep-dive **with variations** in
+   `05-inputs-model-and-variations.md`.
    - *Where:* Animation Designer (procedural) + Behavior Designer + Face Controller
      (runtime inputs). *Disposition:* **v1 — refine the input model; explore variations.**
 6. **Gaze/attention targeting in world space.** "Gaze" is abstract until bound to a
@@ -86,18 +88,20 @@ The faces run on *robots*. The repo already gestures at this (`arora-websocket`,
 ## D. Composition, arbitration & timing
 
 12. **Output arbitration / blending.** When two rigs or behaviors drive the *same* output
-    (e.g. a gaze rig and an emotion rig both move the eyes), who wins? **Update (decided):**
-    the *engine already implements this* — the pose → group → blend-stage structure
-    supports additive, normalized-weighted-average, and **priority** modes, plus a
+    (e.g. a gaze rig and an emotion rig both move the eyes), who wins? **Update:** the
+    *engine already provides arbitration primitives* — the pose → group → blend-stage
+    structure supports additive, normalized-weighted-average, and **priority** modes, plus a
     per-channel `crossGroupPolicy` with explicit priority order and tie-breaks
-    (`poseRig/types.ts`, `graphBuilder.ts`, `poseCompositionPreview.ts`). The gap is **UX**,
-    not the model. So this becomes a **UX deep-dive to surface the existing blend structure**:
-    visualize/scrub pose weights with a live blend preview, expose the priority/tie-break
-    order, trace scoped-neutral resolution, and detect/warn on same-target conflicts (today
-    one contributor silently loses). Per-input compose mode within a group is also a knob to
-    expose more cleanly.
+    (`poseRig/types.ts`, `graphBuilder.ts`, `poseCompositionPreview.ts`). So v1 does **not**
+    need a new arbitration *engine*. **But the UX is an open design question** (`01` §4):
+    surfacing the pose/blend model directly — live weight preview, priority/tie-break order,
+    scoped-neutral tracing, same-target conflict warnings (today one contributor silently
+    loses) — is *one* option, not a mandate. We may instead design a simpler/different
+    arbitration mental model that compiles down to these primitives. The pose/blend
+    structure is what's under the hood, not necessarily what the user sees.
     - *Where:* Rig Designer (authoring) + Face Controller (preview). *Disposition:* **v1 —
-      a UX layer over the existing arbitration engine**, not a new arbitration model.
+      a deliberate arbitration UX over the existing engine primitives** (mirror-the-engine
+      vs. a new abstraction is a Workstream-4 design choice).
 13. **Multi-model emotion composition.** The paper notes FACS / PAD / WASABI coexisting.
     How does the tool let a user pick or blend models?
     - *Disposition:* **later**; v1 ships one default model + the ability to define others.

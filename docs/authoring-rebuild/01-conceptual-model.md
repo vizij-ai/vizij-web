@@ -134,8 +134,15 @@ These are the constraints that keep the rebuild *simpler* than today's tool.
 3. **One interface, one job.** The five interfaces are distinct surfaces (or distinct
    modes) with a shared shell and component library — not 13 co-resident panels. A user
    in a given role should rarely need to think about the other interfaces.
-4. **Engine is fixed substrate.** The UI consumes `@vizij/*` through stable boundaries.
-   No business logic in 5,000-line view components; state models stay small and testable.
+4. **Engine is fixed substrate — but the UI is not bound to mirror it.** The UI consumes
+   `@vizij/*` through stable boundaries (no business logic in 5,000-line view components;
+   state models stay small and testable). Crucially, *keeping the engine does not mean
+   keeping the engine's structures as the interface.* The under-the-hood primitives —
+   pose/blend arbitration, the node/motion graph, standard feature spaces — are the
+   **compile target**, not a prescription for the UX. Any interface may present a simpler or
+   entirely different mental model that compiles down to those primitives. The current
+   pose-blend (arbitration) and motion-graph (inputs) solutions are *implementations we can
+   reuse*, **not mandated UIs** — see `04` §D12 and `05`.
 5. **Standards are first-class, not a tab.** Standard Feature Spaces (`/standard/{ns}/{channel}/{track}/{attribute}`)
    are how faces interoperate. The Rig Designer should treat aligning to a standard as a
    primary, guided action.
@@ -146,6 +153,9 @@ These are the constraints that keep the rebuild *simpler* than today's tool.
    underlies rig transformations, procedural animation, and behavior logic. Build it once
    as a reusable surface; let each interface configure its inputs/outputs and palette.
    This is both a UX consistency win and the single biggest code-reuse opportunity.
+   *Caveat (per principle 4):* whether the node graph is the literal **UI** — versus an
+   underlying compile target behind a simpler surface — is itself a UX decision to validate,
+   not a foregone conclusion.
 8. **Tool fundamentals are foundational, not retrofitted.** Undo/redo, autosave/recoverable
    state, templates/onboarding, and a **standardized versioning scheme** for all five
    artifacts are designed into the shared shell and state model *from step 1* — a primary

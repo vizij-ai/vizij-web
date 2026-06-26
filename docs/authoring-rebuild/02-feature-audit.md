@@ -89,7 +89,10 @@
 
 1. **Two rig-authoring models coexist** — the `poseRig` store/services and the
    `motiongraph` editor store. The rebuilt Rig Designer should present **one** model.
-   This is the highest-leverage simplification.
+   This is the highest-leverage simplification. *(Caveat per `01` §4: the verdicts in this
+   audit retain engine **capabilities**; the specific UX prescriptions — e.g. "node-graph
+   as the spine," "unify pose + graph" — are provisional. The under-the-hood structures are
+   the compile target, not a mandated UI.)*
 2. **`App.tsx` is an orchestration god-object** (5,298 lines) holding animation targets,
    procedural targets, bundle overrides, face-creator mutation logic, runtime export
    snapshots, and session lifecycle. The rebuild's app shell must push this into small,

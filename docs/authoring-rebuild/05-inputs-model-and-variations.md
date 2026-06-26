@@ -7,6 +7,12 @@
 >
 > Grounded in `apps/vizij-authoring/src/motiongraph/*`, `components/panels/inputCatalog.ts`,
 > and `hooks/rigController/runtimeInput*`.
+>
+> **Framing (per `01` §4):** the motion graph is the current *under-the-hood plumbing* for
+> inputs — it is **not the mandated UI**. The engine (input routing/staging, the
+> orchestrator `setInput` path) is reusable substrate; the variations below are free to
+> depart entirely from the motion-graph interface. "Current state" sections describe the
+> implementation we can build on, not a UX we're committed to.
 
 ## 1. What "inputs" are today
 
