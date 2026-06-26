@@ -91,7 +91,12 @@ out into their own interfaces. The result is **five interfaces** (the same six r
 The cross-role hand-offs in Fig. 1 ("Share Face/Rig/Standard/Animation") are the seams
 between interfaces; we add a fifth artifact — **Share Behavior** — for the new layer.
 
-### The five interfaces
+> **These five are integrated, not separate (per principle 3).** They are *activities/
+> lenses on one shared target*, not five apps. "Interface" here means a focused set of
+> tools, not a walled-off surface. The shell (`07`) is built so the live face, the
+> selection, and the timeline/inputs persist as you move between activities.
+
+### The five interfaces (integrated activities on one target)
 
 1. **Face Designer** — compose rigged face components (mouth, eye — not raw lines) into a
    face, with hand-off to/from external 3D tools (Blender, glTF). (Today: Scene Composer +
@@ -131,9 +136,16 @@ These are the constraints that keep the rebuild *simpler* than today's tool.
    swap or inspect any individual module becomes *advanced controls revealed on demand* —
    not default clutter. This is the single most important principle for serving both
    audiences without drifting back to "everything on one screen."
-3. **One interface, one job.** The five interfaces are distinct surfaces (or distinct
-   modes) with a shared shell and component library — not 13 co-resident panels. A user
-   in a given role should rarely need to think about the other interfaces.
+3. **One integrated tool around a single shared target — not five apps.** All five
+   interfaces operate on the *same* live target (a face and its rig, animations, and
+   behaviors), sharing **one preview, one selection, one context**. They are **lenses /
+   activities** that bring the right tools forward for what you're doing now — *not* separate
+   tools you hand off between. (The "Share X" artifacts in `03` are for *external* sharing
+   and collaboration, not internal walls — the paper's blueprint makes them look distinct,
+   but they all work on the same target.) Each lens stays **focused** (one job at a time,
+   not 13 co-resident panels) but focus must never become *siloing*: you can rig while the
+   animation plays, or tweak the face while a behavior runs. Integration is the antidote to
+   *both* today's clutter and a five-silos rebuild.
 4. **Engine is fixed substrate — but the UI is not bound to mirror it.** The UI consumes
    `@vizij/*` through stable boundaries (no business logic in 5,000-line view components;
    state models stay small and testable). Crucially, *keeping the engine does not mean

@@ -22,7 +22,9 @@ cluttered and confusing. We're redesigning the layout, not replacing the oven.
 ## The big idea: build a face in layers
 
 Making an expressive face happens in steps, like an assembly line. Each step builds on the
-one before it, and each has its own "studio" (a screen in the app):
+one before it, and each is its own "studio" — but they're all part of **one integrated
+tool working on the same face**, not five separate apps. You glide between studios while
+the same live face stays in front of you:
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontFamily":"Questrial, Gilroy, sans-serif","primaryColor":"#50C4B6","primaryBorderColor":"#2AA499","primaryTextColor":"#FFFFFF","lineColor":"#555555","textColor":"#333333","background":"#FFFFFF","clusterBkg":"#F7F8F8","clusterBorder":"#50C4B6","noteBkgColor":"#48E2CE","noteBorderColor":"#2AA499"}}}%%

@@ -9,10 +9,22 @@
 > Builds on `01` (five interfaces, principles), `03` (roles/personas), `04`/`05`/`06`
 > (arbitration UX, inputs, tool fundamentals all live *inside* whichever shell we pick).
 
+## Integration is a given, not an option
+
+**Decided framing:** the five interfaces all work on the **same shared target** (one face
+and its rig/animations/behaviors). The paper's service blueprint makes them look like
+separate tools with hand-offs, but inside our tool they are **integrated lenses/activities
+on one target**, sharing one live preview, one selection, one timeline/inputs context (`01`
+§4.3). Even the "modes" inspirations are really *single integrated apps* — Blender's
+workspace tabs are arrangements over one scene, not separate programs. So the three options
+below are **not three different tools**; they are three ways to *emphasize and navigate*
+activities over the same integrated target. The recommendation layers all three.
+
 ## The axis that distinguishes them
 
-All three show the **same five interfaces** over a **persistent face preview**. They differ
-on **how you switch** between interfaces — which is really a bet on the primary user:
+All three show the **same five activities** over a **persistent, shared, live face target**.
+They differ on **how you move between activities** — which is really a bet on the primary
+user:
 
 - **A — explicit modes** (focus; teams). Heavyweight, deliberate switching.
 - **B — fluid contextual** (flow; solo power users). Lightweight, blurred switching.
@@ -121,25 +133,37 @@ jump, and the stepper teaches the `d → f → c → t → behavior` model as yo
 | Onboarding | medium | low | high |
 | Closest precedent | Lightroom / Blender | Figma | Canva |
 
-## Recommendation (for discussion, not locked)
+## Recommended direction — the layered integrated shell
 
-These aren't mutually exclusive — the strongest products **layer them**. A likely hybrid:
+The three options aren't mutually exclusive, and because everything operates on **one
+shared target**, the strongest answer **layers all three over that target** (mocked up in
+chat). One workspace, one live face, three layers:
 
-> **Studio Modes (A) as the backbone** (clear, buildable, one-job-per-mode), **with B's
-> contextual panels and persistent canvas inside each mode** (so switching tools within a
-> job is fluid), **and C's guided stepper as an optional onboarding overlay / "project
-> setup" path** for newcomers that hands off into the modes.
+- **Layer 1 — Activity path (A backbone + C order).** An always-visible, lightweight
+  switcher showing the five activities *in pipeline order* (Build → Rig → Animate → Behave
+  → Drive). It doubles as A's navigation and C's sense of sequence/progress. Switching is a
+  click that re-emphasizes tools — **not** a full app swap; context persists.
+- **Layer 2 — Shared canvas + contextual panels (B).** The live target is always center.
+  Left = tools/library for the current activity; right = a selection-driven inspector;
+  bottom = a shared dock (timeline / graph / control rack) with shared transport. Because
+  it's one target, you can scrub the timeline while rigging, or tweak the face while a
+  behavior runs (note the "animation playing" indicator while in the Rig activity).
+- **Layer 3 — Optional guided overlay (C).** A foldaway "Guide" that suggests the next step
+  ("add a 'smile' control, then preview it in Animate →"). On for newcomers (Priya), off
+  for power users (Sam). Pure progressive disclosure — never blocks the integrated workspace.
 
-This gives focus *and* fluidity, with an approachable on-ramp — serving teams, solo
-spanners, and newcomers from one shell.
+This gives **focus** (a clear current activity) *and* **fluidity** (shared, persistent
+context) *and* an **approachable on-ramp** — without splitting into five apps. It serves
+teams, solo spanners, and newcomers from one integrated shell.
 
 ## Next steps
 
-- Get a read on which structure (or hybrid) to prototype.
-- Turn the chosen direction into a **Figma frame** of the shell (the first Figma artifact),
-  then design the first studio (Face Designer) inside it.
-- Validate the switching model against the journeys in `03` — especially Sam (frequent
-  switching) and Priya (never leaves the guided path).
+- Confirm the layered direction (or adjust the balance of the three layers).
+- Turn it into the first **Figma frame** of the integrated shell, then design the first
+  activity (Face Designer) *inside* it — proving the shared-target context model.
+- Validate against `03` journeys — especially Sam (frequent activity-switching with no
+  context loss) and Priya (rides the guided overlay end-to-end).
 
-> Open question: do we commit to one structure, or prototype two (e.g. A-hybrid vs. C) and
-> test them with a designer-type and a researcher-type user before locking the shell?
+> Resolved from the earlier open question: we are **not** building five distinct surfaces;
+> we're building one integrated shell with layered navigation over a shared target. Still
+> open: the exact default balance (how prominent the guided overlay is out of the box).
