@@ -4,6 +4,10 @@
 > *logic of the user's workflow*: what must be true before each activity is available, and
 > how the activities (`01` §3) gate and flow into each other over the **one shared target**
 > (`01` §4.3, `07`). Editable Semio-themed mermaid; renders inline on GitHub.
+>
+> **Refined and expanded in `09-ia-workflow-expanded.md` (iteration 2):** entry-by-intent,
+> the "get a face" and "rig it" sub-trees, the project/artifact model, and a
+> state → enabled-activities matrix. This doc remains the simple core-gating view.
 
 ## The core gating logic
 
