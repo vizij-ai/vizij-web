@@ -142,7 +142,8 @@ a reconciliation sweep.
 
 - **Workstream 2 — Feature audit** (`02-feature-audit.md`): every current feature mapped
   to a pipeline layer + target interface, with keep / simplify / cut calls.
-- **Workstream 3 — Personas & journeys**: Fig. 1 turned into concrete per-role journeys.
+- **Workstream 3 — Roles, hand-offs & interface plans** (`03-roles-and-interface-plans.md`):
+  Fig. 1 turned into roles, cross-role hand-offs, and a plan per interface × role.
 - **Workstream 4 — IA + low-fi sketches**: screen inventory per interface + shared shell.
 - **Workstream 5 — Figma design system**: tokens + component library; port existing React
   UI components into Figma via Code Connect.
