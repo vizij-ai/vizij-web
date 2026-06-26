@@ -146,6 +146,11 @@ These are the constraints that keep the rebuild *simpler* than today's tool.
    underlies rig transformations, procedural animation, and behavior logic. Build it once
    as a reusable surface; let each interface configure its inputs/outputs and palette.
    This is both a UX consistency win and the single biggest code-reuse opportunity.
+8. **Tool fundamentals are foundational, not retrofitted.** Undo/redo, autosave/recoverable
+   state, templates/onboarding, and a **standardized versioning scheme** for all five
+   artifacts are designed into the shared shell and state model *from step 1* — a primary
+   focus, and a direct lesson from the current god-object's painful session lifecycle. See
+   `04-beyond-the-paper.md` §F and `06-tool-fundamentals-and-versioning.md`.
 
 ## 5. Sequencing
 
@@ -186,8 +191,12 @@ a reconciliation sweep.
 - **Cross-cutting — Considerations beyond the paper** (`04-beyond-the-paper.md`): inferred
   gaps (ecosystem/versioning, reactive inputs, deployment/actuated outputs, output
   arbitration, tool fundamentals) with suggested v1 scope. Feeds every later workstream.
-- **Workstream 4 — IA + low-fi sketches** (will be doc `05-…`): screen inventory per
-  interface + shared shell.
+- **Deep-dive — Inputs model & variations** (`05-inputs-model-and-variations.md`): refine
+  the procedural/motion-graph input model; explore UX variations.
+- **Deep-dive — Tool fundamentals & versioning** (`06-tool-fundamentals-and-versioning.md`):
+  undo/autosave/recoverable state, templates, and the standardized versioning scheme.
+- **Workstream 4 — IA + low-fi sketches** (will be doc `07-…`): screen inventory per
+  interface + shared shell; folds in the arbitration-UX and tool-fundamentals deep-dives.
 - **Workstream 5 — Figma design system**: tokens + component library; port existing React
   UI components into Figma via Code Connect.
 - **Workstream 6 — Hi-fi prototypes + validation** with users from each role.
