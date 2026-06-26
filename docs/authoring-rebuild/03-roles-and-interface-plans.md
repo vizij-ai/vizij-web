@@ -5,8 +5,8 @@
 > combination** — so the IA and sketches (Workstream 4) are designed against what each
 > role actually needs from each interface.
 >
-> Builds on `01-conceptual-model.md` (pipeline `d → f → c → t`, six roles → three
-> interfaces) and `02-feature-audit.md`.
+> Builds on `01-conceptual-model.md` (pipeline `Behavior → t → c → f → d`, six roles →
+> five interfaces) and `02-feature-audit.md`.
 
 ## Roles vs. personas — terminology
 
@@ -54,6 +54,34 @@ per `01` §4), the pipeline layer it owns, and its primary interface.
   role in `App.tsx`.
 - **R5** — speech/conversation capability entangled with external API config + chrome.
 - **R6** — no clear API-testing affordance; correctness validated by hand.
+
+### Example personas (role compositions)
+
+Personas are illustrative *people* who each hold one or more roles. These are drawn from
+the paper's own examples (UC1 HRI study, UC2 robotic theme park, and the intro's note on
+time-constrained grad students). They exist to pressure-test **role-switching fluidity** —
+a persona that holds several roles must cross the matching interfaces smoothly.
+
+| Persona | From the paper | Roles held | Interfaces crossed | Goal |
+| --- | --- | --- | --- | --- |
+| **Dr. Petra — HRI Principal Investigator** | UC1: "a PI taking on the role of an Interaction Designer to define their study interactions" | R5 (primary), light R3 | Behavior Designer → Face Controller | Replicable studies comparing conditions, with minimal engineering |
+| **Sam — HRI Grad Student / Research Engineer** | UC1: "a graduate student can take on the role of a Developer building gaze algorithms"; intro: grad students "who have different needs" and little time | R6 (primary), R2, R4 | Face Controller (API) ↔ Rig Designer ↔ Animation Designer | Get an expressive face working fast; drive it from gaze code via the standard rig; swap robots without rewrites |
+| **Maya — Expert Character/Face Designer** | UC2: "an expert Face Designer to develop the robot characters and face designs" with the brand team | R1 | Face Designer (+ Blender) → Face Controller (preview) | Polished, on-brand characters handed off rigged to the product team |
+| **Tariq — Technical Product Engineer** | UC2: "the technical product team can import the designers' face designs and begin developing the controls… develop custom rigs" | R2 + R3 + R6 | Rig Designer ↔ Face Controller (API) | Import shared faces; build controls on public standard rigs + custom rigs for unique features |
+| **Lena — Animator / Character Behavior Artist** | UC2: "work with an expert Animator to use these rigs and develop character behaviors that can be looped into the story" | R4 (primary) + R5 | Animation Designer ↔ Behavior Designer | Author character animations and chain them into story behaviors |
+| **Priya — Customer Experience Designer** | UC2: "customer experience specialists who are designing the interactive storytelling" | R5 only, non-technical | Behavior Designer (default path only) | Design the interactive experience without touching code or APIs |
+
+**What each persona validates for the design:**
+
+- **Sam** is the hardest case — a solo person spanning R6/R2/R4, so the tool must let one
+  user move across Rig Designer, Animation Designer, and Face Controller without friction
+  or context loss. This is the strongest argument for a shared shell + shared node-graph
+  canvas.
+- **Priya** is the opposite extreme — never leaves the Behavior Designer default path and
+  never sees an API or a graph. She validates that progressive disclosure keeps advanced
+  affordances *fully optional*.
+- **Petra → Sam** and **Maya → Tariq → Lena** are *team* hand-off chains (one role each),
+  validating the §2 artifact seams as the contract between separate people.
 
 ---
 
@@ -232,7 +260,9 @@ Validate that the hand-offs connect across roles (and that one persona can span 
 3. **Controller** runs both behaviors on the same face to compare.
 4. Researchers **Share Face + Rig** for replicability.
 - **Hand-offs:** Standard → (Developer code + Controller); Face/Rig shared out.
-- **Persona note:** often *one* grad student spanning R5 + R6 → fluid C×R5 ↔ C×R6.
+- **Persona note:** the paper splits this across **Petra** (R5, defines the study) and
+  **Sam** (R6, writes the gaze code) — but a solo Sam often spans both, so Behavior
+  Designer ↔ Face Controller must stay fluid.
 
 ### UC2 — Robotic Theme Park (paper Use Case 2)
 1. **R1 Face Designer (expert)** develops characters/faces → **Share Face**.

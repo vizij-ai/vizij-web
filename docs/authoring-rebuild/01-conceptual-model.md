@@ -181,8 +181,13 @@ a reconciliation sweep.
 - **Workstream 2 — Feature audit** (`02-feature-audit.md`): every current feature mapped
   to a pipeline layer + target interface, with keep / simplify / cut calls.
 - **Workstream 3 — Roles, hand-offs & interface plans** (`03-roles-and-interface-plans.md`):
-  Fig. 1 turned into roles, cross-role hand-offs, and a plan per interface × role.
-- **Workstream 4 — IA + low-fi sketches**: screen inventory per interface + shared shell.
+  Fig. 1 turned into roles, example personas, cross-role hand-offs, and a plan per
+  interface × role.
+- **Cross-cutting — Considerations beyond the paper** (`04-beyond-the-paper.md`): inferred
+  gaps (ecosystem/versioning, reactive inputs, deployment/actuated outputs, output
+  arbitration, tool fundamentals) with suggested v1 scope. Feeds every later workstream.
+- **Workstream 4 — IA + low-fi sketches** (will be doc `05-…`): screen inventory per
+  interface + shared shell.
 - **Workstream 5 — Figma design system**: tokens + component library; port existing React
   UI components into Figma via Code Connect.
 - **Workstream 6 — Hi-fi prototypes + validation** with users from each role.
