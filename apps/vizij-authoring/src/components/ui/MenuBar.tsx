@@ -5,7 +5,7 @@ import { cn } from "../../utils/cn";
 import { Logo } from "./Logo";
 
 const menuPopupClassName =
-  "relative z-[4000] min-w-[200px] rounded-xl border border-border-default bg-bg-card p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 origin-[var(--transform-origin)]";
+  "relative z-[4000] min-w-[200px] rounded-xl border border-border-default bg-bg-card p-1 shadow-2xl shadow-black/50 ring-1 ring-black ring-opacity-5 focus:outline-none backdrop-blur-xl bg-opacity-95 data-[open]:animate-in data-[open]:fade-in data-[open]:zoom-in-95 data-[closed]:animate-out data-[closed]:fade-out data-[closed]:zoom-out-95 origin-[var(--transform-origin)]";
 
 interface MenuBarProps {
   children: React.ReactNode;

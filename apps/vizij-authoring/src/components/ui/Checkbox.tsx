@@ -28,13 +28,13 @@ export function Checkbox({
         onCheckedChange={(val) => onChange(val === true)}
         disabled={disabled}
         className={cn(
-          "flex h-4 w-4 appearance-none items-center justify-center rounded border bg-zinc-900 outline-none transition-all",
+          "flex h-4 w-4 appearance-none items-center justify-center rounded border bg-bg-input outline-none transition-all",
           "border-border-default hover:border-border-hover focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app",
-          "data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-accent-fg",
+          "data-[checked]:border-accent data-[checked]:bg-accent data-[checked]:text-accent-fg",
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
       >
-        <BaseCheckbox.Indicator className="text-current transition-transform duration-200 data-[state=checked]:scale-100 data-[state=unchecked]:scale-0">
+        <BaseCheckbox.Indicator className="text-current transition-transform duration-200 data-[checked]:scale-100 data-[unchecked]:scale-0">
           <Check className="h-3 w-3" strokeWidth={3} />
         </BaseCheckbox.Indicator>
       </BaseCheckbox.Root>
@@ -42,7 +42,7 @@ export function Checkbox({
         <label
           htmlFor={id}
           className={cn(
-            "text-xs font-medium text-zinc-300",
+            "text-xs font-medium text-text-secondary",
             disabled
               ? "cursor-not-allowed opacity-50"
               : "cursor-pointer select-none",

@@ -106,7 +106,7 @@ export function Tabs({
               </span>
             )}
             {variant === "underline" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full hidden group-data-[state=active]:block" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full hidden group-data-[selected]:block" />
             )}
           </BaseTabs.Tab>
         ))}

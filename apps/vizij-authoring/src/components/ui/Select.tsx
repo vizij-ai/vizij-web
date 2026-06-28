@@ -72,7 +72,7 @@ export function Select({
           <BaseSelect.Positioner sideOffset={4}>
             <BaseSelect.Popup
               className={cn(
-                "z-50 max-h-60 w-[var(--anchor-width)] overflow-auto rounded-xl bg-bg-card border border-border-default p-1 shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 origin-[var(--transform-origin)]",
+                "z-50 max-h-60 w-[var(--anchor-width)] overflow-auto rounded-xl bg-bg-card border border-border-default p-1 shadow-2xl shadow-black/50 focus:outline-none custom-scrollbar data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 origin-[var(--transform-origin)]",
                 size === "sm" ? "text-[11px]" : "text-sm",
               )}
             >

@@ -44,7 +44,7 @@ export function Modal({
       <BaseDialog.Portal>
         <BaseDialog.Backdrop
           className={cn(
-            "fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-md transition-all duration-300 data-[state=open]:opacity-100 data-[state=closed]:opacity-0",
+            "fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-md transition-all duration-300 data-[open]:opacity-100 data-[closed]:opacity-0",
             backdropClassName,
           )}
         />
@@ -57,7 +57,7 @@ export function Modal({
         >
           <BaseDialog.Popup
             className={cn(
-              "relative w-full transform rounded-2xl bg-bg-card border border-border-default text-left shadow-2xl transition-all duration-300 data-[state=open]:opacity-100 data-[state=open]:scale-100 data-[state=open]:translate-y-0 data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:translate-y-4 sm:my-8",
+              "relative w-full transform rounded-2xl bg-bg-card border border-border-default text-left shadow-2xl transition-all duration-300 data-[open]:opacity-100 data-[open]:scale-100 data-[open]:translate-y-0 data-[closed]:opacity-0 data-[closed]:scale-95 data-[closed]:translate-y-4 sm:my-8",
               maxWidthClasses[maxWidth],
               className,
             )}

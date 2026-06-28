@@ -47,9 +47,9 @@ export function CollapsibleRow({
       <div
         className={cn(
           "bg-bg-secondary/40 border border-border-default/60 rounded-xl mb-1.5 transition-all duration-150 overflow-hidden",
-          "group-data-[state=open]:border-accent/50 group-data-[state=open]:shadow-[0_0_0_1px_var(--color-accent-subtle)]",
+          "group-data-[open]:border-accent/50 group-data-[open]:shadow-[0_0_0_1px_var(--color-accent-subtle)]",
           !hasExpandableContent &&
-            "group-data-[state=open]:border-zinc-800/60 group-data-[state=open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
+            "group-data-[open]:border-zinc-800/60 group-data-[open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
           disabled && "opacity-50 pointer-events-none",
           className,
         )}
@@ -69,16 +69,16 @@ export function CollapsibleRow({
               {/* pointer-events-none on content to prevent interfering with button click if complex? No, standard button is fine. */}
               {hasExpandableContent && (
                 <div className="w-3 h-3 mt-1 flex items-center justify-center shrink-0">
-                  <ChevronRight className="w-3 h-3 text-text-secondary group-data-[state=open]:hidden" />
-                  <ChevronDown className="w-3 h-3 text-accent hidden group-data-[state=open]:block" />
+                  <ChevronRight className="w-3 h-3 text-text-secondary group-data-[open]:hidden" />
+                  <ChevronDown className="w-3 h-3 text-accent hidden group-data-[open]:block" />
                 </div>
               )}
               <div className="flex flex-col gap-0.5 min-w-0 text-left">
                 <span
                   className={cn(
                     "text-[13px] font-bold leading-tight truncate transition-colors",
-                    "group-data-[state=open]:text-text-primary",
-                    "group-data-[state=closed]:text-text-secondary",
+                    "group-data-[open]:text-text-primary",
+                    "group-data-[closed]:text-text-secondary",
                   )}
                 >
                   {title}
@@ -115,7 +115,7 @@ export function CollapsibleRow({
             )}
           </div>
         </div>
-        <BaseCollapsible.Panel className="data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200 overflow-hidden">
+        <BaseCollapsible.Panel className="data-[open]:animate-in data-[open]:fade-in data-[open]:slide-in-from-top-1 data-[closed]:animate-out data-[closed]:fade-out data-[closed]:slide-out-to-top-1 duration-200 overflow-hidden">
           <div className="h-px bg-border-default/60 mx-3" />
           <div className="p-4 bg-bg-secondary/20">{expandedContent}</div>
         </BaseCollapsible.Panel>
