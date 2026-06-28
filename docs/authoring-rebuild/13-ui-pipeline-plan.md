@@ -81,6 +81,10 @@ FIGMA_ACCESS_TOKEN=<token> pnpm figma:publish
 
 **Status (done):** every story's `parameters.design.url` now points at its **exact component node** (same ids as the `.figma.tsx` files), not the library overview. Shared nodes: Slider/RowSlider→`19-60`, Panel/StudioPanel→`20-7`, CollapsibleRow/CollapsibleGroup→`20-44`. MenuBar/ThemeToggle/EmptyState keep `12-2` (no own node). Verified against the running preview store (Button→`12-16`, Slider→`19-60`, Panel→`20-7`). **Reverse link (Storybook URL on the Figma component) still TODO** — best added during the Figma-side polish pass.
 
+**Theme parity (done):** `.storybook/preview.tsx` adds a **Light/Dark toolbar toggle** (applies the app `.dark` class on the wrapper *and* `<html>` so portaled Modal/Tooltip match) with a matching `--bg-app` canvas, **defaulting to Light**. All Figma library text is now **Questrial** (was Inter), matching the code font.
+
+**Dark Figma variants (done):** every component on `12:2` now has a **`theme=Light`/`theme=Dark`** variant (the single-symbol components were converted to sets via `combineAsVariants`; the page was reflowed into a clean grid sized for the taller themed rows, Typography moved to the end). Dark variants are recolored to the dark tokens (bright-teal `#48e2ce` accent, dark surfaces, light text) with each carrying an opaque dark base so it reads on the light canvas. The original component node ids persist as the **`theme=Light`** variant, so the Storybook `parameters.design` URLs + `.figma.tsx` mappings still resolve — the 15 single-component stories now point at their **light** variant (light ↔ light); the 7 multi-variant sets' stories point at the full set (shows both themes). Net: **light ↔ light by default, dark ↔ dark by toggling Storybook + reading the dark Figma variant.**
+
 ## Phase 5 — Review workflow & CI
 
 - Per-component **review checklist**: visual parity, all states, a11y (contrast/focus/roles), tokens (no hardcoded colors), responsive/hug behavior.
