@@ -3,11 +3,10 @@ import tailwindcss from "@tailwindcss/vite";
 
 const config: StorybookConfig = {
   stories: ["../src/components/ui/**/*.stories.@(ts|tsx)"],
-  addons: [
-    "@storybook/addon-essentials",
-    "@storybook/addon-a11y",
-    "@storybook/addon-designs",
-  ],
+  // The Figma "Design" panel is our own theme-aware panel (.storybook/manager.tsx),
+  // which follows the Light/Dark toolbar toggle — so addon-designs' static panel is
+  // intentionally not registered here.
+  addons: ["@storybook/addon-essentials", "@storybook/addon-a11y"],
   framework: { name: "@storybook/react-vite", options: {} },
   // Reuse the app's Tailwind v4 pipeline so stories get the real tokens + Questrial.
   viteFinal: async (cfg) => {
