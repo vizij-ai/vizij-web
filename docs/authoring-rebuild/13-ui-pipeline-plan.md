@@ -21,25 +21,29 @@ For **every** base component:
 
 | Decision | Recommendation |
 | --- | --- |
-| Where the base lives | **Extract to `packages/@vizij/ui`** (tsup, like other packages). Option: tokenize *in place* first, extract second, to de-risk. |
+| Where the base lives | **LOCKED — tokenize/refactor in place** (in `apps/vizij-authoring/src/components/ui`), and run Storybook + Code Connect against that location. **Extract to `packages/@vizij/ui` in a later phase** (1b). |
 | Theming | Adopt the canonical **Vizij teal tokens** (`12`) as semantic CSS variables (`--color-accent` → teal), replacing legacy blue. Components stay theme-agnostic (reference vars). |
-| Stack | Keep **Base UI + Tailwind v4 + `cn`**; ship a `tokens.css` + Tailwind preset so consumers theme consistently. |
+| Stack | Keep **Base UI + Tailwind v4 + `cn`**; centralize the Vizij token values in `styles.css` (later a `tokens.css` + preset when extracted). |
 | Fonts | **Self-host Inter** now; wire Gilroy/Univia (brand) behind the same font tokens later. |
-| Figma library | **Publish the design file as a Team Library** (Semio) so Code Connect + reuse are clean. Code Connect can also target raw node URLs if we defer publishing. |
+| Figma library | **LOCKED — publish the design file as a Semio Team Library, then Code Connect.** Needs library-publish rights + a Figma access token. |
 | Visual regression | **Chromatic** optional (hosts Storybook + diffs PRs) — decide in Phase 5. |
 
-## Phase 1 — Refactor base components into `@vizij/ui`
+## Phase 1 — Refactor base components in place
 
-- Scaffold `packages/@vizij/ui` (tsup esm/cjs/dts, `external: react,react-dom,@base-ui/react`, exports map, peerDeps react). Add `tokens.css` (Vizij semantic vars, light/dark) + Tailwind preset.
-- Move `apps/vizij-authoring/src/components/ui/*` in; strip app coupling (no app stores/imports); keep `Logo`, `MenuBar` review (MenuBar may be dropped).
-- Standardize the API: consistent `variant`/`size`/`tone` props, `forwardRef`, controlled/uncontrolled, `className` passthrough, ARIA. Lock the **variant matrix** (the contract Figma mirrors).
-- Apply Vizij tokens (teal accent, radius 8). Self-host Inter.
-- Re-point `vizij-authoring` to import from `@vizij/ui`; codemod imports; run lint/typecheck/tests (e.g. existing `NumberField`/`sliderDefaultBehavior` tests move with it).
-- **Deliverable:** versioned `@vizij/ui` building cleanly; vizij-authoring consuming it.
+- Work in `apps/vizij-authoring/src/components/ui/*` (no package move yet).
+- Centralize the **Vizij token values** in `styles.css` (teal `--color-accent`, radius 8, type scale); replace legacy blue. **Self-host Inter** (drop the CDN reliance).
+- Standardize the API per component: consistent `variant`/`size`/`tone` props, `forwardRef`, controlled/uncontrolled, `className` passthrough, ARIA. Lock the **variant matrix** — the single contract that Storybook stories and Figma variants both mirror.
+- Decouple from app state where primitives reach into stores (keep them pure/presentational).
+- Keep/extend the existing tests (`NumberField`, `sliderDefaultBehavior`); run lint/typecheck/test.
+- **Deliverable:** refactored, tokenized primitives in place + a locked variant matrix doc.
+
+## Phase 1b (later) — Extract to `packages/@vizij/ui`
+
+- Once stable: scaffold the package (tsup esm/cjs/dts, `external: react,react-dom,@base-ui/react`, exports map, peerDeps), ship `tokens.css` + Tailwind preset, move the primitives in, re-point `vizij-authoring` imports, migrate tests. Storybook + Code Connect re-target the package. Deferred to reduce upfront churn.
 
 ## Phase 2 — Storybook
 
-- Add **Storybook 8 (`@storybook/react-vite`)** scoped to `@vizij/ui` (`storybook`, `build-storybook` scripts). Addons: essentials, a11y, interactions, **addon-designs**.
+- Add **Storybook 8 (`@storybook/react-vite`)** in `vizij-authoring`, scoped to `components/ui` (`storybook`, `build-storybook` scripts; re-targets `@vizij/ui` after Phase 1b). Addons: essentials, a11y, interactions, **addon-designs**.
 - One `*.stories.tsx` per component: a story per variant/size/state + `argTypes` controls + `autodocs`. Story IDs mirror component + variant names (so they line up with Figma variants).
 - **Deliverable:** local Storybook with every component + states browsable.
 
