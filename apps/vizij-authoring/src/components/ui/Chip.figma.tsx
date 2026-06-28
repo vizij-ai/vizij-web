@@ -8,8 +8,11 @@ figma.connect(
     props: {
       tone: figma.enum("tone", {
         Default: "default",
+        Info: "info",
         Success: "success",
         Warning: "warning",
+        Danger: "danger",
+        Muted: "muted",
       }),
     },
     example: ({ tone }) => <Chip tone={tone}>Chip</Chip>,

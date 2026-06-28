@@ -69,7 +69,9 @@ For **every** base component:
 FIGMA_ACCESS_TOKEN=<token> pnpm figma:publish
 ```
 
-(Token: Figma → Settings → Security → personal access tokens, with Code Connect write scope; or pass `--token`.) Optional Figma-side polish before publishing: extend Chip tones (add Info/Danger/Muted) and split the single "Tab" node into the real `Tabs` container variants so the mapping is 1:1.
+(Token: Figma → Settings → Security → personal access tokens, with the **Code Connect** scope set to Write. **Note:** Code Connect requires a Figma **Organization/Enterprise** plan — on Professional the scope doesn't appear and publish is rejected. The mappings are ready to publish the moment the plan supports it.)
+
+**Figma-side polish (done):** Chip extended to all 6 tones (Default·Info·Success·Warning·Danger·Muted, matching the code enum); the Tab set gained a `variant` property (Default·Pill·Underline) × `state`, and `Tabs.figma.tsx` now maps `variant`. Every component on `12:2` carries a description stamping its code path + Storybook title (interim round-trip + code-origin until Storybook is hosted and Code Connect is published). Remaining reverse-link upgrade: swap those descriptions for clickable hosted-Storybook URLs once Storybook is deployed (Phase 5).
 
 ## Phase 4 — Integrate Figma ↔ Storybook (the side-by-side)  ✅ done (Storybook→Figma)
 
