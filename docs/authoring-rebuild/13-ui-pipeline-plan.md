@@ -47,12 +47,29 @@ For **every** base component:
 - One `*.stories.tsx` per component: a story per variant/size/state + `argTypes` controls + `autodocs`. Story IDs mirror component + variant names (so they line up with Figma variants).
 - **Deliverable:** local Storybook with every component + states browsable.
 
-## Phase 3 — Figma components + Code Connect
+## Phase 3 — Figma components + Code Connect  ✅ authored (publish gated on token)
 
 - Finalize the Figma component sets (library page `12:2`) to the canonical tokens; ensure **variant property names/values match the code props** (e.g. Button `variant=Primary…`). This is what makes Code Connect clean.
 - Add **`@figma/code-connect`**: `figma.config.json`, a `*.figma.tsx` per component mapping `figma.connect(Component, '<node-url>', { props, example })` — props map Figma variants → component props.
 - `npx figma connect publish` (needs a Figma token) → code snippets appear in **Figma Dev Mode** on each component.
 - **Deliverable:** every Figma component shows its real `@vizij/ui` usage in Dev Mode.
+
+**Status (done):**
+- `@figma/code-connect@^1.4.8` added; [`figma.config.json`](../../apps/vizij-authoring/figma.config.json) includes `src/components/ui/**/*.figma.tsx`.
+- **22 `*.figma.tsx` mappings** co-located with the components, one per Figma node on page `12:2`:
+  - Variant/state enums mapped: Button (`variant`), Badge (`tone`), Chip (`tone`), Switch (`state`→`checked`), Checkbox (`state`→`checked`).
+  - Usage examples (no variant prop): Input, Select, Combobox, TextArea, NumberField, Slider, PanelSearch, Card, Panel, Modal, Tooltip, ListRow, TreeRow, CollapsibleRow, FieldRow, Logo, Tabs.
+  - Shared-node notes: StudioPanel→Panel, CollapsibleGroup→CollapsibleRow, RowSlider→Slider. Out of base set: MenuBar, ThemeToggle, EmptyState (no Figma node).
+- `pnpm figma:parse` → all 22 parse, exit 0, no warnings. `figma connect publish --dry-run` validates all 22 nodes.
+- Scripts: `figma:parse`, `figma:publish`, `figma:unpublish`.
+
+**Remaining (the user's gated step):** publishing writes code snippets into the shared Semio Figma file (visible to the whole team in Dev Mode), and needs a Figma access token. Run from `apps/vizij-authoring`:
+
+```bash
+FIGMA_ACCESS_TOKEN=<token> pnpm figma:publish
+```
+
+(Token: Figma → Settings → Security → personal access tokens, with Code Connect write scope; or pass `--token`.) Optional Figma-side polish before publishing: extend Chip tones (add Info/Danger/Muted) and split the single "Tab" node into the real `Tabs` container variants so the mapping is 1:1.
 
 ## Phase 4 — Integrate Figma ↔ Storybook (the side-by-side)
 
