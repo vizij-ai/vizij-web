@@ -28,7 +28,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               variant === "secondary",
             "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white active:scale-[0.98]":
               variant === "subtle",
-            "bg-color-danger text-color-danger-fg shadow-sm hover:bg-color-danger/90 active:scale-[0.98]":
+            "bg-danger text-danger-fg shadow-sm hover:bg-danger/90 active:scale-[0.98]":
               variant === "danger",
             "bg-transparent hover:bg-bg-hover text-text-muted hover:text-text-primary active:scale-[0.98]":
               variant === "ghost",

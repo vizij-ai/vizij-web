@@ -1,6 +1,5 @@
 @import "tailwindcss";
-/* Questrial — Vizij brand-approved free font (Gilroy/Univia stand-in). TODO: self-host via @fontsource/questrial instead of CDN. */
-@import url("https://fonts.googleapis.com/css2?family=Questrial&display=swap");
+/* Questrial (Vizij brand free font) is self-hosted via @fontsource/questrial, imported in the app entry (main.tsx) + Storybook preview. */
 
 /* Base configuration is handled by tailwind.config.ts now */
 
@@ -248,6 +247,14 @@
       transform: translateX(0);
     }
   }
+}
+
+/* Custom utilities for tokens that aren't a standard Tailwind v4 namespace. */
+@utility bg-accent-gradient {
+  background-image: var(--accent-gradient);
+}
+@utility shadow-accent-glow {
+  box-shadow: var(--glow-accent);
 }
 
 * {
