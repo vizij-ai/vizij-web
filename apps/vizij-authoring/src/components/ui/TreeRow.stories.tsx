@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { TreeRow } from "./TreeRow";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=20-39";
 
 const meta: Meta<typeof TreeRow> = {
   title: "UI/TreeRow",

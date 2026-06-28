@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Chip } from "./Chip";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-50";
 
 const meta: Meta<typeof Chip> = {
   title: "UI/Chip",

@@ -4,7 +4,7 @@ import { Modal } from "./Modal";
 import { Button } from "./Button";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=20-16";
 
 const meta: Meta<typeof Modal> = {
   title: "UI/Modal",

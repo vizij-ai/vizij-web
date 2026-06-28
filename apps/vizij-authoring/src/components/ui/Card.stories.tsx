@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Card, CardHeader, CardTitle } from "./Card";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=20-3";
 
 const meta: Meta<typeof Card> = {
   title: "UI/Card",

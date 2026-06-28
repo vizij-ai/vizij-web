@@ -14,10 +14,9 @@ const meta: Meta<typeof Button> = {
     pill: { control: "boolean" },
   },
   parameters: {
-    // TODO: point at the exact Button component-set node once published (Phase 4).
     design: {
       type: "figma",
-      url: "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2",
+      url: "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-16",
     },
   },
 };

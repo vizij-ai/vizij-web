@@ -3,7 +3,7 @@ import { Panel } from "./Panel";
 import { Button } from "./Button";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=20-7";
 
 const meta: Meta<typeof Panel> = {
   title: "UI/Panel",

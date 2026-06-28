@@ -3,7 +3,7 @@ import { Tooltip } from "./Tooltip";
 import { Button } from "./Button";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=20-24";
 
 const meta: Meta<typeof Tooltip> = {
   title: "UI/Tooltip",

@@ -9,7 +9,7 @@ const meta: Meta<typeof Badge> = {
   parameters: {
     design: {
       type: "figma",
-      url: "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2",
+      url: "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-30",
     },
   },
 };

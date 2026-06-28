@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Checkbox } from "./Checkbox";
 
 const DESIGN =
-  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-2";
+  "https://www.figma.com/design/PfvCYAHJs2m1ihZ0YAYIW8/Vizij-Authoring---Designs?node-id=12-42";
 
 const meta: Meta<typeof Checkbox> = {
   title: "UI/Checkbox",

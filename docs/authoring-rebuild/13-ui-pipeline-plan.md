@@ -71,11 +71,13 @@ FIGMA_ACCESS_TOKEN=<token> pnpm figma:publish
 
 (Token: Figma → Settings → Security → personal access tokens, with Code Connect write scope; or pass `--token`.) Optional Figma-side polish before publishing: extend Chip tones (add Info/Danger/Muted) and split the single "Tab" node into the real `Tabs` container variants so the mapping is 1:1.
 
-## Phase 4 — Integrate Figma ↔ Storybook (the side-by-side)
+## Phase 4 — Integrate Figma ↔ Storybook (the side-by-side)  ✅ done (Storybook→Figma)
 
 - In each story, set `parameters.design = { type: 'figma', url: '<figma node url>' }` → **addon-designs renders the Figma frame in a "Design" tab** beside the live story.
 - (Reverse) add the Storybook story URL as a link on the Figma component for round-trip.
 - **Deliverable:** per component, live story and Figma design reviewable together; Dev Mode shows the code.
+
+**Status (done):** every story's `parameters.design.url` now points at its **exact component node** (same ids as the `.figma.tsx` files), not the library overview. Shared nodes: Slider/RowSlider→`19-60`, Panel/StudioPanel→`20-7`, CollapsibleRow/CollapsibleGroup→`20-44`. MenuBar/ThemeToggle/EmptyState keep `12-2` (no own node). Verified against the running preview store (Button→`12-16`, Slider→`19-60`, Panel→`20-7`). **Reverse link (Storybook URL on the Figma component) still TODO** — best added during the Figma-side polish pass.
 
 ## Phase 5 — Review workflow & CI
 
