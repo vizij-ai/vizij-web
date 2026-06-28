@@ -1,9 +1,14 @@
 @import "tailwindcss";
+/* Questrial — Vizij brand-approved free font (Gilroy/Univia stand-in). TODO: self-host via @fontsource/questrial instead of CDN. */
+@import url("https://fonts.googleapis.com/css2?family=Questrial&display=swap");
 
 /* Base configuration is handled by tailwind.config.ts now */
 
 :root {
   color-scheme: light dark;
+
+  /* Vizij brand font — Questrial (single weight; hierarchy via size/color). */
+  --font-sans: "Questrial", ui-sans-serif, system-ui, sans-serif;
   --inspector-row-hit-min-height: 32px;
   --inspector-numeric-min-width: 88px;
 
@@ -46,14 +51,14 @@
   --border-hover: #d4d4d8;
   /* zinc-300 */
 
-  /* Brand Accent - Vizij Blue */
-  --color-accent: #2563eb;
-  /* blue-600 */
+  /* Brand Accent - Vizij Teal */
+  --color-accent: #2aa499;
+  /* vizij teal */
   --color-accent-fg: #ffffff;
-  --color-accent-hover: #1d4ed8;
-  /* blue-700 */
-  --color-accent-subtle: rgba(37, 99, 235, 0.1);
-  /* blue-600 alpha */
+  --color-accent-hover: #1f8d82;
+  /* darker teal */
+  --color-accent-subtle: rgba(42, 164, 153, 0.12);
+  /* teal alpha */
 
   /* Depth and Materiality */
   --bg-glass: rgba(255, 255, 255, 0.7);
@@ -66,8 +71,8 @@
   --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
 
   /* Accent Effects */
-  --glow-accent: 0 0 12px 0 rgba(37, 99, 235, 0.25);
-  --accent-gradient: linear-gradient(135deg, #2563eb, #4f46e5);
+  --glow-accent: 0 0 12px 0 rgba(42, 164, 153, 0.28);
+  --accent-gradient: linear-gradient(135deg, #50c4b6, #2aa499);
 
   /* Functional Colors (Light) */
   --color-warning: #f59e0b;
@@ -125,13 +130,13 @@
   /* zinc-700 */
 
   /* Dark Mode Accent */
-  --color-accent: #3b82f6;
-  /* blue-500 - brighter for dark mode */
-  --color-accent-fg: #ffffff;
-  --color-accent-hover: #60a5fa;
-  /* blue-400 */
-  --color-accent-subtle: rgba(59, 130, 246, 0.15);
-  /* blue-500 alpha */
+  --color-accent: #48e2ce;
+  /* vizij bright teal - for dark mode */
+  --color-accent-fg: #04342c;
+  --color-accent-hover: #2aa499;
+  /* teal */
+  --color-accent-subtle: rgba(72, 226, 206, 0.15);
+  /* bright teal alpha */
 
   /* Dark Mode Depth */
   --bg-glass: rgba(18, 18, 20, 0.75);
@@ -143,8 +148,8 @@
   --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
 
   /* Dark Mode Glows */
-  --glow-accent: 0 0 12px 0 rgba(59, 130, 246, 0.3);
-  --accent-gradient: linear-gradient(135deg, #3b82f6, #6366f1);
+  --glow-accent: 0 0 12px 0 rgba(72, 226, 206, 0.32);
+  --accent-gradient: linear-gradient(135deg, #48e2ce, #2aa499);
 
   /* Functional Colors (Dark) */
   --color-warning: #fbbf24;
