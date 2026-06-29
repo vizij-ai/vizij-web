@@ -85,7 +85,7 @@ export function InstructionCallout({
       onOpenChange={handleOpenChange}
       className={cn(
         "rounded-xl border border-border-default bg-bg-panel/50 overflow-hidden mb-4 transition-all duration-200 group",
-        "data-[state=open]:bg-bg-panel data-[state=open]:border-border-default",
+        "data-[open]:bg-bg-panel data-[open]:border-border-default",
       )}
     >
       <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-bg-secondary/50 group">
@@ -94,7 +94,7 @@ export function InstructionCallout({
             <div
               className={cn(
                 "text-text-muted transition-colors",
-                "group-data-[state=open]:text-accent",
+                "group-data-[open]:text-accent",
               )}
             >
               {icon}
@@ -104,8 +104,8 @@ export function InstructionCallout({
             <span
               className={cn(
                 "text-[11px] font-bold uppercase tracking-wider transition-colors",
-                "group-data-[state=open]:text-text-primary",
-                "group-data-[state=closed]:text-text-muted group-data-[state=closed]:group-hover:text-text-secondary",
+                "group-data-[open]:text-text-primary",
+                "group-data-[closed]:text-text-muted group-data-[closed]:group-hover:text-text-secondary",
               )}
             >
               {label}
@@ -120,14 +120,14 @@ export function InstructionCallout({
         <ChevronRight
           className={cn(
             "h-3.5 w-3.5 text-text-muted transition-transform duration-200",
-            "group-data-[state=open]:rotate-90 group-data-[state=open]:text-accent",
+            "group-data-[open]:rotate-90 group-data-[open]:text-accent",
           )}
         />
       </BaseCollapsible.Trigger>
 
       <BaseCollapsible.Panel
         id={resolvedContentId}
-        className="data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200 px-4 pb-4 pt-1 text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none border-t border-border-default/50 mt-1"
+        className="data-[open]:animate-in data-[open]:fade-in data-[open]:slide-in-from-top-1 data-[closed]:animate-out data-[closed]:fade-out data-[closed]:slide-out-to-top-1 duration-200 px-4 pb-4 pt-1 text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-xs max-w-none border-t border-border-default/50 mt-1"
       >
         {children}
       </BaseCollapsible.Panel>

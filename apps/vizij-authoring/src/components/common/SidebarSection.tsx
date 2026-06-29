@@ -60,12 +60,12 @@ export function SidebarSection({
               <ChevronRight
                 className={cn(
                   "h-3.5 w-3.5 text-text-muted transition-transform duration-200",
-                  "group-data-[state=open]:rotate-90 group-data-[state=open]:text-accent",
+                  "group-data-[open]:rotate-90 group-data-[open]:text-accent",
                 )}
               />
             </BaseCollapsible.Trigger>
-            <BaseCollapsible.Panel className="px-4 pb-4 pt-1 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 duration-100">
-              <div className="text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none">
+            <BaseCollapsible.Panel className="px-4 pb-4 pt-1 data-[open]:animate-in data-[open]:fade-in data-[open]:zoom-in-95 data-[closed]:animate-out data-[closed]:fade-out data-[closed]:zoom-out-95 duration-100">
+              <div className="text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-xs max-w-none">
                 {instructions.content}
               </div>
             </BaseCollapsible.Panel>

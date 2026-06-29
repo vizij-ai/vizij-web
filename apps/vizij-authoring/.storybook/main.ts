@@ -2,7 +2,7 @@ import type { StorybookConfig } from "@storybook/react-vite";
 import tailwindcss from "@tailwindcss/vite";
 
 const config: StorybookConfig = {
-  stories: ["../src/components/ui/**/*.stories.@(ts|tsx)"],
+  stories: ["../src/components/**/*.stories.@(ts|tsx)"],
   // The Figma "Design" panel is our own theme-aware panel (.storybook/manager.tsx),
   // which follows the Light/Dark toolbar toggle — so addon-designs' static panel is
   // intentionally not registered here.
