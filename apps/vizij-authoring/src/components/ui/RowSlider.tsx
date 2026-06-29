@@ -96,10 +96,10 @@ export function RowSlider({
         <input
           type="range"
           className={cn(
-            "flex-1 min-w-0 h-1.5 w-full bg-zinc-800/60 rounded-full cursor-pointer appearance-none transition-all duration-200",
-            "accent-blue-500 hover:accent-blue-400",
-            "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:hover:bg-blue-400",
-            "[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:transition-all [&::-moz-range-thumb]:hover:scale-125 [&::-moz-range-thumb]:hover:bg-blue-400",
+            "flex-1 min-w-0 h-1.5 w-full bg-bg-active rounded-full cursor-pointer appearance-none transition-all duration-200",
+            "accent-accent",
+            "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125 [&::-webkit-slider-thumb]:hover:bg-accent",
+            "[&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:transition-all [&::-moz-range-thumb]:hover:scale-125 [&::-moz-range-thumb]:hover:bg-accent",
           )}
           min={min}
           max={max}
@@ -112,7 +112,7 @@ export function RowSlider({
       </div>
       <Input
         type="number"
-        className="inspector-numeric-control flex-none text-center text-[10px] tabular-nums font-black bg-zinc-950/40 border-zinc-800/60 h-6 p-0 transition-all hover:border-zinc-700/80 focus:border-blue-500/50"
+        className="inspector-numeric-control flex-none text-center text-[10px] tabular-nums font-black bg-bg-input border-border-default h-6 p-0 transition-all hover:border-border-hover focus:border-accent"
         value={inputValue}
         onChange={handleNumberChange}
         onBlur={handleNumberBlur}

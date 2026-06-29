@@ -73,7 +73,7 @@ export function Slider({
     >
       <BaseSlider.Control className="flex h-full w-full items-center">
         <BaseSlider.Track className="relative flex-grow h-full cursor-pointer">
-          <span className="pointer-events-none absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-zinc-800" />
+          <span className="pointer-events-none absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-bg-active" />
           {defaultPercent !== null ? (
             <span
               data-testid="slider-default-marker"
@@ -87,7 +87,7 @@ export function Slider({
               style={{ width: `${valuePercent}%` }}
             />
           ) : null}
-          <BaseSlider.Thumb className="block w-3 h-3 bg-white rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-transform" />
+          <BaseSlider.Thumb className="block w-3 h-3 bg-accent rounded-full shadow-md hover:scale-110 focus:outline-none focus:ring-2 focus:ring-accent/50 transition-transform" />
         </BaseSlider.Track>
       </BaseSlider.Control>
     </BaseSlider.Root>

@@ -9,7 +9,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     <button
       onClick={toggleTheme}
       className={cn(
-        "p-1.5 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer",
+        "p-1.5 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer",
         // Semantic colors
         "text-text-muted hover:text-text-primary hover:bg-bg-hover",
         className,

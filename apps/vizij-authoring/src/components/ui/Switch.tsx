@@ -39,7 +39,7 @@ export function Switch({
         disabled={disabled}
         className={cn(
           "relative inline-flex shrink-0 cursor-pointer rounded-full border border-border-default bg-bg-input transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app disabled:cursor-not-allowed disabled:opacity-50",
-          checked ? "bg-accent border-accent" : "group-hover:border-zinc-600",
+          checked ? "bg-accent border-accent" : "group-hover:border-border-hover",
           {
             "h-4.5 w-8": size === "sm",
             "h-5.5 w-10": size === "md",
@@ -66,12 +66,12 @@ export function Switch({
           onClick={() => !disabled && onChange?.(!checked)}
         >
           {label && (
-            <span className="text-[13px] font-bold text-zinc-200 group-hover:text-zinc-100 transition-colors">
+            <span className="text-[13px] font-bold text-text-primary transition-colors">
               {label}
             </span>
           )}
           {hint && (
-            <span className="text-[10px] text-zinc-500 leading-tight font-medium">
+            <span className="text-[10px] text-text-muted leading-tight font-medium">
               {hint}
             </span>
           )}

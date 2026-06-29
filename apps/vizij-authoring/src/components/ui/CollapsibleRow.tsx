@@ -49,7 +49,7 @@ export function CollapsibleRow({
           "bg-bg-secondary/40 border border-border-default/60 rounded-xl mb-1.5 transition-all duration-150 overflow-hidden",
           "group-data-[open]:border-accent/50 group-data-[open]:shadow-[0_0_0_1px_var(--color-accent-subtle)]",
           !hasExpandableContent &&
-            "group-data-[open]:border-zinc-800/60 group-data-[open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
+            "group-data-[open]:border-border-default group-data-[open]:shadow-none", // Prevent highlighting if not expandable (though Root shouldn't open technically if disabled? Wrapper handles visuals)
           disabled && "opacity-50 pointer-events-none",
           className,
         )}
@@ -59,10 +59,10 @@ export function CollapsibleRow({
           <BaseCollapsible.Trigger
             disabled={!hasExpandableContent || disabled}
             className={cn(
-              "flex-1 min-w-[12rem] min-h-8 px-2.5 py-1 flex items-center gap-2 text-left focus:outline-none focus:bg-zinc-800/20 w-full",
+              "flex-1 min-w-[12rem] min-h-8 px-2.5 py-1 flex items-center gap-2 text-left focus:outline-none focus:bg-bg-secondary/40 w-full",
               hasExpandableContent &&
                 !disabled &&
-                "cursor-pointer hover:bg-zinc-800/30",
+                "cursor-pointer hover:bg-bg-secondary/60",
             )}
           >
             <div className="flex items-start gap-2.5 flex-grow min-w-0 pointer-events-none">

@@ -21,14 +21,14 @@ export function Chip({
       className={cn(
         "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors",
         {
-          "bg-zinc-800 border-zinc-700 text-zinc-300": tone === "default",
+          "bg-bg-secondary border-border-default text-text-secondary": tone === "default",
           "bg-blue-500/10 border-blue-500/20 text-blue-400": tone === "info",
           "bg-green-500/10 border-green-500/20 text-green-400":
             tone === "success",
           "bg-yellow-500/10 border-yellow-500/20 text-yellow-500":
             tone === "warning",
           "bg-red-500/10 border-red-500/20 text-red-400": tone === "danger",
-          "bg-zinc-900 border-zinc-800 text-zinc-500": tone === "muted",
+          "bg-bg-secondary/60 border-border-subtle text-text-muted": tone === "muted",
         },
         className,
       )}

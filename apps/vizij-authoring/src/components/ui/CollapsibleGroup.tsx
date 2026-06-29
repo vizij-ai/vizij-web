@@ -33,27 +33,27 @@ export function CollapsibleGroup({
       >
         <BaseCollapsible.Trigger
           className={cn(
-            "flex w-full items-center justify-between px-3 py-2 bg-zinc-800/20 cursor-pointer select-none transition-all duration-150 hover:bg-zinc-800/40 focus:outline-none focus-visible:outline-none",
-            "group-data-[open]:border-b group-data-[open]:border-zinc-800/40",
+            "flex w-full items-center justify-between px-3 py-2 bg-bg-secondary/40 cursor-pointer select-none transition-all duration-150 hover:bg-bg-secondary/60 focus:outline-none focus-visible:outline-none",
+            "group-data-[open]:border-b group-data-[open]:border-border-default",
           )}
         >
           <div className="flex items-start gap-3 flex-[1_1_60%] min-w-0 pointer-events-none">
             <div className="w-4 h-4 mt-0.5 flex items-center justify-center shrink-0">
-              <ChevronDown className="w-3 h-3 text-blue-400 transition-transform hidden group-data-[open]:block" />
-              <ChevronRight className="w-3 h-3 text-zinc-500 transition-transform group-data-[open]:hidden" />
+              <ChevronDown className="w-3 h-3 text-accent transition-transform hidden group-data-[open]:block" />
+              <ChevronRight className="w-3 h-3 text-text-muted transition-transform group-data-[open]:hidden" />
             </div>
             <div className="flex flex-col gap-0.5 min-w-0 text-left">
               <h3
                 className={cn(
                   "m-0 text-[11px] font-black uppercase tracking-widest transition-colors",
-                  "group-data-[open]:text-zinc-100",
-                  "group-data-[closed]:text-zinc-400",
+                  "group-data-[open]:text-text-primary",
+                  "group-data-[closed]:text-text-secondary",
                 )}
               >
                 {title}
               </h3>
               {subtitle && (
-                <p className="m-0 text-[10px] text-zinc-500 font-medium leading-tight">
+                <p className="m-0 text-[10px] text-text-muted font-medium leading-tight">
                   {subtitle}
                 </p>
               )}
@@ -70,7 +70,7 @@ export function CollapsibleGroup({
                 </div>
               )}
               {itemCount !== undefined && (
-                <span className="text-[9px] font-black text-zinc-500 bg-zinc-950/40 px-1.5 py-0.5 rounded border border-zinc-800/40 uppercase tracking-tighter">
+                <span className="text-[9px] font-black text-text-muted bg-bg-input px-1.5 py-0.5 rounded border border-border-default uppercase tracking-tighter">
                   {itemCount} {itemCount === 1 ? "item" : "items"}
                 </span>
               )}
