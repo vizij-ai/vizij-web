@@ -1,5 +1,6 @@
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 import type { HTMLAttributes } from "react";
+import { cn } from "../../utils/cn";
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   compact?: boolean;
@@ -7,17 +8,17 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, children, compact, ...props }, ref) => {
-    const classes = ["asset-card", className].filter(Boolean).join(" ");
-
     return (
-      <div ref={ref} className={classes} {...props}>
-        {compact ? (
-          <div className="asset-card__body asset-card__body--compact">
-            {children}
-          </div>
-        ) : (
-          children
+      <div
+        ref={ref}
+        className={cn(
+          "asset-card bg-bg-card border border-border-default rounded-xl shadow-sm",
+          compact ? "p-3" : "p-4",
+          className,
         )}
+        {...props}
+      >
+        {children}
       </div>
     );
   },
@@ -30,7 +31,10 @@ export const CardHeader = ({
   children,
   ...props
 }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={`asset-card__header ${className || ""}`} {...props}>
+  <div
+    className={cn("asset-card__header flex items-center justify-between gap-2 mb-2", className)}
+    {...props}
+  >
     {children}
   </div>
 );
@@ -40,7 +44,10 @@ export const CardTitle = ({
   children,
   ...props
 }: HTMLAttributes<HTMLHeadingElement>) => (
-  <h3 className={`asset-card__title ${className || ""}`} {...props}>
+  <h3
+    className={cn("asset-card__title m-0 text-sm font-bold text-text-primary", className)}
+    {...props}
+  >
     {children}
   </h3>
 );
@@ -50,7 +57,10 @@ export const CardDescription = ({
   children,
   ...props
 }: HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={`asset-card__description ${className || ""}`} {...props}>
+  <p
+    className={cn("asset-card__description m-0 text-xs text-text-secondary", className)}
+    {...props}
+  >
     {children}
   </p>
 );
@@ -62,7 +72,7 @@ export const CardBody = ({
   ...props
 }: HTMLAttributes<HTMLDivElement> & { compact?: boolean }) => (
   <div
-    className={`asset-card__body ${compact ? "asset-card__body--compact" : ""} ${className || ""}`}
+    className={cn("asset-card__body text-sm text-text-secondary", compact && "text-xs", className)}
     {...props}
   >
     {children}
