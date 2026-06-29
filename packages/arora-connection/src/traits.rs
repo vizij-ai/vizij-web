@@ -9,7 +9,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use arora_schema::value::Value;
+use arora_types::value::Value;
 
 #[cfg(feature = "async")]
 use tokio_util::sync::CancellationToken;

@@ -1,6 +1,6 @@
 //! Slot metadata types for the Arora protocol.
 
-use arora_schema::value::{Type, Value};
+use arora_types::value::{Type, Value};
 use serde::{Deserialize, Serialize};
 
 /// Metadata describing an available slot in the system.

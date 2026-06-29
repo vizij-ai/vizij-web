@@ -27,8 +27,8 @@ mod method;
 mod slot;
 mod traits;
 
-// Re-export arora-schema types for convenience
-pub use arora_schema::value::{Type, Value};
+// Re-export arora-types types for convenience
+pub use arora_types::value::{Type, Value};
 
 // Slot types
 pub use slot::SlotInfo;

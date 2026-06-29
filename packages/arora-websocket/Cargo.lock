@@ -6,21 +6,25 @@ version = 4
 name = "arora-connection"
 version = "0.1.0"
 dependencies = [
- "arora-schema",
+ "arora-types",
  "serde",
  "tokio-util",
 ]
 
 [[package]]
-name = "arora-schema"
-version = "0.1.0"
-source = "git+https://github.com/semio-ai/arora-types.git#56ca70a50e23ddc6ccad473232e8a3fe19cef4bd"
+name = "arora-types"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b19ef73d661ad225f6d208877fea9257c2300d1a50814e7a1709d03be5821fc"
 dependencies = [
+ "async-trait",
  "derive_more",
+ "js-sys",
  "lazy_static",
  "semver",
  "serde",
  "uuid",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -28,7 +32,7 @@ name = "arora-websocket"
 version = "0.2.0"
 dependencies = [
  "arora-connection",
- "arora-schema",
+ "arora-types",
  "futures-util",
  "log",
  "serde",
@@ -36,6 +40,17 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -383,6 +398,10 @@ name = "semver"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
+dependencies = [
+ "serde",
+ "serde_core",
+]
 
 [[package]]
 name = "serde"

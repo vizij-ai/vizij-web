@@ -79,8 +79,8 @@ pub use arora_connection::{
     SetSlotValuesResult,
 };
 
-// Re-export arora-schema types for backwards compatibility
-pub use arora_schema::keyvalue::{KeyValue, KeyValueField};
+// Re-export arora-types types for backwards compatibility
+pub use arora_types::keyvalue::{KeyValue, KeyValueField};
 
 // Protocol message types (WebSocket-specific)
 pub use messages::{Incoming, Outgoing};

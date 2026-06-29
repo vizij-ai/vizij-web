@@ -9,7 +9,7 @@ default = ["async"]
 async = ["tokio-util"]
 
 [dependencies]
-arora-schema = { git = "https://github.com/semio-ai/arora-types.git" }
+arora-types = "1.5"
 serde = { version = "1", features = ["derive"] }
 
 # Async support (optional but default)
