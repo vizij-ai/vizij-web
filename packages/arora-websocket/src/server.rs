@@ -10,7 +10,7 @@ use std::sync::Arc;
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
@@ -93,6 +93,8 @@ pub struct AroraWSServer {
     /// Cancel token for the single active client. When cancelled, the client is disconnected.
     active_client: Arc<RwLock<Option<CancellationToken>>>,
     is_running: RwLock<bool>,
+    /// Server-initiated pushes (Bridge::send_data) reach the active client here.
+    outbound_tx: broadcast::Sender<Outgoing>,
 }
 
 impl AroraWSServer {
@@ -106,12 +108,23 @@ impl AroraWSServer {
             on_client_connected_handler: RwLock::new(None),
             active_client: Arc::new(RwLock::new(None)),
             is_running: RwLock::new(false),
+            outbound_tx: broadcast::channel(256).0,
         }
     }
 
     /// Create a new server with default configuration.
     pub fn with_port(port: u16) -> Self {
         Self::new(ServerConfig::with_port(port))
+    }
+
+    /// Push a server-initiated message to the connected client(s).
+    pub fn push(&self, msg: Outgoing) {
+        let _ = self.outbound_tx.send(msg);
+    }
+
+    /// Subscribe to the outbound push channel.
+    pub fn subscribe(&self) -> broadcast::Receiver<Outgoing> {
+        self.outbound_tx.subscribe()
     }
 
     /// Get a reference to the registry.
@@ -197,6 +210,7 @@ impl AroraWSServer {
                             let conn_id = conn_id.clone();
                             let bind_addr = bind_addr.clone();
                             let parent_token = cancel_token.clone();
+                            let outbound_tx = self.outbound_tx.clone();
 
                             tokio::spawn(async move {
                                 // Peek with timeout to classify the connection
@@ -249,6 +263,7 @@ impl AroraWSServer {
                                     stream, peer_addr, registry,
                                     set_handler, get_handler,
                                     validate_paths, client_token, active_client,
+                                    outbound_tx,
                                 ).await;
                             });
                         }
@@ -277,6 +292,7 @@ impl AroraWSServer {
 }
 
 /// Handle a single WebSocket connection.
+#[allow(clippy::too_many_arguments)]
 async fn handle_connection(
     stream: TcpStream,
     addr: SocketAddr,
@@ -286,6 +302,7 @@ async fn handle_connection(
     validate_paths: bool,
     client_token: CancellationToken,
     active_client: Arc<RwLock<Option<CancellationToken>>>,
+    outbound_tx: broadcast::Sender<Outgoing>,
 ) {
     info!("New WebSocket connection from: {}", addr);
 
@@ -298,6 +315,7 @@ async fn handle_connection(
     };
 
     let (mut write, mut read) = ws_stream.split();
+    let mut outbound_rx = outbound_tx.subscribe();
 
     loop {
         tokio::select! {
@@ -320,7 +338,7 @@ async fn handle_connection(
                         };
 
                         let response_text = serde_json::to_string(&response).unwrap();
-                        if let Err(e) = write.send(Message::Text(response_text.into())).await {
+                        if let Err(e) = write.send(Message::Text(response_text)).await {
                             error!("Failed to send response: {}", e);
                             break;
                         }
@@ -346,6 +364,19 @@ async fn handle_connection(
                         // Stream ended
                         break;
                     }
+                }
+            }
+            pushed = outbound_rx.recv() => {
+                match pushed {
+                    Ok(msg) => {
+                        let text = serde_json::to_string(&msg).unwrap();
+                        if let Err(e) = write.send(Message::Text(text)).await {
+                            error!("Failed to push message: {}", e);
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
                 }
             }
             _ = client_token.cancelled() => {

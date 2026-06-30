@@ -68,6 +68,10 @@ mod registry;
 #[cfg(feature = "server")]
 mod server;
 
+/// The WS server as an Arora `Bridge` (Phase 5C).
+#[cfg(feature = "server")]
+pub mod bridge;
+
 // Re-export all core types from arora-connection
 pub use arora_connection::{InvokeResult, MethodInfo, MethodParam, SlotInfo, Type, Value};
 

@@ -138,6 +138,15 @@ pub enum Outgoing {
         /// Error description
         message: String,
     },
+
+    /// Server-initiated push: slot values changed (e.g. the runtime wrote new
+    /// state). Sent unsolicited to subscribed clients — the live-edit feed.
+    ///
+    /// Example: `{"type": "slot_values_changed", "values": {"face/mouth": {"f64": 0.5}}}`
+    SlotValuesChanged {
+        /// Map of slot paths to their new values.
+        values: HashMap<String, Value>,
+    },
 }
 
 #[cfg(test)]

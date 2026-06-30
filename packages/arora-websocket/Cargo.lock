@@ -3,6 +3,17 @@
 version = 4
 
 [[package]]
+name = "arora-bridge"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdb38ca1266a6c84850a0c9c35d60dd0756003492ddf086f174045c52e3d0500"
+dependencies = [
+ "arora-types",
+ "async-trait",
+ "futures",
+]
+
+[[package]]
 name = "arora-connection"
 version = "0.1.0"
 dependencies = [
@@ -13,9 +24,9 @@ dependencies = [
 
 [[package]]
 name = "arora-types"
-version = "1.5.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b19ef73d661ad225f6d208877fea9257c2300d1a50814e7a1709d03be5821fc"
+checksum = "5f0d81688eddd55f4174ed29ff96a2fdd1264d8bb0452d9ffa1c8405ea415aa2"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -31,8 +42,11 @@ dependencies = [
 name = "arora-websocket"
 version = "0.2.0"
 dependencies = [
+ "arora-bridge",
  "arora-connection",
  "arora-types",
+ "async-trait",
+ "futures",
  "futures-util",
  "log",
  "serde",
@@ -154,10 +168,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
+name = "futures-channel"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+]
+
+[[package]]
 name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
+name = "futures-io"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cecba35d7ad927e23624b22ad55235f2239cfa44fd10428eecbeba6d6a717718"
 
 [[package]]
 name = "futures-macro"
@@ -188,10 +244,13 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
+ "futures-channel",
  "futures-core",
+ "futures-io",
  "futures-macro",
  "futures-sink",
  "futures-task",
+ "memchr",
  "pin-project-lite",
  "pin-utils",
  "slab",
