@@ -53,7 +53,9 @@
     "rebuild-nodes": "node ./scripts/rebuild-nodes.mjs",
     "wasm:status": "node ./scripts/wasm-links.mjs status",
     "wasm:link": "node ./scripts/wasm-links.mjs link",
-    "wasm:unlink": "node ./scripts/wasm-links.mjs unlink"
+    "wasm:unlink": "node ./scripts/wasm-links.mjs unlink",
+    "e2e": "pnpm --filter vizij-e2e run e2e",
+    "e2e:heavy": "pnpm --filter vizij-e2e run e2e:heavy"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.7",
