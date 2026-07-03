@@ -32,7 +32,9 @@ pub type SetSlotValuesHandler = Arc<dyn Fn(HashMap<String, Value>) -> Result<(),
 pub struct ServerConfig {
     /// Port to listen on.
     pub port: u16,
-    /// Address to bind to (default: "0.0.0.0").
+    /// Address to bind to. Defaults to loopback: the protocol is
+    /// unauthenticated, so binding all interfaces is an explicit opt-in via
+    /// [`ServerConfig::bind_address`].
     pub bind_address: String,
     /// Whether to validate update paths against registered input slots.
     pub validate_paths: bool,
@@ -44,7 +46,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             port: 9000,
-            bind_address: "0.0.0.0".to_string(),
+            bind_address: "127.0.0.1".to_string(),
             validate_paths: true,
             serve_control_panel: false,
         }
@@ -306,7 +308,14 @@ async fn handle_connection(
 ) {
     info!("New WebSocket connection from: {}", addr);
 
-    let ws_stream = match tokio_tungstenite::accept_async(stream).await {
+    let ws_config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig {
+        // The largest legitimate message is a few KiB; cap far below the
+        // 64 MiB tungstenite default so a client cannot force huge allocations.
+        max_message_size: Some(1 << 20),
+        max_frame_size: Some(256 << 10),
+        ..Default::default()
+    };
+    let ws_stream = match tokio_tungstenite::accept_async_with_config(stream, Some(ws_config)).await {
         Ok(ws) => ws,
         Err(e) => {
             error!("Error during WebSocket handshake: {}", e);
@@ -337,7 +346,13 @@ async fn handle_connection(
                             }
                         };
 
-                        let response_text = serde_json::to_string(&response).unwrap();
+                        let response_text = match serde_json::to_string(&response) {
+                            Ok(text) => text,
+                            Err(e) => {
+                                error!("Failed to serialize response: {}", e);
+                                break;
+                            }
+                        };
                         if let Err(e) = write.send(Message::Text(response_text)).await {
                             error!("Failed to send response: {}", e);
                             break;
@@ -369,7 +384,13 @@ async fn handle_connection(
             pushed = outbound_rx.recv() => {
                 match pushed {
                     Ok(msg) => {
-                        let text = serde_json::to_string(&msg).unwrap();
+                        let text = match serde_json::to_string(&msg) {
+                            Ok(text) => text,
+                            Err(e) => {
+                                error!("Failed to serialize push message: {}", e);
+                                continue;
+                            }
+                        };
                         if let Err(e) = write.send(Message::Text(text)).await {
                             error!("Failed to push message: {}", e);
                             break;
@@ -533,7 +554,7 @@ mod tests {
     fn test_server_config_default() {
         let config = ServerConfig::default();
         assert_eq!(config.port, 9000);
-        assert_eq!(config.bind_address, "0.0.0.0");
+        assert_eq!(config.bind_address, "127.0.0.1");
         assert!(config.validate_paths);
         assert!(!config.serve_control_panel);
     }

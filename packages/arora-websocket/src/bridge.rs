@@ -29,6 +29,11 @@ use crate::messages::Outgoing;
 use crate::server::AroraWSServer;
 
 /// The Vizij WebSocket server as an Arora [`Bridge`].
+///
+/// Note: the server's `validate_paths` (on by default) checks incoming slot
+/// paths against its `Registry`, which this bridge does not populate — either
+/// mirror the runtime's keys into the registry or disable `validate_paths`
+/// when serving purely through the bridge.
 pub struct WsBridge {
     server: Arc<AroraWSServer>,
     /// The receiving half of the command stream, handed out once by [`commands`].
@@ -136,10 +141,20 @@ impl Bridge for WsBridge {
         Ok(())
     }
 
+    /// The command stream is single-use: the channel's receiving half is
+    /// handed out on the first call, and later calls get an empty stream —
+    /// with a loud warning, because a runtime silently losing its command
+    /// plane is the worst failure mode.
     async fn commands(&self) -> CommandStream {
         match self.commands.lock().unwrap().take() {
             Some(rx) => Box::pin(rx),
-            None => Box::pin(futures::stream::empty()),
+            None => {
+                log::warn!(
+                    "WsBridge::commands() called more than once; the command \
+                     stream was already taken, returning an empty stream"
+                );
+                Box::pin(futures::stream::empty())
+            }
         }
     }
 }
