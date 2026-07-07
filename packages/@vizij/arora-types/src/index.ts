@@ -41,10 +41,9 @@ export {
   isOption,
 } from "./value";
 
-// Protocol message types
+// Wire-format message types
 export type {
-  SlotInfo,
-  NodeInfo,
+  KeyInfo,
   MethodParam,
   MethodInfo,
   Incoming,
@@ -53,20 +52,17 @@ export type {
 
 export {
   // Type guards
-  isSetSlotValuesResp,
-  isGetSlotValuesResp,
-  isListSlotsResp,
-  isUpdateResp,
-  isListNodesResp,
+  isWriteValuesResp,
+  isReadValuesResp,
+  isListKeysResp,
   isListMethodsResp,
   isInvokeResp,
   isError,
+  isValuesChanged,
   // Message constructors
-  createSetSlotValues,
-  createGetSlotValues,
-  createListSlots,
-  createUpdate,
-  createListNodes,
+  createWriteValues,
+  createReadValues,
+  createListKeys,
   createListMethods,
   createInvoke,
 } from "./messages";

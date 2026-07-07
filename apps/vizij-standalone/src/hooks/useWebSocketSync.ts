@@ -6,14 +6,14 @@ import { useOrchestrator, valueAsNumber } from "@vizij/orchestrator-react";
 import {
   type AroraValue,
   type AroraType,
-  type NodeInfo,
+  type KeyInfo,
   extractNumericValue,
   f64,
 } from "@vizij/arora-types";
 
-type GetSlotValuesRequestPayload = {
+type ReadValuesRequestPayload = {
   requestId?: string;
-  slots?: string[];
+  keys?: string[];
 };
 
 /**
@@ -50,7 +50,7 @@ export function useWebSocketSync() {
   // Keyed by the short path (e.g., "standard/vizij/mouth/morph/jaw_open")
   const inputValuesRef = useRef<Record<string, number>>({});
 
-  const normalizeSlotPath = useCallback(
+  const normalizeKeyPath = useCallback(
     (path: string): string => {
       const removedSlashes = path.replace(/^\/+/, "").replace(/\/+/g, "/");
       if (!namespace) return removedSlashes;
@@ -73,7 +73,7 @@ export function useWebSocketSync() {
     }
 
     const normalizedConstraintEntries = constraintKeys.map((path) => ({
-      path: normalizeSlotPath(path),
+      path: normalizeKeyPath(path),
       constraint: inputConstraints[path],
     }));
 
@@ -103,7 +103,7 @@ export function useWebSocketSync() {
       Object.keys(defaults).length,
       "input values from defaults",
     );
-  }, [ready, inputConstraints, normalizeSlotPath]);
+  }, [ready, inputConstraints, normalizeKeyPath]);
 
   // Log available paths once when ready
   useEffect(() => {
@@ -146,7 +146,7 @@ export function useWebSocketSync() {
       if (!ready) return undefined;
 
       // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
-      const normalizedPath = normalizeSlotPath(path);
+      const normalizedPath = normalizeKeyPath(path);
 
       // Build the namespaced path that the orchestrator uses
       // Format: namespace/rig/faceId/path (e.g., "vizij-standalone/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
@@ -186,7 +186,7 @@ export function useWebSocketSync() {
       faceId,
       namespace,
       getPathSnapshot,
-      normalizeSlotPath,
+      normalizeKeyPath,
     ],
   );
 
@@ -199,9 +199,9 @@ export function useWebSocketSync() {
         return;
       }
 
-      const normalizedPath = normalizeSlotPath(path);
+      const normalizedPath = normalizeKeyPath(path);
 
-      // Update local state (source of truth for GetSlotValues)
+      // Update local state (source of truth for ReadValues)
       inputValuesRef.current[normalizedPath] = value;
 
       // Build full path like useMouseGaze: rig/${faceId}/${path}
@@ -211,7 +211,7 @@ export function useWebSocketSync() {
 
       // No step() needed - driveOrchestrator handles the animation loop
     },
-    [ready, setInput, faceId, normalizeSlotPath],
+    [ready, setInput, faceId, normalizeKeyPath],
   );
 
   // Sync nodes to backend
@@ -221,12 +221,12 @@ export function useWebSocketSync() {
     const constraintKeys = Object.keys(inputConstraints);
     if (constraintKeys.length === 0) return;
 
-    const nodes: NodeInfo[] = constraintKeys.map((path) => {
+    const keys: KeyInfo[] = constraintKeys.map((path) => {
       const constraint = inputConstraints[path];
       return {
         path,
         kind: "input" as const,
-        value_type: "f64" as AroraType, // Current nodes are all f64
+        value_type: "f64" as AroraType, // Current keys are all f64
         min: constraint?.min,
         max: constraint?.max,
         default_value:
@@ -236,15 +236,13 @@ export function useWebSocketSync() {
       };
     });
 
-    invoke("set_slots", { slots: nodes })
+    invoke("set_keys", { keys })
       .then(() => {
-        console.log(
-          `[vizij-standalone] Synced ${nodes.length} slots to backend`,
-        );
+        console.log(`[vizij-standalone] Synced ${keys.length} keys to backend`);
         nodesSyncedRef.current = true;
       })
       .catch((err) => {
-        console.error("[vizij-standalone] Failed to sync slots:", err);
+        console.error("[vizij-standalone] Failed to sync keys:", err);
       });
   }, [ready, inputConstraints]);
 
@@ -290,7 +288,7 @@ export function useWebSocketSync() {
 
     const unlistenReset = listen("reset", () => {
       console.log("[vizij-standalone] Reset event received");
-      // Reset all slots to their default values
+      // Reset all keys to their default values
       Object.entries(inputConstraints).forEach(([path, constraint]) => {
         const defaultValue = constraint?.defaultValue ?? 0;
         setRigValue(path, defaultValue);
@@ -298,44 +296,44 @@ export function useWebSocketSync() {
       // Also clear local state and reinitialize from defaults
       const defaults: Record<string, number> = {};
       Object.entries(inputConstraints).forEach(([path, constraint]) => {
-        const normalizedPath = normalizeSlotPath(path);
+        const normalizedPath = normalizeKeyPath(path);
         if (constraint?.defaultValue !== undefined) {
           defaults[normalizedPath] = constraint.defaultValue;
         }
       });
       inputValuesRef.current = defaults;
       console.log(
-        `[vizij-standalone] Reset ${Object.keys(inputConstraints).length} slots to defaults`,
+        `[vizij-standalone] Reset ${Object.keys(inputConstraints).length} keys to defaults`,
       );
     });
 
-    // Listen for GetSlotValues requests from the WebSocket server
-    const unlistenGetSlots = listen<GetSlotValuesRequestPayload>(
-      "get-slot-values-request",
+    // Listen for ReadValues requests from the WebSocket server
+    const unlistenReadValues = listen<ReadValuesRequestPayload>(
+      "read-values-request",
       async (event) => {
         const payload = event.payload;
-        const requestedSlots = Array.isArray(payload)
+        const requestedKeys = Array.isArray(payload)
           ? payload
-          : (payload.slots ?? []);
+          : (payload.keys ?? []);
         console.log(
-          "[vizij-standalone] GetSlotValues request for",
-          requestedSlots.length,
-          "slots:",
-          requestedSlots,
+          "[vizij-standalone] ReadValues request for",
+          requestedKeys.length,
+          "keys:",
+          requestedKeys,
         );
 
         // Build response with current values from local state
         const values: Record<string, AroraValue> = {};
-        for (const slot of requestedSlots) {
-          const currentValue = getRigValue(slot);
+        for (const key of requestedKeys) {
+          const currentValue = getRigValue(key);
           console.log(
             "[vizij-standalone] getRigValue for",
-            slot,
+            key,
             "=",
             currentValue,
           );
           if (currentValue !== undefined) {
-            values[slot] = f64(currentValue);
+            values[key] = f64(currentValue);
           }
         }
 
@@ -347,10 +345,10 @@ export function useWebSocketSync() {
 
         // Send response back to Rust
         try {
-          await invoke("respond_slot_values", { values });
+          await invoke("respond_read_values", { values });
         } catch (err) {
           console.error(
-            "[vizij-standalone] Failed to respond with slot values:",
+            "[vizij-standalone] Failed to respond with read values:",
             err,
           );
         }
@@ -360,7 +358,7 @@ export function useWebSocketSync() {
     return () => {
       unlistenUpdates.then((f) => f());
       unlistenReset.then((f) => f());
-      unlistenGetSlots.then((f) => f());
+      unlistenReadValues.then((f) => f());
     };
   }, [ready, faceId, setRigValue, getRigValue, inputConstraints]);
 

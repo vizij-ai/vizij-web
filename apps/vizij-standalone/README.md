@@ -63,7 +63,7 @@ The app includes a built-in browser control panel served on the same port as the
 
 Behavior highlights:
 
-- auto-discovers available slots and builds the UI dynamically
+- auto-discovers available keys and builds the UI dynamically
 - exposes speech controls when the corresponding methods are available
 - exposes transport controls when bundled animations or programs are published
 - follows the same exclusive-client policy as any other Arora client
@@ -76,11 +76,11 @@ The app starts a local control endpoint on `ws://127.0.0.1:<port>` and, unless d
 
 The frontend runtime layer publishes:
 
-- available slots from `inputConstraints`
+- available keys from `inputConstraints`
 - current transport catalog for animations/programs
 - speech state updates
 
-The Rust connection manager then exposes those over the Arora protocol surface. For protocol details, inspect:
+The Rust connection manager then exposes those over the Arora API surface. For wire-format details, inspect:
 
 - [`src-tauri/src/connection_manager.rs`](./src-tauri/src/connection_manager.rs)
 - [`packages/@vizij/arora-types`](../../packages/@vizij/arora-types)
@@ -99,7 +99,7 @@ When built with the default `ros2` feature, the Tauri app also starts an `AroraR
 
 Current behavior:
 
-- input slots are exposed as ROS2 topics under `/{namespace}/slots/...`
+- input keys are exposed as ROS2 topics under `/{namespace}/slots/...`
 - methods are exposed as ROS2 services under `/{namespace}/methods/...`
 - the namespace defaults to `vizij`
 - the DDS domain defaults to `0`
@@ -225,7 +225,7 @@ Build outputs land under `apps/vizij-standalone/src-tauri/target/`.
 
 WebSocket/manual panel checks:
 
-- launch the app with a known GLB and verify the browser control panel lists slots
+- launch the app with a known GLB and verify the browser control panel lists keys
 - call `reset` from the panel or `wscat`
 - if a bundle contains transport items, verify the Transport tab can list, play, pause, and stop them
 

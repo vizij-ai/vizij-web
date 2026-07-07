@@ -1,4 +1,4 @@
-//! RPC method metadata types for the Arora protocol.
+//! RPC method metadata types for the Arora API.
 
 use arora_schema::value::{Type, Value};
 use serde::{Deserialize, Serialize};

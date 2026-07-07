@@ -13,7 +13,7 @@ mod connection;
 mod connection_manager;
 mod ws_server;
 
-use connection::{CancellationToken, SlotInfo, Value};
+use connection::{CancellationToken, KeyInfo, Value};
 use connection_manager::ConnectionManager;
 use ws_server::WsServer;
 
@@ -274,13 +274,13 @@ async fn get_port(app_handle: tauri::AppHandle) -> u16 {
     state.port
 }
 
-/// Set available slots (called by frontend when model loads)
+/// Set available keys (called by frontend when model loads)
 #[tauri::command]
-async fn set_slots(app_handle: tauri::AppHandle, slots: Vec<SlotInfo>) -> Result<(), String> {
+async fn set_keys(app_handle: tauri::AppHandle, keys: Vec<KeyInfo>) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
-    let count = slots.len();
-    state.connection_manager.set_slots(slots).await;
-    info!("Slots updated: {} available", count);
+    let count = keys.len();
+    state.connection_manager.set_keys(keys).await;
+    info!("Keys updated: {} available", count);
     Ok(())
 }
 
@@ -307,12 +307,12 @@ async fn read_glb_file(path: String) -> Result<String, String> {
     Ok(STANDARD.encode(&contents))
 }
 
-/// Respond to a GetSlotValues request from the connection.
-/// Called by the frontend after receiving a "get-slot-values-request" event.
+/// Respond to a ReadValues request from the connection.
+/// Called by the frontend after receiving a "read-values-request" event.
 #[tauri::command]
-fn respond_slot_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
+fn respond_read_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
     let state = app_handle.state::<AppState>();
-    state.connection_manager.respond_slot_values(values);
+    state.connection_manager.respond_read_values(values);
 }
 
 /// Get the web control port (None if web control is disabled)
@@ -601,10 +601,10 @@ pub fn run() {
             is_ws_running,
             get_port,
             get_web_port,
-            set_slots,
+            set_keys,
             get_glb_source,
             read_glb_file,
-            respond_slot_values,
+            respond_read_values,
             get_speech_keys,
             set_mic_muted_state,
             set_transport_catalog,

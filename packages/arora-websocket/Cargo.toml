@@ -2,7 +2,7 @@
 name = "arora-websocket"
 version = "0.2.0"
 edition = "2021"
-description = "WebSocket implementation of the Arora protocol connection"
+description = "WebSocket implementation of the Arora API connection"
 
 [features]
 default = ["server"]

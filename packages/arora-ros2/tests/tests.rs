@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use arora_ros2::msg_types::{self, InvokeRequest, InvokeResponse, MessageType};
 use arora_ros2::{
-    AroraConnection, AroraRos2Node, CancellationToken, InvokeResult, MethodInfo, SlotInfo, Value,
+    AroraConnection, AroraRos2Node, CancellationToken, InvokeResult, MethodInfo, KeyInfo, Value,
 };
 use rand::Rng;
 use ros2_client::{
@@ -26,7 +26,7 @@ fn random_domain_id() -> u16 {
 }
 
 /// Helper: construct a typical set of vizij-like face-morph input slots.
-fn vizij_face_slots() -> Vec<SlotInfo> {
+fn vizij_face_slots() -> Vec<KeyInfo> {
     let paths = [
         "face/mouth/open",
         "face/mouth/smile",
@@ -37,7 +37,7 @@ fn vizij_face_slots() -> Vec<SlotInfo> {
     ];
     paths
         .iter()
-        .map(|p| SlotInfo {
+        .map(|p| KeyInfo {
             path: p.to_string(),
             kind: Some("input".to_string()),
             value_type: Some(arora_connection::Type::F64),
@@ -93,7 +93,7 @@ fn create_test_node(domain_id: u16, name_suffix: &str) -> (Context, ros2_client:
 // =========================================================================
 
 /// Publish a Float64 message to a slot topic and verify the
-/// SetSlotValuesHandler receives the correct Value::F64.
+/// WriteValuesHandler receives the correct Value::F64.
 #[tokio::test]
 async fn test_slot_subscription_f64() {
     let _ = env_logger::try_init();
@@ -109,10 +109,10 @@ async fn test_slot_subscription_f64() {
         let _ = tx.try_send(values);
         Ok(())
     });
-    node.set_set_slot_values_handler(handler).await;
+    node.set_write_values_handler(handler).await;
 
     // Single F64 input slot.
-    node.set_slots(vec![SlotInfo {
+    node.set_keys(vec![KeyInfo {
         path: "face/mouth/open".to_string(),
         kind: Some("input".to_string()),
         value_type: Some(arora_connection::Type::F64),
@@ -175,13 +175,13 @@ async fn test_slot_subscription_bool() {
     let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(16);
 
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
-    node.set_set_slot_values_handler(Arc::new(move |values| {
+    node.set_write_values_handler(Arc::new(move |values| {
         let _ = tx.try_send(values);
         Ok(())
     }))
     .await;
 
-    node.set_slots(vec![SlotInfo {
+    node.set_keys(vec![KeyInfo {
         path: "enabled".to_string(),
         kind: Some("input".to_string()),
         value_type: Some(arora_connection::Type::Boolean),
@@ -237,13 +237,13 @@ async fn test_slot_subscription_string() {
     let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(16);
 
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
-    node.set_set_slot_values_handler(Arc::new(move |values| {
+    node.set_write_values_handler(Arc::new(move |values| {
         let _ = tx.try_send(values);
         Ok(())
     }))
     .await;
 
-    node.set_slots(vec![SlotInfo {
+    node.set_keys(vec![KeyInfo {
         path: "status".to_string(),
         kind: Some("input".to_string()),
         value_type: Some(arora_connection::Type::String),
@@ -309,13 +309,13 @@ async fn test_multiple_face_morph_slots() {
     let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(64);
 
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
-    node.set_set_slot_values_handler(Arc::new(move |values| {
+    node.set_write_values_handler(Arc::new(move |values| {
         let _ = tx.try_send(values);
         Ok(())
     }))
     .await;
 
-    node.set_slots(vizij_face_slots()).await;
+    node.set_keys(vizij_face_slots()).await;
 
     let cancel = start_node(&node).await;
 
@@ -406,15 +406,15 @@ async fn test_output_slots_ignored() {
     let (tx, mut rx) = mpsc::channel::<HashMap<String, Value>>(16);
 
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
-    node.set_set_slot_values_handler(Arc::new(move |values| {
+    node.set_write_values_handler(Arc::new(move |values| {
         let _ = tx.try_send(values);
         Ok(())
     }))
     .await;
 
     // One input slot, one output slot.
-    node.set_slots(vec![
-        SlotInfo {
+    node.set_keys(vec![
+        KeyInfo {
             path: "input_slot".to_string(),
             kind: Some("input".to_string()),
             value_type: Some(arora_connection::Type::F64),
@@ -423,7 +423,7 @@ async fn test_output_slots_ignored() {
             default_value: None,
             description: None,
         },
-        SlotInfo {
+        KeyInfo {
             path: "output_slot".to_string(),
             kind: Some("output".to_string()),
             value_type: Some(arora_connection::Type::F64),
@@ -509,8 +509,8 @@ async fn test_method_invocation_reset() {
 
     // Need at least one slot for the node to fully start (not strictly
     // required, but matches vizij usage).
-    node.set_set_slot_values_handler(Arc::new(|_| Ok(()))).await;
-    node.set_slots(vec![]).await;
+    node.set_write_values_handler(Arc::new(|_| Ok(()))).await;
+    node.set_keys(vec![]).await;
 
     let cancel = start_node(&node).await;
 
@@ -597,8 +597,8 @@ async fn test_method_invocation_with_return_value() {
     )
     .await;
 
-    node.set_set_slot_values_handler(Arc::new(|_| Ok(()))).await;
-    node.set_slots(vec![]).await;
+    node.set_write_values_handler(Arc::new(|_| Ok(()))).await;
+    node.set_keys(vec![]).await;
 
     let cancel = start_node(&node).await;
 
@@ -688,8 +688,8 @@ async fn test_slots_discoverable_as_topics() {
     let namespace = format!("test_disc_{domain_id}");
 
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
-    node.set_set_slot_values_handler(Arc::new(|_| Ok(()))).await;
-    node.set_slots(vizij_face_slots()).await;
+    node.set_write_values_handler(Arc::new(|_| Ok(()))).await;
+    node.set_keys(vizij_face_slots()).await;
 
     let cancel = start_node(&node).await;
 
@@ -735,8 +735,8 @@ async fn test_node_lifecycle() {
     let namespace = format!("test_lifecycle_{domain_id}");
 
     let node = Arc::new(AroraRos2Node::new(&namespace, domain_id));
-    node.set_set_slot_values_handler(Arc::new(|_| Ok(()))).await;
-    node.set_slots(vizij_face_slots()).await;
+    node.set_write_values_handler(Arc::new(|_| Ok(()))).await;
+    node.set_keys(vizij_face_slots()).await;
 
     assert!(!node.is_running().await, "Should not be running yet");
 

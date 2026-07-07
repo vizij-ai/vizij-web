@@ -14,7 +14,7 @@
 //! let node = AroraRos2Node::new("vizij", 0);
 //!
 //! // Register handlers (same pattern as arora-websocket)
-//! node.set_set_slot_values_handler(std::sync::Arc::new(|values| {
+//! node.set_write_values_handler(std::sync::Arc::new(|values| {
 //!     println!("Received {} updates", values.len());
 //!     Ok(())
 //! })).await;
@@ -34,5 +34,5 @@ pub use node::AroraRos2Node;
 
 // Re-export core arora types.
 pub use arora_connection::{
-    AroraConnection, CancellationToken, InvokeResult, MethodInfo, SlotInfo, Value,
+    AroraConnection, CancellationToken, InvokeResult, KeyInfo, MethodInfo, Value,
 };

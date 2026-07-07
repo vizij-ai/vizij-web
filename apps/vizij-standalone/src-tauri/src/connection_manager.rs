@@ -13,8 +13,8 @@ use tokio::time::{timeout, Duration};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::connection::{
-    AroraConnection, CancellationToken, GetSlotValuesHandler, InvokeResult, MethodHandler,
-    MethodInfo, MethodParam, OnClientConnectedHandler, SetSlotValuesHandler, SlotInfo, Type, Value,
+    AroraConnection, CancellationToken, InvokeResult, KeyInfo, MethodHandler, MethodInfo,
+    MethodParam, OnClientConnectedHandler, ReadValuesHandler, Type, Value, WriteValuesHandler,
 };
 use crate::AppState;
 
@@ -25,10 +25,10 @@ use crate::AppState;
 /// disconnected.
 pub struct ConnectionManager {
     connections: Vec<Arc<dyn AroraConnection>>,
-    /// Shared channel sender for pending GetSlotValues responses.
-    /// Only one get-slot-values request can be in flight at a time
+    /// Shared channel sender for pending ReadValues responses.
+    /// Only one read-values request can be in flight at a time
     /// (since only one client is active).
-    slot_values_responder: Arc<Mutex<Option<oneshot::Sender<HashMap<String, Value>>>>>,
+    read_values_responder: Arc<Mutex<Option<oneshot::Sender<HashMap<String, Value>>>>>,
 }
 
 impl ConnectionManager {
@@ -36,7 +36,7 @@ impl ConnectionManager {
     pub fn new() -> Self {
         Self {
             connections: Vec::new(),
-            slot_values_responder: Arc::new(Mutex::new(None)),
+            read_values_responder: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -48,32 +48,32 @@ impl ConnectionManager {
     /// Set up Tauri event integration and exclusive client handlers for all connections.
     ///
     /// For each connection, this wires up:
-    /// - SetSlotValues handler → emits `"update-values"` Tauri event
-    /// - GetSlotValues handler → emits `"get-slot-values-request"`, waits on channel
+    /// - WriteValues handler → emits `"update-values"` Tauri event
+    /// - ReadValues handler → emits `"read-values-request"`, waits on channel
     /// - "reset" method → emits `"reset"` Tauri event
     /// - on_client_connected → disconnects clients on all OTHER connections
     pub async fn setup_all(&self, app_handle: AppHandle) {
-        let responder = self.slot_values_responder.clone();
+        let responder = self.read_values_responder.clone();
 
         for (i, conn) in self.connections.iter().enumerate() {
-            // Handler for SetSlotValues: emit to frontend
+            // Handler for WriteValues: emit to frontend
             let app = app_handle.clone();
-            let set_handler: SetSlotValuesHandler = Arc::new(move |values| {
+            let write_handler: WriteValuesHandler = Arc::new(move |values| {
                 match app.emit("update-values", &values) {
                     Ok(()) => Ok(()),
                     Err(e) => Err(format!("Failed to emit: {}", e)),
                 }
             });
-            conn.set_set_slot_values_handler(set_handler).await;
+            conn.set_write_values_handler(write_handler).await;
 
-            // Handler for GetSlotValues: request from frontend via event/command pattern
+            // Handler for ReadValues: request from frontend via event/command pattern
             let app = app_handle.clone();
             let responder_clone = responder.clone();
-            let get_handler: GetSlotValuesHandler = Arc::new(move |slots| {
+            let read_handler: ReadValuesHandler = Arc::new(move |keys| {
                 let responder_clone = responder_clone.clone();
                 let app = app.clone();
                 Box::pin(async move {
-                    debug!("GetSlotValues request for {} slots", slots.len());
+                    debug!("ReadValues request for {} keys", keys.len());
 
                     let (tx, rx) = oneshot::channel();
                     {
@@ -81,8 +81,8 @@ impl ConnectionManager {
                         *guard = Some(tx);
                     }
 
-                    if let Err(e) = app.emit("get-slot-values-request", &slots) {
-                        warn!("Failed to emit get-slot-values-request: {}", e);
+                    if let Err(e) = app.emit("read-values-request", &keys) {
+                        warn!("Failed to emit read-values-request: {}", e);
                         let mut guard = responder_clone.lock().unwrap();
                         guard.take();
                         return HashMap::new();
@@ -90,19 +90,19 @@ impl ConnectionManager {
 
                     match timeout(Duration::from_secs(5), rx).await {
                         Ok(Ok(values)) => {
-                            debug!("Received {} slot values from frontend", values.len());
+                            debug!("Received {} values from frontend", values.len());
                             let mut guard = responder_clone.lock().unwrap();
                             guard.take();
                             values
                         }
                         Ok(Err(_)) => {
-                            warn!("Frontend failed to respond with slot values");
+                            warn!("Frontend failed to respond with values");
                             let mut guard = responder_clone.lock().unwrap();
                             guard.take();
                             HashMap::new()
                         }
                         Err(_) => {
-                            warn!("Timeout waiting for slot values");
+                            warn!("Timeout waiting for values");
                             let mut guard = responder_clone.lock().unwrap();
                             guard.take();
                             HashMap::new()
@@ -110,7 +110,7 @@ impl ConnectionManager {
                     }
                 })
             });
-            conn.set_get_slot_values_handler(get_handler).await;
+            conn.set_read_values_handler(read_handler).await;
 
             // Register "reset" method: emits Tauri event
             let app = app_handle.clone();
@@ -479,22 +479,22 @@ impl ConnectionManager {
         handles
     }
 
-    /// Propagate slot definitions to all connections.
-    pub async fn set_slots(&self, slots: Vec<SlotInfo>) {
+    /// Propagate key definitions to all connections.
+    pub async fn set_keys(&self, keys: Vec<KeyInfo>) {
         for conn in &self.connections {
-            conn.set_slots(slots.clone()).await;
+            conn.set_keys(keys.clone()).await;
         }
     }
 
-    /// Respond to a pending GetSlotValues request.
-    pub fn respond_slot_values(&self, values: HashMap<String, Value>) {
-        let mut guard = self.slot_values_responder.lock().unwrap();
+    /// Respond to a pending ReadValues request.
+    pub fn respond_read_values(&self, values: HashMap<String, Value>) {
+        let mut guard = self.read_values_responder.lock().unwrap();
         if let Some(tx) = guard.take() {
             if tx.send(values).is_err() {
-                warn!("Failed to send slot values response - receiver dropped");
+                warn!("Failed to send read values response - receiver dropped");
             }
         } else {
-            warn!("respond_slot_values called but no pending request");
+            warn!("respond_read_values called but no pending request");
         }
     }
 

@@ -1,6 +1,6 @@
-//! Registry for slots and methods.
+//! Registry for keys and methods.
 //!
-//! Provides thread-safe storage for available slots and invocable methods.
+//! Provides thread-safe storage for available keys and invocable methods.
 
 #[cfg(feature = "server")]
 use tokio::sync::RwLock;
@@ -11,7 +11,7 @@ use std::sync::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use arora_connection::{InvokeResult, MethodInfo, SlotInfo, Value};
+use arora_connection::{InvokeResult, KeyInfo, MethodInfo, Value};
 
 /// Trait for method handlers in the registry.
 ///
@@ -31,13 +31,13 @@ where
     }
 }
 
-/// Registry for slots and methods.
+/// Registry for keys and methods.
 ///
 /// This is the core state container for the WebSocket server.
-/// It stores available slots and registered methods.
+/// It stores available keys and registered methods.
 #[cfg(feature = "server")]
 pub struct Registry {
-    slots: RwLock<Vec<SlotInfo>>,
+    keys: RwLock<Vec<KeyInfo>>,
     methods: RwLock<HashMap<String, MethodInfo>>,
     handlers: RwLock<HashMap<String, Arc<dyn RegistryMethodHandler>>>,
 }
@@ -54,43 +54,42 @@ impl Registry {
     /// Create a new empty registry.
     pub fn new() -> Self {
         Self {
-            slots: RwLock::new(Vec::new()),
+            keys: RwLock::new(Vec::new()),
             methods: RwLock::new(HashMap::new()),
             handlers: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Set the available slots.
-    pub async fn set_slots(&self, slots: Vec<SlotInfo>) {
-        *self.slots.write().await = slots;
+    /// Set the available keys.
+    pub async fn set_keys(&self, keys: Vec<KeyInfo>) {
+        *self.keys.write().await = keys;
     }
 
-    /// Get all registered slots.
-    pub async fn get_slots(&self) -> Vec<SlotInfo> {
-        self.slots.read().await.clone()
+    /// Get all registered keys.
+    pub async fn get_keys(&self) -> Vec<KeyInfo> {
+        self.keys.read().await.clone()
     }
 
-    /// Get slots filtered by path prefix.
-    pub async fn get_slots_filtered(&self, prefix: Option<&str>) -> Vec<SlotInfo> {
-        let slots = self.slots.read().await;
+    /// Get keys filtered by path prefix.
+    pub async fn get_keys_filtered(&self, prefix: Option<&str>) -> Vec<KeyInfo> {
+        let keys = self.keys.read().await;
         match prefix {
             Some(prefix) => {
                 let prefix = prefix.trim_end_matches('/');
-                slots
-                    .iter()
+                keys.iter()
                     .filter(|n| {
                         n.path.starts_with(prefix) || n.path.starts_with(&format!("{}/", prefix))
                     })
                     .cloned()
                     .collect()
             }
-            None => slots.clone(),
+            None => keys.clone(),
         }
     }
 
-    /// Get input slots (slots with kind == "input").
+    /// Get input key paths (keys with kind == "input").
     pub async fn get_input_paths(&self) -> Vec<String> {
-        self.slots
+        self.keys
             .read()
             .await
             .iter()

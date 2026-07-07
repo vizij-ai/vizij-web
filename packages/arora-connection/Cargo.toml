@@ -2,7 +2,7 @@
 name = "arora-connection"
 version = "0.1.0"
 edition = "2021"
-description = "Abstract connection trait and core types for the Arora protocol"
+description = "Abstract connection trait and core types for the Arora API"
 
 [features]
 default = ["async"]

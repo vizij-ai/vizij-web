@@ -1,8 +1,11 @@
 /**
- * Arora WebSocket Protocol Message Types
+ * Arora WebSocket Message Types
  *
- * This module defines the standard message format for arora-based WebSocket communication.
- * Messages are serialized as JSON with a `type` field discriminator.
+ * This module defines the message format for WebSocket communication with the
+ * Arora API, matching the `arora-websocket` crate (1.0). Messages are
+ * serialized as JSON with a `type` field discriminator, and speak the Arora
+ * data-layer vocabulary: values are written to and read from **keys**
+ * (hierarchical paths into the store).
  */
 
 import type { AroraType, AroraValue } from "./value";
@@ -12,15 +15,15 @@ import type { AroraType, AroraValue } from "./value";
 // ============================================================================
 
 /**
- * Metadata describing an available slot in the system.
- * Slots represent controllable parameters or observable outputs.
+ * Metadata describing a key exposed by the runtime's data layer.
+ * Keys represent controllable parameters or observable outputs.
  */
-export type SlotInfo = {
+export type KeyInfo = {
   /** Hierarchical path identifier (e.g., "face/mouth/open") */
   path: string;
-  /** Slot kind/category (e.g., "input", "output", "computed") */
+  /** Key kind/category (e.g., "input", "output", "computed") */
   kind?: string;
-  /** The arora Type that this slot accepts/produces */
+  /** The arora Type of the values this key accepts/produces */
   value_type?: AroraType;
   /** Minimum value constraint (for numeric types) */
   min?: number;
@@ -31,12 +34,6 @@ export type SlotInfo = {
   /** Human-readable description */
   description?: string;
 };
-
-/**
- * @deprecated Use SlotInfo.
- * Alias kept for compatibility with existing clients.
- */
-export type NodeInfo = SlotInfo;
 
 /**
  * Descriptor for an RPC method parameter.
@@ -77,9 +74,9 @@ export type MethodInfo = {
  * Use the `type` field to discriminate message kind.
  */
 export type Incoming =
-  | { type: "set_slot_values"; values: Record<string, AroraValue> }
-  | { type: "get_slot_values"; slots: string[] }
-  | { type: "list_slots"; path?: string }
+  | { type: "write_values"; values: Record<string, AroraValue> }
+  | { type: "read_values"; keys: string[] }
+  | { type: "list_keys"; path?: string }
   | { type: "list_methods"; path?: string }
   | {
       type: "invoke";
@@ -97,9 +94,9 @@ export type Incoming =
  * Use the `type` field to discriminate message kind.
  */
 export type Outgoing =
-  | { type: "set_slot_values_resp"; success: boolean; message?: string }
-  | { type: "get_slot_values_resp"; values: Record<string, AroraValue> }
-  | { type: "list_slots_resp"; slots: SlotInfo[] }
+  | { type: "write_values_resp"; success: boolean; message?: string }
+  | { type: "read_values_resp"; values: Record<string, AroraValue> }
+  | { type: "list_keys_resp"; keys: KeyInfo[] }
   | { type: "list_methods_resp"; methods: MethodInfo[] }
   | {
       type: "invoke_resp";
@@ -108,31 +105,32 @@ export type Outgoing =
       value?: AroraValue;
       message?: string;
     }
-  | { type: "error"; request_id?: string; message: string };
+  | { type: "error"; request_id?: string; message: string }
+  | { type: "values_changed"; values: Record<string, AroraValue> };
 
 // ============================================================================
 // Type Guards
 // ============================================================================
 
-/** Check if message is a SetSlotValuesResp */
-export function isSetSlotValuesResp(
+/** Check if message is a WriteValuesResp */
+export function isWriteValuesResp(
   msg: Outgoing,
-): msg is Extract<Outgoing, { type: "set_slot_values_resp" }> {
-  return msg.type === "set_slot_values_resp";
+): msg is Extract<Outgoing, { type: "write_values_resp" }> {
+  return msg.type === "write_values_resp";
 }
 
-/** Check if message is a GetSlotValuesResp */
-export function isGetSlotValuesResp(
+/** Check if message is a ReadValuesResp */
+export function isReadValuesResp(
   msg: Outgoing,
-): msg is Extract<Outgoing, { type: "get_slot_values_resp" }> {
-  return msg.type === "get_slot_values_resp";
+): msg is Extract<Outgoing, { type: "read_values_resp" }> {
+  return msg.type === "read_values_resp";
 }
 
-/** Check if message is a ListSlotsResp */
-export function isListSlotsResp(
+/** Check if message is a ListKeysResp */
+export function isListKeysResp(
   msg: Outgoing,
-): msg is Extract<Outgoing, { type: "list_slots_resp" }> {
-  return msg.type === "list_slots_resp";
+): msg is Extract<Outgoing, { type: "list_keys_resp" }> {
+  return msg.type === "list_keys_resp";
 }
 
 /** Check if message is a ListMethodsResp */
@@ -156,47 +154,38 @@ export function isError(
   return msg.type === "error";
 }
 
+/** Check if message is a ValuesChanged push */
+export function isValuesChanged(
+  msg: Outgoing,
+): msg is Extract<Outgoing, { type: "values_changed" }> {
+  return msg.type === "values_changed";
+}
+
 // ============================================================================
 // Message Constructors
 // ============================================================================
 
 /**
- * Create a SetSlotValues message.
+ * Create a WriteValues message.
  */
-export function createSetSlotValues(
+export function createWriteValues(
   values: Record<string, AroraValue>,
 ): Incoming {
-  return { type: "set_slot_values", values };
+  return { type: "write_values", values };
 }
 
 /**
- * Create a GetSlotValues message.
+ * Create a ReadValues message.
  */
-export function createGetSlotValues(slots: string[]): Incoming {
-  return { type: "get_slot_values", slots };
+export function createReadValues(keys: string[]): Incoming {
+  return { type: "read_values", keys };
 }
 
 /**
- * Create a ListSlots message.
+ * Create a ListKeys message.
  */
-export function createListSlots(path?: string): Incoming {
-  return { type: "list_slots", path };
-}
-
-/**
- * @deprecated Use createSetSlotValues.
- * Alias kept for compatibility with existing clients.
- */
-export function createUpdate(values: Record<string, AroraValue>): Incoming {
-  return createSetSlotValues(values);
-}
-
-/**
- * @deprecated Use createListSlots.
- * Alias kept for compatibility with existing clients.
- */
-export function createListNodes(path?: string): Incoming {
-  return createListSlots(path);
+export function createListKeys(path?: string): Incoming {
+  return { type: "list_keys", path };
 }
 
 /**
@@ -215,24 +204,4 @@ export function createInvoke(
   request_id?: string,
 ): Incoming {
   return { type: "invoke", method, args, request_id };
-}
-
-/**
- * @deprecated Use isSetSlotValuesResp.
- * Alias kept for compatibility with existing clients.
- */
-export function isUpdateResp(
-  msg: Outgoing,
-): msg is Extract<Outgoing, { type: "set_slot_values_resp" }> {
-  return isSetSlotValuesResp(msg);
-}
-
-/**
- * @deprecated Use isListSlotsResp.
- * Alias kept for compatibility with existing clients.
- */
-export function isListNodesResp(
-  msg: Outgoing,
-): msg is Extract<Outgoing, { type: "list_slots_resp" }> {
-  return isListSlotsResp(msg);
 }

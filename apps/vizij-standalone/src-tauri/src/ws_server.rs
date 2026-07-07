@@ -12,8 +12,8 @@ use arora_websocket::{AroraWSServer, ServerConfig};
 use log::warn;
 
 use crate::connection::{
-    AroraConnection, CancellationToken, GetSlotValuesHandler, MethodHandler, MethodInfo,
-    OnClientConnectedHandler, SetSlotValuesHandler, SlotInfo, Value,
+    AroraConnection, CancellationToken, KeyInfo, MethodHandler, MethodInfo,
+    OnClientConnectedHandler, ReadValuesHandler, Value, WriteValuesHandler,
 };
 
 /// WebSocket implementation of AroraConnection.
@@ -37,32 +37,32 @@ impl WsServer {
 }
 
 impl AroraConnection for WsServer {
-    fn set_slots(
+    fn set_keys(
         &self,
-        slots: Vec<SlotInfo>,
+        keys: Vec<KeyInfo>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
-            self.server.registry().set_slots(slots).await;
+            self.server.registry().set_keys(keys).await;
         })
     }
 
-    fn set_set_slot_values_handler(
+    fn set_write_values_handler(
         &self,
-        handler: SetSlotValuesHandler,
+        handler: WriteValuesHandler,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
             self.server
-                .set_set_slot_values_handler(move |values| handler(values))
+                .set_write_values_handler(move |values| handler(values))
                 .await;
         })
     }
 
-    fn set_get_slot_values_handler(
+    fn set_read_values_handler(
         &self,
-        handler: GetSlotValuesHandler,
+        handler: ReadValuesHandler,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
-            self.server.set_get_slot_values_handler(handler).await;
+            self.server.set_read_values_handler(handler).await;
         })
     }
 
@@ -79,8 +79,8 @@ impl AroraConnection for WsServer {
         })
     }
 
-    fn respond_slot_values(&self, _values: HashMap<String, Value>) {
-        warn!("respond_slot_values called on WsServer directly; use ConnectionManager instead");
+    fn respond_read_values(&self, _values: HashMap<String, Value>) {
+        warn!("respond_read_values called on WsServer directly; use ConnectionManager instead");
     }
 
     fn run(

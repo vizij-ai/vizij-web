@@ -8,9 +8,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use arora_connection::{
-  AroraConnection, CancellationToken, GetSlotValuesHandler, InvokeResult,
-  MethodHandler, MethodInfo, OnClientConnectedHandler, SetSlotValuesHandler,
-  SlotInfo, Value,
+  AroraConnection, CancellationToken, InvokeResult, KeyInfo, MethodHandler,
+  MethodInfo, OnClientConnectedHandler, ReadValuesHandler, Value,
+  WriteValuesHandler,
 };
 use futures::StreamExt;
 use log::{info, warn};
@@ -27,16 +27,16 @@ use crate::msg_types::{InvokeRequest, InvokeResponse};
 /// ROS2 implementation of [`AroraConnection`].
 ///
 /// Creates one ROS2 topic per slot and one ROS2 service per method.
-/// ROS2's own discovery mechanisms replace ListSlots / ListMethods.
+/// ROS2's own discovery mechanisms replace ListKeys / ListMethods.
 pub struct AroraRos2Node {
   namespace: String,
   domain_id: u16,
-  set_slot_values_handler: RwLock<Option<SetSlotValuesHandler>>,
-  get_slot_values_handler: RwLock<Option<GetSlotValuesHandler>>,
+  write_values_handler: RwLock<Option<WriteValuesHandler>>,
+  read_values_handler: RwLock<Option<ReadValuesHandler>>,
   on_client_connected_handler: RwLock<Option<OnClientConnectedHandler>>,
   methods: RwLock<Vec<(MethodInfo, MethodHandler)>>,
-  slots_tx: watch::Sender<Vec<SlotInfo>>,
-  slots_rx: watch::Receiver<Vec<SlotInfo>>,
+  slots_tx: watch::Sender<Vec<KeyInfo>>,
+  slots_rx: watch::Receiver<Vec<KeyInfo>>,
   is_running: RwLock<bool>,
 }
 
@@ -49,8 +49,8 @@ impl AroraRos2Node {
     Self {
       namespace: namespace.to_string(),
       domain_id,
-      set_slot_values_handler: RwLock::new(None),
-      get_slot_values_handler: RwLock::new(None),
+      write_values_handler: RwLock::new(None),
+      read_values_handler: RwLock::new(None),
       on_client_connected_handler: RwLock::new(None),
       methods: RwLock::new(Vec::new()),
       slots_tx,
@@ -61,30 +61,30 @@ impl AroraRos2Node {
 }
 
 impl AroraConnection for AroraRos2Node {
-  fn set_slots(
+  fn set_keys(
     &self,
-    slots: Vec<SlotInfo>,
+    keys: Vec<KeyInfo>,
   ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
     Box::pin(async move {
-      let _ = self.slots_tx.send(slots);
+      let _ = self.slots_tx.send(keys);
     })
   }
 
-  fn set_set_slot_values_handler(
+  fn set_write_values_handler(
     &self,
-    handler: SetSlotValuesHandler,
+    handler: WriteValuesHandler,
   ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
     Box::pin(async move {
-      *self.set_slot_values_handler.write().await = Some(handler);
+      *self.write_values_handler.write().await = Some(handler);
     })
   }
 
-  fn set_get_slot_values_handler(
+  fn set_read_values_handler(
     &self,
-    handler: GetSlotValuesHandler,
+    handler: ReadValuesHandler,
   ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
     Box::pin(async move {
-      *self.get_slot_values_handler.write().await = Some(handler);
+      *self.read_values_handler.write().await = Some(handler);
     })
   }
 
@@ -98,9 +98,9 @@ impl AroraConnection for AroraRos2Node {
     })
   }
 
-  fn respond_slot_values(&self, _values: HashMap<String, Value>) {
+  fn respond_read_values(&self, _values: HashMap<String, Value>) {
     // No-op: ROS2 uses a push model; there are no pending
-    // GetSlotValues requests to respond to.
+    // ReadValues requests to respond to.
   }
 
   fn run(
@@ -201,7 +201,7 @@ impl AroraConnection for AroraRos2Node {
             }
 
             let slots = slots_rx.borrow_and_update().clone();
-            let handler = self.set_slot_values_handler.read().await;
+            let handler = self.write_values_handler.read().await;
 
             if let Some(ref handler) = *handler {
               let mut streams = Vec::new();

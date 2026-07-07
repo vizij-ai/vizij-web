@@ -1,40 +1,42 @@
-//! WebSocket protocol message types.
+//! WebSocket message types bridging the Arora API.
 //!
-//! This module defines the standard message format for arora-based WebSocket communication.
-//! Messages are serialized as JSON with a `type` field discriminator.
+//! Messages are serialized as JSON with a `type` field discriminator, and
+//! speak the Arora data-layer vocabulary: values are written to and read from
+//! **keys** (hierarchical paths into the store). This is the arora-websocket
+//! 1.0 wire format.
 
-use arora_connection::{MethodInfo, SlotInfo, Value};
+use arora_connection::{KeyInfo, MethodInfo, Value};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Messages received from WebSocket clients.
 ///
 /// All incoming messages use a `type` field to discriminate the message kind.
-/// Example JSON: `{"type": "set_slot_values", "values": {...}}`
+/// Example JSON: `{"type": "write_values", "values": {...}}`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Incoming {
-    /// Set values on slots.
+    /// Write values to keys.
     ///
-    /// Example: `{"type": "set_slot_values", "values": {"face/mouth": {"f64": 0.5}}}`
-    SetSlotValues {
-        /// Map of slot paths to their new values
+    /// Example: `{"type": "write_values", "values": {"face/mouth": {"f64": 0.5}}}`
+    WriteValues {
+        /// Map of key paths to their new values
         values: HashMap<String, Value>,
     },
 
-    /// Get values of slots.
+    /// Read the current values of keys.
     ///
-    /// Example: `{"type": "get_slot_values", "slots": ["face/mouth", "face/eyes"]}`
-    GetSlotValues {
-        /// List of slot paths to retrieve
-        slots: Vec<String>,
+    /// Example: `{"type": "read_values", "keys": ["face/mouth", "face/eyes"]}`
+    ReadValues {
+        /// List of key paths to retrieve
+        keys: Vec<String>,
     },
 
-    /// Request the list of available slots.
+    /// Request the list of available keys.
     ///
-    /// Example: `{"type": "list_slots"}` or `{"type": "list_slots", "path": "face"}`
-    ListSlots {
-        /// Optional path prefix to filter slots
+    /// Example: `{"type": "list_keys"}` or `{"type": "list_keys", "path": "face"}`
+    ListKeys {
+        /// Optional path prefix to filter keys
         #[serde(default)]
         path: Option<String>,
     },
@@ -71,11 +73,11 @@ pub enum Incoming {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Outgoing {
-    /// Response to SetSlotValues message.
+    /// Response to WriteValues message.
     ///
-    /// Example: `{"type": "set_slot_values_resp", "success": true}`
-    SetSlotValuesResp {
-        /// Whether the setter was successful
+    /// Example: `{"type": "write_values_resp", "success": true}`
+    WriteValuesResp {
+        /// Whether the write was successful
         success: bool,
 
         /// Error message if success is false
@@ -83,20 +85,20 @@ pub enum Outgoing {
         message: Option<String>,
     },
 
-    /// Response to GetSlotValues message.
-    ///     
-    /// Example: `{"type": "get_slot_values_resp", "values": {"face/mouth": {"f64": 0.5}}}`
-    GetSlotValuesResp {
-        /// Map of slot paths to their current values
+    /// Response to ReadValues message.
+    ///
+    /// Example: `{"type": "read_values_resp", "values": {"face/mouth": {"f64": 0.5}}}`
+    ReadValuesResp {
+        /// Map of key paths to their current values
         values: HashMap<String, Value>,
     },
 
-    /// Response to ListSlots message.
+    /// Response to ListKeys message.
     ///
-    /// Example: `{"type": "list_slots_resp", "slots": [...]}`
-    ListSlotsResp {
-        /// List of matching slots
-        slots: Vec<SlotInfo>,
+    /// Example: `{"type": "list_keys_resp", "keys": [...]}`
+    ListKeysResp {
+        /// List of matching keys
+        keys: Vec<KeyInfo>,
     },
 
     /// Response to ListMethods message.
@@ -138,6 +140,15 @@ pub enum Outgoing {
         /// Error description
         message: String,
     },
+
+    /// Server-initiated push: values changed (e.g. the runtime wrote new
+    /// state). Sent unsolicited to subscribed clients.
+    ///
+    /// Example: `{"type": "values_changed", "values": {"face/mouth": {"f64": 0.5}}}`
+    ValuesChanged {
+        /// Map of key paths to their new values.
+        values: HashMap<String, Value>,
+    },
 }
 
 #[cfg(test)]
@@ -145,38 +156,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_incoming_set_slot_values_deserialize() {
-        let json = r#"{"type": "set_slot_values", "values": {"test/path": {"f64": 0.5}}}"#;
+    fn test_incoming_write_values_deserialize() {
+        let json = r#"{"type": "write_values", "values": {"test/path": {"f64": 0.5}}}"#;
         let msg: Incoming = serde_json::from_str(json).unwrap();
         match msg {
-            Incoming::SetSlotValues { values } => {
+            Incoming::WriteValues { values } => {
                 assert!(values.contains_key("test/path"));
             }
-            _ => panic!("Expected SetSlotValues message"),
+            _ => panic!("Expected WriteValues message"),
         }
     }
 
     #[test]
-    fn test_incoming_get_slot_values_deserialize() {
-        let json = r#"{"type": "get_slot_values", "slots": ["face/mouth", "face/eyes"]}"#;
+    fn test_incoming_read_values_deserialize() {
+        let json = r#"{"type": "read_values", "keys": ["face/mouth", "face/eyes"]}"#;
         let msg: Incoming = serde_json::from_str(json).unwrap();
         match msg {
-            Incoming::GetSlotValues { slots } => {
-                assert_eq!(slots, vec!["face/mouth", "face/eyes"]);
+            Incoming::ReadValues { keys } => {
+                assert_eq!(keys, vec!["face/mouth", "face/eyes"]);
             }
-            _ => panic!("Expected GetSlotValues message"),
+            _ => panic!("Expected ReadValues message"),
         }
     }
 
     #[test]
-    fn test_incoming_list_slots_deserialize() {
-        let json = r#"{"type": "list_slots", "path": "face"}"#;
+    fn test_incoming_list_keys_deserialize() {
+        let json = r#"{"type": "list_keys", "path": "face"}"#;
         let msg: Incoming = serde_json::from_str(json).unwrap();
         match msg {
-            Incoming::ListSlots { path } => {
+            Incoming::ListKeys { path } => {
                 assert_eq!(path, Some("face".to_string()));
             }
-            _ => panic!("Expected ListSlots message"),
+            _ => panic!("Expected ListKeys message"),
         }
     }
 
@@ -199,13 +210,13 @@ mod tests {
     }
 
     #[test]
-    fn test_outgoing_set_slot_values_resp_serialize() {
-        let msg = Outgoing::SetSlotValuesResp {
+    fn test_outgoing_write_values_resp_serialize() {
+        let msg = Outgoing::WriteValuesResp {
             success: true,
             message: None,
         };
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains(r#""type":"set_slot_values_resp""#));
+        assert!(json.contains(r#""type":"write_values_resp""#));
         assert!(json.contains(r#""success":true"#));
         assert!(!json.contains("message"));
     }
@@ -222,5 +233,15 @@ mod tests {
         assert!(json.contains(r#""type":"invoke_resp""#));
         assert!(json.contains(r#""request_id":"req-1""#));
         assert!(json.contains(r#""message":"Method not found""#));
+    }
+
+    #[test]
+    fn test_outgoing_values_changed_serialize() {
+        let values: HashMap<String, Value> =
+            serde_json::from_str(r#"{"face/mouth": {"f64": 0.5}}"#).unwrap();
+        let msg = Outgoing::ValuesChanged { values };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"values_changed""#));
+        assert!(json.contains(r#""face/mouth""#));
     }
 }

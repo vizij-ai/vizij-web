@@ -57,7 +57,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | Crate              | Path                        | Summary                                              |
 | ------------------ | --------------------------- | ---------------------------------------------------- |
 | `arora-connection` | `packages/arora-connection` | Rust protocol traits and shared connection types     |
-| `arora-websocket`  | `packages/arora-websocket`  | Rust WebSocket implementation for the Arora protocol |
+| `arora-websocket`  | `packages/arora-websocket`  | Rust WebSocket implementation of the Arora API wire format |
 
 ### Apps
 

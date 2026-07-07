@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use arora_connection::{SetSlotValuesHandler, SlotInfo, Type, Value};
+use arora_connection::{KeyInfo, Type, Value, WriteValuesHandler};
 use futures::stream::unfold;
 use futures::{Stream, StreamExt};
 use log::warn;
@@ -30,7 +30,7 @@ pub type SlotValueStream = Pin<
 /// `select_all` in a single task).
 pub fn setup_slot_subscriber(
   node: &mut Node,
-  slot: &SlotInfo,
+  slot: &KeyInfo,
   namespace: &str,
 ) -> Result<SlotValueStream, std::string::String> {
   let value_type = slot.value_type.clone().unwrap_or(Type::F64);
@@ -93,7 +93,7 @@ pub fn setup_slot_subscriber(
 /// Intended to be called inside `tokio::spawn`.
 pub async fn drive_slot_streams(
   mut streams: Vec<SlotValueStream>,
-  handler: SetSlotValuesHandler,
+  handler: WriteValuesHandler,
 ) {
   let combined = futures::stream::select_all(streams.iter_mut());
   tokio::pin!(combined);
@@ -102,7 +102,7 @@ pub async fn drive_slot_streams(
     match result {
       Ok(values) => {
         if let Err(e) = handler(values) {
-          warn!("set_slot_values_handler error: {}", e);
+          warn!("write_values_handler error: {}", e);
         }
       }
       Err(e) => {

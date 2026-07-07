@@ -1,22 +1,23 @@
-//! Slot metadata types for the Arora protocol.
+//! Key metadata types for the Arora API.
 
 use arora_schema::value::{Type, Value};
 use serde::{Deserialize, Serialize};
 
-/// Metadata describing an available slot in the system.
+/// Metadata describing a key exposed by the runtime's data layer.
 ///
-/// Slots represent controllable parameters or observable outputs.
-/// Each slot has a hierarchical path and optional type/constraint information.
+/// A key is a hierarchical path into the store; its value is an arora `Value`.
+/// Keys represent controllable parameters or observable outputs, with optional
+/// type/constraint information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SlotInfo {
+pub struct KeyInfo {
     /// Hierarchical path identifier (e.g., "face/mouth/open", "body/arm/left/rotation")
     pub path: String,
 
-    /// Slot kind/category (e.g., "input", "output", "computed")
+    /// Key kind/category (e.g., "input", "output", "computed")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
 
-    /// The arora Type that this slot accepts/produces
+    /// The arora Type of the values this key accepts/produces
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_type: Option<Type>,
 

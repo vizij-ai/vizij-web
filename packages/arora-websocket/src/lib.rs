@@ -1,32 +1,36 @@
-//! Arora WebSocket Protocol
+//! Arora WebSocket
 //!
-//! This crate provides a WebSocket implementation of the Arora protocol connection.
-//! It implements the [`AroraConnection`] trait from `arora-connection` and includes
-//! type-safe message definitions, a method registry, and a ready-to-use server.
+//! This crate provides a WebSocket implementation of the Arora API connection,
+//! speaking the arora-websocket 1.0 wire format. It implements the
+//! [`AroraConnection`] trait from `arora-connection` and includes type-safe
+//! message definitions, a method registry, and a ready-to-use server.
 //!
 //! # Features
 //!
 //! - **Message Types**: Type-safe [`Incoming`] and [`Outgoing`] message enums
-//! - **Registry**: Store slots and methods with [`Registry`]
+//! - **Registry**: Store keys and methods with [`Registry`]
 //! - **Server**: Full WebSocket server with [`AroraWSServer`] (requires `server` feature)
-//! - **Connection Trait**: Implements [`AroraConnection`] for protocol-agnostic usage
+//! - **Connection Trait**: Implements [`AroraConnection`] for transport-agnostic usage
 //!
-//! # Protocol Overview
+//! # Wire Format Overview
 //!
 //! Messages are JSON-encoded with a `type` field discriminator:
 //!
 //! ```json
 //! // Client -> Server
-//! {"type": "set_slot_values", "values": {"face/mouth": {"f64": 0.5}}}
-//! {"type": "list_slots", "path": "face"}
+//! {"type": "write_values", "values": {"face/mouth": {"f64": 0.5}}}
+//! {"type": "read_values", "keys": ["face/mouth"]}
+//! {"type": "list_keys", "path": "face"}
 //! {"type": "list_methods"}
 //! {"type": "invoke", "method": "reset", "request_id": "req-1"}
 //!
 //! // Server -> Client
-//! {"type": "set_slot_values_resp", "success": true}
-//! {"type": "list_slots_resp", "slots": [...]}
+//! {"type": "write_values_resp", "success": true}
+//! {"type": "read_values_resp", "values": {"face/mouth": {"f64": 0.5}}}
+//! {"type": "list_keys_resp", "keys": [...]}
 //! {"type": "list_methods_resp", "methods": [...]}
 //! {"type": "invoke_resp", "success": true, "request_id": "req-1"}
+//! {"type": "values_changed", "values": {"face/mouth": {"f64": 0.5}}}
 //! ```
 //!
 //! # Server Example
@@ -50,9 +54,9 @@
 //!         |_args| InvokeResult::ok(),
 //!     ).await;
 //!
-//!     // Set update handler
-//!     server.set_set_slot_values_handler(|values| {
-//!         println!("Received {} updates", values.len());
+//!     // Set write handler
+//!     server.set_write_values_handler(|values| {
+//!         println!("Received {} writes", values.len());
 //!         Ok(())
 //!     }).await;
 //!
@@ -69,20 +73,19 @@ mod registry;
 mod server;
 
 // Re-export all core types from arora-connection
-pub use arora_connection::{InvokeResult, MethodInfo, MethodParam, SlotInfo, Type, Value};
+pub use arora_connection::{InvokeResult, KeyInfo, MethodInfo, MethodParam, Type, Value};
 
 // Re-export connection trait and handler types (feature-gated)
 #[cfg(feature = "server")]
 pub use arora_connection::{
-    AroraConnection, CancellationToken, GetSlotValuesHandler, MethodHandler,
-    OnClientConnectedHandler, SetSlotValuesHandler as ConnectionSetSlotValuesHandler,
-    SetSlotValuesResult,
+    AroraConnection, CancellationToken, MethodHandler, OnClientConnectedHandler,
+    ReadValuesHandler, WriteValuesHandler as ConnectionWriteValuesHandler, WriteValuesResult,
 };
 
-// Re-export arora-schema types for backwards compatibility
+// Re-export arora-schema types for convenience
 pub use arora_schema::keyvalue::{KeyValue, KeyValueField};
 
-// Protocol message types (WebSocket-specific)
+// Wire-format message types (WebSocket-specific)
 pub use messages::{Incoming, Outgoing};
 
 // Registry types
@@ -90,4 +93,4 @@ pub use registry::Registry;
 
 // Server types (feature-gated)
 #[cfg(feature = "server")]
-pub use server::{process_message, AroraWSServer, ServerConfig, SetSlotValuesHandler};
+pub use server::{process_message, AroraWSServer, ServerConfig, WriteValuesHandler};
