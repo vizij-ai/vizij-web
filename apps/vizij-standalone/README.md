@@ -10,7 +10,7 @@ At runtime the app:
 2. builds a `VizijAssetBundle` from either a URL or a local file blob
 3. mounts `VizijRuntimeProvider` with `autostart` and `driveOrchestrator={true}`
 4. mirrors runtime `inputConstraints`, speech state, and transport inventory back to the Rust side
-5. applies incoming WebSocket or ROS2 control messages through the shared connection manager
+5. applies incoming WebSocket control messages through the shared connection manager
 
 Relevant files:
 
@@ -26,7 +26,6 @@ Relevant files:
 - local WebSocket control server
 - optional same-port web control panel unless disabled with `--no-web-control`
 - transport inventory for bundled animations and procedural programs
-- optional ROS2 control surface when built with the default `ros2` feature
 - optional speech pipeline driven by bundle metadata plus CLI/env keys
 
 ## CLI
@@ -52,8 +51,6 @@ Main options:
 - `--api-url`
 - `--auto-mic`
 - `--speech-mode`
-- `--ros2-domain-id`: DDS domain ID for the ROS2 surface
-- `--ros2-namespace`: ROS2 namespace prefix for topics and services
 
 Use `list-displays` to inspect monitor indices before launching fullscreen on a specific display.
 
@@ -93,22 +90,11 @@ npx wscat -c ws://localhost:9000
 
 The server binds to `0.0.0.0`, so LAN clients can connect as well; treat it as a local-control endpoint and only expose it on trusted networks.
 
-## ROS2 Control Surface
+## ROS 2 Control Surface
 
-When built with the default `ros2` feature, the Tauri app also starts an `AroraRos2Node` alongside the WebSocket server.
+The standalone app exposes the runtime only over the local WebSocket surface described above; it does not build a ROS 2 control surface.
 
-Current behavior:
-
-- input keys are exposed as ROS2 topics under `/{namespace}/slots/...`
-- methods are exposed as ROS2 services under `/{namespace}/methods/...`
-- the namespace defaults to `vizij`
-- the DDS domain defaults to `0`
-
-Relevant files:
-
-- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs)
-- [`src-tauri/tests/ros2_smoke.rs`](./src-tauri/tests/ros2_smoke.rs)
-- [`../../../packages/arora-ros2/src/lib.rs`](../../../packages/arora-ros2/src/lib.rs)
+ROS 2 integration lives in the `arora-sdk` workspace as the published `arora-bridge-ros2` crate, which implements the `arora_bridge::Bridge` trait. Re-adding a ROS 2 surface here is gated on migrating this app's `ConnectionManager` from the `arora_connection::AroraConnection` trait onto `arora_bridge::Bridge`; once that lands, `arora-bridge-ros2` wires in as another connection.
 
 ## Speech Support
 
@@ -149,39 +135,6 @@ Practical interpretation:
 If speech looks half-configured, check both the Tauri CLI flags and the browser-side env/localStorage state before debugging the runtime layer itself.
 
 ## Development
-
-### Windows prerequisites
-
-The default build includes the `ros2` feature, which pulls in `pnet` for low-level networking. On Windows, `pnet` requires `Packet.lib` from the Npcap SDK at link time.
-
-If you see a linker error like `LNK1181: cannot open input file 'Packet.lib'`, you need two separate things — installing Npcap alone is **not enough**:
-
-1. **Install Npcap** from [npcap.com](https://npcap.com/#download) (the runtime installer).
-2. **Download the Npcap SDK** separately — it is a ZIP on the same page, not part of the installer. Extract it anywhere (e.g. `C:\npcap-sdk`).
-3. **Copy `Packet.lib` into the pnet crate's lib folder**. Setting the `LIB` environment variable is the documented approach but may not work; copying the file directly is the reliable fix:
-
-   ```text
-   C:\npcap-sdk\Lib\x64\Packet.lib
-     → %USERPROFILE%\.cargo\registry\src\<index-hash>\pnet-0.35.0\lib\x64\Packet.lib
-   ```
-
-   The `<index-hash>` folder is named something like `index.crates.io-1949cf8c6b5b557f`. You can find it under `%USERPROFILE%\.cargo\registry\src\`.
-
-### Running without ROS2 (no Npcap required)
-
-`arora-ros2` is an optional Cargo dependency behind the `ros2` feature, which is **off by default**. This means the standard dev and build commands require no Npcap installation.
-
-To enable ROS2 support explicitly:
-
-```bash
-# dev without ROS2
-pnpm --filter vizij-standalone dev -- --no-default-features
-
-# production build without ROS2
-pnpm --filter vizij-standalone tauri build -- --no-default-features
-```
-
-The `--ros2-domain-id` and `--ros2-namespace` CLI flags are compiled out when the `ros2` feature is not enabled.
 
 From the repo root:
 
@@ -229,14 +182,6 @@ WebSocket/manual panel checks:
 - call `reset` from the panel or `wscat`
 - if a bundle contains transport items, verify the Transport tab can list, play, pause, and stop them
 
-ROS2 smoke check:
-
-```bash
-cargo test --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features ros2 --test ros2_smoke -- --ignored
-```
-
-The smoke test requires a built frontend and a display because it launches the Tauri app.
-
 Direct `cargo run` note:
 
 - running `cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml ...`
@@ -250,10 +195,8 @@ Direct `cargo run` note:
 pnpm --filter vizij-standalone build
 python3 -m http.server 1420 -d apps/vizij-standalone/dist
 
-RUST_LOG=info cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features ros2 -- \
+RUST_LOG=info cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml -- \
   --no-web-control \
-  --ros2-domain-id 201 \
-  --ros2-namespace smoke_debug \
   --port 19191
 ```
 
@@ -261,8 +204,6 @@ If you only need the app with the correct frontend wiring, prefer:
 
 ```bash
 pnpm --filter vizij-standalone dev -- -- \
-  --ros2-domain-id 201 \
-  --ros2-namespace smoke_debug \
   --port 19191
 ```
 
