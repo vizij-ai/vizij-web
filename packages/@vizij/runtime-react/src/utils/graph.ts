@@ -3,20 +3,10 @@ import type { GraphRegistrationConfig } from "@vizij/orchestrator-react";
 type GraphLikeNode = {
   id?: string;
   type?: string;
-  kind?: string;
   params?: {
     path?: string;
   };
-  path?: string;
 };
-
-function getNodeKind(node: GraphLikeNode): string {
-  return String(node.type ?? node.kind ?? "").toLowerCase();
-}
-
-function getNodePath(node: GraphLikeNode): string {
-  return String(node.params?.path ?? node.path ?? "").trim();
-}
 
 function getNodes(spec: GraphRegistrationConfig["spec"]): GraphLikeNode[] {
   if (!spec || typeof spec !== "object") {
@@ -38,11 +28,11 @@ export function collectOutputPaths(
     if (typeof node !== "object" || !node) {
       return;
     }
-    if (getNodeKind(node) !== "output") {
+    if (String(node.type ?? "").toLowerCase() !== "output") {
       return;
     }
-    const path = getNodePath(node);
-    if (path) {
+    const path = node.params?.path;
+    if (typeof path === "string" && path.trim()) {
       outputs.add(path.trim());
     }
   });
@@ -55,11 +45,11 @@ export function collectInputPaths(
   const nodes = getNodes(spec);
   const inputs = new Set<string>();
   nodes.forEach((node) => {
-    if (getNodeKind(node) !== "input") {
+    if (String(node.type ?? "").toLowerCase() !== "input") {
       return;
     }
-    const path = getNodePath(node);
-    if (path) {
+    const path = node.params?.path;
+    if (typeof path === "string" && path.trim()) {
       inputs.add(path.trim());
     }
   });
@@ -70,20 +60,33 @@ export function collectInputPathMap(
   spec: GraphRegistrationConfig["spec"],
 ): Record<string, string> {
   const map: Record<string, string> = {};
-  const nodes = getNodes(spec);
-  nodes.forEach((node) => {
-    if (getNodeKind(node) !== "input") {
+  const addVariant = (key: string, path: string, force = false) => {
+    if (!key || (!force && map[key])) {
       return;
     }
-    const path = getNodePath(node);
-    if (!path) {
+    map[key] = path;
+  };
+  const nodes = getNodes(spec);
+  nodes.forEach((node) => {
+    if (String(node.type ?? "").toLowerCase() !== "input") {
+      return;
+    }
+    const path = node.params?.path;
+    if (typeof path !== "string" || !path.trim()) {
       return;
     }
     const id = String(node.id ?? "");
     const key = id.startsWith("input_")
       ? id.slice("input_".length)
       : id || path.trim();
-    map[key] = path.trim();
+    const trimmedPath = path.trim();
+    addVariant(key, trimmedPath);
+    if (key.startsWith("direct_")) {
+      addVariant(key.slice("direct_".length), trimmedPath, true);
+    }
+    if (key.startsWith("pose_control_")) {
+      addVariant(key.slice("pose_control_".length), trimmedPath);
+    }
   });
   return map;
 }

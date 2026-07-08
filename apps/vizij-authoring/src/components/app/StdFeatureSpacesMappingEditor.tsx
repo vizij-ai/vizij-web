@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { AnimatableComponent, StandardRigInput } from "@vizij/utils";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import type { AnimatableBinding } from "@vizij/node-graph-authoring";
-import { Button } from "../ui";
+import { Button, Select } from "../ui";
 
 // ============================================================================
 // Group-Centric Mapping Editor
@@ -314,7 +314,7 @@ export function GroupMappingEditor({
 
       // Get the semantic ID for this track
       // Use the binding's inputId if it exists, otherwise use component's safeId
-      // This applies to both self-references and other driven references (Hugo's approach)
+      // This applies to both self-references and other driven references.
       const trackBinding = mainFaceBindings[trackId];
       const semanticInputId =
         trackBinding?.inputId ?? componentSafeIds.get(trackId);
@@ -419,20 +419,18 @@ export function GroupMappingEditor({
       <div className="group-mapping-editor__section">
         <h4 className="group-mapping-editor__title">Driven Tracks</h4>
         <div className="group-mapping-editor__driven-controls">
-          <select
-            className="group-mapping-editor__select"
+          <Select
             value=""
-            onChange={(e) => handleAddDrivenTrack(e.target.value)}
-          >
-            <option value="">Select an animatable to add...</option>
-            {mainFaceAnimatableComponents
+            placeholder="Select an animatable to add..."
+            options={mainFaceAnimatableComponents
               .filter((a) => !allDrivenTracks.includes(a.id))
-              .map((animatable) => (
-                <option key={animatable.id} value={animatable.id}>
-                  {animatable.label}
-                </option>
-              ))}
-          </select>
+              .map((animatable) => ({
+                value: animatable.id,
+                label: animatable.label,
+              }))}
+            onChange={handleAddDrivenTrack}
+            size="sm"
+          />
           <Button
             variant="danger"
             size="sm"

@@ -1,12 +1,27 @@
 import type { PoseDefinition, StandardInputId } from "../types";
+import { resolveDeterministicPoseId } from "../utils";
 
 const EPSILON = 1e-8;
 
 export const PoseSnapshotService = {
-  createPoseDefinition(name: string, group?: string | null): PoseDefinition {
+  createPoseDefinition(
+    name: string,
+    group?: string | null,
+    options?: {
+      existingIds?: Iterable<string>;
+      preferredId?: string | null;
+      reservedIds?: Iterable<string>;
+    },
+  ): PoseDefinition {
     const now = new Date().toISOString();
     return {
-      id: `pose_${Math.random().toString(36).slice(2, 10)}`,
+      id: resolveDeterministicPoseId({
+        existingIds: options?.existingIds,
+        preferredId: options?.preferredId,
+        name,
+        group,
+        reservedIds: options?.reservedIds,
+      }),
       name,
       description: "",
       group: group ?? null,

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import {
   describe,
   it,
@@ -19,9 +19,7 @@ let useGraphRuntime: typeof import("../useGraphRuntime").useGraphRuntime;
 
 function Probe({ onReady }: { onReady: (rt: any) => void }) {
   const rt = useGraphRuntime();
-  useEffect(() => {
-    onReady(rt);
-  }, [rt, onReady]);
+  onReady(rt);
   return null;
 }
 
@@ -160,9 +158,8 @@ describe("GraphProvider readiness", () => {
       expect(runtimeRef).toBeTruthy();
     });
 
-    await expect(runtimeRef.waitForGraphReady?.()).rejects.toThrow(
-      /createGraph error/i,
-    );
+    const readinessPromise = runtimeRef.waitForGraphReady?.();
+    await expect(readinessPromise).rejects.toThrow(/createGraph error/i);
 
     wasm.__setMode?.("ok");
   });

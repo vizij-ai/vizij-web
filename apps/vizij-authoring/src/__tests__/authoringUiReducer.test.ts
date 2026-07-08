@@ -10,6 +10,9 @@ const baseState: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  activeRuntimeSource: "none",
+  activeEditFocus: "default",
+  rotationDisplayMode: "degrees",
 };
 
 describe("authoringUiReducer", () => {
@@ -52,5 +55,29 @@ describe("authoringUiReducer", () => {
       payload: true,
     });
     expect(result.includeImportedAnimations).toBe(true);
+  });
+
+  it("updates the active runtime source", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-active-runtime-source",
+      payload: "animation",
+    });
+    expect(result.activeRuntimeSource).toBe("animation");
+  });
+
+  it("updates the active edit focus", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-edit-focus",
+      payload: "pose-editing",
+    });
+    expect(result.activeEditFocus).toBe("pose-editing");
+  });
+
+  it("updates the rotation display mode", () => {
+    const result = authoringUiReducer(baseState, {
+      type: "set-rotation-display-mode",
+      payload: "degrees",
+    });
+    expect(result.rotationDisplayMode).toBe("degrees");
   });
 });

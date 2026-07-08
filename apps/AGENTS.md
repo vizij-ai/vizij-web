@@ -5,6 +5,7 @@ Use this file when working under `apps/`.
 ## General Guidance
 
 - All apps use Vite + React and share common tooling. Run scripts with `pnpm --filter "<app-name>" <script>`.
+- When launching a Vite dev server from Codex or running browser automation against one, explicitly set `NODE_ENV=development` on the command you start. The Codex desktop shell can inherit `NODE_ENV=production`, which makes Vite serve the production `react-jsx-dev-runtime` during dev and causes blank pages with `_jsxDEV is not a function`. Example: `NODE_ENV=development pnpm --filter "<app-name>" dev --host 127.0.0.1 --port 4173`.
 - When modifying shared packages, rebuild them (`pnpm run build:packages`) before running the demos so Vite picks up new outputs.
 - Each app README outlines its purpose, sample data, and any manual steps. Review it before large edits.
 - Keep demo state local—avoid introducing backend dependencies or long-running background tasks.

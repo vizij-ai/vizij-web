@@ -214,7 +214,9 @@ describe("URDF FK/IK integration", () => {
       );
     }
 
-    await initGraphWasm(wasmBytes);
+    await initGraphWasm({
+      module_or_path: wasmBytes,
+    });
   });
 
   afterAll(() => {

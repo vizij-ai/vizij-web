@@ -8,6 +8,9 @@ export interface AuthoringUiState {
   includeImportedAnimations: boolean;
   activeRiggingTab: RiggingTab;
   skipDiscrepancyCheck: boolean;
+  activeRuntimeSource: RuntimeAuthoringSource;
+  activeEditFocus: EditFocus;
+  rotationDisplayMode: RotationDisplayMode;
 }
 
 export type AuthoringUiAction =
@@ -15,9 +18,24 @@ export type AuthoringUiAction =
   | { type: "set-include-bundle"; payload: boolean }
   | { type: "set-include-animations"; payload: boolean }
   | { type: "set-rigging-tab"; payload: RiggingTab }
-  | { type: "set-skip-discrepancy-check"; payload: boolean };
+  | { type: "set-skip-discrepancy-check"; payload: boolean }
+  | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource }
+  | { type: "set-edit-focus"; payload: EditFocus }
+  | { type: "set-rotation-display-mode"; payload: RotationDisplayMode };
 
 export type RiggingTab = "rigging" | "face";
+export type RuntimeAuthoringSource =
+  | "animation"
+  | "procedural-animation-programming"
+  | "none";
+export type RotationDisplayMode = "radians" | "degrees";
+export type EditFocus =
+  | "default"
+  | "pose-creation"
+  | "pose-editing"
+  | "animation"
+  | "procedural-animation-programming"
+  | "reference-face";
 
 const INITIAL_UI_STATE: AuthoringUiState = {
   activeWorkbench: "import-export",
@@ -25,6 +43,9 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  activeRuntimeSource: "none",
+  activeEditFocus: "default",
+  rotationDisplayMode: "degrees",
 };
 
 export function authoringUiReducer(
@@ -68,6 +89,21 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, skipDiscrepancyCheck: action.payload };
+    case "set-active-runtime-source":
+      if (state.activeRuntimeSource === action.payload) {
+        return state;
+      }
+      return { ...state, activeRuntimeSource: action.payload };
+    case "set-edit-focus":
+      if (state.activeEditFocus === action.payload) {
+        return state;
+      }
+      return { ...state, activeEditFocus: action.payload };
+    case "set-rotation-display-mode":
+      if (state.rotationDisplayMode === action.payload) {
+        return state;
+      }
+      return { ...state, rotationDisplayMode: action.payload };
     default:
       return state;
   }
@@ -89,6 +125,9 @@ export interface AuthoringUiActions {
   setIncludeImportedAnimations: (value: boolean) => void;
   setRiggingTab: (value: RiggingTab) => void;
   setSkipDiscrepancyCheck: (value: boolean) => void;
+  setActiveRuntimeSource: (value: RuntimeAuthoringSource) => void;
+  setEditFocus: (value: EditFocus) => void;
+  setRotationDisplayMode: (value: RotationDisplayMode) => void;
 }
 
 export function AuthoringUiProvider({
@@ -110,6 +149,12 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-rigging-tab", payload: value }),
       setSkipDiscrepancyCheck: (value) =>
         dispatch({ type: "set-skip-discrepancy-check", payload: value }),
+      setActiveRuntimeSource: (value) =>
+        dispatch({ type: "set-active-runtime-source", payload: value }),
+      setEditFocus: (value) =>
+        dispatch({ type: "set-edit-focus", payload: value }),
+      setRotationDisplayMode: (value) =>
+        dispatch({ type: "set-rotation-display-mode", payload: value }),
     }),
     [],
   );

@@ -12,6 +12,7 @@ import type {
 } from "@vizij/render";
 import {
   cloneRawValue,
+  createBrowserSafeId,
   getLookup,
   type AnimatableValue,
   type RawValue,
@@ -772,7 +773,7 @@ export function duplicateSceneNode(
     ? collectDescendants(world, nodeId)
     : new Set([nodeId]);
   const newIdMap = new Map<string, string>();
-  idsToClone.forEach((id) => newIdMap.set(id, crypto.randomUUID()));
+  idsToClone.forEach((id) => newIdMap.set(id, createBrowserSafeId()));
 
   const animIdMap = new Map<string, string>();
   const nextWorld: World = { ...world };
@@ -804,7 +805,7 @@ export function duplicateSceneNode(
       }
       if (feature.animated) {
         const sourceAnim = animatables[feature.value];
-        const newAnimId = crypto.randomUUID();
+        const newAnimId = createBrowserSafeId();
         animIdMap.set(feature.value, newAnimId);
         const clonedAnim = cloneAnimatable(
           sourceAnim,
@@ -1058,7 +1059,7 @@ export function deleteSceneNode(
   };
 }
 
-function materialKey(shape: Shape): string {
+export function materialKey(shape: Shape): string {
   const parts: string[] = [`type:${shape.material}`];
   MATERIAL_FEATURE_KEYS.forEach((key) => {
     const feature = shape.features?.[key];
@@ -1242,7 +1243,7 @@ export function duplicateMaterialForShape(
     if (!feature) return;
     if (feature.animated) {
       const sourceAnim = animatables[feature.value];
-      const newAnimId = crypto.randomUUID();
+      const newAnimId = createBrowserSafeId();
       animIdMap.set(feature.value, newAnimId);
       const nameSuffix = `${label} ${key}`.trim();
       const clonedAnim: AnimatableValue = {

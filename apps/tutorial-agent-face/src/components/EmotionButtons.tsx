@@ -1,24 +1,58 @@
 import { useMemo, useCallback, useEffect, useRef } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-import { usePoseHotkeys } from "../hooks/usePoseHotkeys";
+import {
+  EXPRESSIVE_EMOTION_POSE_KEYS,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 import { isEmotionBinding } from "../utils/emotions";
+import type { PoseHotkeyBinding } from "../hooks/usePoseHotkeys";
 
-export function EmotionButtons() {
-  const { ready, assetBundle, animateValue } = useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const { bindings, setPoseWeight } = usePoseHotkeys(poseConfig, ready);
+const DEFAULT_POSE_WEIGHT = 0.7;
+
+type EmotionButtonsProps = {
+  ready: boolean;
+  bindings: PoseHotkeyBinding[];
+  setPoseWeight: (
+    binding: PoseHotkeyBinding,
+    weight: number,
+    duration?: number,
+  ) => void;
+};
+
+export function EmotionButtons({
+  ready,
+  bindings,
+  setPoseWeight,
+}: EmotionButtonsProps) {
+  const { animateValue } = useVizijRuntime();
   const timeoutRef = useRef<Map<string, number>>(new Map());
 
-  const emotionBindings = useMemo(
-    () => bindings.filter((b) => isEmotionBinding(b)).slice(0, 6),
-    [bindings],
-  );
+  const emotionBindings = useMemo(() => {
+    const candidates = bindings.filter((binding) => isEmotionBinding(binding));
+    const byKey = new Map(
+      candidates
+        .filter((binding) => binding.semanticKey)
+        .map((binding) => [binding.semanticKey, binding] as const),
+    );
+    const expressive = EXPRESSIVE_EMOTION_POSE_KEYS.map((key) =>
+      byKey.get(key),
+    ).filter((binding): binding is (typeof candidates)[number] =>
+      Boolean(binding),
+    );
+    if (expressive.length > 0) {
+      return expressive;
+    }
+    return candidates.filter((binding) => binding.semanticKey !== "neutral");
+  }, [bindings]);
 
   const trigger = useCallback(
     (bindingId: string) => {
       const binding = emotionBindings.find((b) => b.pose.id === bindingId);
       if (!binding) return;
-      void animateValue(binding.weightPath, { float: 1 }, { duration: 0.25 });
+      void animateValue(
+        binding.weightPath,
+        { float: DEFAULT_POSE_WEIGHT },
+        { duration: 0.25 },
+      );
       const existing = timeoutRef.current.get(bindingId);
       if (existing) {
         window.clearTimeout(existing);

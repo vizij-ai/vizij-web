@@ -1,8 +1,10 @@
-import { useState, useCallback } from "react";
-import type { ReactNode, KeyboardEvent, MouseEvent } from "react";
+import { Collapsible as BaseCollapsible } from "@base-ui/react";
+import type { ReactNode } from "react";
+import { ChevronRight, ChevronDown } from "lucide-react";
+import { cn } from "../../utils/cn";
 
 export interface CollapsibleGroupProps {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   defaultCollapsed?: boolean;
   itemCount?: number;
@@ -20,87 +22,65 @@ export function CollapsibleGroup({
   className = "",
   actions,
 }: CollapsibleGroupProps) {
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
-
-  const handleToggle = useCallback(() => {
-    setIsCollapsed((prev) => !prev);
-  }, []);
-
-  const shouldIgnoreInteraction = useCallback((target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) {
-      return false;
-    }
-    return Boolean(target.closest(".collapsible-group__actions"));
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (shouldIgnoreInteraction(event.target)) {
-        return;
-      }
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        handleToggle();
-      }
-    },
-    [handleToggle, shouldIgnoreInteraction],
-  );
-
-  const handleHeaderClick = useCallback(
-    (event: MouseEvent) => {
-      if (shouldIgnoreInteraction(event.target)) {
-        return;
-      }
-      handleToggle();
-    },
-    [handleToggle, shouldIgnoreInteraction],
-  );
-
   return (
-    <section
-      className={`collapsible-group ${isCollapsed ? "collapsible-group--collapsed" : ""} ${className}`}
-    >
-      <header
-        className="collapsible-group__header"
-        onClick={handleHeaderClick}
-        onKeyDown={handleKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-expanded={!isCollapsed}
-      >
-        <div className="collapsible-group__title-area">
-          <span className="collapsible-group__toggle-icon" aria-hidden>
-            {isCollapsed ? "▶" : "▼"}
-          </span>
-          <div className="collapsible-group__text">
-            <h3 className="collapsible-group__title">{title}</h3>
-            {subtitle && (
-              <p className="collapsible-group__subtitle">{subtitle}</p>
-            )}
-          </div>
-        </div>
-        {(actions || itemCount !== undefined) && (
-          <div className="collapsible-group__meta">
-            {actions && (
-              <div
-                className="collapsible-group__actions"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-              >
-                {actions}
-              </div>
-            )}
-            {itemCount !== undefined && (
-              <span className="collapsible-group__count">
-                {itemCount} {itemCount === 1 ? "item" : "items"}
-              </span>
-            )}
-          </div>
+    <BaseCollapsible.Root defaultOpen={!defaultCollapsed}>
+      <div
+        className={cn(
+          "bg-bg-secondary/40 border border-border-default/60 rounded-xl overflow-hidden mb-2 transition-all duration-200 group",
+          "data-[state=open]:shadow-lg data-[state=open]:shadow-black/20 data-[state=open]:border-border-default",
+          className,
         )}
-      </header>
-      {!isCollapsed && (
-        <div className="collapsible-group__body">{children}</div>
-      )}
-    </section>
+      >
+        <BaseCollapsible.Trigger
+          className={cn(
+            "flex w-full items-center justify-between px-3 py-2 bg-zinc-800/20 cursor-pointer select-none transition-all duration-150 hover:bg-zinc-800/40 focus:outline-none focus-visible:outline-none",
+            "group-data-[state=open]:border-b group-data-[state=open]:border-zinc-800/40",
+          )}
+        >
+          <div className="flex items-start gap-3 flex-[1_1_60%] min-w-0 pointer-events-none">
+            <div className="w-4 h-4 mt-0.5 flex items-center justify-center shrink-0">
+              <ChevronDown className="w-3 h-3 text-blue-400 transition-transform hidden group-data-[state=open]:block" />
+              <ChevronRight className="w-3 h-3 text-zinc-500 transition-transform group-data-[state=open]:hidden" />
+            </div>
+            <div className="flex flex-col gap-0.5 min-w-0 text-left">
+              <h3
+                className={cn(
+                  "m-0 text-[11px] font-black uppercase tracking-widest transition-colors",
+                  "group-data-[state=open]:text-zinc-100",
+                  "group-data-[state=closed]:text-zinc-400",
+                )}
+              >
+                {title}
+              </h3>
+              {subtitle && (
+                <p className="m-0 text-[10px] text-zinc-500 font-medium leading-tight">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
+          {(actions || itemCount !== undefined) && (
+            <div className="flex items-center gap-3 shrink-0">
+              {actions && (
+                <div
+                  className="flex items-center gap-1.5"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {actions}
+                </div>
+              )}
+              {itemCount !== undefined && (
+                <span className="text-[9px] font-black text-zinc-500 bg-zinc-950/40 px-1.5 py-0.5 rounded border border-zinc-800/40 uppercase tracking-tighter">
+                  {itemCount} {itemCount === 1 ? "item" : "items"}
+                </span>
+              )}
+            </div>
+          )}
+        </BaseCollapsible.Trigger>
+        <BaseCollapsible.Panel className="p-3 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200">
+          {children}
+        </BaseCollapsible.Panel>
+      </div>
+    </BaseCollapsible.Root>
   );
 }

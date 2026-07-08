@@ -1,0 +1,8 @@
+{
+  // Line length is managed by Prettier.
+  "MD013": false,
+  // Changelogs legitimately repeat headings (e.g. "Patch Changes").
+  "MD024": {
+    "siblings_only": true,
+  },
+}

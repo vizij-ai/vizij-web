@@ -102,6 +102,7 @@ export function buildSceneGraphData({
   const nodes = new Map<string, SceneObjectNode>();
 
   Object.values(world).forEach((renderable) => {
+    if (renderable.id.startsWith("material:template:")) return;
     nodes.set(renderable.id, {
       id: renderable.id,
       name: renderable.name || renderable.id,

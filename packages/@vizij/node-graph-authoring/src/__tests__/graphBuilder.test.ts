@@ -4,6 +4,7 @@ import type {
   AnimatableComponent,
   AnimatableValue,
   StandardRigInput,
+  RigPipelineV1Metadata,
 } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { buildRigGraphSpec } from "../graphBuilder";
@@ -72,6 +73,75 @@ const INPUT_C: StandardRigInput = {
   range: { min: -1, max: 1 },
 };
 
+const INPUT_OFFSET: StandardRigInput = {
+  id: "input_offset",
+  path: "/controls/offset",
+  label: "Control Offset",
+  group: "controls",
+  defaultValue: 0.25,
+  range: { min: -1, max: 1 },
+};
+
+const INPUT_D_LEGACY_PATH: StandardRigInput = {
+  id: "propsrig_eye_open",
+  path: "/propsrig/eye/open",
+  label: "Props Rig Eye Open",
+  group: "propsrig",
+  defaultValue: 0,
+  range: { min: -1, max: 1 },
+};
+
+const INPUT_E_LEGACY_PATH: StandardRigInput = {
+  id: "propsrig_mouth_open",
+  path: "/propsrig/mouth/open",
+  label: "Props Rig Mouth Open",
+  group: "propsrig",
+  defaultValue: 0,
+  range: { min: -1, max: 1 },
+};
+
+type StagedInputConfig = NonNullable<
+  RigPipelineV1Metadata["byInputId"]
+>[string];
+
+function buildStagedInputGraph({
+  input,
+  additionalInputs = [],
+  stagedConfig,
+  pipelineLinks,
+  inputComposeModesById,
+}: {
+  input: StandardRigInput;
+  additionalInputs?: StandardRigInput[];
+  stagedConfig: Omit<StagedInputConfig, "inputId">;
+  pipelineLinks?: RigPipelineV1Metadata["links"];
+  inputComposeModesById?: Partial<Record<string, "add" | "average">>;
+}) {
+  const pipelineV1: RigPipelineV1Metadata = {
+    version: 1,
+    ...(pipelineLinks ? { links: pipelineLinks } : {}),
+    byInputId: {
+      [input.id]: {
+        inputId: input.id,
+        ...stagedConfig,
+      },
+    },
+  };
+  return buildRigGraphSpec({
+    faceId: "robot",
+    animatables: {},
+    components: [],
+    bindings: {},
+    inputsById: new Map([
+      [input.id, input],
+      ...additionalInputs.map((entry) => [entry.id, entry] as const),
+    ]),
+    inputBindings: {},
+    pipelineV1,
+    inputComposeModesById,
+  });
+}
+
 describe("buildRigGraphSpec", () => {
   it("creates arithmetic nodes for multi-control expressions", () => {
     const binding = createDefaultBinding(COMPONENT);
@@ -137,6 +207,705 @@ describe("buildRigGraphSpec", () => {
     expect(vizijMetadata?.vizij?.bindings).toBeDefined();
     expect(vizijMetadata?.vizij?.inputs).toBeDefined();
     expect(vizijMetadata?.vizij?.bindings).toHaveLength(summaryEntries.length);
+  });
+
+  it("resolves legacy path-style slot input ids in parent input bindings", () => {
+    const { issues, spec, summary } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {},
+      components: [],
+      bindings: {},
+      inputsById: new Map([
+        [INPUT_D_LEGACY_PATH.id, INPUT_D_LEGACY_PATH],
+        [INPUT_E_LEGACY_PATH.id, INPUT_E_LEGACY_PATH],
+      ]),
+      inputBindings: {
+        [INPUT_E_LEGACY_PATH.id]: {
+          targetId: INPUT_E_LEGACY_PATH.id,
+          inputId: null,
+          slots: [
+            {
+              id: "slot_1",
+              alias: "a",
+              inputId: "/rig/element/eye/open",
+            },
+          ],
+          expression: "a",
+        },
+      },
+    });
+
+    expect(issues.fatal).toEqual([]);
+    expect(spec.nodes.some((node) => node.type === "input")).toBe(true);
+    expect(summary.inputs).toContain("rig/robot/propsrig/eye/open");
+    expect(summary.inputs).toContain("rig/robot/propsrig/mouth/open");
+    expect(
+      issues.fatal.some((issue) => issue.includes('"/rig/element/eye/open"')),
+    ).toBe(false);
+  });
+
+  it("builds effective input chains with additive pose-control composition", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+      },
+    ];
+    binding.inputId = INPUT_A.id;
+    binding.expression = "A";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_A.id]: "add",
+      },
+    });
+
+    const poseControlNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_pose_control_input_a" && node.type === "input",
+    );
+    const composeAddNode = spec.nodes.find(
+      (node) => node.id === "input_compose_add_input_a" && node.type === "add",
+    );
+    const normalizedAddNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_compose_normalized_add_input_a" &&
+        node.type === "subtract",
+    );
+    const effectiveNode = spec.nodes.find(
+      (node) => node.id === "input_effective_input_a" && node.type === "clamp",
+    );
+    expect(poseControlNode).toBeDefined();
+    expect(
+      (poseControlNode?.params as { path?: string } | undefined)?.path,
+    ).toBe("rig/robot/pose/control/input_a");
+    expect(composeAddNode).toBeDefined();
+    expect(normalizedAddNode).toBeDefined();
+    expect(effectiveNode?.input_defaults).toMatchObject({
+      min: INPUT_A.range.min,
+      max: INPUT_A.range.max,
+    });
+
+    const addInputs = (spec.edges ?? [])
+      .filter((edge) => edge.to?.node_id === "input_compose_add_input_a")
+      .map((edge) => edge.to?.input)
+      .sort();
+    expect(addInputs).toEqual(["operand_1", "operand_2"]);
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_normalized_add_input_a" &&
+          edge.to?.node_id === "input_effective_input_a" &&
+          edge.to?.input === "in",
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes additive direct+pose composition against the input default", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_offset",
+        alias: "A",
+        inputId: INPUT_OFFSET.id,
+      },
+    ];
+    binding.inputId = INPUT_OFFSET.id;
+    binding.expression = "A";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_OFFSET.id, INPUT_OFFSET]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_OFFSET.id]: "add",
+      },
+    });
+    const poseControlNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_pose_control_input_offset" && node.type === "input",
+    );
+    expect(
+      (poseControlNode?.params as { value?: { float?: number } } | undefined)
+        ?.value?.float,
+    ).toBe(INPUT_OFFSET.defaultValue);
+
+    const normalizedAddNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_compose_normalized_add_input_offset" &&
+        node.type === "subtract",
+    );
+    expect(normalizedAddNode).toBeDefined();
+    expect(normalizedAddNode?.input_defaults).toMatchObject({
+      rhs: INPUT_OFFSET.defaultValue,
+    });
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_add_input_offset" &&
+          edge.to?.node_id === "input_compose_normalized_add_input_offset" &&
+          edge.to?.input === "lhs",
+      ),
+    ).toBe(true);
+  });
+
+  it("supports average input composition mode for effective input channels", () => {
+    const binding = createDefaultBinding(COMPONENT);
+    binding.slots = [
+      {
+        id: "slot_a",
+        alias: "A",
+        inputId: INPUT_A.id,
+      },
+    ];
+    binding.inputId = INPUT_A.id;
+    binding.expression = "A";
+
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: binding,
+      },
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_A.id]: "average",
+      },
+    });
+
+    const averageNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_compose_average_input_a" && node.type === "divide",
+    );
+    expect(averageNode).toBeDefined();
+    expect(averageNode?.input_defaults).toMatchObject({ rhs: 2 });
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_add_input_a" &&
+          edge.to?.node_id === "input_compose_average_input_a" &&
+          edge.to?.input === "lhs",
+      ),
+    ).toBe(true);
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_compose_average_input_a" &&
+          edge.to?.node_id === "input_effective_input_a" &&
+          edge.to?.input === "in",
+      ),
+    ).toBe(true);
+  });
+
+  it("compiles staged no-source inputs with baseline fallback, override, and clamp defaults", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_A,
+      stagedConfig: {},
+    });
+
+    expect(spec.nodes.some((node) => node.id === "input_direct_input_a")).toBe(
+      false,
+    );
+    expect(
+      spec.nodes.some((node) => node.id === "input_pose_control_input_a"),
+    ).toBe(false);
+
+    const baselineNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_source_blend_input_a_baseline" &&
+        node.type === "constant",
+    );
+    expect(baselineNode?.params).toMatchObject({ value: INPUT_A.defaultValue });
+
+    const overrideEnabledNode = spec.nodes.find(
+      (node) => node.id === "input_override_enabled_input_a",
+    );
+    expect(overrideEnabledNode?.params).toMatchObject({
+      path: "rig/robot/override/input_a/enabled",
+      value: { float: 0 },
+    });
+    const overrideValueNode = spec.nodes.find(
+      (node) => node.id === "input_override_value_input_a",
+    );
+    expect(overrideValueNode?.params).toMatchObject({
+      path: "rig/robot/override/input_a/value",
+      value: { float: INPUT_A.defaultValue },
+    });
+
+    expect(
+      spec.nodes.some(
+        (node) =>
+          node.id === "input_effective_input_a" && node.type === "clamp",
+      ),
+    ).toBe(true);
+
+    const vizijMetadata = (spec as Record<string, unknown>).metadata as {
+      vizij?: {
+        pipelineV1?: {
+          version?: number;
+          byInputId?: Record<string, unknown>;
+        };
+      };
+    };
+    expect(vizijMetadata?.vizij?.pipelineV1?.version).toBe(1);
+    expect(
+      vizijMetadata?.vizij?.pipelineV1?.byInputId?.[INPUT_A.id],
+    ).toMatchObject({
+      inputId: INPUT_A.id,
+      sourceBlend: { mode: "normalized-additive" },
+      clamp: { enabled: true },
+      directInput: {
+        enabled: false,
+        valuePath: "rig/robot/controls/a",
+      },
+      override: {
+        enabledDefault: false,
+        valueDefault: INPUT_A.defaultValue,
+        enabledPath: "rig/robot/override/input_a/enabled",
+        valuePath: "rig/robot/override/input_a/value",
+      },
+    });
+  });
+
+  it("compiles staged parent-only sources", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_A,
+      additionalInputs: [INPUT_B],
+      stagedConfig: {
+        parents: [{ inputId: INPUT_B.id }],
+      },
+    });
+
+    expect(
+      spec.nodes.some((node) => node.id === "input_pose_control_input_a"),
+    ).toBe(false);
+    expect(spec.nodes.some((node) => node.id === "input_direct_input_a")).toBe(
+      false,
+    );
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_input_b" &&
+          edge.to?.node_id === "input_override_delta_input_a" &&
+          edge.to?.input === "rhs",
+      ),
+    ).toBe(true);
+  });
+
+  it("resolves legacy path-style parent ids in staged parent links", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_E_LEGACY_PATH,
+      additionalInputs: [INPUT_D_LEGACY_PATH],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: "/rig/element/eye/open",
+            scale: -2,
+          },
+        ],
+      },
+    });
+
+    const parentScaleNode = spec.nodes.find(
+      (node) => node.id === "input_parent_scale_propsrig_mouth_open_1",
+    );
+    expect(parentScaleNode?.input_defaults).toMatchObject({ operand_2: -2 });
+
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_propsrig_eye_open" &&
+          edge.to?.node_id === "input_parent_scale_propsrig_mouth_open_1" &&
+          edge.to?.input === "operand_1",
+      ),
+    ).toBe(true);
+  });
+
+  it("compiles staged pose-only sources", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_A,
+      stagedConfig: {
+        poseSource: {
+          targetIds: ["pose_smile"],
+        },
+      },
+    });
+
+    const poseNode = spec.nodes.find(
+      (node) =>
+        node.id === "input_pose_control_input_a" && node.type === "input",
+    );
+    expect((poseNode?.params as { path?: string } | undefined)?.path).toBe(
+      "rig/robot/pose/control/input_a",
+    );
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_pose_control_input_a" &&
+          edge.to?.node_id === "input_override_delta_input_a" &&
+          edge.to?.input === "rhs",
+      ),
+    ).toBe(true);
+    expect(spec.nodes.some((node) => node.id === "input_direct_input_a")).toBe(
+      false,
+    );
+  });
+
+  it("compiles staged direct-only sources behind the directInput.enabled gate", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_A,
+      stagedConfig: {
+        directInput: {
+          enabled: true,
+        },
+      },
+    });
+
+    const directNode = spec.nodes.find(
+      (node) => node.id === "input_direct_input_a" && node.type === "input",
+    );
+    expect((directNode?.params as { path?: string } | undefined)?.path).toBe(
+      "rig/robot/controls/a",
+    );
+    expect(
+      (spec.edges ?? []).some(
+        (edge) =>
+          edge.from?.node_id === "input_direct_input_a" &&
+          edge.to?.node_id === "input_override_delta_input_a" &&
+          edge.to?.input === "rhs",
+      ),
+    ).toBe(true);
+  });
+
+  it("compiles staged mixed parent/pose/direct sources with normalized-additive blending", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            scale: 2,
+            offset: 0.1,
+          },
+        ],
+        poseSource: {
+          targetIds: ["pose_frown"],
+        },
+        directInput: {
+          enabled: true,
+        },
+      },
+    });
+
+    const parentScaleNode = spec.nodes.find(
+      (node) => node.id === "input_parent_scale_input_offset_1",
+    );
+    expect(parentScaleNode?.input_defaults).toMatchObject({ operand_2: 2 });
+    const parentOffsetNode = spec.nodes.find(
+      (node) => node.id === "input_parent_offset_input_offset_1",
+    );
+    expect(parentOffsetNode?.input_defaults).toMatchObject({ operand_2: 0.1 });
+
+    const sourceBlendAddNode = spec.nodes.find(
+      (node) => node.id === "input_source_blend_input_offset_add",
+    );
+    expect(sourceBlendAddNode).toBeDefined();
+    const sourceBlendNormalizedNode = spec.nodes.find(
+      (node) => node.id === "input_source_blend_input_offset_normalized_add",
+    );
+    expect(sourceBlendNormalizedNode?.input_defaults).toMatchObject({
+      rhs: INPUT_OFFSET.defaultValue * 2,
+    });
+
+    const sourceBlendInputs = (spec.edges ?? [])
+      .filter(
+        (edge) => edge.to?.node_id === "input_source_blend_input_offset_add",
+      )
+      .map((edge) => edge.to?.input)
+      .sort();
+    expect(sourceBlendInputs).toEqual(["operand_1", "operand_2", "operand_3"]);
+  });
+
+  it("uses canonical pipeline links as the source of parent scale/offset", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            linkId: "link/override-scale",
+            scale: 1,
+            offset: 0,
+          },
+        ],
+      },
+      pipelineLinks: {
+        "link/override-scale": {
+          linkId: "link/override-scale",
+          parentInputId: INPUT_A.id,
+          childInputId: INPUT_OFFSET.id,
+          scale: -2,
+          offset: 0.25,
+          enabled: true,
+        },
+      },
+    });
+
+    const parentScaleNode = spec.nodes.find(
+      (node) => node.id === "input_parent_scale_input_offset_1",
+    );
+    expect(parentScaleNode?.input_defaults).toMatchObject({ operand_2: -2 });
+    const parentOffsetNode = spec.nodes.find(
+      (node) => node.id === "input_parent_offset_input_offset_1",
+    );
+    expect(parentOffsetNode?.input_defaults).toMatchObject({ operand_2: 0.25 });
+  });
+
+  it("compiles custom staged parent and parent-contribution formulas", () => {
+    const { spec, issues } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            alias: "P1",
+            scale: 2,
+            offset: 0.1,
+            expression: "P1 = parent * scale + offset * 2",
+          },
+        ],
+        parentBlend: {
+          expression: "parentContribution = P1 * 0.5 + default",
+        },
+        directInput: {
+          enabled: true,
+        },
+      },
+    });
+
+    expect(issues.fatal).toEqual([]);
+
+    const stagedParentNode = spec.nodes.find((node) =>
+      node.id.startsWith("expr_staged_parent_input_offset_1_"),
+    );
+    expect(stagedParentNode?.type).toBeTruthy();
+    const stagedContributionNode = spec.nodes.find((node) =>
+      node.id.startsWith("expr_staged_parent_contribution_input_offset_"),
+    );
+    expect(stagedContributionNode?.type).toBeTruthy();
+
+    const sourceBlendInputs = (spec.edges ?? [])
+      .filter(
+        (edge) => edge.to?.node_id === "input_source_blend_input_offset_add",
+      )
+      .map((edge) => edge.from?.node_id ?? "");
+    expect(
+      sourceBlendInputs.some((nodeId) =>
+        nodeId.startsWith("expr_staged_parent_contribution_input_offset_"),
+      ),
+    ).toBe(true);
+
+    const vizijMetadata = (spec as Record<string, unknown>).metadata as {
+      vizij?: {
+        pipelineV1?: {
+          byInputId?: Record<string, { parentBlend?: { expression?: string } }>;
+        };
+      };
+    };
+    expect(
+      vizijMetadata?.vizij?.pipelineV1?.byInputId?.[INPUT_OFFSET.id]
+        ?.parentBlend?.expression,
+    ).toBe("parentContribution = P1 * 0.5 + default");
+  });
+
+  it("accepts normalizedAdditive typo variants in parent contribution formulas", () => {
+    const { issues } = buildStagedInputGraph({
+      input: INPUT_OFFSET,
+      additionalInputs: [INPUT_A],
+      stagedConfig: {
+        parents: [
+          {
+            inputId: INPUT_A.id,
+            alias: "P1",
+          },
+        ],
+        parentBlend: {
+          expression:
+            "parentContribution = noramalizedAddative([P1], baseline=default)",
+        },
+      },
+    });
+
+    expect(issues.fatal).toEqual([]);
+  });
+
+  it("supports staged override enabled defaults and override value defaults", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_A,
+      stagedConfig: {
+        directInput: {
+          enabled: true,
+        },
+        override: {
+          enabledDefault: true,
+          valueDefault: 0.8,
+        },
+      },
+    });
+
+    const overrideEnabledNode = spec.nodes.find(
+      (node) => node.id === "input_override_enabled_input_a",
+    );
+    expect(overrideEnabledNode?.params).toMatchObject({
+      value: { float: 1 },
+    });
+    const overrideValueNode = spec.nodes.find(
+      (node) => node.id === "input_override_value_input_a",
+    );
+    expect(overrideValueNode?.params).toMatchObject({
+      value: { float: 0.8 },
+    });
+  });
+
+  it("supports staged clamp disable to keep outputs unbounded", () => {
+    const { spec } = buildStagedInputGraph({
+      input: INPUT_A,
+      stagedConfig: {
+        directInput: {
+          enabled: true,
+        },
+        clamp: {
+          enabled: false,
+        },
+      },
+    });
+
+    expect(
+      spec.nodes.some((node) => node.id === "input_effective_input_a"),
+    ).toBe(false);
+    expect(
+      spec.nodes.some((node) => node.id === "input_override_selected_input_a"),
+    ).toBe(true);
+  });
+
+  it("keeps legacy compose behavior when staged config is absent", () => {
+    const { spec } = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {},
+      components: [],
+      bindings: {},
+      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputBindings: {},
+      inputComposeModesById: {
+        [INPUT_A.id]: "add",
+      },
+    });
+
+    expect(
+      spec.nodes.some((node) => node.id === "input_compose_add_input_a"),
+    ).toBe(true);
+    expect(
+      spec.nodes.some(
+        (node) => node.id === "input_compose_normalized_add_input_a",
+      ),
+    ).toBe(true);
+    expect(
+      spec.nodes.some((node) => node.id === "input_effective_input_a"),
+    ).toBe(true);
+    expect(
+      spec.nodes.some((node) => node.id.startsWith("input_override_")),
+    ).toBe(false);
+
+    const vizijMetadata = (spec as Record<string, unknown>).metadata as {
+      vizij?: { pipelineV1?: unknown };
+    };
+    expect(vizijMetadata?.vizij?.pipelineV1).toBeUndefined();
+  });
+
+  it("treats face-qualified propsrig metadata paths as low-level in higher-order checks", () => {
+    const metadataInput: StandardRigInput = {
+      id: "propsrig_input",
+      path: "/propsrig/jaw/open",
+      label: "Jaw Open",
+      group: "propsrig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      INPUT_A,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [metadataInput.id, metadataInput],
+      ]),
+      inputBindings: {
+        [INPUT_A.id]: {
+          targetId: INPUT_A.id,
+          inputId: null,
+          slots: [
+            {
+              id: "slot_1",
+              alias: "a",
+              inputId: "/rig/robot/propsrig/jaw/open",
+            },
+          ],
+          expression: "a",
+        },
+        [metadataInput.id]: createDefaultBinding(
+          bindingTargetFromInput(metadataInput),
+        ),
+      },
+    });
+
+    const componentIssues = result.issues.byTarget[COMPONENT.id];
+    expect(
+      componentIssues?.some((issue) =>
+        issue.includes("higher-order rig input"),
+      ) ?? false,
+    ).toBe(false);
   });
 
   it("creates comparison and logical nodes from expressions", () => {
@@ -430,9 +1199,17 @@ describe("buildRigGraphSpec", () => {
 
   it("creates graph nodes for trig, clamp, and power functions", () => {
     const binding = createDefaultBinding(COMPONENT);
+    const lowLevelInputA: StandardRigInput = {
+      ...INPUT_A,
+      path: "/rig/element/controls/a",
+    };
+    const lowLevelInputB: StandardRigInput = {
+      ...INPUT_B,
+      path: "/rig/element/controls/b",
+    };
     const INPUT_C: StandardRigInput = {
       id: "input_c",
-      path: "/controls/c",
+      path: "/rig/element/controls/c",
       label: "Control C",
       group: "controls",
       defaultValue: 0.5,
@@ -468,8 +1245,8 @@ describe("buildRigGraphSpec", () => {
         [COMPONENT.id]: binding,
       },
       inputsById: new Map([
-        [INPUT_A.id, INPUT_A],
-        [INPUT_B.id, INPUT_B],
+        [INPUT_A.id, lowLevelInputA],
+        [INPUT_B.id, lowLevelInputB],
         [INPUT_C.id, INPUT_C],
       ]),
       inputBindings: {},
@@ -796,6 +1573,14 @@ describe("buildRigGraphSpec", () => {
 
   it("does not emit type errors for scalar conditionals", () => {
     const binding = createDefaultBinding(COMPONENT);
+    const lowLevelInputA: StandardRigInput = {
+      ...INPUT_A,
+      path: "/rig/element/controls/a",
+    };
+    const lowLevelInputB: StandardRigInput = {
+      ...INPUT_B,
+      path: "/rig/element/controls/b",
+    };
     binding.slots = [
       {
         id: "slot_a",
@@ -820,8 +1605,8 @@ describe("buildRigGraphSpec", () => {
         [COMPONENT.id]: binding,
       },
       inputsById: new Map([
-        [INPUT_A.id, INPUT_A],
-        [INPUT_B.id, INPUT_B],
+        [INPUT_A.id, lowLevelInputA],
+        [INPUT_B.id, lowLevelInputB],
       ]),
       inputBindings: {},
     });
@@ -832,6 +1617,10 @@ describe("buildRigGraphSpec", () => {
 
   it("supports piecewise remap expressions with vector literals", () => {
     const binding = createDefaultBinding(COMPONENT);
+    const lowLevelInputA: StandardRigInput = {
+      ...INPUT_A,
+      path: "/rig/element/controls/a",
+    };
     binding.slots = [
       {
         id: "slot_a",
@@ -850,7 +1639,7 @@ describe("buildRigGraphSpec", () => {
       bindings: {
         [COMPONENT.id]: binding,
       },
-      inputsById: new Map([[INPUT_A.id, INPUT_A]]),
+      inputsById: new Map([[INPUT_A.id, lowLevelInputA]]),
       inputBindings: {},
     });
 
@@ -1244,6 +2033,204 @@ describe("buildRigGraphSpec issues", () => {
     if (derivedBIssues) {
       expect(derivedBIssues.length).toBeGreaterThan(0);
     }
+  });
+
+  it("flags higher-order rig inputs that drive animatable components directly", () => {
+    const derivedInput: StandardRigInput = {
+      id: "derived_input",
+      path: "/controls/derived",
+      label: "Derived Input",
+      group: "controls",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let derivedBinding = createDefaultBinding(
+      bindingTargetFromInput(derivedInput),
+    );
+    derivedBinding = updateBindingWithInput(
+      derivedBinding,
+      bindingTargetFromInput(derivedInput),
+      INPUT_A,
+    );
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      derivedInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [derivedInput.id, derivedInput],
+      ]),
+      inputBindings: {
+        [derivedInput.id]: derivedBinding,
+      },
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(issues).toBeDefined();
+    expect(
+      issues?.some(
+        (issue) =>
+          issue.includes("higher-order rig input") &&
+          issue.includes(derivedInput.id),
+      ),
+    ).toBe(true);
+  });
+
+  it("flags unbound abstract rig inputs that drive animatable components directly", () => {
+    const unboundAbstractInput: StandardRigInput = {
+      id: "unbound_abstract_input",
+      path: "/controls/unbound",
+      label: "Unbound Abstract Input",
+      group: "controls",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      unboundAbstractInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([[unboundAbstractInput.id, unboundAbstractInput]]),
+      inputBindings: {},
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(issues).toBeDefined();
+    expect(
+      issues?.some(
+        (issue) =>
+          issue.includes("higher-order rig input") &&
+          issue.includes(unboundAbstractInput.id),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows /rig/element metadata alias inputs to drive animatable components", () => {
+    const metadataInput: StandardRigInput = {
+      id: "rig_element_input",
+      path: "/rig/element/jaw/open",
+      label: "Jaw Open",
+      group: "rig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let derivedBinding = createDefaultBinding(
+      bindingTargetFromInput(metadataInput),
+    );
+    derivedBinding = updateBindingWithInput(
+      derivedBinding,
+      bindingTargetFromInput(metadataInput),
+      INPUT_A,
+    );
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      metadataInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [metadataInput.id, metadataInput],
+      ]),
+      inputBindings: {
+        [metadataInput.id]: derivedBinding,
+      },
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(
+      issues?.some((issue) => issue.includes("higher-order rig input")) ??
+        false,
+    ).toBe(false);
+  });
+
+  it("allows /propsrig metadata alias inputs to drive animatable components", () => {
+    const metadataInput: StandardRigInput = {
+      id: "propsrig_input",
+      path: "/propsrig/jaw/open",
+      label: "Jaw Open",
+      group: "propsrig",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    };
+
+    let derivedBinding = createDefaultBinding(
+      bindingTargetFromInput(metadataInput),
+    );
+    derivedBinding = updateBindingWithInput(
+      derivedBinding,
+      bindingTargetFromInput(metadataInput),
+      INPUT_A,
+    );
+
+    let componentBinding = createDefaultBinding(COMPONENT);
+    componentBinding = updateBindingWithInput(
+      componentBinding,
+      COMPONENT,
+      metadataInput,
+    );
+
+    const result = buildRigGraphSpec({
+      faceId: "robot",
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+      },
+      components: [COMPONENT],
+      bindings: {
+        [COMPONENT.id]: componentBinding,
+      },
+      inputsById: new Map([
+        [INPUT_A.id, INPUT_A],
+        [metadataInput.id, metadataInput],
+      ]),
+      inputBindings: {
+        [metadataInput.id]: derivedBinding,
+      },
+    });
+
+    const issues = result.issues.byTarget[COMPONENT.id];
+    expect(
+      issues?.some((issue) => issue.includes("higher-order rig input")) ??
+        false,
+    ).toBe(false);
   });
 });
 it("creates scalar math nodes like abs/min/max/modulo/round", () => {

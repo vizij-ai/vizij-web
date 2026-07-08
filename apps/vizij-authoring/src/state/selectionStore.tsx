@@ -41,7 +41,13 @@ export function createSelectionStore(
       return;
     }
     const nextState = { ...state, ...patch } as SelectionState;
-    if (nextState === state) {
+
+    // Check if any value actually changed
+    const hasChanged = Object.keys(patch).some(
+      (key) => (state as any)[key] !== (nextState as any)[key],
+    );
+
+    if (!hasChanged) {
       return;
     }
     state = nextState;

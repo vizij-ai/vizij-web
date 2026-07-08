@@ -1,21 +1,42 @@
-import { defineConfig } from "vite";
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react-swc";
+import { defineConfig } from "vite";
+
+const workspaceRoot = resolve(__dirname, "../..");
 
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ["**/*.glb"],
+  resolve: {
+    alias: {
+      "@vizij/runtime-react": resolve(
+        workspaceRoot,
+        "packages/@vizij/runtime-react/src",
+      ),
+      "@vizij/render": resolve(workspaceRoot, "packages/@vizij/render/src"),
+      "@vizij/orchestrator-react": resolve(
+        workspaceRoot,
+        "packages/@vizij/orchestrator-react/src",
+      ),
+      "@vizij/node-graph-authoring": resolve(
+        workspaceRoot,
+        "packages/@vizij/node-graph-authoring/src",
+      ),
+      "@vizij/utils": resolve(workspaceRoot, "packages/@vizij/utils/src"),
+    },
+  },
   server: {
     fs: {
-      allow: ["../../../"],
+      allow: [workspaceRoot, resolve(workspaceRoot, "..")],
     },
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
-        "!**/node_modules/@vizij/animation-react/**",
         "!**/node_modules/@vizij/orchestrator-wasm/**",
+        "!**/node_modules/@vizij/node-graph-wasm/**",
         "!**/node_modules/@vizij/orchestrator-react/**",
-        "!**/node_modules/@vizij/node-graph-react/**",
+        "!**/node_modules/@vizij/render/**",
+        "!**/node_modules/@vizij/utils/**",
       ],
     },
     headers: {
@@ -24,12 +45,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/animation-wasm", "@vizij/orchestrator-wasm"],
-    include: [
-      "@vizij/animation-react",
-      "@vizij/orchestrator-react",
-      "@vizij/node-graph-react",
-    ],
-    force: true,
+    exclude: ["@vizij/orchestrator-wasm", "@vizij/node-graph-wasm"],
+    include: ["@vizij/orchestrator-react", "@vizij/render"],
   },
 });

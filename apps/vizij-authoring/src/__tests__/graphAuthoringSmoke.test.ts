@@ -209,7 +209,7 @@ function buildCaseSmokeResult() {
 }
 
 const EXPECTED_GRAPH_SPEC_HASH =
-  "d2bca350d2b2dda20e79fa4faf8c5b2bcced327d0d6c78206dc918a100639fc9";
+  "6b1d36fea4ed5d35ebe94df1a7145d48dba79906214b908d78f5c7184f795b98";
 
 describe("graph authoring parity smoke", () => {
   it("keeps GraphSpec hashes aligned with IR compiler output", () => {

@@ -1,49 +1,92 @@
 # vizij-showcase
 
-Larger fullscreen Vizij face showcase that layers staging controls, pose hotkeys, gaze steering, and Polly-driven voice playback on top of the base runtime demo.
+`vizij-showcase` is the main multi-surface runtime demo in this repo. It renders several face experiences inside one app and uses `@vizij/runtime-react` in shared-orchestrator mode rather than the simpler isolated pattern used by the tutorials and `demo-vizij-player`.
 
-## Scripts
+## Runtime Pattern
 
-- `pnpm --filter vizij-showcase dev` – run the Vite dev server with hot reload.
-- `pnpm --filter vizij-showcase build` – emit the production bundle to `apps/vizij-showcase/dist`.
-- `pnpm --filter vizij-showcase preview` – serve the already-built production bundle with Vite’s preview server.
-- `pnpm --filter vizij-showcase typecheck` – run TypeScript in `--noEmit` mode.
-- `pnpm --filter vizij-showcase lint` – run ESLint across the project.
+The key runtime abstraction here is [`ShowcaseRuntime`](./src/components/ShowcaseRuntime.tsx).
+
+Each section-level face:
+
+- creates a bundle with `createShowcaseBundle()`
+- gets a unique namespace like `vizij-showcase-<section>`
+- mounts `VizijRuntimeProvider` with `orchestratorScope="shared"`
+- decides whether it should actively drive the orchestrator or stay passive
+
+This lets the showcase keep multiple runtime surfaces alive without every section running a full independent loop.
+
+### Driver vs passive faces
+
+Some faces are visible and interactive; others are decorative or hidden until scrolled into view.
+
+`ShowcaseRuntime` therefore separates:
+
+- `autostart`
+- `driveOrchestrator`
+- `visible`
+- `hiddenStepHz`
+
+Visible driver faces use the normal runtime loop. Hidden driver faces can fall back to low-frequency manual stepping through `step(..., { forceRuntime: true })`.
+
+If you are trying to understand shared runtime-react orchestration, this app is the reference consumer in the repo.
+
+## What The App Demonstrates
+
+- shared runtime namespaces for multiple face surfaces
+- pose hotkeys, idle gaze, and interactive gaze on top of runtime-react
+- voice/viseme overlays tied to runtime bundles
+- runtime status broadcasting for debug overlays
 
 ## Environment
 
-Voice/viseme controls require the Vizij API endpoint. Create `apps/vizij-showcase/.env.local` (git-ignored) with:
+Voice/viseme controls default to the staging Vizij API endpoint. Override only when needed:
 
 ```bash
-VITE_API_URL="https://your-api-base.example.com"
+cat > apps/vizij-showcase/.env.local <<'EOF'
+VITE_API_URL=https://your-api-base.example.com
+EOF
 ```
 
-Restart Vite whenever you change the env file.
+Restart Vite after changing the env file.
 
-## Production Build & Local Preview
+## Scripts
 
-1. From the repo root, make sure dependencies are installed (`pnpm install`) and packages are built if you changed any shared libraries (`pnpm run build:packages`).
-2. Build the showcase bundle in production mode:
+```bash
+pnpm --filter vizij-showcase dev
+pnpm --filter vizij-showcase build
+pnpm --filter vizij-showcase preview
+pnpm --filter vizij-showcase typecheck
+pnpm --filter vizij-showcase lint
+```
+
+## Key Files
+
+- [`src/components/ShowcaseRuntime.tsx`](./src/components/ShowcaseRuntime.tsx): shared runtime provider wrapper
+- [`src/lib/faceAssets.ts`](./src/lib/faceAssets.ts): bundle template + namespace generation
+- [`src/components/RuntimeFaceFrame.tsx`](./src/components/RuntimeFaceFrame.tsx): runtime face stage
+- [`src/components/RuntimeDebugOverlay.tsx`](./src/components/RuntimeDebugOverlay.tsx): debug/status surface
+
+## Build, Preview, And Deploy
+
+1. Install deps from the repo root with `pnpm install`.
+2. If you changed shared packages, rebuild them before checking the showcase.
+3. Build with:
+
    ```bash
    pnpm --filter vizij-showcase build
    ```
-   This writes the static assets to `apps/vizij-showcase/dist`.
-3. Serve that production output locally using Vite preview (same compression + asset handling you get in production):
+
+4. Preview locally with:
+
    ```bash
    pnpm --filter vizij-showcase preview -- --host 127.0.0.1 --port 4173
    ```
-   The flag section after `--` goes straight to Vite, so adjust host/port as needed. Visit `http://127.0.0.1:4173` to confirm the production build.
-4. If you prefer a different static file server, point it at `apps/vizij-showcase/dist` after the build step (for example, `python -m http.server 4173 --directory apps/vizij-showcase/dist`).
 
-Because `vite preview` consumes the already-built files, rerun the build step whenever you change source and want those updates reflected in the production preview.
+Firebase hosting commands remain:
 
-## Deployment
+```bash
+pnpm --dir apps/vizij-showcase exec firebase hosting:channel:deploy staging --only hosting:vizij-showcase
+pnpm --dir apps/vizij-showcase exec firebase deploy --only hosting:vizij-showcase
+```
 
-### Firebase Hosting
-
-1. Install the Firebase CLI (`pnpm exec firebase --version`) and authenticate once with `pnpm exec firebase login`.
-2. Build the production bundle locally when you want to validate changes: `pnpm --filter vizij-showcase build`. The deploy command triggers the same build via a predeploy hook.
-3. For a temporary preview URL run `pnpm --dir apps/vizij-showcase exec firebase hosting:channel:deploy staging --only hosting:vizij-showcase`.
-4. Promote to production with `pnpm --dir apps/vizij-showcase exec firebase deploy --only hosting:vizij-showcase`.
-
-The Firebase config files live beside this app (`firebase.json`, `.firebaserc`). They point Hosting at the `dist/` output, apply the COOP/COEP headers required for the WASM runtime, and rewrite all routes to `index.html` for SPA routing. The optional `apphosting.yaml` is unused unless we switch to Firebase App Hosting/Cloud Run in the future.
+The local Firebase config points Hosting at `dist/`, keeps the COOP/COEP headers needed for the wasm runtime, and rewrites routes to `index.html`.

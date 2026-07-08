@@ -2,6 +2,7 @@ import type { GLTF } from "three-stdlib";
 import { DRACOLoader, GLTFLoader } from "three-stdlib";
 import type { AnimatableValue } from "@vizij/utils";
 import type { World } from "../types";
+import { recordRenderCounter } from "../memoryInvestigation";
 import { traverseThree } from "./gltf-loading/traverse-three";
 
 /**
@@ -14,6 +15,9 @@ export const loadGltfFromBlob = (
   blob: Blob,
   namespaces: string[],
 ): Promise<[World, Record<string, AnimatableValue>]> => {
+  recordRenderCounter("gltfLoadCount");
+  recordRenderCounter("gltfBlobLoadCount");
+  recordRenderCounter("dracoLoaderCreationCount");
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(new DRACOLoader());

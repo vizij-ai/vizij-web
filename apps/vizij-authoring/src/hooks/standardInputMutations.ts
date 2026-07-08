@@ -93,6 +93,42 @@ export interface UpdateStandardInputParams {
   groupFallback: string;
 }
 
+export interface UpdateStandardInputEntryResult {
+  previousId: string;
+  nextId: string;
+  updatedInput: StandardRigInput;
+}
+
+export function resolveUniqueStandardInputId(
+  baseId: string,
+  existingIds: Iterable<string>,
+): string {
+  const usedIds = new Set(existingIds);
+  const seed = baseId.trim().length > 0 ? baseId.trim() : "input";
+  if (!usedIds.has(seed)) {
+    return seed;
+  }
+  let suffix = 2;
+  let candidate = `${seed}_${suffix}`;
+  while (usedIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${seed}_${suffix}`;
+  }
+  return candidate;
+}
+
+export function resolveUpdatedStandardInputId(params: {
+  currentId: string;
+  normalizedPath: string;
+  existingIds: Iterable<string>;
+}): string {
+  const candidateId = createStandardRigInputFromPath(params.normalizedPath).id;
+  if (candidateId === params.currentId) {
+    return params.currentId;
+  }
+  return resolveUniqueStandardInputId(candidateId, params.existingIds);
+}
+
 export function updateStandardInputEntry({
   inputId,
   updates,
@@ -103,7 +139,8 @@ export function updateStandardInputEntry({
   persistedAutoInputsRef,
   resolvePersistedAutoKey,
   groupFallback,
-}: UpdateStandardInputParams): void {
+}: UpdateStandardInputParams): UpdateStandardInputEntryResult | null {
+  let remapResult: UpdateStandardInputEntryResult | null = null;
   const autoEntry = Array.from(autoInputsRef.current.entries()).find(
     ([, entry]) => entry.input.id === inputId,
   );
@@ -128,7 +165,7 @@ export function updateStandardInputEntry({
       !wantsDefaultValue &&
       !wantsRangeUpdate
     ) {
-      return;
+      return null;
     }
 
     let normalizedPath = entryState.input.path;
@@ -136,7 +173,7 @@ export function updateStandardInputEntry({
       const trimmedPath = updates.path?.trim() ?? "";
       if (!trimmedPath) {
         alertDialog("Path cannot be empty.");
-        return;
+        return null;
       }
       normalizedPath = normalizeStandardRigInputPath(trimmedPath);
       const duplicateAuto = Array.from(autoInputsRef.current.entries()).some(
@@ -149,7 +186,7 @@ export function updateStandardInputEntry({
         alertDialog(
           `Another standard input already uses the path "${normalizedPath}".`,
         );
-        return;
+        return null;
       }
       const duplicateCustom = customInputsRef.current.some(
         (input) =>
@@ -160,9 +197,29 @@ export function updateStandardInputEntry({
         alertDialog(
           `Another standard input already uses the path "${normalizedPath}".`,
         );
-        return;
+        return null;
       }
     }
+
+    const existingIds = new Set<string>();
+    autoInputsRef.current.forEach((entry) => {
+      if (entry.input.id !== inputId) {
+        existingIds.add(entry.input.id);
+      }
+    });
+    customInputsRef.current.forEach((input) => {
+      if (input.id !== inputId) {
+        existingIds.add(input.id);
+      }
+    });
+    const nextInputId =
+      wantsPath && normalizedPath !== entryState.input.path
+        ? resolveUpdatedStandardInputId({
+            currentId: entryState.input.id,
+            normalizedPath,
+            existingIds,
+          })
+        : entryState.input.id;
 
     const trimmedLabel =
       wantsLabel && updates.label !== undefined
@@ -223,6 +280,7 @@ export function updateStandardInputEntry({
 
     if (
       normalizedPath === entryState.input.path &&
+      nextInputId === entryState.input.id &&
       nextLabel === entryState.input.label &&
       nextGroup === entryState.input.group &&
       nextSourceId === entryState.input.sourceId &&
@@ -230,7 +288,7 @@ export function updateStandardInputEntry({
       nextRangeMin === entryState.input.range.min &&
       nextRangeMax === entryState.input.range.max
     ) {
-      return;
+      return null;
     }
 
     setAutoInputs((previous) => {
@@ -239,7 +297,7 @@ export function updateStandardInputEntry({
         return previous;
       }
       const updatedInput = createStandardRigInput({
-        id: current.input.id,
+        id: nextInputId,
         path: normalizedPath,
         label: nextLabel,
         group: nextGroup,
@@ -264,6 +322,11 @@ export function updateStandardInputEntry({
       const next = new Map(previous);
       next.delete(entryKey);
       next.set(updatedInput.path, updatedEntry);
+      remapResult = {
+        previousId: entryState.input.id,
+        nextId: nextInputId,
+        updatedInput,
+      };
       return next;
     });
 
@@ -278,7 +341,7 @@ export function updateStandardInputEntry({
     }
     if (newKey) {
       persistedOverrides.set(newKey, {
-        id: entryState.input.id,
+        id: nextInputId,
         path: normalizedPath,
         sourcePath: entryState.sourcePath,
         sourceId: nextSourceId,
@@ -304,7 +367,7 @@ export function updateStandardInputEntry({
             : undefined,
       });
     }
-    return;
+    return remapResult;
   }
 
   setCustomInputs((previous) => {
@@ -335,6 +398,25 @@ export function updateStandardInputEntry({
       );
       return previous;
     }
+    const existingIds = new Set<string>();
+    previous.forEach((input, idx) => {
+      if (idx !== index) {
+        existingIds.add(input.id);
+      }
+    });
+    autoInputsRef.current.forEach((entry) => {
+      if (entry.input.id !== inputId) {
+        existingIds.add(entry.input.id);
+      }
+    });
+    const nextInputId =
+      updates.path !== undefined && normalizedPath !== current.path
+        ? resolveUpdatedStandardInputId({
+            currentId: current.id,
+            normalizedPath,
+            existingIds,
+          })
+        : current.id;
     const trimmedLabel =
       updates.label !== undefined ? updates.label.trim() : undefined;
     const nextLabel =
@@ -379,6 +461,7 @@ export function updateStandardInputEntry({
     );
     if (
       normalizedPath === current.path &&
+      nextInputId === current.id &&
       nextLabel === current.label &&
       normalizedDefaultValue === current.defaultValue &&
       nextRangeMin === current.range.min &&
@@ -388,7 +471,7 @@ export function updateStandardInputEntry({
     }
     const nextGroup = deriveGroupFromNormalizedPath(normalizedPath);
     const updated = createStandardRigInput({
-      id: current.id,
+      id: nextInputId,
       path: normalizedPath,
       label: nextLabel,
       group: nextGroup,
@@ -406,11 +489,19 @@ export function updateStandardInputEntry({
                 const trimmed = updates.sourceId.trim();
                 return trimmed.length > 0 ? trimmed : undefined;
               })(),
+      parentBinding: current.parentBinding ?? undefined,
+      derivedChildren: current.derivedChildren ?? undefined,
     });
     const next = previous.slice();
     next[index] = updated;
+    remapResult = {
+      previousId: current.id,
+      nextId: nextInputId,
+      updatedInput: updated,
+    };
     return next;
   });
+  return remapResult;
 }
 
 function clampNumberToRange(value: number, min: number, max: number): number {

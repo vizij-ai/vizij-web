@@ -11,14 +11,14 @@
     "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
-    "test": "vitest --run --passWithNoTests",
+    "test": "NODE_ENV=test vitest --run --passWithNoTests",
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
     "@eslint/plugin-kit": "0.4.0",
-    "@vizij/animation-wasm": "^0.3.7",
+    "@vizij/animation-wasm": "^0.3.8",
     "@vizij/animation-react": "workspace:*",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.1.2",

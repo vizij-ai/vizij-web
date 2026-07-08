@@ -11,6 +11,9 @@ export function applyDefaultsToRobotData(
   labelOverrides: Record<string, string> = {},
 ): void {
   bodies.forEach((root) => {
+    if (!root || typeof root.traverse !== "function") {
+      return;
+    }
     root.traverse((object: Record<string, any>) => {
       const robotData = object.userData?.gltfExtensions?.RobotData;
       if (!robotData || !robotData.features) {

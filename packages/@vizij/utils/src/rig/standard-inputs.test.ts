@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   createStandardRigInput,
+  createStandardRigInputFromPath,
+  formatStandardRigInputDisplayPath,
+  migrateLegacyStandardRigInputLabel,
   normalizeStandardRigInputPath,
+  resolveStandardRigInputId,
 } from "./standard-inputs";
 
 describe("normalizeStandardRigInputPath", () => {
@@ -28,5 +32,80 @@ describe("createStandardRigInput", () => {
       range: { min: -1, max: 1 },
     });
     expect(input.path).toBe("/eyes/blink");
+  });
+
+  it("derives compact labels for propsrig inputs", () => {
+    const input = createStandardRigInputFromPath(
+      "/propsrig/head/translation/x",
+    );
+    expect(input.label).toBe("Head Trans X");
+  });
+});
+
+describe("formatStandardRigInputDisplayPath", () => {
+  it("strips the propsrig root and shortens transform segments", () => {
+    expect(
+      formatStandardRigInputDisplayPath("/propsrig/head/translation/value"),
+    ).toBe("/head/trans");
+    expect(formatStandardRigInputDisplayPath("/propsrig/head/rotation/x")).toBe(
+      "/head/rot/x",
+    );
+  });
+});
+
+describe("migrateLegacyStandardRigInputLabel", () => {
+  it("rewrites legacy path-derived propsrig labels to the compact form", () => {
+    expect(
+      migrateLegacyStandardRigInputLabel(
+        "/propsrig/head/translation/value",
+        "Propsrig Head Translation Value",
+      ),
+    ).toBe("Head Trans");
+  });
+
+  it("preserves custom labels during migration", () => {
+    expect(
+      migrateLegacyStandardRigInputLabel(
+        "/propsrig/head/translation/value",
+        "Jaw Driver",
+      ),
+    ).toBe("Jaw Driver");
+  });
+});
+
+describe("resolveStandardRigInputId", () => {
+  it("resolves pose-control paths keyed by canonical input id", () => {
+    const input = createStandardRigInput({
+      id: "jaw_open",
+      path: "/propsrig/jaw/open",
+      label: "Jaw Open",
+      group: "jaw",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    const map = new Map([[input.id, input]]);
+
+    expect(resolveStandardRigInputId("/pose/control/jaw_open", map)).toBe(
+      "jaw_open",
+    );
+    expect(
+      resolveStandardRigInputId("rig/face/pose/control/jaw_open", map),
+    ).toBe("jaw_open");
+  });
+
+  it("keeps legacy pose-control path alias resolution", () => {
+    const input = createStandardRigInput({
+      id: "propsrig_source_openness",
+      path: "/propsrig/source/openness",
+      label: "Source Openness",
+      group: "source",
+      defaultValue: 0,
+      range: { min: -1, max: 1 },
+    });
+    const map = new Map([[input.id, input]]);
+
+    expect(
+      resolveStandardRigInputId("/pose/control/source/openness", map),
+    ).toBe("propsrig_source_openness");
   });
 });

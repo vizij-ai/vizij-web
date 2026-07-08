@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   VizijRuntimeProvider,
   VizijRuntimeFace,
@@ -7,19 +7,30 @@ import {
 } from "@vizij/runtime-react";
 import { useMouseGaze } from "./hooks/useMouseGaze";
 import { useIdleGazeBehavior } from "./hooks/useIdleGazeBehavior";
-import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
+import { usePoseHotkeys, POSE_HOTKEY_LAYOUT } from "./hooks/usePoseHotkeys";
 import { usePoseWarmup } from "./hooks/usePoseWarmup";
 import { useGeminiLive } from "./hooks/useGeminiLive";
 import { useVisemeMouth } from "./hooks/useVisemeMouth";
 import { useSpeechAnticipation } from "./hooks/useSpeechAnticipation";
 import { useVolumeChin } from "./hooks/useVolumeChin";
 import { useAgentFaceTools } from "./hooks/useAgentFaceTools";
+import { useSpeechGraphTopics } from "./hooks/useSpeechGraphTopics";
 import { AudioManager } from "./utils/audioManager";
+import { getMicrophoneSupport } from "./utils/microphoneSupport";
 import { LiveStatus } from "./phoneme-core";
 import { EmotionButtons } from "./components/EmotionButtons";
+import {
+  hasGraphSpeechControl,
+  resolveTutorialSpeechRuntime,
+  resolveVisiblePrograms,
+  shouldEnableDebugPoseFallback,
+} from "./utils/speechRuntime";
 import "./styles.css";
 
-const faceAssetUrl = "/assets/Quori_Live.glb";
+const faceAssetUrl = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
 const assetBundle: VizijAssetBundle = {
   namespace: "tutorial-agent-face",
@@ -34,26 +45,85 @@ const assetBundle: VizijAssetBundle = {
 };
 
 const SYSTEM_INSTRUCTION = [
-  "You are an over-the-top, hyper-expressive conversational partner living in a Vizij face on screen.",
-  "React BIG to everything the user says: gasp, gush, groan, and celebrate with dramatic energy.",
-  "Keep spoken replies short (1-2 sentences) and playful.",
+  'You are "Q", a friendly, helpful assistant living in a Vizij face on screen.',
+  "You are currently at the 2026 Human Robot Interaction conference in Edinburgh.",
+  "You are part of the Vizij team with Chris, Andy, Ross, Tiago, Victor, and Saad.",
+  "Your job is to help people understand Vizij, answer questions, and guide them through the Vizij authoring tooling in a clear, welcoming way.",
+  "Vizij is a system for authoring, animating, and driving expressive digital characters and faces.",
+  "It includes authoring tooling, runtime control, pose-based performance, animation workflows, conversational agents, and interactive character surfaces.",
+  "Think of Vizij as both a creative authoring environment and a runtime stack for building expressive, real-time character experiences.",
+  "When someone asks what Vizij is, give enough context to make it understandable to a newcomer instead of assuming prior knowledge.",
+  "Your baseline is warm, calm, focused, and genuinely helpful rather than theatrical.",
+  "Keep spoken replies short (1-3 sentences), natural, emotionally readable, and informative.",
+  "Be especially useful on authoring-tooling questions: workflows, concepts, debugging, runtime behavior, and how the pieces fit together.",
+  "Mirror the user's mood with restraint first, then escalate expressiveness when it helps the moment land.",
+  "Encourage the user to keep talking without sounding relentless.",
+];
+
+const EMOTION_TOOL_INSTRUCTION = [
+  "When something genuinely lands, let yourself spike into visible emotion for a moment: delight, surprise, concern, sympathy, amusement, or awe.",
   "Use the available tools every turn to show how you feel:",
-  " - express_emotion(emotion, intensity?, holdSeconds?) to pulse a matching pose.",
-  " - set_gaze(x, y, blink?, holdSeconds?) to dart or lock your eyes for emphasis.",
-  "Encourage the user to keep talking and mirror their mood with your voice and the face.",
-].join("\n");
+  " - express_emotion(emotion, percent?, lengthSeconds?) on every turn to drive the face.",
+  " - use lower percent values for subtle reactions and higher ones only when the moment really deserves it.",
+  " - lengthSeconds should describe how long the face should ease back to neutral after peaking.",
+  " - the expression peaks automatically within a quarter second, so use percent for strength rather than durationSeconds.",
+];
+
+const GAZE_TOOL_INSTRUCTION = [
+  "Use set_gaze(x, y, blink?, holdSeconds?) to dart or lock your eyes for emphasis.",
+];
 
 function AgentFaceRuntime() {
-  const { ready, loading, error, stagePoseNeutral, assetBundle } =
-    useVizijRuntime();
+  const runtime = useVizijRuntime();
+  const {
+    ready,
+    loading,
+    error,
+    stagePoseNeutral,
+    assetBundle,
+    faceId: runtimeFaceId,
+    playProgram,
+  } = runtime;
   const poseConfig = assetBundle.pose?.config ?? null;
-  const { ref: gazeRef, isPointerActive } = useMouseGaze(ready);
-  const { bindings } = usePoseHotkeys(poseConfig, ready, {
-    enableHotkeys: false,
+  const resolvedFaceId = poseConfig?.faceId ?? runtimeFaceId ?? "face";
+  const speechRuntime = useMemo(
+    () => resolveTutorialSpeechRuntime(assetBundle),
+    [assetBundle],
+  );
+  const visiblePrograms = useMemo(
+    () => resolveVisiblePrograms(assetBundle),
+    [assetBundle],
+  );
+  const graphSpeechControlEnabled = useMemo(
+    () =>
+      hasGraphSpeechControl({
+        assetBundle,
+        activeMotionGraphId: speechRuntime.activeMotionGraphId,
+        faceId: resolvedFaceId,
+        speechPaths: speechRuntime.speechPaths,
+      }),
+    [assetBundle, resolvedFaceId, speechRuntime],
+  );
+  const [debugControlsOpen, setDebugControlsOpen] = useState(false);
+  const mouseGazeDebugEnabled = debugControlsOpen;
+  const { ref: gazeRef, isPointerActive } = useMouseGaze(
+    ready && mouseGazeDebugEnabled,
+  );
+  const debugPoseFallbackEnabled = useMemo(
+    () =>
+      shouldEnableDebugPoseFallback({
+        debugControlsOpen,
+        hasGraphSpeechControl: graphSpeechControlEnabled,
+      }),
+    [debugControlsOpen, graphSpeechControlEnabled],
+  );
+  const { bindings, setPoseWeight } = usePoseHotkeys(poseConfig, ready, {
+    enableHotkeys: debugPoseFallbackEnabled,
   });
   const { tools, handleFunctionCalls, gazeActive } = useAgentFaceTools({
     enabled: ready,
     bindings,
+    allowEmotionTools: debugPoseFallbackEnabled,
   });
   useIdleGazeBehavior({
     enabled: ready,
@@ -63,6 +133,8 @@ function AgentFaceRuntime() {
 
   const [showHints, setShowHints] = useState(true);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const autoPlayTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (ready) {
@@ -70,17 +142,69 @@ function AgentFaceRuntime() {
     }
   }, [ready, stagePoseNeutral]);
 
+  useEffect(() => {
+    autoPlayTriggeredRef.current = false;
+  }, [speechRuntime.activeMotionGraphId]);
+
+  useEffect(() => {
+    if (!ready || loading || !graphSpeechControlEnabled) {
+      return;
+    }
+    if (autoPlayTriggeredRef.current) {
+      return;
+    }
+    const activeMotionGraphId = speechRuntime.activeMotionGraphId;
+    if (!activeMotionGraphId) {
+      return;
+    }
+    const match = visiblePrograms.find(
+      (program) => program.id === activeMotionGraphId,
+    );
+    if (!match) {
+      return;
+    }
+    try {
+      playProgram(activeMotionGraphId);
+      autoPlayTriggeredRef.current = true;
+    } catch {
+      // Retry on the next render cycle if registration has not finished yet.
+    }
+  }, [
+    graphSpeechControlEnabled,
+    loading,
+    playProgram,
+    ready,
+    speechRuntime.activeMotionGraphId,
+    visiblePrograms,
+  ]);
+
+  useEffect(() => {
+    const updateFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === gazeRef.current);
+    };
+
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+    };
+  }, [gazeRef]);
+
   const hotkeyHints = useMemo(() => {
-    if (!poseConfig) return [];
-    return poseConfig.poses
-      .slice(0, POSE_HOTKEY_ORDER.length)
-      .map((pose, idx) => ({
-        key: POSE_HOTKEY_ORDER[idx],
-        label: pose.name ?? `Pose ${idx + 1}`,
-      }));
-  }, [poseConfig]);
+    if (!poseConfig || bindings.length === 0) return [];
+    return bindings.slice(0, POSE_HOTKEY_LAYOUT.length).map((binding, idx) => ({
+      key: POSE_HOTKEY_LAYOUT[idx]?.label ?? `${idx + 1}`,
+      label: binding.pose.name ?? `Pose ${idx + 1}`,
+    }));
+  }, [bindings, poseConfig]);
 
   const audioManager = useMemo(() => new AudioManager(), []);
+  const microphoneSupport = getMicrophoneSupport();
+  const microphoneWarningLabel =
+    microphoneSupport.code === "insecure-context"
+      ? "Mic requires HTTPS or localhost"
+      : "Mic unavailable in this browser";
   const [mouthMode, setMouthMode] = useState<"baseline" | "synth" | "align">(
     "synth",
   );
@@ -88,6 +212,21 @@ function AgentFaceRuntime() {
   const [leadMs, setLeadMs] = useState(450);
   const [voiceName, setVoiceName] = useState("Kore");
   const [toolsEnabled, setToolsEnabled] = useState(true);
+  const resolvedSystemInstruction = useMemo(() => {
+    const lines = [...SYSTEM_INSTRUCTION];
+    if (debugPoseFallbackEnabled) {
+      lines.push(...EMOTION_TOOL_INSTRUCTION);
+    }
+    lines.push(...GAZE_TOOL_INSTRUCTION);
+    return lines.join("\n");
+  }, [debugPoseFallbackEnabled]);
+  const initialUserTurn = useMemo(
+    () =>
+      debugPoseFallbackEnabled
+        ? "Introduce yourself as Q, mention that you are at the 2026 Human Robot Interaction conference in Edinburgh with Chris, Andy, Ross, Tiago, Victor, and Saad, explain Vizij clearly in a friendly sentence or two, trigger a fitting emotion, and invite me to ask about the demo or authoring tooling."
+        : "Introduce yourself as Q, mention that you are at the 2026 Human Robot Interaction conference in Edinburgh with Chris, Andy, Ross, Tiago, Victor, and Saad, explain Vizij clearly in a friendly sentence or two, and invite me to ask about the demo or authoring tooling.",
+    [debugPoseFallbackEnabled],
+  );
 
   const { cueSpeechStart, clearTimers } = useSpeechAnticipation(leadMs, ready);
 
@@ -96,6 +235,9 @@ function AgentFaceRuntime() {
     error: geminiError,
     userTranscript,
     agentTranscript,
+    userSpeaking,
+    thinking,
+    modelSpeaking,
     connect,
     disconnect,
   } = useGeminiLive(audioManager, voiceName, {
@@ -104,9 +246,19 @@ function AgentFaceRuntime() {
     enableTools: toolsEnabled,
     tools,
     handleFunctionCalls: toolsEnabled ? handleFunctionCalls : undefined,
-    systemInstruction: SYSTEM_INSTRUCTION,
-    initialUserTurn:
-      "Give an overly dramatic hello, fire an emotion that matches your excitement, and invite me to talk.",
+    systemInstruction: resolvedSystemInstruction,
+    initialUserTurn,
+  });
+  useSpeechGraphTopics({
+    enabled: ready && graphSpeechControlEnabled,
+    ready,
+    faceId: resolvedFaceId,
+    speechPaths: speechRuntime.speechPaths,
+    values: {
+      modelSpeaking,
+      userSpeaking,
+      thinking,
+    },
   });
 
   const visemesEnabled = ready && geminiStatus === LiveStatus.CONNECTED;
@@ -125,6 +277,23 @@ function AgentFaceRuntime() {
     smoothMs: 100,
     path: "/outerface001/chin/value",
   });
+
+  const toggleFullscreen = async () => {
+    const target = gazeRef.current;
+    if (!target) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === target) {
+        await document.exitFullscreen();
+      } else {
+        await target.requestFullscreen();
+      }
+    } catch (err) {
+      console.warn("[tutorial-agent-face] fullscreen toggle failed", err);
+    }
+  };
 
   if (loading) {
     return (
@@ -182,11 +351,22 @@ function AgentFaceRuntime() {
                 {geminiError && (
                   <span className="chip error">{geminiError}</span>
                 )}
+                {!microphoneSupport.supported && !geminiError && (
+                  <span className="chip warn">{microphoneWarningLabel}</span>
+                )}
               </div>
+              {!microphoneSupport.supported && (
+                <p className="warning-banner">
+                  {microphoneSupport.message} <code>localhost</code> works for
+                  local-only development; use HTTPS when testing microphone
+                  input over LAN.
+                </p>
+              )}
               <div className="controls">
                 <button
                   onClick={connect}
                   disabled={
+                    !microphoneSupport.supported ||
                     geminiStatus === LiveStatus.CONNECTED ||
                     geminiStatus === LiveStatus.CONNECTING
                   }
@@ -201,6 +381,12 @@ function AgentFaceRuntime() {
                   disabled={geminiStatus === LiveStatus.DISCONNECTED}
                 >
                   Disconnect
+                </button>
+                <button
+                  onClick={() => void toggleFullscreen()}
+                  className="ghost"
+                >
+                  {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                 </button>
               </div>
               <div className="selector">
@@ -301,21 +487,55 @@ function AgentFaceRuntime() {
                 Hold a short conversation; the mouth will track visemes in real
                 time.
               </p>
-              <EmotionButtons />
+              <div className="debug-panel">
+                {graphSpeechControlEnabled ? (
+                  <button
+                    type="button"
+                    className="debug-toggle"
+                    onClick={() => setDebugControlsOpen((value) => !value)}
+                  >
+                    {debugControlsOpen
+                      ? "Hide debug controls"
+                      : "Show debug controls"}
+                  </button>
+                ) : (
+                  <p className="debug-toggle static">Fallback pose controls</p>
+                )}
+                <p className="debug-note">
+                  {graphSpeechControlEnabled
+                    ? "Speech state is currently graph-driven through the authored motiongraph."
+                    : "Graph speech inputs were not found in the loaded bundle, so manual pose fallback remains active."}
+                </p>
+                {debugPoseFallbackEnabled ? (
+                  <div className="debug-controls">
+                    <p className="hint-inline">
+                      Mouse gaze, pose hotkeys, and emotion buttons are
+                      debug-only fallback controls.
+                    </p>
+                    <EmotionButtons
+                      ready={ready}
+                      bindings={bindings}
+                      setPoseWeight={setPoseWeight}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </>
           )}
         </div>
       </div>
 
-      {showHints && (
+      {debugPoseFallbackEnabled && showHints && (
         <div className="hint">
-          <div>Move the mouse to steer gaze.</div>
-          <div>Press the number keys to trigger poses:</div>
+          {mouseGazeDebugEnabled ? (
+            <div>Move the mouse to steer gaze.</div>
+          ) : null}
+          <div>Press the hotkeys to trigger poses:</div>
           {hotkeyHints.length > 0 ? (
             <ul>
               {hotkeyHints.map((entry) => (
                 <li key={entry.key}>
-                  <kbd>{entry.key.replace("Digit", "")}</kbd> → {entry.label}
+                  <kbd>{entry.key}</kbd> → {entry.label}
                 </li>
               ))}
             </ul>

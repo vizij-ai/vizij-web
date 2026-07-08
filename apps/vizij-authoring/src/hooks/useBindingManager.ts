@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { AnimatableComponent } from "@vizij/utils";
-import type { StandardRigInput } from "@vizij/utils";
+import { type StandardRigInput } from "@vizij/utils";
 import {
   addBindingSlot,
   bindingTargetFromComponent,
@@ -26,6 +26,8 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { SELF_BINDING_ID } from "@vizij/utils";
+import { getStandardInputResolutionIndex } from "../utils/standardInputResolutionIndex";
+import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions";
 
 interface BindingManagerOptions {
   componentsById: Map<string, AnimatableComponent>;
@@ -489,40 +491,93 @@ export function useBindingManager(options: BindingManagerOptions) {
     });
   }, []);
 
-  const handleCreateParentDriverBinding = useCallback(
-    (targetId: string, upstreamId: string) => {
-      const upstreamInput =
-        standardInputsByIdRef.current.get(upstreamId) ??
-        allStandardInputsRef.current.get(upstreamId);
-      if (!upstreamInput) {
-        return;
-      }
+  const handleEnableParentLocalControl = useCallback(
+    (targetId: string) => {
       updateInputBinding(
         targetId,
         createDefaultParentBinding,
         (binding, target) => {
-          let working = binding;
-          let availableSlot = working.slots.find(
-            (slot, index) => index !== 0 && slot.inputId === null,
-          );
-          if (!availableSlot) {
-            working = addBindingSlot(working, target);
-            availableSlot = working.slots[working.slots.length - 1];
-          }
-          const updated = updateBindingWithInput(
-            working,
+          const ensured = ensureBindingStructure(binding, target);
+          const primarySlotId = ensured.slots[0]?.id ?? PRIMARY_SLOT_ID;
+          const clearedPrimary = updateBindingWithInput(
+            ensured,
             target,
-            upstreamInput,
-            availableSlot.id,
+            undefined,
+            primarySlotId,
           );
-          return maybeAutoAliasSlot(
-            updated,
-            target,
-            availableSlot.id,
-            upstreamInput,
+          const slots = clearedPrimary.slots.map((slot, index) =>
+            index === 0
+              ? {
+                  ...slot,
+                  alias: "self",
+                  inputId: SELF_BINDING_ID,
+                }
+              : slot,
           );
+          return {
+            ...clearedPrimary,
+            inputId: SELF_BINDING_ID,
+            slots,
+          };
         },
       );
+    },
+    [updateInputBinding],
+  );
+
+  const handleCreateParentDriverBinding = useCallback(
+    (targetId: string, upstreamId: string) => {
+      const standardInputIndex = getStandardInputResolutionIndex(
+        standardInputsByIdRef.current,
+      );
+      const allInputIndex = getStandardInputResolutionIndex(
+        allStandardInputsRef.current,
+      );
+      const resolvedTargetId = standardInputIndex.resolveCanonicalId(targetId);
+      const resolvedUpstreamId =
+        standardInputIndex.resolveCanonicalId(upstreamId);
+      const upstreamInput =
+        standardInputsByIdRef.current.get(resolvedUpstreamId) ??
+        allStandardInputsRef.current.get(resolvedUpstreamId);
+      if (!upstreamInput) {
+        return;
+      }
+      const targetIds = new Set<string>(
+        allInputIndex.getEquivalentInputIds(resolvedTargetId),
+      );
+      if (!targetIds.has(resolvedTargetId)) {
+        targetIds.add(resolvedTargetId);
+      }
+      targetIds.forEach((candidateTargetId) => {
+        updateInputBinding(
+          candidateTargetId,
+          createDefaultParentBinding,
+          (binding, target) => {
+            let working = binding;
+            let availableSlot = working.slots.find(
+              (slot, index) => index !== 0 && slot.inputId === null,
+            );
+            if (!availableSlot) {
+              working = addBindingSlot(working, target);
+              availableSlot = working.slots[working.slots.length - 1];
+            }
+            const connectedSlotId = availableSlot.id;
+            const updated = updateBindingWithInput(
+              working,
+              target,
+              upstreamInput,
+              connectedSlotId,
+            );
+            const aliased = maybeAutoAliasSlot(
+              updated,
+              target,
+              connectedSlotId,
+              upstreamInput,
+            );
+            return ensureLinkedSlotActiveInExpression(aliased, connectedSlotId);
+          },
+        );
+      });
     },
     [
       allStandardInputsRef,
@@ -596,6 +651,7 @@ export function useBindingManager(options: BindingManagerOptions) {
     handleParentBindingSlotAliasChange,
     handleParentBindingSlotValueTypeChange,
     handleParentResetBinding,
+    handleEnableParentLocalControl,
     handleCreateParentDriverBinding,
   };
 }

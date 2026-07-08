@@ -1,11 +1,11 @@
 import { type JSX, useCallback, useMemo, useState } from "react";
 import type { StandardRigInput } from "@vizij/utils";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
-import { SidebarSection } from "../common/SidebarSection";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
-import { Button } from "../ui";
+import { Button, Panel, Chip, Input } from "../ui";
+import { cn } from "../../utils/cn";
 
 /**
  * Represents a node in the standard input tree hierarchy.
@@ -191,8 +191,6 @@ function validateNodeName(name: string): string | null {
 function nameExistsAtLevel(existingNames: Set<string>, name: string): boolean {
   return existingNames.has(name.toLowerCase());
 }
-
-const TREE_MAX_HEIGHT = 800;
 
 export function StdFeatureSpacesChannelsPanel() {
   const [search, setSearch] = useState("");
@@ -650,41 +648,6 @@ export function StdFeatureSpacesChannelsPanel() {
     ],
   );
 
-  // Handle removing channels from main face that don't exist in reference namespace
-  const handleRemoveUnmatched = useCallback(
-    (namespaceName: string) => {
-      const mainNamespaceNode = mainInputTree.get(namespaceName);
-      const refNamespaceNode = refInputTree.get(namespaceName);
-
-      if (!mainNamespaceNode) return;
-
-      // Collect all inputs from the main namespace
-      const mainInputs = collectInputsUnderNode(mainNamespaceNode);
-
-      // Build a set of normalized paths from reference namespace (if it exists)
-      const refInputs = refNamespaceNode
-        ? collectInputsUnderNode(refNamespaceNode)
-        : [];
-      const refPaths = buildNormalizedPathSet(refInputs);
-
-      // Remove main face inputs that don't exist in reference
-      for (const mainInput of mainInputs) {
-        const normalizedPath = normalizeStandardRigInputPath(mainInput.path);
-        if (!refPaths.has(normalizedPath)) {
-          // Remove this input from main face
-          handleDeleteCustomStandardInput(mainInput.id);
-          handleDisableStandardInput(mainInput.id);
-        }
-      }
-    },
-    [
-      mainInputTree,
-      refInputTree,
-      handleDeleteCustomStandardInput,
-      handleDisableStandardInput,
-    ],
-  );
-
   // Handlers for editing input properties
   const handleUpdateLabel = useCallback(
     (newLabel: string) => {
@@ -768,7 +731,6 @@ export function StdFeatureSpacesChannelsPanel() {
   const renderNode = useCallback(
     (node: TreeNode, depth: number): JSX.Element | null => {
       if (!matchesSearch(node)) return null;
-      // Apply filter: show only nodes missing in ref face (only in dual-tree mode)
       if (
         bothFacesLoaded &&
         mainFilterMissingInRef &&
@@ -779,14 +741,10 @@ export function StdFeatureSpacesChannelsPanel() {
       const hasChildren = node.children.size > 0;
       const expanded = isExpanded(node.id);
 
-      // For display, strip the namespace prefix from the label
-      // e.g., "Vizij Mouth Morph Corner Puller" -> "Mouth Morph Corner Puller"
       let displayName = node.input?.label || formatSegmentName(node.name);
       if (node.input?.label && node.depth > 0) {
-        // Get the namespace name from the path (first segment of node.id)
         const namespaceSegment = node.id.split("/")[0];
         const formattedNamespace = formatSegmentName(namespaceSegment);
-        // Strip namespace prefix from label if present
         if (displayName.startsWith(formattedNamespace + " ")) {
           displayName = displayName.slice(formattedNamespace.length + 1);
         }
@@ -794,11 +752,8 @@ export function StdFeatureSpacesChannelsPanel() {
 
       const isSelected = selectedNodeId === node.id;
 
-      // Sort children: groups first (non-leaf), then leaves
       const sortedChildren = Array.from(node.children.values()).sort((a, b) => {
-        if (a.isLeaf !== b.isLeaf) {
-          return a.isLeaf ? 1 : -1; // Non-leaves first
-        }
+        if (a.isLeaf !== b.isLeaf) return a.isLeaf ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
 
@@ -812,34 +767,76 @@ export function StdFeatureSpacesChannelsPanel() {
               : "attr";
 
       return (
-        <div key={node.id} className="hierarchy-tree__item">
+        <div key={node.id} className="flex flex-col">
           <div
-            className="hierarchy-tree__row"
-            data-selected={isSelected ? "true" : undefined}
-            style={{ paddingLeft: `${depth * 0.9}rem` }}
+            className={cn(
+              "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
+              isSelected
+                ? "bg-accent-subtle text-accent shadow-[inset_0_0_0_1px_rgba(var(--color-accent-rgb),0.3)]"
+                : "text-text-muted hover:bg-bg-secondary/40 hover:text-text-secondary",
+            )}
+            style={{ marginLeft: `${depth * 12}px` }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedNodeId(node.id);
+              setIsRenaming(false);
+            }}
           >
             <button
               type="button"
-              className="hierarchy-tree__toggle"
-              aria-label={expanded ? "Collapse children" : "Expand children"}
-              disabled={!hasChildren}
-              onClick={() => toggleNode(node.id)}
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-bg-secondary-hover transition-transform duration-200 text-text-muted hover:text-text-secondary",
+                !hasChildren && "opacity-0 pointer-events-none",
+                expanded && "rotate-90",
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleNode(node.id);
+              }}
             >
-              {hasChildren ? (expanded ? "▾" : "▸") : " "}
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
             </button>
-            <button
-              type="button"
-              className="hierarchy-tree__label hierarchy-tree__label--dense"
-              onClick={() => setSelectedNodeId(node.id)}
-            >
-              <span className="hierarchy-tree__name">{displayName}</span>
-              <span className="hierarchy-tree__meta-group">
-                <span className="hierarchy-tree__meta">{levelLabel}</span>
+
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span
+                className={cn(
+                  "text-[11px] font-medium truncate",
+                  isSelected && "text-accent",
+                )}
+              >
+                {displayName}
               </span>
-            </button>
+
+              <span className="flex items-center gap-1.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[9px] font-bold uppercase tracking-tighter bg-bg-secondary px-1 rounded text-text-muted">
+                  {levelLabel}
+                </span>
+                {node.isLeaf && (
+                  <div
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      (node.input as any)?.disabled
+                        ? "bg-bg-secondary"
+                        : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)]",
+                    )}
+                  />
+                )}
+              </span>
+            </div>
           </div>
           {hasChildren && expanded && (
-            <div className="hierarchy-tree__children">
+            <div className="flex flex-col">
               {sortedChildren.map((child) => renderNode(child, depth + 1))}
             </div>
           )}
@@ -883,7 +880,6 @@ export function StdFeatureSpacesChannelsPanel() {
   const renderRefNode = useCallback(
     (node: TreeNode, depth: number): JSX.Element | null => {
       if (!matchesSearch(node)) return null;
-      // Apply filter: show only nodes missing in main face
       if (refFilterMissingInMain && !nodeIsMissingInMain(node)) return null;
 
       const hasChildren = node.children.size > 0;
@@ -899,9 +895,7 @@ export function StdFeatureSpacesChannelsPanel() {
       }
 
       const sortedChildren = Array.from(node.children.values()).sort((a, b) => {
-        if (a.isLeaf !== b.isLeaf) {
-          return a.isLeaf ? 1 : -1;
-        }
+        if (a.isLeaf !== b.isLeaf) return a.isLeaf ? 1 : -1;
         return a.name.localeCompare(b.name);
       });
 
@@ -915,29 +909,44 @@ export function StdFeatureSpacesChannelsPanel() {
               : "attr";
 
       return (
-        <div key={node.id} className="hierarchy-tree__item">
+        <div key={node.id} className="flex flex-col opacity-80">
           <div
-            className="hierarchy-tree__row hierarchy-tree__row--readonly"
-            style={{ paddingLeft: `${depth * 0.9}rem` }}
+            className="group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none text-text-muted hover:bg-bg-secondary/40 hover:text-text-secondary"
+            style={{ marginLeft: `${depth * 12}px` }}
           >
             <button
               type="button"
-              className="hierarchy-tree__toggle"
-              aria-label={expanded ? "Collapse children" : "Expand children"}
-              disabled={!hasChildren}
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-bg-secondary-hover transition-transform duration-200",
+                !hasChildren && "opacity-0 pointer-events-none",
+                expanded && "rotate-90",
+              )}
               onClick={() => toggleRefNode(node.id)}
             >
-              {hasChildren ? (expanded ? "▾" : "▸") : " "}
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
             </button>
-            <span className="hierarchy-tree__label hierarchy-tree__label--dense hierarchy-tree__label--readonly">
-              <span className="hierarchy-tree__name">{displayName}</span>
-              <span className="hierarchy-tree__meta-group">
-                <span className="hierarchy-tree__meta">{levelLabel}</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-[11px] font-medium truncate italic">
+                {displayName}
               </span>
-            </span>
+              <span className="text-[9px] font-bold uppercase tracking-tighter bg-bg-secondary/50 px-1 rounded text-text-muted ml-auto opacity-0 group-hover:opacity-100">
+                {levelLabel}
+              </span>
+            </div>
           </div>
           {hasChildren && expanded && (
-            <div className="hierarchy-tree__children">
+            <div className="flex flex-col">
               {sortedChildren.map((child) => renderRefNode(child, depth + 1))}
             </div>
           )}
@@ -966,582 +975,143 @@ export function StdFeatureSpacesChannelsPanel() {
   }, [refInputTree, mainInputTree]);
 
   return (
-    <div
-      className="workbench-panel__scroll"
-      style={{
-        flex: 1,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}
+    <Panel
+      title="Standard Channels"
+      description="View and edit the standard input channel hierarchy."
+      className="flex flex-col h-full overflow-hidden"
     >
-      <SidebarSection
-        title="Standard Channels"
-        description="View and edit the standard input channel hierarchy."
-      >
-        {!anyFaceLoaded ? (
-          <p className="sidebar__placeholder-text">
-            Load a face to view its standard channels.
-          </p>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            {/* Toolbar with search */}
-            <div className="scene-hierarchy__toolbar">
+      {!anyFaceLoaded ? (
+        <div className="flex flex-col items-center justify-center py-12 text-text-muted text-xs italic">
+          Load a face to view its standard channels.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4 flex-1 min-h-0">
+          {/* Toolbar with search */}
+          <div className="flex items-center gap-2 px-1">
+            <div className="relative flex-1">
+              <svg
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
               <input
                 type="search"
-                className="scene-hierarchy__search"
-                placeholder="Search channels"
+                className="w-full h-8 rounded-md bg-bg-input border border-border-default pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/50 transition-all"
+                placeholder="Search channels..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              {search.trim().length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="scene-hierarchy__clear"
-                  onClick={() => setSearch("")}
-                >
-                  Clear
-                </Button>
-              )}
             </div>
-
-            {/* Dual-tree view when both faces are loaded */}
-            {bothFacesLoaded ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  flex: 1,
-                  minHeight: 0,
-                  gap: "0.75rem",
+            {bothFacesLoaded && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-[10px]"
+                onClick={() => {
+                  setRefFilterMissingInMain(!refFilterMissingInMain);
+                  setMainFilterMissingInRef(!mainFilterMissingInRef);
                 }}
+                title="Toggle mismatch filter"
               >
-                {/* Reference face section */}
-                <div
-                  style={{
-                    flex: "0 0 auto",
-                    padding: "0.5rem",
-                    background: "var(--color-slate-850)",
-                    borderRadius: "0.25rem",
-                    border: "1px solid var(--color-slate-700)",
-                  }}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={cn(
+                    (refFilterMissingInMain || mainFilterMissingInRef) &&
+                      "text-accent",
+                  )}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        color: "var(--color-slate-300)",
-                      }}
-                    >
-                      Reference Face
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.65rem",
-                        color: "var(--color-slate-500)",
-                      }}
-                    >
-                      (read-only)
-                    </span>
-                    <div style={{ marginLeft: "auto" }}>
-                      <Button
-                        variant={refFilterMissingInMain ? "primary" : "ghost"}
-                        size="sm"
-                        onClick={() =>
-                          setRefFilterMissingInMain(!refFilterMissingInMain)
-                        }
-                        title="Show only channels not in main face"
-                        style={{
-                          fontSize: "0.65rem",
-                          padding: "0.15rem 0.4rem",
-                        }}
-                      >
-                        {refFilterMissingInMain ? "Show All" : "Missing Only"}
-                      </Button>
-                    </div>
-                  </div>
-                  <div
-                    className="scene-hierarchy__tree"
-                    style={{
-                      maxHeight: "180px",
-                      overflowY: "auto",
-                      opacity: 0.9,
-                    }}
-                  >
-                    {sortedRefRootNodes.length === 0 ? (
-                      <p
-                        className="sidebar__placeholder-text"
-                        style={{ fontSize: "0.75rem" }}
-                      >
-                        No standard channels in reference face.
-                      </p>
-                    ) : (
-                      sortedRefRootNodes.map((node) => renderRefNode(node, 0))
-                    )}
-                  </div>
+                  <path d="M11 21H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h5l2 3h9a2 2 0 0 1 2 2v2" />
+                  <line x1="18" y1="21" x2="18" y2="15" />
+                  <line x1="21" y1="18" x2="15" y2="18" />
+                </svg>
+              </Button>
+            )}
+          </div>
+
+          {bothFacesLoaded ? (
+            <div className="flex flex-col gap-6">
+              {/* Dual Tree View */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Main Face
+                  </span>
+                  {mainFilterMissingInRef && (
+                    <Chip tone="warning" className="h-4 text-[9px] px-1">
+                      Filtered
+                    </Chip>
+                  )}
                 </div>
-
-                {/* Namespace action buttons */}
-                {allNamespaces.length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.25rem",
-                      padding: "0.5rem",
-                      background: "var(--color-slate-800)",
-                      borderRadius: "0.25rem",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        color: "var(--color-slate-400)",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      Per-namespace actions:
-                    </span>
-                    {allNamespaces.map((ns) => {
-                      const refHasNs = refInputTree.has(ns);
-                      const mainHasNs = mainInputTree.has(ns);
-                      return (
-                        <div
-                          key={ns}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.75rem",
-                              fontWeight: 500,
-                              minWidth: "80px",
-                              color: "var(--color-slate-300)",
-                            }}
-                          >
-                            {formatSegmentName(ns)}
-                          </span>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleAdoptFromRef(ns)}
-                            disabled={!refHasNs}
-                            title={
-                              refHasNs
-                                ? `Copy all channels from "${ns}" in reference to main face`
-                                : "Namespace not in reference"
-                            }
-                          >
-                            Adopt
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleRemoveUnmatched(ns)}
-                            disabled={!mainHasNs || !refHasNs}
-                            title={
-                              mainHasNs && refHasNs
-                                ? `Remove channels in "${ns}" that don't exist in reference`
-                                : "Namespace not in both faces"
-                            }
-                          >
-                            Remove Unmatched
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Main face section */}
-                <div
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    padding: "0.5rem",
-                    background: "var(--color-slate-850)",
-                    borderRadius: "0.25rem",
-                    border: "1px solid var(--color-slate-600)",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        color: "var(--color-slate-300)",
-                      }}
-                    >
-                      Main Face
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.65rem",
-                        color: "var(--color-slate-500)",
-                      }}
-                    >
-                      (editable)
-                    </span>
-                    <div style={{ marginLeft: "auto" }}>
-                      <Button
-                        variant={mainFilterMissingInRef ? "primary" : "ghost"}
-                        size="sm"
-                        onClick={() =>
-                          setMainFilterMissingInRef(!mainFilterMissingInRef)
-                        }
-                        title="Show only channels not in reference face"
-                        style={{
-                          fontSize: "0.65rem",
-                          padding: "0.15rem 0.4rem",
-                        }}
-                      >
-                        {mainFilterMissingInRef ? "Show All" : "Missing Only"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Add Namespace controls for main face */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.5rem",
-                      alignItems: "center",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <input
-                      type="text"
-                      className="sidebar__input sidebar__input--sm"
-                      style={{ flex: 1 }}
-                      placeholder="Namespace name..."
-                      value={!selectedNode ? newNodeName : ""}
-                      onChange={(e) => {
-                        if (!selectedNode) {
-                          setNewNodeName(e.target.value.toLowerCase());
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (
-                          e.key === "Enter" &&
-                          !selectedNode &&
-                          newNodeName &&
-                          !newNodeNameError
-                        ) {
-                          handleAddNode();
-                        }
-                      }}
-                      disabled={!!selectedNode}
-                    />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        if (selectedNode) {
-                          setSelectedNodeId(null);
-                        } else {
-                          handleAddNode();
-                        }
-                      }}
-                      disabled={
-                        !selectedNode &&
-                        (!newNodeName.trim() || !!newNodeNameError)
-                      }
-                    >
-                      {selectedNode ? "Deselect" : "Add"}
-                    </Button>
-                  </div>
-
-                  <div
-                    className="scene-hierarchy__tree"
-                    style={{
-                      maxHeight: `${TREE_MAX_HEIGHT / 2}px`,
-                      flex: 1,
-                      minHeight: 120,
-                      overflowY: "auto",
-                    }}
-                    onClick={handleTreeBackgroundClick}
-                  >
-                    {mainFaceStandardInputs.length === 0 ? (
-                      <p className="sidebar__placeholder-text">
-                        No standard channels in main face. Use "Adopt" above to
-                        copy from reference.
-                      </p>
-                    ) : (
-                      sortedRootNodes.map((node) => renderNode(node, 0))
-                    )}
-                  </div>
-
-                  {/* Editing controls inside main face section */}
-                  {selectedNode && (
-                    <div
-                      style={{
-                        marginTop: "0.5rem",
-                        paddingTop: "0.5rem",
-                        borderTop: "1px solid var(--color-slate-700)",
-                      }}
-                    >
-                      <p
-                        className="sidebar__path-display"
-                        style={{ margin: "0 0 0.5rem 0", fontSize: "0.7rem" }}
-                      >
-                        <code>/standard/{selectedNode.id}</code>
-                      </p>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "0.5rem",
-                          alignItems: "center",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        {isRenaming ? (
-                          <>
-                            <input
-                              type="text"
-                              className="sidebar__input sidebar__input--sm"
-                              style={{ flex: 1 }}
-                              value={renameValue}
-                              onChange={(e) =>
-                                setRenameValue(e.target.value.toLowerCase())
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !renameError)
-                                  handleConfirmRename();
-                                else if (e.key === "Escape")
-                                  handleCancelRename();
-                              }}
-                              autoFocus
-                            />
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={handleConfirmRename}
-                              disabled={!!renameError}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCancelRename}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={handleStartRename}
-                            >
-                              Rename
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={handleRemoveNode}
-                            >
-                              Remove
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                      {isRenaming && renameError && (
-                        <p className="sidebar__error-text">{renameError}</p>
-                      )}
-
-                      {selectedInput && (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.25rem",
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "0.5rem",
-                              alignItems: "center",
-                            }}
-                          >
-                            <label
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "var(--color-slate-400)",
-                                width: "2rem",
-                              }}
-                            >
-                              Label
-                            </label>
-                            <input
-                              type="text"
-                              className="sidebar__input sidebar__input--sm"
-                              style={{ flex: 1 }}
-                              value={selectedInput.label}
-                              onChange={(e) =>
-                                handleUpdateLabel(e.target.value)
-                              }
-                            />
-                          </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "0.25rem",
-                              alignItems: "center",
-                            }}
-                          >
-                            <label
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "var(--color-slate-400)",
-                              }}
-                            >
-                              Def
-                            </label>
-                            <input
-                              type="number"
-                              className="sidebar__input sidebar__input--sm"
-                              value={selectedInput.defaultValue}
-                              step="0.01"
-                              style={{ width: "3rem" }}
-                              onChange={(e) =>
-                                handleUpdateDefaultValue(
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
-                            />
-                            <label
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "var(--color-slate-400)",
-                              }}
-                            >
-                              Min
-                            </label>
-                            <input
-                              type="number"
-                              className="sidebar__input sidebar__input--sm"
-                              value={selectedInput.range.min}
-                              step="0.1"
-                              style={{ width: "3rem" }}
-                              onChange={(e) =>
-                                handleUpdateRangeMin(
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
-                            />
-                            <label
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "var(--color-slate-400)",
-                              }}
-                            >
-                              Max
-                            </label>
-                            <input
-                              type="number"
-                              className="sidebar__input sidebar__input--sm"
-                              value={selectedInput.range.max}
-                              step="0.1"
-                              style={{ width: "3rem" }}
-                              onChange={(e) =>
-                                handleUpdateRangeMax(
-                                  parseFloat(e.target.value) || 0,
-                                )
-                              }
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {addButtonLabel && addButtonLabel !== "Add Namespace" && (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "0.5rem",
-                            alignItems: "center",
-                          }}
-                        >
-                          <input
-                            type="text"
-                            className="sidebar__input sidebar__input--sm"
-                            style={{ flex: 1 }}
-                            placeholder={`${addButtonLabel.replace("Add ", "")} name...`}
-                            value={newNodeName}
-                            onChange={(e) =>
-                              setNewNodeName(e.target.value.toLowerCase())
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !newNodeNameError)
-                                handleAddNode();
-                            }}
-                          />
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleAddNode}
-                            disabled={!newNodeName.trim() || !!newNodeNameError}
-                          >
-                            {addButtonLabel}
-                          </Button>
-                        </div>
-                      )}
-                      {newNodeName && newNodeNameError && (
-                        <p className="sidebar__error-text">
-                          {newNodeNameError}
-                        </p>
-                      )}
-                    </div>
+                <div className="rounded-lg border border-border-default/60 bg-bg-secondary/30 p-1.5 min-h-[150px]">
+                  {mainFaceStandardInputs.length === 0 ? (
+                    <p className="text-[11px] text-text-muted italic text-center py-4">
+                      No channels found.
+                    </p>
+                  ) : (
+                    sortedRootNodes.map((node) => renderNode(node, 0))
                   )}
                 </div>
               </div>
-            ) : (
-              /* Single-tree view when only one face is loaded */
-              <>
-                {/* Add Namespace - visible in single-tree mode */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.5rem",
-                    alignItems: "center",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  <input
-                    type="text"
-                    className="sidebar__input sidebar__input--sm"
-                    style={{ flex: 1 }}
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Reference Face
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {refFilterMissingInMain && (
+                      <Chip tone="warning" className="h-4 text-[9px] px-1">
+                        Filtered
+                      </Chip>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-5 px-1.5 text-[9px]"
+                      disabled={allNamespaces.length === 0}
+                      onClick={() => {
+                        const ns = allNamespaces[0];
+                        if (ns) handleAdoptFromRef(ns);
+                      }}
+                    >
+                      Adopt All
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border-default/60 bg-bg-secondary/20 p-1.5 min-h-[150px]">
+                  {refFaceStandardInputs.length === 0 ? (
+                    <p className="text-[11px] text-text-muted italic text-center py-4">
+                      No reference channels.
+                    </p>
+                  ) : (
+                    sortedRefRootNodes.map((node) => renderRefNode(node, 0))
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Single Tree View */
+            <div className="flex flex-col gap-4 flex-1 min-h-0">
+              <div className="flex flex-col gap-3 p-3 rounded-lg bg-bg-secondary/20 border border-border-default/40">
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="flex-1 h-7 text-[11px] bg-bg-input border-border-default"
                     placeholder="Namespace name..."
                     value={!selectedNode ? newNodeName : ""}
                     onChange={(e) => {
@@ -1549,21 +1119,12 @@ export function StdFeatureSpacesChannelsPanel() {
                         setNewNodeName(e.target.value.toLowerCase());
                       }
                     }}
-                    onKeyDown={(e) => {
-                      if (
-                        e.key === "Enter" &&
-                        !selectedNode &&
-                        newNodeName &&
-                        !newNodeNameError
-                      ) {
-                        handleAddNode();
-                      }
-                    }}
                     disabled={!!selectedNode}
                   />
                   <Button
                     variant="secondary"
                     size="sm"
+                    className="h-7 px-3 text-[11px]"
                     onClick={() => {
                       if (selectedNode) {
                         setSelectedNodeId(null);
@@ -1578,264 +1139,204 @@ export function StdFeatureSpacesChannelsPanel() {
                   >
                     {selectedNode ? "Deselect" : "Add"}
                   </Button>
-                  {!selectedNode && combinedInputs.length > 0 && (
+                </div>
+                {!selectedNode && combinedInputs.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 text-[10px] w-full"
+                    onClick={handleRerootAll}
+                    disabled={!newNodeName.trim() || !!newNodeNameError}
+                  >
+                    Reroot All Channels
+                  </Button>
+                )}
+                {newNodeName && newNodeNameError && !selectedNode && (
+                  <p className="text-[10px] text-red-400 italic">
+                    {newNodeNameError}
+                  </p>
+                )}
+              </div>
+
+              <div
+                className="flex-1 rounded border border-border-default/60 bg-bg-secondary/30 p-1.5 min-h-[200px]"
+                onClick={handleTreeBackgroundClick}
+              >
+                {combinedInputs.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-text-muted text-[11px] italic">
+                    No channels. Add a namespace above to begin.
+                  </div>
+                ) : (
+                  sortedRootNodes.map((node) => renderNode(node, 0))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Selection Editor */}
+          {!bothFacesLoaded && selectedNode && (
+            <div className="flex flex-col gap-4 p-3 rounded-lg bg-bg-secondary/40 border border-border-default/60 mt-auto">
+              <div className="flex items-center justify-between">
+                <code className="text-[10px] text-accent bg-accent/20 px-1.5 py-0.5 rounded">
+                  /standard/{selectedNode.id}
+                </code>
+                <div className="flex gap-1.5">
+                  {!isRenaming && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={handleStartRename}
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={handleRemoveNode}
+                      >
+                        Remove
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {isRenaming && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Input
+                      className="flex-1 h-7 text-[11px] bg-bg-input border-border-default"
+                      value={renameValue}
+                      onChange={(e) =>
+                        setRenameValue(e.target.value.toLowerCase())
+                      }
+                      autoFocus
+                    />
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={handleRerootAll}
-                      disabled={!newNodeName.trim() || !!newNodeNameError}
-                      title="Move all existing channels under this namespace"
+                      className="h-7 px-3 text-[11px]"
+                      onClick={handleConfirmRename}
+                      disabled={!!renameError}
                     >
-                      Reroot All
+                      Save
                     </Button>
-                  )}
-                </div>
-
-                <div
-                  className="scene-hierarchy__tree"
-                  style={{
-                    maxHeight: `${TREE_MAX_HEIGHT}px`,
-                    flex: 1,
-                    minHeight: 200,
-                    overflowY: "auto",
-                  }}
-                  onClick={handleTreeBackgroundClick}
-                >
-                  {combinedInputs.length === 0 ? (
-                    <p className="sidebar__placeholder-text">
-                      No standard channels. Add a namespace above to get
-                      started.
-                    </p>
-                  ) : (
-                    sortedRootNodes.map((node) => renderNode(node, 0))
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Bottom section - editing controls for single-tree mode only */}
-            {!bothFacesLoaded && (
-              <div style={{ flexShrink: 0, marginTop: "0.75rem" }}>
-                {/* Selected node path and actions */}
-                {selectedNode && (
-                  <div style={{ marginBottom: "0.5rem" }}>
-                    <p
-                      className="sidebar__path-display"
-                      style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem" }}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={handleCancelRename}
                     >
-                      <code>/standard/{selectedNode.id}</code>
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        alignItems: "center",
-                      }}
-                    >
-                      {isRenaming ? (
-                        <>
-                          <input
-                            type="text"
-                            className="sidebar__input sidebar__input--sm"
-                            style={{ flex: 1 }}
-                            value={renameValue}
-                            onChange={(e) =>
-                              setRenameValue(e.target.value.toLowerCase())
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !renameError) {
-                                handleConfirmRename();
-                              } else if (e.key === "Escape") {
-                                handleCancelRename();
-                              }
-                            }}
-                            autoFocus
-                          />
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleConfirmRename}
-                            disabled={!!renameError}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancelRename}
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleStartRename}
-                          >
-                            Rename
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={handleRemoveNode}
-                          >
-                            Remove
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                    {isRenaming && renameError && (
-                      <p className="sidebar__error-text">{renameError}</p>
-                    )}
+                      Cancel
+                    </Button>
                   </div>
-                )}
+                  {renameError && (
+                    <p className="text-[10px] text-red-400 italic">
+                      {renameError}
+                    </p>
+                  )}
+                </div>
+              )}
 
-                {/* Input properties editor (only for leaf nodes with actual inputs) */}
-                {selectedInput && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.5rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        alignItems: "center",
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--color-slate-400)",
-                          width: "2.5rem",
-                        }}
-                      >
-                        Label
-                      </label>
-                      <input
-                        type="text"
-                        className="sidebar__input sidebar__input--sm"
-                        style={{ flex: 1 }}
-                        value={selectedInput.label}
-                        onChange={(e) => handleUpdateLabel(e.target.value)}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        alignItems: "center",
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--color-slate-400)",
-                        }}
-                      >
-                        Default
-                      </label>
-                      <input
+              {selectedInput && (
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border-default/50">
+                  <div className="col-span-2 flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
+                      Label
+                    </label>
+                    <Input
+                      className="h-7 text-[11px] bg-bg-input border-border-default"
+                      value={selectedInput.label}
+                      onChange={(e) => handleUpdateLabel(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
+                      Default
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="h-7 text-[11px] bg-bg-input border-border-default"
+                      value={selectedInput.defaultValue}
+                      onChange={(e) =>
+                        handleUpdateDefaultValue(
+                          parseFloat(e.target.value) || 0,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
+                      Range
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <Input
                         type="number"
-                        className="sidebar__input sidebar__input--sm"
-                        value={selectedInput.defaultValue}
-                        step="0.01"
-                        style={{ width: "3.5rem" }}
-                        onChange={(e) =>
-                          handleUpdateDefaultValue(
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                      />
-                      <label
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--color-slate-400)",
-                        }}
-                      >
-                        Min
-                      </label>
-                      <input
-                        type="number"
-                        className="sidebar__input sidebar__input--sm"
-                        value={selectedInput.range.min}
                         step="0.1"
-                        style={{ width: "3.5rem" }}
+                        placeholder="Min"
+                        className="h-7 text-[11px] bg-bg-input border-border-default flex-1"
+                        value={selectedInput.range.min}
                         onChange={(e) =>
                           handleUpdateRangeMin(parseFloat(e.target.value) || 0)
                         }
                       />
-                      <label
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--color-slate-400)",
-                        }}
-                      >
-                        Max
-                      </label>
-                      <input
+                      <span className="text-text-muted">→</span>
+                      <Input
                         type="number"
-                        className="sidebar__input sidebar__input--sm"
-                        value={selectedInput.range.max}
                         step="0.1"
-                        style={{ width: "3.5rem" }}
+                        placeholder="Max"
+                        className="h-7 text-[11px] bg-bg-input border-border-default flex-1"
+                        value={selectedInput.range.max}
                         onChange={(e) =>
                           handleUpdateRangeMax(parseFloat(e.target.value) || 0)
                         }
                       />
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Add Channel, Track, or Attribute (only when namespace, channel, or track is selected) */}
-                {selectedNode &&
-                  addButtonLabel &&
-                  addButtonLabel !== "Add Namespace" && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.5rem",
-                      }}
-                    >
-                      <input
-                        type="text"
-                        className="sidebar__input sidebar__input--sm"
+              {selectedNode &&
+                addButtonLabel &&
+                addButtonLabel !== "Add Namespace" && (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-border-default/50">
+                    <label className="text-[10px] font-bold uppercase text-text-muted">
+                      {addButtonLabel}
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        className="flex-1 h-7 text-[11px] bg-bg-input border-border-default"
                         placeholder={`${addButtonLabel.replace("Add ", "")} name...`}
                         value={newNodeName}
                         onChange={(e) =>
                           setNewNodeName(e.target.value.toLowerCase())
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !newNodeNameError) {
-                            handleAddNode();
-                          }
-                        }}
                       />
                       <Button
                         variant="secondary"
                         size="sm"
+                        className="h-7 px-3 text-[11px]"
                         onClick={handleAddNode}
                         disabled={!newNodeName.trim() || !!newNodeNameError}
                       >
-                        {addButtonLabel}
+                        Add
                       </Button>
                     </div>
-                  )}
-                {selectedNode && newNodeName && newNodeNameError && (
-                  <p className="sidebar__error-text">{newNodeNameError}</p>
+                    {newNodeName && newNodeNameError && (
+                      <p className="text-[10px] text-red-400 italic">
+                        {newNodeNameError}
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
-      </SidebarSection>
-    </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
   );
 }

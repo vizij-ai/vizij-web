@@ -75,6 +75,9 @@ export class GraphReadyController {
         }, this.timeoutMs);
       }
     });
+    // Mark the internal promise as handled to avoid Node warnings when
+    // callers attach rejection handlers after GraphProvider settles.
+    void this.promise.catch(() => undefined);
   }
 
   /**

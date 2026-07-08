@@ -36,6 +36,90 @@ function ensureVizijMetadataSection(
   return container.vizij as Record<string, unknown>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeIdentifiedRecords(
+  payloadValue: unknown,
+  compiledValue: unknown,
+  keyField: string,
+): unknown {
+  if (!Array.isArray(payloadValue) || !Array.isArray(compiledValue)) {
+    return compiledValue;
+  }
+
+  const next = new Map<string, Record<string, unknown>>();
+
+  payloadValue.forEach((entry) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+    const key = entry[keyField];
+    if (typeof key !== "string" || key.trim().length === 0) {
+      return;
+    }
+    next.set(key, cloneSerializable(entry));
+  });
+
+  compiledValue.forEach((entry) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+    const key = entry[keyField];
+    if (typeof key !== "string" || key.trim().length === 0) {
+      return;
+    }
+    const previous = next.get(key);
+    next.set(
+      key,
+      previous
+        ? {
+            ...previous,
+            ...cloneSerializable(entry),
+          }
+        : cloneSerializable(entry),
+    );
+  });
+
+  return Array.from(next.values());
+}
+
+function mergeVizijMetadata(
+  payloadVizijMetadata: Record<string, unknown>,
+  compiledVizijMetadata: Record<string, unknown> | null,
+): Record<string, unknown> {
+  if (!compiledVizijMetadata) {
+    return payloadVizijMetadata;
+  }
+
+  const merged: Record<string, unknown> = {
+    ...payloadVizijMetadata,
+    ...compiledVizijMetadata,
+  };
+
+  if ("inputs" in payloadVizijMetadata || "inputs" in compiledVizijMetadata) {
+    merged.inputs = mergeIdentifiedRecords(
+      payloadVizijMetadata.inputs,
+      compiledVizijMetadata.inputs,
+      "id",
+    );
+  }
+
+  if (
+    "bindings" in payloadVizijMetadata ||
+    "bindings" in compiledVizijMetadata
+  ) {
+    merged.bindings = mergeIdentifiedRecords(
+      payloadVizijMetadata.bindings,
+      compiledVizijMetadata.bindings,
+      "targetId",
+    );
+  }
+
+  return merged;
+}
+
 function extractIrGraphFromPayload(payload: unknown): IrGraph | null {
   const vizijMetadata = extractVizijMetadataSection(payload);
   if (
@@ -71,16 +155,21 @@ export function prepareSpecForImport(
     return payload;
   }
   const compiled = compileIrGraph(irGraph, { preferLegacySpec: false });
-  const vizijMetadata = extractVizijMetadataSection(payload);
-  if (!vizijMetadata) {
-    return compiled.spec;
-  }
   const enriched = cloneSerializable(compiled.spec) as Record<string, unknown>;
   const metadata =
     enriched.metadata && typeof enriched.metadata === "object"
       ? { ...(enriched.metadata as Record<string, unknown>) }
       : {};
-  metadata.vizij = vizijMetadata;
+  const payloadVizijMetadata = extractVizijMetadataSection(payload);
+  if (!payloadVizijMetadata) {
+    enriched.metadata = metadata;
+    return enriched;
+  }
+  const compiledVizijMetadata = extractVizijMetadataSection(compiled.spec);
+  metadata.vizij = mergeVizijMetadata(
+    payloadVizijMetadata,
+    compiledVizijMetadata,
+  );
   enriched.metadata = metadata;
   return enriched;
 }
@@ -92,6 +181,102 @@ export function extractGraphFaceId(payload: unknown): string | null {
   }
   const faceId = (vizij.faceId as string | undefined)?.trim();
   return faceId && faceId.length > 0 ? faceId : null;
+}
+
+export type VizijPipelineConfigMap = Record<string, Record<string, unknown>>;
+export type VizijPipelineLinkMap = Record<string, Record<string, unknown>>;
+
+export type VizijPipelineMetadataV1 = Record<string, unknown> & {
+  byInputId?: VizijPipelineConfigMap;
+  links?: VizijPipelineLinkMap;
+};
+
+export function normalizeVizijPipelineConfigMap(
+  value: unknown,
+): VizijPipelineConfigMap {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const next: VizijPipelineConfigMap = {};
+  Object.entries(value).forEach(([inputId, config]) => {
+    if (!isRecord(config)) {
+      return;
+    }
+    next[inputId] = cloneSerializable(config);
+  });
+  return next;
+}
+
+export function normalizeVizijPipelineLinkMap(
+  value: unknown,
+): VizijPipelineLinkMap {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const next: VizijPipelineLinkMap = {};
+  Object.entries(value).forEach(([linkId, config]) => {
+    if (!isRecord(config)) {
+      return;
+    }
+    next[linkId] = cloneSerializable(config);
+  });
+  return next;
+}
+
+export function extractVizijPipelineConfigMapFromMetadata(
+  pipelineMetadataV1: unknown,
+): VizijPipelineConfigMap {
+  if (!isRecord(pipelineMetadataV1)) {
+    return {};
+  }
+  return normalizeVizijPipelineConfigMap(pipelineMetadataV1.byInputId);
+}
+
+export function extractVizijPipelineLinksMapFromMetadata(
+  pipelineMetadataV1: unknown,
+): VizijPipelineLinkMap {
+  if (!isRecord(pipelineMetadataV1)) {
+    return {};
+  }
+  return normalizeVizijPipelineLinkMap(pipelineMetadataV1.links);
+}
+
+export function extractVizijPipelineMetadataV1(
+  payload: unknown,
+): VizijPipelineMetadataV1 | null {
+  const vizij = extractVizijMetadataSection(payload);
+  if (!vizij || !isRecord(vizij.pipelineV1)) {
+    return null;
+  }
+  return cloneSerializable(vizij.pipelineV1) as VizijPipelineMetadataV1;
+}
+
+export function extractVizijPipelineConfigMap(
+  payload: unknown,
+): VizijPipelineConfigMap {
+  return extractVizijPipelineConfigMapFromMetadata(
+    extractVizijPipelineMetadataV1(payload),
+  );
+}
+
+export function withVizijPipelineMetadataV1(
+  payload: unknown,
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null | undefined,
+): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  const cloned = cloneSerializable(payload);
+  const vizij = ensureVizijMetadataSection(cloned);
+  if (pipelineMetadataV1 === undefined) {
+    return cloned;
+  }
+  if (pipelineMetadataV1 === null) {
+    delete vizij.pipelineV1;
+    return cloned;
+  }
+  vizij.pipelineV1 = cloneSerializable(pipelineMetadataV1);
+  return cloned;
 }
 
 function escapeRegex(value: string): string {

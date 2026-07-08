@@ -26,12 +26,13 @@ import {
 } from "../rig/persistence";
 import { normalizePersistedStandardInputs } from "../rig/legacyMigration";
 import type { AutoInputState } from "../types/autoInputs";
+import type { VizijPipelineMetadataV1 } from "../utils/graphImport";
 import {
   FEATURE_FLAG_DEFAULTS,
   type FeatureFlagState,
 } from "./useFeatureLabels";
 
-const RIG_STATE_SCHEMA_VERSION = 3;
+const RIG_STATE_SCHEMA_VERSION = 4;
 
 interface UseRigPersistenceOptions {
   faceId: string | null;
@@ -44,11 +45,13 @@ interface UseRigPersistenceOptions {
   selectedStandardInputRoots: string[];
   selectedStandardInputSubgroups: string[];
   disabledStandardInputIds: string[];
+  lockedInspectorTargetIds: Set<string>;
   hiddenDriverIds: Set<string>;
   featureLabelOverrides: Record<string, string>;
   featureFlags: FeatureFlagState;
   standardInputSchema: { id: string; version: string } | null;
   graphInsights: PersistedGraphInsight | null;
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null;
   setAutoInputs: Dispatch<SetStateAction<Map<string, AutoInputState>>>;
   setCustomInputs: Dispatch<SetStateAction<StandardRigInput[]>>;
   setBindings: Dispatch<SetStateAction<BindingMap>>;
@@ -56,6 +59,7 @@ interface UseRigPersistenceOptions {
   setSelectedStandardInputRoots: Dispatch<SetStateAction<string[]>>;
   setSelectedStandardInputSubgroups: Dispatch<SetStateAction<string[]>>;
   setDisabledStandardInputIds: Dispatch<SetStateAction<string[]>>;
+  setLockedInspectorTargetIds: Dispatch<SetStateAction<Set<string>>>;
   setHiddenDriverIds: Dispatch<SetStateAction<Set<string>>>;
   setFeatureLabelOverrides: Dispatch<SetStateAction<Record<string, string>>>;
   setStandardInputSchema: Dispatch<
@@ -63,6 +67,9 @@ interface UseRigPersistenceOptions {
   >;
   setFeatureFlags: Dispatch<SetStateAction<FeatureFlagState>>;
   setGraphInsights: Dispatch<SetStateAction<PersistedGraphInsight | null>>;
+  setPipelineMetadataV1: Dispatch<
+    SetStateAction<VizijPipelineMetadataV1 | null>
+  >;
   updateInputValues: (
     updater: (prev: StandardInputValues) => StandardInputValues,
   ) => void;
@@ -90,11 +97,13 @@ export function useRigPersistence({
   selectedStandardInputRoots,
   selectedStandardInputSubgroups,
   disabledStandardInputIds,
+  lockedInspectorTargetIds,
   hiddenDriverIds,
   featureLabelOverrides,
   featureFlags,
   standardInputSchema,
   graphInsights,
+  pipelineMetadataV1,
   setAutoInputs,
   setCustomInputs,
   setBindings,
@@ -102,11 +111,13 @@ export function useRigPersistence({
   setSelectedStandardInputRoots,
   setSelectedStandardInputSubgroups,
   setDisabledStandardInputIds,
+  setLockedInspectorTargetIds,
   setHiddenDriverIds,
   setFeatureLabelOverrides,
   setStandardInputSchema: _setStandardInputSchema,
   setFeatureFlags,
   setGraphInsights,
+  setPipelineMetadataV1,
   updateInputValues,
   pendingInputBindingDefinitionsRef,
   persistedAutoInputsRef,
@@ -190,6 +201,10 @@ export function useRigPersistence({
         disabledStandardInputIds.length > 0
           ? disabledStandardInputIds
           : undefined,
+      lockedInspectorTargetIds:
+        lockedInspectorTargetIds.size > 0
+          ? Array.from(lockedInspectorTargetIds)
+          : undefined,
       hiddenDriverIds:
         hiddenDriverIds.size > 0 ? Array.from(hiddenDriverIds) : undefined,
       featureLabels:
@@ -207,6 +222,7 @@ export function useRigPersistence({
           : undefined,
       featureFlags,
       graphInsights: graphInsights ?? undefined,
+      pipelineMetadataV1: pipelineMetadataV1 ?? undefined,
       schemaVersion: RIG_STATE_SCHEMA_VERSION,
     });
   }, [
@@ -215,13 +231,14 @@ export function useRigPersistence({
     bindings,
     customInputs,
     disabledStandardInputIds,
+    lockedInspectorTargetIds,
     hiddenDriverIds,
     faceId,
     featureLabelOverrides,
     standardInputSchema,
     featureFlags,
-    standardInputSchema,
     graphInsights,
+    pipelineMetadataV1,
     inputBindings,
     inputValues,
     selectedStandardInputRoots,
@@ -244,7 +261,9 @@ export function useRigPersistence({
     updateInputValues(() => ({}));
     setSelectedStandardInputRoots([]);
     setSelectedStandardInputSubgroups([]);
+    setLockedInspectorTargetIds(new Set());
     setFeatureLabelOverrides({});
+    setPipelineMetadataV1(null);
     setTimeout(() => {
       skipPersistRef.current = false;
       rebuildAutoInputs();
@@ -260,8 +279,10 @@ export function useRigPersistence({
     setCustomInputs,
     setFeatureLabelOverrides,
     setInputBindings,
+    setPipelineMetadataV1,
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
+    setLockedInspectorTargetIds,
     skipPersistRef,
     updateInputValues,
   ]);
@@ -315,6 +336,9 @@ export function useRigPersistence({
           ? persisted.disabledStandardInputIds
           : [],
       );
+      setLockedInspectorTargetIds(
+        new Set(persisted.lockedInspectorTargetIds ?? []),
+      );
       setHiddenDriverIds(new Set(persisted.hiddenDriverIds ?? []));
 
       const persistedBindings: BindingMap = {};
@@ -341,6 +365,7 @@ export function useRigPersistence({
         ...(persisted.featureFlags ?? {}),
       });
       setGraphInsights(persisted.graphInsights ?? null);
+      setPipelineMetadataV1(persisted.pipelineMetadataV1 ?? null);
       pendingInputBindingDefinitionsRef.current =
         persisted.inputBindingDefinitions ??
         persisted.derivedStandardInputs ??
@@ -357,18 +382,21 @@ export function useRigPersistence({
       setAutoInputs(new Map());
       updateInputValues(() => ({}));
       setDisabledStandardInputIds([]);
+      setLockedInspectorTargetIds(new Set());
       setBindings(createDefaultBindings(animatableComponents));
       setSelectedStandardInputRoots([]);
       setSelectedStandardInputSubgroups([]);
       setFeatureLabelOverrides({});
       setFeatureFlags({ ...FEATURE_FLAG_DEFAULTS });
       setGraphInsights(null);
+      setPipelineMetadataV1(null);
       pendingInputBindingDefinitionsRef.current = null;
       setInputBindings({});
       setHiddenDriverIds(new Set());
     }
     setTimeout(() => {
       skipPersistRef.current = false;
+      rebuildAutoInputs();
     }, 0);
     lastLoadedFaceIdRef.current = faceId;
   }, [
@@ -385,10 +413,13 @@ export function useRigPersistence({
     setFeatureFlags,
     setFeatureLabelOverrides,
     setGraphInsights,
+    setLockedInspectorTargetIds,
+    setPipelineMetadataV1,
     setInputBindings,
     setSelectedStandardInputRoots,
     setSelectedStandardInputSubgroups,
     skipPersistRef,
+    rebuildAutoInputs,
     updateInputValues,
   ]);
 
@@ -427,9 +458,11 @@ export function useRigPersistence({
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,
     disabledStandardInputIds,
+    lockedInspectorTargetIds,
     hiddenDriverIds,
     featureFlags,
     graphInsights,
+    pipelineMetadataV1,
     persistRigState,
     skipPersistRef,
   ]);

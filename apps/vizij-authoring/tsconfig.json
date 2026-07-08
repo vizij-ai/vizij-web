@@ -11,6 +11,9 @@
       "@vizij/node-graph-authoring": [
         "../../packages/@vizij/node-graph-authoring/src/index.ts"
       ],
+      "@vizij/runtime-react": [
+        "../../packages/@vizij/runtime-react/src/index.ts"
+      ],
       "@vizij/utils": ["../../packages/@vizij/utils/src/index.ts"],
       "@vizij/utils/*": ["../../packages/@vizij/utils/src/*"],
       "@vizij/authoring-shared": ["./src/shared/index.ts"],

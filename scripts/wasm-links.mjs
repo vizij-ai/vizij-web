@@ -354,6 +354,59 @@ function replaceSymlink(linkPath, targetPath) {
   fs.symlinkSync(targetPath, linkPath, "junction");
 }
 
+/**
+ * Find all nested node_modules/@vizij/<pkgName> symlinks that pnpm created
+ * inside workspace packages/apps (i.e. not under the root node_modules or .pnpm).
+ */
+function findNestedWorkspaceSymlinks(pkgName) {
+  const results = [];
+  const workspaceDirs = ["apps", "packages"];
+  for (const dir of workspaceDirs) {
+    const base = path.join(REPO_ROOT, dir);
+    if (!fs.existsSync(base)) continue;
+    // Walk two levels: dir/<pkg> and dir/<scope>/<pkg>
+    for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path.join(
+        base,
+        entry.name,
+        "node_modules",
+        "@vizij",
+        pkgName,
+      );
+      try {
+        const st = fs.lstatSync(candidate);
+        if (st.isSymbolicLink()) results.push(candidate);
+      } catch {
+        // not present
+      }
+      // Also handle scoped packages like packages/@vizij/node-graph-react
+      const scoped = path.join(base, entry.name);
+      try {
+        for (const sub of fs.readdirSync(scoped, { withFileTypes: true })) {
+          if (!sub.isDirectory()) continue;
+          const deepCandidate = path.join(
+            scoped,
+            sub.name,
+            "node_modules",
+            "@vizij",
+            pkgName,
+          );
+          try {
+            const st = fs.lstatSync(deepCandidate);
+            if (st.isSymbolicLink()) results.push(deepCandidate);
+          } catch {
+            // not present
+          }
+        }
+      } catch {
+        // not a directory
+      }
+    }
+  }
+  return results;
+}
+
 function linkDirect(pkgsToLink, vizijRsPath) {
   ensureNodeModulesInstalled();
   const scopeDir = ensureVizijScopeDir();
@@ -365,14 +418,20 @@ function linkDirect(pkgsToLink, vizijRsPath) {
       console.error(`[wasm-links] Missing local package: ${localPath}`);
       process.exit(2);
     }
+
+    // Root-level link
     const linkPath = path.join(scopeDir, pkgName);
-
-    // Ensure we can restore to the pnpm store later by keeping its target reachable.
     ensurePnpmStoreSymlink(scopeDir, pkgName);
-
     // eslint-disable-next-line no-console
     console.log(`[wasm-links] Symlink ${linkPath} -> ${localPath}`);
     replaceSymlink(linkPath, localPath);
+
+    // Nested workspace links that pnpm created per-package
+    for (const nested of findNestedWorkspaceSymlinks(pkgName)) {
+      // eslint-disable-next-line no-console
+      console.log(`[wasm-links] Symlink (nested) ${nested} -> ${localPath}`);
+      replaceSymlink(nested, localPath);
+    }
   }
 }
 
@@ -381,8 +440,10 @@ function unlinkDirect(pkgsToUnlink) {
   const scopeDir = ensureVizijScopeDir();
 
   for (const pkgName of pkgsToUnlink) {
-    const linkPath = path.join(scopeDir, pkgName);
+    const storeTarget = resolvePnpmStorePackageDir(pkgName);
 
+    // Root-level link
+    const linkPath = path.join(scopeDir, pkgName);
     try {
       const st = fs.lstatSync(linkPath);
       if (!st.isSymbolicLink()) {
@@ -390,23 +451,36 @@ function unlinkDirect(pkgsToUnlink) {
         console.warn(
           `[wasm-links] Skipping ${pkgName}: not a symlink at ${linkPath}`,
         );
-        continue;
+      } else {
+        // eslint-disable-next-line no-console
+        console.log(`[wasm-links] Removing symlink ${linkPath}`);
+        fs.unlinkSync(linkPath);
+        ensurePnpmStoreSymlink(scopeDir, pkgName);
       }
     } catch (err) {
       if (err && typeof err === "object" && err.code === "ENOENT") {
         // eslint-disable-next-line no-console
         console.warn(`[wasm-links] Skipping ${pkgName}: not present`);
-        continue;
+      } else {
+        throw err;
       }
-      throw err;
     }
 
-    // eslint-disable-next-line no-console
-    console.log(`[wasm-links] Removing symlink ${linkPath}`);
-    fs.unlinkSync(linkPath);
-
-    // Restore pnpm store symlink if possible.
-    ensurePnpmStoreSymlink(scopeDir, pkgName);
+    // Restore nested workspace links back to the pnpm store
+    for (const nested of findNestedWorkspaceSymlinks(pkgName)) {
+      if (!storeTarget) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[wasm-links] No pnpm store target to restore for ${nested}`,
+        );
+        continue;
+      }
+      // eslint-disable-next-line no-console
+      console.log(
+        `[wasm-links] Restoring (nested) ${nested} -> ${storeTarget}`,
+      );
+      replaceSymlink(nested, storeTarget);
+    }
   }
 }
 
@@ -456,14 +530,46 @@ if (args.command === "status") {
   process.exit(0);
 }
 
-if (args.command === "link") {
-  if (pkgs.length === 0) {
-    // eslint-disable-next-line no-console
-    console.error(
-      '[wasm-links] No packages specified. Pass --pkgs "node-graph-wasm" or set WASM_PKGS.',
-    );
-    process.exit(2);
+if (args.command === "relink") {
+  // Re-apply nested symlinks for any package whose root link already points local.
+  // Designed for use as a postinstall hook — pnpm install resets nested symlinks.
+  if (!fs.existsSync(args.vizijRs)) {
+    // vizij-rs not present (CI / other developer) – silently skip
+    process.exit(0);
   }
+  assertVizijRsLayout(args.vizijRs);
+  const locallyLinked = ALL_PACKAGES.filter((pkgName) => {
+    const rootLink = path.join(REPO_ROOT, "node_modules", "@vizij", pkgName);
+    try {
+      const st = fs.lstatSync(rootLink);
+      if (!st.isSymbolicLink()) return false;
+      const target = fs.readlinkSync(rootLink);
+      const localPath = path.join(args.vizijRs, "npm", "@vizij", pkgName);
+      return (
+        path.resolve(target).toLowerCase() ===
+        path.resolve(localPath).toLowerCase()
+      );
+    } catch {
+      return false;
+    }
+  });
+  if (locallyLinked.length === 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      "[wasm-links] relink: no locally-linked packages detected, skipping.",
+    );
+    process.exit(0);
+  }
+  // eslint-disable-next-line no-console
+  console.log(
+    `[wasm-links] relink: restoring nested links for: ${locallyLinked.join(", ")}`,
+  );
+  linkDirect(locallyLinked, args.vizijRs);
+  process.exit(0);
+}
+
+if (args.command === "link") {
+  if (pkgs.length === 0) pkgs.push(...ALL_PACKAGES);
   assertVizijRsLayout(args.vizijRs);
   linkDirect(pkgs, args.vizijRs);
   maybeRunInstall(args.install);
@@ -473,13 +579,7 @@ if (args.command === "link") {
 }
 
 if (args.command === "unlink") {
-  if (pkgs.length === 0) {
-    // eslint-disable-next-line no-console
-    console.error(
-      '[wasm-links] No packages specified. Pass --pkgs "node-graph-wasm" or set WASM_PKGS.',
-    );
-    process.exit(2);
-  }
+  if (pkgs.length === 0) pkgs.push(...ALL_PACKAGES);
   assertVizijRsLayout(args.vizijRs);
   unlinkDirect(pkgs);
   maybeRunInstall(args.install);

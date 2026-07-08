@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
-import { describe, it, expect, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterAll } from "vitest";
+import { act, render, waitFor } from "@testing-library/react";
 import { GraphProvider } from "@vizij/node-graph-react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
 import type { GraphSpec } from "@vizij/node-graph-wasm";
@@ -75,6 +75,20 @@ function Probe({ onReady }: { onReady: (rt: any) => void }) {
   return null;
 }
 
+const originalConsoleError = console.error;
+const consoleErrorSpy = vi
+  .spyOn(console, "error")
+  .mockImplementation((msg, ...args) => {
+    if (typeof msg === "string" && msg.includes("not wrapped in act")) {
+      return;
+    }
+    originalConsoleError.call(console, msg as any, ...args);
+  });
+
+afterAll(() => {
+  consoleErrorSpy.mockRestore();
+});
+
 describe("Demo (animation-graph) init behavior with declarative seeds", () => {
   it("applies initialParams/initialInputs and resolves readiness", async () => {
     const spec = { nodes: [], edges: [] };
@@ -104,7 +118,9 @@ describe("Demo (animation-graph) init behavior with declarative seeds", () => {
     });
 
     // Await readiness
-    await runtimeRef.waitForGraphReady?.();
+    await act(async () => {
+      await runtimeRef.waitForGraphReady?.();
+    });
     await waitFor(() => {
       expect(Boolean(runtimeRef.graphLoaded)).toBe(true);
     });
@@ -164,6 +180,18 @@ function registerMergedGraphMock(config: {
 describe("Graph fixtures and orchestrator guards", () => {
   it("ik graph fixture exposes canonical edges and typed paths", () => {
     expect(() => ensureGraphHasCanonicalEdges(ikGraphSpec)).not.toThrow();
+    const fkNode = ikGraphSpec.nodes.find(
+      (node: { id?: string }) => node.id === "fk",
+    );
+    const ikNode = ikGraphSpec.nodes.find(
+      (node: { id?: string }) => node.id === "ik_solver",
+    );
+    expect((fkNode?.params as any)?.urdf_xml).toBeTruthy();
+    expect((fkNode?.params as any)?.root_link).toBe("base_link");
+    expect((fkNode?.params as any)?.tip_link).toBe("tool");
+    expect((ikNode?.params as any)?.urdf_xml).toBeTruthy();
+    expect((ikNode?.params as any)?.root_link).toBe("base_link");
+    expect((ikNode?.params as any)?.tip_link).toBe("tool");
   });
 
   it("slew graph fixture exposes canonical edges and typed paths", () => {

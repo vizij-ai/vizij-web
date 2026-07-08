@@ -5,6 +5,8 @@ import { useMouseGaze } from "../hooks/useMouseGaze";
 import { useIdleGazeBehavior } from "../hooks/useIdleGazeBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
+const DEFAULT_POSE_WEIGHT = 0.75;
+
 export function GazeInteractiveFace({ enabled = true }: { enabled?: boolean }) {
   const { ready, assetBundle } = useVizijRuntime();
   const poseConfig = assetBundle.pose?.config ?? null;
@@ -62,7 +64,7 @@ export function GazeInteractiveFace({ enabled = true }: { enabled?: boolean }) {
       }
       setPoseWeight(binding, 0);
     });
-    setPoseWeight(randomBinding, 1);
+    setPoseWeight(randomBinding, DEFAULT_POSE_WEIGHT);
     setPrompt(
       `Reacting with ${randomBinding.pose.name ?? randomBinding.pose.id}.`,
     );

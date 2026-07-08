@@ -20,7 +20,7 @@ export function ControlsSection() {
       />
       <ShowcaseRuntime
         namespace="controls"
-        asset="hugoLatest"
+        asset="quoriCurrentExtended"
         active={hasEntered}
         autostart={false}
         driveOrchestrator={false}

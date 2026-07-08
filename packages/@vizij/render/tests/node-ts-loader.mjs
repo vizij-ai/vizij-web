@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { URL, fileURLToPath } from "node:url";
+import { URL, fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -16,6 +16,10 @@ const compilerOptions = {
   esModuleInterop: true,
 };
 
+const WORKSPACE_UTILS_ENTRY = pathToFileURL(
+  fileURLToPath(new URL("../../utils/src/index.ts", import.meta.url)),
+).href;
+
 function isTypeScriptSpecifier(specifier) {
   try {
     const { pathname } = new URL(specifier);
@@ -28,12 +32,65 @@ function isTypeScriptSpecifier(specifier) {
   }
 }
 
+async function resolveExtensionlessTypeScript(
+  specifier,
+  context,
+  defaultResolve,
+) {
+  if (
+    !specifier.startsWith("./") &&
+    !specifier.startsWith("../") &&
+    !specifier.startsWith("/")
+  ) {
+    return null;
+  }
+
+  const cleaned = specifier.split("?")[0].split("#")[0];
+  if (path.extname(cleaned).length > 0) {
+    return null;
+  }
+
+  const attempts = [
+    `${specifier}.ts`,
+    `${specifier}.tsx`,
+    `${specifier}/index.ts`,
+    `${specifier}/index.tsx`,
+  ];
+  for (const attempt of attempts) {
+    try {
+      return await defaultResolve(attempt, context, defaultResolve);
+    } catch {
+      // Continue trying TypeScript alternatives.
+    }
+  }
+
+  return null;
+}
+
 export async function resolve(specifier, context, defaultResolve) {
+  if (specifier === "@vizij/utils") {
+    return {
+      url: WORKSPACE_UTILS_ENTRY,
+      format: "module",
+      shortCircuit: true,
+    };
+  }
+
   if (isTypeScriptSpecifier(specifier)) {
     const parentURL = context.parentURL ?? import.meta.url;
     const url = new URL(specifier, parentURL);
     return { url: url.href, format: "module", shortCircuit: true };
   }
+
+  const extensionless = await resolveExtensionlessTypeScript(
+    specifier,
+    context,
+    defaultResolve,
+  );
+  if (extensionless) {
+    return extensionless;
+  }
+
   return defaultResolve(specifier, context, defaultResolve);
 }
 

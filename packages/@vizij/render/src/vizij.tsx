@@ -10,6 +10,7 @@ import { Renderable } from "./renderables";
 import { VizijContext } from "./context";
 import { useDefaultVizijStore } from "./store";
 import { useVizijStore } from "./hooks/use-vizij-store";
+import { recordRenderCounter } from "./memoryInvestigation";
 import type { VizijActions, VizijData } from "./store-types";
 import type { Group } from "./types";
 import { SelectionGlowEffect } from "./effects/selection-glow-effect";
@@ -53,6 +54,15 @@ export function Vizij({
   onPointerMissed,
 }: VizijProps): ReactNode {
   const ctx = useContext(VizijContext);
+
+  useEffect(() => {
+    recordRenderCounter("canvasMountCount");
+    recordRenderCounter("mountedCanvasCount");
+    return () => {
+      recordRenderCounter("mountedCanvasCount", -1);
+    };
+  }, []);
+
   if (ctx) {
     return (
       <Canvas

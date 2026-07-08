@@ -1,12 +1,4 @@
-import {
-  Button,
-  Input,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardBody,
-} from "../ui";
+import { Button, Input, Panel } from "../ui";
 
 interface RigGraphExportPanelProps {
   graphFileName: string;
@@ -22,35 +14,42 @@ export function RigGraphExportPanel({
   onExportGraph,
 }: RigGraphExportPanelProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Rig Graph Export</CardTitle>
-        <CardDescription>
-          Download the generated rig graph as a <code>.graph.json</code> file.
-        </CardDescription>
-      </CardHeader>
-      <CardBody compact>
-        <label className="sidebar__label" htmlFor="vizij-graph-name">
+    <Panel
+      title="Rig Graph Export"
+      description="Download the generated rig graph as a .graph.json file."
+      className="flex flex-col gap-4"
+    >
+      <div className="flex flex-col gap-2">
+        <label
+          className="text-xs font-semibold text-slate-400 uppercase tracking-wider"
+          htmlFor="vizij-graph-name"
+        >
           Rig graph file
         </label>
-        <div className="asset-card__form-row">
+        <div className="flex gap-2">
           <Input
+            data-testid="export-rig-graph-file-name"
             id="vizij-graph-name"
             type="text"
+            className="flex-1 bg-slate-950/50 border-slate-800"
             value={graphFileName}
             placeholder="vizij_rig.graph.json"
             onChange={(event) => onGraphFileNameChange(event.target.value)}
             disabled={!canExport}
             spellCheck={false}
           />
-          <Button onClick={onExportGraph} disabled={!canExport}>
+          <Button
+            data-testid="export-rig-graph-button"
+            onClick={onExportGraph}
+            disabled={!canExport}
+          >
             Export
           </Button>
         </div>
-        <p className="asset-card__hint asset-card__hint--muted">
+        <p className="text-[10px] text-slate-500 italic">
           Include when downstream tools rely on external rig graph files.
         </p>
-      </CardBody>
-    </Card>
+      </div>
+    </Panel>
   );
 }

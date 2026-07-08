@@ -7,6 +7,7 @@ import type {
   AnimatableString,
   AnimatableVector3,
 } from "@vizij/utils";
+import { createBrowserSafeId } from "@vizij/utils";
 
 export function createAnimatable(value: Partial<AnimatableValue>) {
   if (!value.type) {
@@ -17,7 +18,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
   }
   if (value.type === "euler") {
     const newAnimatable: AnimatableEuler = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: `${value.name} Rotation`,
       type: value.type,
       default: value.default ?? { x: 0, y: 0, z: 0 },
@@ -34,7 +35,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
     return newAnimatable;
   } else if (value.type === "vector3") {
     const newAnimatable: AnimatableVector3 = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: `${value.name} Vector3`,
       type: value.type,
       default: value.default ?? { x: 0, y: 0, z: 0 },
@@ -51,7 +52,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
     return newAnimatable;
   } else if (value.type === "string") {
     const newAnimatable: AnimatableString = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: value.name,
       type: value.type,
       default: value.default ?? "Hello World",
@@ -64,7 +65,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
     return newAnimatable;
   } else if (value.type === "number") {
     const newAnimatable: AnimatableNumber = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: value.name,
       type: value.type,
       default: value.default ?? 0,
@@ -77,7 +78,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
     return newAnimatable;
   } else if (value.type === "boolean") {
     const newAnimatable: AnimatableBoolean = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: value.name,
       type: value.type,
       default: value.default ?? false,
@@ -90,7 +91,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
     return newAnimatable;
   } else if (value.type === "rgb") {
     const newAnimatable: AnimatableColor = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: value.name,
       type: value.type,
       default: value.default ?? { r: 0, g: 0, b: 0 },
@@ -107,7 +108,7 @@ export function createAnimatable(value: Partial<AnimatableValue>) {
     return newAnimatable;
   } else if (value.type === "hsl") {
     const newAnimatable: AnimatableColor = {
-      id: value.id ?? crypto.randomUUID(),
+      id: value.id ?? createBrowserSafeId(),
       name: value.name,
       type: value.type,
       default: value.default ?? { h: 0, s: 0, l: 0 },

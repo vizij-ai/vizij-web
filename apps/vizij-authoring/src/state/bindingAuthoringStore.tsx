@@ -13,6 +13,10 @@ import type {
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { ManagedStandardInput } from "../types/standardInputs";
 import type { SceneObjectNode } from "../scene/sceneGraph";
+import type {
+  VizijPipelineConfigMap,
+  VizijPipelineMetadataV1,
+} from "../utils/graphImport";
 import {
   FEATURE_FLAG_DEFAULTS,
   type AuthoringFeatureFlag,
@@ -42,16 +46,27 @@ export interface BindingAuthoringState {
   standardInputs: StandardRigInput[];
   standardInputsById: Map<string, StandardRigInput>;
   standardInputsByPath: Map<string, StandardRigInput>;
+  standardInputIdRemap: ReadonlyMap<string, string> | null;
+  standardInputIdRemapRevision: number;
   rigOutputLookup: Map<string, StandardRigInput>;
   validOutputTargets: Set<string>;
+  pipelineMetadataV1: VizijPipelineMetadataV1 | null;
+  pipelineConfigByInputId: VizijPipelineConfigMap;
   inputValues: StandardInputValues;
+  timelineInputLockActive: boolean;
+  timelineLockedInputIds: Set<string>;
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   animatableComponents: AnimComponent[];
-  handleInputValueChange: (inputId: string, value: number) => void;
+  handleInputValueChange: (
+    inputId: string,
+    value: number,
+    options?: { source?: "manual" | "timeline" },
+  ) => void;
+  stageRuntimeGraphPathValue: (graphPath: string, value: number) => void;
   applyStandardInputBatch: (
     updates: Record<string, number>,
-    options?: { replace?: boolean },
+    options?: { replace?: boolean; source?: "manual" | "timeline" },
   ) => void;
   handleResetAllInputValues: () => void;
   handleClearCachedState: () => void;
@@ -66,7 +81,11 @@ export interface BindingAuthoringState {
     updater: (bindings: InputBindingMap) => InputBindingMap,
   ) => void;
   handleCreateCustomStandardInput: (path: string) => StandardRigInput | null;
-  handleLinkChildInput: (parentId: string, childId: string) => void;
+  handleLinkChildInput: (
+    parentId: string,
+    childId: string,
+    options?: { scale?: number; offset?: number },
+  ) => void;
   handleUnlinkChildInput: (parentId: string, childId: string) => void;
   handleRenameShape: (shapeId: string, value: string) => void;
   handleUpdateStandardInput: (
@@ -118,9 +137,14 @@ export interface BindingAuthoringState {
     valueType: BindingValueType,
   ) => void;
   handleParentResetBinding: (targetId: string) => void;
+  handleEnableParentLocalControl: (targetId: string) => void;
   handleCloneStandardInputs: (
     inputIds: readonly string[],
-    options?: { labelSuffix?: string; pathSuffix?: string },
+    options?: {
+      labelSuffix?: string;
+      pathSuffix?: string;
+      cloneRelationships?: boolean;
+    },
   ) => Map<string, string>;
   handleUpdateFeatureLabel: (
     featureId: string,
@@ -146,6 +170,11 @@ export interface BindingAuthoringState {
   ) => void;
   handleSelectStandardInputRoots: (roots: string[]) => void;
   handleSelectStandardInputSubgroups: (groups: string[]) => void;
+  lockedInspectorTargetIds: Set<string>;
+  lockedPropsRigInputIds: Set<string>;
+  handleSetInspectorTargetLocked: (targetId: string, locked: boolean) => void;
+  handleToggleInspectorTargetLock: (targetId: string) => void;
+  handleMigrateAllLegacyBindings: () => number;
   collectAnimatableExportState: () => AnimatableExportState;
   sceneObjects: SceneObjectNode[];
   sceneObjectRoots: string[];
@@ -157,6 +186,10 @@ export interface BindingAuthoringState {
     targetId: string,
     upstreamId: string,
   ) => void;
+  selectedRigId: string | null;
+  handleSelectRig: (id: string | null) => void;
+  selectedMaterialId: string | null;
+  handleSelectMaterial: (id: string | null) => void;
 }
 
 export interface BindingAuthoringStore {
@@ -179,13 +212,20 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   standardInputs: [],
   standardInputsById: new Map(),
   standardInputsByPath: new Map(),
+  standardInputIdRemap: null,
+  standardInputIdRemapRevision: 0,
   rigOutputLookup: new Map(),
   validOutputTargets: new Set(),
+  pipelineMetadataV1: null,
+  pipelineConfigByInputId: {},
   inputValues: {},
+  timelineInputLockActive: false,
+  timelineLockedInputIds: new Set(),
   bindings: {},
   inputBindings: {},
   animatableComponents: [],
   handleInputValueChange: noop,
+  stageRuntimeGraphPathValue: noop,
   applyStandardInputBatch: noop,
   handleResetAllInputValues: noop,
   handleClearCachedState: noop,
@@ -214,6 +254,7 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleParentBindingSlotAliasChange: () => undefined,
   handleParentBindingSlotValueTypeChange: () => undefined,
   handleParentResetBinding: () => undefined,
+  handleEnableParentLocalControl: () => undefined,
   handleCloneStandardInputs: () => new Map(),
   handleUpdateFeatureLabel: () => undefined,
   setFeatureLabelOverrides: () => undefined,
@@ -221,6 +262,11 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleFeatureFlagChange: () => undefined,
   handleSelectStandardInputRoots: () => undefined,
   handleSelectStandardInputSubgroups: () => undefined,
+  lockedInspectorTargetIds: new Set(),
+  lockedPropsRigInputIds: new Set(),
+  handleSetInspectorTargetLocked: () => undefined,
+  handleToggleInspectorTargetLock: () => undefined,
+  handleMigrateAllLegacyBindings: () => 0,
   collectAnimatableExportState: () => ({
     appliedOverrides: false,
     nextAnimatables: {},
@@ -234,6 +280,10 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   handleShowDriver: () => undefined,
   handleShowAllDrivers: () => undefined,
   handleCreateParentDriverBinding: () => undefined,
+  selectedRigId: null,
+  handleSelectRig: () => undefined,
+  selectedMaterialId: null,
+  handleSelectMaterial: () => undefined,
 };
 
 export function createBindingAuthoringStore(
@@ -251,11 +301,24 @@ export function createBindingAuthoringStore(
       return;
     }
     const nextState = { ...state, ...patch } as BindingAuthoringState;
-    if (nextState === state) {
+
+    // Check if any value actually changed
+    const hasChanged = Object.keys(patch).some(
+      (key) => (state as any)[key] !== (nextState as any)[key],
+    );
+
+    if (!hasChanged) {
       return;
     }
     state = nextState;
     listeners.forEach((listener) => listener());
+  };
+
+  state.handleSelectRig = (id: string | null) => {
+    setState({ selectedRigId: id });
+  };
+  state.handleSelectMaterial = (id: string | null) => {
+    setState({ selectedMaterialId: id });
   };
 
   return {
@@ -287,7 +350,7 @@ export function BindingAuthoringStoreProvider({
   );
 }
 
-function useBindingAuthoringStoreApi(): BindingAuthoringStore {
+export function useBindingAuthoringStoreApi(): BindingAuthoringStore {
   const store = useContext(BindingAuthoringStoreContext);
   if (!store) {
     throw new Error(

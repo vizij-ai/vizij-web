@@ -36,12 +36,16 @@ describe("@vizij/node-graph-react samples", () => {
       return null;
     };
 
-    await initNodeGraphWasm(getNodeGraphWasmInitInput());
+    await initNodeGraphWasm({
+      module_or_path: getNodeGraphWasmInitInput(),
+    });
     const { unmount } = render(
       <GraphProvider
         spec={spec}
         autoStart={false}
-        wasmInitInput={getNodeGraphWasmInitInput()}
+        wasmInitInput={{
+          module_or_path: getNodeGraphWasmInitInput(),
+        }}
       >
         <Harness />
       </GraphProvider>,

@@ -24,7 +24,7 @@ export function ExpressionsSection() {
       <div className="expression-stack">
         <ShowcaseRuntime
           namespace="expressions-quori"
-          asset="quoriLatest"
+          asset="quoriCurrentExtended"
           active={hasEntered}
           autostart={poseActive && isVisible}
           driveOrchestrator={false}
@@ -40,7 +40,7 @@ export function ExpressionsSection() {
         <div className="expression-face-grid">
           <ShowcaseRuntime
             namespace="expressions-quori-face"
-            asset="quoriLatest"
+            asset="quoriCurrentExtended"
             active={hasEntered}
             autostart={poseActive && isVisible}
             driveOrchestrator
@@ -58,29 +58,6 @@ export function ExpressionsSection() {
             <RuntimeFaceFrame
               variant="md"
               label="Expression kit · Quori"
-              subtitle="Tap a preset or fire the hotkeys to see the expression"
-            />
-          </ShowcaseRuntime>
-          <ShowcaseRuntime
-            namespace="expressions-hugo-face"
-            asset="hugoLatest"
-            active={hasEntered}
-            autostart={poseActive && isVisible}
-            driveOrchestrator={false}
-            visible={isVisible}
-            hiddenStepHz={0}
-            label="Expressions · Hugo"
-            fallback={
-              <ExpressionFaceFallback
-                label="Expression kit · Hugo"
-                subtitle="Tap a preset or fire the hotkeys to see the expression"
-              />
-            }
-          >
-            <PoseRigMirrorBridge />
-            <RuntimeFaceFrame
-              variant="md"
-              label="Expression kit · Hugo"
               subtitle="Tap a preset or fire the hotkeys to see the expression"
             />
           </ShowcaseRuntime>

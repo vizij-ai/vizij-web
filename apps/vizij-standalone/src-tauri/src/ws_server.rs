@@ -34,11 +34,6 @@ impl WsServer {
             server: Arc::new(AroraWSServer::new(config)),
         }
     }
-
-    /// Get the configured port.
-    pub fn port(&self) -> u16 {
-        self.server.port()
-    }
 }
 
 impl AroraConnection for WsServer {

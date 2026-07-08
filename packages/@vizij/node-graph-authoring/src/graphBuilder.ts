@@ -1,9 +1,23 @@
 import type { GraphSpec } from "@vizij/node-graph-wasm";
-import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { StandardRigInput } from "@vizij/utils";
-import type { AnimatableComponent } from "@vizij/utils";
-import type { RigBindingMetadata } from "@vizij/utils";
-import { buildAnimatableValue, cloneDeepSafe } from "@vizij/utils";
+import type {
+  AnimatableValue,
+  RawValue,
+  StandardRigInput,
+  AnimatableComponent,
+  RigBindingMetadata,
+  RigPipelineV1Metadata,
+  RigPipelineV1ResolvedInputConfig,
+} from "@vizij/utils";
+import {
+  RIG_PIPELINE_V1_VERSION,
+  buildAnimatableValue,
+  cloneDeepSafe,
+  hasRigPipelineV1InputConfig,
+  isRigElementStandardInputPath,
+  normalizeStandardRigInputPath,
+  resolveRigPipelineV1InputConfig,
+  resolveStandardRigInputId,
+} from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
 import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
 import type { BindingMap } from "./state";
@@ -53,6 +67,8 @@ type GraphEdge = IrEdge;
 interface BindingGraphContext {
   nodes: IrNode[];
   edges: IrEdge[];
+  inputsById: Map<string, StandardRigInput>;
+  inputBindings: InputBindingMap;
   ensureInputNode: (
     inputId: string,
   ) => { nodeId: string; input: StandardRigInput } | null;
@@ -71,6 +87,80 @@ interface EvaluateBindingArgs {
   safeId: string;
   context: BindingGraphContext;
   selfNodeId?: string;
+  enforceRigBoundaryRules?: boolean;
+}
+
+function resolveBindingSlotInputId(
+  bindingInputId: string | null | undefined,
+  inputsById: Map<string, StandardRigInput>,
+): string | null | undefined {
+  if (!bindingInputId || bindingInputId === SELF_BINDING_ID) {
+    return bindingInputId;
+  }
+  const resolvedInputId = resolveStandardRigInputId(bindingInputId, inputsById);
+  if (inputsById.has(resolvedInputId)) {
+    return resolvedInputId;
+  }
+  return bindingInputId;
+}
+
+function isRigElementAliasInput(
+  inputId: string,
+  inputsById: Map<string, StandardRigInput>,
+): boolean {
+  const input = inputsById.get(inputId);
+  if (!input?.path) {
+    return false;
+  }
+  return isRigElementStandardInputPath(input.path);
+}
+
+function isHigherOrderRigBindingInput(
+  inputId: string,
+  inputsById: Map<string, StandardRigInput>,
+): boolean {
+  const input = inputsById.get(inputId);
+  if (!input?.path) {
+    return false;
+  }
+  if (isRigElementAliasInput(inputId, inputsById)) {
+    return false;
+  }
+  return true;
+}
+
+function bindingReferencesRigElementInput(
+  binding: AnimatableBinding,
+  inputsById: Map<string, StandardRigInput>,
+): boolean {
+  const candidateInputIds = new Set<string>();
+  if (binding.inputId && binding.inputId !== SELF_BINDING_ID) {
+    candidateInputIds.add(binding.inputId);
+  }
+  binding.slots.forEach((slot) => {
+    if (slot.inputId && slot.inputId !== SELF_BINDING_ID) {
+      candidateInputIds.add(slot.inputId);
+    }
+  });
+
+  for (const candidateInputId of candidateInputIds) {
+    if (isRigElementStandardInputPath(candidateInputId)) {
+      return true;
+    }
+    const resolvedCandidateId = resolveBindingSlotInputId(
+      candidateInputId,
+      inputsById,
+    );
+    if (!resolvedCandidateId || resolvedCandidateId === SELF_BINDING_ID) {
+      continue;
+    }
+    const resolvedInput = inputsById.get(resolvedCandidateId);
+    if (resolvedInput && isRigElementStandardInputPath(resolvedInput.path)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function evaluateBinding({
@@ -82,12 +172,20 @@ function evaluateBinding({
   safeId,
   context,
   selfNodeId,
+  enforceRigBoundaryRules = false,
 }: EvaluateBindingArgs): {
   valueNodeId: string | null;
   hasActiveSlot: boolean;
 } {
-  const { nodes, edges, ensureInputNode, bindingIssues, summaryBindings } =
-    context;
+  const {
+    nodes,
+    edges,
+    ensureInputNode,
+    bindingIssues,
+    summaryBindings,
+    inputsById,
+    inputBindings,
+  } = context;
   const exprContext: ExpressionBuildContext = {
     componentSafeId: safeId,
     nodes,
@@ -114,6 +212,10 @@ function evaluateBinding({
     const fallbackAlias = `s${index + 1}`;
     const alias = aliasBase.length > 0 ? aliasBase : fallbackAlias;
     const slotId = slot.id && slot.id.length > 0 ? slot.id : alias;
+    const resolvedSlotInputId = resolveBindingSlotInputId(
+      slot.inputId,
+      inputsById,
+    );
     const slotValueType: BindingValueType =
       slot.valueType === "vector" ? "vector" : "scalar";
     let slotOutputId: string;
@@ -130,19 +232,37 @@ function evaluateBinding({
         expressionIssues.push("Self reference unavailable for this input.");
         slotOutputId = getConstantNodeId(exprContext, target.defaultValue);
       }
-    } else if (slot.inputId) {
-      const inputNode = ensureInputNode(slot.inputId);
-      if (inputNode) {
-        slotOutputId = inputNode.nodeId;
-        hasActiveSlot = true;
-        setNodeValueType(
-          exprContext,
-          slotOutputId,
-          slotValueType === "vector" ? "vector" : "scalar",
+    } else if (resolvedSlotInputId) {
+      const inputId = resolvedSlotInputId;
+      const sourceBinding = inputBindings[inputId];
+      const allowedHigherOrderViaRigElementSource =
+        sourceBinding !== undefined &&
+        bindingReferencesRigElementInput(sourceBinding, inputsById);
+      if (
+        enforceRigBoundaryRules &&
+        isHigherOrderRigBindingInput(inputId, inputsById) &&
+        !allowedHigherOrderViaRigElementSource &&
+        inputId !== SELF_BINDING_ID
+      ) {
+        expressionIssues.push(
+          `Input "${inputId}" is a higher-order rig input and cannot directly drive animatable "${target.id}".`,
         );
-      } else {
-        expressionIssues.push(`Missing standard input "${slot.inputId}".`);
         slotOutputId = getConstantNodeId(exprContext, 0);
+        hasActiveSlot = true;
+      } else {
+        const inputNode = ensureInputNode(inputId);
+        if (inputNode) {
+          slotOutputId = inputNode.nodeId;
+          hasActiveSlot = true;
+          setNodeValueType(
+            exprContext,
+            slotOutputId,
+            slotValueType === "vector" ? "vector" : "scalar",
+          );
+        } else {
+          expressionIssues.push(`Missing standard input "${inputId}".`);
+          slotOutputId = getConstantNodeId(exprContext, 0);
+        }
       }
     } else {
       slotOutputId = getConstantNodeId(exprContext, 0);
@@ -152,7 +272,7 @@ function evaluateBinding({
       nodeId: slotOutputId,
       slotId,
       slotAlias: alias,
-      inputId: slot.inputId ?? null,
+      inputId: resolvedSlotInputId ?? null,
       targetId,
       animatableId,
       component,
@@ -169,7 +289,7 @@ function evaluateBinding({
       component,
       slotId,
       slotAlias: alias,
-      inputId: slot.inputId ?? null,
+      inputId: resolvedSlotInputId ?? null,
       expression: trimmedExpression,
       valueType: slotValueType,
       nodeId: slotOutputId,
@@ -316,6 +436,8 @@ interface InputExportMetadata {
   root?: string;
 }
 
+export type InputComposeMode = "add" | "average";
+
 export interface BuildGraphOptions {
   faceId: string;
   animatables: Record<string, AnimatableValue>;
@@ -324,6 +446,8 @@ export interface BuildGraphOptions {
   inputsById: Map<string, StandardRigInput>;
   inputBindings: InputBindingMap;
   inputMetadata?: Map<string, InputExportMetadata>;
+  inputComposeModesById?: Partial<Record<string, InputComposeMode>>;
+  pipelineV1?: RigPipelineV1Metadata | null;
 }
 
 export interface GraphBindingSummary {
@@ -383,6 +507,24 @@ function buildRigInputPath(faceId: string, inputPath: string): string {
   }
   const suffix = trimmed ? `/${trimmed}` : "";
   return `rig/${faceId}${suffix}`;
+}
+
+function buildPoseControlInputPath(faceId: string, inputId: string): string {
+  return `rig/${faceId}/pose/control/${inputId}`;
+}
+
+function isPoseWeightInputPath(path: string): boolean {
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith("/poses/") && normalized.endsWith(".weight");
+}
+
+function isPoseControlPath(path: string): boolean {
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith("/pose/control/");
+}
+
+function resolveInputComposeMode(mode: unknown): InputComposeMode {
+  return mode === "average" ? "average" : "add";
 }
 
 function getComponentOrder(
@@ -1309,6 +1451,8 @@ export function buildRigGraphSpec({
   inputsById,
   inputBindings,
   inputMetadata,
+  inputComposeModesById,
+  pipelineV1,
 }: BuildGraphOptions): BuildGraphResult {
   const metadataByInputId =
     inputMetadata ?? new Map<string, InputExportMetadata>();
@@ -1336,8 +1480,732 @@ export function buildRigGraphSpec({
   const computedInputs = new Set<string>();
   const summaryBindings: GraphBindingSummary[] = [];
   const bindingIssues = new Map<string, Set<string>>();
+  const stagedPipelineByInputId = new Map<
+    string,
+    RigPipelineV1ResolvedInputConfig
+  >();
   const animatableEntries = new Map<string, AnimatableGraphEntry>();
   const outputs = new Set<string>();
+  const composeModeByInputId = new Map<string, InputComposeMode>();
+  Object.entries(inputComposeModesById ?? {}).forEach(([inputId, mode]) => {
+    if (!inputsById.has(inputId)) {
+      return;
+    }
+    composeModeByInputId.set(inputId, resolveInputComposeMode(mode));
+  });
+
+  const shouldComposeInputWithPoseControl = (input: StandardRigInput) => {
+    if (!composeModeByInputId.has(input.id)) {
+      return false;
+    }
+    if (isPoseWeightInputPath(input.path)) {
+      return false;
+    }
+    if (isPoseControlPath(input.path)) {
+      return false;
+    }
+    return true;
+  };
+
+  const buildNormalizedAdditiveBlendNodeId = ({
+    nodeIdPrefix,
+    sourceNodeIds,
+    baseline,
+  }: {
+    nodeIdPrefix: string;
+    sourceNodeIds: string[];
+    baseline: number;
+  }): string => {
+    if (sourceNodeIds.length === 0) {
+      const fallbackNodeId = `${nodeIdPrefix}_baseline`;
+      nodes.push({
+        id: fallbackNodeId,
+        type: "constant",
+        params: {
+          value: baseline,
+        },
+      });
+      return fallbackNodeId;
+    }
+    if (sourceNodeIds.length === 1) {
+      return sourceNodeIds[0]!;
+    }
+    const addNodeId = `${nodeIdPrefix}_add`;
+    nodes.push({
+      id: addNodeId,
+      type: "add",
+    });
+    sourceNodeIds.forEach((sourceNodeId, index) => {
+      edges.push({
+        from: { nodeId: sourceNodeId },
+        to: { nodeId: addNodeId, portId: `operand_${index + 1}` },
+      });
+    });
+
+    const normalizedNodeId = `${nodeIdPrefix}_normalized_add`;
+    nodes.push({
+      id: normalizedNodeId,
+      type: "subtract",
+      inputDefaults: {
+        rhs: (sourceNodeIds.length - 1) * baseline,
+      },
+    });
+    edges.push({
+      from: { nodeId: addNodeId },
+      to: { nodeId: normalizedNodeId, portId: "lhs" },
+    });
+    return normalizedNodeId;
+  };
+
+  const splitTopLevelCommaSeparated = (value: string): string[] => {
+    const segments: string[] = [];
+    let depthParen = 0;
+    let depthBracket = 0;
+    let start = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const char = value[index];
+      if (char === "(") {
+        depthParen += 1;
+        continue;
+      }
+      if (char === ")") {
+        depthParen = Math.max(0, depthParen - 1);
+        continue;
+      }
+      if (char === "[") {
+        depthBracket += 1;
+        continue;
+      }
+      if (char === "]") {
+        depthBracket = Math.max(0, depthBracket - 1);
+        continue;
+      }
+      if (char === "," && depthParen === 0 && depthBracket === 0) {
+        segments.push(value.slice(start, index));
+        start = index + 1;
+      }
+    }
+    segments.push(value.slice(start));
+    return segments;
+  };
+
+  const stripTopLevelAssignment = (value: string): string => {
+    let depthParen = 0;
+    let depthBracket = 0;
+    for (let index = 0; index < value.length; index += 1) {
+      const char = value[index];
+      if (char === "(") {
+        depthParen += 1;
+        continue;
+      }
+      if (char === ")") {
+        depthParen = Math.max(0, depthParen - 1);
+        continue;
+      }
+      if (char === "[") {
+        depthBracket += 1;
+        continue;
+      }
+      if (char === "]") {
+        depthBracket = Math.max(0, depthBracket - 1);
+        continue;
+      }
+      if (char !== "=" || depthParen !== 0 || depthBracket !== 0) {
+        continue;
+      }
+      const previous = value[index - 1];
+      const next = value[index + 1];
+      if (previous === "=" || next === "=") {
+        continue;
+      }
+      return value.slice(index + 1).trim();
+    }
+    return value.trim();
+  };
+
+  const isNormalizedAdditiveFunctionName = (value: string): boolean => {
+    const normalized = value.trim().toLowerCase();
+    return (
+      normalized === "normalizedadditive" ||
+      normalized === "normalizedaddative" ||
+      normalized === "noramalizedadditive" ||
+      normalized === "noramalizedaddative"
+    );
+  };
+
+  const buildNormalizedAdditiveExpression = (value: string): string => {
+    const args = splitTopLevelCommaSeparated(value).map((entry) =>
+      entry.trim(),
+    );
+    if (args.length === 0) {
+      return "default";
+    }
+
+    const parentTerms: string[] = [];
+    let baselineExpression = "default";
+
+    const firstArg = args[0];
+    if (firstArg && firstArg.startsWith("[") && firstArg.endsWith("]")) {
+      const inner = firstArg.slice(1, -1).trim();
+      if (inner.length > 0) {
+        splitTopLevelCommaSeparated(inner).forEach((entry) => {
+          const term = entry.trim();
+          if (term.length > 0) {
+            parentTerms.push(term);
+          }
+        });
+      }
+      args.slice(1).forEach((entry) => {
+        const baselineMatch = entry.match(/^baseline\s*=\s*(.+)$/i);
+        if (baselineMatch?.[1]) {
+          baselineExpression = baselineMatch[1].trim();
+          return;
+        }
+        const term = entry.trim();
+        if (term.length > 0) {
+          parentTerms.push(term);
+        }
+      });
+    } else {
+      args.forEach((entry) => {
+        const baselineMatch = entry.match(/^baseline\s*=\s*(.+)$/i);
+        if (baselineMatch?.[1]) {
+          baselineExpression = baselineMatch[1].trim();
+          return;
+        }
+        const term = entry.trim();
+        if (term.length > 0) {
+          parentTerms.push(term);
+        }
+      });
+    }
+
+    if (parentTerms.length === 0) {
+      return `(${baselineExpression})`;
+    }
+    if (parentTerms.length === 1) {
+      return `(${parentTerms[0]})`;
+    }
+    return `((${parentTerms.join(" + ")}) - (${parentTerms.length - 1}) * (${baselineExpression}))`;
+  };
+
+  const rewriteNormalizedAdditiveCalls = (value: string): string => {
+    let cursor = 0;
+    let rewritten = "";
+    while (cursor < value.length) {
+      const remaining = value.slice(cursor);
+      const match = remaining.match(
+        /(normalizedadditive|normalizedaddative|noramalizedadditive|noramalizedaddative)\s*\(/i,
+      );
+      if (!match || match.index === undefined) {
+        rewritten += remaining;
+        break;
+      }
+      const matchStart = cursor + match.index;
+      const functionName = match[1] ?? "";
+      const openParenIndex = value.indexOf(
+        "(",
+        matchStart + functionName.length,
+      );
+      if (openParenIndex < 0) {
+        rewritten += value.slice(cursor);
+        break;
+      }
+      rewritten += value.slice(cursor, matchStart);
+
+      let depth = 1;
+      let closeParenIndex = openParenIndex + 1;
+      while (closeParenIndex < value.length && depth > 0) {
+        const char = value[closeParenIndex];
+        if (char === "(") {
+          depth += 1;
+        } else if (char === ")") {
+          depth -= 1;
+        }
+        closeParenIndex += 1;
+      }
+      if (depth !== 0) {
+        rewritten += value.slice(matchStart);
+        break;
+      }
+
+      const argsContent = value.slice(openParenIndex + 1, closeParenIndex - 1);
+      if (isNormalizedAdditiveFunctionName(functionName)) {
+        rewritten += buildNormalizedAdditiveExpression(argsContent);
+      } else {
+        rewritten += value.slice(matchStart, closeParenIndex);
+      }
+      cursor = closeParenIndex;
+    }
+    return rewritten;
+  };
+
+  const normalizeStagedFormulaExpression = (expression: string): string => {
+    const rhs = stripTopLevelAssignment(expression);
+    return rewriteNormalizedAdditiveCalls(rhs);
+  };
+
+  const normalizeFormulaSignature = (expression: string): string =>
+    normalizeStagedFormulaExpression(expression)
+      .replace(/\s+/g, "")
+      .toLowerCase();
+
+  const buildDefaultParentTransformNodeId = (params: {
+    sourceNodeId: string;
+    nodeSuffix: string;
+    scale: number;
+    offset: number;
+  }): string => {
+    let transformedNodeId = params.sourceNodeId;
+    if (params.scale !== 1) {
+      const scaledNodeId = `input_parent_scale_${params.nodeSuffix}`;
+      nodes.push({
+        id: scaledNodeId,
+        type: "multiply",
+        inputDefaults: {
+          operand_2: params.scale,
+        },
+      });
+      edges.push({
+        from: { nodeId: transformedNodeId },
+        to: { nodeId: scaledNodeId, portId: "operand_1" },
+      });
+      transformedNodeId = scaledNodeId;
+    }
+    if (params.offset !== 0) {
+      const offsetNodeId = `input_parent_offset_${params.nodeSuffix}`;
+      nodes.push({
+        id: offsetNodeId,
+        type: "add",
+        inputDefaults: {
+          operand_2: params.offset,
+        },
+      });
+      edges.push({
+        from: { nodeId: transformedNodeId },
+        to: { nodeId: offsetNodeId, portId: "operand_1" },
+      });
+      transformedNodeId = offsetNodeId;
+    }
+    return transformedNodeId;
+  };
+
+  const buildStagedFormulaNodeId = (params: {
+    expression: string;
+    fallbackNodeId: string;
+    componentSafeId: string;
+    inputId: string;
+    issuePrefix: string;
+    variables: Record<string, { nodeId?: string; value?: number }>;
+  }): string => {
+    const normalizedExpression = normalizeStagedFormulaExpression(
+      params.expression,
+    );
+    if (!normalizedExpression) {
+      return params.fallbackNodeId;
+    }
+
+    const parseResult = parseControlExpression(normalizedExpression);
+    const issues: string[] = [];
+    if (!parseResult.node) {
+      parseResult.errors.forEach((error) => {
+        issues.push(
+          `${params.issuePrefix}: ${error.message} (index ${error.index}).`,
+        );
+      });
+    }
+    if (!parseResult.node || issues.length > 0) {
+      const issueSet = bindingIssues.get(params.inputId) ?? new Set<string>();
+      issues.forEach((issue) => issueSet.add(issue));
+      if (issues.length > 0) {
+        bindingIssues.set(params.inputId, issueSet);
+      }
+      return params.fallbackNodeId;
+    }
+
+    const exprContext: ExpressionBuildContext = {
+      componentSafeId: params.componentSafeId,
+      nodes,
+      edges,
+      constants: new Map(),
+      counter: 1,
+      reservedNodes: new Map(),
+      nodeValueTypes: new Map(),
+      graphReservedNodes,
+      generateReservedNodeId,
+    };
+    const variableTable = createExpressionVariableTable();
+    const registerVariableName = (name: string, nodeId: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        return;
+      }
+      variableTable.registerReservedVariable({
+        name: trimmed,
+        nodeId,
+        description: "Staged pipeline formula variable",
+      });
+      const lower = trimmed.toLowerCase();
+      if (lower !== trimmed) {
+        variableTable.registerReservedVariable({
+          name: lower,
+          nodeId,
+          description: "Staged pipeline formula variable",
+        });
+      }
+    };
+    Object.entries(params.variables).forEach(([name, variable]) => {
+      const nodeId =
+        variable.nodeId ??
+        (typeof variable.value === "number" && Number.isFinite(variable.value)
+          ? getConstantNodeId(exprContext, variable.value)
+          : null);
+      if (!nodeId) {
+        return;
+      }
+      registerVariableName(name, nodeId);
+    });
+
+    const references = collectExpressionReferences(parseResult.node);
+    const missingVariables = variableTable.missing(references);
+    if (missingVariables.length > 0) {
+      const issueSet = bindingIssues.get(params.inputId) ?? new Set<string>();
+      missingVariables.forEach((entry) => {
+        issueSet.add(
+          `${params.issuePrefix}: unknown formula variable "${entry.name}".`,
+        );
+      });
+      bindingIssues.set(params.inputId, issueSet);
+      return params.fallbackNodeId;
+    }
+
+    validateLiteralParamArguments(parseResult.node, issues);
+    const nodeId = materializeExpression(
+      parseResult.node,
+      exprContext,
+      variableTable,
+      issues,
+    );
+    if (issues.length > 0) {
+      const issueSet = bindingIssues.get(params.inputId) ?? new Set<string>();
+      issues.forEach((issue) =>
+        issueSet.add(`${params.issuePrefix}: ${issue}`),
+      );
+      bindingIssues.set(params.inputId, issueSet);
+      return params.fallbackNodeId;
+    }
+    return nodeId;
+  };
+
+  const buildLegacyEffectiveInputNodeId = (
+    input: StandardRigInput,
+    directNodeId: string,
+  ): string => {
+    if (!shouldComposeInputWithPoseControl(input)) {
+      return directNodeId;
+    }
+
+    const safeInputId = sanitizeNodeId(input.id);
+    const composeBaseline = Number.isFinite(input.defaultValue)
+      ? input.defaultValue
+      : 0;
+    const poseControlNodeId = `input_pose_control_${safeInputId}`;
+    nodes.push({
+      id: poseControlNodeId,
+      type: "input",
+      params: {
+        path: buildPoseControlInputPath(faceId, input.id),
+        value: { float: composeBaseline },
+      },
+    });
+
+    const composeAddNodeId = `input_compose_add_${safeInputId}`;
+    nodes.push({
+      id: composeAddNodeId,
+      type: "add",
+    });
+    edges.push(
+      {
+        from: { nodeId: directNodeId },
+        to: { nodeId: composeAddNodeId, portId: "operand_1" },
+      },
+      {
+        from: { nodeId: poseControlNodeId },
+        to: { nodeId: composeAddNodeId, portId: "operand_2" },
+      },
+    );
+
+    const composeMode = composeModeByInputId.get(input.id) ?? "add";
+    let composeOutputNodeId = composeAddNodeId;
+    if (composeMode === "average") {
+      composeOutputNodeId = `input_compose_average_${safeInputId}`;
+      nodes.push({
+        id: composeOutputNodeId,
+        type: "divide",
+        inputDefaults: { rhs: 2 },
+      });
+      edges.push({
+        from: { nodeId: composeAddNodeId },
+        to: { nodeId: composeOutputNodeId, portId: "lhs" },
+      });
+    } else {
+      composeOutputNodeId = `input_compose_normalized_add_${safeInputId}`;
+      nodes.push({
+        id: composeOutputNodeId,
+        type: "subtract",
+        inputDefaults: { rhs: composeBaseline },
+      });
+      edges.push({
+        from: { nodeId: composeAddNodeId },
+        to: { nodeId: composeOutputNodeId, portId: "lhs" },
+      });
+    }
+
+    const minValue = Number.isFinite(input.range.min) ? input.range.min : -1;
+    const maxValue = Number.isFinite(input.range.max) ? input.range.max : 1;
+    const clampNodeId = `input_effective_${safeInputId}`;
+    nodes.push({
+      id: clampNodeId,
+      type: "clamp",
+      inputDefaults: { min: minValue, max: maxValue },
+    });
+    edges.push({
+      from: { nodeId: composeOutputNodeId },
+      to: { nodeId: clampNodeId, portId: "in" },
+    });
+
+    return clampNodeId;
+  };
+
+  const buildStagedEffectiveInputNodeId = (
+    input: StandardRigInput,
+    stagedConfig: RigPipelineV1ResolvedInputConfig,
+  ): string => {
+    const safeInputId = sanitizeNodeId(input.id);
+    const composeBaseline = Number.isFinite(input.defaultValue)
+      ? input.defaultValue
+      : 0;
+
+    const parentContributionNodes: string[] = [];
+    const parentNodeIdByAlias = new Map<string, string>();
+    stagedConfig.parents.forEach((parent, index) => {
+      if (!parent.enabled) {
+        return;
+      }
+      const resolvedParentInputId = resolveStandardRigInputId(
+        parent.inputId,
+        inputsById,
+      );
+      const parentInput = ensureInputNode(resolvedParentInputId);
+      if (!parentInput) {
+        const issueSet = bindingIssues.get(input.id) ?? new Set<string>();
+        issueSet.add(
+          `Staged parent "${resolvedParentInputId}" missing for "${input.id}".`,
+        );
+        bindingIssues.set(input.id, issueSet);
+        return;
+      }
+
+      const nodeSuffix = `${safeInputId}_${index + 1}`;
+      const fallbackParentNodeId = buildDefaultParentTransformNodeId({
+        sourceNodeId: parentInput.nodeId,
+        nodeSuffix,
+        scale: parent.scale,
+        offset: parent.offset,
+      });
+      const defaultParentFormulaExpression = `${parent.alias} = parent * scale + offset`;
+      const parentFormulaNodeId =
+        normalizeFormulaSignature(parent.expression) ===
+        normalizeFormulaSignature(defaultParentFormulaExpression)
+          ? fallbackParentNodeId
+          : buildStagedFormulaNodeId({
+              expression: parent.expression,
+              fallbackNodeId: fallbackParentNodeId,
+              componentSafeId: `staged_parent_${nodeSuffix}`,
+              inputId: input.id,
+              issuePrefix: `Parent formula "${parent.alias}"`,
+              variables: {
+                parent: { nodeId: parentInput.nodeId },
+                scale: { value: parent.scale },
+                offset: { value: parent.offset },
+                default: { value: composeBaseline },
+                baseline: { value: composeBaseline },
+              },
+            });
+      parentContributionNodes.push(parentFormulaNodeId);
+      parentNodeIdByAlias.set(parent.alias, parentFormulaNodeId);
+      const normalizedAlias = parent.alias.toLowerCase();
+      if (normalizedAlias !== parent.alias) {
+        parentNodeIdByAlias.set(normalizedAlias, parentFormulaNodeId);
+      }
+    });
+
+    const parentContributionNodeId =
+      parentContributionNodes.length > 0
+        ? (() => {
+            const defaultParentContributionNodeId =
+              buildNormalizedAdditiveBlendNodeId({
+                nodeIdPrefix: `input_parent_blend_${safeInputId}`,
+                sourceNodeIds: parentContributionNodes,
+                baseline: composeBaseline,
+              });
+            const defaultParentContributionExpression = `parentContribution = normalizedAdditive([${stagedConfig.parents
+              .filter((entry) => entry.enabled)
+              .map((entry) => entry.alias)
+              .join(", ")}], baseline=default)`;
+            if (
+              normalizeFormulaSignature(stagedConfig.parentBlend.expression) ===
+              normalizeFormulaSignature(defaultParentContributionExpression)
+            ) {
+              return defaultParentContributionNodeId;
+            }
+            return buildStagedFormulaNodeId({
+              expression: stagedConfig.parentBlend.expression,
+              fallbackNodeId: defaultParentContributionNodeId,
+              componentSafeId: `staged_parent_contribution_${safeInputId}`,
+              inputId: input.id,
+              issuePrefix: "Parent contribution formula",
+              variables: {
+                ...Object.fromEntries(
+                  Array.from(parentNodeIdByAlias.entries()).map(
+                    ([alias, nodeId]) => [alias, { nodeId }],
+                  ),
+                ),
+                default: { value: composeBaseline },
+                baseline: { value: composeBaseline },
+              },
+            });
+          })()
+        : null;
+
+    let poseContributionNodeId: string | null = null;
+    const hasPoseContribution =
+      stagedConfig.poseSource.targetIds.length > 0 ||
+      shouldComposeInputWithPoseControl(input);
+    if (hasPoseContribution) {
+      poseContributionNodeId = `input_pose_control_${safeInputId}`;
+      nodes.push({
+        id: poseContributionNodeId,
+        type: "input",
+        params: {
+          path: buildPoseControlInputPath(faceId, input.id),
+          value: { float: composeBaseline },
+        },
+      });
+    }
+
+    const sourceBranchNodeIds: string[] = [];
+    if (parentContributionNodeId) {
+      sourceBranchNodeIds.push(parentContributionNodeId);
+    }
+    if (poseContributionNodeId) {
+      sourceBranchNodeIds.push(poseContributionNodeId);
+    }
+    if (stagedConfig.directInput.enabled) {
+      const directNodeId = `input_direct_${safeInputId}`;
+      nodes.push({
+        id: directNodeId,
+        type: "input",
+        params: {
+          path: stagedConfig.directInput.valuePath,
+          value: { float: composeBaseline },
+        },
+      });
+      sourceBranchNodeIds.push(directNodeId);
+    }
+
+    const sourceBlendNodeId = buildNormalizedAdditiveBlendNodeId({
+      nodeIdPrefix: `input_source_blend_${safeInputId}`,
+      sourceNodeIds: sourceBranchNodeIds,
+      baseline: composeBaseline,
+    });
+
+    const overrideEnabledNodeId = `input_override_enabled_${safeInputId}`;
+    nodes.push({
+      id: overrideEnabledNodeId,
+      type: "input",
+      params: {
+        path: stagedConfig.override.enabledPath,
+        value: { float: stagedConfig.override.enabledDefault ? 1 : 0 },
+      },
+    });
+
+    const overrideValueNodeId = `input_override_value_${safeInputId}`;
+    nodes.push({
+      id: overrideValueNodeId,
+      type: "input",
+      params: {
+        path: stagedConfig.override.valuePath,
+        value: { float: stagedConfig.override.valueDefault },
+      },
+    });
+
+    const overrideDeltaNodeId = `input_override_delta_${safeInputId}`;
+    nodes.push({
+      id: overrideDeltaNodeId,
+      type: "subtract",
+    });
+    edges.push(
+      {
+        from: { nodeId: overrideValueNodeId },
+        to: { nodeId: overrideDeltaNodeId, portId: "lhs" },
+      },
+      {
+        from: { nodeId: sourceBlendNodeId },
+        to: { nodeId: overrideDeltaNodeId, portId: "rhs" },
+      },
+    );
+
+    const overrideScaleNodeId = `input_override_scale_${safeInputId}`;
+    nodes.push({
+      id: overrideScaleNodeId,
+      type: "multiply",
+    });
+    edges.push(
+      {
+        from: { nodeId: overrideEnabledNodeId },
+        to: { nodeId: overrideScaleNodeId, portId: "operand_1" },
+      },
+      {
+        from: { nodeId: overrideDeltaNodeId },
+        to: { nodeId: overrideScaleNodeId, portId: "operand_2" },
+      },
+    );
+
+    const overrideSelectedNodeId = `input_override_selected_${safeInputId}`;
+    nodes.push({
+      id: overrideSelectedNodeId,
+      type: "add",
+    });
+    edges.push(
+      {
+        from: { nodeId: sourceBlendNodeId },
+        to: { nodeId: overrideSelectedNodeId, portId: "operand_1" },
+      },
+      {
+        from: { nodeId: overrideScaleNodeId },
+        to: { nodeId: overrideSelectedNodeId, portId: "operand_2" },
+      },
+    );
+
+    if (!stagedConfig.clamp.enabled) {
+      return overrideSelectedNodeId;
+    }
+
+    const minValue = Number.isFinite(input.range.min) ? input.range.min : -1;
+    const maxValue = Number.isFinite(input.range.max) ? input.range.max : 1;
+    const clampNodeId = `input_effective_${safeInputId}`;
+    nodes.push({
+      id: clampNodeId,
+      type: "clamp",
+      inputDefaults: { min: minValue, max: maxValue },
+    });
+    edges.push({
+      from: { nodeId: overrideSelectedNodeId },
+      to: { nodeId: clampNodeId, portId: "in" },
+    });
+    return clampNodeId;
+  };
 
   const ensureInputNode = (
     inputId: string,
@@ -1355,7 +2223,8 @@ export function buildRigGraphSpec({
       : 0;
 
     const inputBindingRaw = inputBindings[inputId];
-    if (inputBindingRaw) {
+    const isStagedInput = hasRigPipelineV1InputConfig(pipelineV1, inputId);
+    if (isStagedInput || inputBindingRaw) {
       if (buildingDerived.has(inputId)) {
         const issueSet = bindingIssues.get(inputId) ?? new Set<string>();
         issueSet.add("Derived input cycle detected.");
@@ -1364,6 +2233,22 @@ export function buildRigGraphSpec({
       }
       buildingDerived.add(inputId);
       try {
+        if (isStagedInput) {
+          const stagedConfig = resolveRigPipelineV1InputConfig({
+            faceId,
+            input,
+            pipelineV1,
+          });
+          stagedPipelineByInputId.set(input.id, stagedConfig);
+          computedInputs.add(inputId);
+          const record = {
+            nodeId: buildStagedEffectiveInputNodeId(input, stagedConfig),
+            input,
+          };
+          inputNodes.set(inputId, record);
+          return record;
+        }
+
         const target = bindingTargetFromInput(input);
         const binding = ensureBindingStructure(inputBindingRaw, target);
         const requiresSelf =
@@ -1389,7 +2274,10 @@ export function buildRigGraphSpec({
           animatableId: inputId,
           component: undefined,
           safeId: sanitizeNodeId(inputId),
+          enforceRigBoundaryRules: false,
           context: {
+            inputsById,
+            inputBindings,
             nodes,
             edges,
             ensureInputNode,
@@ -1409,12 +2297,18 @@ export function buildRigGraphSpec({
               value: input.defaultValue,
             },
           });
-          const record = { nodeId: constNodeId, input };
+          const record = {
+            nodeId: buildLegacyEffectiveInputNodeId(input, constNodeId),
+            input,
+          };
           inputNodes.set(inputId, record);
           return record;
         }
         computedInputs.add(inputId);
-        const record = { nodeId: valueNodeId, input };
+        const record = {
+          nodeId: buildLegacyEffectiveInputNodeId(input, valueNodeId),
+          input,
+        };
         inputNodes.set(inputId, record);
         return record;
       } finally {
@@ -1431,7 +2325,10 @@ export function buildRigGraphSpec({
         value: { float: defaultValue },
       },
     });
-    const record = { nodeId, input };
+    const record = {
+      nodeId: buildLegacyEffectiveInputNodeId(input, nodeId),
+      input,
+    };
     inputNodes.set(inputId, record);
     return record;
   };
@@ -1482,7 +2379,10 @@ export function buildRigGraphSpec({
           animatableId: component.animatableId,
           component: component.component,
           safeId: component.safeId,
+          enforceRigBoundaryRules: true,
           context: {
+            inputsById,
+            inputBindings,
             nodes,
             edges,
             ensureInputNode,
@@ -1657,6 +2557,74 @@ export function buildRigGraphSpec({
       computedInputs.has(binding.animatableId),
   );
 
+  const pipelineV1ByInputId =
+    stagedPipelineByInputId.size > 0
+      ? Object.fromEntries(
+          Array.from(stagedPipelineByInputId.entries()).map(
+            ([inputId, stagedConfig]) => [
+              inputId,
+              {
+                inputId: stagedConfig.inputId,
+                parents: stagedConfig.parents.map((parent) => ({
+                  linkId: parent.linkId,
+                  inputId: parent.inputId,
+                  alias: parent.alias,
+                  scale: parent.scale,
+                  offset: parent.offset,
+                  enabled: parent.enabled,
+                  expression: parent.expression,
+                })),
+                children: stagedConfig.children.map((child) => ({
+                  linkId: child.linkId,
+                  childInputId: child.childInputId,
+                })),
+                parentBlend: {
+                  mode: stagedConfig.parentBlend.mode,
+                  expression: stagedConfig.parentBlend.expression,
+                },
+                poseSource: {
+                  targetIds: [...stagedConfig.poseSource.targetIds],
+                },
+                directInput: {
+                  enabled: stagedConfig.directInput.enabled,
+                  valuePath: stagedConfig.directInput.valuePath,
+                },
+                sourceBlend: {
+                  mode: stagedConfig.sourceBlend.mode,
+                },
+                sourceFallback: {
+                  whenNoSources: stagedConfig.sourceFallback.whenNoSources,
+                },
+                clamp: {
+                  enabled: stagedConfig.clamp.enabled,
+                },
+                override: {
+                  enabledDefault: stagedConfig.override.enabledDefault,
+                  valueDefault: stagedConfig.override.valueDefault,
+                  enabledPath: stagedConfig.override.enabledPath,
+                  valuePath: stagedConfig.override.valuePath,
+                },
+              },
+            ],
+          ),
+        )
+      : undefined;
+
+  const hasPipelineLinks =
+    pipelineV1?.links &&
+    typeof pipelineV1.links === "object" &&
+    Object.keys(pipelineV1.links).length > 0;
+  const pipelineV1Metadata =
+    pipelineV1ByInputId || hasPipelineLinks
+      ? {
+          version: RIG_PIPELINE_V1_VERSION,
+          ...(pipelineV1ByInputId ? { byInputId: pipelineV1ByInputId } : {}),
+          ...(hasPipelineLinks
+            ? { links: cloneJsonLike(pipelineV1?.links) }
+            : {}),
+        }
+      : undefined;
+
   const vizijMetadata = {
     vizij: {
       faceId,
@@ -1696,6 +2664,7 @@ export function buildRigGraphSpec({
           ? cloneJsonLike(binding.metadata)
           : undefined,
       })),
+      ...(pipelineV1Metadata ? { pipelineV1: pipelineV1Metadata } : {}),
     },
   };
 

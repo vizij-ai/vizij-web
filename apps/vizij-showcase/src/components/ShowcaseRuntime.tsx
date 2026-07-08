@@ -22,7 +22,7 @@ type ShowcaseRuntimeProps = {
 
 export function ShowcaseRuntime({
   namespace,
-  asset = "hugoLatest",
+  asset = "quoriCurrentExtended",
   children,
   active = true,
   fallback = null,

@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from "react";
+import { createBrowserSafeId, getLookup } from "@vizij/utils";
 import type { RawValue, AnimatableValue } from "@vizij/utils";
 import type { BindingValueType } from "@vizij/node-graph-authoring";
 import type { ShapeMaterial } from "@vizij/render";
@@ -18,6 +19,7 @@ import {
   deleteSceneNode,
   duplicateMaterialForShape,
   duplicateSceneNode,
+  materialKey,
   reparentSceneNodeWithPreservedWorld,
   type DuplicateNodeOptions,
   type SceneMaterial,
@@ -29,7 +31,9 @@ interface SceneComposer {
   getNode: (id: string) => SceneObjectNode | undefined;
   getChildren: (parentId: string | null) => SceneObjectNode[];
   getBreadcrumb: (nodeId: string) => SceneObjectNode[];
-  selectObject: (id: string) => void;
+  selectObject: (id: string, options?: { additive?: boolean }) => void;
+  updateMaterialLabel: (materialId: string, newLabel: string) => void;
+  createMaterial: (label: string) => string;
   setFeatureAnimated: (
     nodeId: string,
     featureId: string,
@@ -62,6 +66,11 @@ interface SceneComposer {
   updateAnimatableDescriptor: (
     animatableId: string,
     updater: (current: AnimatableValue) => AnimatableValue,
+  ) => void;
+  setAnimatableValue: (
+    id: string,
+    value: RawValue,
+    options?: { channel?: string; saveToDefault?: boolean },
   ) => void;
   duplicateNode: (id: string, options?: DuplicateNodeOptions) => string | null;
   deleteNode: (id: string, options?: { includeChildren?: boolean }) => void;
@@ -158,7 +167,7 @@ export function useSceneComposer(): SceneComposer {
   }, [nodesById, sceneObjectRoots]);
 
   const selectObject = useCallback(
-    (id: string) => {
+    (id: string, options?: { additive?: boolean }) => {
       setStoreState((state) => {
         const renderable = state.world[id];
         if (!renderable) {
@@ -172,15 +181,100 @@ export function useSceneComposer(): SceneComposer {
               : renderable.type === "rectangle"
                 ? "rectangle"
                 : "shape";
+        const nextSelection = {
+          id,
+          type: selectionType,
+          namespace: DEFAULT_NAMESPACE,
+        } as const;
+        const isSameSelection = (
+          entry: (typeof state.elementSelection)[number],
+        ) =>
+          entry.id === nextSelection.id &&
+          entry.type === nextSelection.type &&
+          entry.namespace === nextSelection.namespace;
+
+        if (options?.additive) {
+          const existing = state.elementSelection ?? [];
+          if (existing.some(isSameSelection)) {
+            return {
+              ...state,
+              elementSelection: existing.filter(
+                (entry) => !isSameSelection(entry),
+              ),
+            };
+          }
+          return {
+            ...state,
+            elementSelection: [nextSelection, ...existing],
+          };
+        }
+
+        const existing = state.elementSelection?.[0];
+        if (
+          existing &&
+          isSameSelection(existing) &&
+          (state.elementSelection?.length ?? 0) === 1
+        ) {
+          return state;
+        }
         return {
           ...state,
-          elementSelection: [
-            {
-              id,
-              type: selectionType,
-              namespace: DEFAULT_NAMESPACE,
-            },
-          ],
+          elementSelection: [nextSelection],
+        };
+      });
+    },
+    [setStoreState],
+  );
+
+  const setAnimatableValue = useCallback(
+    (
+      id: string,
+      value: RawValue,
+      options?: { channel?: string; saveToDefault?: boolean },
+    ) => {
+      setStoreState((state) => {
+        const { channel, saveToDefault = true } = options ?? {};
+        const lookup = getLookup(DEFAULT_NAMESPACE, id);
+
+        // 1. Update Live Value
+        const nextValues = new Map(state.values);
+        if (channel) {
+          const current =
+            state.values.get(lookup) ?? state.animatables[id]?.default ?? {};
+          const next = {
+            ...(typeof current === "object" ? current : {}),
+            [channel]: value,
+          };
+          nextValues.set(lookup, next as RawValue);
+        } else {
+          nextValues.set(lookup, value);
+        }
+
+        // 2. Update Default (Optional persistence)
+        let nextAnimatables = state.animatables;
+        if (saveToDefault && state.animatables[id]) {
+          const currentAnim = state.animatables[id];
+          let nextDefault = value;
+          if (channel) {
+            const currentDefault = currentAnim.default ?? {};
+            nextDefault = {
+              ...(typeof currentDefault === "object" ? currentDefault : {}),
+              [channel]: value,
+            } as any;
+          }
+          nextAnimatables = {
+            ...state.animatables,
+            [id]: {
+              ...currentAnim,
+              default: nextDefault,
+            } as any,
+          };
+        }
+
+        return {
+          ...state,
+          values: nextValues,
+          animatables: nextAnimatables,
         };
       });
     },
@@ -628,6 +722,113 @@ export function useSceneComposer(): SceneComposer {
     [applySceneUpdate, bindings, featureLabelOverrides, getVizijState],
   );
 
+  const updateMaterialLabel = useCallback(
+    (materialId: string, newLabel: string) => {
+      const material = materials.find((m) => m.id === materialId);
+      if (!material) return;
+
+      setStoreState((state) => {
+        const nextAnimatables = { ...state.animatables };
+        Object.entries(material.animated).forEach(([key, animId]) => {
+          const anim = nextAnimatables[animId];
+          if (anim) {
+            const featureSuffix = key.charAt(0).toUpperCase() + key.slice(1);
+            const nextName = `${newLabel} ${featureSuffix}`;
+            nextAnimatables[animId] = {
+              ...anim,
+              name: nextName,
+              pub: anim.pub
+                ? { ...anim.pub, output: nextName }
+                : { public: true, output: nextName },
+            };
+          }
+        });
+        return { ...state, animatables: nextAnimatables };
+      });
+    },
+    [materials, setStoreState],
+  );
+
+  const createMaterial = useCallback(
+    (label: string) => {
+      const colorAnimId = createBrowserSafeId();
+      const opacityAnimId = createBrowserSafeId();
+      const templateShapeId = `material:template:${createBrowserSafeId()}`;
+
+      setStoreState((state) => {
+        // 1. Create Animatables
+        const nextAnimatables = {
+          ...state.animatables,
+          [colorAnimId]: {
+            id: colorAnimId,
+            name: `${label} Color`,
+            type: "color",
+            default: { r: 1, g: 1, b: 1 },
+            constraints: {
+              min: [0, 0, 0],
+              max: [1, 1, 1],
+            },
+            pub: { public: true, output: `${label} Color` },
+          } as any,
+          [opacityAnimId]: {
+            id: opacityAnimId,
+            name: `${label} Opacity`,
+            type: "number",
+            default: 1,
+            constraints: {
+              min: 0,
+              max: 1,
+            },
+            pub: { public: true, output: `${label} Opacity` },
+          } as any,
+        };
+
+        // 2. Create Values
+        const nextValues = new Map(state.values);
+        nextValues.set(getLookup(DEFAULT_NAMESPACE, colorAnimId), {
+          r: 1,
+          g: 1,
+          b: 1,
+        });
+        nextValues.set(getLookup(DEFAULT_NAMESPACE, opacityAnimId), 1);
+
+        // 3. Create Template Shape
+        const templateShape: any = {
+          id: templateShapeId,
+          type: "shape",
+          name: label,
+          material: "standard",
+          features: {
+            color: { animated: true, value: colorAnimId },
+            opacity: { animated: true, value: opacityAnimId },
+          },
+          // Position it far away or just rely on filtering it out from the graph
+          translation: { x: 0, y: -1000, z: 0 },
+        };
+
+        return {
+          ...state,
+          animatables: nextAnimatables,
+          values: nextValues,
+          world: {
+            ...state.world,
+            [templateShapeId]: templateShape,
+          },
+        };
+      });
+
+      // return the material key so it can be selected
+      return materialKey({
+        material: "standard",
+        features: {
+          color: { animated: true, value: colorAnimId },
+          opacity: { animated: true, value: opacityAnimId },
+        },
+      } as any);
+    },
+    [setStoreState],
+  );
+
   return {
     objects: sceneObjects,
     rootIds: sceneObjectRoots,
@@ -645,11 +846,14 @@ export function useSceneComposer(): SceneComposer {
     setDriverSlotAlias,
     setDriverSlotValueType,
     updateAnimatableDescriptor,
+    setAnimatableValue,
     duplicateNode,
     deleteNode,
     reparentNode,
     materials,
     assignMaterial,
     duplicateMaterial,
+    updateMaterialLabel,
+    createMaterial,
   };
 }

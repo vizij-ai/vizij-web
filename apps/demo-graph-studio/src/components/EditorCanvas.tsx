@@ -498,6 +498,10 @@ export default function EditorCanvas(): JSX.Element {
               targetNode,
               connection.sourceHandle ?? null,
               connection.targetHandle ?? null,
+              {
+                nodes,
+                edges,
+              },
             )
           : isConnectionCompatible(
               sourceNode,
@@ -531,7 +535,7 @@ export default function EditorCanvas(): JSX.Element {
       };
       setEdges((prev) => addEdge(newEdge, prev as Edge[]) as any);
     },
-    [nodes, registryState, setEdges, upsertTargetHandleMapping],
+    [edges, nodes, registryState, setEdges, upsertTargetHandleMapping],
   );
 
   const setSelected = useEditorStore((s) => s.setSelected);

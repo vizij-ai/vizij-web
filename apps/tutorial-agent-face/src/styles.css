@@ -238,6 +238,25 @@ body,
   background: rgba(248, 113, 113, 0.16);
 }
 
+.chip.warn {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(234, 179, 8, 0.14);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.warning-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  background: rgba(120, 53, 15, 0.22);
+  color: #fde68a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .controls {
   display: flex;
   gap: 10px;
@@ -388,4 +407,42 @@ body,
   margin: 2px 0 0;
   font-size: 13px;
   color: rgba(226, 232, 240, 0.8);
+}
+
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.debug-toggle {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.72);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.debug-toggle.static {
+  margin: 0;
+  cursor: default;
+  color: #cbd5f5;
+}
+
+.debug-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(191, 219, 254, 0.86);
+}
+
+.debug-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
+import {
+  buildSemanticPoseWeightPathMap,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 import { usePollyTTS } from "../hooks/usePollyTTS";
 import { SPEECH_STATUS_COPY, type SpeechStatus } from "../data/speech";
 import { POLLY_VOICES, type PollyVoice } from "../data/pollyVoices";
 import type { VisemeData } from "../types/polly";
 import { FACE_VISEME_SEGMENT_LIST, mapPollyViseme } from "../lib/visemeMapping";
+
+const DEFAULT_POSE_WEIGHT = 0.75;
 
 export type VoicePanelProps = {
   status: SpeechStatus;
@@ -41,7 +46,8 @@ export function VoicePanel({
   onStatusChange,
   enabled = true,
 }: VoicePanelProps) {
-  const { ready, setInput, faceId, animateValue } = useVizijRuntime();
+  const { ready, setInput, faceId, animateValue, assetBundle } =
+    useVizijRuntime();
   const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [selectedVoice, setSelectedVoice] = useState<PollyVoice>("Ruth");
   const [formError, setFormError] = useState<string | null>(null);
@@ -70,19 +76,31 @@ export function VoicePanel({
     setSpokenWords,
   } = usePollyTTS();
 
-  const visemeBasePath = useMemo(
-    () => `rig/${(faceId ?? "face").toLowerCase()}/visemes`,
-    [faceId],
+  const poseConfig = assetBundle.pose?.config ?? null;
+  const poseWeightPaths = useMemo(
+    () =>
+      buildSemanticPoseWeightPathMap(
+        poseConfig?.poses ?? [],
+        poseConfig?.poseGroups,
+        poseConfig?.faceId ?? faceId ?? "face",
+        "viseme",
+      ),
+    [faceId, poseConfig?.faceId, poseConfig?.poseGroups, poseConfig?.poses],
   );
 
   const resolveSegmentPath = useCallback(
-    (segment: string) => `${visemeBasePath}/${segment}.weight`,
-    [visemeBasePath],
+    (segment: string) =>
+      poseWeightPaths.get(segment) ??
+      poseWeightPaths.get(`pose_${segment}`) ??
+      null,
+    [poseWeightPaths],
   );
 
   const defaultVisemePaths = useMemo(
     () =>
-      FACE_VISEME_SEGMENT_LIST.map((segment) => resolveSegmentPath(segment)),
+      FACE_VISEME_SEGMENT_LIST.map(resolveSegmentPath).filter(
+        (path): path is string => Boolean(path),
+      ),
     [resolveSegmentPath],
   );
 
@@ -116,7 +134,11 @@ export function VoicePanel({
       }
 
       if (entry.path && prevPath !== entry.path) {
-        void animateValue(entry.path, { float: 1 }, { duration: durationSec });
+        void animateValue(
+          entry.path,
+          { float: DEFAULT_POSE_WEIGHT },
+          { duration: durationSec },
+        );
       }
       lastVisemePathRef.current = entry.path;
     },
@@ -178,7 +200,7 @@ export function VoicePanel({
       }
       visemePathsRef.current.forEach((path) => setInput(path, { float: 0 }));
       if (frame?.path) {
-        setInput(frame.path, { float: 1 });
+        setInput(frame.path, { float: DEFAULT_POSE_WEIGHT });
       }
       lastVisemePathRef.current = frame?.path ?? null;
     },
@@ -552,7 +574,7 @@ export function VoicePanel({
 
 const createVisemeTimeline = (
   visemes: VisemeData["visemes"],
-  resolveSegmentPath: (segment: string) => string,
+  resolveSegmentPath: (segment: string) => string | null,
 ): VisemeTimelineEntry[] => {
   const entries: VisemeTimelineEntry[] = [];
   visemes.forEach((viseme) => {

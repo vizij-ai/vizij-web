@@ -22,14 +22,18 @@ import type {
   ScalarFunctionDefinition,
 } from "@vizij/node-graph-authoring";
 import {
-  FilterableSelect,
-  type FilterableSelectOption,
-} from "../common/FilterableSelect";
-import { Button, CollapsibleRow } from "../ui";
+  Combobox,
+  type ComboboxOption,
+  Button,
+  CollapsibleRow,
+  Select,
+  TextArea,
+  Checkbox,
+} from "../ui";
 import { formatRigPathLabel } from "../../utils/rigPaths";
+import { cn } from "../../utils/cn";
 import { createSlotKey, getSlotIdentifier } from "./slotKeys";
 import { useSlotDiagnosticsResolver } from "./SlotDiagnosticsContext";
-import "./binding-editor.css";
 
 type BindingFeatureFlags = {
   vectorAuthoringBeta?: boolean;
@@ -397,6 +401,8 @@ interface BindingEditorProps {
   hiddenDriverIds?: ReadonlySet<string> | Set<string>;
   onHideDriver?: (inputId: string) => void;
   onShowDriver?: (inputId: string) => void;
+  allowSelfBinding?: boolean;
+  readOnly?: boolean;
 }
 
 export function BindingEditor({
@@ -428,6 +434,8 @@ export function BindingEditor({
   hiddenDriverIds,
   onHideDriver,
   onShowDriver: _onShowDriver,
+  allowSelfBinding = true,
+  readOnly = false,
 }: BindingEditorProps) {
   const vectorAuthoringEnabled = featureFlags.vectorAuthoringBeta !== false;
   const conditionalAuthoringEnabled =
@@ -493,17 +501,32 @@ export function BindingEditor({
   }, [expressionFocused, expressionValue]);
 
   const commitExpressionDraft = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
     if (!expressionDirty) {
       return;
     }
     onBindingExpressionChange(targetId, expressionDraft);
     setExpressionDirty(false);
-  }, [expressionDirty, expressionDraft, onBindingExpressionChange, targetId]);
+  }, [
+    expressionDirty,
+    expressionDraft,
+    onBindingExpressionChange,
+    readOnly,
+    targetId,
+  ]);
 
-  const handleExpressionDraftChange = useCallback((nextValue: string) => {
-    setExpressionDraft(nextValue);
-    setExpressionDirty(true);
-  }, []);
+  const handleExpressionDraftChange = useCallback(
+    (nextValue: string) => {
+      if (readOnly) {
+        return;
+      }
+      setExpressionDraft(nextValue);
+      setExpressionDirty(true);
+    },
+    [readOnly],
+  );
 
   const aliasHints = useMemo(() => {
     return slots
@@ -528,7 +551,7 @@ export function BindingEditor({
     )
       .map((variable) => variable.name)
       .join(", ");
-    return available ? `Reserved: ${available}` : "";
+    return available;
   }, []);
 
   const reservedVariableNames = useMemo(
@@ -598,27 +621,14 @@ export function BindingEditor({
     expressionFunctionDetails[0] ??
     null;
 
-  const functionSelectOptions = useMemo<FilterableSelectOption[]>(() => {
+  const functionSelectOptions = useMemo<ComboboxOption[]>(() => {
     return expressionFunctionGroups.flatMap(({ category, entries }) => {
       const categoryLabel = FUNCTION_CATEGORY_LABELS[category] ?? category;
       return entries.map((entry) => {
-        const detail = functionDetailLookup.get(entry.nodeType);
-        const descriptionSources = ensureDistinctDescriptions([
-          detail?.signatureDoc,
-          entry.description,
-        ]);
-        const parameterKeywords =
-          detail?.parameters.flatMap((param) => [param.label, param.id]) ?? [];
         return {
           value: entry.nodeType,
-          label: `${entry.name}() · ${categoryLabel}`,
-          keywords: [
-            entry.name,
-            categoryLabel,
-            ...entry.aliases,
-            ...parameterKeywords,
-            ...descriptionSources,
-          ],
+          label: `${entry.name}()`,
+          description: categoryLabel,
         };
       });
     });
@@ -628,19 +638,6 @@ export function BindingEditor({
     ? (FUNCTION_CATEGORY_LABELS[selectedFunctionDetail.category] ??
       selectedFunctionDetail.category)
     : null;
-
-  const functionSelectCurrentLabel = selectedFunctionDetail ? (
-    <div className="feature-tree__function-select-label">
-      <span className="feature-tree__function-select-name">
-        {selectedFunctionDetail.name}()
-      </span>
-      {selectedFunctionCategoryLabel && (
-        <span className="feature-tree__pill feature-tree__function-category-pill">
-          {selectedFunctionCategoryLabel}
-        </span>
-      )}
-    </div>
-  ) : undefined;
 
   const functionSignaturePreview = selectedFunctionDetail
     ? buildSignaturePreview(selectedFunctionDetail)
@@ -835,10 +832,45 @@ export function BindingEditor({
   //   [expressionDraft, handleExpressionDraftChange],
   // );
 
-  const issueList = useMemo(
-    () => (issues ? [...new Set(issues)] : []),
-    [issues],
-  );
+  const issueList = useMemo(() => {
+    const merged = issues ? [...issues] : [];
+    if (
+      !allowSelfBinding &&
+      slots.some((slot) => slot.inputId === SELF_BINDING_ID)
+    ) {
+      merged.push(
+        "Slider (self) is unavailable for this target. Bind the slot to a rig input or unbind it.",
+      );
+    }
+    return [...new Set(merged)];
+  }, [allowSelfBinding, issues, slots]);
+
+  const slotSummary = useMemo(() => {
+    let bound = 0;
+    let local = 0;
+    let unbound = 0;
+    slots.forEach((slot) => {
+      if (slot.inputId === SELF_BINDING_ID) {
+        local += 1;
+        return;
+      }
+      if (typeof slot.inputId === "string" && slot.inputId.trim().length > 0) {
+        bound += 1;
+        return;
+      }
+      unbound += 1;
+    });
+    return { bound, local, unbound };
+  }, [slots]);
+
+  const handleAddSlot = useCallback(() => {
+    onAddBindingSlot(targetId);
+  }, [onAddBindingSlot, targetId]);
+
+  const handleResetExpressionDraft = useCallback(() => {
+    setExpressionDraft(expressionValue);
+    setExpressionDirty(false);
+  }, [expressionValue]);
 
   const caseMetadata = useMemo(() => {
     if (!resolveSlotDiagnostics || slots.length === 0) {
@@ -852,37 +884,87 @@ export function BindingEditor({
   }, [resolveSlotDiagnostics, slots, targetId]);
 
   const header = (
-    <div className="feature-tree__property-main binding-editor__header">
+    <div className="flex flex-wrap items-start gap-3 py-2 px-1 border-b border-white/5 mb-4 group">
       {expandable && (
         <button
           type="button"
-          className="feature-tree__disclosure-btn"
+          className={cn(
+            "w-5 h-5 flex items-center justify-center rounded hover:bg-white/5 transition-transform duration-200",
+            isExpanded ? "rotate-90" : "rotate-0",
+          )}
           onClick={toggleExpanded}
           aria-expanded={isExpanded}
           aria-label={`${isExpanded ? "Collapse" : "Expand"} ${label}`}
-        />
+        >
+          <svg
+            className="w-3 h-3 text-text-muted group-hover:text-text-primary"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
       )}
-      <span className="feature-tree__property-label">
-        {label} Drivers Config
-      </span>
-      {headerActions}
-      {onResetBinding && (
+      <div className="flex flex-col gap-1.5 min-w-[160px]">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-text-muted">
+          My Drivers
+        </span>
+        <span className="text-sm font-semibold text-text-primary">
+          {label} Binding
+        </span>
+      </div>
+      <div className="flex-1" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center gap-1 rounded-md border border-border-default/60 bg-bg-panel/50 px-2 py-1 text-[10px] font-medium text-text-secondary">
+          <span>{slots.length} controls</span>
+          {slotSummary.bound > 0 && <span>· {slotSummary.bound} linked</span>}
+          {slotSummary.local > 0 && <span>· {slotSummary.local} local</span>}
+          {slotSummary.unbound > 0 && (
+            <span className="text-amber-300">
+              · {slotSummary.unbound} unbound
+            </span>
+          )}
+        </div>
+        {issueList.length > 0 && (
+          <span className="inline-flex items-center rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-semibold text-red-300">
+            {issueList.length} issue{issueList.length === 1 ? "" : "s"}
+          </span>
+        )}
+        {readOnly && (
+          <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-200">
+            Legacy read-only
+          </span>
+        )}
+        {headerActions}
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          className="feature-tree__unbind-btn"
-          onClick={() => onResetBinding(targetId)}
+          className="h-7 text-[10px] px-2.5 font-semibold"
+          onClick={handleAddSlot}
+          disabled={readOnly}
         >
-          Reset
+          Add control
         </Button>
-      )}
+        {onResetBinding && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-7 text-[10px] px-2.5 font-semibold"
+            onClick={() => onResetBinding(targetId)}
+            disabled={readOnly}
+          >
+            Reset binding
+          </Button>
+        )}
+      </div>
     </div>
   );
-
-  const handleAddSlot = useCallback(() => {
-    onAddBindingSlot(targetId);
-  }, [onAddBindingSlot, targetId]);
 
   const handleSlotDiagnosticsToggle = useCallback((slotKey: string) => {
     setExpandedSlotDiagnostics((previous) => {
@@ -898,12 +980,17 @@ export function BindingEditor({
 
   if (expandable && !isExpanded) {
     return (
-      <div className="feature-tree__property-row" style={{ width: "100%" }}>
+      <div className="w-full">
         {header}
         {issueList.length > 0 && (
-          <ul className="feature-tree__expression-errors">
+          <ul className="mt-2 space-y-1">
             {issueList.map((issue) => (
-              <li key={issue}>{issue}</li>
+              <li
+                key={issue}
+                className="text-[11px] text-red-400 flex gap-2 italic"
+              >
+                <span className="shrink-0">•</span> {issue}
+              </li>
             ))}
           </ul>
         )}
@@ -912,13 +999,36 @@ export function BindingEditor({
   }
 
   return (
-    <div
-      className="feature-tree__property-row feature-tree__property-row--binding"
-      style={{ width: "100%" }}
-    >
+    <div className="w-full bg-bg-panel/40 border border-border-default/50 rounded-xl p-4">
       {header}
-      <div className="feature-tree__binding-editor">
-        <div className="feature-tree__binding-slots">
+      {readOnly && (
+        <div className="mb-4 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-100">
+          Binding editor is locked because this legacy expression is not
+          auto-convertible.
+        </div>
+      )}
+      <fieldset
+        disabled={readOnly}
+        className="border-0 p-0 m-0 flex flex-col gap-6 min-w-0"
+      >
+        {issueList.length > 0 && (
+          <div
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2"
+            data-testid="binding-editor-issue-summary"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-red-300">
+              Binding issues
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {issueList.map((issue) => (
+                <li key={issue} className="text-[11px] text-red-200/90">
+                  • {issue}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="flex flex-col gap-4">
           {slots.map((slot, index) => {
             const rawSlotInputId = slot.inputId ?? "";
             const normalizedSlotInputId =
@@ -964,28 +1074,27 @@ export function BindingEditor({
               normalizedSlotInputId === null
                 ? "Unbound"
                 : normalizedSlotInputId === SELF_BINDING_ID
-                  ? "Slider (self)"
+                  ? allowSelfBinding
+                    ? "Slider (self)"
+                    : "Slider (self) · unsupported"
                   : (formattedSelectedInputLabel ??
                     selectedInput?.label ??
                     normalizedSlotInputId);
 
-            const baseOptions: FilterableSelectOption[] = [
-              {
-                value: null,
-                label: "Unbound",
-                keywords: ["unbound", "none", "null"],
-              },
-              {
-                value: SELF_BINDING_ID,
-                label: "Slider (self)",
-                keywords: ["self", "slider", "manual"],
-              },
+            const baseOptions: ComboboxOption[] = [
+              ...(allowSelfBinding
+                ? [
+                    {
+                      value: SELF_BINDING_ID,
+                      label: "Slider (self)",
+                      description: "Manual control",
+                    },
+                  ]
+                : []),
               ...standardInputs.map((input) => ({
                 value: input.id,
                 label: formatRigPathLabel(input.path, faceId),
-                keywords: [input.path, input.id, input.label ?? ""].filter(
-                  (entry) => entry.length > 0,
-                ),
+                description: input.path,
               })),
             ];
 
@@ -999,32 +1108,76 @@ export function BindingEditor({
                     {
                       value: normalizedSlotInputId,
                       label: currentLabel,
-                      keywords: [currentLabel],
+                      description: "Current value",
                     },
                   ]
                 : baseOptions;
 
             const slotValueType = slot.valueType ?? "scalar";
+            const slotStatus =
+              normalizedSlotInputId === null
+                ? "Unbound"
+                : normalizedSlotInputId === SELF_BINDING_ID
+                  ? "Local (self)"
+                  : "Bound";
+            const slotStatusClass =
+              normalizedSlotInputId === null
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                : normalizedSlotInputId === SELF_BINDING_ID
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                  : "border-border-default/70 bg-bg-panel/60 text-text-secondary";
 
             if (resolvedInputId && hiddenDriverIds?.has(resolvedInputId)) {
               return null;
             }
 
             return (
-              <div key={slot.id} className="feature-tree__binding-slot">
-                <div className="feature-tree__binding-slot-header">
-                  <div className="feature-tree__binding-slot-variable">
-                    <span className="feature-tree__binding-slot-variable-label">
-                      Expression variable
-                    </span>
-                    <code className="feature-tree__binding-slot-variable-code">
+              <div
+                key={slot.id ?? slotIdentifier}
+                className="bg-bg-input/40 border border-border-default/60 rounded-xl p-4 flex flex-col gap-4 group/slot hover:border-border-default transition-colors"
+                data-testid={`binding-slot-${slotIdentifier}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <code className="text-[11px] bg-bg-input px-2 py-0.5 rounded border border-border-default text-accent font-mono font-semibold">
                       {slotIdentifier}
                     </code>
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold",
+                        slotStatusClass,
+                      )}
+                    >
+                      {slotStatus}
+                    </span>
                   </div>
-                  <label className="feature-tree__binding-slot-alias">
-                    <span>Alias</span>
+                  {index > 0 && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      className="h-7 text-[10px] px-2.5"
+                      onClick={() => onRemoveBindingSlot(targetId, slot.id)}
+                      aria-label={`Remove ${slotIdentifier}`}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-text-muted">
+                  {normalizedSlotInputId === null
+                    ? "No driver source selected yet."
+                    : normalizedSlotInputId === SELF_BINDING_ID
+                      ? "Driven by local slider control."
+                      : `Source: ${currentLabel}`}
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex flex-col gap-1.5 min-w-[120px]">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                      Alias
+                    </span>
                     <input
-                      className="feature-tree__binding-slot-alias-input"
+                      className="bg-bg-input border border-border-default/50 rounded px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent/50 transition-colors placeholder:text-text-muted"
                       value={slot.alias}
                       placeholder={slot.id}
                       onChange={(event) =>
@@ -1038,115 +1191,120 @@ export function BindingEditor({
                       spellCheck={false}
                     />
                   </label>
-
-                  {index > 0 && (
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      className="feature-tree__binding-slot-remove"
-                      onClick={() => onRemoveBindingSlot(targetId, slot.id)}
+                  {vectorAuthoringEnabled && (
+                    <div
+                      className="flex flex-col gap-2"
+                      role="group"
+                      aria-label={`Value type for ${label} slot ${index + 1}`}
                     >
-                      Remove
-                    </Button>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                        Value type
+                      </span>
+                      <div className="flex bg-bg-input border border-border-default/50 rounded-lg p-1 self-start">
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                            slotValueType === "scalar"
+                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              : "text-text-muted hover:text-text-primary",
+                          )}
+                          onClick={() => {
+                            if (slotValueType !== "scalar") {
+                              onBindingSlotValueTypeChange(
+                                targetId,
+                                slot.id,
+                                "scalar",
+                              );
+                            }
+                          }}
+                        >
+                          Scalar
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                            slotValueType === "vector"
+                              ? "bg-bg-secondary text-text-primary shadow-sm"
+                              : "text-text-muted hover:text-text-primary",
+                          )}
+                          onClick={() => {
+                            if (slotValueType !== "vector") {
+                              onBindingSlotValueTypeChange(
+                                targetId,
+                                slot.id,
+                                "vector",
+                              );
+                            }
+                          }}
+                        >
+                          Vector
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                {vectorAuthoringEnabled && (
-                  <div
-                    className="feature-tree__binding-slot-type-toggle"
-                    role="group"
-                    aria-label={`Value type for ${label} slot ${index + 1}`}
-                  >
-                    <span>Value type</span>
-                    <div className="feature-tree__binding-slot-type-options">
-                      <button
+                <div className="flex flex-col gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                    Driver source
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Combobox
+                      value={normalizedSlotInputId ?? ""}
+                      onChange={(nextValue) =>
+                        onBindingInputChange(
+                          targetId,
+                          nextValue || null,
+                          slot.id,
+                        )
+                      }
+                      options={selectOptions}
+                      placeholder="Select binding input"
+                      className="flex-1 min-w-0"
+                      size="sm"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
                         type="button"
-                        className="feature-tree__binding-slot-type-button"
-                        data-active={slotValueType === "scalar"}
-                        onClick={() => {
-                          if (slotValueType !== "scalar") {
-                            onBindingSlotValueTypeChange(
-                              targetId,
-                              slot.id,
-                              "scalar",
-                            );
-                          }
-                        }}
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 px-3 text-[10px] font-semibold"
+                        onClick={() =>
+                          onBindingInputChange(targetId, null, slot.id)
+                        }
+                        disabled={!normalizedSlotInputId}
                       >
-                        Scalar
-                      </button>
-                      <button
+                        Unbind
+                      </Button>
+                      <Button
                         type="button"
-                        className="feature-tree__binding-slot-type-button"
-                        data-active={slotValueType === "vector"}
-                        onClick={() => {
-                          if (slotValueType !== "vector") {
-                            onBindingSlotValueTypeChange(
-                              targetId,
-                              slot.id,
-                              "vector",
-                            );
-                          }
-                        }}
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 px-3 text-[10px] font-semibold"
+                        onClick={() =>
+                          onNormalizeBindingSlot?.(targetId, slot.id)
+                        }
+                        disabled={
+                          !onNormalizeBindingSlot ||
+                          !normalizedSlotInputId ||
+                          normalizedSlotInputId === SELF_BINDING_ID
+                        }
                       >
-                        Vector
-                      </button>
+                        Normalize
+                      </Button>
                     </div>
                   </div>
-                )}
-                <div className="feature-tree__binding-slot-controls">
-                  <span className="feature-tree__property-label">
-                    Driver Binding:
-                  </span>
-                  <FilterableSelect
-                    value={normalizedSlotInputId}
-                    onChange={(nextValue) =>
-                      onBindingInputChange(targetId, nextValue, slot.id)
-                    }
-                    options={selectOptions}
-                    placeholder="Select binding input"
-                    currentLabelOverride={currentLabel}
-                    className="feature-tree__binding-slot-combobox"
-                    triggerClassName="feature-tree__property-select"
-                    menuClassName="feature-tree__binding-slot-menu"
-                    listClassName="feature-tree__binding-slot-option-list"
-                    filterInputClassName="feature-tree__binding-slot-filter"
-                    optionClassName="feature-tree__binding-slot-option"
-                    optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
-                    emptyClassName="feature-tree__binding-slot-option feature-tree__binding-slot-option--empty"
-                    dataOptionAttribute="data-option"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() =>
-                      onBindingInputChange(targetId, null, slot.id)
-                    }
-                    disabled={!normalizedSlotInputId}
-                  >
-                    Unbind
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => onNormalizeBindingSlot?.(targetId, slot.id)}
-                    disabled={
-                      !onNormalizeBindingSlot ||
-                      !normalizedSlotInputId ||
-                      normalizedSlotInputId === SELF_BINDING_ID
-                    }
-                  >
-                    Normalize input
-                  </Button>
                   {selectedInput &&
                     (() => {
-                      const driverMin = selectedInput.range?.min ?? -1;
-                      const driverMax = selectedInput.range?.max ?? 1;
-                      const driverDefault = selectedInput.defaultValue ?? 0;
+                      const input = selectedInput as NonNullable<
+                        typeof selectedInput
+                      >;
+                      const driverMin = input.range?.min ?? -1;
+                      const driverMax = input.range?.max ?? 1;
+                      const driverDefault = input.defaultValue ?? 0;
                       const sliderValue =
-                        currentValues?.[selectedInput.id] ?? driverDefault;
+                        currentValues?.[input.id] ?? driverDefault;
                       const sliderEnabled =
                         Boolean(onInputValueChange) &&
                         currentValues !== undefined;
@@ -1157,41 +1315,53 @@ export function BindingEditor({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => onHideDriver(resolvedInputId)}
+                            onClick={() => onHideDriver!(resolvedInputId!)}
                           >
                             Hide driver
                           </Button>
                         ) : undefined;
 
                       return (
-                        <div
-                          className="feature-tree__binding-slot-driver-info"
-                          style={{ width: "100%", marginTop: "0.5rem" }}
-                        >
+                        <div className="w-full mt-2 p-3 bg-bg-input rounded-xl border border-border-default/50">
                           <CollapsibleRow
                             id={`${targetId}-${slot.id}-driver`}
-                            title={
-                              selectedInput.label ?? resolvedInputId ?? "Driver"
-                            }
-                            subtitle={selectedInput.path}
+                            title={input.label ?? resolvedInputId ?? "Driver"}
+                            subtitle={input.path}
                             value={sliderEnabled ? sliderValue : undefined}
                             min={driverMin}
                             max={driverMax}
                             step={0.01}
                             onValueChange={
                               sliderEnabled && onInputValueChange
-                                ? (val) =>
-                                    onInputValueChange(selectedInput.id, val)
+                                ? (val) => onInputValueChange(input.id, val)
                                 : undefined
                             }
                             showSlider={sliderEnabled}
                             actions={actions}
-                            className="binding-editor__driver-row"
+                            className="bg-transparent border-none p-0"
                             expandedContent={
-                              <div className="binding-editor__driver-constraints">
-                                <span>Min: {driverMin}</span>
-                                <span>Default: {driverDefault}</span>
-                                <span>Max: {driverMax}</span>
+                              <div className="flex gap-4 p-3 bg-bg-secondary/60 rounded border border-border-default/50 text-[11px] text-text-muted font-medium">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
+                                  Min:
+                                  <span className="text-text-primary font-bold">
+                                    {driverMin}
+                                  </span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
+                                  Default:
+                                  <span className="text-text-primary font-bold">
+                                    {driverDefault}
+                                  </span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-bg-secondary"></span>{" "}
+                                  Max:
+                                  <span className="text-text-primary font-bold">
+                                    {driverMax}
+                                  </span>
+                                </span>
                               </div>
                             }
                             defaultExpanded={false}
@@ -1201,32 +1371,38 @@ export function BindingEditor({
                     })()}
                 </div>
                 {upstreamNodes.length > 0 && (
-                  <div className="feature-tree__binding-slot-diagnostics">
+                  <div className="mt-1 pt-3 border-t border-border-default/50">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="ghost"
                       size="sm"
                       onClick={() => handleSlotDiagnosticsToggle(slotKey)}
+                      className="h-8 text-[11px] font-bold text-text-muted hover:text-text-primary"
                     >
                       {diagnosticsExpanded
                         ? "Hide upstream nodes"
                         : "Show upstream nodes"}
                     </Button>
                     {diagnosticsExpanded && (
-                      <ul className="feature-tree__binding-slot-upstream">
+                      <ul className="mt-4 space-y-2">
                         {upstreamNodes.map((node) => (
-                          <li key={`${slotKey}-${node.id}`}>
-                            <span className="feature-tree__binding-slot-upstream-name">
+                          <li
+                            key={`${slotKey}-${node.id}`}
+                            className="flex flex-col gap-1 p-3 bg-bg-input rounded-lg border border-border-default/50"
+                          >
+                            <span className="text-[11px] font-bold text-text-primary">
                               {node.label}
                             </span>
-                            <span className="feature-tree__binding-slot-upstream-type">
-                              {node.type}
-                            </span>
-                            {node.category && (
-                              <span className="feature-tree__binding-slot-upstream-category">
-                                {node.category}
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono text-accent">
+                                {node.type}
                               </span>
-                            )}
+                              {node.category && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-muted font-bold uppercase tracking-wider">
+                                  {node.category}
+                                </span>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -1236,24 +1412,58 @@ export function BindingEditor({
               </div>
             );
           })}
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            className="feature-tree__slot-add"
-            onClick={handleAddSlot}
-          >
-            Add control
-          </Button>
         </div>
-        <div className="feature-tree__expression-editor">
-          <label htmlFor={`binding-expression-${targetId}`}>
-            Expression: {label} =
-          </label>
-          <textarea
+        <div className="flex flex-col gap-4 rounded-xl border border-border-default/60 bg-bg-input/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label
+              htmlFor={`binding-expression-${targetId}`}
+              className="text-[10px] font-black uppercase tracking-widest text-text-muted"
+            >
+              Expression: {label} =
+            </label>
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-semibold",
+                  expressionDirty
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+                )}
+              >
+                {expressionDirty ? "Draft changed" : "Expression synced"}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-[10px] font-semibold"
+                onClick={handleResetExpressionDraft}
+                disabled={!expressionDirty}
+              >
+                Revert draft
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-[10px] font-semibold"
+                onClick={commitExpressionDraft}
+                disabled={!expressionDirty}
+              >
+                Apply expression
+              </Button>
+            </div>
+          </div>
+          <TextArea
             id={`binding-expression-${targetId}`}
             ref={expressionInputRef}
             value={expressionDraft}
+            className={cn(
+              "w-full h-28",
+              issueList.length > 0 && "border-red-500/50 bg-red-500/5",
+            )}
+            disabled={readOnly}
+            readOnly={readOnly}
             onChange={(event) =>
               handleExpressionDraftChange(event.target.value)
             }
@@ -1265,118 +1475,165 @@ export function BindingEditor({
             aria-invalid={issueList.length > 0}
             spellCheck={false}
           />
-          {aliasHints && (
-            <p className="feature-tree__expression-hints">
-              Aliases: {aliasHints}
+          {expressionDirty && (
+            <p className="text-[10px] text-amber-200">
+              Draft changed. Click "Apply expression" or blur the editor to
+              commit.
             </p>
           )}
-          {reservedHints && (
-            <p className="feature-tree__expression-hints">{reservedHints}</p>
-          )}
-          {issueList.length > 0 && (
-            <ul className="feature-tree__expression-errors">
-              {issueList.map((issue) => (
-                <li key={issue}>{issue}</li>
-              ))}
-            </ul>
+          {(aliasHints || reservedHints) && (
+            <div className="flex flex-col gap-1.5">
+              {aliasHints && (
+                <p className="text-[10px] text-text-muted">
+                  <span className="text-text-secondary font-semibold">
+                    Aliases:
+                  </span>{" "}
+                  {aliasHints}
+                </p>
+              )}
+              {reservedHints && (
+                <p className="text-[10px] text-text-muted">
+                  <span className="text-text-secondary font-semibold">
+                    Reserved:
+                  </span>{" "}
+                  {reservedHints}
+                </p>
+              )}
+            </div>
           )}
           {caseMetadata && <CaseMetadataSummary metadata={caseMetadata} />}
           {expressionFunctionGroups.length > 0 && (
-            <div className="feature-tree__collapsible">
+            <div className="mt-4 border-t border-white/5 pt-6">
               <button
                 type="button"
-                className="feature-tree__collapsible-toggle"
-                data-state={functionReferenceExpanded ? "open" : "closed"}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors group"
                 onClick={() =>
                   setFunctionReferenceExpanded((previous) => !previous)
                 }
               >
-                {functionReferenceExpanded
-                  ? "Hide function reference"
-                  : `Show function reference (${EXPRESSION_FUNCTION_VOCABULARY.length})`}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded flex items-center justify-center bg-accent/10 text-accent">
+                    <svg
+                      className="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 2v20M2 12h20" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold text-text-primary">
+                    Function Reference
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-text-muted font-bold group-hover:text-text-secondary">
+                    {EXPRESSION_FUNCTION_VOCABULARY.length} available
+                  </span>
+                  <svg
+                    className={cn(
+                      "w-3 h-3 text-text-muted group-hover:text-text-primary transition-transform",
+                      functionReferenceExpanded && "rotate-180",
+                    )}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
               </button>
               {functionReferenceExpanded && (
-                <div className="feature-tree__function-reference">
-                  <div className="feature-tree__function-list-header">
-                    <h4 className="feature-tree__section-title">
-                      Function Reference
-                    </h4>
-                    <span>
-                      {EXPRESSION_FUNCTION_VOCABULARY.length} available
-                    </span>
-                  </div>
-                  <FilterableSelect
-                    className="feature-tree__binding-slot-combobox feature-tree__function-select"
-                    triggerClassName="feature-tree__property-select feature-tree__function-select-trigger"
-                    menuClassName="feature-tree__binding-slot-menu feature-tree__function-select-menu"
-                    listClassName="feature-tree__binding-slot-option-list feature-tree__function-select-options"
-                    filterInputClassName="feature-tree__binding-slot-filter"
-                    optionClassName="feature-tree__binding-slot-option"
-                    optionHighlightClassName="feature-tree__binding-slot-option--highlighted"
-                    emptyClassName="feature-tree__binding-slot-option--empty"
-                    value={selectedFunctionId}
+                <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Combobox
+                    value={selectedFunctionId ?? ""}
                     options={functionSelectOptions}
-                    onChange={setSelectedFunctionId}
-                    placeholder="Browse functions…"
-                    searchPlaceholder="Search functions or aliases"
-                    noResultsLabel="No matching functions"
-                    currentLabelOverride={functionSelectCurrentLabel}
+                    onChange={(val) => val && setSelectedFunctionId(val)}
+                    placeholder="Search functions..."
+                    className="w-full"
                   />
                   {selectedFunctionDetail ? (
-                    <div className="feature-tree__function-details">
-                      <div className="feature-tree__function-details-header">
-                        <div className="feature-tree__function-name-block">
-                          <div className="feature-tree__function-name-row">
-                            <span className="feature-tree__function-name">
-                              {selectedFunctionDetail.name}()
+                    <div className="bg-bg-input rounded-xl border border-border-default/50 p-6 space-y-6">
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                              Function
                             </span>
-                            {selectedFunctionCategoryLabel && (
-                              <span className="feature-tree__pill feature-tree__function-category-pill">
-                                {selectedFunctionCategoryLabel}
-                              </span>
-                            )}
-                          </div>
-                          {functionSignaturePreview && (
-                            <p className="feature-tree__function-signature">
-                              {functionSignaturePreview}
-                            </p>
-                          )}
-                        </div>
-                        <dl className="feature-tree__function-meta">
-                          {selectedFunctionArgumentSummary && (
-                            <div className="feature-tree__function-meta-pair">
-                              <dt>Arguments</dt>
-                              <dd>{selectedFunctionArgumentSummary}</dd>
+                            <div className="flex items-center gap-2.5">
+                              <h4 className="text-lg font-black text-text-primary italic tracking-tight">
+                                {selectedFunctionDetail.name}()
+                              </h4>
+                              {selectedFunctionCategoryLabel && (
+                                <span className="px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[9px] font-black uppercase tracking-widest text-accent">
+                                  {selectedFunctionCategoryLabel}
+                                </span>
+                              )}
                             </div>
-                          )}
-                          <div className="feature-tree__function-meta-pair">
-                            <dt>Returns</dt>
-                            <dd>{selectedFunctionReturnType}</dd>
                           </div>
-                        </dl>
+                          <div className="flex gap-4">
+                            {selectedFunctionArgumentSummary && (
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-text-muted block">
+                                  Arguments
+                                </span>
+                                <span className="text-[11px] font-bold text-text-secondary">
+                                  {selectedFunctionArgumentSummary}
+                                </span>
+                              </div>
+                            )}
+                            <div className="space-y-1">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-text-muted block">
+                                Returns
+                              </span>
+                              <span className="text-[11px] font-bold text-text-secondary italic">
+                                {selectedFunctionReturnType}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {functionSignaturePreview && (
+                          <div className="p-3 bg-bg-secondary/60 rounded-lg border border-border-default/50">
+                            <code className="text-[11px] text-accent font-mono font-bold">
+                              {functionSignaturePreview}
+                            </code>
+                          </div>
+                        )}
                       </div>
-                      {selectedFunctionDescriptions.length > 0 ? (
-                        selectedFunctionDescriptions.map((paragraph) => (
-                          <p
-                            key={paragraph}
-                            className="feature-tree__function-description"
-                          >
-                            {paragraph}
+
+                      <div className="space-y-3">
+                        {selectedFunctionDescriptions.length > 0 ? (
+                          selectedFunctionDescriptions.map((paragraph) => (
+                            <p
+                              key={paragraph}
+                              className="text-xs text-text-muted leading-relaxed font-medium"
+                            >
+                              {paragraph}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-xs text-text-muted italic">
+                            This function does not include documentation yet.
                           </p>
-                        ))
-                      ) : (
-                        <p className="feature-tree__function-description">
-                          This function does not include documentation yet.
-                        </p>
-                      )}
+                        )}
+                      </div>
+
                       {selectedFunctionAliases.length > 0 && (
-                        <div className="feature-tree__function-aliases">
-                          <span>Aliases</span>
-                          <div className="feature-tree__function-alias-list">
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                            Aliases
+                          </span>
+                          <div className="flex flex-wrap gap-2">
                             {selectedFunctionAliases.map((alias) => (
                               <span
                                 key={alias}
-                                className="feature-tree__pill feature-tree__function-alias-pill"
+                                className="px-2 py-0.5 rounded bg-bg-secondary text-text-muted text-[10px] font-bold border border-border-default/50"
                               >
                                 {alias}
                               </span>
@@ -1384,13 +1641,18 @@ export function BindingEditor({
                           </div>
                         </div>
                       )}
-                      <div className="feature-tree__function-parameters">
-                        <div className="feature-tree__function-parameters-header">
-                          <span>Parameters</span>
-                          <span>{selectedFunctionParameterSummary}</span>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                            Parameters
+                          </span>
+                          <span className="text-[10px] font-bold text-text-muted">
+                            {selectedFunctionParameterSummary}
+                          </span>
                         </div>
                         {selectedFunctionHasParameters ? (
-                          <ul className="feature-tree__function-parameter-list">
+                          <ul className="space-y-4">
                             {selectedFunctionParameters.map((param) => {
                               const variadicNote =
                                 param.kind === "variadic"
@@ -1399,44 +1661,44 @@ export function BindingEditor({
                               return (
                                 <li
                                   key={param.id}
-                                  className="feature-tree__function-parameter"
+                                  className="space-y-2 group/param"
                                 >
-                                  <div className="feature-tree__function-parameter-header">
-                                    <div className="feature-tree__function-parameter-title">
-                                      <span className="feature-tree__function-parameter-name">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-bold text-text-primary">
                                         {param.label}
                                       </span>
-                                      <span className="feature-tree__function-parameter-id">
+                                      <span className="text-[10px] font-mono text-text-muted group-hover/param:text-accent/50 transition-colors">
                                         {param.id}
                                         {param.kind === "variadic" ? "…" : ""}
                                       </span>
                                     </div>
-                                    <div className="feature-tree__function-parameter-flags">
-                                      <span className="feature-tree__pill feature-tree__function-type-pill">
+                                    <div className="flex flex-wrap gap-1.5 justify-end">
+                                      <span className="px-1.5 py-0.5 rounded bg-bg-panel border border-border-default/50 text-[9px] font-black text-text-muted uppercase">
                                         {param.typeLabel}
                                       </span>
                                       {param.kind === "variadic" && (
-                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-500 uppercase">
                                           Variadic
                                         </span>
                                       )}
                                       {param.kind === "param" && (
-                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                        <span className="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-[9px] font-black text-purple-500 uppercase">
                                           Config
                                         </span>
                                       )}
                                       {param.optional && (
-                                        <span className="feature-tree__pill feature-tree__function-pill--subtle">
+                                        <span className="px-1.5 py-0.5 rounded bg-bg-secondary border border-border-default/50 text-[9px] font-black text-text-muted uppercase">
                                           Optional
                                         </span>
                                       )}
                                     </div>
                                   </div>
-                                  <p className="feature-tree__function-parameter-doc">
+                                  <p className="text-[11px] text-text-muted leading-relaxed font-medium bg-bg-panel/50 p-2.5 rounded-lg border border-transparent group-hover/param:border-border-default/50 transition-all">
                                     {param.doc ??
                                       `Provide a ${param.typeLabel.toLowerCase()} value.`}
                                     {variadicNote && (
-                                      <span className="feature-tree__function-parameter-extra">
+                                      <span className="block mt-1.5 text-accent font-bold text-[10px]">
                                         {variadicNote}
                                       </span>
                                     )}
@@ -1446,15 +1708,15 @@ export function BindingEditor({
                             })}
                           </ul>
                         ) : (
-                          <p className="feature-tree__function-parameter-empty">
+                          <p className="text-[11px] text-text-muted italic">
                             This function does not take any inputs.
                           </p>
                         )}
                       </div>
                     </div>
                   ) : (
-                    <div className="feature-tree__function-details feature-tree__function-details--empty">
-                      <p>
+                    <div className="bg-bg-input rounded-xl border border-border-default/50 p-8 text-center">
+                      <p className="text-xs text-text-muted italic">
                         Select a function to see its description and inputs.
                       </p>
                     </div>
@@ -1464,90 +1726,130 @@ export function BindingEditor({
             </div>
           )}
           {conditionalAuthoringEnabled && slotAliasOptions.length > 0 && (
-            <div className="feature-tree__collapsible">
+            <div className="mt-4 border-t border-white/5 pt-6">
               <button
                 type="button"
-                className="feature-tree__collapsible-toggle"
-                data-state={caseBuilderExpanded ? "open" : "closed"}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border-default/50 bg-bg-panel/50 hover:bg-bg-panel transition-colors group"
                 onClick={() => setCaseBuilderExpanded((previous) => !previous)}
               >
-                {caseBuilderExpanded
-                  ? "Hide case builder"
-                  : "Show case builder"}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded flex items-center justify-center bg-purple-500/10 text-purple-400">
+                    <svg
+                      className="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold text-text-primary">
+                    Case Expression Builder
+                  </span>
+                </div>
+                <svg
+                  className={cn(
+                    "w-3 h-3 text-text-muted group-hover:text-text-secondary transition-transform",
+                    caseBuilderExpanded && "rotate-180",
+                  )}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </button>
               {caseBuilderExpanded && (
-                <div className="feature-tree__case-builder">
-                  <h4 className="feature-tree__section-title">
-                    Case Expression Builder
-                  </h4>
-                  <div className="feature-tree__case-row">
-                    <label>
-                      Selector
-                      <select
+                <div className="mt-4 bg-bg-input rounded-xl border border-border-default/50 p-6 animate-in fade-in slide-in-from-top-2 duration-200 space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
+                        Selector
+                      </span>
+                      <Select
+                        size="sm"
                         value={caseSelector}
-                        onChange={(event) =>
-                          setCaseSelector(event.target.value)
-                        }
-                      >
-                        {[...slotAliasOptions, ...reservedVariableNames]
+                        options={[...slotAliasOptions, ...reservedVariableNames]
                           .filter(
                             (token, index, array) =>
                               token && array.indexOf(token) === index,
                           )
-                          .map((token) => (
-                            <option key={token} value={token}>
-                              {token}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label>
-                      Default
-                      <select
+                          .map((token) => ({
+                            value: token,
+                            label: token,
+                          }))}
+                        onChange={setCaseSelector}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
+                        Default Value
+                      </span>
+                      <Select
+                        size="sm"
                         value={caseDefault}
-                        onChange={(event) => setCaseDefault(event.target.value)}
-                      >
-                        {["self", ...slotAliasOptions, ...reservedVariableNames]
+                        options={[
+                          "self",
+                          ...slotAliasOptions,
+                          ...reservedVariableNames,
+                        ]
                           .filter(
                             (token, index, array) =>
                               token && array.indexOf(token) === index,
                           )
-                          .map((token) => (
-                            <option key={token} value={token}>
-                              {token}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
+                          .map((token) => ({
+                            value: token,
+                            label: token,
+                          }))}
+                        onChange={setCaseDefault}
+                      />
+                    </div>
                   </div>
-                  <div className="feature-tree__case-branches">
-                    <span>Branches</span>
-                    {slotAliasOptions.map((alias) => {
-                      const checked = caseBranches.includes(alias);
-                      return (
-                        <label
-                          key={alias}
-                          className="feature-tree__case-branch"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(event) =>
-                              handleCaseBranchToggle(
-                                alias,
-                                event.target.checked,
-                              )
+                  <div className="space-y-3">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                      Branches
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {slotAliasOptions.map((alias) => {
+                        const checked = caseBranches.includes(alias);
+                        return (
+                          <div
+                            key={alias}
+                            className={cn(
+                              "flex items-center gap-2.5 p-2 rounded border transition-all cursor-pointer",
+                              checked
+                                ? "bg-accent/10 border-accent/20 text-accent"
+                                : "bg-bg-secondary border-border-default/50 text-text-muted hover:border-border-default",
+                            )}
+                            onClick={() =>
+                              handleCaseBranchToggle(alias, !checked)
                             }
-                          />
-                          <span>{alias}</span>
-                        </label>
-                      );
-                    })}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onChange={(val) =>
+                                handleCaseBranchToggle(alias, val)
+                              }
+                            />
+                            <span className="text-[11px] font-bold">
+                              {alias}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     size="sm"
+                    className="w-full h-9 font-bold text-[11px]"
                     onClick={handleApplyCaseExpression}
                     disabled={caseBranches.length === 0}
                   >
@@ -1559,7 +1861,7 @@ export function BindingEditor({
           )}
         </div>
         {children}
-      </div>
+      </fieldset>
     </div>
   );
 }
@@ -1590,25 +1892,43 @@ interface CaseMetadataSummaryProps {
 
 function CaseMetadataSummary({ metadata }: CaseMetadataSummaryProps) {
   return (
-    <div className="feature-tree__case-metadata">
-      <h4 className="feature-tree__section-title">CASE metadata</h4>
-      <dl className="feature-tree__case-fields">
-        <div>
-          <dt>Selector</dt>
-          <dd>{formatOperandMetadata(metadata.selector)}</dd>
+    <div className="bg-bg-secondary/60 rounded-xl border border-border-default/50 p-4 space-y-4">
+      <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+        CASE metadata
+      </h4>
+      <dl className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <dt className="text-[9px] font-black uppercase tracking-widest text-text-muted">
+            Selector
+          </dt>
+          <dd className="text-[11px] font-bold text-accent font-mono">
+            {formatOperandMetadata(metadata.selector)}
+          </dd>
         </div>
-        <div>
-          <dt>Default</dt>
-          <dd>{formatOperandMetadata(metadata.defaultBranch)}</dd>
+        <div className="space-y-1">
+          <dt className="text-[9px] font-black uppercase tracking-widest text-text-muted">
+            Default
+          </dt>
+          <dd className="text-[11px] font-bold text-text-primary font-mono">
+            {formatOperandMetadata(metadata.defaultBranch)}
+          </dd>
         </div>
       </dl>
       {metadata.branches.length > 0 && (
-        <div className="feature-tree__case-branches-summary">
-          <span>Branches</span>
-          <ul>
+        <div className="space-y-2">
+          <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">
+            Branches
+          </span>
+          <ul className="space-y-1.5">
             {metadata.branches.map((branch, index) => (
-              <li key={branch.alias ?? branch.ref ?? index}>
-                {formatOperandMetadata(branch)}
+              <li
+                key={index}
+                className="flex items-center gap-3 p-2 bg-bg-input rounded border border-border-default/50 text-[10px]"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
+                <span className="font-mono text-text-primary">
+                  {formatOperandMetadata(branch)}
+                </span>
               </li>
             ))}
           </ul>

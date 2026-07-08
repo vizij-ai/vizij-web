@@ -97,11 +97,40 @@ export interface VizijBundleAnimationEntry {
   };
 }
 
+export interface VizijSpeechConfig {
+  /** TTS voice name (e.g., "Ruth") */
+  voice?: string;
+  /** Speech mode */
+  mode?: "echo" | "conversation";
+  /** Agent name for LLM system prompt */
+  agentName?: string;
+  /** Custom system prompt (supports {{agent_name}} template) */
+  systemPrompt?: string;
+  /** Input path for avatar-speaking state (default: /speech/speaking) */
+  speakingInputPath?: string;
+  /** Input path for user-speaking state (default: /speech/user_speaking) */
+  userSpeakingInputPath?: string;
+  /** Input path for thinking state (default: /speech/thinking) */
+  thinkingInputPath?: string;
+  /** Pose group ID for viseme mapping */
+  visemeGroupId?: string;
+  /** Pose group ID for emotion mapping */
+  emotionGroupId?: string;
+  /** TTS API base URL */
+  apiBaseUrl?: string;
+  /** Auto-activate microphone when speech is ready (default: false) */
+  autoActivateMic?: boolean;
+}
+
 export interface VizijBundleExtension {
   version: VizijBundleVersion;
   exportedAt?: string;
   graphs?: VizijBundleGraphEntry[];
   poses?: VizijBundlePoseSection | null;
   animations?: VizijBundleAnimationEntry[];
+  /**
+   * Bundle-level metadata. May include `speechConfig: VizijSpeechConfig`
+   * for configuring the STT/LLM/TTS speech pipeline.
+   */
   metadata?: Record<string, unknown>;
 }

@@ -17,11 +17,8 @@
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
-    "@vizij/animation-react": "workspace:*",
-    "@vizij/orchestrator-react": "workspace:*",
-    "@vizij/render": "workspace:*",
     "@vizij/utils": "workspace:*",
-    "@vizij/value-json": "^0.1.2",
+    "@vizij/runtime-react": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

@@ -1,5 +1,6 @@
 import type {
   Mesh,
+  Group,
   MeshStandardMaterial,
   MeshPhongMaterial,
   MeshBasicMaterial,
@@ -15,10 +16,12 @@ import type {
   AnimatableColor,
   AnimatableNumber,
 } from "@vizij/utils";
+import { createBrowserSafeId } from "@vizij/utils";
 import type { World, Shape } from "../../types";
 import { ShapeMaterial } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importGeometry } from "./import-geometry";
+import { importGroup } from "./import-group";
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -37,7 +40,7 @@ export function importMesh(
   let newColorLookup: Record<string, [string, string, boolean]> = {};
 
   const translationAnimatable: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${mesh.name ?? "Mesh"} translation`,
     type: "vector3",
     default: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
@@ -54,7 +57,7 @@ export function importMesh(
   };
 
   const rotationAnimatable: AnimatableEuler = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${mesh.name ?? "Mesh"} rotation`,
     type: "euler",
     default: { x: mesh.rotation.x, y: mesh.rotation.y, z: mesh.rotation.z },
@@ -68,7 +71,7 @@ export function importMesh(
   animatables = { ...animatables, [rotationAnimatable.id]: rotationAnimatable };
 
   const scaleAnimatable: AnimatableVector3 = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: `${mesh.name ?? "Mesh"} scale`,
     type: "vector3",
     default: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z },
@@ -94,7 +97,7 @@ export function importMesh(
   const colorName: string | undefined = (mesh.material as MeshStandardMaterial)
     .name;
   const colorAnimatable: AnimatableColor = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name:
       (mesh.material as MeshStandardMaterial).name ??
       `${mesh.name ?? "Mesh"} color`,
@@ -113,7 +116,7 @@ export function importMesh(
   };
 
   const opacityAnimatable: AnimatableNumber = {
-    id: crypto.randomUUID(),
+    id: createBrowserSafeId(),
     name: (mesh.material as MeshStandardMaterial).name
       ? `${(mesh.material as MeshStandardMaterial).name} opacity`
       : `${mesh.name ?? "Mesh"} opacity`,
@@ -169,6 +172,16 @@ export function importMesh(
       world = { ...world, ...newWorldItems };
       animatables = { ...animatables, ...newAnimatables };
       children.push(childId);
+    } else if (shouldImportAsGroupChild(child)) {
+      const [newWorldItems, newAnimatables, childId, newMeshColors] =
+        importGroup(child as Group, namespaces, {
+          ...colorLookup,
+          ...newColorLookup,
+        });
+      newColorLookup = { ...newColorLookup, ...newMeshColors };
+      world = { ...world, ...newWorldItems };
+      animatables = { ...animatables, ...newAnimatables };
+      children.push(childId);
     }
   });
 
@@ -214,4 +227,23 @@ function getShapeMaterial(mesh: Mesh, useEmissive: boolean): ShapeMaterial {
   } else {
     return ShapeMaterial.Standard;
   }
+}
+
+function shouldImportAsGroupChild(child: Object3D): boolean {
+  if (!child.isObject3D) {
+    return false;
+  }
+  if ((child as Mesh).isMesh) {
+    return false;
+  }
+  if ((child as { isCamera?: boolean }).isCamera) {
+    return false;
+  }
+  if ((child as { isLight?: boolean }).isLight) {
+    return false;
+  }
+  if ((child as { isBone?: boolean }).isBone) {
+    return false;
+  }
+  return true;
 }

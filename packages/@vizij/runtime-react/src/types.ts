@@ -17,7 +17,18 @@ export type PoseDefinition = {
   name?: string;
   description?: string;
   group?: string | null;
+  groupId?: string | null;
+  groupIds?: string[];
   values: Record<string, number | undefined>;
+};
+
+export type PoseBlendMode = "average" | "additive";
+
+export type PoseGroupDefinition = {
+  id: string;
+  name: string;
+  path: string;
+  blendMode?: PoseBlendMode;
 };
 
 export type PoseRigConfig = {
@@ -25,10 +36,17 @@ export type PoseRigConfig = {
   faceId?: string | null;
   title?: string;
   description?: string;
+  poseGroups?: PoseGroupDefinition[];
+  crossGroupBlendMode?: PoseBlendMode;
   neutralInputs: Record<string, number>;
   poses: PoseDefinition[];
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
+  metadata?:
+    | Record<string, unknown>
+    | {
+        createdAt: string;
+        updatedAt: string;
+        author?: string;
+      };
 };
 
 export type RootBounds = {
@@ -51,8 +69,8 @@ export type VizijGlbAsset =
     }
   | {
       kind: "world";
-      world: World;
-      animatables: Record<string, AnimatableValue>;
+      world: World | Record<string, unknown>;
+      animatables: Record<string, AnimatableValue> | Record<string, unknown>;
       bundle?: VizijBundleExtension | null;
     };
 
@@ -78,11 +96,16 @@ export type VizijInputMetadata = {
 export type AnimationKeyframeLike = {
   time?: number;
   value?: number;
+  inTangent?: number | null;
+  outTangent?: number | null;
+  [key: string]: unknown;
 };
 
 export type AnimationTrackLike = {
   channel: string;
   keyframes?: AnimationKeyframeLike[];
+  interpolation?: "linear" | "step" | "cubic" | string;
+  [key: string]: unknown;
 };
 
 export type AnimationClipLike = {
@@ -100,6 +123,14 @@ export type VizijAnimationAsset = {
   weight?: number;
 };
 
+export type VizijProgramAsset = {
+  id: string;
+  label?: string;
+  graph: VizijGraphAsset;
+  resetValues?: Record<string, number>;
+  metadata?: Record<string, unknown>;
+};
+
 export type VizijAssetBundle = {
   namespace?: string;
   faceId?: string;
@@ -111,6 +142,7 @@ export type VizijAssetBundle = {
     stageNeutralFilter?: (id: string, path: string) => boolean;
   };
   animations?: VizijAnimationAsset[];
+  programs?: VizijProgramAsset[];
   initialInputs?: Record<string, ValueJSON>;
   metadata?: Record<string, unknown>;
   bundle?: VizijBundleExtension | null;
@@ -166,6 +198,26 @@ export type PlayAnimationOptions = {
   reset?: boolean;
 };
 
+export type StopAnimationOptions = {
+  clearOutputs?: boolean;
+};
+
+export type AnimationPlaybackState = {
+  time: number;
+  duration: number;
+  playing: boolean;
+  loop: boolean;
+  speed: number;
+};
+
+export type StopProgramOptions = {
+  resetOutputs?: boolean;
+};
+
+export type ProgramPlaybackState = {
+  state: "playing" | "paused" | "stopped";
+};
+
 export type InputDriverLifecycle = {
   start: () => void;
   stop: () => void;
@@ -187,6 +239,13 @@ export type InputDriverFactory = (
   ctx: InputDriverContext,
 ) => InputDriverLifecycle;
 
+export type RuntimeOutputWrite = {
+  id: string;
+  namespace: string;
+  value: RawValue;
+  currentValue?: RawValue;
+};
+
 export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
   namespaceOverride?: string;
 };
@@ -194,6 +253,10 @@ export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
 export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   assetBundle: VizijAssetBundle;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
+  setGraphBundle: (
+    bundle: RuntimeGraphBundle,
+    options?: { tier?: "auto" | "assets" | "graphs" },
+  ) => void;
   setValue: (
     id: string,
     namespace: string,
@@ -211,7 +274,17 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
     factory: InputDriverFactory,
   ) => InputDriverLifecycle;
   playAnimation: (id: string, options?: PlayAnimationOptions) => Promise<void>;
-  stopAnimation: (id: string) => void;
+  pauseAnimation: (id: string) => void;
+  seekAnimation: (id: string, timeSeconds: number) => void;
+  setAnimationLoop: (id: string, enabled: boolean) => void;
+  getAnimationState: (id: string) => AnimationPlaybackState | null;
+  stopAnimation: (id: string, options?: StopAnimationOptions) => void;
+  playProgram: (id: string) => void;
+  pauseProgram: (id: string) => void;
+  stopProgram: (id: string, options?: StopProgramOptions) => void;
+  getProgramState: (id: string) => ProgramPlaybackState | null;
+  setAnimationActive: (active: boolean) => void;
+  isAnimationActive: () => boolean;
   step: (dt: number, opts?: { forceRuntime?: boolean }) => void;
   advanceAnimations: (dt: number) => void;
   inputConstraints: Record<
@@ -225,6 +298,7 @@ export type VizijRuntimeProviderProps = {
   children: ReactNode;
   namespace?: string;
   faceId?: string;
+  updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
   createOptions?: CreateOrchOptions;
   autostart?: boolean;
@@ -232,5 +306,22 @@ export type VizijRuntimeProviderProps = {
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;
+  transformOutputWrite?: (
+    write: RuntimeOutputWrite,
+  ) => RuntimeOutputWrite | null;
   orchestratorScope?: "auto" | "shared" | "isolated";
+};
+
+export type RuntimeUpdateTier = "auto" | "assets" | "graphs";
+
+export type RuntimeUpdatePlan = {
+  reloadAssets: boolean;
+  reregisterGraphs: boolean;
+};
+
+export type RuntimeGraphBundle = {
+  rig?: VizijGraphAsset;
+  pose?: VizijAssetBundle["pose"];
+  animations?: VizijAnimationAsset[];
+  programs?: VizijProgramAsset[];
 };

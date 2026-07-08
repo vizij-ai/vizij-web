@@ -52,7 +52,7 @@ const ANIMATABLE: AnimatableValue = {
 
 const INPUT_A: StandardRigInput = {
   id: "input_a",
-  path: "/controls/a",
+  path: "/rig/element/controls/a",
   label: "Control A",
   group: "controls",
   defaultValue: 0,
@@ -61,7 +61,7 @@ const INPUT_A: StandardRigInput = {
 
 const INPUT_B: StandardRigInput = {
   id: "input_b",
-  path: "/controls/b",
+  path: "/rig/element/controls/b",
   label: "Control B",
   group: "controls",
   defaultValue: 0,
@@ -70,7 +70,7 @@ const INPUT_B: StandardRigInput = {
 
 const INPUT_C: StandardRigInput = {
   id: "input_c",
-  path: "/controls/c",
+  path: "/rig/element/controls/c",
   label: "Control C",
   group: "controls",
   defaultValue: 0,
@@ -366,7 +366,7 @@ describe("IR parity fixtures", () => {
   it("matches CASE metadata fixtures with derived selectors", () => {
     const selectorInput: StandardRigInput = {
       id: "selector_input",
-      path: "/controls/selector",
+      path: "/rig/element/controls/selector",
       label: "Selector",
       group: "controls",
       defaultValue: 0,

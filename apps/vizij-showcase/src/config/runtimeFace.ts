@@ -1,5 +1,5 @@
 /**
- * Bounding box tuned for the Hugo face rig (background mesh removed) so the
+ * Bounding box tuned for the Quori face rig (background mesh removed) so the
  * runtime camera can crop to the actual face instead of the staging plane.
  */
 export const FACE_ROOT_BOUNDS = {

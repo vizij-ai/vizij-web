@@ -1,0 +1,25 @@
+/* Override ReactFlow's default node and handle styles */
+.react-flow__node {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  font-size: inherit;
+}
+
+.react-flow__handle {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* Compatible target handle — glow + scale up while dragging a connection */
+.react-flow__handle.valid {
+  transform: scale(1.6);
+  box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.45);
+  z-index: 10;
+}

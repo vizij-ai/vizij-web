@@ -10,6 +10,7 @@ import {
   type BindingTarget,
 } from "@vizij/node-graph-authoring";
 import type { StandardRigInput } from "@vizij/utils";
+import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions";
 
 export type BindingUpdater = (
   targetId: string,
@@ -68,11 +69,9 @@ export function linkChildInput({
         targetSlotId = next.slots[next.slots.length - 1]?.id ?? null;
       }
     }
-    return updateBindingWithInput(
-      next,
-      target,
-      parent,
-      targetSlotId ?? undefined,
+    return ensureLinkedSlotActiveInExpression(
+      updateBindingWithInput(next, target, parent, targetSlotId ?? undefined),
+      targetSlotId,
     );
   });
 }

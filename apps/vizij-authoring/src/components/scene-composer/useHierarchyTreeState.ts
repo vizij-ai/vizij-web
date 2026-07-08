@@ -113,6 +113,11 @@ export function useHierarchyTreeState(
     readCollapsedState(key),
   );
   const nodesRef = useRef<string[]>([]);
+  const collapsedRef = useRef<CollapsedState>(collapsed);
+
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+  }, [collapsed]);
 
   useEffect(() => {
     persistCollapsedState(key, collapsed);
@@ -146,6 +151,10 @@ export function useHierarchyTreeState(
   }, []);
 
   const setExpanded = useCallback((id: string, expanded: boolean) => {
+    const isCollapsed = collapsedRef.current.has(id);
+    if ((expanded && !isCollapsed) || (!expanded && isCollapsed)) {
+      return;
+    }
     dispatch({ type: "set", id, expanded });
   }, []);
 

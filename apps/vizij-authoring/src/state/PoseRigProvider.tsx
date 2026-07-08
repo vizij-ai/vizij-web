@@ -1,15 +1,39 @@
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
+import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+import {
+  normalizeStandardRigInputPath,
+  type StandardRigInput,
+} from "@vizij/utils";
 import {
   createPoseRigStore,
   PoseRigStoreProvider,
+  type PoseRigState,
   type PoseRigStore,
 } from "../poseRig/store";
 import {
   usePoseRigAuthoring,
   type UsePoseRigAuthoringResult,
 } from "../poseRig/usePoseRigAuthoring";
-import { useBindingAuthoring, useGraphRuntime } from "./RigControllerProvider";
+import {
+  formatPoseWeightInputLabel,
+  buildPoseWeightInputSourceId,
+  buildPoseWeightPathMap,
+  isPoseWeightInputPath,
+  parsePoseWeightInputSourceId,
+} from "../poseRig/utils";
+import { PoseIrService } from "../poseRig/services/poseIrService";
+import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
+import {
+  buildStandardInputIdRemap,
+  remapPoseConfigInputIds,
+  remapPoseIrInputIds,
+} from "../utils/standardInputRemap";
+import {
+  useBindingAuthoring,
+  useGraphRuntime,
+  useGraphRuntimeStoreApi,
+} from "./RigControllerProvider";
 
 function filterRecordByIds<T extends Record<string, number>>(
   record: T,
@@ -24,8 +48,59 @@ function filterRecordByIds<T extends Record<string, number>>(
   return next as T;
 }
 
+function areStandardInputsEquivalent(
+  left: StandardRigInput[],
+  right: StandardRigInput[],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    const leftInput = left[index];
+    const rightInput = right[index];
+    if (!leftInput || !rightInput) {
+      return false;
+    }
+    if (
+      leftInput.id !== rightInput.id ||
+      leftInput.path !== rightInput.path ||
+      leftInput.defaultValue !== rightInput.defaultValue ||
+      leftInput.range.min !== rightInput.range.min ||
+      leftInput.range.max !== rightInput.range.max
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areSchemasEquivalent(
+  left: { id: string; version: string } | null,
+  right: { id: string; version: string } | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return left.id === right.id && left.version === right.version;
+}
+
+function isPoseInputNamespacePath(path: string | null | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith("/poses/");
+}
+
 interface PoseRigProviderProps {
   rootId: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
   children: ReactNode;
 }
 
@@ -41,13 +116,21 @@ export function usePoseRig() {
 
 function PoseRigController({
   rootId,
+  onLoadPhaseChange,
   children,
 }: {
   rootId: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
   children: ReactNode;
 }) {
   const faceId = useGraphRuntime((state) => state.faceId);
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const standardInputsByPath = useBindingAuthoring(
+    (state) => state.standardInputsByPath,
+  );
+  const managedStandardInputs = useBindingAuthoring(
+    (state) => state.managedStandardInputs,
+  );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
   const hiddenInputIds = useBindingAuthoring((state) => state.hiddenDriverIds);
   const handleInputValueChange = useBindingAuthoring(
@@ -56,16 +139,220 @@ function PoseRigController({
   const applyStandardInputBatch = useBindingAuthoring(
     (state) => state.applyStandardInputBatch,
   );
+  const handleCreateCustomStandardInput = useBindingAuthoring(
+    (state) => state.handleCreateCustomStandardInput,
+  );
+  const handleUpdateStandardInput = useBindingAuthoring(
+    (state) => state.handleUpdateStandardInput,
+  );
+  const handleDeleteCustomStandardInput = useBindingAuthoring(
+    (state) => state.handleDeleteCustomStandardInput,
+  );
+
+  const poseAuthoringStandardInputs = useMemo(
+    () => standardInputs.filter((input) => !isPoseWeightInputPath(input.path)),
+    [standardInputs],
+  );
 
   const poseRig = usePoseRigAuthoring({
     faceId,
     rootId,
-    standardInputs,
+    standardInputs: poseAuthoringStandardInputs,
     inputValues,
     hiddenInputIds,
     onInputValueChange: handleInputValueChange,
     applyInputBatch: applyStandardInputBatch,
   });
+  const projectedPoseConfig = useMemo(() => {
+    if (!poseRig.poseIrDraft) {
+      return poseRig.poseConfigDraft ?? null;
+    }
+    try {
+      return PoseIrService.toConfig(poseRig.poseIrDraft);
+    } catch {
+      return poseRig.poseConfigDraft ?? null;
+    }
+  }, [poseRig.poseConfigDraft, poseRig.poseIrDraft]);
+
+  const poseWeightInputs = useMemo(() => {
+    const pathMap = buildPoseWeightPathMap(poseRig.poses, faceId);
+    return poseRig.poses.map((pose) => {
+      const pathInfo = pathMap.get(pose.id);
+      const normalizedPath = normalizeStandardRigInputPath(
+        pathInfo?.relativePath ?? `/poses/${pose.id}.weight`,
+      );
+      const label = formatPoseWeightInputLabel(pose.name, pose.id);
+      return {
+        poseId: pose.id,
+        path: normalizedPath,
+        label,
+        sourceId: buildPoseWeightInputSourceId(pose.id),
+      };
+    });
+  }, [faceId, poseRig.poses]);
+
+  useEffect(() => {
+    const retainedInputIds = new Set<string>();
+    const trackedEntries = managedStandardInputs.filter(
+      (entry) =>
+        entry.source === "custom" &&
+        (parsePoseWeightInputSourceId(entry.input.sourceId) !== null ||
+          isPoseInputNamespacePath(entry.input.path)),
+    );
+    const trackedByPoseId = new Map<string, typeof trackedEntries>();
+    const trackedByPath = new Map<string, typeof trackedEntries>();
+    const managedByInputId = new Map(
+      managedStandardInputs.map((entry) => [entry.input.id, entry]),
+    );
+
+    trackedEntries.forEach((entry) => {
+      const poseId = parsePoseWeightInputSourceId(entry.input.sourceId);
+      if (poseId) {
+        const list = trackedByPoseId.get(poseId) ?? [];
+        list.push(entry);
+        trackedByPoseId.set(poseId, list);
+      }
+      const normalizedPath = normalizeStandardRigInputPath(entry.input.path);
+      const list = trackedByPath.get(normalizedPath) ?? [];
+      list.push(entry);
+      trackedByPath.set(normalizedPath, list);
+    });
+
+    poseWeightInputs.forEach((target) => {
+      const candidateById = (trackedByPoseId.get(target.poseId) ?? []).find(
+        (entry) => !retainedInputIds.has(entry.input.id),
+      );
+      const candidateByPath = (trackedByPath.get(target.path) ?? []).find(
+        (entry) => !retainedInputIds.has(entry.input.id),
+      );
+      const mappedInput = standardInputsByPath.get(target.path);
+      const candidateByMappedPath = mappedInput
+        ? managedByInputId.get(mappedInput.id)
+        : undefined;
+      const existing =
+        candidateById ??
+        candidateByPath ??
+        (candidateByMappedPath &&
+        !retainedInputIds.has(candidateByMappedPath.input.id)
+          ? candidateByMappedPath
+          : undefined);
+      if (!existing) {
+        const created = handleCreateCustomStandardInput(target.path);
+        if (!created) {
+          return;
+        }
+        retainedInputIds.add(created.id);
+        handleUpdateStandardInput(created.id, {
+          path: target.path,
+          label: target.label,
+          sourceId: target.sourceId,
+          defaultValue: 0,
+          range: { min: 0, max: 1 },
+        });
+        return;
+      }
+
+      const normalizedPath = normalizeStandardRigInputPath(existing.input.path);
+      const needsUpdate =
+        normalizedPath !== target.path ||
+        existing.input.label !== target.label ||
+        (existing.input.sourceId ?? "") !== target.sourceId ||
+        existing.input.defaultValue !== 0 ||
+        existing.input.range.min !== 0 ||
+        existing.input.range.max !== 1;
+      if (needsUpdate) {
+        handleUpdateStandardInput(existing.input.id, {
+          path: target.path,
+          label: target.label,
+          sourceId: target.sourceId,
+          defaultValue: 0,
+          range: { min: 0, max: 1 },
+        });
+      }
+
+      retainedInputIds.add(existing.input.id);
+    });
+
+    trackedEntries.forEach((entry) => {
+      if (!retainedInputIds.has(entry.input.id)) {
+        handleDeleteCustomStandardInput(entry.input.id);
+      }
+    });
+  }, [
+    handleCreateCustomStandardInput,
+    handleDeleteCustomStandardInput,
+    handleUpdateStandardInput,
+    managedStandardInputs,
+    poseWeightInputs,
+    standardInputsByPath,
+  ]);
+
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
+
+  useEffect(() => {
+    let cancelled = false;
+    const emitPhase = (update: FaceLoadPhaseUpdate) => {
+      const operationId =
+        update.operationId ??
+        (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
+      onLoadPhaseChange?.({
+        ...update,
+        operationId,
+      });
+    };
+
+    const syncPoseGraph = async () => {
+      if (!poseRig.poseGraphSpec) {
+        graphRuntimeStore.setState({
+          poseGraphSpec: null,
+          poseConfig: projectedPoseConfig,
+        });
+        return;
+      }
+
+      try {
+        emitPhase({
+          stepId: "pose-graph-bootstrap",
+          substepId: "normalize-pose-graph",
+          status: "active",
+        });
+        const normalized = await normalizeGraphSpec(poseRig.poseGraphSpec);
+        if (cancelled) return;
+        graphRuntimeStore.setState({
+          poseGraphSpec: normalized,
+          poseConfig: projectedPoseConfig,
+        });
+        emitPhase({
+          stepId: "pose-graph-bootstrap",
+          substepId: "normalize-pose-graph",
+          status: "complete",
+        });
+      } catch (error) {
+        console.warn("[poseRig] Failed to normalize pose graph", error);
+        if (cancelled) return;
+        graphRuntimeStore.setState({
+          poseGraphSpec: null,
+          poseConfig: projectedPoseConfig,
+        });
+        emitPhase({
+          stepId: "pose-graph-bootstrap",
+          substepId: "normalize-pose-graph",
+          status: "error",
+        });
+      }
+    };
+
+    void syncPoseGraph();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    graphRuntimeStore,
+    onLoadPhaseChange,
+    poseRig.poseGraphSpec,
+    projectedPoseConfig,
+  ]);
 
   return (
     <PoseRigContext.Provider value={poseRig}>
@@ -74,7 +361,11 @@ function PoseRigController({
   );
 }
 
-export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
+export function PoseRigProvider({
+  rootId,
+  onLoadPhaseChange,
+  children,
+}: PoseRigProviderProps) {
   const storeRef = useRef<PoseRigStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = createPoseRigStore();
@@ -84,53 +375,117 @@ export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
   // Sync effects to keep store up to date with binding store
   const faceId = useGraphRuntime((state) => state.faceId);
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
+  const poseAuthoringStandardInputs = useMemo(
+    () => standardInputs.filter((input) => !isPoseWeightInputPath(input.path)),
+    [standardInputs],
+  );
   const inputValues = useBindingAuthoring((state) => state.inputValues);
   const hiddenInputIds = useBindingAuthoring((state) => state.hiddenDriverIds);
   const standardInputSchema = useBindingAuthoring(
     (state) => state.standardInputSchema,
   );
+  const standardInputIdRemap = useBindingAuthoring(
+    (state) => state.standardInputIdRemap,
+  );
+  const standardInputIdRemapRevision = useBindingAuthoring(
+    (state) => state.standardInputIdRemapRevision,
+  );
+  const previousPoseAuthoringInputsRef = useRef<StandardRigInput[] | null>(
+    null,
+  );
+  const lastAppliedStandardInputIdRemapRevisionRef = useRef(0);
 
   useEffect(() => {
     poseRigStore.setState({ faceId });
   }, [poseRigStore, faceId]);
 
   useEffect(() => {
+    const previousPoseAuthoringInputs = previousPoseAuthoringInputsRef.current;
+    previousPoseAuthoringInputsRef.current = poseAuthoringStandardInputs;
+    const hasExplicitIdRemap =
+      standardInputIdRemapRevision >
+        lastAppliedStandardInputIdRemapRevisionRef.current &&
+      standardInputIdRemap !== null &&
+      standardInputIdRemap.size > 0;
+    const idRemap = hasExplicitIdRemap
+      ? new Map(standardInputIdRemap ?? [])
+      : previousPoseAuthoringInputs && previousPoseAuthoringInputs.length > 0
+        ? buildStandardInputIdRemap(
+            previousPoseAuthoringInputs,
+            poseAuthoringStandardInputs,
+          )
+        : new Map<string, string>();
+    if (hasExplicitIdRemap) {
+      lastAppliedStandardInputIdRemapRevisionRef.current =
+        standardInputIdRemapRevision;
+    }
     const hiddenSet = new Set(hiddenInputIds);
-    const visibleInputs = standardInputs.filter(
+    const visibleInputs = poseAuthoringStandardInputs.filter(
       (input) => !hiddenSet.has(input.id),
     );
     const filteredCurrent = filterRecordByIds(
       inputValues,
       new Set(visibleInputs.map((input) => input.id)),
     );
-    poseRigStore.setState((_state) => {
+    poseRigStore.setState((state) => {
       const isReady = Boolean(rootId && visibleInputs.length > 0);
-      return {
+      const patch: Partial<PoseRigState> = {
         currentValues: filteredCurrent,
-        standardInputs: visibleInputs,
         hiddenInputIds: Array.from(hiddenSet),
-        standardInputSchema,
         isReady,
       };
+
+      if (idRemap.size > 0) {
+        const remappedPoseConfigDraft = remapPoseConfigInputIds(
+          state.poseConfigDraft,
+          idRemap,
+        );
+        const remappedLastImportedConfig = remapPoseConfigInputIds(
+          state.lastImportedConfig,
+          idRemap,
+        );
+        const remappedPoseIrDraft = remapPoseIrInputIds(
+          state.poseIrDraft,
+          idRemap,
+        );
+        patch.poseConfigDraft = remappedPoseConfigDraft;
+        patch.lastImportedConfig = remappedLastImportedConfig;
+        patch.poseIrDraft = remappedPoseIrDraft;
+      }
+
+      if (!areStandardInputsEquivalent(state.standardInputs, visibleInputs)) {
+        patch.standardInputs = visibleInputs;
+      }
+      if (
+        !areSchemasEquivalent(state.standardInputSchema, standardInputSchema)
+      ) {
+        patch.standardInputSchema = standardInputSchema;
+      }
+
+      return patch;
     });
   }, [
     hiddenInputIds,
     inputValues,
     poseRigStore,
     rootId,
+    standardInputIdRemap,
+    standardInputIdRemapRevision,
     standardInputSchema,
-    standardInputs,
+    poseAuthoringStandardInputs,
   ]);
 
   useEffect(() => {
-    if (standardInputs.length > 0) {
-      const allowed = new Set(standardInputs.map((input) => input.id));
+    if (poseAuthoringStandardInputs.length > 0) {
+      const allowed = new Set(
+        poseAuthoringStandardInputs.map((input) => input.id),
+      );
       poseRigStore.setState((state) => {
         const nextNeutral = Object.keys(state.neutralInputs).length
           ? filterRecordByIds(state.neutralInputs, allowed)
           : (() => {
               const neutral: Record<string, number> = {};
-              standardInputs.forEach((input) => {
+              poseAuthoringStandardInputs.forEach((input) => {
                 neutral[input.id] = input.defaultValue ?? 0;
               });
               return neutral;
@@ -142,11 +497,13 @@ export function PoseRigProvider({ rootId, children }: PoseRigProviderProps) {
         };
       });
     }
-  }, [poseRigStore, standardInputs]);
+  }, [poseAuthoringStandardInputs, poseRigStore]);
 
   return (
     <PoseRigStoreProvider store={poseRigStore}>
-      <PoseRigController rootId={rootId}>{children}</PoseRigController>
+      <PoseRigController rootId={rootId} onLoadPhaseChange={onLoadPhaseChange}>
+        {children}
+      </PoseRigController>
     </PoseRigStoreProvider>
   );
 }

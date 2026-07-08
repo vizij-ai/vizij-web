@@ -162,7 +162,7 @@ function createBlueprintFromComponent(
   const shapeSegment = toShapePathSegment(entry);
   const featureSegment = toFeaturePathSegment(entry);
   const propertySegment = toPropertyPathSegment(propertyKey);
-  const basePath = `/${shapeSegment}/${featureSegment}/${propertySegment}`;
+  const basePath = `/propsrig/${shapeSegment}/${featureSegment}/${propertySegment}`;
   const normalizedPath = ensureUniquePath(
     normalizeStandardRigInputPath(basePath),
     registry,

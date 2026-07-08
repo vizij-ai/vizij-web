@@ -22,6 +22,7 @@ import { buildRigInputPath } from "../poseRig/utils";
 import type {
   PoseGraphRemapOption,
   PoseGraphRemapRow,
+  PoseRemapConfidence,
 } from "../components/poseRig/PoseGraphRemapWizard";
 
 export interface PoseGraphRemapState {
@@ -54,6 +55,104 @@ function extractPoseSlug(nodeId: string): string {
   return nodeId.replace(/^out_/, "");
 }
 
+export function resolvePoseGraphSourceInputId(
+  row: Pick<PoseGraphRemapRow, "currentInputId" | "poseSlug">,
+): string | null {
+  const current = row.currentInputId?.trim();
+  if (current) {
+    return current;
+  }
+  const fallback = row.poseSlug?.trim();
+  return fallback && fallback.length > 0 ? fallback : null;
+}
+
+export type PoseGraphRemapApplyPlan =
+  | { status: "ready"; spec: GraphSpec }
+  | { status: "conflict"; message: string };
+
+export function buildPoseGraphRemapApplyPlan(params: {
+  spec: GraphSpec;
+  rows: PoseGraphRemapRow[];
+  standardInputsByPath: ReadonlyMap<string, StandardRigInput>;
+  faceSegment: string;
+}): PoseGraphRemapApplyPlan {
+  const { spec, rows, standardInputsByPath, faceSegment } = params;
+  const combinedRows = rows.filter((row) => row.suggestedPath);
+  const targetToSourceMap = new Map<string, Set<string>>();
+  const idRemaps: Array<{ fromId: string; toId: string }> = [];
+  const assigned = new Map<string, string>();
+  const outputPathUpdates: Array<{ nodeId: string; path: string }> = [];
+
+  combinedRows.forEach((row) => {
+    const desired = row.suggestedPath?.trim();
+    if (!desired) {
+      return;
+    }
+
+    const standardPath = ensureStandardPathInput(desired);
+    const normalizedStandardPath = normalizeStandardRigInputPath(standardPath);
+    const targetInput = standardInputsByPath.get(normalizedStandardPath);
+    const sourceInputId = resolvePoseGraphSourceInputId(row);
+
+    if (targetInput && sourceInputId) {
+      const sourceSet = targetToSourceMap.get(targetInput.id) ?? new Set();
+      sourceSet.add(sourceInputId);
+      targetToSourceMap.set(targetInput.id, sourceSet);
+    }
+
+    if (
+      targetInput &&
+      sourceInputId &&
+      targetInput.id !== sourceInputId &&
+      assigned.get(sourceInputId) !== targetInput.id
+    ) {
+      assigned.set(sourceInputId, targetInput.id);
+      idRemaps.push({ fromId: sourceInputId, toId: targetInput.id });
+    }
+
+    outputPathUpdates.push({
+      nodeId: row.nodeId,
+      path: buildRigInputPath(faceSegment, standardPath),
+    });
+  });
+
+  const conflictingTargets = Array.from(targetToSourceMap.entries()).filter(
+    ([, sourceSet]) => sourceSet.size > 1,
+  );
+  if (conflictingTargets.length > 0) {
+    const conflictMessage = conflictingTargets
+      .map(
+        ([targetId, sourceSet]) =>
+          `${targetId} <= ${Array.from(sourceSet).join(", ")}`,
+      )
+      .join("\n");
+    return {
+      status: "conflict",
+      message: `Resolve remap conflicts before applying:\n${conflictMessage}`,
+    };
+  }
+
+  const nextSpec = cloneSerializable(spec) as GraphSpec;
+  outputPathUpdates.forEach(({ nodeId, path }) => {
+    updatePoseGraphOutputPath(nextSpec, nodeId, path);
+  });
+  if (idRemaps.length > 0) {
+    remapPoseGraphInputIds(nextSpec, idRemaps);
+  }
+
+  return { status: "ready", spec: nextSpec };
+}
+
+function toConfidence(score: number): PoseRemapConfidence {
+  if (score >= 0.8) {
+    return "high";
+  }
+  if (score >= 0.45) {
+    return "medium";
+  }
+  return "low";
+}
+
 export function usePoseGraphImport({
   faceSegment,
   standardInputs,
@@ -74,26 +173,22 @@ export function usePoseGraphImport({
         let activeInputIds: Set<string> | null = null;
         try {
           activeInputIds = collectPoseGraphDeltaInputs(workingSpec);
-        } catch (error) {
-          console.warn(
-            "[poseRig] Unable to collect pose graph deltas before remap",
-            error,
-          );
+        } catch {
+          activeInputIds = null;
         }
         const outputs = listPoseGraphOutputs(workingSpec);
         const autoRows: PoseGraphRemapRow[] = [];
         const reviewRows: PoseGraphRemapRow[] = [];
 
         outputs.forEach((output, index) => {
-          if (
+          const isDeltaOutput = !(
             activeInputIds &&
             activeInputIds.size > 0 &&
             output.inputId &&
             !activeInputIds.has(output.inputId)
-          ) {
-            return;
-          }
+          );
           const poseSlug = extractPoseSlug(output.nodeId);
+          const currentInputId = output.inputId?.trim() || poseSlug || null;
           const normalizedPath = output.path
             ? normalizeGraphPath(output.path)
             : null;
@@ -109,9 +204,35 @@ export function usePoseGraphImport({
               nodeId: output.nodeId,
               originalPath: output.path,
               suggestedPath: canonicalInput.path,
+              isDeltaOutput,
               poseSlug,
+              currentInputId,
               status: "auto",
               reason: "Matched existing standard input",
+              confidence: "high",
+              confidenceScore: 1,
+              rationale: ["Exact standard input path match"],
+            });
+            return;
+          }
+
+          const rigMatchedInput = normalizedPath
+            ? rigOutputLookup.get(normalizedPath)
+            : null;
+          if (rigMatchedInput) {
+            autoRows.push({
+              id: `${output.nodeId}-${index}`,
+              nodeId: output.nodeId,
+              originalPath: output.path,
+              suggestedPath: rigMatchedInput.path,
+              isDeltaOutput,
+              poseSlug,
+              currentInputId,
+              status: "auto",
+              reason: "Matched existing rig output path",
+              confidence: "high",
+              confidenceScore: 0.95,
+              rationale: ["Exact rig output to standard input match"],
             });
             return;
           }
@@ -129,9 +250,16 @@ export function usePoseGraphImport({
               nodeId: output.nodeId,
               originalPath: output.path,
               suggestedPath: inferredInput.path,
+              isDeltaOutput,
               poseSlug,
+              currentInputId,
               status: "auto",
               reason: "Converted rig path to standard input",
+              confidence: "medium",
+              confidenceScore: 0.72,
+              rationale: [
+                "Legacy rig path converted to a known standard input",
+              ],
             });
             return;
           }
@@ -139,6 +267,7 @@ export function usePoseGraphImport({
           const suggestions = rankStandardInputs(
             output.path ?? "",
             poseSlug,
+            currentInputId,
             standardInputs,
           );
           const best = suggestions[0] ?? null;
@@ -147,13 +276,20 @@ export function usePoseGraphImport({
             nodeId: output.nodeId,
             originalPath: output.path,
             suggestedPath: best?.path ?? inferred ?? null,
+            isDeltaOutput,
             poseSlug,
+            currentInputId,
             status: "review",
             needsReview: true,
             reason: output.path
               ? "No standard input match found"
               : "Output path missing",
             options: suggestions,
+            confidence: best?.confidence ?? "low",
+            confidenceScore: best?.score ?? 0,
+            rationale: best?.rationale ?? [
+              "No high-confidence mapping detected",
+            ],
           });
         });
 
@@ -191,41 +327,26 @@ export function usePoseGraphImport({
       if (!poseGraphRemap) {
         return;
       }
-      const combinedRows = [...poseGraphRemap.autoRows, ...rows].filter(
-        (row) => row.suggestedPath,
-      );
-      const idRemaps: Array<{ fromId: string; toId: string }> = [];
-      const assigned = new Map<string, string>();
-      combinedRows.forEach((row) => {
-        const desired = row.suggestedPath?.trim();
-        if (desired) {
-          const standardPath = ensureStandardPathInput(desired);
-          const normalizedStandardPath =
-            normalizeStandardRigInputPath(standardPath);
-          const targetInput = standardInputsByPath.get(normalizedStandardPath);
-          if (
-            targetInput &&
-            row.poseSlug &&
-            targetInput.id !== row.poseSlug &&
-            assigned.get(row.poseSlug) !== targetInput.id
-          ) {
-            assigned.set(row.poseSlug, targetInput.id);
-            idRemaps.push({ fromId: row.poseSlug, toId: targetInput.id });
-          }
-          const rigPath = buildRigInputPath(faceSegment, standardPath);
-          updatePoseGraphOutputPath(poseGraphRemap.spec, row.nodeId, rigPath);
-        }
+      const plan = buildPoseGraphRemapApplyPlan({
+        spec: poseGraphRemap.spec,
+        rows,
+        standardInputsByPath,
+        faceSegment,
       });
-      if (idRemaps.length > 0) {
-        remapPoseGraphInputIds(poseGraphRemap.spec, idRemaps);
+      if (plan.status === "conflict") {
+        await alertDialog(plan.message);
+        return;
       }
-      await applyPoseGraphImport(
-        poseGraphRemap.spec,
-        poseGraphRemap.rigNameHint,
-      );
+      await applyPoseGraphImport(plan.spec, poseGraphRemap.rigNameHint);
       setPoseGraphRemap(null);
     },
-    [applyPoseGraphImport, faceSegment, poseGraphRemap, standardInputsByPath],
+    [
+      alertDialog,
+      applyPoseGraphImport,
+      faceSegment,
+      poseGraphRemap,
+      standardInputsByPath,
+    ],
   );
 
   const handlePoseGraphRemapCancel = useCallback(() => {
@@ -295,6 +416,7 @@ function computeSimilarityScore(
 function rankStandardInputs(
   targetPath: string,
   poseSlug: string | undefined,
+  currentInputId: string | null,
   standardInputs: StandardRigInput[],
 ): PoseGraphRemapOption[] {
   const targetTokens = [...tokenize(targetPath), ...tokenize(poseSlug)].filter(
@@ -303,6 +425,7 @@ function rankStandardInputs(
   const targetLeaf = getPathLeaf(targetPath) ?? null;
   const ranked = standardInputs
     .map((input) => {
+      const rationale: string[] = [];
       const candidateTokens = [
         ...tokenize(input.path),
         ...tokenize(input.label),
@@ -315,13 +438,45 @@ function rankStandardInputs(
         targetLeaf,
         candidateLeaf,
       );
-      if (score <= 0) {
+      let weightedScore = score;
+      if (currentInputId && currentInputId === input.id) {
+        weightedScore += 0.9;
+        rationale.push("Input id matches existing pose output id");
+      } else if (
+        currentInputId &&
+        input.sourceId &&
+        currentInputId === input.sourceId
+      ) {
+        weightedScore += 0.75;
+        rationale.push("Source id matches existing pose output id");
+      }
+      if (targetLeaf && candidateLeaf && targetLeaf === candidateLeaf) {
+        weightedScore += 0.25;
+        rationale.push("Path leaf matches");
+      }
+      if (
+        targetPath &&
+        normalizeGraphPath(targetPath) === normalizeGraphPath(input.path)
+      ) {
+        weightedScore += 0.4;
+        rationale.push("Path matches exactly");
+      }
+      const normalizedScore = Math.max(0, Math.min(weightedScore, 1));
+      if (normalizedScore <= 0.2) {
         return null;
       }
+      const confidence = toConfidence(normalizedScore);
       return {
         path: input.path,
         label: input.label ?? input.path,
-        score,
+        score: normalizedScore,
+        confidence,
+        rationale:
+          rationale.length > 0
+            ? rationale
+            : confidence === "high"
+              ? ["High token similarity"]
+              : ["Partial token similarity"],
       };
     })
     .filter((entry): entry is PoseGraphRemapOption => entry !== null)

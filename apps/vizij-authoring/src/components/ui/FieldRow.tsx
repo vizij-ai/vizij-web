@@ -1,6 +1,6 @@
 import { cloneElement, isValidElement } from "react";
 import type { ReactNode, ReactElement } from "react";
-import "./fieldrow.css";
+import { cn } from "../../utils/cn";
 
 interface FieldRowProps {
   label: ReactNode;
@@ -31,15 +31,25 @@ export function FieldRow({
 
   return (
     <div
-      className={`field-row field-row--${align} ${renderLabelInControl ? "field-row--control-label" : ""}`.trim()}
+      className={cn(
+        "flex gap-3 py-1.5",
+        align === "center" ? "items-center" : "items-start",
+        renderLabelInControl ? "justify-start" : "justify-between",
+      )}
     >
       {shouldInlineLabel ? null : (
-        <div className="field-row__text">
-          <span className="field-row__label">{label}</span>
-          {hint ? <span className="field-row__hint">{hint}</span> : null}
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <span className="font-semibold text-text-primary text-[13px]">
+            {label}
+          </span>
+          {hint ? (
+            <span className="text-text-secondary text-[11px] leading-tight">
+              {hint}
+            </span>
+          ) : null}
         </div>
       )}
-      <div className="field-row__control">{controlWithLabel}</div>
+      <div className="inline-flex items-center gap-2">{controlWithLabel}</div>
     </div>
   );
 }

@@ -20,6 +20,8 @@ interface ExportPanelProps {
   onIncludeAnimationsChange: (value: boolean) => void;
   blendMode: "average" | "additive";
   onBlendModeChange: (mode: "average" | "additive") => void;
+  crossGroupBlendMode: "average" | "additive";
+  onCrossGroupBlendModeChange: (mode: "average" | "additive") => void;
 }
 
 export function ExportPanel({
@@ -34,6 +36,8 @@ export function ExportPanel({
   onIncludeAnimationsChange,
   blendMode,
   onBlendModeChange,
+  crossGroupBlendMode,
+  onCrossGroupBlendModeChange,
 }: ExportPanelProps) {
   const animationsAvailable = animationCount > 0;
 
@@ -49,6 +53,7 @@ export function ExportPanel({
       <CardBody className="asset-card__body--compact">
         <div className="asset-card__form-row">
           <Input
+            data-testid="export-glb-file-name"
             id="vizij-export-name"
             type="text"
             value={exportFileName}
@@ -57,7 +62,12 @@ export function ExportPanel({
             disabled={!canExport}
             spellCheck={false}
           />
-          <Button variant="primary" onClick={onExportGlb} disabled={!canExport}>
+          <Button
+            data-testid="export-glb-button"
+            variant="primary"
+            onClick={onExportGlb}
+            disabled={!canExport}
+          >
             Export
           </Button>
         </div>
@@ -70,11 +80,10 @@ export function ExportPanel({
           renderLabelInControl
           control={
             <Switch
+              data-testid="export-embed-bundle-toggle"
               id="vizij-export-bundle-toggle"
               checked={includeBundle}
-              onChange={(event) =>
-                onIncludeBundleChange(event.currentTarget.checked)
-              }
+              onChange={onIncludeBundleChange}
               disabled={!canExport}
               size="sm"
             />
@@ -85,8 +94,8 @@ export function ExportPanel({
           round-tripping while still producing standard glTF animations.
         </p>
         <FieldRow
-          label="Pose blend mode"
-          hint="Averaging prevents neutral channels from diluting active poses; additive applies weighted sums."
+          label="Pose group blend mode"
+          hint="Controls how poses blend within each pose group."
           renderLabelInControl
           control={
             <div className="button-group button-group--segmented">
@@ -110,17 +119,45 @@ export function ExportPanel({
           }
         />
         <FieldRow
+          label="Cross-group blend mode"
+          hint="Controls how pose-group outputs combine per rig target."
+          renderLabelInControl
+          control={
+            <div className="button-group button-group--segmented">
+              <Button
+                size="sm"
+                variant={
+                  crossGroupBlendMode === "additive" ? "primary" : "subtle"
+                }
+                onClick={() => onCrossGroupBlendModeChange("additive")}
+                disabled={!includeBundle || !canExport}
+              >
+                Additive
+              </Button>
+              <Button
+                size="sm"
+                variant={
+                  crossGroupBlendMode === "average" ? "primary" : "subtle"
+                }
+                onClick={() => onCrossGroupBlendModeChange("average")}
+                disabled={!includeBundle || !canExport}
+              >
+                Average
+              </Button>
+            </div>
+          }
+        />
+        <FieldRow
           label={`Preserve stored Vizij animations (${animationCount})`}
           renderLabelInControl
           control={
             <Switch
+              data-testid="export-include-animations-toggle"
               id="vizij-export-animations-toggle"
               checked={
                 includeBundle && includeAnimations && animationsAvailable
               }
-              onChange={(event) =>
-                onIncludeAnimationsChange(event.currentTarget.checked)
-              }
+              onChange={onIncludeAnimationsChange}
               disabled={!canExport || !includeBundle || !animationsAvailable}
               size="sm"
             />

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import "./tabs.css";
+import { Tabs as BaseTabs } from "@base-ui/react";
+import { cn } from "../../utils/cn";
 
 export type TabId = string;
 
@@ -9,6 +10,8 @@ export interface TabItem {
   description?: ReactNode;
   disabled?: boolean;
   badge?: ReactNode;
+  testId?: string;
+  panelTestId?: string;
 }
 
 export interface TabsProps {
@@ -20,7 +23,8 @@ export interface TabsProps {
   listClassName?: string;
   panelClassName?: string;
   size?: "sm" | "md";
-  variant?: "default" | "pill";
+  variant?: "default" | "pill" | "underline";
+  fillPanels?: boolean;
 }
 
 export function Tabs({
@@ -33,63 +37,101 @@ export function Tabs({
   panelClassName,
   size = "md",
   variant = "default",
+  fillPanels = false,
 }: TabsProps) {
   return (
-    <div
-      className={["tabs", `tabs--${size}`, `tabs--${variant}`, className]
-        .filter(Boolean)
-        .join(" ")}
+    <BaseTabs.Root
+      value={value}
+      onValueChange={(val) => onValueChange(val as TabId)}
+      className={cn("flex w-full flex-col gap-4", className)}
     >
-      <div
-        role="tablist"
-        className={["tabs__list", listClassName].filter(Boolean).join(" ")}
-        aria-orientation="horizontal"
+      <BaseTabs.List
+        className={cn(
+          "flex w-full flex-wrap overflow-visible",
+          fillPanels && "shrink-0",
+          {
+            "gap-1 border-b border-border-default": variant === "default",
+            "gap-1 rounded-xl border border-border-default bg-bg-input p-1":
+              variant === "pill",
+            "gap-4 border-b border-border-default px-2":
+              variant === "underline",
+          },
+          listClassName,
+        )}
       >
-        {items.map((item) => {
-          const active = item.id === value;
-          const disabled = item.disabled ?? false;
-          const badgeContent = item.badge;
-          const tabId = `tab-${item.id}`;
-          const panelId = `panel-${item.id}`;
-          return (
-            <button
-              key={item.id}
-              id={tabId}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={panelId}
-              disabled={disabled}
-              className={[
-                "tabs__trigger",
-                active ? "is-active" : "",
-                disabled ? "is-disabled" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={() => {
-                if (!disabled) onValueChange(item.id);
-              }}
-            >
-              <span className="tabs__label">{item.label}</span>
-              {item.description ? (
-                <span className="tabs__description">{item.description}</span>
-              ) : null}
-              {badgeContent ? (
-                <span className="tabs__badge">{badgeContent}</span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+        {items.map((item) => (
+          <BaseTabs.Tab
+            key={item.id}
+            value={item.id}
+            disabled={item.disabled}
+            data-testid={item.testId}
+            className={({ active: selected }: { active: boolean }) =>
+              cn(
+                "group inline-flex items-center justify-center whitespace-nowrap transition-all focus:outline-none disabled:pointer-events-none disabled:opacity-50 relative cursor-pointer",
+
+                {
+                  // Default variant
+                  "border-b-2 border-transparent px-3 py-2 text-[13px] font-bold text-text-secondary hover:text-text-primary":
+                    variant === "default" && !selected,
+                  "border-b-2 border-accent px-3 py-2 text-[13px] font-bold text-accent":
+                    variant === "default" && selected,
+
+                  // Pill variant
+                  "rounded-lg border-0 px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:bg-bg-hover hover:text-text-primary":
+                    variant === "pill" && !selected,
+                  "rounded-lg border-0 bg-bg-active px-3 py-1.5 text-[11px] font-bold text-text-primary shadow-sm":
+                    variant === "pill" && selected,
+
+                  // Underline variant (cleaner, premium)
+                  "py-2 text-[12px] font-medium text-text-secondary hover:text-text-primary":
+                    variant === "underline" && !selected,
+                  "py-2 text-[12px] font-bold text-accent":
+                    variant === "underline" && selected,
+
+                  // Sizes (overrides if needed)
+                  "text-[11px]": size === "sm",
+                },
+              )
+            }
+          >
+            <span>{item.label}</span>
+            {item.description && (
+              <span className="ml-2 text-[10px] opacity-70 font-medium tracking-tight">
+                {item.description}
+              </span>
+            )}
+            {item.badge && (
+              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-bg-active px-1.5 py-0.5 text-[9px] font-black text-text-muted border border-border-default/50 uppercase tracking-tighter">
+                {item.badge}
+              </span>
+            )}
+            {variant === "underline" && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full hidden group-data-[state=active]:block" />
+            )}
+          </BaseTabs.Tab>
+        ))}
+      </BaseTabs.List>
       <div
-        role="tabpanel"
-        id={`panel-${value}`}
-        aria-labelledby={`tab-${value}`}
-        className={["tabs__panel", panelClassName].filter(Boolean).join(" ")}
+        className={cn(
+          "mt-1 focus:outline-none",
+          fillPanels && "flex-1 min-h-0",
+          panelClassName,
+        )}
       >
-        {renderPanel(value)}
+        {items.map((item) => (
+          <BaseTabs.Panel
+            key={item.id}
+            value={item.id}
+            data-testid={item.panelTestId}
+            className={cn("focus:outline-none", fillPanels && "h-full min-h-0")}
+          >
+            {/* Optimization: only render content if active to match typical tab behavior, OR rely on Tabs.Panel hidden prop.
+                 Base UI Tabs.Panel usually handles `hidden` or doesn't render children if not active if `keepMounted` is false.
+                 By default functionality, it should be fine. */}
+            {renderPanel(item.id)}
+          </BaseTabs.Panel>
+        ))}
       </div>
-    </div>
+    </BaseTabs.Root>
   );
 }

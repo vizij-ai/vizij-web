@@ -1,13 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-
-const STANDARD_PATHS = {
-  leftX: "standard/left_eye/pos/x",
-  leftY: "standard/left_eye/pos/y",
-  rightX: "standard/right_eye/pos/x",
-  rightY: "standard/right_eye/pos/y",
-} as const;
+import {
+  mapNormalizedControlValue,
+  resolveFaceControls,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
 
 function clamp(value: number, min = -1, max = 1) {
   return Math.min(Math.max(value, min), max);
@@ -16,9 +13,17 @@ function clamp(value: number, min = -1, max = 1) {
 export function useMouseGaze(
   enabled: boolean,
 ): RefObject<HTMLDivElement | null> {
-  const { setInput, faceId: runtimeFaceId } = useVizijRuntime();
-  const faceId = (runtimeFaceId ?? "face").toLowerCase();
+  const {
+    setInput,
+    faceId: runtimeFaceId,
+    assetBundle,
+    inputConstraints,
+  } = useVizijRuntime();
   const ref = useRef<HTMLDivElement>(null);
+  const controls = useMemo(
+    () => resolveFaceControls(assetBundle, runtimeFaceId, inputConstraints),
+    [assetBundle, inputConstraints, runtimeFaceId],
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -29,9 +34,14 @@ export function useMouseGaze(
       return;
     }
 
-    const setEye = (path: string, value: number) => {
-      const fullPath = `rig/${faceId}/${path}`;
-      setInput(fullPath, { float: clamp(value) });
+    const setEye = (path: keyof typeof controls.eyes, value: number) => {
+      const control = controls.eyes[path];
+      if (!control) {
+        return;
+      }
+      setInput(control.path, {
+        float: mapNormalizedControlValue(control, clamp(value)),
+      });
     };
 
     const handlePointer = (event: PointerEvent) => {
@@ -41,20 +51,20 @@ export function useMouseGaze(
       }
       const xRatio = (event.clientX - rect.left) / rect.width;
       const yRatio = (event.clientY - rect.top) / rect.height;
-      const normalizedX = -1 * clamp(xRatio * 2 - 1);
+      const normalizedX = clamp(xRatio * 2 - 1);
       const normalizedY = clamp((1 - yRatio) * 2 - 1);
 
-      setEye(STANDARD_PATHS.leftX, normalizedX);
-      setEye(STANDARD_PATHS.rightX, normalizedX);
-      setEye(STANDARD_PATHS.leftY, normalizedY);
-      setEye(STANDARD_PATHS.rightY, normalizedY);
+      setEye("leftX", normalizedX);
+      setEye("rightX", normalizedX);
+      setEye("leftY", normalizedY);
+      setEye("rightY", normalizedY);
     };
 
     const reset = () => {
-      setEye(STANDARD_PATHS.leftX, 0);
-      setEye(STANDARD_PATHS.leftY, 0);
-      setEye(STANDARD_PATHS.rightX, 0);
-      setEye(STANDARD_PATHS.rightY, 0);
+      setEye("leftX", 0);
+      setEye("leftY", 0);
+      setEye("rightX", 0);
+      setEye("rightY", 0);
     };
 
     target.addEventListener("pointermove", handlePointer, true);
@@ -68,6 +78,7 @@ export function useMouseGaze(
       target.removeEventListener("pointerleave", reset);
       target.removeEventListener("pointerup", reset, true);
     };
-  }, [enabled, faceId, setInput]);
+  }, [controls, enabled, setInput]);
+
   return ref;
 }

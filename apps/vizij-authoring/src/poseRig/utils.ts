@@ -4,6 +4,7 @@ import type {
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
+import { normalizeStandardRigInputPath } from "@vizij/utils";
 import type {
   LowLevelBinding,
   LowLevelRigSummary,
@@ -122,14 +123,116 @@ export function capturePoseSnapshot(options: {
   return snapshot;
 }
 
-export function duplicatePoseDefinition(pose: PoseDefinition): PoseDefinition {
+const POSE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function appendStableSuffix(
+  baseId: string,
+  usedIds: Set<string>,
+  startAt = 2,
+): string {
+  let suffix = startAt;
+  let candidate = `${baseId}_${suffix}`;
+  while (usedIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseId}_${suffix}`;
+  }
+  return candidate;
+}
+
+function buildGeneratedPoseIdBase(name: string | null | undefined): string {
+  const nameSegment = sanitizePosePathSegment(name, "pose");
+  const rawBase = [nameSegment].filter(Boolean).join("_");
+  const normalizedBase = rawBase || "pose";
+  return normalizedBase.startsWith("pose_")
+    ? normalizedBase
+    : `pose_${normalizedBase}`;
+}
+
+export function isValidPoseId(
+  value: string | null | undefined,
+): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed !== value) {
+    return false;
+  }
+  return POSE_ID_PATTERN.test(trimmed);
+}
+
+export function resolveDeterministicPoseId(options: {
+  existingIds?: Iterable<string>;
+  preferredId?: string | null;
+  name?: string | null;
+  group?: string | null;
+  reservedIds?: Iterable<string>;
+}): string {
+  const usedIds = new Set(options.existingIds ?? []);
+  if (options.reservedIds) {
+    for (const reserved of options.reservedIds) {
+      usedIds.add(reserved);
+    }
+  }
+
+  const preferredId = options.preferredId?.trim() ?? "";
+  const baseId = isValidPoseId(preferredId)
+    ? preferredId
+    : buildGeneratedPoseIdBase(options.name);
+
+  if (!usedIds.has(baseId)) {
+    return baseId;
+  }
+
+  return appendStableSuffix(baseId, usedIds);
+}
+
+export function normalizePoseDefinitionIds(
+  poses: PoseDefinition[],
+  options?: { reservedIds?: Iterable<string> },
+): PoseDefinition[] {
+  const usedIds = new Set<string>();
+  const normalized: PoseDefinition[] = [];
+  poses.forEach((pose) => {
+    const nextId = resolveDeterministicPoseId({
+      existingIds: usedIds,
+      preferredId: pose.id,
+      name: pose.name,
+      group: pose.group,
+      reservedIds: options?.reservedIds,
+    });
+    usedIds.add(nextId);
+    if (nextId === pose.id) {
+      normalized.push(pose);
+      return;
+    }
+    normalized.push({ ...pose, id: nextId });
+  });
+  return normalized;
+}
+
+export function duplicatePoseDefinition(
+  pose: PoseDefinition,
+  options?: {
+    existingIds?: Iterable<string>;
+    reservedIds?: Iterable<string>;
+  },
+): PoseDefinition {
+  const now = new Date().toISOString();
+  const name = `${pose.name} Copy`;
+  const id = resolveDeterministicPoseId({
+    existingIds: options?.existingIds,
+    name,
+    group: pose.group,
+    reservedIds: options?.reservedIds,
+  });
   return {
     ...pose,
-    id: `${pose.id}_copy_${Math.random().toString(36).slice(2, 8)}`,
-    name: `${pose.name} Copy`,
+    id,
+    name,
     values: { ...pose.values },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
@@ -160,59 +263,149 @@ export function sanitizePosePathSegment(
   return fromFallback || "pose";
 }
 
-function nextPosePathSegment(
-  pose: PoseDefinition,
-  usage: Map<string, number>,
-  groupSegment: string,
-): string {
-  const base = sanitizePosePathSegment(pose.name ?? "", pose.id);
-  const key = `${groupSegment}::${base}`;
-  const used = usage.get(key) ?? 0;
-  usage.set(key, used + 1);
-  if (used === 0) {
-    return base;
-  }
-  return `${base}_${used + 1}`;
-}
-
-function resolvePoseGroupSegment(
-  pose: PoseDefinition,
-  overrideGroupSegment: string | null,
-  fallbackSegment: string,
-): string {
-  if (overrideGroupSegment) {
-    return overrideGroupSegment;
-  }
-  return sanitizePosePathSegment(pose.group, fallbackSegment);
-}
-
 export interface PoseWeightPathInfo {
   segment: string;
   relativePath: string;
   absolutePath: string;
 }
 
+export const POSE_WEIGHT_INPUT_PATH_PREFIX = "/poses/";
+export const POSE_WEIGHT_INPUT_SOURCE_PREFIX = "pose-weight:";
+export const POSE_CONTROL_INPUT_PATH_PREFIX = "/pose/control/";
+export const POSE_GROUP_OUTPUT_PATH_PREFIX = "/pose/groups/";
+export const POSE_STAGE_OUTPUT_PATH_PREFIX = "/pose/stages/";
+
+function normalizePoseWeightPathSegment(
+  value: string | null | undefined,
+): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return "pose";
+  }
+  const normalized = trimmed
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || "pose";
+}
+
+export function buildPoseWeightInputPathSegment(
+  poseId: string | null | undefined,
+): string {
+  return normalizePoseWeightPathSegment(poseId);
+}
+
+export function buildPoseWeightRelativePath(
+  poseId: string | null | undefined,
+): string {
+  return `${POSE_WEIGHT_INPUT_PATH_PREFIX}${buildPoseWeightInputPathSegment(
+    poseId,
+  )}.weight`;
+}
+
+export function buildPoseWeightInputSourceId(
+  poseId: string | null | undefined,
+): string {
+  return `${POSE_WEIGHT_INPUT_SOURCE_PREFIX}${poseId?.trim() ?? ""}`;
+}
+
+export function formatPoseWeightInputLabel(
+  poseName: string | null | undefined,
+  poseId: string | null | undefined,
+): string {
+  const displayName = poseName?.trim() || poseId?.trim() || "Pose";
+  return `${displayName} - Pose Weight`;
+}
+
+export function buildPoseControlRelativePath(
+  inputId: string | null | undefined,
+): string {
+  const trimmed = inputId?.trim() ?? "";
+  return `${POSE_CONTROL_INPUT_PATH_PREFIX}${trimmed || "input"}`;
+}
+
+export function isPoseControlInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  return normalized.startsWith(POSE_CONTROL_INPUT_PATH_PREFIX);
+}
+
+export function isPoseOutputInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  const isGroupOutput =
+    normalized.startsWith(POSE_GROUP_OUTPUT_PATH_PREFIX) &&
+    normalized.endsWith(".output");
+  if (isGroupOutput) {
+    return true;
+  }
+  return (
+    normalized.startsWith(POSE_STAGE_OUTPUT_PATH_PREFIX) &&
+    normalized.endsWith(".output")
+  );
+}
+
+export function parsePoseControlInputIdFromPath(
+  path: string | null | undefined,
+): string | null {
+  if (!path) {
+    return null;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  if (!normalized.startsWith(POSE_CONTROL_INPUT_PATH_PREFIX)) {
+    return null;
+  }
+  const inputId = normalized
+    .slice(POSE_CONTROL_INPUT_PATH_PREFIX.length)
+    .replace(/^\/+/g, "");
+  return inputId.length > 0 ? inputId : null;
+}
+
+export function parsePoseWeightInputSourceId(
+  sourceId: string | null | undefined,
+): string | null {
+  const trimmed = sourceId?.trim() ?? "";
+  if (!trimmed.startsWith(POSE_WEIGHT_INPUT_SOURCE_PREFIX)) {
+    return null;
+  }
+  const poseId = trimmed.slice(POSE_WEIGHT_INPUT_SOURCE_PREFIX.length).trim();
+  return poseId.length > 0 ? poseId : null;
+}
+
+export function isPoseWeightInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  return (
+    normalized.startsWith(POSE_WEIGHT_INPUT_PATH_PREFIX) &&
+    normalized.endsWith(".weight")
+  );
+}
+
 export function buildPoseWeightPathMap(
   poses: PoseDefinition[],
   faceId: string | null,
-  options?: { baseSegment?: string | null },
 ): Map<string, PoseWeightPathInfo> {
   const trim = faceId?.trim();
   const faceSegment = trim && trim.length > 0 ? trim : "face";
-  const overrideSegment =
-    options?.baseSegment && options.baseSegment.trim().length > 0
-      ? sanitizePosePathSegment(options.baseSegment, "poses")
-      : null;
   const usage = new Map<string, number>();
   const map = new Map<string, PoseWeightPathInfo>();
   poses.forEach((pose) => {
-    const groupSegment = resolvePoseGroupSegment(
-      pose,
-      overrideSegment,
-      "poses",
-    );
-    const segment = nextPosePathSegment(pose, usage, groupSegment);
-    const relativePath = `/${groupSegment}/${segment}.weight`;
+    const baseSegment = buildPoseWeightInputPathSegment(pose.id);
+    const used = usage.get(baseSegment) ?? 0;
+    usage.set(baseSegment, used + 1);
+    const segment = used === 0 ? baseSegment : `${baseSegment}_${used + 1}`;
+    const relativePath = `${POSE_WEIGHT_INPUT_PATH_PREFIX}${segment}.weight`;
     const absolutePath = buildRigInputPath(faceSegment, relativePath);
     map.set(pose.id, { segment, relativePath, absolutePath });
   });

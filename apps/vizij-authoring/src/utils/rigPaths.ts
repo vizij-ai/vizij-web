@@ -1,4 +1,7 @@
-import { normalizeStandardRigInputPath } from "@vizij/utils";
+import {
+  formatStandardRigInputDisplayPath,
+  normalizeStandardRigInputPath,
+} from "@vizij/utils";
 
 function formatRigFaceId(faceId?: string | null): string {
   const trimmed = faceId?.trim();
@@ -28,6 +31,7 @@ export function formatRigPathLabel(
   path: string,
   faceId?: string | null,
 ): string {
-  const { prefix, suffix } = buildRigPathParts(path, faceId);
+  const prefix = buildRigPathPrefix(faceId);
+  const suffix = formatStandardRigInputDisplayPath(path);
   return `${prefix}[${suffix}]`;
 }

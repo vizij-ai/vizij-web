@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   type VizijAssetBundle,
   VizijRuntimeProvider,
@@ -6,10 +13,17 @@ import {
 } from "@vizij/runtime-react";
 import type { VizijBundleExtension } from "@vizij/render";
 import {
-  createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import {
+  isPoseControlInputPath,
+  isPoseOutputInputPath,
+  isPoseWeightInputPath,
+} from "../../poseRig/utils";
+import { Button } from "../ui";
+import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
+import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
 type ReferenceFaceRuntimeProps = {
@@ -49,28 +63,189 @@ const FACE_ASSET_GLB_BASE = {
   // Note: rootBounds intentionally omitted to let each loaded face define its own bounds
 };
 
-function createBundleConfig(file: File): {
-  bundle: VizijAssetBundle;
-  glbUrl: string;
-} {
-  const glbUrl = URL.createObjectURL(file);
+interface ReferenceOverrideInputRoute {
+  valuePath: string | null;
+  enabledPath: string | null;
+}
+
+function normalizeGraphInputPath(path: string): string {
+  return path.trim().replace(/^\/+/, "");
+}
+
+function stripRuntimeNamespacePrefix(path: string, namespace: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  const namespacePrefix = `${namespace}/`;
+  if (trimmed.startsWith(namespacePrefix)) {
+    return trimmed.slice(namespacePrefix.length);
+  }
+  const debugPrefix = `debug/${namespacePrefix}`;
+  if (trimmed.startsWith(debugPrefix)) {
+    return trimmed.slice(debugPrefix.length);
+  }
+  if (trimmed.startsWith("debug/")) {
+    return trimmed.slice("debug/".length);
+  }
+  return trimmed;
+}
+
+function runtimePathCandidateScore(path: string): number {
+  if (/^rig\/[^/]+\/.+/.test(path)) {
+    return 3;
+  }
+  if (path.startsWith("rig/")) {
+    return 2;
+  }
+  return 1;
+}
+
+function buildRuntimeWritePathMap(params: {
+  inputConstraints: Record<string, unknown> | null | undefined;
+  namespace: string;
+  graphSpec?: unknown;
+}): Map<string, string> {
+  const bestByNormalized = new Map<string, { path: string; score: number }>();
+  const registerPath = (rawPath: string, source: "constraints" | "graph") => {
+    if (!rawPath || rawPath.trim().length === 0) {
+      return;
+    }
+    const namespacedPath = stripRuntimeNamespacePrefix(
+      rawPath,
+      params.namespace,
+    );
+    const candidatePath = normalizeGraphInputPath(namespacedPath);
+    if (!candidatePath) {
+      return;
+    }
+    const normalizedInputPath = normalizeStandardRigInputPath(candidatePath);
+    if (!normalizedInputPath || normalizedInputPath === "/custom/input") {
+      return;
+    }
+    const score =
+      runtimePathCandidateScore(candidatePath) + (source === "graph" ? 2 : 0);
+    if (score <= 0) {
+      return;
+    }
+    const existing = bestByNormalized.get(normalizedInputPath);
+    if (!existing || score > existing.score) {
+      bestByNormalized.set(normalizedInputPath, {
+        path: candidatePath,
+        score,
+      });
+    }
+  };
+  const constraints = params.inputConstraints;
+  if (constraints) {
+    Object.keys(constraints).forEach((rawPath) => {
+      registerPath(rawPath, "constraints");
+    });
+  }
+
+  const specRecord =
+    params.graphSpec && typeof params.graphSpec === "object"
+      ? (params.graphSpec as {
+          nodes?: unknown;
+        })
+      : null;
+  const nodes = Array.isArray(specRecord?.nodes) ? specRecord.nodes : [];
+  nodes.forEach((nodeEntry) => {
+    const node =
+      nodeEntry && typeof nodeEntry === "object"
+        ? (nodeEntry as {
+            type?: unknown;
+            params?: { path?: unknown };
+          })
+        : null;
+    if (!node || node.type !== "input") {
+      return;
+    }
+    const rawPath = node.params?.path;
+    if (typeof rawPath !== "string") {
+      return;
+    }
+    registerPath(rawPath, "graph");
+  });
+
+  const byNormalized = new Map<string, string>();
+  bestByNormalized.forEach((entry, normalizedPath) => {
+    byNormalized.set(normalizedPath, entry.path);
+  });
+  return byNormalized;
+}
+
+function buildOverrideRoutesByInputId(
+  graphSpec: unknown,
+): Map<string, ReferenceOverrideInputRoute> {
+  const map = new Map<string, ReferenceOverrideInputRoute>();
+  const specRecord =
+    graphSpec && typeof graphSpec === "object"
+      ? (graphSpec as { nodes?: unknown })
+      : null;
+  const nodes = Array.isArray(specRecord?.nodes) ? specRecord.nodes : [];
+
+  nodes.forEach((nodeEntry) => {
+    const node =
+      nodeEntry && typeof nodeEntry === "object"
+        ? (nodeEntry as {
+            type?: unknown;
+            params?: { path?: unknown };
+          })
+        : null;
+    if (!node || node.type !== "input") {
+      return;
+    }
+
+    const rawPath = node.params?.path;
+    if (typeof rawPath !== "string") {
+      return;
+    }
+    const graphPath = normalizeGraphInputPath(rawPath);
+    const match = graphPath.match(
+      /^rig\/[^/]+\/override\/([^/]+)\/(enabled|value)$/,
+    );
+    if (!match) {
+      return;
+    }
+
+    const inputId = (match[1] ?? "").trim();
+    const field = match[2] === "enabled" ? "enabledPath" : "valuePath";
+    if (!inputId) {
+      return;
+    }
+    const existing = map.get(inputId) ?? {
+      valuePath: null,
+      enabledPath: null,
+    };
+    existing[field] = graphPath;
+    map.set(inputId, existing);
+  });
+
+  return map;
+}
+
+function createBundleConfig(glbUrl: string): VizijAssetBundle {
   return {
-    bundle: {
-      namespace: "refface",
-      glb: {
-        ...FACE_ASSET_GLB_BASE,
-        src: glbUrl,
-      },
-      pose: {
-        stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-      },
+    namespace: "refface",
+    glb: {
+      ...FACE_ASSET_GLB_BASE,
+      src: glbUrl,
     },
-    glbUrl,
+    pose: {
+      stageNeutralFilter: (_id, path) => !path.includes("/color/"),
+    },
   };
 }
 
+type ReferenceFaceBundleConfig = {
+  file: File;
+  bundle: VizijAssetBundle;
+  glbUrl: string;
+};
+
 export function ReferenceFaceRuntime({
-  namespace = "refface",
+  namespace: _namespace = "refface",
   file = null,
   active = true,
   fallback = null,
@@ -85,25 +260,35 @@ export function ReferenceFaceRuntime({
   splitVertical,
   onToggleSplit,
 }: ReferenceFaceRuntimeProps) {
-  const bundleConfig = useMemo(() => {
-    if (!file) return null;
-    return createBundleConfig(file);
+  const [bundleConfig, setBundleConfig] =
+    useState<ReferenceFaceBundleConfig | null>(null);
+  useEffect(() => {
+    if (!file) {
+      setBundleConfig(null);
+      return;
+    }
+
+    const glbUrl = URL.createObjectURL(file);
+    setBundleConfig({
+      file,
+      bundle: createBundleConfig(glbUrl),
+      glbUrl,
+    });
+
+    return () => {
+      URL.revokeObjectURL(glbUrl);
+    };
   }, [file]);
 
-  useEffect(() => {
-    return () => {
-      if (bundleConfig?.glbUrl) {
-        URL.revokeObjectURL(bundleConfig.glbUrl);
-      }
-    };
-  }, [bundleConfig]);
+  const activeBundleConfig =
+    file && bundleConfig?.file === file ? bundleConfig : null;
 
   if (!active) {
     return <>{fallback}</>;
   }
 
   // Show placeholder when no file is loaded
-  if (!bundleConfig) {
+  if (!activeBundleConfig) {
     return (
       <ReferenceFacePlaceholder
         splitVertical={splitVertical}
@@ -116,7 +301,7 @@ export function ReferenceFaceRuntime({
   const shouldDriveVisible = driveOrchestrator && visible;
   return (
     <VizijRuntimeProvider
-      assetBundle={bundleConfig.bundle}
+      assetBundle={activeBundleConfig.bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
       orchestratorScope="shared"
@@ -156,7 +341,7 @@ type ReferenceFaceBridgeProps = {
 /**
  * Bridge component that connects the Vizij runtime to callbacks.
  * It extracts standard inputs from the runtime and reports them to the parent.
- * Also manages idle behavior state and renders the face with header.
+ * Also manages idle behavior state and renders the face frame.
  */
 function ReferenceFaceBridge({
   onStandardInputsReady,
@@ -170,105 +355,120 @@ function ReferenceFaceBridge({
   const {
     ready,
     loading,
-    animateValue,
     setInput,
-    step,
     inputConstraints,
     faceId,
-    stepHz,
     assetBundle,
+    namespace,
   } = useVizijRuntime();
-  const animateValueRef = useRef(animateValue);
   const setInputRef = useRef(setInput);
-  const stepRef = useRef(step);
   const faceIdRef = useRef(faceId);
   const onStandardInputChangeRef = useRef(onStandardInputChange);
 
   // Keep refs updated
   useEffect(() => {
-    animateValueRef.current = animateValue;
     setInputRef.current = setInput;
-    stepRef.current = step;
     faceIdRef.current = faceId;
     onStandardInputChangeRef.current = onStandardInputChange;
-  }, [animateValue, setInput, step, faceId, onStandardInputChange]);
+  }, [setInput, faceId, onStandardInputChange]);
 
-  // Discover standard inputs from inputConstraints (paths containing /standard/)
-  const { standardInputs, standardInputsById, standardInputsByPath } =
-    useMemo(() => {
-      if (!ready || !inputConstraints) {
-        return {
-          standardInputs: [],
-          standardInputsById: new Map<string, StandardRigInput>(),
-          standardInputsByPath: new Map<string, StandardRigInput>(),
-        };
-      }
-
-      const available: StandardRigInput[] = [];
-      const byId = new Map<string, StandardRigInput>();
-      const byPath = new Map<string, StandardRigInput>();
-      const seenPaths = new Set<string>();
-
-      // Iterate over all input constraint paths and find those with /standard/
-      for (const [fullPath, constraint] of Object.entries(inputConstraints)) {
-        // Check if this path contains /standard/
-        if (!fullPath.includes("/standard/")) {
-          continue;
-        }
-
-        // Extract the /standard/... portion from the path (strips namespace prefix like "refface/")
-        const standardMatch = fullPath.match(/(\/standard\/.+)$/);
-        if (!standardMatch) {
-          continue;
-        }
-
-        // Normalize the extracted standard path
-        const normalizedPath = normalizeStandardRigInputPath(standardMatch[1]);
-
-        // Skip if we've already processed this normalized path
-        if (seenPaths.has(normalizedPath)) {
-          continue;
-        }
-        seenPaths.add(normalizedPath);
-
-        // Create a StandardRigInput from the path
-        const input = createStandardRigInputFromPath(normalizedPath);
-
-        // Override with constraint metadata if available
-        if (constraint.min !== undefined || constraint.max !== undefined) {
-          input.range = {
-            min: constraint.min ?? input.range.min,
-            max: constraint.max ?? input.range.max,
-          };
-        }
-        if (constraint.defaultValue !== undefined) {
-          input.defaultValue = constraint.defaultValue;
-        }
-
-        available.push(input);
-        byId.set(input.id, input);
-        byPath.set(input.path, input);
-      }
-
-      // Sort by group then by label for consistent ordering
-      available.sort((a, b) => {
-        const groupCompare = a.group.localeCompare(b.group);
-        if (groupCompare !== 0) return groupCompare;
-        return a.label.localeCompare(b.label);
-      });
-
-      return {
-        standardInputs: available,
-        standardInputsById: byId,
-        standardInputsByPath: byPath,
-      };
-    }, [ready, inputConstraints]);
+  // Discover runtime inputs from available constraints (standard + non-standard).
+  const {
+    inputs: standardInputs,
+    byId: standardInputsById,
+    byPath: standardInputsByPath,
+  } = useMemo(
+    () =>
+      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null, {
+        namespace,
+      }),
+    [inputConstraints, namespace, ready],
+  );
 
   // Keep a ref of standardInputsByPath for use in callbacks
   const standardInputsByPathRef = useRef(standardInputsByPath);
   useEffect(() => {
     standardInputsByPathRef.current = standardInputsByPath;
   }, [standardInputsByPath]);
+
+  const overrideRoutesByInputId = useMemo(
+    () => buildOverrideRoutesByInputId(assetBundle.rig?.spec),
+    [assetBundle.rig?.spec],
+  );
+  const overrideRoutesByInputIdRef = useRef(overrideRoutesByInputId);
+  useEffect(() => {
+    overrideRoutesByInputIdRef.current = overrideRoutesByInputId;
+  }, [overrideRoutesByInputId]);
+  const runtimeWritePathByNormalizedInputPath = useMemo(
+    () =>
+      buildRuntimeWritePathMap({
+        inputConstraints: ready ? inputConstraints : null,
+        namespace,
+        graphSpec: assetBundle.rig?.spec,
+      }),
+    [assetBundle.rig?.spec, inputConstraints, namespace, ready],
+  );
+  const runtimeWritePathByNormalizedInputPathRef = useRef(
+    runtimeWritePathByNormalizedInputPath,
+  );
+  useEffect(() => {
+    runtimeWritePathByNormalizedInputPathRef.current =
+      runtimeWritePathByNormalizedInputPath;
+  }, [runtimeWritePathByNormalizedInputPath]);
+
+  const resolveRuntimeWritePath = useCallback((inputPath: string) => {
+    const normalizedPath = normalizeStandardRigInputPath(inputPath);
+    if (!normalizedPath || normalizedPath === "/custom/input") {
+      return null;
+    }
+    const mappedPath =
+      runtimeWritePathByNormalizedInputPathRef.current.get(normalizedPath);
+    if (mappedPath) {
+      return mappedPath;
+    }
+    const currentFaceId = faceIdRef.current;
+    return currentFaceId
+      ? `rig/${currentFaceId}${normalizedPath}`
+      : `rig/face${normalizedPath}`;
+  }, []);
+
+  const stageStandardInputPath = useCallback(
+    (inputPath: string, value: number) => {
+      const normalizedInputPath = normalizeStandardRigInputPath(inputPath);
+      const input = standardInputsByPathRef.current.get(normalizedInputPath);
+      if (input) {
+        const overrideRoute = overrideRoutesByInputIdRef.current.get(input.id);
+        const useOverrideRoute = Boolean(
+          overrideRoute?.valuePath && !isPoseWeightInputPath(input.path),
+        );
+        if (useOverrideRoute && overrideRoute?.enabledPath) {
+          setInputRef.current(overrideRoute.enabledPath, { float: 1 });
+        }
+        if (useOverrideRoute && overrideRoute?.valuePath) {
+          setInputRef.current(overrideRoute.valuePath, { float: value });
+        } else {
+          const runtimePath = resolveRuntimeWritePath(normalizedInputPath);
+          if (runtimePath) {
+            setInputRef.current(runtimePath, { float: value });
+          }
+        }
+        if (onStandardInputChangeRef.current) {
+          onStandardInputChangeRef.current(input.id, value);
+        }
+        return;
+      }
+
+      const pathSuffix =
+        normalizedInputPath && normalizedInputPath !== "/custom/input"
+          ? normalizedInputPath
+          : inputPath;
+      const runtimePath = resolveRuntimeWritePath(pathSuffix);
+      if (runtimePath) {
+        setInputRef.current(runtimePath, { float: value });
+      }
+    },
+    [resolveRuntimeWritePath],
+  );
 
   // Report loading state changes
   useEffect(() => {
@@ -303,58 +503,71 @@ function ReferenceFaceBridge({
     }
 
     const animateFn = (inputPath: string, value: number) => {
-      // Build the full rig path
-      const currentFaceId = faceIdRef.current;
-      const rigPath = currentFaceId
-        ? `rig/${currentFaceId}${inputPath}`
-        : `rig/face${inputPath}`;
-
-      // Just set the input - the runtime's animation loop will pick it up
-      setInputRef.current(rigPath, { float: value });
-
-      // Also notify the callback so the value can be propagated
-      const input = standardInputsByPathRef.current.get(inputPath);
-      if (input && onStandardInputChangeRef.current) {
-        onStandardInputChangeRef.current(input.id, value);
-      }
+      stageStandardInputPath(inputPath, value);
     };
 
     onAnimateValueReady?.(animateFn);
-  }, [ready, onAnimateValueReady]);
+  }, [ready, onAnimateValueReady, stageStandardInputPath]);
 
-  const formattedFps =
-    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
+  const resettableStandardInputs = useMemo(
+    () =>
+      standardInputs.filter(
+        (input) =>
+          !isPoseControlInputPath(input.path) &&
+          !isPoseOutputInputPath(input.path) &&
+          input.id.trim().length > 0,
+      ),
+    [standardInputs],
+  );
+
+  const handleResetInputs = useCallback(() => {
+    resettableStandardInputs.forEach((input) => {
+      const resetValue = Number.isFinite(input.defaultValue)
+        ? input.defaultValue
+        : 0;
+      const overrideRoute = overrideRoutesByInputIdRef.current.get(input.id);
+      const useOverrideRoute = Boolean(
+        overrideRoute?.valuePath && !isPoseWeightInputPath(input.path),
+      );
+      // Reset should return the channel to normal composed behavior, so clear
+      // direct override enable flags before writing the default value.
+      if (useOverrideRoute && overrideRoute?.enabledPath) {
+        setInputRef.current(overrideRoute.enabledPath, { float: 0 });
+      }
+      if (useOverrideRoute && overrideRoute?.valuePath) {
+        setInputRef.current(overrideRoute.valuePath, { float: resetValue });
+      } else {
+        const runtimePath = resolveRuntimeWritePath(input.path);
+        if (runtimePath) {
+          setInputRef.current(runtimePath, { float: resetValue });
+        }
+      }
+      if (onStandardInputChangeRef.current) {
+        onStandardInputChangeRef.current(input.id, resetValue);
+      }
+    });
+  }, [resettableStandardInputs, resolveRuntimeWritePath]);
 
   return (
-    <div className="ref-face-viewer">
-      <header className="ref-face-viewer__header">
-        <div className="ref-face-viewer__title-group">
-          <p className="ref-face-viewer__eyebrow">Reference Face</p>
-          <p className="ref-face-viewer__status">
-            {loading ? "Loading…" : ready ? "Ready" : "Waiting…"}
-          </p>
-        </div>
-        <div className="ref-face-viewer__controls">
-          <span className="ref-face-viewer__fps">{formattedFps}</span>
-          {onToggleSplit && (
-            <button
-              type="button"
-              className="ref-face-viewer__split-btn"
-              title={
-                splitVertical
-                  ? "Switch to horizontal split"
-                  : "Switch to vertical split"
-              }
-              onClick={onToggleSplit}
-            >
-              {splitVertical ? "⬌" : "⬍"}
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="ref-face-viewer__canvas">
-        <RuntimeFaceFrame variant="fill" className="hero-face-card" />
-      </div>
+    <div
+      data-testid="reference-face-runtime"
+      className="h-full w-full bg-bg-panel overflow-hidden"
+    >
+      <RuntimeFaceFrame
+        variant="fill"
+        className="h-full w-full"
+        overlay={
+          <RuntimeFaceControlsOverlay
+            onResetInputs={handleResetInputs}
+            onToggleSplit={onToggleSplit}
+            splitVertical={splitVertical}
+            resetButtonLabel="Reset Reference Inputs"
+            resetButtonTitle="Reset reference-face inputs to their default values"
+            resetButtonTestId="reference-runtime-reset-inputs"
+            readyFlagTestId="reference-runtime-ready-flag"
+          />
+        }
+      />
     </div>
   );
 }
@@ -369,31 +582,25 @@ function ReferenceFacePlaceholder({
   onToggleSplit,
 }: ReferenceFacePlaceholderProps) {
   return (
-    <div className="ref-face-viewer">
-      <header className="ref-face-viewer__header">
-        <div className="ref-face-viewer__title-group">
-          <p className="ref-face-viewer__eyebrow">Reference Face</p>
-          <p className="ref-face-viewer__status">No file loaded</p>
+    <div className="h-full w-full relative bg-bg-panel overflow-hidden">
+      {onToggleSplit && (
+        <div className="absolute top-2 left-2 z-10">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onToggleSplit}
+            title={
+              splitVertical
+                ? "Switch to horizontal split"
+                : "Switch to vertical split"
+            }
+          >
+            {splitVertical ? "⬌" : "⬍"}
+          </Button>
         </div>
-        <div className="ref-face-viewer__controls">
-          {onToggleSplit && (
-            <button
-              type="button"
-              className="ref-face-viewer__split-btn"
-              title={
-                splitVertical
-                  ? "Switch to horizontal split"
-                  : "Switch to vertical split"
-              }
-              onClick={onToggleSplit}
-            >
-              {splitVertical ? "⬌" : "⬍"}
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="ref-face-viewer__canvas ref-face-viewer__canvas--empty">
-        <p className="ref-face-viewer__placeholder-text">
+      )}
+      <div className="flex h-full w-full items-center justify-center p-8 text-center">
+        <p className="text-text-muted text-sm max-w-xs">
           Load a reference face GLB using the sidebar to begin.
         </p>
       </div>

@@ -34,6 +34,7 @@ export interface PersistedRigState {
   selectedStandardInputSubgroups?: string[];
   featureLabels?: Record<string, string>;
   disabledStandardInputIds?: string[];
+  lockedInspectorTargetIds?: string[];
   hiddenDriverIds?: string[];
   /** @deprecated retained for backward compatibility with legacy saves */
   derivedStandardInputs?: Record<string, RigBindingDefinition>;
@@ -41,6 +42,7 @@ export interface PersistedRigState {
   inputBindingDefinitions?: Record<string, RigBindingDefinition>;
   featureFlags?: Record<string, boolean>;
   graphInsights?: PersistedGraphInsight;
+  pipelineMetadataV1?: Record<string, unknown> | null;
   schemaVersion?: number;
   standardInputSchema?: { id: string; version: string };
 }

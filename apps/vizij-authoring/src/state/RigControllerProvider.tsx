@@ -1,10 +1,12 @@
 import { useRef } from "react";
 import type { ReactNode } from "react";
+import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
 import { useRigController } from "../hooks/useRigController";
 import {
   createGraphRuntimeStore,
   GraphRuntimeStoreProvider,
   useGraphRuntimeStore,
+  useGraphRuntimeStoreApi,
   type GraphRuntimeState,
   type GraphRuntimeStore,
 } from "./graphRuntimeStore";
@@ -12,6 +14,7 @@ import {
   BindingAuthoringStoreProvider,
   createBindingAuthoringStore,
   useBindingAuthoringStore,
+  useBindingAuthoringStoreApi,
   type BindingAuthoringState,
   type BindingAuthoringStore,
 } from "./bindingAuthoringStore";
@@ -27,6 +30,7 @@ interface RigControllerProviderProps {
   namespace: string;
   rootId: string | null;
   sourceName: string | null;
+  onLoadPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
   children: ReactNode;
 }
 
@@ -39,6 +43,9 @@ export function useGraphRuntime<T = GraphRuntimeState>(
   ) => T;
   return useGraphRuntimeStore(resolvedSelector, equalityFn);
 }
+
+export { useGraphRuntimeStoreApi };
+export { useBindingAuthoringStoreApi };
 
 export function useBindingAuthoring<T = BindingAuthoringState>(
   selector?: (state: BindingAuthoringState) => T,
@@ -64,6 +71,7 @@ export function RigControllerProvider({
   namespace,
   rootId,
   sourceName,
+  onLoadPhaseChange,
   children,
 }: RigControllerProviderProps) {
   const graphRuntimeStoreRef = useRef<GraphRuntimeStore | null>(null);
@@ -85,7 +93,7 @@ export function RigControllerProvider({
   const selectionStore = selectionStoreRef.current;
 
   useRigController(
-    { namespace, rootId, sourceName },
+    { namespace, rootId, sourceName, onLoadPhaseChange },
     {
       graphRuntimeStore,
       bindingAuthoringStore,

@@ -1,0 +1,1214 @@
+import { describe, expect, it } from "vitest";
+import type { StandardRigInput } from "@vizij/utils";
+import {
+  POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+  POSE_IR_TARGETING_CONTRACT,
+  type PoseRigIrFile,
+} from "../types";
+import { PoseIrService } from "./poseIrService";
+
+const createInput = (id: string, path: string): StandardRigInput => ({
+  id,
+  path,
+  sourceId: id,
+  label: id,
+  group: "test",
+  defaultValue: 0,
+  range: { min: -1, max: 1 },
+});
+
+describe("PoseIrService", () => {
+  it("maps legacy config blend modes into v1 pose IR", () => {
+    const { ir, warnings, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: {
+          smile: 0,
+          unknown_input: 0.5,
+        },
+        crossGroupBlendMode: "additive",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "additive",
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: {
+              smile: 0.8,
+              unknown_input: 0.9,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.contracts).toEqual({
+      targetIds: POSE_IR_TARGETING_CONTRACT,
+      syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+    });
+    expect(ir.crossGroupPolicy.mode).toBe("add");
+    expect(ir.groups[0]).toMatchObject({
+      id: "emotion",
+      intraGroupBlendMode: "add",
+      poseIds: ["pose_smile"],
+    });
+    expect(ir.poses[0]?.targets).toEqual({ smile: 0.8 });
+    expect(ir.neutral.values).toEqual({ smile: 0 });
+    expect(
+      warnings.some((warning) => warning.includes('"unknown_input" ignored')),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "warning" &&
+          diagnostic.code === "non-canonical-input-id",
+      ),
+    ).toBe(true);
+  });
+
+  it("round-trips neutral mode between config and IR", () => {
+    const { ir } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralMode: "face-default",
+        neutralInputs: {
+          smile: 0.4,
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.neutral.mode).toBe("face-default");
+    expect(ir.neutral.values).toEqual({ smile: 0.4 });
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.neutralMode).toBe("face-default");
+    expect(config.neutralInputs).toEqual({ smile: 0.4 });
+  });
+
+  it("maps pose compose modes into IR and round-trips to config", () => {
+    const { ir } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+              brow: 0.2,
+            },
+            composeModes: {
+              smile: "average",
+              brow: "add",
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.poses[0]?.composeModes).toEqual({
+      brow: "add",
+      smile: "average",
+    });
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.poses[0]?.composeModes).toEqual({
+      brow: "add",
+      smile: "average",
+    });
+  });
+
+  it("normalizes invalid compose modes and drops entries for channels without targets", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+            },
+            composeModes: {
+              smile: "bad_mode",
+              brow: "average",
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      } as any,
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.poses[0]?.composeModes).toEqual({ smile: "add" });
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === "invalid-compose-mode",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === "compose-mode-without-target",
+      ),
+    ).toBe(true);
+  });
+
+  it("emits diagnostics when poses belong to multiple groups", () => {
+    const { warnings, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: {
+          smile: 0,
+        },
+        crossGroupBlendMode: "additive",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "additive",
+          },
+          {
+            id: "viseme",
+            name: "Viseme",
+            path: "viseme",
+            blendMode: "average",
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion", "viseme"],
+            values: {
+              smile: 0.8,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(
+      warnings.some((warning) =>
+        warning.includes("belongs to multiple groups (2)"),
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "warning" &&
+          diagnostic.code === "multi-group-membership" &&
+          diagnostic.location?.poseId === "pose_smile",
+      ),
+    ).toBe(true);
+  });
+
+  it("warns when explicit neutral mode falls back to defaults", () => {
+    const { warnings, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralMode: "explicit",
+        neutralInputs: {},
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.7,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(
+      warnings.some((warning) => warning.includes("Neutral mode is explicit")),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === "implicit-neutral-fallback",
+      ),
+    ).toBe(true);
+  });
+
+  it("drops synthetic ghost channel ids from authored payloads", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: {
+          smile: 0,
+          pose_group_delta_smile: 0.5,
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            values: {
+              smile: 0.8,
+              pose_cross_smile: 0.2,
+            },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [],
+      "robot",
+    );
+
+    expect(ir.neutral.values).toEqual({ smile: 0 });
+    expect(ir.poses[0]?.targets).toEqual({ smile: 0.8 });
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.code === "ghost-channel-id"),
+    ).toBe(true);
+    expect(ir.contracts.syntheticNodes).toBe(
+      POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+    );
+  });
+
+  it("converts pose IR back into legacy pose config payloads", () => {
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      title: "Robot Rig",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0.1 },
+      },
+      crossGroupPolicy: { mode: "add" },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.crossGroupBlendMode).toBe("additive");
+    expect(config.poseGroups?.[0]).toMatchObject({
+      id: "emotion",
+      blendMode: "average",
+    });
+    expect(config.poses[0]).toMatchObject({
+      group: "emotion",
+      groupId: "emotion",
+      groupIds: ["emotion"],
+      values: { smile: 0.8 },
+    });
+  });
+
+  it("maps per-channel cross-group overrides into IR and emits priority diagnostics", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0 },
+        crossGroupBlendMode: "average",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+          },
+          {
+            id: "viseme",
+            name: "Viseme",
+            path: "viseme",
+            blendMode: "average",
+          },
+        ],
+        crossGroupChannelOverrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["viseme", "emotion"],
+            tieBreak: "group-id",
+          },
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+          {
+            id: "pose_talk",
+            name: "Talk",
+            groupIds: ["viseme"],
+            values: { smile: -0.2 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "priority-cross-group-override-applied" &&
+          diagnostic.location?.inputId === "smile",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code ===
+            "priority-cross-group-override-resolution-change" &&
+          diagnostic.location?.inputId === "smile",
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes invalid cross-group overrides with structured diagnostics", () => {
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0 },
+        crossGroupBlendMode: "additive",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+          },
+        ],
+        crossGroupChannelOverrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["emotion", "unknown_group", "emotion"],
+            tieBreak: "bad-tie-break",
+          },
+          ghost_input: {
+            mode: "priority",
+          },
+          malformed: "bad",
+          brow: {
+            mode: "invalid_mode",
+            priorityOrder: ["emotion"],
+          },
+        },
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      } as any,
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.crossGroupPolicy.overrides).toEqual({
+      brow: {
+        mode: "add",
+        tieBreak: "group-order",
+      },
+      smile: {
+        mode: "priority",
+        priorityOrder: ["emotion"],
+        tieBreak: "group-order",
+      },
+    });
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "non-canonical-cross-group-override-input-id" &&
+          diagnostic.location?.inputId === "malformed",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "non-canonical-cross-group-override-input-id" &&
+          diagnostic.location?.inputId === "ghost_input",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-cross-group-override-mode" &&
+          diagnostic.location?.inputId === "brow",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-cross-group-override-tie-break" &&
+          diagnostic.location?.inputId === "smile",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code ===
+            "unknown-cross-group-override-priority-group-id" &&
+          diagnostic.location?.groupId === "unknown_group",
+      ),
+    ).toBe(true);
+  });
+
+  it("round-trips IR cross-group overrides back to config payloads", () => {
+    const ir: PoseRigIrFile = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      contracts: {
+        targetIds: POSE_IR_TARGETING_CONTRACT,
+        syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+      },
+      neutral: {
+        mode: "explicit",
+        values: { smile: 0 },
+      },
+      crossGroupPolicy: {
+        mode: "add",
+        overrides: {
+          smile: {
+            mode: "priority",
+            priorityOrder: ["viseme", "emotion"],
+            tieBreak: "group-id",
+          },
+          brow: {
+            mode: "add",
+            tieBreak: "group-order",
+          },
+        },
+      },
+      groups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          intraGroupBlendMode: "average",
+          poseIds: ["pose_smile"],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          targets: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    };
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.crossGroupChannelOverrides).toEqual({
+      brow: {
+        mode: "additive",
+        tieBreak: "group-order",
+      },
+      smile: {
+        mode: "priority",
+        priorityOrder: ["viseme", "emotion"],
+        tieBreak: "group-id",
+      },
+    });
+
+    const { ir: normalizedBack } = PoseIrService.fromConfig(
+      config,
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+    expect(normalizedBack.crossGroupPolicy.overrides).toEqual({
+      smile: {
+        mode: "priority",
+        priorityOrder: ["emotion"],
+        tieBreak: "group-id",
+      },
+    });
+  });
+
+  it("normalizes IR payloads that only provide group poseIds", () => {
+    const { ir, warnings, diagnostics } = PoseIrService.normalize(
+      {
+        version: 1,
+        faceId: "robot",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: {
+            smile: 0,
+            unknown_input: 1,
+          },
+        },
+        crossGroupPolicy: { mode: "average" },
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            poseIds: ["pose_smile"],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.poses[0]?.groupIds).toEqual(["emotion"]);
+    expect(ir.groups[0]?.poseIds).toEqual(["pose_smile"]);
+    expect(ir.neutral.values).toEqual({ smile: 0 });
+    expect(
+      warnings.some((warning) => warning.includes('"unknown_input" ignored')),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "warning" &&
+          diagnostic.source === "pose-ir" &&
+          diagnostic.code === "non-canonical-input-id",
+      ),
+    ).toBe(true);
+  });
+
+  it("preserves legacy additive cross-group mode when normalizing pose IR", () => {
+    const { ir } = PoseIrService.normalize(
+      {
+        version: 1,
+        faceId: "robot",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: { smile: 0 },
+        },
+        crossGroupBlendMode: "additive",
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            poseIds: ["pose_smile"],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.crossGroupPolicy.mode).toBe("add");
+  });
+
+  it("normalizes blend stages from config and reports malformed sources", () => {
+    const payload = {
+      version: 1,
+      faceId: "robot",
+      rigKind: "face-specific",
+      neutralInputs: { smile: 0 },
+      crossGroupBlendMode: "additive",
+      poseGroups: [
+        {
+          id: "emotion",
+          name: "Emotion",
+          path: "emotion",
+          blendMode: "average",
+        },
+        {
+          id: "viseme",
+          name: "Viseme",
+          path: "viseme",
+          blendMode: "average",
+        },
+      ],
+      blendStages: [
+        {
+          id: "stage_base",
+          mode: "average",
+          sources: [
+            { kind: "group", id: "emotion" },
+            { kind: "group", id: "viseme" },
+          ],
+        },
+        {
+          id: "stage_final",
+          mode: "invalid_mode",
+          sources: [
+            { kind: "group", id: "missing_group" },
+            { kind: "stage", id: "stage_base" },
+            { kind: "stage", id: "stage_base" },
+          ],
+        },
+      ],
+      poses: [
+        {
+          id: "pose_smile",
+          name: "Smile",
+          groupIds: ["emotion"],
+          values: { smile: 0.8 },
+          createdAt: "now",
+          updatedAt: "now",
+        },
+      ],
+    } as any;
+
+    const { ir, diagnostics } = PoseIrService.fromConfig(
+      payload,
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+      {
+        id: "stage_final",
+        name: undefined,
+        mode: "add",
+        sources: [{ kind: "stage", id: "stage_base" }],
+      },
+    ]);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-blend-stage-mode" &&
+          diagnostic.source === "pose-config",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "unknown-blend-stage-group-source" &&
+          diagnostic.source === "pose-config",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "duplicate-blend-stage-source" &&
+          diagnostic.source === "pose-config",
+      ),
+    ).toBe(true);
+  });
+
+  it("round-trips scoped neutral definitions between config and IR", () => {
+    const { ir } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        crossGroupBlendMode: "average",
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+            neutral: {
+              sourceType: "pose-reference",
+              poseId: "pose_smile",
+            },
+          },
+          {
+            id: "viseme",
+            name: "Viseme",
+            path: "viseme",
+            blendMode: "average",
+            neutral: {
+              sourceType: "direct-values",
+              values: {
+                smile: 0.2,
+                brow: -0.1,
+              },
+            },
+          },
+        ],
+        blendStages: [
+          {
+            id: "stage_base",
+            mode: "average",
+            neutral: {
+              sourceType: "inherit",
+            },
+            sources: [
+              { kind: "group", id: "emotion" },
+              { kind: "group", id: "viseme" },
+            ],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            groupIds: ["emotion"],
+            values: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+          {
+            id: "pose_talk",
+            name: "Talk",
+            groupIds: ["viseme"],
+            values: { brow: 0.4 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(ir.groups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        intraGroupBlendMode: "average",
+        neutral: {
+          sourceType: "pose-reference",
+          poseId: "pose_smile",
+        },
+        poseIds: ["pose_smile"],
+      },
+      {
+        id: "viseme",
+        name: "Viseme",
+        path: "viseme",
+        intraGroupBlendMode: "average",
+        neutral: {
+          sourceType: "direct-values",
+          values: {
+            smile: 0.2,
+            brow: -0.1,
+          },
+        },
+        poseIds: ["pose_talk"],
+      },
+    ]);
+    expect(ir.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        neutral: {
+          sourceType: "inherit",
+        },
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+    ]);
+
+    const config = PoseIrService.toConfig(ir);
+    expect(config.poseGroups).toEqual([
+      {
+        id: "emotion",
+        name: "Emotion",
+        path: "emotion",
+        blendMode: "average",
+        neutral: {
+          sourceType: "pose-reference",
+          poseId: "pose_smile",
+        },
+      },
+      {
+        id: "viseme",
+        name: "Viseme",
+        path: "viseme",
+        blendMode: "average",
+        neutral: {
+          sourceType: "direct-values",
+          values: {
+            smile: 0.2,
+            brow: -0.1,
+          },
+        },
+      },
+    ]);
+    expect(config.blendStages).toEqual([
+      {
+        id: "stage_base",
+        name: undefined,
+        mode: "average",
+        neutral: {
+          sourceType: "inherit",
+        },
+        sources: [
+          { kind: "group", id: "emotion" },
+          { kind: "group", id: "viseme" },
+        ],
+      },
+    ]);
+  });
+
+  it("emits scoped-neutral coverage diagnostics for partial pose-reference and direct-values baselines", () => {
+    const { diagnostics } = PoseIrService.fromConfig(
+      {
+        version: 1,
+        faceId: "robot",
+        rigKind: "face-specific",
+        neutralInputs: { smile: 0, brow: 0 },
+        poseGroups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            blendMode: "average",
+            neutral: {
+              sourceType: "pose-reference",
+              poseId: "pose_reference",
+            },
+          },
+        ],
+        blendStages: [
+          {
+            id: "stage_mix",
+            mode: "average",
+            neutral: {
+              sourceType: "direct-values",
+              values: { smile: 0.15 },
+            },
+            sources: [{ kind: "group", id: "emotion" }],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_main",
+            name: "Main",
+            groupIds: ["emotion"],
+            values: { smile: 0.7, brow: 0.4 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+          {
+            id: "pose_reference",
+            name: "Reference",
+            groupIds: ["emotion"],
+            values: { smile: 0.2 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile"), createInput("brow", "/face/brow")],
+      "robot",
+    );
+
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code ===
+            "scoped-neutral-pose-reference-partial-coverage" &&
+          diagnostic.source === "pose-config" &&
+          diagnostic.location?.path === "poseGroups[0].neutral.poseId" &&
+          diagnostic.metadata?.missingInputIds &&
+          Array.isArray(diagnostic.metadata.missingInputIds) &&
+          diagnostic.metadata.missingInputIds.includes("brow"),
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "scoped-neutral-direct-values-partial-coverage" &&
+          diagnostic.source === "pose-config" &&
+          diagnostic.location?.path === "blendStages[0].neutral.values" &&
+          diagnostic.metadata?.missingInputIds &&
+          Array.isArray(diagnostic.metadata.missingInputIds) &&
+          diagnostic.metadata.missingInputIds.includes("brow"),
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes malformed scoped neutral payloads with structured diagnostics", () => {
+    const { ir, diagnostics } = PoseIrService.normalize(
+      {
+        version: 1,
+        faceId: "robot",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: { smile: 0 },
+        },
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            neutral: {
+              sourceType: "pose-reference",
+              poseId: "unknown_pose",
+            },
+            poseIds: ["pose_smile"],
+          },
+        ],
+        crossGroupPolicy: { mode: "average" },
+        blendStages: [
+          {
+            id: "stage_base",
+            mode: "average",
+            neutral: {
+              sourceType: "direct-values",
+              values: "bad-shape",
+            },
+            sources: [{ kind: "group", id: "emotion" }],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      } as any,
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.groups[0]?.neutral).toBeUndefined();
+    expect(ir.blendStages?.[0]?.neutral).toBeUndefined();
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "unknown-scoped-neutral-pose-reference" &&
+          diagnostic.source === "pose-ir" &&
+          diagnostic.location?.path === "groups[0].neutral.poseId",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-scoped-neutral-direct-values-shape" &&
+          diagnostic.source === "pose-ir" &&
+          diagnostic.location?.path === "blendStages[0].neutral.values",
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to legacy blending when all blend stages are malformed", () => {
+    const { ir, diagnostics } = PoseIrService.normalize(
+      {
+        version: 1,
+        faceId: "robot",
+        contracts: {
+          targetIds: POSE_IR_TARGETING_CONTRACT,
+          syntheticNodes: POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,
+        },
+        neutral: {
+          mode: "explicit",
+          values: { smile: 0 },
+        },
+        groups: [
+          {
+            id: "emotion",
+            name: "Emotion",
+            path: "emotion",
+            intraGroupBlendMode: "average",
+            poseIds: ["pose_smile"],
+          },
+        ],
+        crossGroupPolicy: { mode: "add" },
+        blendStages: [
+          {
+            id: "stage_broken",
+            mode: "average",
+            sources: [{ kind: "group", id: "unknown_group" }],
+          },
+        ],
+        poses: [
+          {
+            id: "pose_smile",
+            name: "Smile",
+            targets: { smile: 0.8 },
+            createdAt: "now",
+            updatedAt: "now",
+          },
+        ],
+      },
+      [createInput("smile", "/face/smile")],
+      "robot",
+    );
+
+    expect(ir.blendStages).toBeUndefined();
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "unknown-blend-stage-group-source" &&
+          diagnostic.source === "pose-ir",
+      ),
+    ).toBe(true);
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "blend-stages-fallback" &&
+          diagnostic.source === "pose-ir",
+      ),
+    ).toBe(true);
+  });
+
+  it("throws structured diagnostics for invalid payloads", () => {
+    try {
+      PoseIrService.normalize(null, [], "robot");
+      expect.unreachable("expected normalize to throw");
+    } catch (error) {
+      const typed = error as Error & {
+        diagnostics?: Array<{ severity: string; code: string }>;
+      };
+      expect(typed.message).toContain("Invalid pose IR payload.");
+      expect(typed.diagnostics?.[0]).toMatchObject({
+        severity: "error",
+        code: "invalid-payload",
+      });
+    }
+  });
+
+  it("throws structured diagnostics for unsupported IR versions", () => {
+    try {
+      PoseIrService.normalize(
+        {
+          version: 999,
+        },
+        [],
+        "robot",
+      );
+      expect.unreachable("expected normalize to throw");
+    } catch (error) {
+      const typed = error as Error & {
+        diagnostics?: Array<{ severity: string; code: string }>;
+      };
+      expect(typed.message).toContain("Unsupported pose rig IR version");
+      expect(typed.diagnostics?.[0]).toMatchObject({
+        severity: "error",
+        code: "unsupported-ir-version",
+      });
+    }
+  });
+});

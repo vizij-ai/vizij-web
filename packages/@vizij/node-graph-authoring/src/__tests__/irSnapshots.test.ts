@@ -47,7 +47,7 @@ const ANIMATABLE: AnimatableValue = {
 
 const INPUT_A: StandardRigInput = {
   id: "input_a",
-  path: "/controls/a",
+  path: "/rig/element/controls/a",
   label: "Control A",
   group: "controls",
   defaultValue: 0,
@@ -56,7 +56,7 @@ const INPUT_A: StandardRigInput = {
 
 const INPUT_B: StandardRigInput = {
   id: "input_b",
-  path: "/controls/b",
+  path: "/rig/element/controls/b",
   label: "Control B",
   group: "controls",
   defaultValue: 0,

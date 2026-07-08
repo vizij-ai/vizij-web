@@ -111,6 +111,269 @@ export interface StandardRigInput {
   derivedChildren?: string[];
 }
 
+export const PROPSRIG_PATH_PREFIX = "/propsrig";
+export const PROPSRIG_INPUT_PATH_PREFIX = PROPSRIG_PATH_PREFIX;
+export const RIG_ELEMENT_INPUT_PATH_PREFIX = "/rig/element";
+export const LEGACY_PROPSRIG_INPUT_PATH_PREFIX = RIG_ELEMENT_INPUT_PATH_PREFIX;
+
+function normalizeRigInputCandidate(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : "";
+}
+
+export function isRigElementStandardInputPath(
+  path: string | null | undefined,
+): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = normalizeStandardRigInputPath(path);
+  const faceStripped = normalized.replace(/^\/rig\/[^/]+\//, "/");
+  return (
+    normalized.startsWith(PROPSRIG_INPUT_PATH_PREFIX) ||
+    normalized.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX) ||
+    faceStripped.startsWith(PROPSRIG_INPUT_PATH_PREFIX) ||
+    faceStripped.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX)
+  );
+}
+
+export function isPropsRigStandardInputPath(
+  path: string | null | undefined,
+): boolean {
+  return isRigElementStandardInputPath(path);
+}
+
+export function resolveStandardRigInputId(
+  selectedRigId: string,
+  standardInputsById?: Map<string, StandardRigInput>,
+): string {
+  if (!selectedRigId) {
+    return selectedRigId;
+  }
+
+  if (!standardInputsById || standardInputsById.size === 0) {
+    return selectedRigId;
+  }
+
+  if (standardInputsById.has(selectedRigId)) {
+    return selectedRigId;
+  }
+
+  const candidateIds = new Set<string>();
+  const pathCandidateSet = new Set<string>();
+  const addPathCandidates = (rawPath: string | null | undefined) => {
+    const normalized = normalizeStandardRigInputPath(rawPath ?? "");
+    if (!normalized || normalized === "/custom/input") {
+      return;
+    }
+    if (pathCandidateSet.has(normalized)) {
+      return;
+    }
+    pathCandidateSet.add(normalized);
+    candidateIds.add(deriveStandardRigInputIdFromPath(normalized));
+    candidateIds.add(
+      deriveStandardRigInputIdFromPath(
+        applyStandardInputPathPrefix(normalized),
+      ),
+    );
+    candidateIds.add(
+      deriveStandardRigInputIdFromPath(
+        stripStandardInputPathPrefix(normalized),
+      ),
+    );
+
+    const withStandardPrefix = applyStandardInputPathPrefix(normalized);
+    if (!pathCandidateSet.has(withStandardPrefix)) {
+      pathCandidateSet.add(withStandardPrefix);
+    }
+
+    const withoutStandardPrefix = stripStandardInputPathPrefix(normalized);
+    if (!pathCandidateSet.has(withoutStandardPrefix)) {
+      pathCandidateSet.add(withoutStandardPrefix);
+    }
+
+    if (normalized.startsWith("/rig/")) {
+      const strippedFacePrefix = stripRigPathPrefix(normalized);
+      if (strippedFacePrefix.length > 0) {
+        addPathCandidates(strippedFacePrefix);
+      }
+    }
+    if (normalized.startsWith("/pose/control/")) {
+      const suffix = normalized
+        .slice("/pose/control/".length)
+        .replace(/^\/+/g, "");
+      if (suffix.length > 0) {
+        candidateIds.add(suffix);
+      }
+    }
+  };
+
+  const enqueueAliasPath = (normalizedPath: string) => {
+    if (normalizedPath.startsWith(`${PROPSRIG_INPUT_PATH_PREFIX}/`)) {
+      const suffix = normalizedPath.slice(
+        PROPSRIG_INPUT_PATH_PREFIX.length + 1,
+      );
+      if (suffix.length > 0) {
+        addPathCandidates(`${RIG_ELEMENT_INPUT_PATH_PREFIX}/${suffix}`);
+      }
+    }
+    if (normalizedPath.startsWith(`${RIG_ELEMENT_INPUT_PATH_PREFIX}/`)) {
+      const suffix = normalizedPath.slice(
+        RIG_ELEMENT_INPUT_PATH_PREFIX.length + 1,
+      );
+      if (suffix.length > 0) {
+        addPathCandidates(`${PROPSRIG_INPUT_PATH_PREFIX}/${suffix}`);
+      }
+    }
+    if (normalizedPath.startsWith("/pose/control/")) {
+      addPathCandidates(
+        `${PROPSRIG_INPUT_PATH_PREFIX}/${normalizedPath.slice(
+          "/pose/control/".length,
+        )}`,
+      );
+    }
+    if (normalizedPath.startsWith("/rig/control/")) {
+      addPathCandidates(
+        `${PROPSRIG_INPUT_PATH_PREFIX}/${normalizedPath.slice(
+          "/rig/control/".length,
+        )}`,
+      );
+    }
+  };
+
+  const addIdCandidate = (candidate: string | null | undefined) => {
+    const normalized = normalizeRigInputCandidate(candidate);
+    if (!normalized) {
+      return;
+    }
+    candidateIds.add(normalized);
+    const path = normalized.includes("/")
+      ? normalized
+      : `/${normalized.replace(/_/g, "/")}`;
+    addPathCandidates(path);
+    const strippedPrefix = stripStandardInputPathPrefix(path);
+    addPathCandidates(strippedPrefix);
+    if (!normalized.startsWith("/")) {
+      addPathCandidates(normalizeStandardRigInputPath(normalized));
+    }
+  };
+
+  const normalizedInput = normalizeStandardRigInputPath(selectedRigId);
+  addIdCandidate(selectedRigId);
+  addIdCandidate(normalizedInput);
+  addIdCandidate(selectedRigId.replace(/^\/+/, ""));
+  addIdCandidate(selectedRigId.replace(/^(?:propsrig|rig[_-]element)_/, ""));
+  addIdCandidate(normalizedInput.replace(/^\/rig\//, ""));
+  if (!selectedRigId.includes("/")) {
+    addIdCandidate(selectedRigId.replace(/_/g, "/"));
+  }
+
+  const pathCandidates = Array.from(pathCandidateSet);
+  pathCandidates.forEach((pathCandidate) => {
+    enqueueAliasPath(pathCandidate);
+  });
+
+  for (const [candidateId] of candidateIds.entries()) {
+    if (standardInputsById.has(candidateId)) {
+      return candidateId;
+    }
+  }
+
+  for (const [inputId, input] of standardInputsById.entries()) {
+    const inputPathCandidates = new Set<string>();
+    const addInputCandidatePaths = (path: string) => {
+      const normalized = normalizeStandardRigInputPath(path);
+      if (!normalized || normalized === "/custom/input") {
+        return;
+      }
+      inputPathCandidates.add(normalized);
+      inputPathCandidates.add(stripStandardInputPathPrefix(normalized));
+      inputPathCandidates.add(applyStandardInputPathPrefix(normalized));
+      inputPathCandidates.add(stripStandardInputPathPrefix(normalized));
+      inputPathCandidates.add(deriveStandardRigInputIdFromPath(normalized));
+      inputPathCandidates.add(
+        deriveStandardRigInputIdFromPath(
+          applyStandardInputPathPrefix(normalized),
+        ),
+      );
+      inputPathCandidates.add(
+        deriveStandardRigInputIdFromPath(
+          stripStandardInputPathPrefix(normalized),
+        ),
+      );
+      if (normalized.startsWith("/rig/")) {
+        const strippedRigPrefix = stripRigPathPrefix(normalized);
+        if (strippedRigPrefix.length > 0) {
+          inputPathCandidates.add(
+            normalizeStandardRigInputPath(strippedRigPrefix),
+          );
+        }
+      }
+      if (normalized.startsWith("/pose/control/")) {
+        inputPathCandidates.add(
+          `${PROPSRIG_INPUT_PATH_PREFIX}/${normalized.slice(
+            "/pose/control/".length,
+          )}`,
+        );
+      }
+      if (normalized.startsWith("/rig/control/")) {
+        inputPathCandidates.add(
+          `${PROPSRIG_INPUT_PATH_PREFIX}/${normalized.slice(
+            "/rig/control/".length,
+          )}`,
+        );
+      }
+      if (normalized.startsWith(PROPSRIG_INPUT_PATH_PREFIX)) {
+        const suffix = normalized.slice(PROPSRIG_INPUT_PATH_PREFIX.length + 1);
+        if (suffix.length > 0) {
+          inputPathCandidates.add(`${RIG_ELEMENT_INPUT_PATH_PREFIX}/${suffix}`);
+        }
+      }
+      if (normalized.startsWith(RIG_ELEMENT_INPUT_PATH_PREFIX)) {
+        const suffix = normalized.slice(
+          RIG_ELEMENT_INPUT_PATH_PREFIX.length + 1,
+        );
+        if (suffix.length > 0) {
+          inputPathCandidates.add(`${PROPSRIG_INPUT_PATH_PREFIX}/${suffix}`);
+        }
+      }
+    };
+    addInputCandidatePaths(input.path);
+
+    for (const candidatePath of inputPathCandidates) {
+      if (
+        candidatePath &&
+        candidatePath !== "/custom/input" &&
+        pathCandidateSet.has(normalizeStandardRigInputPath(candidatePath))
+      ) {
+        return inputId;
+      }
+      if (candidateIds.has(candidatePath)) {
+        return inputId;
+      }
+    }
+    if (candidateIds.has(inputId)) {
+      return inputId;
+    }
+  }
+
+  const fallbackId = deriveStandardRigInputIdFromPath(normalizedInput);
+  if (standardInputsById.has(fallbackId)) {
+    return fallbackId;
+  }
+
+  return selectedRigId;
+}
+
+export function isRigElementStandardInputPathList(
+  paths: Array<string | null | undefined>,
+): boolean {
+  return paths.some((path) => isRigElementStandardInputPath(path));
+}
+
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -137,13 +400,19 @@ export function normalizeStandardRigInputPath(path: string): string {
 
 function stripRigPathPrefix(value: string): string {
   let working = value.startsWith("/") ? value.slice(1) : value;
-  const pattern = /^rig\/[\w-]+\/(.*)$/i;
+  const pattern = /^rig\/([\w-]+)\/(.*)$/i;
   while (true) {
     const match = working.match(pattern);
     if (!match) {
       break;
     }
-    working = match[1] ?? "";
+    const segment = (match[1] ?? "").toLowerCase();
+    // Preserve legacy rig namespaces that represent canonical control families
+    // rather than rig-face prefixes.
+    if (segment === "element" || segment === "control") {
+      break;
+    }
+    working = match[2] ?? "";
   }
   return working;
 }
@@ -152,10 +421,8 @@ export function deriveStandardRigInputIdFromPath(path: string): string {
   return path.replace(/\//g, "_").replace(/^_+/, "");
 }
 
-export interface StandardRigInputInit extends Omit<
-  StandardRigInput,
-  "id" | "path"
-> {
+export interface StandardRigInputInit
+  extends Omit<StandardRigInput, "id" | "path"> {
   path: string;
   id?: string;
 }
@@ -216,26 +483,102 @@ function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-export function deriveLabelFromNormalizedPath(normalizedPath: string): string {
+function deriveDisplaySegmentsFromNormalizedPath(
+  normalizedPath: string,
+): string[] {
   const withoutLeading = normalizedPath.startsWith("/")
     ? normalizedPath.slice(1)
     : normalizedPath;
   if (!withoutLeading) {
+    return [];
+  }
+
+  const segments = withoutLeading
+    .split("/")
+    .filter(Boolean)
+    .filter((segment, index) => {
+      if (index !== 0) {
+        return true;
+      }
+      return segment !== "standard" && segment !== "propsrig";
+    })
+    .map((segment) => {
+      switch (segment.toLowerCase()) {
+        case "translation":
+          return "trans";
+        case "rotation":
+          return "rot";
+        default:
+          return segment;
+      }
+    });
+
+  if (
+    segments.length > 1 &&
+    segments[segments.length - 1]?.toLowerCase() === "value"
+  ) {
+    segments.pop();
+  }
+
+  return segments;
+}
+
+function deriveLegacyDisplaySegmentsFromNormalizedPath(
+  normalizedPath: string,
+): string[] {
+  const withoutLeading = normalizedPath.startsWith("/")
+    ? normalizedPath.slice(1)
+    : normalizedPath;
+  if (!withoutLeading) {
+    return [];
+  }
+  return withoutLeading
+    .split("/")
+    .filter(Boolean)
+    .filter((segment, index) => !(index === 0 && segment === "standard"));
+}
+
+function deriveLabelFromSegments(segments: string[]): string {
+  if (segments.length === 0) {
     return "Custom Input";
   }
-  const segments = withoutLeading.split("/");
-  const filteredSegments = segments.filter((segment, index) => {
-    if (index === 0 && segment === "standard") {
-      return false;
-    }
-    return true;
-  });
-  const words = filteredSegments
+  const words = segments
     .flatMap((segment) =>
       segment.replace(/[_-]+/g, " ").split(" ").filter(Boolean),
     )
     .map(capitalize);
   return words.length > 0 ? words.join(" ") : "Custom Input";
+}
+
+export function formatStandardRigInputDisplayPath(path: string): string {
+  const normalized = normalizeStandardRigInputPath(path);
+  const segments = deriveDisplaySegmentsFromNormalizedPath(normalized);
+  if (segments.length === 0) {
+    return "/";
+  }
+  return `/${segments.join("/")}`;
+}
+
+export function deriveLabelFromNormalizedPath(normalizedPath: string): string {
+  return deriveLabelFromSegments(
+    deriveDisplaySegmentsFromNormalizedPath(normalizedPath),
+  );
+}
+
+export function migrateLegacyStandardRigInputLabel(
+  path: string,
+  label: string | null | undefined,
+): string {
+  const normalizedPath = normalizeStandardRigInputPath(path);
+  const normalizedLabel = normalizeWhitespace(label || "");
+  const currentLabel = deriveLabelFromNormalizedPath(normalizedPath);
+  if (!normalizedLabel) {
+    return currentLabel;
+  }
+  const legacyLabel = deriveLabelFromSegments(
+    deriveLegacyDisplaySegmentsFromNormalizedPath(normalizedPath),
+  );
+  return normalizedLabel === legacyLabel ? currentLabel : normalizedLabel;
 }
 
 export function deriveGroupFromNormalizedPath(normalizedPath: string): string {

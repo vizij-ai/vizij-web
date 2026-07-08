@@ -16,7 +16,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 6. [Local WASM Development](#local-wasm-development)
 7. [Development Tips](#development-tips)
 8. [Validation Workflow](#validation-workflow)
-9. [Publishing Packages](#publishing-packages)
+9. [Publishing & Versioning](#publishing--versioning)
 10. [Related Repositories](#related-repositories)
 
 ---
@@ -27,19 +27,37 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 - **Apps** – Demo and tooling front-ends (Vite + React) used for development, QA, and showcasing Vizij capabilities.
 - **pnpm workspace** – Shared dependency graph, consistent linting/typechecking, and streamlined scripts.
 
+## Documentation & Source Of Truth
+
+- `vizij-docs` is the canonical internal source for cross-repo architecture, roadmap framing, lifecycle status, known issues, and release-note policy.
+- This repo is the canonical source for `vizij-web` implementation detail, package/app workflows, and local execution docs.
+- `vizij-web/apps/vizij-authoring/docs/*` is the detailed execution source for authoring work; `vizij-docs` summarizes that work at the cross-repo level.
+- `vizij-ai.github.io` is the curated public-docs/tutorial/showcase surface.
+
 ---
 
 ## Workspace Layout
 
 ### Packages
 
-| Package                     | Path                                 | Summary                                                    | Key scripts                                  |
-| --------------------------- | ------------------------------------ | ---------------------------------------------------------- | -------------------------------------------- |
-| `@vizij/animation-react`    | `packages/@vizij/animation-react`    | React provider for the animation WASM engine.              | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/node-graph-react`   | `packages/@vizij/node-graph-react`   | React provider & hooks for node graphs.                    | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/orchestrator-react` | `packages/@vizij/orchestrator-react` | React orchestrator bindings and hooks.                     | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/render`             | `packages/@vizij/render`             | Three.js renderer + controllers for Vizij rigs.            | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/utils`              | `packages/@vizij/utils`              | Shared math/value utilities consumed across packages/apps. | `dev`, `build`, `test`, `clean`              |
+| Package                       | Path                                   | Summary                                                        | Key scripts                                  |
+| ----------------------------- | -------------------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
+| `@vizij/animation-react`      | `packages/@vizij/animation-react`      | React provider for the animation WASM engine.                  | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/arora-types`          | `packages/@vizij/arora-types`          | TypeScript protocol types for standalone/control work.         | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.               | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                  | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                        | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/orchestrator-react`   | `packages/@vizij/orchestrator-react`   | React orchestrator bindings and hooks.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Higher-level runtime provider wiring renderer + orchestration. | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.     | `dev`, `build`, `test`, `clean`              |
+
+### Local protocol / standalone crates
+
+| Crate              | Path                        | Summary                                              |
+| ------------------ | --------------------------- | ---------------------------------------------------- |
+| `arora-connection` | `packages/arora-connection` | Rust protocol traits and shared connection types     |
+| `arora-websocket`  | `packages/arora-websocket`  | Rust WebSocket implementation for the Arora protocol |
 
 ### Apps
 
@@ -53,6 +71,12 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-orchestrator`    | `apps/minimal-demo-orchestrator`    | Orchestrator blackboard visualiser with canned controllers.             | `dev`, `build`, `typecheck`, `preview` |
+| `tutorial-fullscreen-face`     | `apps/tutorial-fullscreen-face`     | Runtime tutorial app built on `@vizij/runtime-react`.                   | `dev`, `build`, `typecheck`            |
+| `tutorial-agent-face`          | `apps/tutorial-agent-face`          | Tutorial/demo app with agent-facing interaction flow.                   | `dev`, `build`, `typecheck`            |
+| `vizij-showcase`               | `apps/vizij-showcase`               | Shareable fullscreen showcase with runtime, voice, and staging helpers. | `dev`, `build`, `typecheck`            |
+| `vizij-standalone`             | `apps/vizij-standalone`             | Tauri standalone application surface.                                   | `dev`, `build`, `preview`              |
+
+There is also an `apps/vizij-ws-app` directory in the repo, but it is not part of the primary current pnpm app map or root command aliases. Treat it as a transitional implementation surface while the standalone/protocol story is normalized.
 
 ### vizij-authoring Features
 
@@ -70,7 +94,7 @@ The `vizij-authoring` app is the primary tool for creating and configuring Vizij
 
 Standard Feature Spaces provide a unified naming convention for rig inputs, enabling interoperability between different face rigs and animation systems. Each standard input follows a hierarchical path:
 
-```
+```text
 /standard/{namespace}/{channel}/{track}/{attribute}
 ```
 
@@ -108,19 +132,26 @@ When linking local WASM builds you’ll also need the Rust toolchain from [`vizi
 ## First-Time Setup
 
 1. Install dependencies:
+
    ```bash
    pnpm install
    ```
+
 2. Build packages so apps receive compiled outputs:
+
    ```bash
    pnpm run build:packages
    ```
+
    To bundle renderer/utilities specifically:
+
    ```bash
    pnpm --filter "@vizij/render" build
    pnpm --filter "@vizij/utils" build
    ```
+
 3. Start a dev server:
+
    ```bash
    pnpm run dev:demo-animation-studio
    # or start any other app via pnpm --filter "<workspace>" dev
@@ -137,7 +168,6 @@ From the repo root:
 | `pnpm run dev:<workspace>`               | Start a specific app (e.g. `dev:demo-vizij-player`, `dev:minimal-demo-graph`).                   |
 | `pnpm run build`                         | Build packages then apps in dependency order.                                                    |
 | `pnpm run build:packages` / `build:apps` | Run just the package builds or just the app builds.                                              |
-| `pnpm smoke:ws-app`                      | Run a smoke test against a running `vizij-ws-app` instance (default `ws://127.0.0.1:9000`).      |
 | `pnpm run prep`                          | Format, then lint, then run `typecheck:all` across the workspace.                                |
 | `pnpm run prep:push`                     | Full validation: format → clean → build → lint → `typecheck:all` → test (CI-friendly).           |
 | `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.                                        |
@@ -148,28 +178,6 @@ From the repo root:
 
 Use `pnpm --filter "<workspace>" <script>` when you want to target a specific package/app.
 
-### Standalone WS App Smoke Test
-
-Run against a live `vizij-ws-app` instance after starting the app:
-
-```bash
-pnpm smoke:ws-app --url ws://127.0.0.1:9000 --timeout 8000
-```
-
-Useful for manual smoke checks with `wscat`:
-
-```bash
-npx wscat -c ws://127.0.0.1:9000
-```
-
-Send each JSON message as a **single line** and press Enter:
-
-```json
-{"type":"list_slots"}
-{"type":"set_slot_values","values":{"standard/vizij/left_eye/pos/x":{"f64":0.5}}}
-{"type":"get_slot_values","slots":["standard/vizij/left_eye/pos/x"]}
-```
-
 ---
 
 ## Local WASM Development
@@ -177,10 +185,12 @@ Send each JSON message as a **single line** and press Enter:
 When you need edits from the Rust workspace:
 
 1. In `vizij-rs`:
+
    ```bash
    pnpm run link:wasm
    # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
    ```
+
 2. Back in this repo, link the packages you want (and verify status):
 
    ```bash
@@ -194,6 +204,7 @@ When you need edits from the Rust workspace:
    ```
 
 3. Optionally, reinstall to refresh workspace symlinks / resolution:
+
    ```bash
    pnpm install
    ```
@@ -203,6 +214,7 @@ Tips:
 - Restart Vite dev servers after linking so they pick up new symlinks.
 - Keep crate/npm versions aligned to avoid ABI mismatch errors (`expected 2, got 1`). Rebuild when they diverge.
 - When you want to revert to published packages:
+
   ```bash
   pnpm run wasm:unlink -- --pkgs all
   pnpm install
@@ -282,11 +294,14 @@ Legacy workflow (kept as a break-glass option): [`.github/workflows/release-tag_
    - Merge the feature branch into `main`. The changeset files stay unversioned until the release cut.
 2. **Tag a release commit**
    - From a clean local checkout of the branch you want to release (usually `main`):
+
      ```bash
      git tag -a "npm-pub-$(date -u '+%Y%m%d-%H%M%S')" -m "Trigger npm publish"
      git push origin --follow-tags
      ```
+
    - CI will determine the branch containing the tag commit and check it out.
+
 3. **CI versions and publishes**
    - The `publish-npm` workflow installs dependencies, runs `pnpm ci:version` (Changesets versioning), commits the generated changes, runs `pnpm run verify:packages` (build + lint + tests scoped to `@vizij/*` packages), and finally executes `pnpm ci:publish`.
    - `pnpm ci:publish` runs `scripts/ci-publish.mjs`, which temporarily rewrites `workspace:*` dependency ranges to real versions during the publish step and restores manifests afterward.
@@ -306,7 +321,7 @@ The workflow logs the npm publish output for each changed package. After a succe
 ## Related Repositories
 
 - [`vizij-rs`](../vizij-rs) – Rust source for the animation, graph, and orchestrator cores plus WASM bundles.
-- [`vizij-docs`](../vizij-docs) – Additional design notes, investigation reports, and API documentation.
-- [`vizij-spec`](../vizij_spec) – Authoritative schema definitions for animations, node graphs, and orchestrations.
+- [`vizij-docs`](../vizij-docs) – Canonical internal cross-repo architecture, roadmap, decisions, and status summaries.
+- [`vizij-ai.github.io`](../vizij-ai.github.io) – Curated public docs, tutorials, and showcase content.
 
 Questions or contributions? Open an issue or reach out to the Vizij front-end & tooling team. Great docs keep this monorepo approachable. 🚀

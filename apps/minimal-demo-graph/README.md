@@ -70,6 +70,7 @@ Open the printed local URL (default `http://localhost:5173`). Use the control ba
 The loader accepts a few shapes and normalises them to the canonical `GraphSpec` used by `vizij-graph-core` (nodes with inline `inputs` maps).
 
 1. **Canonical GraphSpec**
+
    ```json
    {
      "nodes": [
@@ -93,13 +94,19 @@ The loader accepts a few shapes and normalises them to the canonical `GraphSpec`
      ]
    }
    ```
+
    Connections live inside each node’s `inputs` map rather than a top-level `edges` array.
+
 2. **Legacy editor presets**
+
    ```json
    { "n": [...], "e": [...] }
    ```
+
    The demo converts these into the canonical inputs map automatically.
+
 3. **Wrapped spec**
+
    ```json
    { "spec": { "nodes": [...] } }
    ```

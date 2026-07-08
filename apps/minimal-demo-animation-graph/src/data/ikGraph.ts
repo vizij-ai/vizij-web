@@ -1,9 +1,13 @@
 import type { GraphSpec } from "@vizij/node-graph-wasm";
 import { ikPaths, JOINT_IDS, JOINT_SAMPLES } from "./ikAnimation";
+import { sampleUrdf } from "./urdf-samples/sampleUrdf";
 
 const defaultJointSample = JOINT_SAMPLES[0]
   ? Array.from(JOINT_SAMPLES[0])
   : [0, 0, 0, 0, 0, 0];
+
+const DEFAULT_ROOT_LINK = "base_link";
+const DEFAULT_TIP_LINK = "tool";
 
 export const ikGraphSpec: GraphSpec = {
   nodes: [
@@ -19,9 +23,9 @@ export const ikGraphSpec: GraphSpec = {
       id: "fk",
       type: "urdffk",
       params: {
-        urdf_xml: "",
-        root_link: "",
-        tip_link: "",
+        urdf_xml: sampleUrdf,
+        root_link: DEFAULT_ROOT_LINK,
+        tip_link: DEFAULT_TIP_LINK,
         joint_defaults: [],
       },
     },
@@ -39,9 +43,9 @@ export const ikGraphSpec: GraphSpec = {
       id: "ik_solver",
       type: "urdfikposition",
       params: {
-        urdf_xml: "",
-        root_link: "",
-        tip_link: "",
+        urdf_xml: sampleUrdf,
+        root_link: DEFAULT_ROOT_LINK,
+        tip_link: DEFAULT_TIP_LINK,
         max_iters: 256,
         tol_pos: 0.0005,
       },

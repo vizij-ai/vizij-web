@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without relying on rig or orchestrator components.
+Build and maintain a runtime-truthful Vizij authoring surface: import assets/graphs, author rig bindings and poses, validate runtime behavior, and export reliable Vizij bundles.
 
 ## Runbook
 
-- Dev server: `pnpm --filter vizij-authoring dev`
+- Dev server: `NODE_ENV=development pnpm --filter vizij-authoring dev`
 - Build/preview: `pnpm --filter vizij-authoring build` / `pnpm --filter vizij-authoring preview`
 - Typecheck: `pnpm --filter vizij-authoring typecheck`
 
@@ -24,6 +24,12 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 
 ## Troubleshooting
 
+### Blank Page in Codex Browser
+
+- If the authoring app opens as a blank page in Codex and the console shows `_jsxDEV is not a function`, check the shell environment before blaming the current UI change.
+- Codex desktop sessions can inherit `NODE_ENV=production`, which causes Vite dev mode to serve the production `react-jsx-dev-runtime`.
+- Restart the dev server with `NODE_ENV=development pnpm --filter vizij-authoring dev` before running Playwright or browser checks.
+
 ### Derived Inputs
 
 - **Cycle Detection**: If you encounter a cycle warning, check the parent binding chain. The system prevents cycles by validating dependencies before applying changes. If a cycle persists in an imported graph, use the "Clear Parent" action on one of the nodes to break the loop.
@@ -40,3 +46,9 @@ Inspect Vizij GLB assets, explore hierarchies, and export edited scenes without 
 - Logic is split into services: `PoseConfigService`, `PoseGraphService`, `PoseSnapshotService`.
 - Use `usePoseRigStore` (or `usePoseRig` from `PoseRigProvider`) to access state and actions.
 - Avoid putting complex logic in components; use store actions or services.
+
+## Design and UI
+
+The general aesthetic of the application is to be clean and polished yet technical and powerful. Use non-grayscale colors sparingly as they will bring a lot of attention to them.
+
+Whenever you introduce a new UI element or feature, consider existing elements and refactoring patterns. Consider extending an existing element to support your needs instead. If that is not sufficient, introduce a new generalizable element that works for your needs and can be useful for future work. Make sure any new elements use the application's UI library, are accessible, and are using semantic theme values where applicable (such as colors) so as to be consistent and work with application themes.

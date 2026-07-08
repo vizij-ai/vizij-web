@@ -22,6 +22,8 @@ import {
 } from "@vizij/utils";
 import type { PersistedAutoStandardInput } from "../rig/persistence";
 import type { AutoInputState } from "../types/autoInputs";
+import type { VizijPipelineMetadataV1 } from "../utils/graphImport";
+import { remapPipelineMetadataInputIds } from "../utils/standardInputRemap";
 
 type AnimatableComponent = AnimComponent;
 
@@ -119,7 +121,7 @@ export function applyShapeInputRename({
   setSelectedStandardInputSubgroups,
   setFeatureLabelOverrides,
   resolvePersistedAutoKey,
-}: ShapeRenameParams): void {
+}: ShapeRenameParams): Map<string, string> {
   const autoTargets = Array.from(autoInputsRef.current.entries()).filter(
     ([, entry]) => entry.metadata.elementId === shapeId,
   );
@@ -233,7 +235,7 @@ export function applyShapeInputRename({
 
   if (renameRecords.size === 0) {
     refreshAutoMetadataForShape(shapeId, shapeName);
-    return;
+    return new Map();
   }
 
   const idRemap = new Map<string, string>();
@@ -521,6 +523,8 @@ export function applyShapeInputRename({
     });
     return changed ? next : previous;
   });
+
+  return idRemap;
 }
 
 function replaceSlugInPath(
@@ -565,6 +569,9 @@ function remapBindingInputIds(
   if (remappedInputId !== ensured.inputId) {
     changed = true;
   }
+  if (ensured.targetId !== target.id) {
+    changed = true;
+  }
 
   const remappedSlots = ensured.slots.map((slot) => {
     if (!slot.inputId) {
@@ -582,7 +589,18 @@ function remapBindingInputIds(
   });
 
   if (!changed) {
-    return ensured;
+    const remappedMetadata = remapBindingMetadataInputIds(
+      ensured.metadata,
+      idRemap,
+    );
+    if (remappedMetadata === ensured.metadata) {
+      return ensured;
+    }
+    return {
+      ...ensured,
+      metadata: remappedMetadata,
+      targetId: target.id,
+    };
   }
 
   return ensureBindingStructure(
@@ -590,8 +608,48 @@ function remapBindingInputIds(
       ...ensured,
       inputId: remappedInputId ?? null,
       slots: remappedSlots,
+      metadata: remapBindingMetadataInputIds(ensured.metadata, idRemap),
       targetId: target.id,
     },
     target,
   );
+}
+
+function remapBindingMetadataInputIds(
+  metadata: AnimatableBinding["metadata"],
+  idRemap: ReadonlyMap<string, string>,
+): AnimatableBinding["metadata"] {
+  if (!metadata || idRemap.size === 0) {
+    return metadata;
+  }
+  const metadataRecord =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : null;
+  if (!metadataRecord) {
+    return metadata;
+  }
+  const vizij =
+    metadataRecord.vizij &&
+    typeof metadataRecord.vizij === "object" &&
+    !Array.isArray(metadataRecord.vizij)
+      ? (metadataRecord.vizij as Record<string, unknown>)
+      : null;
+  const remappedPipeline = vizij
+    ? remapPipelineMetadataInputIds(
+        (vizij.pipelineV1 as VizijPipelineMetadataV1 | null | undefined) ??
+          null,
+        idRemap,
+      )
+    : null;
+  if (!remappedPipeline || remappedPipeline === vizij?.pipelineV1) {
+    return metadata;
+  }
+  return {
+    ...metadataRecord,
+    vizij: {
+      ...(vizij ?? {}),
+      pipelineV1: remappedPipeline,
+    },
+  };
 }

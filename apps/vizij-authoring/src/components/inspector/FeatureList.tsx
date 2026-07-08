@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import type { BindingMap, BindingValueType } from "@vizij/node-graph-authoring";
 import {
@@ -20,14 +20,22 @@ import type {
   SceneObjectFeature,
   SceneFeatureComponent,
 } from "../../scene/sceneGraph";
-import { Button, CollapsibleGroup, CollapsibleRow, Input } from "../ui";
-import "./feature-list.css";
+import {
+  Button,
+  CollapsibleGroup,
+  CollapsibleRow,
+  Input,
+  Switch,
+  Chip,
+} from "../ui";
+import { cn } from "../../utils/cn";
 
 interface FeatureListProps {
   node: SceneObjectNode;
   mode: "features" | "bindings";
   hiddenMode?: "none" | "grey" | "omit";
   showHideControls?: boolean;
+  focusedTargetId?: string | null;
 }
 
 export function FeatureList({
@@ -35,6 +43,7 @@ export function FeatureList({
   mode,
   hiddenMode = "grey",
   showHideControls = true,
+  focusedTargetId = null,
 }: FeatureListProps) {
   const {
     setFeatureAnimated,
@@ -50,6 +59,7 @@ export function FeatureList({
   } = useSceneComposer();
 
   const bindings = useBindingAuthoring((state) => state.bindings);
+  const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
   const standardInputs = useBindingAuthoring((state) => state.standardInputs);
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
@@ -235,49 +245,55 @@ export function FeatureList({
   );
 
   return (
-    <div className="feature-list">
+    <div className="flex flex-col gap-2">
       {mode === "bindings" && hiddenDriverIds.size > 0 && showHideControls && (
-        <div
-          className="driver-panel__toolbar"
-          style={{ marginBottom: "0.75rem" }}
-        >
-          <Button variant="subtle" onClick={handleShowAllDrivers}>
+        <div className="flex items-center gap-2 px-1 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-[10px]"
+            onClick={handleShowAllDrivers}
+          >
             Show hidden ({hiddenDriverIds.size})
           </Button>
         </div>
       )}
-      {node.features.map((feature) => (
-        <FeatureRow
-          key={feature.id}
-          feature={feature}
-          mode={mode}
-          bindings={bindings}
-          standardInputs={standardInputs}
-          standardInputLookup={standardInputsById}
-          inputValues={inputValues}
-          nodeLabel={node.name}
-          onToggleAnimated={handleToggleAnimated}
-          onStaticChange={handleStaticChange}
-          onDefaultChange={handleDefaultChange}
-          onConstraintChange={handleConstraintChange}
-          onBindingInputChange={handleBindingInputChange}
-          onAddBindingSlot={addDriverSlot}
-          onRemoveBindingSlot={removeDriverSlot}
-          onBindingExpressionChange={setDriverExpression}
-          onBindingSlotAliasChange={setDriverSlotAlias}
-          onBindingSlotValueTypeChange={setDriverSlotValueType}
-          onNormalizeBindingSlot={handleNormalizeSlot}
-          onRequestCreateStandardInput={handleRequestCreateStandardInput}
-          onResetBinding={handleResetBinding}
-          onUpdateStandardInput={handleUpdateStandardInputWrapper}
-          onInputValueChange={handleInputValueChange}
-          hiddenDriverIds={hiddenDriverIds}
-          onHideDriver={handleHideDriver}
-          onShowDriver={handleShowDriver}
-          hiddenMode={hiddenMode}
-          showHideControls={showHideControls}
-        />
-      ))}
+      <div className="flex flex-col gap-3">
+        {node.features.map((feature) => (
+          <FeatureRow
+            key={feature.id}
+            feature={feature}
+            mode={mode}
+            bindings={bindings}
+            bindingIssues={bindingIssues}
+            standardInputs={standardInputs}
+            standardInputLookup={standardInputsById}
+            inputValues={inputValues}
+            nodeLabel={node.name}
+            onToggleAnimated={handleToggleAnimated}
+            onStaticChange={handleStaticChange}
+            onDefaultChange={handleDefaultChange}
+            onConstraintChange={handleConstraintChange}
+            onBindingInputChange={handleBindingInputChange}
+            onAddBindingSlot={addDriverSlot}
+            onRemoveBindingSlot={removeDriverSlot}
+            onBindingExpressionChange={setDriverExpression}
+            onBindingSlotAliasChange={setDriverSlotAlias}
+            onBindingSlotValueTypeChange={setDriverSlotValueType}
+            onNormalizeBindingSlot={handleNormalizeSlot}
+            onRequestCreateStandardInput={handleRequestCreateStandardInput}
+            onResetBinding={handleResetBinding}
+            onUpdateStandardInput={handleUpdateStandardInputWrapper}
+            onInputValueChange={handleInputValueChange}
+            hiddenDriverIds={hiddenDriverIds}
+            onHideDriver={handleHideDriver}
+            onShowDriver={handleShowDriver}
+            hiddenMode={hiddenMode}
+            showHideControls={showHideControls}
+            focusedTargetId={focusedTargetId}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -286,6 +302,7 @@ interface FeatureRowProps {
   feature: SceneObjectFeature;
   mode: "features" | "bindings";
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
@@ -349,6 +366,7 @@ interface FeatureRowProps {
   onShowDriver?: (id: string) => void;
   hiddenMode?: "none" | "grey" | "omit";
   showHideControls?: boolean;
+  focusedTargetId?: string | null;
 }
 
 function FeatureRow(props: FeatureRowProps) {
@@ -371,14 +389,15 @@ function FeatureRow(props: FeatureRowProps) {
     const subtitle = subtitleParts.filter(Boolean).join(" · ");
 
     const toggleAction = (
-      <label className="feature-row__toggle">
-        <input
-          type="checkbox"
+      <div className="flex items-center gap-2 px-2 py-1 rounded bg-slate-800/30 border border-slate-800/50">
+        <span className="text-[9px] uppercase font-bold text-slate-500">
+          Animated
+        </span>
+        <Switch
           checked={isAnimated}
-          onChange={(e) => onToggleAnimated(feature.id, e.target.checked)}
+          onChange={(checked) => onToggleAnimated(feature.id, checked)}
         />
-        Animated
-      </label>
+      </div>
     );
 
     const matrixRows = feature.components.map((component) =>
@@ -397,47 +416,83 @@ function FeatureRow(props: FeatureRowProps) {
         title={feature.label}
         subtitle={subtitle}
         actions={toggleAction}
-        className="feature-row feature-row--collapsible"
+        className="border-slate-800/60 bg-slate-900/20"
       >
-        {isAnimated ? (
-          <table className="feature-matrix">
-            <thead>
-              <tr>
-                <th>Property</th>
-                <th>Min</th>
-                <th>Default</th>
-                <th>Max</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matrixRows.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row">{row.label}</th>
-                  <td>{row.min}</td>
-                  <td>{row.defaultValue}</td>
-                  <td>{row.max}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <table className="feature-matrix feature-matrix--static">
-            <thead>
-              <tr>
-                <th>Property</th>
-                <th>Default</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matrixRows.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row">{row.label}</th>
-                  <td>{row.staticValue}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <div className="flex flex-col gap-2 p-1">
+          {isAnimated ? (
+            <div className="overflow-hidden rounded border border-slate-800/40">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-800/40 border-b border-slate-800/40">
+                    <th className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Property
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Min
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Default
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Max
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/30">
+                  {matrixRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="hover:bg-slate-800/20 transition-colors"
+                    >
+                      <th
+                        scope="row"
+                        className="px-3 py-2 text-[11px] font-medium text-slate-300"
+                      >
+                        {row.label}
+                      </th>
+                      <td className="px-3 py-1">{row.min}</td>
+                      <td className="px-3 py-1">{row.defaultValue}</td>
+                      <td className="px-3 py-1">{row.max}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded border border-slate-800/40">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-800/40 border-b border-slate-800/40">
+                    <th className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Property
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-right">
+                      Static Value
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/30">
+                  {matrixRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="hover:bg-slate-800/20 transition-colors"
+                    >
+                      <th
+                        scope="row"
+                        className="px-3 py-2 text-[11px] font-medium text-slate-300"
+                      >
+                        {row.label}
+                      </th>
+                      <td className="px-3 py-1 text-right">
+                        {row.staticValue}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </CollapsibleGroup>
     );
   }
@@ -454,6 +509,7 @@ function FeatureRow(props: FeatureRowProps) {
             feature={feature}
             component={component}
             bindings={props.bindings}
+            bindingIssues={props.bindingIssues}
             standardInputs={props.standardInputs}
             standardInputLookup={props.standardInputLookup}
             inputValues={props.inputValues}
@@ -472,6 +528,7 @@ function FeatureRow(props: FeatureRowProps) {
             onShowDriver={props.onShowDriver}
             hiddenMode={props.hiddenMode}
             showHideControls={props.showHideControls}
+            focusedTargetId={props.focusedTargetId}
           />
         ))}
       </div>
@@ -485,6 +542,7 @@ interface FeatureBindingRowProps {
   feature: SceneObjectFeature;
   component: SceneFeatureComponent;
   bindings: BindingMap;
+  bindingIssues: Map<string, readonly string[]>;
   standardInputs: StandardRigInput[];
   standardInputLookup: Map<string, StandardRigInput>;
   inputValues: Record<string, number>;
@@ -503,12 +561,14 @@ interface FeatureBindingRowProps {
   onShowDriver?: (id: string) => void;
   hiddenMode?: "none" | "grey" | "omit";
   showHideControls?: boolean;
+  focusedTargetId?: string | null;
 }
 
 function FeatureBindingRow({
   feature,
   component,
   bindings,
+  bindingIssues,
   standardInputs,
   standardInputLookup,
   inputValues,
@@ -527,6 +587,7 @@ function FeatureBindingRow({
   onShowDriver,
   hiddenMode = "grey",
   showHideControls = true,
+  focusedTargetId = null,
 }: FeatureBindingRowProps) {
   const targetId = component.targetId;
   const binding = targetId ? bindings[targetId] : undefined;
@@ -561,6 +622,19 @@ function FeatureBindingRow({
     };
   }, [binding?.slots, hiddenDriverIds, standardInputs, standardInputLookup]);
 
+  const isFocusedTarget = Boolean(targetId && focusedTargetId === targetId);
+
+  useEffect(() => {
+    if (!targetId || !isFocusedTarget || typeof document === "undefined") {
+      return;
+    }
+    const row = document.querySelector<HTMLElement>(`[data-row-id="${rowId}"]`);
+    if (!row) {
+      return;
+    }
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [isFocusedTarget, rowId, targetId]);
+
   if (!targetId) {
     return null;
   }
@@ -577,6 +651,7 @@ function FeatureBindingRow({
     <BindingEditor
       binding={binding}
       targetId={targetId}
+      issues={bindingIssues.get(targetId)}
       label={`${feature.label} ${component.label ?? ""}`.trim()}
       standardInputs={standardInputs}
       standardInputLookup={standardInputLookup}
@@ -598,13 +673,16 @@ function FeatureBindingRow({
       hiddenDriverIds={hiddenDriverIds}
       onHideDriver={showHideControls ? onHideDriver : undefined}
       onShowDriver={showHideControls ? onShowDriver : undefined}
+      allowSelfBinding={false}
       featureFlags={{
         vectorAuthoringBeta: true,
         conditionalAuthoringBeta: true,
       }}
     />
   ) : (
-    <p className="sidebar__hint">No binding active</p>
+    <p className="text-[11px] text-slate-500 italic py-2 px-3">
+      No binding active
+    </p>
   );
 
   if (shouldOmit) {
@@ -613,31 +691,42 @@ function FeatureBindingRow({
 
   return (
     <div
-      className={`feature-binding-row ${
-        isGrey ? "feature-binding-row--hidden" : ""
-      }`}
+      className={cn(
+        "rounded-lg border border-slate-800/60 bg-slate-950/10 mb-2 overflow-hidden",
+        isGrey && "opacity-50 grayscale-[0.5]",
+        isFocusedTarget &&
+          "ring-1 ring-accent/50 shadow-[0_0_0_1px_var(--color-accent-subtle)]",
+      )}
     >
-      {isGrey ? (
-        <div className="feature-binding-row__hidden-note">
-          Hidden in Rigging
-          {hiddenSlotIds.length > 0 && onShowDriver ? (
-            <button
-              type="button"
-              className="feature-binding-row__hidden-button"
+      {isGrey && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/40 text-[10px] text-slate-400">
+          <Chip tone="warning" className="h-4 text-[9px] px-1 uppercase">
+            Hidden
+          </Chip>
+          <span className="flex-1 italic">
+            This binding is hidden in rigging
+          </span>
+          {hiddenSlotIds.length > 0 && onShowDriver && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-5 px-2 text-[9px]"
               onClick={handleUnhide}
             >
               Unhide
-            </button>
-          ) : null}
+            </Button>
+          )}
         </div>
-      ) : null}
+      )}
       <CollapsibleRow
+        key={isFocusedTarget ? `${rowId}:focused` : rowId}
         id={rowId}
         title={title}
         subtitle={subtitle}
+        defaultExpanded={isFocusedTarget}
         showSlider={false}
         expandedContent={content}
-        className="feature-binding-row__row"
+        className="border-none m-0 rounded-none bg-transparent"
       />
     </div>
   );
@@ -756,7 +845,8 @@ function buildFeatureMatrixRow({
   const constraintEditor = (kind: "min" | "max") => (
     <Input
       type="number"
-      value={compConstraints[kind] ?? featureConstraints[kind] ?? ""}
+      className="h-6 w-16 text-[11px] bg-slate-950/40 border-slate-800/60"
+      value={(compConstraints[kind] ?? featureConstraints[kind] ?? "") as any}
       onChange={(e) => {
         const next = Number(e.target.value);
         onConstraintChange(feature.id, component.id, (current) => ({
@@ -776,7 +866,8 @@ function buildFeatureMatrixRow({
       typeof defaultValue === "number" ? (
         <Input
           type="number"
-          value={defaultValue}
+          className="h-6 w-16 text-[11px] bg-slate-950/40 border-slate-800/60"
+          value={defaultValue as any}
           onChange={(e) => onDefaultChange(feature.id, Number(e.target.value))}
         />
       ) : (
@@ -786,7 +877,8 @@ function buildFeatureMatrixRow({
       typeof staticValue === "number" ? (
         <Input
           type="number"
-          value={staticValue}
+          className="h-6 w-16 text-[11px] bg-slate-950/40 border-slate-800/60"
+          value={staticValue as any}
           onChange={(e) => onStaticChange(feature.id, Number(e.target.value))}
         />
       ) : (

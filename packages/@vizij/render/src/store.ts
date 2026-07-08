@@ -16,7 +16,9 @@ import type {
   VizijStoreGetter,
   VizijStoreSetter,
 } from "./store-types";
+import { recordRenderCounter } from "./memoryInvestigation";
 import { createAnimatable } from "./functions/create-animatable";
+import { selectExportableGroupEntries } from "./functions/exportable-bodies";
 import type { RenderableFeature } from "./types/renderable-feature";
 import type { StaticFeature, GroupFeature, Selection } from "./types";
 
@@ -113,30 +115,30 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   },
   getExportableBodies: (filterIds?: string[]) => {
     const worldData = get().world as World;
-    if (!filterIds) {
-      const bodies = Object.values(worldData)
-        .filter((entry) => entry.type === "group" && entry.rootBounds)
-        .map((entry) => {
-          const firstNs = Object.keys(entry.refs)[0];
-          const refGroup = entry.refs[firstNs].current!;
-          return refGroup as unknown as Group;
-        });
-      return bodies;
-    } else {
-      const bodies = Object.values(worldData)
-        .filter(
-          (entry) =>
-            entry.type === "group" &&
-            entry.rootBounds &&
-            filterIds.includes(entry.id),
-        )
-        .map((entry) => {
-          const firstNs = Object.keys(entry.refs)[0];
-          const refGroup = entry.refs[firstNs].current!;
-          return refGroup as unknown as Group;
-        });
-      return bodies;
-    }
+    const candidateGroups = selectExportableGroupEntries(
+      worldData as Record<
+        string,
+        {
+          id: string;
+          type: string;
+          parent?: string | null;
+          root?: boolean;
+          rootBounds?: unknown;
+        }
+      >,
+      filterIds,
+    );
+    return candidateGroups.flatMap((entry) => {
+      const refs = Object.values(
+        (
+          entry as {
+            refs?: Record<string, { current?: Group | null }>;
+          }
+        ).refs ?? {},
+      );
+      const resolved = refs.find((ref) => ref?.current)?.current ?? null;
+      return resolved ? [resolved] : [];
+    });
   },
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => {
     set(
@@ -366,6 +368,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     );
   },
   setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => {
+    recordRenderCounter("rootReplacementCount");
     set({
       world: scene,
       animatables,
@@ -377,6 +380,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     replace?: boolean,
   ) {
     if (replace) {
+      recordRenderCounter("rootReplacementCount");
       set({ world, animatables });
     } else {
       set((state) => ({

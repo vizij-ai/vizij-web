@@ -57,15 +57,24 @@ function createBindingHandlers(): BindingHandlers {
 
 function renderComposerHook() {
   const handlers = createBindingHandlers();
+  const vizijStore = createVizijStore();
   const bindingStore = createBindingAuthoringStore({
     sceneObjects: scene,
     sceneObjectRoots: ["group"],
     ...handlers,
   });
-  const noopSetStoreState: GraphRuntimeState["setStoreState"] = (() =>
-    undefined) as GraphRuntimeState["setStoreState"];
+  act(() => {
+    vizijStore.setState((state) => ({
+      ...state,
+      world: {
+        group: { id: "group", type: "group" },
+        shape: { id: "shape", type: "shape" },
+      } as any,
+      elementSelection: [],
+    }));
+  });
   const graphStore = createGraphRuntimeStore({
-    setStoreState: noopSetStoreState,
+    setStoreState: vizijStore.setState as GraphRuntimeState["setStoreState"],
   });
 
   const container = document.createElement("div");
@@ -81,7 +90,6 @@ function renderComposerHook() {
   let root: Root;
   act(() => {
     root = createRoot(container);
-    const vizijStore = createVizijStore();
     root.render(
       <VizijContext.Provider value={vizijStore}>
         <GraphRuntimeStoreProvider store={graphStore}>
@@ -95,6 +103,7 @@ function renderComposerHook() {
 
   return {
     result,
+    vizijStore,
     handlers,
     unmount: () => {
       act(() => {
@@ -167,6 +176,35 @@ describe("useSceneComposer", () => {
       "slot1",
       "scalar",
     );
+    hook.unmount();
+  });
+
+  it("supports additive object selection toggles", () => {
+    const hook = renderComposerHook();
+    const composer = hook.result.current;
+    expect(composer).toBeTruthy();
+
+    act(() => {
+      composer?.selectObject("group");
+    });
+    expect(
+      hook.vizijStore.getState().elementSelection.map((entry) => entry.id),
+    ).toEqual(["group"]);
+
+    act(() => {
+      composer?.selectObject("shape", { additive: true });
+    });
+    expect(
+      hook.vizijStore.getState().elementSelection.map((entry) => entry.id),
+    ).toEqual(["shape", "group"]);
+
+    act(() => {
+      composer?.selectObject("group", { additive: true });
+    });
+    expect(
+      hook.vizijStore.getState().elementSelection.map((entry) => entry.id),
+    ).toEqual(["shape"]);
+
     hook.unmount();
   });
 });

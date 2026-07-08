@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   VizijRuntimeProvider,
   VizijRuntimeFace,
@@ -6,10 +6,13 @@ import {
   type VizijAssetBundle,
 } from "@vizij/runtime-react";
 import { useMouseGaze } from "./hooks/useMouseGaze";
-import { usePoseHotkeys, POSE_HOTKEY_ORDER } from "./hooks/usePoseHotkeys";
+import { usePoseHotkeys, POSE_HOTKEY_LAYOUT } from "./hooks/usePoseHotkeys";
 import "./styles.css";
 
-const faceAssetUrl = "/assets/hugo_rigged.glb";
+const faceAssetUrl = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
 const assetBundle: VizijAssetBundle = {
   namespace: "fullscreen-face",
@@ -36,11 +39,11 @@ function VizijRuntimeHud() {
 }
 
 function FaceRuntime() {
-  const { ready, loading, error, stagePoseNeutral, assetBundle } =
-    useVizijRuntime();
+  const runtime = useVizijRuntime();
+  const { ready, loading, error, stagePoseNeutral, assetBundle } = runtime;
   const poseConfig = assetBundle.pose?.config ?? null;
   const gazeRef = useMouseGaze(ready);
-  usePoseHotkeys(poseConfig, ready);
+  const { bindings } = usePoseHotkeys(poseConfig, ready);
   const [hintsVisible, setHintsVisible] = useState(false);
 
   const handlePointerMove = useCallback(() => {
@@ -53,17 +56,44 @@ function FaceRuntime() {
     }
   }, [ready, stagePoseNeutral]);
 
+  // Auto-play motion graph from bundle metadata when ?autoplay is present
+  const autoPlayTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!ready || loading) return;
+    if (autoPlayTriggeredRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("autoplay")) return;
+    const meta = assetBundle.bundle?.metadata as
+      | Record<string, unknown>
+      | undefined;
+    const activeId: string | undefined =
+      typeof meta?.activeMotionGraphId === "string"
+        ? meta.activeMotionGraphId
+        : Array.isArray(meta?.activeMotionGraphIds) &&
+            typeof (meta.activeMotionGraphIds as unknown[])[0] === "string"
+          ? ((meta.activeMotionGraphIds as unknown[])[0] as string)
+          : undefined;
+    if (!activeId) return;
+    const match = (assetBundle.programs ?? []).find((p) => p.id === activeId);
+    if (!match) return;
+    try {
+      runtime.playProgram(activeId);
+      autoPlayTriggeredRef.current = true;
+    } catch {
+      // will retry on next render cycle
+    }
+  }, [ready, loading, assetBundle, runtime.playProgram]);
+
   const hotkeyHints = useMemo(() => {
-    if (!poseConfig) {
+    if (!poseConfig || bindings.length === 0) {
       return [];
     }
-    return poseConfig.poses
-      .slice(0, POSE_HOTKEY_ORDER.length)
-      .map((pose, idx) => ({
-        key: POSE_HOTKEY_ORDER[idx],
-        label: pose.name ?? `Pose ${idx + 1}`,
-      }));
-  }, [poseConfig]);
+    return bindings.slice(0, POSE_HOTKEY_LAYOUT.length).map((binding, idx) => ({
+      key: POSE_HOTKEY_LAYOUT[idx]?.label ?? `${idx + 1}`,
+      label: binding.pose.name ?? `Pose ${idx + 1}`,
+      semanticKey: binding.semanticKey,
+    }));
+  }, [bindings, poseConfig]);
 
   if (loading) {
     return (
@@ -97,12 +127,12 @@ function FaceRuntime() {
       {hintsVisible && (
         <div className="hint">
           <div>Move the mouse to steer gaze.</div>
-          <div>Press the number keys to trigger poses:</div>
+          <div>Press the hotkeys to trigger poses:</div>
           {hotkeyHints.length > 0 ? (
             <ul>
               {hotkeyHints.map((entry) => (
                 <li key={entry.key}>
-                  <kbd>{entry.key.replace("Digit", "")}</kbd> → {entry.label}
+                  <kbd>{entry.key}</kbd> → {entry.label}
                 </li>
               ))}
             </ul>
