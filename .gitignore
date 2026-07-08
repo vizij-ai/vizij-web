@@ -20,3 +20,9 @@
 .eslintcache
 .claude/settings.local.json
 .worktrees/
+
+# Rust / Cargo build output (nested crates, incl. Tauri src-tauri and arora-* packages)
+**/target/
+
+# Tauri auto-generated capability/ACL schemas (regenerated on build)
+**/src-tauri/gen/schemas/
