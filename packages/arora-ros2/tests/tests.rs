@@ -836,6 +836,41 @@ async fn test_many_slots_still_receive() {
     cancel.cancel();
 }
 
+/// Spawn `ros2 topic pub` in a disposable, named Docker container. Its output
+/// is discarded — a piped-but-unread stdout/stderr would block the container
+/// once the pipe buffer fills — and the name lets [`stop_ros2_pub`] remove the
+/// container without waiting out the publisher's `-t` duration.
+fn spawn_ros2_pub(container_name: &str, pub_command: &str) -> tokio::process::Child {
+    tokio::process::Command::new("docker")
+        .args([
+            "run",
+            "--rm",
+            "--net=host",
+            "--name",
+            container_name,
+            "ros:jazzy",
+            "bash",
+            "-c",
+            pub_command,
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("failed to start docker container (is Docker running?)")
+}
+
+/// Remove the publisher container (dropping the child would leave it running
+/// for the rest of its `-t` duration) and reap the `docker run` client.
+async fn stop_ros2_pub(container_name: &str, mut client: tokio::process::Child) {
+    let _ = tokio::process::Command::new("docker")
+        .args(["rm", "-f", container_name])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
+    let _ = client.wait().await;
+}
+
 /// Cross-process integration test: use `ros2 topic pub` from a Docker
 /// container (CycloneDDS) to publish to the AroraRos2Node and verify the
 /// handler fires. This tests real cross-implementation DDS communication.
@@ -873,21 +908,12 @@ async fn test_cross_process_ros2_topic_pub() {
     let cancel = start_node(&node).await;
 
     // Spawn Docker ros2 topic pub (BestEffort to match subscriber QoS).
-    let docker = tokio::process::Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--net=host",
-            "ros:jazzy",
-            "bash",
-            "-c",
-            "ros2 topic pub -r 10 -t 200 -w 0 --qos-reliability best_effort \
-             /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.99}'",
-        ])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to start docker container (is Docker running?)");
+    let container = "vizij-test-pub-basic";
+    let docker = spawn_ros2_pub(
+        container,
+        "ros2 topic pub -r 10 -t 200 -w 0 --qos-reliability best_effort \
+         /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.99}'",
+    );
 
     // Wait for a value through the handler.
     let values = tokio::time::timeout(Duration::from_secs(30), rx.recv())
@@ -903,7 +929,7 @@ async fn test_cross_process_ros2_topic_pub() {
 
     // Clean up.
     cancel.cancel();
-    drop(docker);
+    stop_ros2_pub(container, docker).await;
 }
 
 /// Cross-process test with many slots (like the real vizij app).
@@ -986,21 +1012,12 @@ async fn test_cross_process_many_slots() {
     // Give DDS extra time to set up 270+ subscriptions.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    let docker = tokio::process::Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--net=host",
-            "ros:jazzy",
-            "bash",
-            "-c",
-            "ros2 topic pub -r 10 -t 200 -w 0 --qos-reliability best_effort \
-             /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.77}'",
-        ])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to start docker container");
+    let container = "vizij-test-pub-many";
+    let docker = spawn_ros2_pub(
+        container,
+        "ros2 topic pub -r 10 -t 200 -w 0 --qos-reliability best_effort \
+         /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.77}'",
+    );
 
     let values = tokio::time::timeout(Duration::from_secs(30), rx.recv())
         .await
@@ -1014,7 +1031,7 @@ async fn test_cross_process_many_slots() {
     );
 
     cancel.cancel();
-    drop(docker);
+    stop_ros2_pub(container, docker).await;
 }
 
 /// Same as above but with the default Reliable QoS (what `ros2 topic pub`
@@ -1048,21 +1065,12 @@ async fn test_cross_process_ros2_topic_pub_reliable() {
     let cancel = start_node(&node).await;
 
     // Default ros2 topic pub uses Reliable QoS.
-    let docker = tokio::process::Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--net=host",
-            "ros:jazzy",
-            "bash",
-            "-c",
-            "ros2 topic pub -r 10 -t 200 -w 0 \
-             /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.88}'",
-        ])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to start docker container");
+    let container = "vizij-test-pub-reliable";
+    let docker = spawn_ros2_pub(
+        container,
+        "ros2 topic pub -r 10 -t 200 -w 0 \
+         /vizij/slots/blink std_msgs/msg/Float64 '{data: 0.88}'",
+    );
 
     let values = tokio::time::timeout(Duration::from_secs(30), rx.recv())
         .await
@@ -1076,7 +1084,7 @@ async fn test_cross_process_ros2_topic_pub_reliable() {
     );
 
     cancel.cancel();
-    drop(docker);
+    stop_ros2_pub(container, docker).await;
 }
 
 /// Verify that cancelling the token stops the node cleanly.

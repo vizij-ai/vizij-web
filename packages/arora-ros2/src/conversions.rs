@@ -87,12 +87,12 @@ pub async fn drive_slot_streams(mut streams: Vec<SlotValueStream>, handler: SetS
 
     while let Some(result) = combined.next().await {
         match result {
-            Ok(ref values) => {
+            Ok(values) => {
                 debug!(
                     "drive_slot_streams: received values for {:?}",
                     values.keys().collect::<Vec<_>>()
                 );
-                if let Err(e) = handler(values.clone()) {
+                if let Err(e) = handler(values) {
                     warn!("set_slot_values_handler error: {}", e);
                 }
             }
@@ -128,7 +128,9 @@ fn setup_typed<M: MessageType>(
         .create_subscription::<M>(&topic, None)
         .map_err(|e| format!("failed to subscribe to {topic_name}: {e:?}"))?;
 
-    let log_topic = topic_name.to_string();
+    // `Arc<str>` so the per-iteration clone below is a refcount bump, not a
+    // fresh String allocation on every received message.
+    let log_topic: Arc<str> = Arc::from(topic_name);
     let convert = Arc::new(convert);
     let stream = unfold((subscription, 0u32), move |(sub, consecutive_errors)| {
         let path = path.clone();

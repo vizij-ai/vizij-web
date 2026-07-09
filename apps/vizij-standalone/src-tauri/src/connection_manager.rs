@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use log::{debug, info, warn};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::oneshot;
 use tokio::time::{timeout, Duration};
-use tauri::{AppHandle, Emitter, Manager};
 
 use crate::connection::{
     AroraConnection, CancellationToken, GetSlotValuesHandler, InvokeResult, MethodHandler,
@@ -125,14 +125,13 @@ impl ConnectionManager {
 
             // Register "reset" method: emits Tauri event
             let app = app_handle.clone();
-            let handler: MethodHandler =
-                Arc::new(move |_args| match app.emit("reset", ()) {
-                    Ok(()) => {
-                        info!("Emitted reset event");
-                        InvokeResult::ok()
-                    }
-                    Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
-                });
+            let handler: MethodHandler = Arc::new(move |_args| match app.emit("reset", ()) {
+                Ok(()) => {
+                    info!("Emitted reset event");
+                    InvokeResult::ok()
+                }
+                Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
+            });
             conn.register_method(
                 MethodInfo {
                     path: "reset".to_string(),
@@ -232,15 +231,14 @@ impl ConnectionManager {
 
             // Register "interrupt" method: stop any ongoing speech
             let app = app_handle.clone();
-            let handler: MethodHandler = Arc::new(move |_args| {
-                match app.emit("interrupt-speech", ()) {
+            let handler: MethodHandler =
+                Arc::new(move |_args| match app.emit("interrupt-speech", ()) {
                     Ok(()) => {
                         info!("Emitted interrupt-speech event");
                         InvokeResult::ok()
                     }
                     Err(e) => InvokeResult::err(format!("Failed to emit interrupt-speech: {}", e)),
-                }
-            });
+                });
             conn.register_method(
                 MethodInfo {
                     path: "interrupt".to_string(),
@@ -254,7 +252,12 @@ impl ConnectionManager {
 
             let app = app_handle.clone();
             let handler: MethodHandler = Arc::new(move |_args| {
-                let catalog = app.state::<AppState>().transport_catalog.lock().unwrap().clone();
+                let catalog = app
+                    .state::<AppState>()
+                    .transport_catalog
+                    .lock()
+                    .unwrap()
+                    .clone();
                 match serde_json::to_string(&catalog) {
                     Ok(serialized) => InvokeResult::ok_with_value(Value::String(serialized)),
                     Err(error) => InvokeResult::err(format!(
@@ -268,7 +271,9 @@ impl ConnectionManager {
                     path: "transport/list".to_string(),
                     params: vec![],
                     return_type: None,
-                    description: Some("List bundled animations and procedural programs".to_string()),
+                    description: Some(
+                        "List bundled animations and procedural programs".to_string(),
+                    ),
                 },
                 handler,
             )
@@ -366,7 +371,9 @@ impl ConnectionManager {
                         },
                     ],
                     return_type: None,
-                    description: Some("Pause a bundled animation or procedural program".to_string()),
+                    description: Some(
+                        "Pause a bundled animation or procedural program".to_string(),
+                    ),
                 },
                 handler,
             )
