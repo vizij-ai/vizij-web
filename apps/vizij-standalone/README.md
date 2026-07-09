@@ -110,6 +110,39 @@ Relevant files:
 - [`src-tauri/tests/ros2_smoke.rs`](./src-tauri/tests/ros2_smoke.rs)
 - [`../../../packages/arora-ros2/src/lib.rs`](../../../packages/arora-ros2/src/lib.rs)
 
+### Debugging the ROS2 connection
+
+The transport layer logs its lifecycle through `log`/`env_logger`: subscription
+setup, per-message receipt, subscription errors (with exponential backoff), and
+the connection manager's state changes. Turn it on with:
+
+```bash
+RUST_LOG=arora_ros2=debug,vizij_standalone_lib=debug pnpm dev
+```
+
+Two example binaries exercise a slot topic across processes, without the app:
+
+```bash
+# terminal 1 — print every value received on a slot topic
+cargo run --example subscribe_slot -- /vizij/slots/blink            # BestEffort
+cargo run --example subscribe_slot -- /vizij/slots/blink --reliable # Reliable
+
+# terminal 2 — publish a value to the slot topic
+cargo run --example publish_slot -- /vizij/slots/blink 0.8
+```
+
+(run from `src-tauri/`; `ROS_DOMAIN_ID` selects the DDS domain, default `0`.)
+
+Cross-implementation tests (CycloneDDS via a `ros:jazzy` Docker container
+driving `ros2 topic pub` at the app's subscriptions, including a 270+-slot
+stress case) are `#[ignore]`d in
+[`../../../packages/arora-ros2/tests/tests.rs`](../../../packages/arora-ros2/tests/tests.rs);
+run them explicitly with Docker available:
+
+```bash
+cargo test -p arora-ros2 -- --ignored
+```
+
 ## Speech Support
 
 Speech is optional and bundle-driven.

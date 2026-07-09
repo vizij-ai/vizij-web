@@ -37,10 +37,7 @@ impl WsServer {
 }
 
 impl AroraConnection for WsServer {
-    fn set_slots(
-        &self,
-        slots: Vec<SlotInfo>,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+    fn set_slots(&self, slots: Vec<SlotInfo>) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
             self.server.registry().set_slots(slots).await;
         })

@@ -15,9 +15,9 @@
 use std::env;
 
 use futures_util::StreamExt;
+use ros2_client::ros2::{policy::Reliability, Duration as DdsDuration, QosPolicyBuilder};
 use ros2_client::{
-    Context, ContextOptions, MessageTypeName, Name, NodeName, NodeOptions, DEFAULT_PUBLISHER_QOS,
-    DEFAULT_SUBSCRIPTION_QOS,
+    Context, ContextOptions, MessageTypeName, Name, NodeName, NodeOptions, DEFAULT_SUBSCRIPTION_QOS,
 };
 use serde::{Deserialize, Serialize};
 
@@ -69,13 +69,21 @@ async fn main() {
 
     // Create topic and subscription using the same pattern as the official test.
     let ros_name = Name::parse(topic_name).expect("invalid topic name");
+    // `--reliable` keeps the subscription defaults and switches only the
+    // reliability policy — the publisher defaults differ on more than that.
     let qos = if reliable {
-        &*DEFAULT_PUBLISHER_QOS
+        DEFAULT_SUBSCRIPTION_QOS.modify_by(
+            &QosPolicyBuilder::new()
+                .reliability(Reliability::Reliable {
+                    max_blocking_time: DdsDuration::from_millis(100),
+                })
+                .build(),
+        )
     } else {
-        &*DEFAULT_SUBSCRIPTION_QOS
+        DEFAULT_SUBSCRIPTION_QOS.clone()
     };
     let topic = node
-        .create_topic(&ros_name, MessageTypeName::new("std_msgs", "Float64"), qos)
+        .create_topic(&ros_name, MessageTypeName::new("std_msgs", "Float64"), &qos)
         .expect("failed to create topic");
     let subscription = node
         .create_subscription::<Float64>(&topic, None)
