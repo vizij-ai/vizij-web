@@ -79,7 +79,7 @@ describe("mergeAssetBundle", () => {
         graphs: extractedPrograms.map((program) => ({
           id: program.id,
           kind: "motiongraph",
-          spec: program.graph.spec,
+          spec: program.graph.spec ?? {},
         })),
       }),
       undefined,

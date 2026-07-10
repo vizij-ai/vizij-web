@@ -43,7 +43,7 @@
     "@vizij/orchestrator-react": "workspace:*",
     "@vizij/render": "workspace:*",
     "@vizij/utils": "workspace:*",
-    "@vizij/value-json": "^0.1.2"
+    "@vizij/value-json": "^0.2.0"
   },
   "peerDependencies": {
     "react": ">=18",

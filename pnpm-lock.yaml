@@ -985,8 +985,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/react':
         specifier: ^19.2.7
@@ -2764,6 +2764,9 @@ packages:
 
   '@vizij/value-json@0.1.2':
     resolution: {integrity: sha512-hYS7bG5dZ/wdpFBJ9nEAXpfk0LVde7QXc0ZpmpeSltNz/k265b51XnhxRHU0n7y61MkhrW+/osIF86sxJQUoLg==}
+
+  '@vizij/value-json@0.2.0':
+    resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
 
   '@vizij/wasm-loader@0.1.5':
     resolution: {integrity: sha512-YQR1wOUmyHfEU44/ZnBr47FY/d4OsE0ceMHbS9zHQKOCBR7HTCOBWKavbFeSQUdsqiHtuYfJCyccv6J0v7Bpfw==}
@@ -7012,6 +7015,8 @@ snapshots:
       '@vizij/wasm-loader': 0.1.5
 
   '@vizij/value-json@0.1.2': {}
+
+  '@vizij/value-json@0.2.0': {}
 
   '@vizij/wasm-loader@0.1.5': {}
 
