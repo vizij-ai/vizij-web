@@ -8,7 +8,7 @@ import {
   valueAsTransform,
   valueAsVector,
 } from "@vizij/value-json";
-import type { ValueJSON } from "@vizij/orchestrator-react";
+import type { ValueJSON } from "@vizij/value-json";
 import type { RawValue } from "@vizij/utils";
 
 function numericArrayToRaw(arr: number[]): RawValue {

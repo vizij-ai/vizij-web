@@ -1,14 +1,61 @@
 import type { ReactNode } from "react";
-import type {
-  AnimationSetup,
-  CreateOrchOptions,
-  GraphRegistrationConfig,
-  GraphSubscriptions,
-  MergeStrategyOptions,
-  ValueJSON,
-  ShapeJSON,
-} from "@vizij/orchestrator-react";
+import type { ValueJSON } from "@vizij/value-json";
 import type { IrGraph } from "@vizij/node-graph-authoring";
+
+// ---------------------------------------------------------------------------
+// Engine-facing types, formerly re-exported from @vizij/orchestrator-react.
+// The engine is now an Arora device running ONE composed graph; these types
+// survive as the vocabulary of the asset bundle and the provider's public
+// surface. Registration configs are metadata feeding the composed spec and
+// the tracked-output sets — the device has no per-controller registration.
+// ---------------------------------------------------------------------------
+
+/** Value shape hint. Accepted through the public surface, unused by the device. */
+export type ShapeJSON = Record<string, unknown>;
+
+/** Legacy engine-creation options. Accepted for compatibility; ignored. */
+export type CreateOrchOptions = Record<string, unknown>;
+
+/** Paths a graph reads/writes — metadata for output tracking and seeding. */
+export type GraphSubscriptions = {
+  inputs?: string[];
+  outputs?: string[];
+};
+
+/** A Vizij graph spec handled structurally (nodes/edges arrays of records). */
+export type GraphSpecLike = {
+  nodes?: Array<Record<string, unknown>>;
+  edges?: Array<Record<string, unknown>>;
+  metadata?: unknown;
+  [key: string]: unknown;
+};
+
+/** One graph source composed into the device's behavior. */
+export type GraphRegistrationConfig = {
+  id?: string;
+  spec: GraphSpecLike;
+  subs?: GraphSubscriptions;
+};
+
+/** Per-source merge options. Composition is last-writer-wins today (VIZ-53). */
+export type MergeStrategyOptions = Record<string, unknown>;
+
+/** Player/instance setup carried by animation assets; consumed by the JS clip pipeline. */
+export type AnimationSetup = {
+  animation?: unknown;
+  player?: Record<string, unknown>;
+  instance?: Record<string, unknown>;
+};
+
+/** Id of a registered controller (graph source or animation clip). */
+export type ControllerId = string;
+
+/** Legacy animation registration shape; animations play through the JS clip pipeline. */
+export type AnimationRegistrationConfig = {
+  id?: string;
+  data?: unknown;
+  setup?: Partial<AnimationSetup>;
+};
 import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
 

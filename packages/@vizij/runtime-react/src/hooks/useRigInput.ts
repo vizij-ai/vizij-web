@@ -6,7 +6,8 @@ import {
 } from "@vizij/render";
 import { getLookup } from "@vizij/utils";
 import type { RawValue } from "@vizij/utils";
-import type { ValueJSON, ShapeJSON } from "@vizij/orchestrator-react";
+import type { ValueJSON } from "@vizij/value-json";
+import type { ShapeJSON } from "../types";
 import { useVizijRuntime } from "./useVizijRuntime";
 
 export function useRigInput(
