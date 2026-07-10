@@ -1,6 +1,6 @@
 # vizij-showcase
 
-`vizij-showcase` is the main multi-surface runtime demo in this repo. It renders several face experiences inside one app and uses `@vizij/runtime-react` in shared-orchestrator mode rather than the simpler isolated pattern used by the tutorials and `demo-vizij-player`.
+`vizij-showcase` is the main multi-surface runtime demo in this repo. It renders several face experiences inside one app, each on its own runtime, and throttles the ones that are not in view.
 
 ## Runtime Pattern
 
@@ -10,10 +10,10 @@ Each section-level face:
 
 - creates a bundle with `createShowcaseBundle()`
 - gets a unique namespace like `vizij-showcase-<section>`
-- mounts `VizijRuntimeProvider` with `orchestratorScope="shared"`
-- decides whether it should actively drive the orchestrator or stay passive
+- mounts its own `VizijRuntimeProvider` (one Arora device per face)
+- decides whether it should actively drive its runtime or stay passive
 
-This lets the showcase keep multiple runtime surfaces alive without every section running a full independent loop.
+This lets the showcase keep multiple runtime surfaces alive without every section stepping at full rate.
 
 ### Driver vs passive faces
 

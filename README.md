@@ -40,17 +40,17 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 
 ### Packages
 
-| Package                       | Path                                   | Summary                                                        | Key scripts                                  |
-| ----------------------------- | -------------------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
-| `@vizij/animation-react`      | `packages/@vizij/animation-react`      | React provider for the animation WASM engine.                  | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/arora-types`          | `packages/@vizij/arora-types`          | TypeScript protocol types for standalone/control work.         | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.               | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                  | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                        | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/orchestrator-react`   | `packages/@vizij/orchestrator-react`   | React orchestrator bindings and hooks.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Higher-level runtime provider wiring renderer + orchestration. | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.     | `dev`, `build`, `test`, `clean`              |
+| Package                       | Path                                   | Summary                                                         | Key scripts                                  |
+| ----------------------------- | -------------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
+| `@vizij/animation-react`      | `packages/@vizij/animation-react`      | React provider for the animation WASM engine.                   | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/arora-types`          | `packages/@vizij/arora-types`          | TypeScript protocol types for standalone/control work.          | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.                | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                   | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/orchestrator-react`   | `packages/@vizij/orchestrator-react`   | React orchestrator bindings and hooks.                          | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                 | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
 
 ### Local protocol / standalone crates
 
@@ -66,7 +66,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                | `dev`, `build`, `typecheck`, `preview` |
 | `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                               | `dev`, `build`, `typecheck`, `preview` |
 | `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.           | `dev`, `build`, `typecheck`, `preview` |
-| `demo-vizij-player`            | `apps/demo-vizij-player`            | Authoring surface for facial rigs and orchestrator-driven playback.     | `dev`, `build`, `typecheck`, `preview` |
+| `demo-vizij-player`            | `apps/demo-vizij-player`            | Authoring surface for facial rigs and runtime-driven playback.          | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |
