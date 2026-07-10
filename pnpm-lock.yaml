@@ -65,14 +65,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/animation-react
       '@vizij/animation-wasm':
-        specifier: ^0.3.8
-        version: 0.3.8
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -114,14 +114,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -246,8 +246,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/animation-react
       '@vizij/animation-wasm':
-        specifier: ^0.3.8
-        version: 0.3.8
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/minimal-demo-ui':
         specifier: workspace:*
         version: link:../../packages/@vizij/minimal-demo-ui
@@ -255,14 +255,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -310,11 +310,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
+      '@vizij/value-json':
+        specifier: ^0.2.0
+        version: 0.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -500,8 +503,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/orchestrator-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/orchestrator-react
@@ -514,6 +517,9 @@ importers:
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
+      '@vizij/value-json':
+        specifier: ^0.2.0
+        version: 0.2.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -655,14 +661,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/orchestrator-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/orchestrator-react
       '@vizij/orchestrator-wasm':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
@@ -725,11 +731,11 @@ importers:
   packages/@vizij/animation-react:
     dependencies:
       '@vizij/animation-wasm':
-        specifier: ^0.3.8
-        version: 0.3.8
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@testing-library/dom':
         specifier: ^10.4.1
@@ -798,8 +804,8 @@ importers:
   packages/@vizij/node-graph-authoring:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../utils
@@ -823,11 +829,11 @@ importers:
   packages/@vizij/node-graph-react:
     dependencies:
       '@vizij/node-graph-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@testing-library/dom':
         specifier: ^10.4.1
@@ -863,14 +869,14 @@ importers:
   packages/@vizij/orchestrator-react:
     dependencies:
       '@vizij/orchestrator-wasm':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../utils
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@testing-library/dom':
         specifier: ^10.4.1
@@ -991,8 +997,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@vizij/value-json':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/react':
         specifier: ^19.2.7
@@ -2759,17 +2765,17 @@ packages:
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
 
-  '@vizij/animation-wasm@0.3.8':
-    resolution: {integrity: sha512-lA/+aghV3g8pLzZAVIL/ASX41Dp8xhbK5+HTwdxjNSg+AyHrQX2ULKxzfYHN7zziDeKqXgtGUpXJuh81WknuWA==}
+  '@vizij/animation-wasm@0.4.0':
+    resolution: {integrity: sha512-CbDWOZQ73tx/syzGfKjlPwIOo0Hw/v1TK4JYg/rpuyBQAaGP7pFzxYyYVZ8cj1bEPV6gJO9jk+5jxt0Q2QgnIw==}
 
-  '@vizij/node-graph-wasm@0.6.1':
-    resolution: {integrity: sha512-K6wlhf/o2WPB+BnGbDrcKDtOwcW8C9z2nU0RVzodrRNV6dSj3SXmUOegFoHd9fpGF4p5k+44sBAv0+/pVnmv9w==}
+  '@vizij/node-graph-wasm@0.7.0':
+    resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
 
-  '@vizij/orchestrator-wasm@0.3.2':
-    resolution: {integrity: sha512-e5yvhpOvUWU7E2gc4Kq2cTIQ4OaPJj/gjrK3pN2bHoRz9oUlumw7KXSQFTGPP/pg7HgojBEKUw3WmO1uobVsRA==}
+  '@vizij/orchestrator-wasm@0.4.0':
+    resolution: {integrity: sha512-pDeY/8h3sjl8OzYs9Lb+V5vo70UIV/z1BwotkNXWjL2ntCBCufHHgDQ5W1p7kNa2rr02FAWcdI0D39l/QdwTiQ==}
 
-  '@vizij/value-json@0.1.2':
-    resolution: {integrity: sha512-hYS7bG5dZ/wdpFBJ9nEAXpfk0LVde7QXc0ZpmpeSltNz/k265b51XnhxRHU0n7y61MkhrW+/osIF86sxJQUoLg==}
+  '@vizij/value-json@0.2.0':
+    resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
 
   '@vizij/wasm-loader@0.1.5':
     resolution: {integrity: sha512-YQR1wOUmyHfEU44/ZnBr47FY/d4OsE0ceMHbS9zHQKOCBR7HTCOBWKavbFeSQUdsqiHtuYfJCyccv6J0v7Bpfw==}
@@ -7002,22 +7008,22 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@vizij/animation-wasm@0.3.8':
+  '@vizij/animation-wasm@0.4.0':
     dependencies:
-      '@vizij/value-json': 0.1.2
+      '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/node-graph-wasm@0.6.1':
+  '@vizij/node-graph-wasm@0.7.0':
     dependencies:
-      '@vizij/value-json': 0.1.2
+      '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/orchestrator-wasm@0.3.2':
+  '@vizij/orchestrator-wasm@0.4.0':
     dependencies:
-      '@vizij/value-json': 0.1.2
+      '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/value-json@0.1.2': {}
+  '@vizij/value-json@0.2.0': {}
 
   '@vizij/wasm-loader@0.1.5': {}
 
