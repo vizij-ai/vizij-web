@@ -675,6 +675,9 @@ importers:
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
+      '@vizij/value-json':
+        specifier: ^0.2.0
+        version: 0.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -972,6 +975,9 @@ importers:
 
   packages/@vizij/runtime-react:
     dependencies:
+      '@vizij/arora-web-wasm':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../node-graph-authoring
@@ -2755,6 +2761,9 @@ packages:
 
   '@vizij/animation-wasm@0.3.8':
     resolution: {integrity: sha512-lA/+aghV3g8pLzZAVIL/ASX41Dp8xhbK5+HTwdxjNSg+AyHrQX2ULKxzfYHN7zziDeKqXgtGUpXJuh81WknuWA==}
+
+  '@vizij/arora-web-wasm@0.1.0':
+    resolution: {integrity: sha512-wLYOIKEKbYqRcX9KTmk2Ny/7GuntW4FpH31RpqBq7/cV36LD6CTsMAF2LNiCrYigxzwbHTTxTe0BhYLwJecvAQ==}
 
   '@vizij/node-graph-wasm@0.6.1':
     resolution: {integrity: sha512-K6wlhf/o2WPB+BnGbDrcKDtOwcW8C9z2nU0RVzodrRNV6dSj3SXmUOegFoHd9fpGF4p5k+44sBAv0+/pVnmv9w==}
@@ -7002,6 +7011,11 @@ snapshots:
   '@vizij/animation-wasm@0.3.8':
     dependencies:
       '@vizij/value-json': 0.1.2
+      '@vizij/wasm-loader': 0.1.5
+
+  '@vizij/arora-web-wasm@0.1.0':
+    dependencies:
+      '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
   '@vizij/node-graph-wasm@0.6.1':
