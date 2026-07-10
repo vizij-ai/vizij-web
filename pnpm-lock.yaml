@@ -681,6 +681,9 @@ importers:
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
+      '@vizij/value-json':
+        specifier: ^0.2.0
+        version: 0.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -984,6 +987,9 @@ importers:
 
   packages/@vizij/runtime-react:
     dependencies:
+      '@vizij/arora-web-wasm':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../node-graph-authoring
@@ -2768,14 +2774,14 @@ packages:
   '@vizij/animation-wasm@0.4.0':
     resolution: {integrity: sha512-CbDWOZQ73tx/syzGfKjlPwIOo0Hw/v1TK4JYg/rpuyBQAaGP7pFzxYyYVZ8cj1bEPV6gJO9jk+5jxt0Q2QgnIw==}
 
+  '@vizij/arora-web-wasm@0.1.0':
+    resolution: {integrity: sha512-wLYOIKEKbYqRcX9KTmk2Ny/7GuntW4FpH31RpqBq7/cV36LD6CTsMAF2LNiCrYigxzwbHTTxTe0BhYLwJecvAQ==}
+
   '@vizij/node-graph-wasm@0.7.0':
     resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
 
   '@vizij/orchestrator-wasm@0.4.0':
     resolution: {integrity: sha512-pDeY/8h3sjl8OzYs9Lb+V5vo70UIV/z1BwotkNXWjL2ntCBCufHHgDQ5W1p7kNa2rr02FAWcdI0D39l/QdwTiQ==}
-
-  '@vizij/value-json@0.2.0':
-    resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
@@ -7016,6 +7022,11 @@ snapshots:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
+  '@vizij/arora-web-wasm@0.1.0':
+    dependencies:
+      '@vizij/value-json': 0.2.0
+      '@vizij/wasm-loader': 0.1.5
+
   '@vizij/node-graph-wasm@0.7.0':
     dependencies:
       '@vizij/value-json': 0.2.0
@@ -7025,8 +7036,6 @@ snapshots:
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
-
-  '@vizij/value-json@0.2.0': {}
 
   '@vizij/value-json@0.2.0': {}
 
