@@ -1,6 +1,5 @@
 import { useRef, useCallback, type ChangeEvent } from "react";
 import { X } from "lucide-react";
-import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { Button } from "../ui";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
@@ -83,7 +82,7 @@ export function ReferenceFacePanel({
         onChange={handleFileChange}
       />
 
-      <OrchestratorProvider autostart={true}>
+      <>
         {referenceFace.file && runtimeEnabled ? (
           <ReferenceFaceRuntime
             file={referenceFace.file}
@@ -232,7 +231,7 @@ export function ReferenceFacePanel({
             </Button>
           </div>
         )}
-      </OrchestratorProvider>
+      </>
     </div>
   );
 }

@@ -251,7 +251,6 @@ export default function App() {
             key={source!.id}
             assetBundle={assetBundle}
             autostart
-            orchestratorScope="isolated"
           >
             <WorkspaceSurface
               sourceLabel={sourceLabel}

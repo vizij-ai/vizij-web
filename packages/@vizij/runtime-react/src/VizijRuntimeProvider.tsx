@@ -16,7 +16,6 @@ import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { DeviceSlot, ensureWasmInit, isGoldenPath } from "./engine/aroraEngine";
 import { composeGraphSpecs, type GraphSource } from "./utils/composeGraph";
 import type {
-  CreateOrchOptions,
   GraphRegistrationConfig,
   GraphSubscriptions,
   MergeStrategyOptions,
@@ -1245,14 +1244,12 @@ export function VizijRuntimeProvider({
   faceId: faceIdProp,
   updateTier = "auto",
   autoCreate = true,
-  createOptions,
   autostart = false,
   driveOrchestrator = true,
   mergeStrategy,
   onRegisterControllers,
   onStatusChange,
   transformOutputWrite,
-  orchestratorScope = "auto",
 }: ProviderProps) {
   const storeRef = useRef<VizijStore | null>(null);
   if (!storeRef.current) {
@@ -1260,10 +1257,7 @@ export function VizijRuntimeProvider({
   }
 
   // The engine is an Arora device owned by this provider; every provider is
-  // isolated (its own device, its own store namespace). `orchestratorScope`
-  // is accepted for compatibility and ignored.
-  void orchestratorScope;
-
+  // isolated (its own device, its own store namespace).
   return (
     <VizijContext.Provider value={storeRef.current}>
       <VizijRuntimeProviderInner
@@ -1274,7 +1268,6 @@ export function VizijRuntimeProvider({
         autoCreate={autoCreate}
         autostart={autostart}
         driveOrchestrator={driveOrchestrator}
-        createOptions={createOptions}
         mergeStrategy={mergeStrategy}
         onRegisterControllers={onRegisterControllers}
         onStatusChange={onStatusChange}
@@ -1302,7 +1295,6 @@ type VizijRuntimeProviderInnerProps = {
   children: ReactNode;
   autoCreate: boolean;
   autostart: boolean;
-  createOptions?: CreateOrchOptions;
   driveOrchestrator: boolean;
 };
 
@@ -1319,7 +1311,6 @@ function VizijRuntimeProviderInner({
   children,
   autoCreate,
   autostart,
-  createOptions,
   driveOrchestrator,
 }: VizijRuntimeProviderInnerProps) {
   const [assetBundleOverride, setAssetBundleOverride] =
@@ -1788,13 +1779,10 @@ function VizijRuntimeProviderInner({
   }, [deviceSlot, pushError]);
 
   /** `ready` = wasm loaded; the device itself boots on first registration. */
-  const createOrchestrator = useCallback(
-    async (_options?: CreateOrchOptions) => {
-      await ensureWasmInit();
-      setReady(true);
-    },
-    [],
-  );
+  const createOrchestrator = useCallback(async () => {
+    await ensureWasmInit();
+    setReady(true);
+  }, []);
 
   const removeGraph = useCallback(
     (id: ControllerId) => {
@@ -2094,7 +2082,7 @@ function VizijRuntimeProviderInner({
 
   useEffect(() => {
     if (!ready && autoCreate) {
-      createOrchestrator(createOptions).catch((err: unknown) => {
+      createOrchestrator().catch((err: unknown) => {
         pushError({
           message: "Failed to create orchestrator runtime",
           cause: err,
@@ -2103,7 +2091,7 @@ function VizijRuntimeProviderInner({
         });
       });
     }
-  }, [ready, autoCreate, createOptions, createOrchestrator, pushError]);
+  }, [ready, autoCreate, createOrchestrator, pushError]);
 
   const registerControllers = useCallback(async () => {
     clearControllers();

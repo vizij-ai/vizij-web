@@ -50,7 +50,6 @@ export function ShowcaseRuntime({
       assetBundle={bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
-      orchestratorScope="shared"
     >
       <HiddenStepController enabled={shouldDriveHidden} hz={hiddenStepHz} />
       <RuntimeDebugBeacon

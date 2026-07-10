@@ -304,7 +304,6 @@ export function ReferenceFaceRuntime({
       assetBundle={activeBundleConfig.bundle}
       autostart={shouldAutostart}
       driveOrchestrator={shouldDriveVisible}
-      orchestratorScope="shared"
     >
       <ReferenceFaceBridge
         onStandardInputsReady={onStandardInputsReady}

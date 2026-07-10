@@ -15,9 +15,6 @@ import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
 /** Value shape hint. Accepted through the public surface, unused by the device. */
 export type ShapeJSON = Record<string, unknown>;
 
-/** Legacy engine-creation options. Accepted for compatibility; ignored. */
-export type CreateOrchOptions = Record<string, unknown>;
-
 /** Paths a graph reads/writes — metadata for output tracking and seeding. */
 export type GraphSubscriptions = {
   inputs?: string[];
@@ -349,7 +346,6 @@ export type VizijRuntimeProviderProps = {
   faceId?: string;
   updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
-  createOptions?: CreateOrchOptions;
   autostart?: boolean;
   driveOrchestrator?: boolean;
   mergeStrategy?: MergeStrategyOptions;
@@ -358,7 +354,6 @@ export type VizijRuntimeProviderProps = {
   transformOutputWrite?: (
     write: RuntimeOutputWrite,
   ) => RuntimeOutputWrite | null;
-  orchestratorScope?: "auto" | "shared" | "isolated";
 };
 
 export type RuntimeUpdateTier = "auto" | "assets" | "graphs";
