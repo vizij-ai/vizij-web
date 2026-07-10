@@ -1,5 +1,6 @@
 import type { Value } from "@vizij/animation-react";
 import {
+  fromAroraValueJSON,
   isNormalizedValue,
   valueAsBool,
   valueAsNumber,
@@ -7,6 +8,7 @@ import {
   valueAsText,
   valueAsTransform,
   valueAsVector,
+  type NormalizedValue,
 } from "@vizij/value-json";
 
 const DASH = "—";
@@ -25,16 +27,21 @@ export function formatNumericArray(
 function formatValueInternal(value: Value | undefined): string {
   if (!value) return DASH;
 
-  // Handle structural types that need recursive formatting first.
-  if (isNormalizedValue(value)) {
-    switch (value.type) {
+  // Handle structural types that need recursive formatting first — arora
+  // serde forms decode into the same {type,data} shape (enum tags display as
+  // their variant id; names are hashed one-way on the Rust side).
+  const nv: NormalizedValue | undefined = isNormalizedValue(value as never)
+    ? (value as unknown as NormalizedValue)
+    : fromAroraValueJSON(value as never);
+  if (nv) {
+    switch (nv.type) {
       case "enum": {
-        const [enumTag, inner] = value.data;
+        const [enumTag, inner] = nv.data;
         const innerDisplay = inner ? formatValueInternal(inner as Value) : DASH;
         return `${enumTag}${innerDisplay !== DASH ? `: ${innerDisplay}` : ""}`;
       }
       case "record": {
-        const record = value.data;
+        const record = nv.data;
         return JSON.stringify(
           Object.fromEntries(
             Object.entries(record).map(([key, entry]) => [
@@ -47,7 +54,7 @@ function formatValueInternal(value: Value | undefined): string {
       case "array":
       case "list":
       case "tuple": {
-        const items = value.data as readonly Value[];
+        const items = nv.data as readonly Value[];
         return `[${items.map((entry) => formatValueInternal(entry)).join(", ")}]`;
       }
       default:
@@ -99,14 +106,17 @@ export function formatValue(value: Value | undefined): string {
 export function valueToSeries(value: Value | undefined): number[] | null {
   if (!value) return null;
 
-  if (isNormalizedValue(value)) {
-    switch (value.type) {
+  const nv: NormalizedValue | undefined = isNormalizedValue(value as never)
+    ? (value as unknown as NormalizedValue)
+    : fromAroraValueJSON(value as never);
+  if (nv) {
+    switch (nv.type) {
       case "enum": {
-        const [, inner] = value.data;
+        const [, inner] = nv.data;
         return valueToSeries(inner as Value);
       }
       case "record": {
-        for (const entry of Object.values(value.data)) {
+        for (const entry of Object.values(nv.data)) {
           const series = valueToSeries(entry as Value);
           if (series && series.length > 0) {
             return series;

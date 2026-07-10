@@ -1,4 +1,5 @@
 import {
+  fromAroraValueJSON,
   isNormalizedValue,
   valueAsBool,
   valueAsColorRgba,
@@ -62,29 +63,35 @@ export function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
     return value.map((entry) => valueJSONToRaw(entry)) as unknown as RawValue;
   }
 
-  if (typeof value === "object" && !("type" in value)) {
-    const entries = Object.entries(value).map(([key, entry]) => [
-      key,
-      valueJSONToRaw(entry as ValueJSON),
-    ]);
-    return Object.fromEntries(entries) as unknown as RawValue;
-  }
+  // Engine-emitted arora forms ({f32}, {struct}, {enum}, {keyvalue}, ...) carry
+  // no "type" key, so they must be recognized before the plain-record fallback
+  // below mis-buckets them.
+  const normalized = isNormalizedValue(value)
+    ? value
+    : fromAroraValueJSON(value);
 
-  if (!isNormalizedValue(value)) {
+  if (normalized === undefined) {
+    if (typeof value === "object" && !("type" in value)) {
+      const entries = Object.entries(value).map(([key, entry]) => [
+        key,
+        valueJSONToRaw(entry as ValueJSON),
+      ]);
+      return Object.fromEntries(entries) as unknown as RawValue;
+    }
     return undefined;
   }
 
-  switch (value.type) {
+  switch (normalized.type) {
     case "float": {
-      const num = valueAsNumber(value);
+      const num = valueAsNumber(normalized);
       return typeof num === "number" ? (num as RawValue) : undefined;
     }
     case "bool": {
-      const boolVal = valueAsBool(value);
+      const boolVal = valueAsBool(normalized);
       return typeof boolVal === "boolean" ? (boolVal as RawValue) : undefined;
     }
     case "text": {
-      const text = valueAsText(value);
+      const text = valueAsText(normalized);
       return typeof text === "string" ? (text as RawValue) : undefined;
     }
     case "vec2":
@@ -92,11 +99,11 @@ export function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
     case "vec4":
     case "quat":
     case "vector": {
-      const vec = valueAsVector(value);
+      const vec = valueAsVector(normalized);
       return vec ? numericArrayToRaw(vec) : undefined;
     }
     case "colorrgba": {
-      const color = valueAsColorRgba(value);
+      const color = valueAsColorRgba(normalized);
       if (!color) {
         return undefined;
       }
@@ -104,7 +111,7 @@ export function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
       return { r, g, b, a } as unknown as RawValue;
     }
     case "transform": {
-      const transform = valueAsTransform(value);
+      const transform = valueAsTransform(normalized);
       if (!transform) {
         return undefined;
       }
@@ -114,15 +121,20 @@ export function valueJSONToRaw(value?: ValueJSON): RawValue | undefined {
         scale: numericArrayToRaw(transform.scale),
       } as unknown as RawValue;
     }
-    case "record": {
-      const entries = Object.entries(value.data ?? {}).map(([key, entry]) => [
-        key,
+    case "array":
+    case "list":
+    case "tuple":
+      return (normalized.data ?? []).map((entry) =>
         valueJSONToRaw(entry),
-      ]);
+      ) as unknown as RawValue;
+    case "record": {
+      const entries = Object.entries(normalized.data ?? {}).map(
+        ([key, entry]) => [key, valueJSONToRaw(entry)],
+      );
       return Object.fromEntries(entries) as unknown as RawValue;
     }
     case "enum": {
-      const [tag, inner] = value.data;
+      const [tag, inner] = normalized.data;
       return {
         tag,
         value: valueJSONToRaw(inner),

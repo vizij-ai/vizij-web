@@ -1,6 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useGraphRuntime, useNodeOutputs } from "@vizij/node-graph-react";
+import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  valueAsBool,
+  valueAsNumber,
+  valueAsText,
+  valueAsVec3,
+  valueAsVector,
+} from "@vizij/value-json";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { cloneDeepSafe } from "@vizij/utils";
 import type { JSX } from "react/jsx-runtime";
@@ -242,106 +251,78 @@ function ValueParamEditor({
   value: any;
   onChange: (v: any) => void;
 }) {
+  // The accessors decode every wire form the engines speak (arora serde,
+  // legacy shorthand, normalized {type,data}), so detection and seeding read
+  // through them; the editor still emits legacy objects (the write side).
   const detectKind = (
     v: any,
   ): "float" | "bool" | "vec3" | "vector" | "text" => {
-    if (v && typeof v === "object") {
-      if ("float" in v) return "float";
-      if ("bool" in v) return "bool";
-      if ("vec3" in v) return "vec3";
-      if ("vector" in v) return "vector";
-      if ("text" in v) return "text";
-    }
     if (typeof v === "number") return "float";
     if (typeof v === "boolean") return "bool";
     if (Array.isArray(v)) return v.length === 3 ? "vec3" : "vector";
     if (typeof v === "string") return "text";
+    if (v && typeof v === "object") {
+      const nv = isNormalizedValue(v) ? v : fromAroraValueJSON(v);
+      const type =
+        nv?.type ??
+        (("float" in v && "float") ||
+          ("bool" in v && "bool") ||
+          ("vec3" in v && "vec3") ||
+          ("vector" in v && "vector") ||
+          ("text" in v && "text") ||
+          "float");
+      switch (type) {
+        case "bool":
+          return "bool";
+        case "vec3":
+          return "vec3";
+        case "vec2":
+        case "vec4":
+        case "quat":
+        case "vector":
+          return "vector";
+        case "text":
+          return "text";
+        default:
+          return "float";
+      }
+    }
     return "float";
   };
+
+  const seedFloat = (v: any): number => valueAsNumber(v) ?? 0;
+  const seedBool = (v: any): boolean => valueAsBool(v) ?? false;
+  const seedVec3 = (v: any): [number, number, number] =>
+    valueAsVec3(v) ?? [0, 0, 0];
+  const seedVector = (v: any): string => (valueAsVector(v) ?? []).join(", ");
+  const seedText = (v: any): string =>
+    valueAsText(v) ?? (typeof v === "string" ? v : "");
 
   const [kind, setKind] = useState<
     "float" | "bool" | "vec3" | "vector" | "text"
   >(detectKind(value));
-  const [floatVal, setFloatVal] = useState<number>(() => {
-    if (value && typeof value === "object" && "float" in value)
-      return Number((value as any).float) || 0;
-    if (typeof value === "number") return value;
-    return 0;
-  });
-  const [boolVal, setBoolVal] = useState<boolean>(() => {
-    if (value && typeof value === "object" && "bool" in value)
-      return !!(value as any).bool;
-    if (typeof value === "boolean") return value;
-    return false;
-  });
-  const [vec3Val, setVec3Val] = useState<[number, number, number]>(() => {
-    if (value && typeof value === "object" && "vec3" in value)
-      return (value as any).vec3 as [number, number, number];
-    if (Array.isArray(value) && value.length === 3)
-      return [
-        Number(value[0]) || 0,
-        Number(value[1]) || 0,
-        Number(value[2]) || 0,
-      ];
-    return [0, 0, 0];
-  });
-  const [vectorStr, setVectorStr] = useState<string>(() => {
-    if (value && typeof value === "object" && "vector" in value)
-      return ((value as any).vector as number[]).join(", ");
-    if (Array.isArray(value)) return (value as number[]).join(", ");
-    return "";
-  });
-  const [textVal, setTextVal] = useState<string>(() => {
-    if (value && typeof value === "object" && "text" in value)
-      return String((value as any).text ?? "");
-    if (typeof value === "string") return value;
-    return "";
-  });
+  const [floatVal, setFloatVal] = useState<number>(() => seedFloat(value));
+  const [boolVal, setBoolVal] = useState<boolean>(() => seedBool(value));
+  const [vec3Val, setVec3Val] = useState<[number, number, number]>(() =>
+    seedVec3(value),
+  );
+  const [vectorStr, setVectorStr] = useState<string>(() => seedVector(value));
+  const [textVal, setTextVal] = useState<string>(() => seedText(value));
 
   useEffect(() => {
     // Re-sync UI when external value changes (e.g., switching selected node)
     const k = detectKind(value);
     setKind(k);
     if (k === "float") {
-      setFloatVal(
-        value && typeof value === "object" && "float" in value
-          ? Number((value as any).float) || 0
-          : typeof value === "number"
-            ? value
-            : 0,
-      );
+      setFloatVal(seedFloat(value));
     } else if (k === "bool") {
-      setBoolVal(
-        value && typeof value === "object" && "bool" in value
-          ? !!(value as any).bool
-          : typeof value === "boolean"
-            ? value
-            : false,
-      );
+      setBoolVal(seedBool(value));
     } else if (k === "vec3") {
-      const v =
-        value && typeof value === "object" && "vec3" in value
-          ? (value as any).vec3
-          : Array.isArray(value)
-            ? value
-            : [0, 0, 0];
-      setVec3Val([Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0]);
+      setVec3Val(seedVec3(value));
     } else if (k === "vector") {
-      const arr =
-        value && typeof value === "object" && "vector" in value
-          ? (value as any).vector
-          : Array.isArray(value)
-            ? value
-            : [];
-      setVectorStr((arr as number[]).join(", "));
+      setVectorStr(seedVector(value));
     } else if (k === "text") {
-      const t =
-        value && typeof value === "object" && "text" in value
-          ? (value as any).text
-          : typeof value === "string"
-            ? value
-            : "";
-      setTextVal(String(t ?? ""));
+      setTextVal(seedText(value));
     }
   }, [value]);
 

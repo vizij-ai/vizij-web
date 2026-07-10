@@ -6,6 +6,7 @@ import {
   useNodeOutput,
   valueAsNumber,
 } from "@vizij/node-graph-react";
+import { fromAroraValueJSON, isNormalizedValue } from "@vizij/value-json";
 import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
 import { ParamEditor } from "./ParamEditor";
 
@@ -35,10 +36,23 @@ type Status =
   | { kind: "success"; message: string }
   | { kind: "error"; message: string };
 
-function isRecord(
-  value: ValueJSON,
-): value is { record: Record<string, ValueJSON> } {
-  return typeof value === "object" && value !== null && "record" in value;
+/**
+ * The record's entries, whichever wire form it arrived in (arora serde,
+ * normalized {type,data}, legacy {record}); null when the value is not a
+ * record. Entries decode through the valueAs* accessors either way.
+ */
+function recordEntries(value: ValueJSON): Record<string, ValueJSON> | null {
+  if (typeof value !== "object" || value === null) return null;
+  const nv = isNormalizedValue(value as never)
+    ? (value as unknown as { type: string; data: unknown })
+    : fromAroraValueJSON(value as never);
+  if (nv?.type === "record") {
+    return nv.data as Record<string, ValueJSON>;
+  }
+  if ("record" in value) {
+    return (value as { record: Record<string, ValueJSON> }).record;
+  }
+  return null;
 }
 
 function parseNumberList(source: string): number[] | null {
@@ -68,9 +82,9 @@ export function UrdfIkPanel({
 
   const jointList = useMemo(() => {
     if (!jointSnapshot?.value) return [];
-    const value = jointSnapshot.value as ValueJSON;
-    if (!isRecord(value)) return [];
-    return Object.entries(value.record).map(([name, entry]) => ({
+    const entries = recordEntries(jointSnapshot.value as ValueJSON);
+    if (!entries) return [];
+    return Object.entries(entries).map(([name, entry]) => ({
       name,
       value: valueAsNumber(entry) ?? 0,
     }));
@@ -175,10 +189,9 @@ export function UrdfIkPanel({
       }
       const nodeOutputs = result.nodes?.[nodeId];
       const port = nodeOutputs?.out;
-      const successJoints =
-        port?.value && isRecord(port.value)
-          ? Object.keys(port.value.record)
-          : [];
+      const successJoints = port?.value
+        ? Object.keys(recordEntries(port.value) ?? {})
+        : [];
       setStatus({
         kind: "success",
         message:
