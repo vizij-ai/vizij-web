@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { ValueJSON } from "@vizij/value-json";
 import type { IrGraph } from "@vizij/node-graph-authoring";
+import type { AnimatableValue, RawValue } from "@vizij/utils";
+import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
 
 // ---------------------------------------------------------------------------
 // Engine-facing types, formerly re-exported from @vizij/orchestrator-react.
@@ -56,8 +58,6 @@ export type AnimationRegistrationConfig = {
   data?: unknown;
   setup?: Partial<AnimationSetup>;
 };
-import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
 
 export type PoseDefinition = {
   id: string;
@@ -300,6 +300,8 @@ export type VizijRuntimeFaceProps = Omit<VizijProps, "rootId" | "namespace"> & {
 export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   assetBundle: VizijAssetBundle;
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
+  /** Current engine-store value of a path (read-your-own-write included). */
+  getValueSnapshot: (path: string) => ValueJSON | undefined;
   setGraphBundle: (
     bundle: RuntimeGraphBundle,
     options?: { tier?: "auto" | "assets" | "graphs" },

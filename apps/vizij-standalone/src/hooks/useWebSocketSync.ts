@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import { useOrchestrator, valueAsNumber } from "@vizij/orchestrator-react";
+import { valueAsNumber } from "@vizij/value-json";
 import {
   type AroraValue,
   type AroraType,
@@ -34,10 +34,9 @@ export function useWebSocketSync() {
     inputConstraints,
     namespace,
     faceId: runtimeFaceId,
+    // The runtime's engine-store snapshot (most current after graph evaluation).
+    getValueSnapshot: getPathSnapshot,
   } = useVizijRuntime();
-
-  // Get orchestrator for reading cached values
-  const { getPathSnapshot } = useOrchestrator();
 
   // Get faceId like useMouseGaze does
   const faceId = (runtimeFaceId ?? "face").toLowerCase();
