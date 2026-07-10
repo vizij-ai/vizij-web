@@ -1,4 +1,4 @@
-import type { GraphRegistrationConfig } from "@vizij/orchestrator-react";
+import type { GraphRegistrationConfig } from "../types";
 
 type GraphLikeNode = {
   id?: string;

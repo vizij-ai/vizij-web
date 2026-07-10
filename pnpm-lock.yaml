@@ -2777,6 +2777,9 @@ packages:
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
 
+  '@vizij/value-json@0.2.0':
+    resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
+
   '@vizij/wasm-loader@0.1.5':
     resolution: {integrity: sha512-YQR1wOUmyHfEU44/ZnBr47FY/d4OsE0ceMHbS9zHQKOCBR7HTCOBWKavbFeSQUdsqiHtuYfJCyccv6J0v7Bpfw==}
 
@@ -7022,6 +7025,8 @@ snapshots:
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
+
+  '@vizij/value-json@0.2.0': {}
 
   '@vizij/value-json@0.2.0': {}
 

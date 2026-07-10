@@ -17,23 +17,19 @@ import {
   loadGLTFWithBundle,
   loadGLTFFromBlobWithBundle,
 } from "@vizij/render";
-import {
-  OrchestratorProvider,
-  OrchestratorContext,
-  useOrchestrator,
-  useOrchFrame,
-  type CreateOrchOptions,
-  type GraphRegistrationConfig,
-  type GraphSubscriptions,
-  type MergeStrategyOptions,
-  type ValueJSON,
-  type ShapeJSON,
-  type AnimationRegistrationConfig,
-  type ControllerId,
-  type WriteOp,
-} from "@vizij/orchestrator-react";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
-import { valueAsNumber } from "@vizij/value-json";
+import { valueAsNumber, type ValueJSON } from "@vizij/value-json";
+import { DeviceSlot, ensureWasmInit, isGoldenPath } from "./engine/aroraEngine";
+import { composeGraphSpecs, type GraphSource } from "./utils/composeGraph";
+import type {
+  CreateOrchOptions,
+  GraphRegistrationConfig,
+  GraphSubscriptions,
+  MergeStrategyOptions,
+  ShapeJSON,
+  AnimationRegistrationConfig,
+  ControllerId,
+} from "./types";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
 import {
@@ -1270,19 +1266,12 @@ export function VizijRuntimeProvider({
     storeRef.current = createVizijStore();
   }
 
-  const parentOrchestrator = useContext(OrchestratorContext);
-  const hasParentOrchestrator = Boolean(parentOrchestrator);
-  const shouldProvideOrchestrator =
-    orchestratorScope === "isolated" ||
-    (!hasParentOrchestrator && orchestratorScope !== "shared");
+  // The engine is an Arora device owned by this provider; every provider is
+  // isolated (its own device, its own store namespace). `orchestratorScope`
+  // is accepted for compatibility and ignored.
+  void orchestratorScope;
 
-  if (orchestratorScope === "shared" && !hasParentOrchestrator) {
-    console.warn(
-      '[vizij-runtime] orchestratorScope="shared" requires an OrchestratorProvider higher in the tree; falling back to an isolated provider.',
-    );
-  }
-
-  const runtimeTree = (
+  return (
     <VizijContext.Provider value={storeRef.current}>
       <VizijRuntimeProviderInner
         assetBundle={assetBundle}
@@ -1302,20 +1291,6 @@ export function VizijRuntimeProvider({
         {children}
       </VizijRuntimeProviderInner>
     </VizijContext.Provider>
-  );
-
-  if (!shouldProvideOrchestrator) {
-    return runtimeTree;
-  }
-
-  return (
-    <OrchestratorProvider
-      autoCreate={autoCreate}
-      createOptions={createOptions}
-      autostart={false}
-    >
-      {runtimeTree}
-    </OrchestratorProvider>
   );
 }
 
@@ -1431,21 +1406,17 @@ function VizijRuntimeProviderInner({
     }
   }, [effectiveAssetBundle]);
 
-  const {
-    ready,
-    createOrchestrator,
-    registerGraph,
-    registerMergedGraph,
-    registerAnimation,
-    removeGraph,
-    removeAnimation,
-    removeInput,
-    listControllers,
-    setInput: orchestratorSetInput,
-    getPathSnapshot,
-    step: stepRuntime,
-  } = useOrchestrator();
-  const frame = useOrchFrame();
+  // The engine: one Arora device per provider, its behavior the composed
+  // Vizij graph. The slot dedupes creation and carries the store across
+  // graph recompositions (see engine/aroraEngine.ts).
+  const deviceSlotRef = useRef<DeviceSlot | null>(null);
+  if (!deviceSlotRef.current) {
+    deviceSlotRef.current = new DeviceSlot();
+  }
+  const deviceSlot = deviceSlotRef.current;
+  const [ready, setReady] = useState(false);
+  /** Specs currently composed into the device, in evaluation order. */
+  const graphSourcesRef = useRef<GraphSource[]>([]);
 
   const namespace = namespaceProp ?? assetBundle.namespace ?? "default";
   const faceId =
@@ -1783,6 +1754,175 @@ function VizijRuntimeProviderInner({
     autostartRef.current = autostart;
     updateLoopMode();
   }, [autostart, updateLoopMode]);
+
+  // ---------------------------------------------------------------------------
+  // The engine surface, device-backed. These keep the call shapes the file
+  // grew around the orchestrator (synchronous registration returning ids,
+  // snapshot getters), implemented over the single Arora device: registered
+  // graphs accumulate as sources in graphSourcesRef, and every registration
+  // change recomposes the one graph and restarts the device, carrying the
+  // store across (engine/aroraEngine.ts). Animations register as ids only —
+  // playback is the JS clip pipeline writing inputs like any other caller.
+  // ---------------------------------------------------------------------------
+
+  /** Writes made before the device is live, replayed when it boots. */
+  const pendingWritesRef = useRef<Map<string, ValueJSON>>(new Map());
+  /** Applies a step's drained store changes to the render store; bound below. */
+  const applyEngineChangesRef = useRef<
+    (changes: Record<string, ValueJSON | null>) => void
+  >(() => {});
+
+  const recomposeDevice = useCallback(() => {
+    const spec = composeGraphSpecs(graphSourcesRef.current);
+    deviceSlot
+      .restart(spec)
+      .then((handle) => {
+        if (pendingWritesRef.current.size > 0) {
+          handle.device.writeValues(
+            Object.fromEntries(pendingWritesRef.current),
+          );
+          pendingWritesRef.current.clear();
+        }
+      })
+      .catch((err: unknown) => {
+        pushError({
+          message: "Failed to (re)start the arora device",
+          cause: err,
+          phase: "orchestrator",
+          timestamp: performance.now(),
+        });
+      });
+  }, [deviceSlot, pushError]);
+
+  /** `ready` = wasm loaded; the device itself boots on first registration. */
+  const createOrchestrator = useCallback(
+    async (_options?: CreateOrchOptions) => {
+      await ensureWasmInit();
+      setReady(true);
+    },
+    [],
+  );
+
+  const removeGraph = useCallback(
+    (id: ControllerId) => {
+      graphSourcesRef.current = graphSourcesRef.current.filter(
+        (s) => s.sourceId !== id && !s.sourceId.startsWith(`${id}#`),
+      );
+      recomposeDevice();
+    },
+    [recomposeDevice],
+  );
+
+  const registerGraph = useCallback(
+    (cfg: GraphRegistrationConfig): string => {
+      const id = cfg.id ?? `graph-${graphSourcesRef.current.length}`;
+      graphSourcesRef.current = [
+        ...graphSourcesRef.current.filter((s) => s.sourceId !== id),
+        { sourceId: id, spec: cfg.spec ?? {} },
+      ];
+      recomposeDevice();
+      return id;
+    },
+    [recomposeDevice],
+  );
+
+  /**
+   * A merged registration becomes one source per member graph under the
+   * merged id (`id#member`); composition is last-writer-wins, so `strategy`
+   * is accepted but unused (see utils/composeGraph.ts).
+   */
+  const registerMergedGraph = useCallback(
+    (cfg: {
+      id?: string;
+      graphs: GraphRegistrationConfig[];
+      strategy?: MergeStrategyOptions;
+    }): string => {
+      const id = cfg.id ?? `merged-${graphSourcesRef.current.length}`;
+      const members = cfg.graphs.map((graph, index) => ({
+        sourceId: `${id}#${graph.id ?? index}`,
+        spec: graph.spec ?? {},
+      }));
+      graphSourcesRef.current = [
+        ...graphSourcesRef.current.filter(
+          (s) => s.sourceId !== id && !s.sourceId.startsWith(`${id}#`),
+        ),
+        ...members,
+      ];
+      recomposeDevice();
+      return id;
+    },
+    [recomposeDevice],
+  );
+
+  /** Animations are ids only: the JS clip pipeline is the playback engine. */
+  const registerAnimation = useCallback(
+    (cfg: AnimationRegistrationConfig): string =>
+      cfg.id ?? `animation-${registeredAnimationsRef.current.length}`,
+    [],
+  );
+
+  const removeAnimation = useCallback((_id: ControllerId) => {}, []);
+
+  const listControllers = useCallback(
+    (): { graphs: ControllerId[]; anims: ControllerId[] } => ({
+      graphs: [...registeredGraphsRef.current],
+      anims: [...registeredAnimationsRef.current],
+    }),
+    [],
+  );
+
+  const orchestratorSetInput = useCallback(
+    (path: string, value: ValueJSON, _shape?: ShapeJSON) => {
+      const handle = deviceSlot.current;
+      if (handle) {
+        handle.device.setValue(path, value);
+      } else {
+        pendingWritesRef.current.set(path, value);
+      }
+    },
+    [deviceSlot],
+  );
+
+  /**
+   * The device store has no key removal through this surface; clearing an
+   * input means writing its neutral value so the graph stops acting on it.
+   */
+  const removeInput = useCallback(
+    (path: string) => {
+      pendingWritesRef.current.delete(path);
+      deviceSlot.current?.device.setValue(path, { float: 0 } as ValueJSON);
+    },
+    [deviceSlot],
+  );
+
+  const getPathSnapshot = useCallback(
+    (path: string): ValueJSON | undefined => {
+      const handle = deviceSlot.current;
+      if (!handle) {
+        return pendingWritesRef.current.get(path);
+      }
+      return handle.device.readValues([path])[path] ?? undefined;
+    },
+    [deviceSlot],
+  );
+
+  /**
+   * One tick: step the device (dt seconds → ms at exactly this boundary),
+   * then pull the changed keys and apply them to the render store. The
+   * push-model frame subscription this replaces re-rendered the provider
+   * every step; the pull model renders only what the changes touch.
+   */
+  const stepRuntime = useCallback(
+    (dt: number) => {
+      const handle = deviceSlot.current;
+      if (!handle) {
+        return;
+      }
+      handle.device.step(dt * 1000);
+      applyEngineChangesRef.current(handle.device.drainChanges());
+    },
+    [deviceSlot],
+  );
 
   const clearControllers = useCallback(() => {
     const existing = listControllers();
@@ -2257,103 +2397,100 @@ function VizijRuntimeProviderInner({
   }, [ready, status.loading, graphUpdateToken, registerControllers, pushError]);
 
   useEffect(() => {
-    if (!frame) {
-      return;
-    }
-    const writes = frame.merged_writes ?? [];
-    if (!writes.length) {
-      return;
-    }
-    const setWorldValues = store.getState().setValues;
-    const namespaceValue = status.namespace;
-    const currentValues = store.getState().values;
-    const rigInputPathMap = rigInputMapRef.current;
-    const rigPoseControlInputIds = rigPoseControlInputIdsRef.current;
-    const batched: Array<{ id: string; namespace: string; value: RawValue }> =
-      [];
-    const namespacedOutputs = namespacedOutputPathsRef.current;
-    const baseOutputs = baseOutputPathsRef.current;
-    writes.forEach((write: WriteOp) => {
-      const path = normalisePath(write.path);
-      const basePath = stripNamespace(path, namespaceValue);
-      const isTrackedOutput =
-        namespacedOutputs.has(path) || baseOutputs.has(basePath);
-      // if (
-      //   isRuntimeDebugEnabled() &&
-      //   (path.includes("animation/authoring.timeline.main") ||
-      //     path.toLowerCase().includes("blink"))
-      // ) {
-      //   console.log("[vizij-runtime] frame write", {
-      //     path,
-      //     basePath,
-      //     value: write.value,
-      //     isTrackedOutput,
-      //   });
-      // }
-      if (!isTrackedOutput) {
+    // Bound into a ref so stepRuntime (defined above) can pull each tick's
+    // drained store changes straight through without a React render per step.
+    applyEngineChangesRef.current = (changes) => {
+      const entries = Object.entries(changes);
+      if (!entries.length) {
         return;
       }
-      const raw = valueJSONToRaw(write.value);
-      if (raw === undefined) {
-        return;
-      }
-      const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
-        basePath,
-      );
-      if (poseControlMatch && typeof raw === "number" && Number.isFinite(raw)) {
-        const inputId = (poseControlMatch[1] ?? "").trim();
-        const hasNativePoseControlInput =
-          inputId.length > 0 && rigPoseControlInputIds.has(inputId);
-        // Merged graphs do not automatically recycle pose-driver outputs into
-        // sibling rig inputs, so native pose-control channels still need to be
-        // restaged as runtime inputs on the next frame. Prefer explicit rig
-        // input mappings first, then fall back to the native pose-control path.
-        const mappedInputPath =
-          inputId.length === 0
-            ? undefined
-            : resolvePoseControlInputPath({
-                inputId,
-                basePath,
-                rigInputPathMap,
-                hasNativePoseControlInput,
-              });
-        if (mappedInputPath) {
-          const bridgeKey = `${namespaceValue}:${mappedInputPath}`;
-          const previousValue =
-            poseControlBridgeValuesRef.current.get(bridgeKey);
-          if (
-            previousValue === undefined ||
-            Math.abs(previousValue - raw) > POSE_CONTROL_BRIDGE_EPSILON
-          ) {
-            poseControlBridgeValuesRef.current.set(bridgeKey, raw);
-            setInput(mappedInputPath, { float: raw });
+      const setWorldValues = store.getState().setValues;
+      const namespaceValue = status.namespace;
+      const currentValues = store.getState().values;
+      const rigInputPathMap = rigInputMapRef.current;
+      const rigPoseControlInputIds = rigPoseControlInputIdsRef.current;
+      const batched: Array<{ id: string; namespace: string; value: RawValue }> =
+        [];
+      const namespacedOutputs = namespacedOutputPathsRef.current;
+      const baseOutputs = baseOutputPathsRef.current;
+      entries.forEach(([changedPath, changedValue]) => {
+        // Cleared keys don't render; the runtime's clock keys never do.
+        if (changedValue === null || isGoldenPath(changedPath)) {
+          return;
+        }
+        const path = normalisePath(changedPath);
+        const basePath = stripNamespace(path, namespaceValue);
+        const isTrackedOutput =
+          namespacedOutputs.has(path) || baseOutputs.has(basePath);
+        if (!isTrackedOutput) {
+          return;
+        }
+        const raw = valueJSONToRaw(changedValue);
+        if (raw === undefined) {
+          return;
+        }
+        const poseControlMatch = /^rig\/[^/]+\/pose\/control\/(.+)$/.exec(
+          basePath,
+        );
+        if (
+          poseControlMatch &&
+          typeof raw === "number" &&
+          Number.isFinite(raw)
+        ) {
+          const inputId = (poseControlMatch[1] ?? "").trim();
+          const hasNativePoseControlInput =
+            inputId.length > 0 && rigPoseControlInputIds.has(inputId);
+          // Merged graphs do not automatically recycle pose-driver outputs into
+          // sibling rig inputs, so native pose-control channels still need to be
+          // restaged as runtime inputs on the next frame. Prefer explicit rig
+          // input mappings first, then fall back to the native pose-control path.
+          const mappedInputPath =
+            inputId.length === 0
+              ? undefined
+              : resolvePoseControlInputPath({
+                  inputId,
+                  basePath,
+                  rigInputPathMap,
+                  hasNativePoseControlInput,
+                });
+          if (mappedInputPath) {
+            const bridgeKey = `${namespaceValue}:${mappedInputPath}`;
+            const previousValue =
+              poseControlBridgeValuesRef.current.get(bridgeKey);
+            if (
+              previousValue === undefined ||
+              Math.abs(previousValue - raw) > POSE_CONTROL_BRIDGE_EPSILON
+            ) {
+              poseControlBridgeValuesRef.current.set(bridgeKey, raw);
+              setInput(mappedInputPath, { float: raw });
+            }
           }
         }
+        const targetPath = baseOutputs.has(basePath) ? basePath : path;
+        const currentValue = currentValues.get(
+          getLookup(namespaceValue, targetPath),
+        );
+        const nextWrite = transformOutputWrite
+          ? transformOutputWrite({
+              id: targetPath,
+              namespace: namespaceValue,
+              value: raw,
+              currentValue,
+            })
+          : {
+              id: targetPath,
+              namespace: namespaceValue,
+              value: raw,
+            };
+        if (nextWrite) {
+          batched.push(nextWrite);
+        }
+      });
+      if (batched.length > 0) {
+        setWorldValues(batched);
       }
-      const targetPath = baseOutputs.has(basePath) ? basePath : path;
-      const currentValue = currentValues.get(
-        getLookup(namespaceValue, targetPath),
-      );
-      const nextWrite = transformOutputWrite
-        ? transformOutputWrite({
-            id: targetPath,
-            namespace: namespaceValue,
-            value: raw,
-            currentValue,
-          })
-        : {
-            id: targetPath,
-            namespace: namespaceValue,
-            value: raw,
-          };
-      if (nextWrite) {
-        batched.push(nextWrite);
-      }
-    });
-    if (batched.length > 0) {
-      setWorldValues(batched);
-    }
-  }, [frame, status.namespace, store, transformOutputWrite]);
+    };
+  }, [status.namespace, store, transformOutputWrite]);
 
   const stagePoseNeutral = useCallback(
     (force = false) => {
