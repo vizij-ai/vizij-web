@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -19,6 +18,7 @@ import {
 } from "@vizij/render";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { valueAsNumber, type ValueJSON } from "@vizij/value-json";
+import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { DeviceSlot, ensureWasmInit, isGoldenPath } from "./engine/aroraEngine";
 import { composeGraphSpecs, type GraphSource } from "./utils/composeGraph";
 import type {
@@ -30,7 +30,6 @@ import type {
   AnimationRegistrationConfig,
   ControllerId,
 } from "./types";
-import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { VizijRuntimeContext } from "./context";
 import {
   clearRuntimeDebugState,
@@ -3508,6 +3507,7 @@ function VizijRuntimeProviderInner({
       ...status,
       assetBundle,
       setInput,
+      getValueSnapshot: getPathSnapshot,
       setGraphBundle,
       setValue: setRendererValue,
       stagePoseNeutral,
@@ -3534,6 +3534,7 @@ function VizijRuntimeProviderInner({
       status,
       assetBundle,
       setInput,
+      getPathSnapshot,
       setGraphBundle,
       setRendererValue,
       stagePoseNeutral,
