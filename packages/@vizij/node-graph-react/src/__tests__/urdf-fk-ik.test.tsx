@@ -8,16 +8,16 @@ import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
 import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  valueAsNumber,
+} from "@vizij/value-json";
+import {
   NodeGraphProvider,
   useGraphRuntime,
   valueAsVector,
   init as initGraphWasm,
 } from "../index";
-import {
-  fromAroraValueJSON,
-  isNormalizedValue,
-  valueAsNumber,
-} from "@vizij/value-json";
 import type { GraphRuntimeContextValue } from "../types";
 
 const urdfXml = `
