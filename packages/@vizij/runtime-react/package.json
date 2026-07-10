@@ -38,6 +38,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
+    "@vizij/arora-web-wasm": "^0.1.0",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/orchestrator-react": "workspace:*",
     "@vizij/render": "workspace:*",
