@@ -13,6 +13,11 @@ import {
   valueAsVector,
   init as initGraphWasm,
 } from "../index";
+import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  valueAsNumber,
+} from "@vizij/value-json";
 import type { GraphRuntimeContextValue } from "../types";
 
 const urdfXml = `
@@ -264,20 +269,25 @@ describe("URDF FK/IK integration", () => {
 
           const ikNode = fkResult.nodes?.ik as any;
           const ikValue: ValueJSON | undefined = ikNode?.out?.value;
-          if (!ikValue || !("record" in ikValue)) {
+          // The engine emits arora serde; decode the record through the
+          // value-json vocabulary instead of assuming a raw shape.
+          const ikNormalized = ikValue
+            ? isNormalizedValue(ikValue as never)
+              ? (ikValue as unknown as { type: string; data: unknown })
+              : fromAroraValueJSON(ikValue as never)
+            : undefined;
+          if (ikNormalized?.type !== "record") {
             throw new Error(`ik output missing record for sample ${sampleIdx}`);
           }
 
-          const ikRecord = (ikValue as { record: Record<string, ValueJSON> })
-            .record;
+          const ikRecord = ikNormalized.data as Record<string, ValueJSON>;
           const solvedAngles = JOINT_IDS.map((jointId) => {
-            const entry = ikRecord[jointId] as ValueJSON | undefined;
-            if (!entry || typeof (entry as any).float !== "number") {
+            const angle = valueAsNumber(ikRecord[jointId] as never);
+            if (typeof angle !== "number" || !Number.isFinite(angle)) {
               throw new Error(
                 `ik joint '${jointId}' missing numeric value (sample ${sampleIdx})`,
               );
             }
-            const angle = (entry as any).float as number;
             expect(Number.isFinite(angle)).toBe(true);
             return angle;
           });

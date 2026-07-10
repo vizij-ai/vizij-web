@@ -1,4 +1,9 @@
 import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
+import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  valueAsNumber,
+} from "@vizij/value-json";
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition, StandardInputId } from "./types";
 
@@ -33,10 +38,9 @@ function extractRecord(node: NodeSpec): Record<string, number> {
   }
   const result: Record<string, number> = {};
   valueEntries.forEach(([key, entry]) => {
-    const maybeFloat =
-      entry && typeof entry === "object" && typeof entry.float === "number"
-        ? entry.float
-        : undefined;
+    // The accessor decodes every wire form a pose entry can arrive in
+    // (arora serde, normalized {type,data}, legacy {float}).
+    const maybeFloat = valueAsNumber(entry as never);
     if (typeof maybeFloat === "number" && Number.isFinite(maybeFloat)) {
       result[key] = maybeFloat;
     }
@@ -49,6 +53,16 @@ function resolveValueEntries(
 ): Array<[string, { float?: number } | undefined]> | null {
   if (!raw || typeof raw !== "object") {
     return null;
+  }
+  // A record may arrive in arora serde or normalized form (the migrated
+  // bundles); its entries decode through valueAsNumber in extractRecord.
+  const nv = isNormalizedValue(raw as never)
+    ? (raw as { type: string; data: unknown })
+    : fromAroraValueJSON(raw as never);
+  if (nv?.type === "record") {
+    return Object.entries(
+      nv.data as Record<string, { float?: number } | undefined>,
+    );
   }
   const recordContainer = (raw as { record?: unknown }).record ?? raw;
   const valuesContainer =

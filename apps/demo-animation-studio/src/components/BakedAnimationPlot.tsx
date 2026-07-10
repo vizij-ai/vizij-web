@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { useAnimation } from "@vizij/animation-react";
-import { valueAsNumber, valueAsVector } from "@vizij/value-json";
+import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  valueAsNumber,
+  valueAsVector,
+} from "@vizij/value-json";
 import type {
   InstanceInfo,
   StoredAnimation,
@@ -62,9 +67,12 @@ const collectNumbers = (value: WasmValue | null | undefined): number[] => {
       .filter((entry) => Number.isFinite(entry));
   }
 
-  if (value.type === "record") {
-    return Object.values(value.data ?? {}).flatMap((entry) =>
-      collectNumbers(entry),
+  const nv = isNormalizedValue(value as never)
+    ? (value as unknown as { type: string; data: unknown })
+    : fromAroraValueJSON(value as never);
+  if (nv?.type === "record") {
+    return Object.values((nv.data ?? {}) as Record<string, WasmValue>).flatMap(
+      (entry) => collectNumbers(entry),
     );
   }
 

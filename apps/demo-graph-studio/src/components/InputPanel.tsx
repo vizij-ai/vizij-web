@@ -7,7 +7,11 @@ import React, {
 } from "react";
 import type { ChangeEvent } from "react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
-import { valueAsNumber } from "@vizij/value-json";
+import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  valueAsNumber,
+} from "@vizij/value-json";
 import type { JSX } from "react/jsx-runtime";
 import { useRegistry } from "../contexts/RegistryProvider";
 import { useEditorStore } from "../store/useEditorStore";
@@ -43,10 +47,13 @@ function toNumber(value: unknown): number | undefined {
     return toNumber(first);
   }
   if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if ("float" in record && typeof record.float === "number") {
-      return record.float;
+    // The accessor decodes every wire form the engines speak (arora serde,
+    // legacy shorthand, normalized {type,data}).
+    const num = valueAsNumber(value as never);
+    if (typeof num === "number" && Number.isFinite(num)) {
+      return num;
     }
+    const record = value as Record<string, unknown>;
     if ("value" in record) {
       return toNumber(record.value);
     }
@@ -96,13 +103,20 @@ export default function InputPanel(): JSX.Element {
         kind = "float";
         defaultValue = naiveNumber;
       } else if (rawValue && typeof rawValue === "object") {
-        const rawRecord = rawValue as Record<string, unknown>;
-        if ("bool" in rawRecord) {
+        // Kind comes from the decoded type: valueAsNumber would coerce a
+        // bool to 1/0 and misfile it as a float.
+        const nv = isNormalizedValue(rawValue as never)
+          ? (rawValue as { type: string; data: unknown })
+          : fromAroraValueJSON(rawValue as never);
+        if (nv?.type === "bool") {
           kind = "bool";
-          defaultValue = Boolean(rawRecord.bool);
-        } else if ("float" in rawRecord) {
-          kind = "float";
-          defaultValue = Number(rawRecord.float ?? 0);
+          defaultValue = Boolean(nv.data);
+        } else {
+          const num = valueAsNumber(rawValue as never);
+          if (typeof num === "number" && Number.isFinite(num)) {
+            kind = "float";
+            defaultValue = num;
+          }
         }
       }
 

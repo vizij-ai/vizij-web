@@ -7,6 +7,11 @@ import {
   valueAsTransform,
   type Value,
 } from "@vizij/animation-react";
+import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  type NormalizedValue,
+} from "@vizij/value-json";
 
 function formatNumericArray(
   data: readonly number[] | number[] | undefined,
@@ -17,8 +22,15 @@ function formatNumericArray(
     .join(", ");
 }
 
-function formatValue(value: Value | undefined): string | undefined {
-  if (!value) return undefined;
+function formatValue(raw: Value | undefined): string | undefined {
+  if (!raw) return undefined;
+
+  // The engine emits arora serde; decode it into the {type,data} shape this
+  // switch reads (legacy already-normalized values pass straight through).
+  const value: NormalizedValue | undefined = isNormalizedValue(raw as never)
+    ? (raw as unknown as NormalizedValue)
+    : fromAroraValueJSON(raw as never);
+  if (!value) return JSON.stringify(raw ?? null);
 
   switch (value.type) {
     case "float": {
@@ -66,7 +78,7 @@ function formatValue(value: Value | undefined): string | undefined {
       return `[${items.map((entry) => formatValue(entry)).join(", ")}]`;
     }
     default:
-      return JSON.stringify(value.data ?? null);
+      return JSON.stringify(raw ?? null);
   }
 }
 

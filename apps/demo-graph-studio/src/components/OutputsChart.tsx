@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useNodeOutput } from "@vizij/node-graph-react";
+import { valueAsBool, valueAsNumber } from "@vizij/value-json";
 import type { JSX } from "react/jsx-runtime";
 
 /**
@@ -34,33 +35,17 @@ type Props = {
 
 function extractNumericValue(value: any): number | null {
   if (value == null) return null;
-  // Common shapes: { float: number }, { bool: boolean }, { vec3: [n,n,n] }, { vector: [n,...] }, plain number, or wrapped 'value'
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "boolean") return value ? 1 : 0;
+  // The accessors decode every wire form the engines speak (arora serde,
+  // legacy shorthand, normalized {type,data}); vectors chart as their first
+  // component.
+  const num = valueAsNumber(value);
+  if (typeof num === "number" && Number.isFinite(num)) return num;
+  const bool = valueAsBool(value);
+  if (typeof bool === "boolean") return bool ? 1 : 0;
   if (typeof value === "object") {
-    if ("float" in value && typeof value.float === "number") return value.float;
-    if ("bool" in value && typeof value.bool === "boolean")
-      return value.bool ? 1 : 0;
-    if (
-      "vec3" in value &&
-      Array.isArray(value.vec3) &&
-      typeof value.vec3[0] === "number"
-    )
-      return value.vec3[0];
-    if (
-      "vec4" in value &&
-      Array.isArray(value.vec4) &&
-      typeof value.vec4[0] === "number"
-    )
-      return value.vec4[0];
-    if (
-      "vector" in value &&
-      Array.isArray(value.vector) &&
-      typeof value.vector[0] === "number"
-    )
-      return value.vector[0];
     if ("value" in value) return extractNumericValue(value.value);
-    // If it's an array-like
     if (
       Array.isArray(value) &&
       value.length > 0 &&

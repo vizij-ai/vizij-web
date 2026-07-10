@@ -18,6 +18,11 @@ import {
 } from "@vizij/node-graph-react";
 import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph-wasm";
 import {
+  fromAroraValueJSON,
+  isNormalizedValue,
+  type NormalizedValue,
+} from "@vizij/value-json";
+import {
   MinimalDemoChrome,
   MinimalDemoSection,
   minimalDemoTheme,
@@ -107,6 +112,137 @@ function ValueEditor({
 }) {
   if (typeof value !== "object" || value === null) {
     return <code style={{ opacity: 0.7 }}>{JSON.stringify(value)}</code>;
+  }
+  // Values may arrive in any wire form the engines speak (arora serde,
+  // normalized {type,data}, legacy shorthand). Decode the first two up front;
+  // the legacy branches below handle the shorthand directly. Edits always
+  // emit legacy objects — the engines normalize on ingest.
+  const nv = isNormalizedValue(value as never)
+    ? (value as unknown as NormalizedValue)
+    : fromAroraValueJSON(value as never);
+  if (nv) {
+    switch (nv.type) {
+      case "float":
+        return (
+          <FloatField
+            v={Number(nv.data)}
+            onChange={(n) => onChange({ float: n })}
+          />
+        );
+      case "bool":
+        return (
+          <label
+            style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
+          >
+            <input
+              type="checkbox"
+              checked={!!nv.data}
+              onChange={(event) => onChange({ bool: event.target.checked })}
+            />
+            <span>True?</span>
+          </label>
+        );
+      case "text":
+        return (
+          <input
+            value={String(nv.data ?? "")}
+            onChange={(event) => onChange({ text: event.target.value })}
+            style={{ width: "100%", padding: "4px 8px" }}
+          />
+        );
+      case "vec2":
+        return (
+          <VecNField
+            arr={nv.data as number[]}
+            onChange={(next) =>
+              onChange({ vec2: [next[0] ?? 0, next[1] ?? 0] } as ValueJSON)
+            }
+          />
+        );
+      case "vec3":
+        return (
+          <VecNField
+            arr={nv.data as number[]}
+            onChange={(next) =>
+              onChange({ vec3: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0] })
+            }
+          />
+        );
+      case "vec4":
+      case "quat":
+        return (
+          <VecNField
+            arr={nv.data as number[]}
+            onChange={(next) =>
+              onChange({
+                vec4: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0, next[3] ?? 0],
+              } as ValueJSON)
+            }
+          />
+        );
+      case "vector":
+        return (
+          <VecNField
+            arr={nv.data as number[]}
+            onChange={(next) => onChange({ vector: next })}
+          />
+        );
+      case "transform": {
+        const transform = nv.data as {
+          translation: number[];
+          rotation: number[];
+          scale: number[];
+        };
+        const translation = transform.translation ?? [0, 0, 0];
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div>pos:</div>
+            <VecNField
+              arr={translation}
+              onChange={(next) =>
+                onChange({
+                  transform: {
+                    translation: [next[0] ?? 0, next[1] ?? 0, next[2] ?? 0],
+                    rotation: transform.rotation as [
+                      number,
+                      number,
+                      number,
+                      number,
+                    ],
+                    scale: transform.scale as [number, number, number],
+                  },
+                } as ValueJSON)
+              }
+            />
+          </div>
+        );
+      }
+      case "array":
+      case "list":
+      case "tuple":
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {(nv.data as ValueJSON[]).map((entry: ValueJSON, idx: number) => (
+              <div
+                key={idx}
+                style={{ display: "flex", alignItems: "center", gap: 8 }}
+              >
+                <span>#{idx}:</span>
+                <ValueEditor
+                  value={entry}
+                  onChange={(next) => {
+                    const copy = (nv.data as ValueJSON[]).slice();
+                    copy[idx] = next;
+                    onChange({ tuple: copy } as ValueJSON);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        );
+      default:
+        break;
+    }
   }
   if ("float" in value) {
     return (
