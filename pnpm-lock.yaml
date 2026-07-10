@@ -593,9 +593,6 @@ importers:
       '@react-three/fiber':
         specifier: ^9.5.0
         version: 9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
-      '@vizij/orchestrator-react':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/orchestrator-react
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
