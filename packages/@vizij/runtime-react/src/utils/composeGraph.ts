@@ -28,7 +28,9 @@ export interface GraphSource {
 }
 
 function asArray(value: unknown): SpecRecord[] {
-  return Array.isArray(value) ? (value.filter((n) => n && typeof n === "object") as SpecRecord[]) : [];
+  return Array.isArray(value)
+    ? (value.filter((n) => n && typeof n === "object") as SpecRecord[])
+    : [];
 }
 
 function prefixId(sourceId: string, id: unknown): unknown {
