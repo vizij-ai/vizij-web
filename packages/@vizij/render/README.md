@@ -2,7 +2,7 @@
 
 > Three.js + React renderer, scene store, and helper controllers for Vizij faces.
 
-This package exposes the `Vizij` canvas component along with hooks, stores, and GLTF helpers that power Vizij’s real-time character visualisation. It is the foundation that other packages (`@vizij/rig`, `@vizij/orchestrator-react`, etc.) build upon.
+This package exposes the `Vizij` canvas component along with hooks, stores, and GLTF helpers that power Vizij’s real-time character visualisation. It is the foundation that other packages (`@vizij/runtime-react`, etc.) build upon.
 
 ---
 
@@ -103,7 +103,7 @@ All exports are re-exported through `src/index.tsx`, so a simple `import { loadG
 
 ### Dual-format Vizij bundles
 
-Vizij scenes persist authoring metadata inside GLBs so third-party tools see baked animation, while Vizij runtimes retain orchestrator graphs and clips.
+Vizij scenes persist authoring metadata inside GLBs so third-party tools see baked animation, while Vizij runtimes retain the authored graphs and clips.
 
 - Every renderable still carries a `RobotData` extension in `userData` describing features and animatable bindings.
 - The exporter now writes a root-level `extensions.VIZIJ_bundle` block following the schema in [`src/types/vizij-bundle.ts`](./src/types/vizij-bundle.ts). It contains rig graphs, pose configs, stored Vizij clips, and provenance hashes.
@@ -112,7 +112,7 @@ Vizij scenes persist authoring metadata inside GLBs so third-party tools see bak
 - The new `animations` field exposes `VizijAnimationClipData[]`, which maps each glTF animation channel back to Vizij animatable ids (`RobotData.features.*.value.id`). Each track provides component-aware `times`/`values` arrays so runtimes can register clips without re-parsing the GLB.
 - `extractVizijBundle(scene)` and `applyVizijBundle(scene, bundle)` (under `src/functions/vizij-bundle.ts`) let advanced tooling inspect or mutate bundles without triggering a fresh export.
 
-With this structure, authoring tools can round-trip orchestrator assets while shipping native glTF animations for viewers that do not understand Vizij.
+With this structure, authoring tools can round-trip Vizij runtime assets while shipping native glTF animations for viewers that do not understand Vizij.
 
 ---
 

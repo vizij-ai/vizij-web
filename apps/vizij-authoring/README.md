@@ -18,7 +18,7 @@ In practice, authoring uses runtime-react in more advanced ways than the simpler
 
 - `setGraphBundle()` hot-swaps rig/pose/animation/program payloads without always reloading the underlying GLB
 - `transformOutputWrite()` filters/remaps runtime outputs before they hit the renderer store
-- reference-face surfaces use shared orchestrator mode rather than isolated runtimes
+- reference-face surfaces run on their own runtime, stepped only while visible
 
 See [`src/components/app/Viewer.tsx`](./src/components/app/Viewer.tsx) and [`src/components/app/ReferenceFaceRuntime.tsx`](./src/components/app/ReferenceFaceRuntime.tsx).
 

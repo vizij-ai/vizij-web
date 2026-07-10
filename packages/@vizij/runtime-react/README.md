@@ -1,6 +1,6 @@
 # @vizij/runtime-react
 
-`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, registers rig/pose/program/animation controllers with the orchestrator, mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
+`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, composes the rig/pose/program graphs into the behavior of an Arora device ([`@vizij/arora-web-wasm`](https://www.npmjs.com/package/@vizij/arora-web-wasm) — an Arora runtime compiled to WebAssembly), mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
 
 The package is intentionally aimed at app authors. If your app wants to render a Vizij face and drive it through authored rig inputs, this is the layer to build on.
 
@@ -11,7 +11,7 @@ The package is intentionally aimed at app authors. If your app wants to render a
 - load a face from a GLB URL, a `Blob`, or an already loaded world
 - extract the embedded `VIZIJ_bundle` payload when present
 - merge explicit `rig`, `pose`, `animations`, and `programs` with discovered bundle content
-- register controllers with either an isolated orchestrator or a shared parent orchestrator
+- compose the registered graphs into the device's behavior and drive its step loop
 - expose runtime status, controls, diagnostics, and update hooks through React context
 - render the resolved face with `VizijRuntimeFace`
 
@@ -21,13 +21,13 @@ The package is intentionally aimed at app authors. If your app wants to render a
 pnpm add @vizij/runtime-react react react-dom
 ```
 
-If your app also imports lower-level renderer or orchestrator APIs directly, install those packages too:
+If your app also imports lower-level renderer or engine APIs directly, install those packages too:
 
 ```bash
-pnpm add @vizij/render @vizij/orchestrator-react
+pnpm add @vizij/render @vizij/arora-web-wasm
 ```
 
-`@vizij/runtime-react`, `@vizij/render`, and `@vizij/orchestrator-react` should stay on the same workspace/release line.
+`@vizij/runtime-react`, `@vizij/render`, and `@vizij/arora-web-wasm` should stay on the same workspace/release line.
 
 ### Bundler Notes
 
@@ -101,7 +101,7 @@ function RuntimeStage() {
 }
 ```
 
-The provider resolves the face bundle, creates or reuses an orchestrator, registers the relevant controllers, and publishes the merged runtime state through `useVizijRuntime()`.
+The provider resolves the face bundle, boots its Arora device with the composed graphs as the device's behavior, and publishes the merged runtime state through `useVizijRuntime()`.
 
 ## Core Concepts
 
@@ -111,15 +111,18 @@ The main contract is `VizijAssetBundle`. In the default workflow you hand the ru
 
 Explicit overrides still work. If you provide `rig`, `pose`, `animations`, or `programs`, the runtime merges them with embedded bundle data and deduplicates animations/programs by id.
 
-### Shared or isolated orchestration
+### One device per provider
 
-`VizijRuntimeProvider` can:
+Each `VizijRuntimeProvider` owns one Arora device. The device runs the
+composed graph as its behavior on a shared key/value store: graph `input`
+nodes read store paths each tick, graph outputs write back, and the provider
+mirrors changed values into the renderer store after every step. Providers
+are fully isolated from each other — multiple faces mean multiple devices,
+and namespacing keeps their store keys apart.
 
-- create its own isolated orchestrator
-- reuse a parent `OrchestratorProvider`
-- require a shared parent and warn/fallback if one is missing
-
-This is how `vizij-showcase` and `vizij-authoring` host multiple runtime surfaces without every face spinning up its own orchestrator loop.
+`driveOrchestrator={false}` mounts a runtime that does not step its device
+from its own loop; use it for surfaces that are stepped manually (see
+[Manual stepping](#manual-stepping)) or at a background cadence.
 
 ### Asset reloads vs graph re-registration
 
@@ -156,7 +159,7 @@ Required. One of:
 - `{ kind: "blob", blob, aggressiveImport?, rootBounds? }`
 - `{ kind: "world", world, animatables, bundle? }`
 
-Use `kind: "world"` when your app already loaded the scene and wants runtime-react to wire only the orchestration/runtime layer.
+Use `kind: "world"` when your app already loaded the scene and wants runtime-react to wire only the engine/runtime layer.
 
 ### `rig`
 
@@ -199,20 +202,18 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 - `assetBundle`: required runtime bundle
 - `namespace`, `faceId`: override resolved ids without mutating the incoming bundle
 - `updateTier`: `"auto"` (default), `"assets"`, or `"graphs"`
-- `autoCreate`, `createOptions`: forwarded to orchestrator creation when this provider owns the orchestrator
+- `autoCreate`: load the engine wasm and boot the device automatically on mount
 - `autostart`: start the runtime loop automatically after registration
 - `driveOrchestrator`: whether this runtime instance should call `step()` during its loop
-- `mergeStrategy`: forwarded to graph/animation registration
-- `orchestratorScope`: `"auto"`, `"shared"`, or `"isolated"`
+- `mergeStrategy`: forwarded to graph registration
 - `transformOutputWrite(write)`: intercept or drop output writes before they hit the renderer store
 - `onRegisterControllers(ids)`: receive registered graph/animation ids
 - `onStatusChange(status)`: subscribe to runtime status changes
 
 ### Important runtime flags
 
-- `autostart` controls whether the orchestrator begins stepping automatically once ready.
-- `driveOrchestrator={false}` is useful for non-driver faces in shared-orchestrator layouts.
-- `orchestratorScope="shared"` is the strict mode for apps that expect an outer `OrchestratorProvider`.
+- `autostart` controls whether the device begins stepping automatically once ready.
+- `driveOrchestrator={false}` is useful for faces stepped manually or at a background cadence.
 - `transformOutputWrite` is the hook to remap or suppress specific runtime outputs before they update renderer state.
 
 ## Runtime Context API
@@ -235,6 +236,7 @@ Use `useVizijRuntime()` inside the provider tree.
 ### Input and renderer writes
 
 - `setInput(path, value, shape?)`
+- `getValueSnapshot(path)` — the current engine-store value of a path (reads your own writes)
 - `setValue(id, namespace, value)`
 - `stagePoseNeutral(force?)`
 
@@ -301,7 +303,7 @@ Returns `null` when no provider is present. This is useful for shared components
 
 ### `useRigInput(path)`
 
-Returns `[value, setValue]` for a single runtime input path. The setter writes through the orchestrator, while the value mirrors the renderer store.
+Returns `[value, setValue]` for a single runtime input path. The setter writes into the device's store, while the value mirrors the renderer store.
 
 ### `useVizijOutputs(paths)`
 
@@ -380,9 +382,9 @@ This is the same policy used internally by the provider to decide between:
 
 ## Common Patterns
 
-### Shared orchestrator across multiple faces
+### Multiple faces in one app
 
-Wrap the outer app in `OrchestratorProvider`, then mount each runtime with `orchestratorScope="shared"`. Only one visible/driver face should normally have `driveOrchestrator={true}`.
+Mount one `VizijRuntimeProvider` per face; each owns its device. Give hidden or non-driver faces `driveOrchestrator={false}` and step them at a background cadence (see `vizij-showcase`'s `HiddenStepController`).
 
 ### Bundle-first player
 
