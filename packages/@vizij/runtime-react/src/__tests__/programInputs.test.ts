@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { deriveProgramInputSeedValues } from "../VizijRuntimeProvider";
+import {
+  deriveProgramInputSeedValues,
+  resolveConstraintDefault,
+} from "../VizijRuntimeProvider";
 import type { VizijProgramAsset } from "../types";
 
 function makeProgram(path: string): VizijProgramAsset {
@@ -94,5 +97,51 @@ describe("deriveProgramInputSeedValues", () => {
     });
 
     expect(writes).toEqual([]);
+  });
+});
+
+describe("resolveConstraintDefault", () => {
+  const inputPath =
+    "rig/quori_latest/standard/vmotion/idle/eyes/jitter_amplitude";
+
+  it("resolves the declared default from the namespaced path form", () => {
+    // `removeInput` receives an already-namespaced path.
+    const namespaced = `demo-player/${inputPath}`;
+    expect(
+      resolveConstraintDefault(namespaced, "demo-player", {
+        [namespaced]: { defaultValue: 0.25 },
+      }),
+    ).toBe(0.25);
+  });
+
+  it("resolves a base input path against a namespaced constraint key", () => {
+    // `deriveProgramInputSeedValues` passes base paths from the graph spec;
+    // the constraint map is keyed by the namespaced form.
+    const namespaced = `demo-player/${inputPath}`;
+    expect(
+      resolveConstraintDefault(inputPath, "demo-player", {
+        [namespaced]: { defaultValue: 0.5 },
+      }),
+    ).toBe(0.5);
+  });
+
+  it("resolves defaults keyed by the rig/face-stripped relative path", () => {
+    expect(
+      resolveConstraintDefault(inputPath, "demo-player", {
+        "/standard/vmotion/idle/eyes/jitter_amplitude": { defaultValue: 0.25 },
+      }),
+    ).toBe(0.25);
+  });
+
+  it("returns undefined when no finite default is declared", () => {
+    // No declared default -> removeInput falls back to { float: 0 }.
+    expect(
+      resolveConstraintDefault(inputPath, "demo-player", {}),
+    ).toBeUndefined();
+    expect(
+      resolveConstraintDefault(inputPath, "demo-player", {
+        [inputPath]: {},
+      }),
+    ).toBeUndefined();
   });
 });
