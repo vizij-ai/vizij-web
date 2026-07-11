@@ -874,6 +874,44 @@ function convertBundlePrograms(
     .filter(Boolean) as VizijProgramAsset[];
 }
 
+/**
+ * The default (neutral) value declared for an input path, resolved across the
+ * path forms the constraint map is keyed by (namespaced, base, rig/face-
+ * stripped, relative). Returns `undefined` when no finite default is declared.
+ */
+export function resolveConstraintDefault(
+  path: string,
+  namespace: string,
+  inputConstraints: Record<string, { defaultValue?: number }>,
+): number | undefined {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const stripped = stripRigFacePrefix(trimmed);
+  const relativePath = stripped ? `/${stripped}` : "";
+  const candidates = [
+    namespaceTypedPath(trimmed, namespace),
+    trimmed,
+    stripped ? namespaceTypedPath(stripped, namespace) : undefined,
+    stripped || undefined,
+    relativePath || undefined,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    const defaultValue = inputConstraints[candidate]?.defaultValue;
+    if (Number.isFinite(defaultValue)) {
+      return Number(defaultValue);
+    }
+  }
+
+  return undefined;
+}
+
 export function deriveProgramInputSeedValues(args: {
   program: VizijProgramAsset;
   namespace: string;
@@ -884,35 +922,6 @@ export function deriveProgramInputSeedValues(args: {
   getPathSnapshot: (path: string) => ValueJSON | undefined;
   stagedInputs: Map<string, { value: ValueJSON; shape?: ShapeJSON }>;
 }): Array<{ path: string; value: ValueJSON }> {
-  const resolveConstraintDefault = (path: string): number | undefined => {
-    const trimmed = path.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    const stripped = stripRigFacePrefix(trimmed);
-    const relativePath = stripped ? `/${stripped}` : "";
-    const candidates = [
-      namespaceTypedPath(trimmed, args.namespace),
-      trimmed,
-      stripped ? namespaceTypedPath(stripped, args.namespace) : undefined,
-      stripped || undefined,
-      relativePath || undefined,
-    ];
-
-    for (const candidate of candidates) {
-      if (!candidate) {
-        continue;
-      }
-      const defaultValue = args.inputConstraints[candidate]?.defaultValue;
-      if (Number.isFinite(defaultValue)) {
-        return Number(defaultValue);
-      }
-    }
-
-    return undefined;
-  };
-
   const graphSpec = resolveGraphSpec(
     args.program.graph,
     `${args.program.id ?? "program"} graph (seed defaults)`,
@@ -933,7 +942,11 @@ export function deriveProgramInputSeedValues(args: {
         return [];
       }
 
-      const defaultValue = resolveConstraintDefault(path);
+      const defaultValue = resolveConstraintDefault(
+        path,
+        args.namespace,
+        args.inputConstraints,
+      );
       if (!Number.isFinite(defaultValue)) {
         return [];
       }
@@ -1867,11 +1880,20 @@ function VizijRuntimeProviderInner({
   /**
    * The device store has no key removal through this surface; clearing an
    * input means writing its neutral value so the graph stops acting on it.
+   * The neutral is the input's declared default from `inputConstraints`; with
+   * no declared default we fall back to `{ float: 0 }`.
    */
   const removeInput = useCallback(
     (path: string) => {
       pendingWritesRef.current.delete(path);
-      deviceSlot.current?.device.setValue(path, { float: 0 } as ValueJSON);
+      const neutral = resolveConstraintDefault(
+        path,
+        namespaceRef.current,
+        inputConstraintsRef.current,
+      );
+      const value: ValueJSON =
+        neutral !== undefined ? { float: neutral } : { float: 0 };
+      deviceSlot.current?.device.setValue(path, value);
     },
     [deviceSlot],
   );
