@@ -13,6 +13,17 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:5199",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
+    launchOptions: {
+      // Software WebGL (SwiftShader) so three.js can create a GL context in
+      // headless CI. Without it, context creation fails and cascades into the
+      // React tree — which would mask the runtime assertions the specs make.
+      args: [
+        "--enable-unsafe-swiftshader",
+        "--use-gl=angle",
+        "--use-angle=swiftshader",
+        "--ignore-gpu-blocklist",
+      ],
+    },
   },
   // One dev server per app under test. Playwright boots them all and waits for
   // each URL before running. The authoring specs use the shared baseURL (5199);
