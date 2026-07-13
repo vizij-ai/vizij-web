@@ -59,11 +59,60 @@ function ensureUniqueSafeId(base: string, registry: Set<string>): string {
   return candidate;
 }
 
-function coerceNumber(value: unknown, fallback: number): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
+// Arora engine-emitted scalar Value wrappers ({ f32: 1 }, { f64: 1 }, ...).
+// The wasm runtime marshals animatable defaults in this record encoding, so the
+// plain-number reader below must unwrap it before falling back to a default.
+const SCALAR_VALUE_KEYS = [
+  "f32",
+  "f64",
+  "i64",
+  "i32",
+  "u64",
+  "u32",
+  "float",
+] as const;
+
+function unwrapScalarValue(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
   }
-  return fallback;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    for (const key of SCALAR_VALUE_KEYS) {
+      const candidate = record[key];
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return undefined;
+}
+
+// Arora struct Value encoding: { struct: { fields: [{ value: <scalar> }, ...] } }.
+// Vector animatable defaults arrive in this form; return the ordered field value
+// at the requested component index.
+function unwrapStructComponent(
+  value: unknown,
+  index: number,
+): number | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const struct = (value as { struct?: unknown }).struct;
+  if (!struct || typeof struct !== "object") {
+    return undefined;
+  }
+  const fields = (struct as { fields?: unknown }).fields;
+  if (!Array.isArray(fields)) {
+    return undefined;
+  }
+  const field = fields[index] as { value?: unknown } | undefined;
+  return unwrapScalarValue(field?.value);
+}
+
+function coerceNumber(value: unknown, fallback: number): number {
+  const scalar = unwrapScalarValue(value);
+  return scalar !== undefined ? scalar : fallback;
 }
 
 function resolveRangeFromConstraints(
@@ -164,15 +213,20 @@ function getVectorComponentValue(
   if (!vector) {
     return fallback;
   }
+  const index = componentToIndex(component);
   if (Array.isArray(vector)) {
-    const index = componentToIndex(component);
     return coerceNumber(vector[index], fallback);
   }
   if (typeof vector === "object") {
+    // Arora struct encoding ({ struct: { fields: [...] } }) has no x/y/z keys.
+    const structComponent = unwrapStructComponent(vector, index);
+    if (structComponent !== undefined) {
+      return structComponent;
+    }
     const record = vector as unknown as Record<string, unknown>;
     for (const key of componentKeys(component)) {
-      const candidate = record[key];
-      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      const candidate = unwrapScalarValue(record[key]);
+      if (candidate !== undefined) {
         return candidate;
       }
     }
