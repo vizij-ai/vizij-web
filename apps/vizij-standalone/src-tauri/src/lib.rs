@@ -190,6 +190,140 @@ fn list_displays() {
     }
 }
 
+/// Build the Studio device info to register from the environment, or `None`
+/// when nothing is configured (so registration is skipped and an existing
+/// registration is left untouched). Mirrors the variables `arora::studio`
+/// reads; `DEVICE_OWNERS` is a comma-separated list.
+#[cfg(feature = "studio-bridge")]
+fn studio_device_info_from_env() -> Option<arora_bridge::DeviceInfo> {
+    let owners: Vec<String> = std::env::var("DEVICE_OWNERS")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|o| o.trim().to_string())
+                .filter(|o| !o.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let info = arora_bridge::DeviceInfo {
+        name: std::env::var("DEVICE_NAME").ok(),
+        description: std::env::var("DEVICE_DESCRIPTION").ok(),
+        model_family: std::env::var("MODEL_FAMILY").ok(),
+        hardware_version: std::env::var("HARDWARE_VERSION").ok(),
+        software_version: std::env::var("SOFTWARE_VERSION").ok(),
+        owners,
+    };
+    let configured = info.name.is_some()
+        || info.description.is_some()
+        || info.model_family.is_some()
+        || info.hardware_version.is_some()
+        || info.software_version.is_some()
+        || !info.owners.is_empty();
+    configured.then_some(info)
+}
+
+/// Connect this standalone to the Semio Studio Bridge (opt-in `studio-bridge`
+/// feature) so a Studio can connect *to* the running app — the VIZ-67 producer
+/// side. The host reaches the bridge **outbound** over Zenoh (VIZ-13: Android
+/// can't host a WS server / do UDP discovery, so the device dials the bridge),
+/// authenticates with Firebase, and registers the device.
+///
+/// This reuses the exact studio-bridge device client (`ZenohDeviceClient`,
+/// which implements arora's `Bridge`) — no second transport, no config layer of
+/// our own. Configuration is environment-only, the same variables
+/// `arora::studio` reads: `FIREBASE_*`, `ZENOH_ENDPOINTS`, `DEVICE_NAME`,
+/// `MODEL_FAMILY`, …
+///
+/// The client runs on its own thread with a private Tokio runtime and is kept
+/// alive for the process lifetime, so its Zenoh session and registration
+/// persist.
+///
+/// OPEN (VIZ-67): the bridge is connected and registered but not yet *fed* the
+/// standalone's live data. Vizij's runtime is the `arora-web` **wasm** runtime
+/// in the webview, and this Studio client is native-only (Zenoh/Firestore), so
+/// it cannot run there. Attaching it to that runtime is one call —
+/// `Arora::builder().with_bridge(studio_bridge)` — for which arora exposes the
+/// injectable constructor `arora::studio::connect()`; wiring it requires either
+/// hosting the Arora runtime natively in this host (sharing its store) or an
+/// `arora-web` bridge seam. It is deliberately kept off the critical path here:
+/// depending on the `arora` engine crate would drag the whole standalone onto a
+/// nightly `-Z bindeps` toolchain (its manifest carries an artifact bindep).
+#[cfg(feature = "studio-bridge")]
+fn spawn_studio_bridge() {
+    use arora_bridge::Bridge;
+    use arora_studio_bridge_client::firestore_support::options::{
+        FirebaseEmulatorOptions, FirebaseOptions,
+    };
+    use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
+
+    std::thread::Builder::new()
+        .name("studio-bridge".into())
+        .spawn(|| {
+            let rt = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(e) => {
+                    log::error!("studio-bridge: failed to build Tokio runtime: {e}");
+                    return;
+                }
+            };
+            rt.block_on(async {
+                // The Zenoh/Firebase TLS stacks need a process-wide rustls crypto
+                // provider installed before the first handshake.
+                if rustls::crypto::CryptoProvider::get_default().is_none() {
+                    let _ = rustls::crypto::ring::default_provider().install_default();
+                }
+
+                let firebase_options = FirebaseOptions::from_env();
+                let firebase_emulator_options = FirebaseEmulatorOptions::from_env();
+                let endpoints: Vec<String> = std::env::var("ZENOH_ENDPOINTS")
+                    .ok()
+                    .map(|v| v.split(',').map(|s| s.trim().to_string()).collect())
+                    .unwrap_or_default();
+
+                info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoints: {endpoints:?})");
+                let client = match ZenohDeviceClient::new(
+                    &firebase_options,
+                    Some(&firebase_emulator_options),
+                    None, // no persisted refresh-token identity (see VIZ-67 note)
+                    None,
+                    endpoints,
+                )
+                .await
+                {
+                    Ok(client) => client,
+                    Err(e) => {
+                        log::error!("studio-bridge: failed to connect to Semio Studio: {e:?}");
+                        return;
+                    }
+                };
+                let studio_bridge: Box<dyn Bridge> = Box::new(client);
+
+                // Register this device with Studio from the configured device info.
+                if let Some(info) = studio_device_info_from_env() {
+                    if let Err(e) = studio_bridge.update_device_info(Some(info)).await {
+                        log::error!("studio-bridge: failed to register device info: {e}");
+                    } else {
+                        info!("studio-bridge: registered device info with Studio");
+                    }
+                }
+
+                info!(
+                    "studio-bridge: connected; a Studio can now see this device. \
+                     (Live-data streaming is the remaining VIZ-67 step — see spawn_studio_bridge docs.)"
+                );
+
+                // Keep the client (and its Zenoh session/registration) alive for
+                // the process lifetime.
+                let _studio_bridge = studio_bridge;
+                std::future::pending::<()>().await;
+            });
+        })
+        .expect("failed to spawn studio-bridge thread");
+}
+
 fn warn_if_snap_env() {
     let snap_name = std::env::var("SNAP_NAME").ok();
     let snap = std::env::var("SNAP").ok();
@@ -491,6 +625,12 @@ pub fn run() {
                     );
                 }
             });
+
+            // Opt-in: connect this runtime to the Semio Studio Bridge so a Studio
+            // can view/drive its live data (VIZ-67 producer side). Off unless
+            // built with `--features studio-bridge`.
+            #[cfg(feature = "studio-bridge")]
+            spawn_studio_bridge();
 
             info!("Vizij Standalone App initialized with WS port {}", port);
             if serve_web_control {

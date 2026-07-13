@@ -16,6 +16,19 @@ tauri-build = { version = "2.5.6", features = [] }
 arora-connection = { path = "../../../packages/arora-connection" }
 arora-websocket = { path = "../../../packages/arora-websocket" }
 arora-ros2 = { path = "../../../packages/arora-ros2", optional = true }
+# Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client — the
+# same `ZenohDeviceClient` arora uses for its Studio connection — plus arora's
+# `Bridge` trait it implements. Both are plain crates.io crates (no artifact
+# bindeps), so declaring them optional keeps the default stable build untouched.
+# We deliberately do NOT depend on the `arora` engine crate here: its manifest
+# (and arora-engine's) carry `artifact = "cdylib"` dev-bindeps that require a
+# nightly `-Z bindeps` toolchain even to resolve, which would drag the whole
+# stable standalone onto nightly. See the studio-bridge feature notes below.
+arora-studio-bridge-client = { version = "2", optional = true }
+arora-bridge = { version = "3", optional = true }
+# Install the process-wide rustls crypto provider (ring) the Zenoh/Firebase TLS
+# stacks need — matches the provider arora-studio-bridge-client is built against.
+rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
@@ -42,6 +55,18 @@ windows = { version = "0.58", features = ["Win32_System_Console"] }
 [features]
 default = ["ros2"]
 ros2 = ["arora-ros2"]
+# Opt-in Studio Bridge (VIZ-67 producer side): build the app so a Semio Studio
+# can connect *to* this running standalone and view/drive its live data. Off by
+# default — the normal standalone build is unchanged. When on, the Tauri host
+# reaches the Studio Bridge outbound (VIZ-13: no inbound WS server / UDP
+# discovery needed) via arora's studio-bridge Zenoh device client and attaches
+# it to an Arora runtime with `Arora::builder().with_bridge(studio_bridge)`.
+#
+# Build with it on (plain stable toolchain — no nightly/bindeps needed):
+#   cargo build --features studio-bridge
+# Studio endpoint/identity is environment-only (FIREBASE_*, ZENOH_ENDPOINTS,
+# DEVICE_NAME, MODEL_FAMILY, …) — the same variables arora::studio reads.
+studio-bridge = ["dep:arora-studio-bridge-client", "dep:arora-bridge", "dep:rustls"]
 
 [dev-dependencies]
 ros2-client = "0.8"
