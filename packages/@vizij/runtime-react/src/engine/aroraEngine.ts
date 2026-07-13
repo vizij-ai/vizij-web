@@ -54,56 +54,80 @@ export interface DeviceHandle {
  */
 export class DeviceSlot {
   private handle: DeviceHandle | null = null;
-  private pending: Promise<DeviceHandle> | null = null;
+  /**
+   * Serializes device (re)starts. Every `ensure`/`restart` chains behind the
+   * previous op so two recomposes never run concurrently — a second restart
+   * that captured the same `old` handle would dispose an already-freed device
+   * (wasm "null pointer passed to rust"). A bundle whose import fans out into
+   * several graph registrations recomposes several times in a burst, which is
+   * exactly when that race fires. Failures are swallowed on the chain so one
+   * failed (re)start doesn't wedge later ones; each caller still sees its own
+   * rejection through the promise `enqueue` returns.
+   */
+  private opChain: Promise<unknown> = Promise.resolve();
 
   get current(): DeviceHandle | null {
     return this.handle;
   }
 
+  private enqueue<T>(op: () => Promise<T>): Promise<T> {
+    const run = this.opChain.then(op, op);
+    this.opChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
   /** Boot the device with `spec` if none is live; otherwise return the live one. */
   ensure(spec: object): Promise<DeviceHandle> {
-    if (this.handle) {
-      return Promise.resolve(this.handle);
-    }
-    if (!this.pending) {
-      this.pending = (async () => {
-        await ensureWasmInit();
-        const device = await startDevice(spec);
-        this.handle = { device, spec };
-        this.pending = null;
+    return this.enqueue(async () => {
+      if (this.handle) {
         return this.handle;
-      })();
-    }
-    return this.pending;
+      }
+      await ensureWasmInit();
+      const device = await startDevice(spec);
+      this.handle = { device, spec };
+      return this.handle;
+    });
   }
 
   /**
    * Replace the device's composed graph: snapshot the store (minus golden
    * keys), start a fresh device with `spec`, restore the snapshot, dispose
-   * the old device. No-op if the spec is identical by reference.
+   * the old device. No-op if the spec is identical by reference. Serialized
+   * behind any in-flight (re)start (see `opChain`) so device disposal never
+   * races another restart's snapshot/dispose of the same device.
    */
-  async restart(spec: object): Promise<DeviceHandle> {
-    const old = this.handle;
-    if (old && old.spec === spec) {
-      return old;
-    }
-    if (!old) {
-      return this.ensure(spec);
-    }
-
-    const carried: Record<string, ValueJSON> = {};
-    for (const [path, value] of Object.entries(old.device.snapshot())) {
-      if (!isGoldenPath(path)) {
-        carried[path] = value;
+  restart(spec: object): Promise<DeviceHandle> {
+    return this.enqueue(async () => {
+      const old = this.handle;
+      if (old && old.spec === spec) {
+        return old;
       }
-    }
+      // First live device: same path as `ensure`, inlined so it runs inside
+      // this queued op instead of enqueuing behind itself (which would deadlock).
+      if (!old) {
+        await ensureWasmInit();
+        const device = await startDevice(spec);
+        this.handle = { device, spec };
+        return this.handle;
+      }
 
-    const device = await startDevice(spec);
-    if (Object.keys(carried).length > 0) {
-      device.writeValues(carried);
-    }
-    this.handle = { device, spec };
-    old.device.dispose();
-    return this.handle;
+      const carried: Record<string, ValueJSON> = {};
+      for (const [path, value] of Object.entries(old.device.snapshot())) {
+        if (!isGoldenPath(path)) {
+          carried[path] = value;
+        }
+      }
+
+      const device = await startDevice(spec);
+      if (Object.keys(carried).length > 0) {
+        device.writeValues(carried);
+      }
+      this.handle = { device, spec };
+      old.device.dispose();
+      return this.handle;
+    });
   }
 }
