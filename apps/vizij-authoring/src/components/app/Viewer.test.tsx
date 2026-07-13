@@ -86,6 +86,18 @@ vi.mock("@vizij/runtime-react", () => ({
   }),
 }));
 
+// `Viewer` renders the real `OrchestratorProvider`, which otherwise kicks off a
+// fire-and-forget wasm `fetch` in the test env; its rejection lands after the
+// jsdom teardown ("window is not defined") and flakily fails the run. Stub it —
+// the real `useOrchestrator` is only consumed by the mocked motiongraph
+// components below, so a passthrough provider is enough.
+vi.mock("@vizij/orchestrator-react", () => ({
+  OrchestratorProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="orchestrator-provider">{children}</div>
+  ),
+  useOrchestrator: () => ({}),
+}));
+
 vi.mock("../../motiongraph/components/MotionGraphValueSampler", () => ({
   MotionGraphValueSampler: ({ active }: { active: boolean }) => {
     motionGraphValueSamplerSpy({ active });
