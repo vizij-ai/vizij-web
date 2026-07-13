@@ -1,5 +1,26 @@
 # @vizij/runtime-react
 
+## 0.2.0
+
+### Minor Changes
+
+- c70b674: Move to the value-unification wasm line: @vizij/animation-wasm 0.4,
+  @vizij/node-graph-wasm 0.7, @vizij/orchestrator-wasm 0.4, @vizij/value-json
+  0.2. The engines emit values in arora serde; every read path decodes through
+  the @vizij/value-json accessors (which also accept the legacy forms), and
+  values sent into the engines may stay legacy. Code that pattern-matched raw
+  value JSON shapes must switch to the accessors.
+- 2ffda39: Add transport controls for bundled procedural programs discovered from exported `motiongraph` bundle entries. The runtime now exposes program discovery plus `playProgram`, `pauseProgram`, `stopProgram`, and `getProgramState`, and standalone/browser consumers can surface bundled animations and procedural programs from the loaded asset.
+
+### Patch Changes
+
+- Updated dependencies [c70b674]
+- Updated dependencies [22c1a61]
+- Updated dependencies [6e7a15e]
+  - @vizij/orchestrator-react@0.2.0
+  - @vizij/node-graph-authoring@0.2.0
+  - @vizij/render@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

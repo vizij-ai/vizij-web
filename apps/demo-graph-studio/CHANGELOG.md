@@ -1,5 +1,14 @@
 # vizij-node-graph-editor
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [c70b674]
+- Updated dependencies [22c1a61]
+  - @vizij/node-graph-react@0.2.0
+  - @vizij/node-graph-authoring@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

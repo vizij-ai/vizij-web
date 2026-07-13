@@ -1,6 +1,6 @@
 {
   "name": "demo-graph-studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Demo Node Graph Editor app — built on @vizij/node-graph-react and node-graph-wasm",
   "main": "src/main.tsx",

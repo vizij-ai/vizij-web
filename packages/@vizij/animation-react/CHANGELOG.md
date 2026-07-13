@@ -1,5 +1,22 @@
 # @vizij/animation-react
 
+## 0.2.0
+
+### Minor Changes
+
+- c70b674: Move to the value-unification wasm line: @vizij/animation-wasm 0.4,
+  @vizij/node-graph-wasm 0.7, @vizij/orchestrator-wasm 0.4, @vizij/value-json
+  0.2. The engines emit values in arora serde; every read path decodes through
+  the @vizij/value-json accessors (which also accept the legacy forms), and
+  values sent into the engines may stay legacy. Code that pattern-matched raw
+  value JSON shapes must switch to the accessors.
+
+### Patch Changes
+
+- 22c1a61: Refresh the React package release line against the latest published `vizij-rs`
+  wasm wrappers and validate the current demo/app dependency matrix against those
+  versions.
+
 ## 0.1.0
 
 ### Minor Changes

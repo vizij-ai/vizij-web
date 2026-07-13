@@ -1,5 +1,13 @@
 # @vizij/render
 
+## 0.1.1
+
+### Patch Changes
+
+- 6e7a15e: Publish the speech-enabled authoring and standalone package surfaces, including
+  the shared speech React hooks package and the renderer bundle typing updates
+  that support those flows.
+
 ## 0.1.0
 
 ### Minor Changes
