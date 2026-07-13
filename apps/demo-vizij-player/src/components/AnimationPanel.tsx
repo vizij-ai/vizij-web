@@ -16,7 +16,11 @@ function useAnimationSnapshots(animationIds: string[]) {
 
   useEffect(() => {
     if (animationIds.length === 0) {
-      setSnapshots({});
+      // Bail if already empty: `assetBundle.animations` is rebuilt every render,
+      // so `animationIds` is a fresh reference each time and this effect re-runs
+      // on every render. Setting a new `{}` here would then loop forever
+      // ("Maximum update depth"); returning `prev` unchanged lets React bail.
+      setSnapshots((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     let frameId = 0;
@@ -30,7 +34,10 @@ function useAnimationSnapshots(animationIds: string[]) {
     };
     tick();
     return () => window.cancelAnimationFrame(frameId);
-  }, [animationIds, animationIdsKey, getAnimationState]);
+    // Keyed by `animationIdsKey` (stable by value), not `animationIds`
+    // (unstable identity) — otherwise the rAF loop is restarted every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animationIdsKey, getAnimationState]);
 
   return snapshots;
 }

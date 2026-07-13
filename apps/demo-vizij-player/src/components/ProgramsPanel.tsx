@@ -16,7 +16,11 @@ function useProgramSnapshots(programIds: string[]) {
 
   useEffect(() => {
     if (programIds.length === 0) {
-      setSnapshots({});
+      // Bail if already empty: `assetBundle.programs` is rebuilt every render,
+      // so `programIds` is a fresh reference each time and this effect re-runs
+      // on every render. Setting a new `{}` here would then loop forever
+      // ("Maximum update depth"); returning `prev` unchanged lets React bail.
+      setSnapshots((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     const timer = window.setInterval(() => {
@@ -25,7 +29,11 @@ function useProgramSnapshots(programIds: string[]) {
       );
     }, 150);
     return () => window.clearInterval(timer);
-  }, [getProgramState, programIds, programIdsKey]);
+    // Keyed by `programIdsKey` (stable by value), not `programIds` (unstable
+    // identity) — otherwise the interval is torn down and rebuilt every render
+    // and its snapshots never settle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getProgramState, programIdsKey]);
 
   return snapshots;
 }
