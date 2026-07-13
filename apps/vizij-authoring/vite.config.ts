@@ -85,6 +85,7 @@ export default defineConfig(({ mode }) => {
         "@vizij/animation-wasm",
         "@vizij/orchestrator-wasm",
         "@vizij/node-graph-wasm",
+        "@vizij/arora-web-wasm",
       ],
       include: [
         "@vizij/animation-react",
