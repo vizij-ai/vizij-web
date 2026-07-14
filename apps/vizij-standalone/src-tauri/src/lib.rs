@@ -190,36 +190,17 @@ fn list_displays() {
     }
 }
 
-/// Default Semio Studio bridge endpoint devices dial (native Zenoh, TLS). The
-/// public production router; overridable per-run via `ZENOH_ENDPOINTS` (e.g.
-/// `tcp/localhost:7447` against a local bridge). See the README's Studio Bridge
-/// section.
+/// The Studio device info this app registers with. Fully self-describing, so the
+/// feature needs no configuration: the name is `vizij-<random>` (a fresh suffix
+/// per launch), the model family is `Vizij`, and the software version is
+/// `vizij-standalone-<crate version>`; hardware version is left empty. The only
+/// optional input is `DEVICE_OWNERS` — a comma-separated list of Semio Studio
+/// user IDs (Firebase UIDs) that should own, and therefore see and claim, this
+/// device; unset means it registers unowned (claim it from Studio instead).
 #[cfg(feature = "studio-bridge")]
-const DEFAULT_STUDIO_BRIDGE_ENDPOINT: &str = "tls/bridge.semio.ai:7447";
-
-/// Resolve a studio-bridge config value with precedence: runtime environment
-/// (a `.env` loaded by `dotenvy`, or a real env var — for local/emulator runs)
-/// first, then the value baked at build time via `option_env!` (CI injects the
-/// public Firebase config from repository secrets). Empty strings are treated
-/// as unset so a blank secret in a fork build falls through to the baked value.
-#[cfg(feature = "studio-bridge")]
-fn studio_cfg(runtime_value: Option<String>, baked: Option<&'static str>) -> Option<String> {
-    runtime_value
-        .filter(|s| !s.is_empty())
-        .or_else(|| baked.map(str::to_string))
-        .filter(|s| !s.is_empty())
-}
-
-/// Build the Studio device info to register from the environment, or `None`
-/// when nothing is configured (so registration is skipped and an existing
-/// registration is left untouched). `DEVICE_OWNERS` is a comma-separated list
-/// of Semio Studio user IDs (Firebase UIDs) that should own — and therefore see
-/// and be able to claim — this device. Each field also accepts a build-time
-/// baked default via `option_env!`, but owners are normally set per-run so the
-/// device registers to the operator's own account.
-#[cfg(feature = "studio-bridge")]
-fn studio_device_info_from_env() -> Option<arora_bridge::DeviceInfo> {
-    let owners: Vec<String> = studio_cfg(std::env::var("DEVICE_OWNERS").ok(), option_env!("DEVICE_OWNERS"))
+fn studio_device_info() -> arora_bridge::DeviceInfo {
+    let owners: Vec<String> = std::env::var("DEVICE_OWNERS")
+        .ok()
         .map(|s| {
             s.split(',')
                 .map(|o| o.trim().to_string())
@@ -227,30 +208,32 @@ fn studio_device_info_from_env() -> Option<arora_bridge::DeviceInfo> {
                 .collect()
         })
         .unwrap_or_default();
-    let info = arora_bridge::DeviceInfo {
-        name: studio_cfg(std::env::var("DEVICE_NAME").ok(), option_env!("DEVICE_NAME")),
-        description: studio_cfg(
-            std::env::var("DEVICE_DESCRIPTION").ok(),
-            option_env!("DEVICE_DESCRIPTION"),
-        ),
-        model_family: studio_cfg(std::env::var("MODEL_FAMILY").ok(), option_env!("MODEL_FAMILY")),
-        hardware_version: studio_cfg(
-            std::env::var("HARDWARE_VERSION").ok(),
-            option_env!("HARDWARE_VERSION"),
-        ),
-        software_version: studio_cfg(
-            std::env::var("SOFTWARE_VERSION").ok(),
-            option_env!("SOFTWARE_VERSION"),
-        ),
+    arora_bridge::DeviceInfo {
+        name: Some(format!("vizij-{}", random_device_suffix())),
+        description: None,
+        model_family: Some("Vizij".to_string()),
+        hardware_version: None,
+        software_version: Some(concat!("vizij-standalone-", env!("CARGO_PKG_VERSION")).to_string()),
         owners,
-    };
-    let configured = info.name.is_some()
-        || info.description.is_some()
-        || info.model_family.is_some()
-        || info.hardware_version.is_some()
-        || info.software_version.is_some()
-        || !info.owners.is_empty();
-    configured.then_some(info)
+    }
+}
+
+/// A short random lowercase-alphanumeric suffix for the generated device name,
+/// so each launch registers a distinct `vizij-<suffix>` with no configuration.
+/// Seeded from the OS via `RandomState` (no extra dependency).
+#[cfg(feature = "studio-bridge")]
+fn random_device_suffix() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u64(std::process::id() as u64);
+    let mut value = hasher.finish();
+    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+    let mut suffix = String::with_capacity(8);
+    for _ in 0..8 {
+        suffix.push(ALPHABET[(value % 36) as usize] as char);
+        value /= 36;
+    }
+    suffix
 }
 
 /// Connect this standalone to the Semio Studio Bridge (opt-in `studio-bridge`
@@ -261,9 +244,11 @@ fn studio_device_info_from_env() -> Option<arora_bridge::DeviceInfo> {
 ///
 /// This reuses the exact studio-bridge device client (`ZenohDeviceClient`,
 /// which implements arora's `Bridge`) — no second transport, no config layer of
-/// our own. Configuration is environment-only, the same variables
-/// `arora::studio` reads: `FIREBASE_*`, `ZENOH_ENDPOINTS`, `DEVICE_NAME`,
-/// `MODEL_FAMILY`, …
+/// our own. The published client crate bakes in the public Firebase config and
+/// the production bridge endpoint, so this is zero-config: nothing to set for a
+/// normal build. Optional runtime overrides for testing/ownership: `.env`
+/// Firebase (emulator), `ZENOH_ENDPOINTS` (a non-production bridge), and
+/// `DEVICE_OWNERS`/`DEVICE_NAME`/… (device registration).
 ///
 /// The client runs on its own thread with a private Tokio runtime and is kept
 /// alive for the process lifetime, so its Zenoh session and registration
@@ -287,53 +272,17 @@ fn spawn_studio_bridge() {
     };
     use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
 
-    // The public Firebase config resolves from the runtime environment first
-    // (a `.env` for local/emulator runs) then the values CI bakes in from
-    // repository secrets (`option_env!`). A build with neither leaves the
-    // fields `None`, and the connection below fails gracefully.
-    let firebase_options = FirebaseOptions {
-        api_key: studio_cfg(std::env::var("FIREBASE_API_KEY").ok(), option_env!("FIREBASE_API_KEY")),
-        auth_domain: studio_cfg(
-            std::env::var("FIREBASE_AUTH_DOMAIN").ok(),
-            option_env!("FIREBASE_AUTH_DOMAIN"),
-        ),
-        database_url: studio_cfg(
-            std::env::var("FIREBASE_DATABASE_URL").ok(),
-            option_env!("FIREBASE_DATABASE_URL"),
-        ),
-        project_id: studio_cfg(
-            std::env::var("FIREBASE_PROJECT_ID").ok(),
-            option_env!("FIREBASE_PROJECT_ID"),
-        ),
-        storage_bucket: studio_cfg(
-            std::env::var("FIREBASE_STORAGE_BUCKET").ok(),
-            option_env!("FIREBASE_STORAGE_BUCKET"),
-        ),
-        messaging_sender_id: studio_cfg(
-            std::env::var("FIREBASE_MESSAGING_SENDER_ID").ok(),
-            option_env!("FIREBASE_MESSAGING_SENDER_ID"),
-        ),
-        app_id: studio_cfg(std::env::var("FIREBASE_APP_ID").ok(), option_env!("FIREBASE_APP_ID")),
-        measurement_id: studio_cfg(
-            std::env::var("FIREBASE_MEASUREMENT_ID").ok(),
-            option_env!("FIREBASE_MEASUREMENT_ID"),
-        ),
-    };
-
-    // Zenoh router endpoint(s). Unset means the public production bridge; a
-    // `ZENOH_ENDPOINTS` override (env or baked) points at another router, e.g.
-    // `tcp/localhost:7447` for a local bridge. Empty (never falls back to LAN
-    // multicast here — the standalone dials a WAN bridge by default).
-    let endpoints: Vec<String> =
-        studio_cfg(std::env::var("ZENOH_ENDPOINTS").ok(), option_env!("ZENOH_ENDPOINTS"))
-            .map(|v| {
-                v.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<_>>()
-            })
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| vec![DEFAULT_STUDIO_BRIDGE_ENDPOINT.to_string()]);
+    // The public Firebase config AND the production bridge endpoint are baked
+    // into the published `arora-studio-bridge-client` crate itself (via its
+    // `FirebaseOptions::from_env` baked fallback + `ZenohDeviceClient::new`), so
+    // there is nothing to configure here. A local `.env` still overrides
+    // Firebase for emulator runs; `ZENOH_ENDPOINTS` points the client at a
+    // non-production bridge (e.g. `tcp/localhost:7447`) for local testing.
+    let firebase_options = FirebaseOptions::from_env();
+    let endpoint_override = std::env::var("ZENOH_ENDPOINTS")
+        .ok()
+        .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
+        .filter(|s| !s.is_empty());
 
     std::thread::Builder::new()
         .name("studio-bridge".into())
@@ -359,16 +308,32 @@ fn spawn_studio_bridge() {
                 // plain runtime-env read (never baked into a shipped build).
                 let firebase_emulator_options = FirebaseEmulatorOptions::from_env();
 
-                info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoints: {endpoints:?})");
-                let client = match ZenohDeviceClient::new(
-                    &firebase_options,
-                    Some(&firebase_emulator_options),
-                    None, // no persisted refresh-token identity (see VIZ-67 note)
-                    None,
-                    endpoints,
-                )
-                .await
-                {
+                // Default to the bridge endpoint baked into the client crate; a
+                // runtime `ZENOH_ENDPOINTS` override targets a local/preprod one.
+                let connect = match endpoint_override {
+                    Some(endpoint) => {
+                        info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoint: {endpoint})");
+                        ZenohDeviceClient::new_endpoint(
+                            &firebase_options,
+                            Some(&firebase_emulator_options),
+                            None, // no persisted refresh-token identity (see VIZ-67 note)
+                            None,
+                            endpoint,
+                        )
+                        .await
+                    }
+                    None => {
+                        info!("studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint");
+                        ZenohDeviceClient::new(
+                            &firebase_options,
+                            Some(&firebase_emulator_options),
+                            None, // no persisted refresh-token identity (see VIZ-67 note)
+                            None,
+                        )
+                        .await
+                    }
+                };
+                let client = match connect {
                     Ok(client) => client,
                     Err(e) => {
                         log::error!("studio-bridge: failed to connect to Semio Studio: {e:?}");
@@ -377,13 +342,15 @@ fn spawn_studio_bridge() {
                 };
                 let studio_bridge: Box<dyn Bridge> = Box::new(client);
 
-                // Register this device with Studio from the configured device info.
-                if let Some(info) = studio_device_info_from_env() {
-                    if let Err(e) = studio_bridge.update_device_info(Some(info)).await {
-                        log::error!("studio-bridge: failed to register device info: {e}");
-                    } else {
-                        info!("studio-bridge: registered device info with Studio");
-                    }
+                // Register this device with Studio. The info is self-generated
+                // (name `vizij-<random>`, family `Vizij`, this crate's version),
+                // so registration always runs — no configuration needed.
+                let info = studio_device_info();
+                let device_name = info.name.clone().unwrap_or_default();
+                if let Err(e) = studio_bridge.update_device_info(Some(info)).await {
+                    log::error!("studio-bridge: failed to register device info: {e}");
+                } else {
+                    info!("studio-bridge: registered device \"{device_name}\" with Studio");
                 }
 
                 info!(

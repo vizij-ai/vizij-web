@@ -151,12 +151,16 @@ see it in their device list and claim it — the producer side of VIZ-67. This i
 an **opt-in** build feature (`studio-bridge`), off by default when you build from
 source. The APKs CI builds ship **with** it (see [CI](#ci-1) below).
 
-How it works: the running app dials the Studio Bridge **outbound** over Zenoh
-(TLS). Android can't host a WebSocket server or do UDP discovery, so the device
-reaches *out* to the bridge rather than the other way round. It authenticates
+How it works: the running app dials the Studio Bridge **outbound** over Zenoh.
+Android can't host a WebSocket server or do UDP discovery, so the device reaches
+*out* to the bridge rather than the other way round. It authenticates
 **anonymously** with the public Firebase project and registers its device info.
 It reuses the exact studio-bridge device client (`arora-studio-bridge-client`),
 no second transport.
+
+The published `arora-studio-bridge-client` crate **bakes in the public Firebase
+config and the production bridge endpoint**, so the feature is **zero-config** —
+there is nothing to set up to reach production Studio.
 
 > Status: the bridge connects and the device registers (a Studio can see and
 > claim it). Streaming the standalone's **live data** into Studio is the
@@ -170,48 +174,44 @@ no second transport.
 pnpm --filter vizij-standalone tauri build -- --no-default-features --features studio-bridge
 
 # dev
-pnpm --filter vizij-standalone dev -- -- --no-default-features    # then set --features via cargo, or:
 cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --no-default-features --features studio-bridge
 ```
 
 (`--no-default-features` drops the desktop `ros2` feature; combine as needed.)
-
-### Configuration
-
-All Studio config is resolved with the precedence **runtime env / `.env` →
-value baked at build time (`option_env!`) → built-in default**. So a shipped
-build works out of the box, and you can still override any value at launch.
+That's the whole setup — the built app connects to production Studio and
+registers itself with **no env vars**. The device info is self-generated: name
+`vizij-<random>` (a fresh suffix per launch), model family `Vizij`, software
+version `vizij-standalone-<crate version>`, hardware version empty. The variables
+below are **optional**, only to claim ownership or point at a non-production
+bridge.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`, `FIREBASE_MEASUREMENT_ID` | Firebase project config (public — [safe to share](https://firebase.google.com/docs/projects/api-keys)) | baked in CI builds from repo secrets |
-| `ZENOH_ENDPOINTS` | Comma-separated Zenoh router endpoint(s) | `tls/bridge.semio.ai:7447` (production bridge) |
-| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own the device | _unset_ (device registers unowned) |
-| `DEVICE_NAME`, `DEVICE_DESCRIPTION`, `MODEL_FAMILY`, `HARDWARE_VERSION`, `SOFTWARE_VERSION` | Registered device metadata | _unset_ |
-| `FIREBASE_*_EMULATOR_HOST` | Point auth/firestore/storage at local emulators | _unset_ |
+| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device | _unset_ (device registers unowned) |
+| `ZENOH_ENDPOINTS` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | _unset_ (baked-in production endpoint) |
+| `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators | _unset_ (baked-in config) |
 
 ### Register this device to your Studio account (the manual loop)
 
-By default the device registers **unowned** — no Studio user can see it. To make
-it show up in *your* Studio, register it with your user ID:
+The app always registers itself (auto-named `vizij-<random>`), but **unowned** by
+default — no Studio user can see it. To make it show up in *your* Studio, add
+your user ID as an owner:
 
 1. **Find your Studio user ID (Firebase UID).** Sign in to Semio Studio and copy
    your UID from the account/profile screen, or from the Firebase console
    (**Authentication → Users**) for the `semio-studio-deployment` project.
-2. **Launch the app with your UID as an owner** (and a friendly name):
+2. **Launch the app with your UID as an owner:**
 
    ```bash
    DEVICE_OWNERS=<your-firebase-uid> \
-   DEVICE_NAME="My Vizij Standalone" \
-   MODEL_FAMILY=vizij \
    cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml \
      --no-default-features --features studio-bridge
    ```
 
-   (or put those in a `.env` — see below — instead of inline.)
+   (or put it in a `.env` next to the app — loaded at launch by `dotenvy`.)
 3. **Watch the logs.** With `RUST_LOG=info` you should see
-   `studio-bridge: connecting to Semio Studio via Zenoh (endpoints: ["tls/bridge.semio.ai:7447"])`,
-   then `studio-bridge: registered device info with Studio`.
+   `studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint`,
+   then `studio-bridge: registered device "vizij-<random>" with Studio`.
 4. **Open Semio Studio** signed in as that same user. The device appears in your
    device list; claim it to view/control it.
 
@@ -220,32 +220,24 @@ accounts.
 
 ### Testing against a local bridge
 
-To develop against a local Studio Bridge instead of `bridge.semio.ai`:
+To develop against a local Studio Bridge instead of the production one:
 
 1. Run a local bridge (Zenoh router) — see
    [`studio-bridge/README.md`](../../../studio-bridge/README.md); the dev router
    listens on `tcp/localhost:7447`.
-2. Copy `studio-bridge/.env` next to the app (e.g.
-   `apps/vizij-standalone/src-tauri/.env` — it is loaded at launch by `dotenvy`)
-   and adapt it:
-   - `ZENOH_ENDPOINTS=tcp/localhost:7447` (plain `tcp/`, no TLS, for the local router)
-   - keep the public `FIREBASE_*` values
-   - set the `FIREBASE_*_EMULATOR_HOST` lines if you run the Firebase emulators
-   - `NODE_EXTRA_CA_CERTS` from `studio-bridge/.env` is only needed if you front
-     the local router with the self-signed test certs; the plain-`tcp` dev router
-     needs no CA.
-
-The runtime `.env`/env always wins over the baked config, so a local `.env`
-transparently redirects a studio-bridge build to your local stack.
+2. Launch with `ZENOH_ENDPOINTS=tcp/localhost:7447` (env or a `.env` next to the
+   app). Add `FIREBASE_*_EMULATOR_HOST` if you run the Firebase emulators. Both
+   override the baked-in defaults, so a studio-bridge build transparently targets
+   your local stack.
 
 ### CI
 
 Both the PR debug APK and the `main` release APK
 ([`.github/workflows/android.yml`](../../.github/workflows/android.yml)) are
-built with `--features studio-bridge`. The public Firebase config is injected
-from the `STUDIO_FIREBASE_*` repository secrets and baked via `option_env!`; the
-bridge endpoint uses the in-code default. No per-user `DEVICE_OWNERS` is baked —
-operators register the running app to their own account as above.
+built with `--features studio-bridge` — **zero-config**, since the client crate
+bakes in the Firebase config and bridge endpoint. No secrets injected, no
+per-user `DEVICE_OWNERS` baked — operators register the running app to their own
+account as above.
 
 ## Speech Support
 

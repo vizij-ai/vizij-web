@@ -63,18 +63,10 @@ jobs:
       - name: Build debug APK
         # `-- --no-default-features` drops the desktop-only `ros2` feature
         # (rustdds does not cross-compile to Android); `--features studio-bridge`
-        # ships the Studio-connected build (VIZ-67). The public Firebase config
-        # is injected from repo secrets and baked via `option_env!`; the bridge
-        # endpoint defaults to `tls/bridge.semio.ai:7447` in code.
+        # ships the Studio-connected build (VIZ-67). Zero-config: the published
+        # `arora-studio-bridge-client` crate bakes in the public Firebase config
+        # and the production bridge endpoint, so nothing is injected here.
         working-directory: ${{ env.APP_DIR }}
-        env:
-          FIREBASE_API_KEY: ${{ secrets.STUDIO_FIREBASE_API_KEY }}
-          FIREBASE_AUTH_DOMAIN: ${{ secrets.STUDIO_FIREBASE_AUTH_DOMAIN }}
-          FIREBASE_PROJECT_ID: ${{ secrets.STUDIO_FIREBASE_PROJECT_ID }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.STUDIO_FIREBASE_STORAGE_BUCKET }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.STUDIO_FIREBASE_MESSAGING_SENDER_ID }}
-          FIREBASE_APP_ID: ${{ secrets.STUDIO_FIREBASE_APP_ID }}
-          FIREBASE_MEASUREMENT_ID: ${{ secrets.STUDIO_FIREBASE_MEASUREMENT_ID }}
         run: pnpm exec tauri android build --debug --apk -- --no-default-features --features studio-bridge
 
       - name: Upload debug APK
@@ -201,18 +193,10 @@ jobs:
           echo "Release signing configured."
 
       - name: Build release APK
-        # Ships the Studio-connected build (`--features studio-bridge`, VIZ-67);
-        # public Firebase config injected from repo secrets and baked via
-        # `option_env!`, bridge endpoint defaults to `tls/bridge.semio.ai:7447`.
+        # Ships the Studio-connected build (`--features studio-bridge`, VIZ-67).
+        # Zero-config: the published `arora-studio-bridge-client` crate bakes in
+        # the public Firebase config and the production bridge endpoint.
         working-directory: ${{ env.APP_DIR }}
-        env:
-          FIREBASE_API_KEY: ${{ secrets.STUDIO_FIREBASE_API_KEY }}
-          FIREBASE_AUTH_DOMAIN: ${{ secrets.STUDIO_FIREBASE_AUTH_DOMAIN }}
-          FIREBASE_PROJECT_ID: ${{ secrets.STUDIO_FIREBASE_PROJECT_ID }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.STUDIO_FIREBASE_STORAGE_BUCKET }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.STUDIO_FIREBASE_MESSAGING_SENDER_ID }}
-          FIREBASE_APP_ID: ${{ secrets.STUDIO_FIREBASE_APP_ID }}
-          FIREBASE_MEASUREMENT_ID: ${{ secrets.STUDIO_FIREBASE_MEASUREMENT_ID }}
         run: pnpm exec tauri android build --apk -- --no-default-features --features studio-bridge
 
       - name: Upload release APK

@@ -24,7 +24,7 @@ arora-ros2 = { path = "../../../packages/arora-ros2", optional = true }
 # (and arora-engine's) carry `artifact = "cdylib"` dev-bindeps that require a
 # nightly `-Z bindeps` toolchain even to resolve, which would drag the whole
 # stable standalone onto nightly. See the studio-bridge feature notes below.
-arora-studio-bridge-client = { version = "2", optional = true }
+arora-studio-bridge-client = { version = "3", optional = true }
 arora-bridge = { version = "3", optional = true }
 # Install the process-wide rustls crypto provider (ring) the Zenoh/Firebase TLS
 # stacks need — matches the provider arora-studio-bridge-client is built against.
