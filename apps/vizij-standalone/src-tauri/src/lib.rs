@@ -32,6 +32,32 @@ struct AppState {
     silence_ms: Option<u32>,
     mic_muted: std::sync::Mutex<bool>,
     transport_catalog: std::sync::Mutex<TransportCatalog>,
+    /// Studio-bridge owner state (channel to the bridge thread + the current
+    /// answer). Present only when built with the `studio-bridge` feature.
+    #[cfg(feature = "studio-bridge")]
+    studio: StudioBridgeState,
+}
+
+/// State backing the in-UI "who owns this device" prompt for the studio-bridge
+/// feature. `owners_tx` pushes a new owner list to the bridge thread so it can
+/// re-register live (no restart); `needs_prompt`/`owners` back the
+/// `studio_bridge_owner_status` command the React modal reads on mount.
+#[cfg(feature = "studio-bridge")]
+struct StudioBridgeState {
+    owners_tx: tokio::sync::watch::Sender<Vec<String>>,
+    needs_prompt: std::sync::Mutex<bool>,
+    owners: std::sync::Mutex<Vec<String>>,
+}
+
+/// Reported to the frontend by `studio_bridge_owner_status`. `active` = the app
+/// was built with the studio-bridge feature; `needs_prompt` = active AND no
+/// owner is known yet (no `DEVICE_OWNERS`, no persisted choice), so the modal
+/// should ask.
+#[derive(Debug, Clone, Serialize)]
+struct StudioOwnerStatus {
+    active: bool,
+    needs_prompt: bool,
+    owners: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -190,32 +216,68 @@ fn list_displays() {
     }
 }
 
-/// The Studio device info this app registers with. Fully self-describing, so the
-/// feature needs no configuration: the name is `vizij-<random>` (a fresh suffix
-/// per launch), the model family is `Vizij`, and the software version is
-/// `vizij-standalone-<crate version>`; hardware version is left empty. The only
-/// optional input is `DEVICE_OWNERS` — a comma-separated list of Semio Studio
-/// user IDs (Firebase UIDs) that should own, and therefore see and claim, this
-/// device; unset means it registers unowned (claim it from Studio instead).
+/// The Studio device info this app registers with. Fully self-describing except
+/// for ownership: the model family is `Vizij` and the software version is
+/// `vizij-standalone-<crate version>`; hardware version is left empty. `name`
+/// (a stable `vizij-<random>` generated once per launch) and `owners` are passed
+/// in, because both must stay identical across re-registrations — regenerating
+/// the name would register a *different* device, and `owners` changes live when
+/// the user answers the in-UI prompt.
+///
+/// `owners` is the list of Semio Studio user IDs (Firebase UIDs) that own — and
+/// therefore see and claim — this device; empty means it registers unowned.
 #[cfg(feature = "studio-bridge")]
-fn studio_device_info() -> arora_bridge::DeviceInfo {
-    let owners: Vec<String> = std::env::var("DEVICE_OWNERS")
-        .ok()
-        .map(|s| {
-            s.split(',')
-                .map(|o| o.trim().to_string())
-                .filter(|o| !o.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
+fn studio_device_info(name: String, owners: Vec<String>) -> arora_bridge::DeviceInfo {
     arora_bridge::DeviceInfo {
-        name: Some(format!("vizij-{}", random_device_suffix())),
+        name: Some(name),
         description: None,
         model_family: Some("Vizij".to_string()),
         hardware_version: None,
         software_version: Some(concat!("vizij-standalone-", env!("CARGO_PKG_VERSION")).to_string()),
         owners,
     }
+}
+
+/// Parse a comma-separated owner list (from `DEVICE_OWNERS` or the UI input),
+/// trimming whitespace and dropping empty entries.
+#[cfg(feature = "studio-bridge")]
+fn parse_owners(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|o| o.trim().to_string())
+        .filter(|o| !o.is_empty())
+        .collect()
+}
+
+/// Path of the persisted owner file (`app_local_data_dir()/studio_owners.json`,
+/// a JSON array of UID strings). Persisting Rust-side lets the bridge thread read
+/// the saved owners at startup without waiting on the webview.
+#[cfg(feature = "studio-bridge")]
+fn studio_owners_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("studio_owners.json"))
+}
+
+/// Read the persisted owner list. Returns `Some(vec)` when the file exists (even
+/// if it is an empty array — an explicit "register unowned" choice that must NOT
+/// re-prompt), and `None` when no choice has ever been persisted.
+#[cfg(feature = "studio-bridge")]
+fn read_persisted_owners(app: &tauri::AppHandle) -> Option<Vec<String>> {
+    let path = studio_owners_file(app).ok()?;
+    let bytes = std::fs::read(&path).ok()?;
+    serde_json::from_slice::<Vec<String>>(&bytes).ok()
+}
+
+/// Persist the owner list so the choice survives restarts and the modal never
+/// asks again.
+#[cfg(feature = "studio-bridge")]
+fn persist_studio_owners(app: &tauri::AppHandle, owners: &[String]) -> Result<(), String> {
+    let path = studio_owners_file(app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_vec(owners).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// A short random lowercase-alphanumeric suffix for the generated device name,
@@ -264,8 +326,18 @@ fn random_device_suffix() -> String {
 /// `arora-web` bridge seam. It is deliberately kept off the critical path here:
 /// depending on the `arora` engine crate would drag the whole standalone onto a
 /// nightly `-Z bindeps` toolchain (its manifest carries an artifact bindep).
+///
+/// Ownership is resolved *before* connecting: the initial owner list (from
+/// `DEVICE_OWNERS`, else a persisted choice, else empty) is registered up front,
+/// and `owners_rx` delivers a fresh list whenever the user answers the in-UI
+/// prompt — the device is then re-registered live under the same name (no
+/// restart). The device connects regardless of ownership; only what Studio
+/// accounts *see* it depends on the answer.
 #[cfg(feature = "studio-bridge")]
-fn spawn_studio_bridge() {
+fn spawn_studio_bridge(
+    mut owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
+    initial_owners: Vec<String>,
+) {
     use arora_bridge::Bridge;
     use arora_studio_bridge_client::firestore_support::options::{
         FirebaseEmulatorOptions, FirebaseOptions,
@@ -342,15 +414,22 @@ fn spawn_studio_bridge() {
                 };
                 let studio_bridge: Box<dyn Bridge> = Box::new(client);
 
-                // Register this device with Studio. The info is self-generated
-                // (name `vizij-<random>`, family `Vizij`, this crate's version),
-                // so registration always runs — no configuration needed.
-                let info = studio_device_info();
-                let device_name = info.name.clone().unwrap_or_default();
+                // The device name is generated once and reused for every
+                // (re-)registration this process makes — regenerating it would
+                // register a *different* device each time the owners change.
+                let device_name = format!("vizij-{}", random_device_suffix());
+
+                // Initial registration with whatever owners are known at startup
+                // (env → persisted → empty). Registration always runs — the
+                // device is visible/claimable regardless of ownership.
+                let info = studio_device_info(device_name.clone(), initial_owners.clone());
                 if let Err(e) = studio_bridge.update_device_info(Some(info)).await {
                     log::error!("studio-bridge: failed to register device info: {e}");
                 } else {
-                    info!("studio-bridge: registered device \"{device_name}\" with Studio");
+                    info!(
+                        "studio-bridge: registered device \"{device_name}\" with Studio ({} owner(s))",
+                        initial_owners.len()
+                    );
                 }
 
                 info!(
@@ -358,10 +437,22 @@ fn spawn_studio_bridge() {
                      (Live-data streaming is the remaining VIZ-67 step — see spawn_studio_bridge docs.)"
                 );
 
-                // Keep the client (and its Zenoh session/registration) alive for
-                // the process lifetime.
-                let _studio_bridge = studio_bridge;
-                std::future::pending::<()>().await;
+                // Re-register whenever the user answers the in-UI owner prompt.
+                // `changed()` returns Err only once the sender (held in AppState)
+                // is dropped at shutdown, which ends the task and the thread.
+                while owners_rx.changed().await.is_ok() {
+                    let owners = owners_rx.borrow_and_update().clone();
+                    let info = studio_device_info(device_name.clone(), owners.clone());
+                    match studio_bridge.update_device_info(Some(info)).await {
+                        Ok(_) => info!(
+                            "studio-bridge: re-registered device \"{device_name}\" ({} owner(s))",
+                            owners.len()
+                        ),
+                        Err(e) => {
+                            log::error!("studio-bridge: failed to re-register device info: {e}")
+                        }
+                    }
+                }
             });
         })
         .expect("failed to spawn studio-bridge thread");
@@ -537,6 +628,65 @@ async fn set_mic_muted_state(app_handle: tauri::AppHandle, muted: bool) {
     *state.mic_muted.lock().unwrap() = muted;
 }
 
+/// Report whether the studio-bridge feature is active and, if so, whether the
+/// app still needs to ask the user who owns this device. The React modal reads
+/// this on mount and only shows itself when `active && needs_prompt`. Always
+/// registered; returns the inactive state when the feature is off.
+#[tauri::command]
+fn studio_bridge_owner_status(app_handle: tauri::AppHandle) -> StudioOwnerStatus {
+    #[cfg(feature = "studio-bridge")]
+    {
+        let state = app_handle.state::<AppState>();
+        let needs_prompt = *state.studio.needs_prompt.lock().unwrap();
+        let owners = state.studio.owners.lock().unwrap().clone();
+        StudioOwnerStatus {
+            active: true,
+            needs_prompt,
+            owners,
+        }
+    }
+    #[cfg(not(feature = "studio-bridge"))]
+    {
+        let _ = &app_handle;
+        StudioOwnerStatus {
+            active: false,
+            needs_prompt: false,
+            owners: Vec::new(),
+        }
+    }
+}
+
+/// Persist the chosen owner UID(s) and push them to the bridge thread so the
+/// device is re-registered live (no restart). "Skip (register unowned)" calls
+/// this with an empty list, which persists an explicit empty so the modal never
+/// asks again. Always registered; a harmless no-op when the feature is off.
+#[tauri::command]
+fn studio_bridge_set_owners(
+    app_handle: tauri::AppHandle,
+    owners: Vec<String>,
+) -> Result<(), String> {
+    #[cfg(feature = "studio-bridge")]
+    {
+        let owners: Vec<String> = owners
+            .into_iter()
+            .map(|o| o.trim().to_string())
+            .filter(|o| !o.is_empty())
+            .collect();
+        persist_studio_owners(&app_handle, &owners)?;
+        let state = app_handle.state::<AppState>();
+        *state.studio.owners.lock().unwrap() = owners.clone();
+        *state.studio.needs_prompt.lock().unwrap() = false;
+        // Ignore a send error: it only means the bridge thread has exited.
+        let _ = state.studio.owners_tx.send(owners);
+        Ok(())
+    }
+    #[cfg(not(feature = "studio-bridge"))]
+    {
+        let _ = (&app_handle, owners);
+        Ok(())
+    }
+}
+
 #[tauri::command]
 async fn set_transport_catalog(
     app_handle: tauri::AppHandle,
@@ -643,6 +793,37 @@ pub fn run() {
                     .and_then(|v| v.parse::<u32>().ok())
             });
 
+            // Resolve who owns this device for the studio-bridge feature, and
+            // set up the channel the in-UI owner prompt uses to re-register live.
+            // Precedence: `DEVICE_OWNERS` env (overrides, never persisted/asked)
+            // → a persisted previous choice → empty + prompt in the UI.
+            #[cfg(feature = "studio-bridge")]
+            let (studio_state, studio_owners_rx, studio_initial_owners) = {
+                let handle = app.handle();
+                let env_owners = std::env::var("DEVICE_OWNERS")
+                    .ok()
+                    .map(|s| parse_owners(&s))
+                    .unwrap_or_default();
+                let (initial_owners, needs_prompt) = if !env_owners.is_empty() {
+                    (env_owners, false)
+                } else if let Some(persisted) = read_persisted_owners(handle) {
+                    (persisted, false)
+                } else {
+                    (Vec::new(), true)
+                };
+                let (owners_tx, owners_rx) =
+                    tokio::sync::watch::channel::<Vec<String>>(initial_owners.clone());
+                (
+                    StudioBridgeState {
+                        owners_tx,
+                        needs_prompt: std::sync::Mutex::new(needs_prompt),
+                        owners: std::sync::Mutex::new(initial_owners.clone()),
+                    },
+                    owners_rx,
+                    initial_owners,
+                )
+            };
+
             app.manage(AppState {
                 connection_manager: Arc::new(manager),
                 cancel_token: Mutex::new(None),
@@ -657,6 +838,8 @@ pub fn run() {
                 silence_ms,
                 mic_muted: std::sync::Mutex::new(true),
                 transport_catalog: std::sync::Mutex::new(TransportCatalog::default()),
+                #[cfg(feature = "studio-bridge")]
+                studio: studio_state,
             });
 
             let startup_handle = app.handle().clone();
@@ -673,7 +856,7 @@ pub fn run() {
             // can view/drive its live data (VIZ-67 producer side). Off unless
             // built with `--features studio-bridge`.
             #[cfg(feature = "studio-bridge")]
-            spawn_studio_bridge();
+            spawn_studio_bridge(studio_owners_rx, studio_initial_owners);
 
             info!("Vizij Standalone App initialized with WS port {}", port);
             if serve_web_control {
@@ -801,6 +984,8 @@ pub fn run() {
             get_speech_keys,
             set_mic_muted_state,
             set_transport_catalog,
+            studio_bridge_owner_status,
+            studio_bridge_set_owners,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

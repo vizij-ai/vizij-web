@@ -158,14 +158,20 @@ Android can't host a WebSocket server or do UDP discovery, so the device reaches
 It reuses the exact studio-bridge device client (`arora-studio-bridge-client`),
 no second transport.
 
+**On first run the app prompts, in its own UI, for the Studio user ID (Firebase
+UID) that should own the device.** The device connects and registers regardless
+of the answer — only *which Studio account(s) can see and claim it* depends on
+it. The choice is remembered (persisted app-side), so it asks only once. Setting
+the `DEVICE_OWNERS` env var overrides the prompt entirely (see below).
+
 The published `arora-studio-bridge-client` crate **bakes in the public Firebase
 config and the production bridge endpoint**, so the feature is **zero-config** —
 there is nothing to set up to reach production Studio.
 
-> Status: the bridge connects and the device registers (a Studio can see and
-> claim it). Streaming the standalone's **live data** into Studio is the
-> remaining VIZ-67 step — the runtime runs as `arora-web` wasm in the webview,
-> and this native client is not yet attached to it.
+> Status: the bridge connects and the device registers (an owning Studio user
+> can see and claim it). Streaming the standalone's **live data** into Studio is
+> the remaining VIZ-67 step — the runtime runs as `arora-web` wasm in the
+> webview, and this native client is not yet attached to it.
 
 ### Running with the feature
 
@@ -189,47 +195,56 @@ RUST_LOG=info pnpm --filter vizij-standalone dev -- --no-default-features --feat
 # → studio-bridge: registered device "vizij-<random>" with Studio
 ```
 
-That's the whole setup — the app connects to production Studio and registers
-itself with **no env vars**. The device info is self-generated: name
-`vizij-<random>` (a fresh suffix per launch), model family `Vizij`, software
-version `vizij-standalone-<crate version>`, hardware version empty. To make the
-device show up under *your* Studio account, add your Firebase UID as an owner —
-see [Register this device](#register-this-device-to-your-studio-account-the-manual-loop)
-below. The variables below are **optional**, only to claim ownership or point at
-a non-production bridge.
+That's the whole setup — the app connects to production Studio with **no env
+vars**. The device info is self-generated: name `vizij-<random>` (a stable suffix
+per launch), model family `Vizij`, software version `vizij-standalone-<crate
+version>`, hardware version empty. The one thing the app needs to make the device
+show up under *your* account — the owning Firebase UID — it asks for **in its own
+UI on first run** (see [Register this device](#register-this-device-to-your-studio-account)
+below). The variables below are **optional**: `DEVICE_OWNERS` pre-answers the
+prompt for headless/scripted runs, the others point at a non-production stack.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device | _unset_ (device registers unowned) |
+| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device. When set (non-empty) it **overrides** the in-UI prompt and is not persisted. | _unset_ (the app prompts in-UI on first run) |
 | `ZENOH_ENDPOINTS` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | _unset_ (baked-in production endpoint) |
 | `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators | _unset_ (baked-in config) |
 
-### Register this device to your Studio account (the manual loop)
+### Register this device to your Studio account
 
-The app always registers itself (auto-named `vizij-<random>`), but **unowned** by
-default — no Studio user can see it. To make it show up in *your* Studio, add
-your user ID as an owner:
+By default the device connects but is owned by no one until you say so. The app
+asks for the owner **in its own UI**:
 
 1. **Find your Studio user ID (Firebase UID).** Sign in to Semio Studio and copy
    your UID from the account/profile screen, or from the Firebase console
    (**Authentication → Users**) for the `semio-studio-deployment` project.
-2. **Launch the app with your UID as an owner:**
+2. **Launch the app** (any platform — desktop or Android):
 
    ```bash
-   DEVICE_OWNERS=<your-firebase-uid> \
-   cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml \
-     --no-default-features --features studio-bridge
+   pnpm --filter vizij-standalone dev -- --no-default-features --features studio-bridge
    ```
 
-   (or put it in a `.env` next to the app — loaded at launch by `dotenvy`.)
-3. **Watch the logs.** With `RUST_LOG=info` you should see
-   `studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint`,
-   then `studio-bridge: registered device "vizij-<random>" with Studio`.
+3. **Answer the prompt.** On first run a modal appears asking for the Studio user
+   ID. Paste your UID (several comma-separated UIDs share the device across
+   accounts) and press **Register**, or **Skip (register unowned)** to leave it
+   unclaimed. The choice is persisted, so the app won't ask again; the device is
+   re-registered live, no restart needed.
 4. **Open Semio Studio** signed in as that same user. The device appears in your
    device list; claim it to view/control it.
 
-`DEVICE_OWNERS` accepts several comma-separated UIDs to share the device across
-accounts.
+To change the owner later, delete the persisted `studio_owners.json` from the
+app's local data directory (so the prompt returns), or launch once with
+`DEVICE_OWNERS` set.
+
+**Headless / scripted runs** can skip the prompt by setting `DEVICE_OWNERS`
+(env, or a `.env` next to the app — loaded at launch by `dotenvy`), which
+overrides the UI and persists nothing:
+
+```bash
+DEVICE_OWNERS=<your-firebase-uid> \
+cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml \
+  --no-default-features --features studio-bridge
+```
 
 ### Testing against a local bridge
 
@@ -249,8 +264,8 @@ Both the PR debug APK and the `main` release APK
 ([`.github/workflows/android.yml`](../../.github/workflows/android.yml)) are
 built with `--features studio-bridge` — **zero-config**, since the client crate
 bakes in the Firebase config and bridge endpoint. No secrets injected, no
-per-user `DEVICE_OWNERS` baked — operators register the running app to their own
-account as above.
+per-user `DEVICE_OWNERS` baked — each operator answers the in-UI owner prompt on
+first launch to register the app to their own account (as above).
 
 ## Speech Support
 
