@@ -58,6 +58,39 @@ describe("extractAnimatableComponents – arora record-form defaults", () => {
     expect(byComponent.get("z")?.defaultValue).toBe(1);
   });
 
+  it("derives a range that spans a large struct-form scale base (no [0,2] clamp)", () => {
+    // A mask/occluder shape whose GLB base scale is 25. The fallback range must
+    // grow to include it; otherwise it clamps to the scale default [0,2] and the
+    // occluder shrinks, so masks stop masking.
+    const animatables = {
+      mask_scale: {
+        id: "mask_scale",
+        name: "background scale",
+        type: "vector3",
+        default: {
+          struct: {
+            id: "struct-id",
+            fields: [
+              { id: "f-x", value: { f32: 25 } },
+              { id: "f-y", value: { f32: 25 } },
+              { id: "f-z", value: { f32: 25 } },
+            ],
+          },
+        },
+        constraints: {},
+      },
+    } as unknown as Record<string, AnimatableValue>;
+
+    const x = extractAnimatableComponents(animatables).find(
+      (c) => c.component === "x",
+    );
+
+    expect(x?.defaultValue).toBe(25);
+    // Range must contain the base so downstream clamping preserves it.
+    expect(x!.range.max).toBeGreaterThanOrEqual(25);
+    expect(x!.defaultValue).toBeLessThanOrEqual(x!.range.max);
+  });
+
   it("still reads legacy plain-number and { x, y, z } defaults", () => {
     const animatables = {
       legacy_opacity: {
