@@ -1,0 +1,27 @@
+# Studio Bridge build-time config (studio-bridge feature).
+#
+# The `arora-studio-bridge-client` crate reads its bridge endpoint + Firebase
+# config via `option_env!` at compile time (there is no committed default in the
+# published crate — the consumer bakes it). Cargo's `[env]` sets these variables
+# for every rustc invocation in the build, including that dependency, so a build
+# from source connects to production Semio Studio with **zero runtime config**.
+#
+# All values are PUBLIC — the Firebase web config is safe to share
+# (https://firebase.google.com/docs/projects/api-keys) and the endpoint is the
+# public production bridge. They mirror `studio-bridge/.env`.
+#
+# Runtime still overrides: `ZENOH_ENDPOINTS` points at a local/preprod bridge,
+# and `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` redirect Firebase. `force` is left
+# at its default (false), so an env var already set in the shell wins.
+#
+# NB: `bridge.semio.ai` is Cloudflare-proxied and only carries wss (browsers);
+# native TCP devices use the DNS-only `bridge-direct.semio.ai:7447` record.
+[env]
+STUDIO_BRIDGE_ENDPOINT = "tcp/bridge-direct.semio.ai:7447"
+FIREBASE_API_KEY = "AIzaSyA-L0nLbNbaQqV9icqRKPeyoGnMpeJxzeU"
+FIREBASE_AUTH_DOMAIN = "semio-studio-deployment.firebaseapp.com"
+FIREBASE_PROJECT_ID = "semio-studio-deployment"
+FIREBASE_STORAGE_BUCKET = "semio-studio-deployment.appspot.com"
+FIREBASE_MESSAGING_SENDER_ID = "194855754850"
+FIREBASE_APP_ID = "1:194855754850:web:24410b226cb4162cf0853b"
+FIREBASE_MEASUREMENT_ID = "G-Q2R9RL22PS"

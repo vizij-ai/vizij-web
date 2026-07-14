@@ -164,9 +164,13 @@ of the answer — only *which Studio account(s) can see and claim it* depends on
 it. The choice is remembered (persisted app-side), so it asks only once. Setting
 the `DEVICE_OWNERS` env var overrides the prompt entirely (see below).
 
-The published `arora-studio-bridge-client` crate **bakes in the public Firebase
-config and the production bridge endpoint**, so the feature is **zero-config** —
-there is nothing to set up to reach production Studio.
+The public Firebase config and the production bridge endpoint are **baked in at
+build time** via [`src-tauri/.cargo/config.toml`](./src-tauri/.cargo/config.toml)
+(the `arora-studio-bridge-client` crate reads them through `option_env!`, which
+resolves against the build environment). So the feature is **zero-config** —
+there is nothing to set up to reach production Studio. All those values are
+public. Runtime env still overrides: `ZENOH_ENDPOINTS` for a non-production
+bridge, `FIREBASE_*` for a different project/emulator.
 
 > Status: the bridge connects and the device registers (an owning Studio user
 > can see and claim it). Streaming the standalone's **live data** into Studio is
