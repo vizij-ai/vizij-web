@@ -425,38 +425,25 @@ export function extractAnimatableComponents(
   return result.sort((a, b) => a.label.localeCompare(b.label));
 }
 
+// The clone helpers below feed the fallback range computation (computeVector*
+// Bounds) and buildAnimatableValue. They must decode the same forms the base
+// reader does — plain {x,y,z}/{r,g,b}, arrays, AND the arora struct encoding
+// ({ struct: { fields: [...] } }) — or a struct-form default reads as 0 and the
+// derived range collapses (e.g. a scale of 25 clamped to the [0,2] fallback,
+// shrinking mask/occluder shapes). getVectorComponentValue handles all forms.
 function cloneVector2(defaultValue: unknown): RawVector2 {
-  if (defaultValue && typeof defaultValue === "object") {
-    const value = defaultValue as Record<string, unknown>;
-    if (
-      Object.prototype.hasOwnProperty.call(value, "x") &&
-      Object.prototype.hasOwnProperty.call(value, "y")
-    ) {
-      return {
-        x: coerceNumber(value.x, 0),
-        y: coerceNumber(value.y, 0),
-      };
-    }
-  }
-  return { x: 0, y: 0 };
+  return {
+    x: getVectorComponentValue(defaultValue as RawVector2, "x", 0),
+    y: getVectorComponentValue(defaultValue as RawVector2, "y", 0),
+  };
 }
 
 function cloneVector3(defaultValue: unknown): RawVector3 {
-  if (defaultValue && typeof defaultValue === "object") {
-    const value = defaultValue as Record<string, unknown>;
-    if (
-      Object.prototype.hasOwnProperty.call(value, "x") &&
-      Object.prototype.hasOwnProperty.call(value, "y") &&
-      Object.prototype.hasOwnProperty.call(value, "z")
-    ) {
-      return {
-        x: coerceNumber(value.x, 0),
-        y: coerceNumber(value.y, 0),
-        z: coerceNumber(value.z, 0),
-      };
-    }
-  }
-  return { x: 0, y: 0, z: 0 };
+  return {
+    x: getVectorComponentValue(defaultValue as RawVector3, "x", 0),
+    y: getVectorComponentValue(defaultValue as RawVector3, "y", 0),
+    z: getVectorComponentValue(defaultValue as RawVector3, "z", 0),
+  };
 }
 
 function clamp01(value: number): number {
@@ -502,17 +489,6 @@ function cloneColor(defaultValue: unknown): RawRGB {
   if (defaultValue && typeof defaultValue === "object") {
     const value = defaultValue as Record<string, unknown>;
     if (
-      Object.prototype.hasOwnProperty.call(value, "r") &&
-      Object.prototype.hasOwnProperty.call(value, "g") &&
-      Object.prototype.hasOwnProperty.call(value, "b")
-    ) {
-      return {
-        r: coerceNumber(value.r, 0),
-        g: coerceNumber(value.g, 0),
-        b: coerceNumber(value.b, 0),
-      };
-    }
-    if (
       Object.prototype.hasOwnProperty.call(value, "h") &&
       Object.prototype.hasOwnProperty.call(value, "s") &&
       Object.prototype.hasOwnProperty.call(value, "l")
@@ -522,6 +498,12 @@ function cloneColor(defaultValue: unknown): RawRGB {
       const l = coerceNumber(value.l, 0);
       return hslToRgb(h, s, l);
     }
+    // Plain {r,g,b}, arrays, and the arora struct encoding all decode here.
+    return {
+      r: getVectorComponentValue(defaultValue as RawColor, "r", 0),
+      g: getVectorComponentValue(defaultValue as RawColor, "g", 0),
+      b: getVectorComponentValue(defaultValue as RawColor, "b", 0),
+    };
   }
   return { r: 0, g: 0, b: 0 };
 }
