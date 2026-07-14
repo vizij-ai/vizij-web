@@ -167,23 +167,36 @@ there is nothing to set up to reach production Studio.
 > remaining VIZ-67 step — the runtime runs as `arora-web` wasm in the webview,
 > and this native client is not yet attached to it.
 
-### Building with the feature
+### Running with the feature
+
+The feature is a build flag, so you pass it to the same `dev`/`build` commands
+(the frontend is served automatically — don't use a bare `cargo run`, which has
+no frontend). `--no-default-features` drops the desktop-only `ros2` feature.
 
 ```bash
-# desktop
-pnpm --filter vizij-standalone tauri build -- --no-default-features --features studio-bridge
+# dev (live reload) — from the repo root
+pnpm --filter vizij-standalone dev -- --no-default-features --features studio-bridge
 
-# dev
-cargo run --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --no-default-features --features studio-bridge
+# production build — outputs land under src-tauri/target/release/
+pnpm --filter vizij-standalone tauri build -- --no-default-features --features studio-bridge
 ```
 
-(`--no-default-features` drops the desktop `ros2` feature; combine as needed.)
-That's the whole setup — the built app connects to production Studio and
-registers itself with **no env vars**. The device info is self-generated: name
+To confirm it connected, run with logging and watch for the registration line:
+
+```bash
+RUST_LOG=info pnpm --filter vizij-standalone dev -- --no-default-features --features studio-bridge
+# → studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint
+# → studio-bridge: registered device "vizij-<random>" with Studio
+```
+
+That's the whole setup — the app connects to production Studio and registers
+itself with **no env vars**. The device info is self-generated: name
 `vizij-<random>` (a fresh suffix per launch), model family `Vizij`, software
-version `vizij-standalone-<crate version>`, hardware version empty. The variables
-below are **optional**, only to claim ownership or point at a non-production
-bridge.
+version `vizij-standalone-<crate version>`, hardware version empty. To make the
+device show up under *your* Studio account, add your Firebase UID as an owner —
+see [Register this device](#register-this-device-to-your-studio-account-the-manual-loop)
+below. The variables below are **optional**, only to claim ownership or point at
+a non-production bridge.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
