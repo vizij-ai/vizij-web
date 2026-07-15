@@ -2,25 +2,48 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{Parser, Subcommand};
 use log::{info, LevelFilter};
 use serde::{Deserialize, Serialize};
-use std::net::TcpListener;
-use std::sync::Arc;
-use tauri::{Emitter, Manager};
-use tokio::sync::Mutex;
-
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex as StdMutex};
+use tauri::{AppHandle, Emitter, Manager};
+use tokio_util::sync::CancellationToken;
 
-mod connection;
-mod connection_manager;
-mod ws_server;
+use arora_bridge::Bridge;
+use arora_bridge_ws::bridge::WsBridge;
+use arora_bridge_ws::{
+    AroraWSServer, InvokeResult, KeyInfo, MethodInfo, MethodParam, ServerConfig, Type, Value,
+};
+use arora_simple_data_store::SimpleDataStore;
+use arora_types::data::{DataStore, Key, StateChange};
 
-use connection::{CancellationToken, SlotInfo, Value};
-use connection_manager::ConnectionManager;
-use ws_server::WsServer;
+mod host;
 
-/// Application state
+/// Application state.
+///
+/// The heart is the shared [`SimpleDataStore`] blackboard. The WebSocket server
+/// lives for the process; several `arora_bridge::Bridge` pumps (WS + optional
+/// ROS 2 + optional Studio) attach to the store and run under cancellation
+/// tokens. The webview mirrors its live values into the store (via
+/// `publish_values`) and applies inbound writes it receives as `update-values`.
 struct AppState {
-    connection_manager: Arc<ConnectionManager>,
-    cancel_token: Mutex<Option<CancellationToken>>,
+    /// The one shared blackboard every bridge reads/writes. Clones share storage.
+    store: SimpleDataStore,
+    /// The WebSocket server (`arora-bridge-ws`), created once for the process. Its
+    /// registry (advertised keys + methods) is updated live; the serve loop is
+    /// started/stopped under `cancel_token`.
+    ws_server: Arc<AroraWSServer>,
+    /// Governs the WS serve loop and the WS bridge pump (the start/stop lifecycle).
+    /// `Some` iff the host is running.
+    cancel_token: StdMutex<Option<CancellationToken>>,
+    /// Governs the ROS 2 bridge pump. Replaced whenever the input-key catalog
+    /// changes (a ROS 2 topic is typed and its inputs are declared up front).
+    #[cfg(feature = "ros2")]
+    ros2_token: StdMutex<Option<CancellationToken>>,
+    #[cfg(feature = "ros2")]
+    ros2_domain_id: u16,
+    #[cfg(feature = "ros2")]
+    ros2_namespace: String,
+    /// The latest key catalog the webview advertised (via `set_slots`).
+    keys: StdMutex<Vec<KeyInfo>>,
     port: u16,
     web_port: Option<u16>,
     glb_source: Option<String>,
@@ -30,8 +53,8 @@ struct AppState {
     auto_mic: Option<bool>,
     speech_mode: Option<String>,
     silence_ms: Option<u32>,
-    mic_muted: std::sync::Mutex<bool>,
-    transport_catalog: std::sync::Mutex<TransportCatalog>,
+    mic_muted: StdMutex<bool>,
+    transport_catalog: StdMutex<TransportCatalog>,
     /// Studio-bridge owner state (channel to the bridge thread + the current
     /// answer). Present only when built with the `studio-bridge` feature.
     #[cfg(feature = "studio-bridge")]
@@ -45,8 +68,8 @@ struct AppState {
 #[cfg(feature = "studio-bridge")]
 struct StudioBridgeState {
     owners_tx: tokio::sync::watch::Sender<Vec<String>>,
-    needs_prompt: std::sync::Mutex<bool>,
-    owners: std::sync::Mutex<Vec<String>>,
+    needs_prompt: StdMutex<bool>,
+    owners: StdMutex<Vec<String>>,
 }
 
 /// Reported to the frontend by `studio_bridge_owner_status`. `active` = the app
@@ -145,7 +168,7 @@ struct Cli {
     #[arg(long, default_value_t = 0)]
     ros2_domain_id: u16,
 
-    /// ROS2 namespace for topics and services (requires --features ros2)
+    /// ROS2 namespace for topics (requires --features ros2)
     #[cfg(feature = "ros2")]
     #[arg(long, default_value = "vizij")]
     ros2_namespace: String,
@@ -216,16 +239,430 @@ fn list_displays() {
     }
 }
 
-/// The Studio device info this app registers with. Fully self-describing except
-/// for ownership: the model family is `Vizij` and the software version is
-/// `vizij-standalone-<crate version>`; hardware version is left empty. `name`
-/// (a stable `vizij-<random>` generated once per launch) and `owners` are passed
-/// in, because both must stay identical across re-registrations — regenerating
-/// the name would register a *different* device, and `owners` changes live when
-/// the user answers the in-UI prompt.
+// =============================================================================
+// WebSocket method surface
+// =============================================================================
+
+/// Register the RPC methods on the WS server's registry. Each handler keeps
+/// emitting the exact same Tauri event the pre-migration `ConnectionManager`
+/// did, so the webview and speech controller are unaffected. Methods live on the
+/// registry (read live at invoke time), so registering them once is enough.
 ///
-/// `owners` is the list of Semio Studio user IDs (Firebase UIDs) that own — and
-/// therefore see and claim — this device; empty means it registers unowned.
+/// These stay on the WS (and Studio) bridge only: `arora-bridge-ros2` carries
+/// data topics with no method/service surface (ARORA-62 tracks parity).
+async fn register_ws_methods(server: &Arc<AroraWSServer>, app: &AppHandle) {
+    let registry = server.registry();
+
+    // reset — reset all values to defaults.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "reset".to_string(),
+                params: vec![],
+                return_type: None,
+                description: Some("Reset all values to defaults".to_string()),
+            },
+            move |_args| match app_h.emit("reset", ()) {
+                Ok(()) => InvokeResult::ok(),
+                Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
+            },
+        )
+        .await;
+
+    // mute_microphone — mute/unmute the mic.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "mute_microphone".to_string(),
+                params: vec![MethodParam {
+                    name: "muted".to_string(),
+                    param_type: Type::Boolean,
+                    required: true,
+                    default_value: None,
+                    description: Some("True to mute, false to unmute".to_string()),
+                }],
+                return_type: None,
+                description: Some("Mute or unmute the microphone".to_string()),
+            },
+            move |args| {
+                let muted = match args.get("muted") {
+                    Some(Value::Boolean(b)) => *b,
+                    _ => true,
+                };
+                *app_h.state::<AppState>().mic_muted.lock().unwrap() = muted;
+                match app_h.emit("mute-microphone", muted) {
+                    Ok(()) => InvokeResult::ok(),
+                    Err(e) => InvokeResult::err(format!("Failed to emit mute-microphone: {}", e)),
+                }
+            },
+        )
+        .await;
+
+    // get_mic_muted — query current mic state.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "get_mic_muted".to_string(),
+                params: vec![],
+                return_type: Some(Type::Boolean),
+                description: Some("Get current microphone muted state".to_string()),
+            },
+            move |_args| {
+                let muted = *app_h.state::<AppState>().mic_muted.lock().unwrap();
+                InvokeResult::ok_with_value(Value::Boolean(muted))
+            },
+        )
+        .await;
+
+    // speak — send text to TTS.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "speak".to_string(),
+                params: vec![MethodParam {
+                    name: "text".to_string(),
+                    param_type: Type::String,
+                    required: true,
+                    default_value: None,
+                    description: Some("Text to speak via TTS".to_string()),
+                }],
+                return_type: None,
+                description: Some("Speak the given text via TTS".to_string()),
+            },
+            move |args| {
+                let text = match args.get("text") {
+                    Some(Value::String(s)) => s.clone(),
+                    _ => return InvokeResult::err("Missing 'text' parameter".to_string()),
+                };
+                match app_h.emit("speak", &text) {
+                    Ok(()) => InvokeResult::ok(),
+                    Err(e) => InvokeResult::err(format!("Failed to emit speak: {}", e)),
+                }
+            },
+        )
+        .await;
+
+    // interrupt — stop any ongoing speech.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "interrupt".to_string(),
+                params: vec![],
+                return_type: None,
+                description: Some("Interrupt any ongoing speech playback".to_string()),
+            },
+            move |_args| match app_h.emit("interrupt-speech", ()) {
+                Ok(()) => InvokeResult::ok(),
+                Err(e) => InvokeResult::err(format!("Failed to emit interrupt-speech: {}", e)),
+            },
+        )
+        .await;
+
+    // transport/list — list bundled animations and procedural programs.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "transport/list".to_string(),
+                params: vec![],
+                return_type: None,
+                description: Some("List bundled animations and procedural programs".to_string()),
+            },
+            move |_args| {
+                let catalog = app_h
+                    .state::<AppState>()
+                    .transport_catalog
+                    .lock()
+                    .unwrap()
+                    .clone();
+                match serde_json::to_string(&catalog) {
+                    Ok(serialized) => InvokeResult::ok_with_value(Value::String(serialized)),
+                    Err(error) => InvokeResult::err(format!(
+                        "Failed to serialize transport catalog: {}",
+                        error
+                    )),
+                }
+            },
+        )
+        .await;
+
+    // transport/play.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "transport/play".to_string(),
+                params: transport_kind_id_params(),
+                return_type: None,
+                description: Some("Play a bundled animation or procedural program".to_string()),
+            },
+            move |args| transport_emit(&app_h, &args, "play"),
+        )
+        .await;
+
+    // transport/pause.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "transport/pause".to_string(),
+                params: transport_kind_id_params(),
+                return_type: None,
+                description: Some("Pause a bundled animation or procedural program".to_string()),
+            },
+            move |args| transport_emit(&app_h, &args, "pause"),
+        )
+        .await;
+
+    // transport/stop.
+    let app_h = app.clone();
+    registry
+        .register_method_fn(
+            MethodInfo {
+                path: "transport/stop".to_string(),
+                params: transport_kind_id_params(),
+                return_type: None,
+                description: Some("Stop a bundled animation or procedural program".to_string()),
+            },
+            move |args| transport_stop(&app_h, &args),
+        )
+        .await;
+}
+
+fn transport_kind_id_params() -> Vec<MethodParam> {
+    vec![
+        MethodParam {
+            name: "kind".to_string(),
+            param_type: Type::String,
+            required: true,
+            default_value: None,
+            description: Some("Either 'animation' or 'program'".to_string()),
+        },
+        MethodParam {
+            name: "id".to_string(),
+            param_type: Type::String,
+            required: true,
+            default_value: None,
+            description: Some("Transport identifier".to_string()),
+        },
+    ]
+}
+
+/// Emit a `{animation,program}-{play,pause}` event for a transport method.
+fn transport_emit(app: &AppHandle, args: &HashMap<String, Value>, action: &str) -> InvokeResult {
+    let id = match args.get("id") {
+        Some(Value::String(id)) => id.clone(),
+        _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
+    };
+    let kind = match args.get("kind") {
+        Some(Value::String(kind)) => kind.clone(),
+        _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
+    };
+    let event_name = match (kind.as_str(), action) {
+        ("animation", "play") => "animation-play",
+        ("animation", "pause") => "animation-pause",
+        ("program", "play") => "program-play",
+        ("program", "pause") => "program-pause",
+        _ => return InvokeResult::err("Invalid 'kind' parameter".to_string()),
+    };
+    match app.emit(event_name, &id) {
+        Ok(()) => InvokeResult::ok(),
+        Err(e) => InvokeResult::err(format!("Failed to emit {}: {}", event_name, e)),
+    }
+}
+
+/// Emit the `{animation,program}-stop` event (with its clear/reset payload).
+fn transport_stop(app: &AppHandle, args: &HashMap<String, Value>) -> InvokeResult {
+    let id = match args.get("id") {
+        Some(Value::String(id)) => id.clone(),
+        _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
+    };
+    let kind = match args.get("kind") {
+        Some(Value::String(kind)) => kind.clone(),
+        _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
+    };
+    if kind == "animation" {
+        let clear_outputs = matches!(args.get("clear_outputs"), Some(Value::Boolean(false)))
+            .then_some(false)
+            .unwrap_or(true);
+        return match app.emit(
+            "animation-stop",
+            serde_json::json!({ "id": id, "clearOutputs": clear_outputs }),
+        ) {
+            Ok(()) => InvokeResult::ok(),
+            Err(e) => InvokeResult::err(format!("Failed to emit animation-stop: {}", e)),
+        };
+    }
+    if kind == "program" {
+        let reset_outputs = matches!(args.get("reset_outputs"), Some(Value::Boolean(false)))
+            .then_some(false)
+            .unwrap_or(true);
+        return match app.emit(
+            "program-stop",
+            serde_json::json!({ "id": id, "resetOutputs": reset_outputs }),
+        ) {
+            Ok(()) => InvokeResult::ok(),
+            Err(e) => InvokeResult::err(format!("Failed to emit program-stop: {}", e)),
+        };
+    }
+    InvokeResult::err("Invalid 'kind' parameter".to_string())
+}
+
+// =============================================================================
+// Bridge host lifecycle
+// =============================================================================
+
+/// Spawn a pump for one set of bridge endpoints against the shared store: an
+/// auto-allow access server per bridge, then [`host::run_pump`] itself.
+fn spawn_bridge_pump(app: &AppHandle, bridges: Vec<Box<dyn Bridge>>, cancel: CancellationToken) {
+    let store = app.state::<AppState>().store.clone();
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        for bridge in &bridges {
+            let requests = bridge.access_requests().await;
+            tauri::async_runtime::spawn(host::serve_access_auto_allow(
+                requests,
+                cancel.child_token(),
+            ));
+        }
+        host::run_pump(store, app, bridges, cancel).await;
+    });
+}
+
+/// Start the bridge host: register the WS methods, bind + serve the WS server,
+/// and spawn the WS pump (plus the ROS 2 pump). Idempotent — returns `Ok` if the
+/// host is already running. The Studio bridge is independent (its own thread) and
+/// not governed here.
+async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
+    // Reserve the running slot up front so a concurrent start (setup + the
+    // webview's start_ws_server) cannot double-bind the port.
+    let cancel = CancellationToken::new();
+    {
+        let state = app.state::<AppState>();
+        let mut guard = state.cancel_token.lock().unwrap();
+        if guard.is_some() {
+            return Ok(());
+        }
+        *guard = Some(cancel.clone());
+    }
+
+    let (ws_server, port) = {
+        let state = app.state::<AppState>();
+        (state.ws_server.clone(), state.port)
+    };
+
+    register_ws_methods(&ws_server, app).await;
+
+    // The WS bridge registers the server's write/read handlers; it MUST exist
+    // before the serve loop, which snapshots those handlers once at startup.
+    let ws_bridge = WsBridge::new(ws_server.clone()).await;
+
+    let listener = match ws_server.bind().await {
+        Ok(listener) => listener,
+        Err(e) => {
+            *app.state::<AppState>().cancel_token.lock().unwrap() = None;
+            return Err(e);
+        }
+    };
+
+    // Serve loop.
+    {
+        let server = ws_server.clone();
+        let serve_cancel = cancel.clone();
+        let app_for_stopped = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = server.run_on(listener, serve_cancel).await {
+                log::error!("WS server error: {e}");
+            }
+            let _ = app_for_stopped.emit("ws:stopped", ());
+        });
+    }
+
+    // WS pump — owns the WS bridge's inbound stream; ends when the server stops.
+    spawn_bridge_pump(app, vec![Box::new(ws_bridge)], cancel.child_token());
+
+    // ROS 2 pump — built from the current key catalog.
+    #[cfg(feature = "ros2")]
+    respawn_ros2(app).await;
+
+    if emit_started {
+        app.emit("ws:started", port).map_err(|e| e.to_string())?;
+    }
+
+    info!("Bridge host started (WS port: {})", port);
+    Ok(())
+}
+
+/// Stop the bridge host: cancel the WS serve loop + all pumps.
+async fn stop_host(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    #[cfg(feature = "ros2")]
+    if let Some(token) = state.ros2_token.lock().unwrap().take() {
+        token.cancel();
+    }
+    let token = state.cancel_token.lock().unwrap().take();
+    if let Some(token) = token {
+        token.cancel();
+        info!("Bridge host stop requested");
+        Ok(())
+    } else {
+        Err("Connection servers are not running".to_string())
+    }
+}
+
+/// (Re)build the ROS 2 pump from the current key catalog. ROS 2 topics are typed
+/// and their inputs declared up front, so a changed catalog means a rebuilt
+/// bridge (no hot-reload). No-op when the host is not running.
+#[cfg(feature = "ros2")]
+async fn respawn_ros2(app: &AppHandle) {
+    use arora_bridge_ros2::{Ros2Bridge, Ros2BridgeConfig};
+
+    let parent = app.state::<AppState>().cancel_token.lock().unwrap().clone();
+    let Some(parent) = parent else {
+        return; // host not running
+    };
+
+    // Cancel the previous ROS 2 pump before building the next.
+    if let Some(old) = app.state::<AppState>().ros2_token.lock().unwrap().take() {
+        old.cancel();
+    }
+
+    let config = {
+        let state = app.state::<AppState>();
+        let keys = state.keys.lock().unwrap();
+        let mut config = Ros2BridgeConfig::new(state.ros2_namespace.clone(), state.ros2_domain_id);
+        for key in keys.iter() {
+            // Only input keys accept inbound commands (become subscribed topics);
+            // outputs are published on demand from `try_send`.
+            if key.kind.as_deref() == Some("input") {
+                let value_type = key.value_type.clone().unwrap_or(Type::F64);
+                config = config.with_input(key.path.clone(), value_type);
+            }
+        }
+        config
+    };
+
+    let bridge = Ros2Bridge::new(config).await;
+    let cancel = parent.child_token();
+    *app.state::<AppState>().ros2_token.lock().unwrap() = Some(cancel.clone());
+    spawn_bridge_pump(app, vec![Box::new(bridge)], cancel);
+    info!("ROS2 bridge (re)built");
+}
+
+// =============================================================================
+// Studio bridge (opt-in)
+// =============================================================================
+
+/// The Studio device info this app registers with. See the field notes on the
+/// original migration: everything is self-describing except `name` (a stable
+/// per-launch `vizij-<random>`) and `owners` (the Studio user IDs that see/claim
+/// this device), both passed in because they must stay identical across
+/// re-registrations.
 #[cfg(feature = "studio-bridge")]
 fn studio_device_info(name: String, owners: Vec<String>) -> arora_bridge::DeviceInfo {
     arora_bridge::DeviceInfo {
@@ -248,18 +685,15 @@ fn parse_owners(raw: &str) -> Vec<String> {
         .collect()
 }
 
-/// Path of the persisted owner file (`app_local_data_dir()/studio_owners.json`,
-/// a JSON array of UID strings). Persisting Rust-side lets the bridge thread read
-/// the saved owners at startup without waiting on the webview.
+/// Path of the persisted owner file (`app_local_data_dir()/studio_owners.json`).
 #[cfg(feature = "studio-bridge")]
 fn studio_owners_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     Ok(dir.join("studio_owners.json"))
 }
 
-/// Read the persisted owner list. Returns `Some(vec)` when the file exists (even
-/// if it is an empty array — an explicit "register unowned" choice that must NOT
-/// re-prompt), and `None` when no choice has ever been persisted.
+/// Read the persisted owner list. `Some(vec)` when a choice was persisted (even
+/// an empty array — an explicit "register unowned"); `None` when never chosen.
 #[cfg(feature = "studio-bridge")]
 fn read_persisted_owners(app: &tauri::AppHandle) -> Option<Vec<String>> {
     let path = studio_owners_file(app).ok()?;
@@ -280,9 +714,7 @@ fn persist_studio_owners(app: &tauri::AppHandle, owners: &[String]) -> Result<()
     Ok(())
 }
 
-/// A short random lowercase-alphanumeric suffix for the generated device name,
-/// so each launch registers a distinct `vizij-<suffix>` with no configuration.
-/// Seeded from the OS via `RandomState` (no extra dependency).
+/// A short random suffix for the generated `vizij-<suffix>` device name.
 #[cfg(feature = "studio-bridge")]
 fn random_device_suffix() -> String {
     use std::hash::{BuildHasher, Hasher};
@@ -298,58 +730,112 @@ fn random_device_suffix() -> String {
     suffix
 }
 
-/// Connect this standalone to the Semio Studio Bridge (opt-in `studio-bridge`
-/// feature) so a Studio can connect *to* the running app — the VIZ-67 producer
-/// side. The host reaches the bridge **outbound** over Zenoh (VIZ-13: Android
-/// can't host a WS server / do UDP discovery, so the device dials the bridge),
-/// authenticates with Firebase, and registers the device.
+/// The Studio bridge pump. Registers the device, serves access requests, and —
+/// the VIZ-67 close — shares the SAME store as the WS/ROS2 bridges: it fans the
+/// store's live changes out to Studio (`try_send`) and applies Studio's inbound
+/// commands back into the store (mirroring writes to the webview). Owner changes
+/// from the in-UI prompt re-register the device live under the same name.
 ///
-/// This reuses the exact studio-bridge device client (`ZenohDeviceClient`,
-/// which implements arora's `Bridge`) — no second transport, no config layer of
-/// our own. The published client crate bakes in the public Firebase config and
-/// the production bridge endpoint, so this is zero-config: nothing to set for a
-/// normal build. Optional runtime overrides for testing/ownership: `.env`
-/// Firebase (emulator), `STUDIO_BRIDGE_ENDPOINT` (a non-production bridge), and
-/// `DEVICE_OWNERS`/`DEVICE_NAME`/… (device registration).
-///
-/// The client runs on its own thread with a private Tokio runtime and is kept
-/// alive for the process lifetime, so its Zenoh session and registration
-/// persist.
-///
-/// OPEN (VIZ-67): the bridge is connected and registered but not yet *fed* the
-/// standalone's live data. Vizij's runtime is the `arora-web` **wasm** runtime
-/// in the webview, and this Studio client is native-only (Zenoh/Firestore), so
-/// it cannot run there. Attaching it to that runtime is one call —
-/// `Arora::builder().with_bridge(studio_bridge)` — for which arora exposes the
-/// injectable constructor `arora::studio::connect()`; wiring it requires either
-/// hosting the Arora runtime natively in this host (sharing its store) or an
-/// `arora-web` bridge seam. It is deliberately kept off the critical path here:
-/// depending on the `arora` engine crate would drag the whole standalone onto a
-/// nightly `-Z bindeps` toolchain (its manifest carries an artifact bindep).
-///
-/// Ownership is resolved *before* connecting: the initial owner list (from
-/// `DEVICE_OWNERS`, else a persisted choice, else empty) is registered up front,
-/// and `owners_rx` delivers a fresh list whenever the user answers the in-UI
-/// prompt — the device is then re-registered live under the same name (no
-/// restart). The device connects regardless of ownership; only what Studio
-/// accounts *see* it depends on the answer.
+/// Runs on the studio thread's private runtime, so its Zenoh session and this
+/// loop live for the process (independent of the WS `start/stop`).
 #[cfg(feature = "studio-bridge")]
-fn spawn_studio_bridge(
+async fn run_studio_pump(
+    store: SimpleDataStore,
+    app: AppHandle,
+    mut bridge: Box<dyn Bridge>,
     mut owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
+    device_name: String,
     initial_owners: Vec<String>,
 ) {
-    use arora_bridge::Bridge;
+    use futures_util::StreamExt;
+
+    // Initial registration (env → persisted → empty). Always runs — the device
+    // is visible/claimable regardless of ownership.
+    let info = studio_device_info(device_name.clone(), initial_owners.clone());
+    if let Err(e) = bridge.update_device_info(Some(info)).await {
+        log::error!("studio-bridge: failed to register device info: {e}");
+    } else {
+        info!(
+            "studio-bridge: registered device \"{device_name}\" with Studio ({} owner(s))",
+            initial_owners.len()
+        );
+    }
+    info!("studio-bridge: connected; a Studio can now see this device and its live data.");
+
+    // Access requests (auto-allow — Studio grants implicitly today).
+    let access_cancel = CancellationToken::new();
+    {
+        let requests = bridge.access_requests().await;
+        tokio::spawn(host::serve_access_auto_allow(
+            requests,
+            access_cancel.clone(),
+        ));
+    }
+
+    // Take the inbound stream once, then drive the shared store both ways.
+    let mut inbound = bridge.take_inbound();
+    let subscription = store.subscribe();
+    let (change_tx, mut change_rx) = tokio::sync::mpsc::unbounded_channel::<StateChange>();
+    std::thread::spawn(move || {
+        while let Some(change) = subscription.recv() {
+            if change_tx.send(change).is_err() {
+                break;
+            }
+        }
+    });
+
+    loop {
+        tokio::select! {
+            maybe_change = change_rx.recv() => match maybe_change {
+                Some(change) => bridge.try_send(&change),
+                None => break,
+            },
+            maybe_event = inbound.next() => match maybe_event {
+                Some(event) => host::handle_inbound(&store, &app, event),
+                None => break, // endpoint disconnected
+            },
+            changed = owners_rx.changed() => {
+                if changed.is_err() {
+                    break; // sender dropped at shutdown
+                }
+                let owners = owners_rx.borrow_and_update().clone();
+                let info = studio_device_info(device_name.clone(), owners.clone());
+                match bridge.update_device_info(Some(info)).await {
+                    Ok(_) => info!(
+                        "studio-bridge: re-registered device \"{device_name}\" ({} owner(s))",
+                        owners.len()
+                    ),
+                    Err(e) => log::error!("studio-bridge: failed to re-register device info: {e}"),
+                }
+            }
+        }
+    }
+
+    access_cancel.cancel();
+    info!("studio-bridge: pump ended");
+}
+
+/// Connect this standalone to the Semio Studio Bridge (opt-in `studio-bridge`
+/// feature) and hand its `ZenohDeviceClient` (an `arora_bridge::Bridge`) to
+/// [`run_studio_pump`], sharing the given store. Runs on its own thread with a
+/// private Tokio runtime.
+///
+/// Zero-config: the published client crate bakes in the public Firebase config
+/// and production bridge endpoint. Runtime overrides for testing/ownership:
+/// `.env` Firebase (emulator), `STUDIO_BRIDGE_ENDPOINT` (a non-production
+/// bridge), `DEVICE_OWNERS` (ownership).
+#[cfg(feature = "studio-bridge")]
+fn spawn_studio_bridge(
+    store: SimpleDataStore,
+    app: AppHandle,
+    owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
+    initial_owners: Vec<String>,
+) {
     use arora_studio_bridge_client::firestore_support::options::{
         FirebaseEmulatorOptions, FirebaseOptions,
     };
     use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
 
-    // The public Firebase config AND the production bridge endpoint are baked
-    // into the published `arora-studio-bridge-client` crate itself (via its
-    // `FirebaseOptions::from_env` baked fallback + `ZenohDeviceClient::new`), so
-    // there is nothing to configure here. A local `.env` still overrides
-    // Firebase for emulator runs; `STUDIO_BRIDGE_ENDPOINT` points the client at a
-    // non-production bridge (e.g. `tcp/localhost:7447`) for local testing.
     let firebase_options = FirebaseOptions::from_env();
     let endpoint_override = std::env::var("STUDIO_BRIDGE_ENDPOINT")
         .ok()
@@ -369,26 +855,22 @@ fn spawn_studio_bridge(
                     return;
                 }
             };
-            rt.block_on(async {
+            rt.block_on(async move {
                 // The Zenoh/Firebase TLS stacks need a process-wide rustls crypto
                 // provider installed before the first handshake.
                 if rustls::crypto::CryptoProvider::get_default().is_none() {
                     let _ = rustls::crypto::ring::default_provider().install_default();
                 }
 
-                // Firebase emulator overrides are local-only, so they stay a
-                // plain runtime-env read (never baked into a shipped build).
                 let firebase_emulator_options = FirebaseEmulatorOptions::from_env();
 
-                // Default to the bridge endpoint baked into the client crate; a
-                // runtime `STUDIO_BRIDGE_ENDPOINT` override targets a local/preprod one.
                 let connect = match endpoint_override {
                     Some(endpoint) => {
                         info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoint: {endpoint})");
                         ZenohDeviceClient::new_endpoint(
                             &firebase_options,
                             Some(&firebase_emulator_options),
-                            None, // no persisted refresh-token identity (see VIZ-67 note)
+                            None,
                             None,
                             endpoint,
                         )
@@ -399,7 +881,7 @@ fn spawn_studio_bridge(
                         ZenohDeviceClient::new(
                             &firebase_options,
                             Some(&firebase_emulator_options),
-                            None, // no persisted refresh-token identity (see VIZ-67 note)
+                            None,
                             None,
                         )
                         .await
@@ -412,47 +894,9 @@ fn spawn_studio_bridge(
                         return;
                     }
                 };
-                let studio_bridge: Box<dyn Bridge> = Box::new(client);
-
-                // The device name is generated once and reused for every
-                // (re-)registration this process makes — regenerating it would
-                // register a *different* device each time the owners change.
+                let bridge: Box<dyn Bridge> = Box::new(client);
                 let device_name = format!("vizij-{}", random_device_suffix());
-
-                // Initial registration with whatever owners are known at startup
-                // (env → persisted → empty). Registration always runs — the
-                // device is visible/claimable regardless of ownership.
-                let info = studio_device_info(device_name.clone(), initial_owners.clone());
-                if let Err(e) = studio_bridge.update_device_info(Some(info)).await {
-                    log::error!("studio-bridge: failed to register device info: {e}");
-                } else {
-                    info!(
-                        "studio-bridge: registered device \"{device_name}\" with Studio ({} owner(s))",
-                        initial_owners.len()
-                    );
-                }
-
-                info!(
-                    "studio-bridge: connected; a Studio can now see this device. \
-                     (Live-data streaming is the remaining VIZ-67 step — see spawn_studio_bridge docs.)"
-                );
-
-                // Re-register whenever the user answers the in-UI owner prompt.
-                // `changed()` returns Err only once the sender (held in AppState)
-                // is dropped at shutdown, which ends the task and the thread.
-                while owners_rx.changed().await.is_ok() {
-                    let owners = owners_rx.borrow_and_update().clone();
-                    let info = studio_device_info(device_name.clone(), owners.clone());
-                    match studio_bridge.update_device_info(Some(info)).await {
-                        Ok(_) => info!(
-                            "studio-bridge: re-registered device \"{device_name}\" ({} owner(s))",
-                            owners.len()
-                        ),
-                        Err(e) => {
-                            log::error!("studio-bridge: failed to re-register device info: {e}")
-                        }
-                    }
-                }
+                run_studio_pump(store, app, bridge, owners_rx, device_name, initial_owners).await;
             });
         })
         .expect("failed to spawn studio-bridge thread");
@@ -470,108 +914,110 @@ fn warn_if_snap_env() {
     }
 }
 
-async fn start_connection_servers_internal(
-    app_handle: tauri::AppHandle,
-    emit_started_event: bool,
-) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    let port = state.port;
-    let addr = format!("127.0.0.1:{}", port);
+// =============================================================================
+// Tauri commands
+// =============================================================================
 
-    {
-        let cancel_token = state.cancel_token.lock().await;
-        if cancel_token.is_some() {
-            return Ok(());
-        }
-    }
-
-    if TcpListener::bind(&addr).is_err() {
-        return Err(format!("Port {} is already in use", port));
-    }
-
-    let cancel_token = CancellationToken::new();
-
-    {
-        let mut token_guard = state.cancel_token.lock().await;
-        *token_guard = Some(cancel_token.clone());
-    }
-
-    let manager = state.connection_manager.clone();
-    let app_handle_clone = app_handle.clone();
-
-    manager.setup_all(app_handle.clone()).await;
-    let handles = manager.run_all(cancel_token);
-
-    tokio::spawn(async move {
-        for handle in handles {
-            let _ = handle.await;
-        }
-        let _ = app_handle_clone.emit("ws:stopped", ());
-    });
-
-    if emit_started_event {
-        app_handle
-            .emit("ws:started", port)
-            .map_err(|e| e.to_string())?;
-    }
-
-    info!("Connection servers started (WS port: {})", port);
-    Ok(())
+/// Start the bridge host (WS server + pumps).
+#[tauri::command]
+async fn start_ws_server(app_handle: AppHandle) -> Result<(), String> {
+    start_host(&app_handle, true).await
 }
 
-/// Start connection servers
+/// Stop the bridge host.
 #[tauri::command]
-async fn start_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
-    start_connection_servers_internal(app_handle, true).await
+async fn stop_ws_server(app_handle: AppHandle) -> Result<(), String> {
+    stop_host(&app_handle).await
 }
 
-/// Stop connection servers
+/// Get the configured WebSocket port.
 #[tauri::command]
-async fn stop_ws_server(app_handle: tauri::AppHandle) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-
-    let mut cancel_token = state.cancel_token.lock().await;
-    if let Some(token) = cancel_token.take() {
-        token.cancel();
-        info!("Connection servers stop requested");
-        Ok(())
-    } else {
-        Err("Connection servers are not running".to_string())
-    }
+async fn get_port(app_handle: AppHandle) -> u16 {
+    app_handle.state::<AppState>().port
 }
 
-/// Get the configured port
+/// Publish the key catalog into the store/registry.
+///
+/// The webview calls this once its model loads: it advertises the keys on the WS
+/// registry (driving `list_keys` and, since these are `input` keys, the
+/// `validate_paths` allow-list) and seeds their default values into the store so
+/// reads and live-data have something before the first mirror push. When ROS 2
+/// is enabled the pump is rebuilt so the input keys become subscribed topics.
 #[tauri::command]
-async fn get_port(app_handle: tauri::AppHandle) -> u16 {
-    let state = app_handle.state::<AppState>();
-    state.port
-}
-
-/// Set available slots (called by frontend when model loads)
-#[tauri::command]
-async fn set_slots(app_handle: tauri::AppHandle, slots: Vec<SlotInfo>) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
+async fn set_slots(app_handle: AppHandle, slots: Vec<KeyInfo>) -> Result<(), String> {
     let count = slots.len();
-    state.connection_manager.set_slots(slots).await;
-    info!("Slots updated: {} available", count);
+    let (ws_server, store) = {
+        let state = app_handle.state::<AppState>();
+        (state.ws_server.clone(), state.store.clone())
+    };
+
+    // Advertise the catalog on the WS registry (live: list_keys + validate_paths).
+    ws_server.registry().set_keys(slots.clone()).await;
+
+    // Seed default values into the store.
+    let mut seed = StateChange::new();
+    for key in &slots {
+        if let Some(default_value) = &key.default_value {
+            seed.set
+                .insert(Key::from(key.path.clone()), Some(default_value.clone()));
+        }
+    }
+    if !seed.is_empty() {
+        store.write(seed).map_err(|e| e.to_string())?;
+    }
+
+    *app_handle.state::<AppState>().keys.lock().unwrap() = slots;
+
+    // ROS 2 inputs are declared up front, so rebuild that pump with the new
+    // catalog. The WS bridge is untouched, so connected WS clients stay up.
+    #[cfg(feature = "ros2")]
+    respawn_ros2(&app_handle).await;
+
+    info!("Key catalog updated: {} key(s) advertised", count);
     Ok(())
 }
 
-/// Get the GLB source from CLI argument (path or URL)
+/// Continuously mirror the webview's live values into the shared store.
+///
+/// Replaces the old 5s one-shot `get_slot_values` pull. The webview pushes its
+/// current values on an interval; the store's change-only semantics drop
+/// unchanged keys, so re-pushing the whole snapshot is cheap. Each real change
+/// fans out to every attached bridge (WS `values_changed`, ROS 2 publish,
+/// Studio) — this is what feeds live data to Studio (VIZ-67) and remote clients.
 #[tauri::command]
-async fn get_glb_source(app_handle: tauri::AppHandle) -> Option<String> {
-    let state = app_handle.state::<AppState>();
-    state.glb_source.clone()
+async fn publish_values(
+    app_handle: AppHandle,
+    values: HashMap<String, Value>,
+) -> Result<(), String> {
+    let store = app_handle.state::<AppState>().store.clone();
+    let mut change = StateChange::new();
+    for (path, value) in values {
+        change.set.insert(Key::from(path), Some(value));
+    }
+    if !change.is_empty() {
+        store.write(change).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
-/// Check if any connection server is running
+/// Get the GLB source from CLI argument (path or URL).
 #[tauri::command]
-async fn is_ws_running(app_handle: tauri::AppHandle) -> bool {
-    let state = app_handle.state::<AppState>();
-    state.connection_manager.is_any_running().await
+async fn get_glb_source(app_handle: AppHandle) -> Option<String> {
+    app_handle.state::<AppState>().glb_source.clone()
 }
 
-/// Read a local GLB file and return as base64
+/// Check if the bridge host is running.
+#[tauri::command]
+async fn is_ws_running(app_handle: AppHandle) -> bool {
+    app_handle
+        .state::<AppState>()
+        .cancel_token
+        .lock()
+        .unwrap()
+        .is_some()
+}
+
+/// Read a local GLB file and return as base64.
 #[tauri::command]
 async fn read_glb_file(path: String) -> Result<String, String> {
     let contents = tokio::fs::read(&path)
@@ -580,24 +1026,15 @@ async fn read_glb_file(path: String) -> Result<String, String> {
     Ok(STANDARD.encode(&contents))
 }
 
-/// Respond to a GetSlotValues request from the connection.
-/// Called by the frontend after receiving a "get-slot-values-request" event.
+/// Get the web control port (None if web control is disabled).
 #[tauri::command]
-fn respond_slot_values(app_handle: tauri::AppHandle, values: HashMap<String, Value>) {
-    let state = app_handle.state::<AppState>();
-    state.connection_manager.respond_slot_values(values);
+async fn get_web_port(app_handle: AppHandle) -> Option<u16> {
+    app_handle.state::<AppState>().web_port
 }
 
-/// Get the web control port (None if web control is disabled)
+/// Get speech-related API keys/URLs from CLI flags.
 #[tauri::command]
-async fn get_web_port(app_handle: tauri::AppHandle) -> Option<u16> {
-    let state = app_handle.state::<AppState>();
-    state.web_port
-}
-
-/// Get speech-related API keys/URLs from CLI flags
-#[tauri::command]
-async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String> {
+async fn get_speech_keys(app_handle: AppHandle) -> HashMap<String, String> {
     let state = app_handle.state::<AppState>();
     let mut keys = HashMap::new();
     if let Some(ref key) = state.deepgram_key {
@@ -621,19 +1058,16 @@ async fn get_speech_keys(app_handle: tauri::AppHandle) -> HashMap<String, String
     keys
 }
 
-/// Update the mic muted state (called from frontend to keep Rust state in sync)
+/// Update the mic muted state (called from frontend to keep Rust state in sync).
 #[tauri::command]
-async fn set_mic_muted_state(app_handle: tauri::AppHandle, muted: bool) {
-    let state = app_handle.state::<AppState>();
-    *state.mic_muted.lock().unwrap() = muted;
+async fn set_mic_muted_state(app_handle: AppHandle, muted: bool) {
+    *app_handle.state::<AppState>().mic_muted.lock().unwrap() = muted;
 }
 
 /// Report whether the studio-bridge feature is active and, if so, whether the
-/// app still needs to ask the user who owns this device. The React modal reads
-/// this on mount and only shows itself when `active && needs_prompt`. Always
-/// registered; returns the inactive state when the feature is off.
+/// app still needs to ask the user who owns this device.
 #[tauri::command]
-fn studio_bridge_owner_status(app_handle: tauri::AppHandle) -> StudioOwnerStatus {
+fn studio_bridge_owner_status(app_handle: AppHandle) -> StudioOwnerStatus {
     #[cfg(feature = "studio-bridge")]
     {
         let state = app_handle.state::<AppState>();
@@ -657,14 +1091,9 @@ fn studio_bridge_owner_status(app_handle: tauri::AppHandle) -> StudioOwnerStatus
 }
 
 /// Persist the chosen owner UID(s) and push them to the bridge thread so the
-/// device is re-registered live (no restart). "Skip (register unowned)" calls
-/// this with an empty list, which persists an explicit empty so the modal never
-/// asks again. Always registered; a harmless no-op when the feature is off.
+/// device is re-registered live (no restart).
 #[tauri::command]
-fn studio_bridge_set_owners(
-    app_handle: tauri::AppHandle,
-    owners: Vec<String>,
-) -> Result<(), String> {
+fn studio_bridge_set_owners(app_handle: AppHandle, owners: Vec<String>) -> Result<(), String> {
     #[cfg(feature = "studio-bridge")]
     {
         let owners: Vec<String> = owners
@@ -689,11 +1118,14 @@ fn studio_bridge_set_owners(
 
 #[tauri::command]
 async fn set_transport_catalog(
-    app_handle: tauri::AppHandle,
+    app_handle: AppHandle,
     catalog: TransportCatalog,
 ) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    *state.transport_catalog.lock().unwrap() = catalog;
+    *app_handle
+        .state::<AppState>()
+        .transport_catalog
+        .lock()
+        .unwrap() = catalog;
     Ok(())
 }
 
@@ -732,33 +1164,25 @@ pub fn run() {
                     src
                 } else {
                     // Fix over-escaped backslashes from npm/pnpm on Windows
-                    // Each layer doubles backslashes: \ -> \\ -> \\\\ -> \\\\\\\\
                     let mut normalized = src;
                     while normalized.contains("\\\\") {
                         normalized = normalized.replace("\\\\", "\\");
                     }
-                    // Try to canonicalize the path to an absolute path
                     std::fs::canonicalize(&normalized)
                         .map(|p| p.to_string_lossy().into_owned())
                         .unwrap_or(normalized)
                 }
             });
 
-            // Set up connection manager with all connection interfaces
+            // The shared blackboard and the WebSocket server (created once for
+            // the process; served under the host lifecycle).
             let serve_web_control = !cli.no_web_control;
-            let mut manager = ConnectionManager::new();
-            manager.add_connection(Arc::new(WsServer::new(port, serve_web_control)));
-
-            #[cfg(feature = "ros2")]
-            {
-                let ros2_node =
-                    arora_ros2::AroraRos2Node::new(&cli.ros2_namespace, cli.ros2_domain_id);
-                manager.add_connection(Arc::new(ros2_node));
-                info!(
-                    "ROS2 node configured (domain_id={}, namespace={})",
-                    cli.ros2_domain_id, cli.ros2_namespace
-                );
-            }
+            let store = SimpleDataStore::new();
+            let ws_server = Arc::new(AroraWSServer::new(
+                ServerConfig::with_port(port)
+                    .validate_paths(true)
+                    .serve_control_panel(serve_web_control),
+            ));
 
             let web_port = if serve_web_control { Some(port) } else { None };
 
@@ -795,8 +1219,7 @@ pub fn run() {
 
             // Resolve who owns this device for the studio-bridge feature, and
             // set up the channel the in-UI owner prompt uses to re-register live.
-            // Precedence: `DEVICE_OWNERS` env (overrides, never persisted/asked)
-            // → a persisted previous choice → empty + prompt in the UI.
+            // Precedence: `DEVICE_OWNERS` env → a persisted choice → empty + prompt.
             #[cfg(feature = "studio-bridge")]
             let (studio_state, studio_owners_rx, studio_initial_owners) = {
                 let handle = app.handle();
@@ -816,8 +1239,8 @@ pub fn run() {
                 (
                     StudioBridgeState {
                         owners_tx,
-                        needs_prompt: std::sync::Mutex::new(needs_prompt),
-                        owners: std::sync::Mutex::new(initial_owners.clone()),
+                        needs_prompt: StdMutex::new(needs_prompt),
+                        owners: StdMutex::new(initial_owners.clone()),
                     },
                     owners_rx,
                     initial_owners,
@@ -825,8 +1248,16 @@ pub fn run() {
             };
 
             app.manage(AppState {
-                connection_manager: Arc::new(manager),
-                cancel_token: Mutex::new(None),
+                store: store.clone(),
+                ws_server,
+                cancel_token: StdMutex::new(None),
+                #[cfg(feature = "ros2")]
+                ros2_token: StdMutex::new(None),
+                #[cfg(feature = "ros2")]
+                ros2_domain_id: cli.ros2_domain_id,
+                #[cfg(feature = "ros2")]
+                ros2_namespace: cli.ros2_namespace.clone(),
+                keys: StdMutex::new(Vec::new()),
                 port,
                 web_port,
                 glb_source: glb_source.clone(),
@@ -836,27 +1267,38 @@ pub fn run() {
                 auto_mic,
                 speech_mode,
                 silence_ms,
-                mic_muted: std::sync::Mutex::new(true),
-                transport_catalog: std::sync::Mutex::new(TransportCatalog::default()),
+                mic_muted: StdMutex::new(true),
+                transport_catalog: StdMutex::new(TransportCatalog::default()),
                 #[cfg(feature = "studio-bridge")]
                 studio: studio_state,
             });
 
+            #[cfg(feature = "ros2")]
+            info!(
+                "ROS2 bridge configured (domain_id={}, namespace={})",
+                cli.ros2_domain_id, cli.ros2_namespace
+            );
+
             let startup_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(error) = start_connection_servers_internal(startup_handle, false).await {
+                if let Err(error) = start_host(&startup_handle, false).await {
                     log::error!(
-                        "Failed to start connection servers during app setup: {}",
+                        "Failed to start the bridge host during app setup: {}",
                         error
                     );
                 }
             });
 
-            // Opt-in: connect this runtime to the Semio Studio Bridge so a Studio
-            // can view/drive its live data (VIZ-67 producer side). Off unless
-            // built with `--features studio-bridge`.
+            // Opt-in: attach the Studio bridge to the SAME store so a Studio can
+            // view/drive this app's live data (VIZ-67). Off unless built with
+            // `--features studio-bridge`.
             #[cfg(feature = "studio-bridge")]
-            spawn_studio_bridge(studio_owners_rx, studio_initial_owners);
+            spawn_studio_bridge(
+                store,
+                app.handle().clone(),
+                studio_owners_rx,
+                studio_initial_owners,
+            );
 
             info!("Vizij Standalone App initialized with WS port {}", port);
             if serve_web_control {
@@ -873,10 +1315,8 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 if let Some(window) = app.get_webview_window("main") {
-                    // Get available monitors
                     let monitors: Vec<_> = window.available_monitors().unwrap_or_default();
 
-                    // Select target monitor
                     let target_monitor = if let Some(display_idx) = cli.display {
                         monitors.get(display_idx).cloned().or_else(|| {
                             info!("Display {} not found, using primary", display_idx);
@@ -886,14 +1326,11 @@ pub fn run() {
                         window.primary_monitor().ok().flatten()
                     };
 
-                    // Apply window settings
                     if cli.fullscreen {
-                        // For fullscreen: first move to target monitor, set size, then go fullscreen
                         if let Some(ref monitor) = target_monitor {
                             let pos = monitor.position();
                             let size = monitor.size();
 
-                            // Move window to target monitor first
                             if let Err(e) = window.set_position(tauri::Position::Physical(
                                 tauri::PhysicalPosition::new(pos.x, pos.y),
                             )) {
@@ -902,7 +1339,6 @@ pub fn run() {
                                 info!("Window moved to display {}", idx);
                             }
 
-                            // Set window size to match monitor's native resolution
                             if let Err(e) = window.set_size(tauri::Size::Physical(
                                 tauri::PhysicalSize::new(size.width, size.height),
                             )) {
@@ -915,14 +1351,12 @@ pub fn run() {
                             }
                         }
 
-                        // Now enable fullscreen
                         if let Err(e) = window.set_fullscreen(true) {
                             log::error!("Failed to set fullscreen: {}", e);
                         } else {
                             info!("Fullscreen mode enabled");
                         }
                     } else {
-                        // Set window size
                         if let Err(e) = window.set_size(tauri::Size::Physical(
                             tauri::PhysicalSize::new(cli.width, cli.height),
                         )) {
@@ -931,7 +1365,6 @@ pub fn run() {
                             info!("Window size: {}x{}", cli.width, cli.height);
                         }
 
-                        // Center on target monitor
                         if let Some(monitor) = target_monitor {
                             let monitor_pos = monitor.position();
                             let monitor_size = monitor.size();
@@ -949,7 +1382,6 @@ pub fn run() {
                         }
                     }
 
-                    // Apply decorations setting
                     if cli.no_decorations {
                         if let Err(e) = window.set_decorations(false) {
                             log::error!("Failed to hide decorations: {}", e);
@@ -958,7 +1390,6 @@ pub fn run() {
                         }
                     }
 
-                    // Apply always on top setting
                     if cli.always_on_top {
                         if let Err(e) = window.set_always_on_top(true) {
                             log::error!("Failed to set always on top: {}", e);
@@ -978,9 +1409,9 @@ pub fn run() {
             get_port,
             get_web_port,
             set_slots,
+            publish_values,
             get_glb_source,
             read_glb_file,
-            respond_slot_values,
             get_speech_keys,
             set_mic_muted_state,
             set_transport_catalog,

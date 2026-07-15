@@ -178,23 +178,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "arora-connection"
-version = "0.1.0"
+name = "arora-bridge-ros2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cce6de0818de3e4b8bb6906e16303bfc89036533060171c726b7b7bc0adfd68"
 dependencies = [
- "arora-schema",
- "serde",
- "tokio-util",
-]
-
-[[package]]
-name = "arora-ros2"
-version = "0.1.0"
-dependencies = [
- "arora-connection",
+ "arora-bridge",
+ "arora-types",
+ "async-trait",
  "futures",
  "log",
  "ros2-client",
- "rustdds",
  "serde",
  "serde_json",
  "tokio",
@@ -202,15 +196,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "arora-schema"
-version = "0.1.0"
-source = "git+https://github.com/semio-ai/arora-types.git#56ca70a50e23ddc6ccad473232e8a3fe19cef4bd"
+name = "arora-bridge-ws"
+version = "3.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f3a12035aece82ddde1a354ce153828382e80859ccaddfa1f04771364060294"
 dependencies = [
- "derive_more 2.1.1",
- "lazy_static",
- "semver",
+ "arora-bridge",
+ "arora-types",
+ "async-trait",
+ "futures",
+ "futures-util",
+ "log",
  "serde",
- "uuid",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+]
+
+[[package]]
+name = "arora-simple-data-store"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e6b1beaf5b408289a5b2269fdb447c19a488bb571fcc0d910f76f0ff145cc35"
+dependencies = [
+ "arora-types",
 ]
 
 [[package]]
@@ -258,21 +268,6 @@ dependencies = [
  "serde",
  "uuid",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "arora-websocket"
-version = "0.2.0"
-dependencies = [
- "arora-connection",
- "arora-schema",
- "futures-util",
- "log",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite 0.24.0",
- "tokio-util",
 ]
 
 [[package]]
@@ -6674,19 +6669,7 @@ dependencies = [
  "futures-util",
  "log",
  "tokio",
- "tungstenite 0.24.0",
-]
-
-[[package]]
-name = "tokio-tungstenite"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
-dependencies = [
- "futures-util",
- "log",
- "tokio",
- "tungstenite 0.26.2",
+ "tungstenite",
 ]
 
 [[package]]
@@ -7017,23 +7000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tungstenite"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13"
-dependencies = [
- "bytes",
- "data-encoding",
- "http",
- "httparse",
- "log",
- "rand 0.9.2",
- "sha1",
- "thiserror 2.0.18",
- "utf-8",
-]
-
-[[package]]
 name = "twox-hash"
 version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7296,10 +7262,11 @@ name = "vizij-standalone"
 version = "0.1.0"
 dependencies = [
  "arora-bridge",
- "arora-connection",
- "arora-ros2",
+ "arora-bridge-ros2",
+ "arora-bridge-ws",
+ "arora-simple-data-store",
  "arora-studio-bridge-client",
- "arora-websocket",
+ "arora-types",
  "base64 0.22.1",
  "clap",
  "dotenvy",
@@ -7317,7 +7284,6 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-log",
  "tokio",
- "tokio-tungstenite 0.26.2",
  "tokio-util",
  "windows 0.58.0",
 ]
@@ -8636,7 +8602,7 @@ dependencies = [
  "async-trait",
  "futures-util",
  "tokio",
- "tokio-tungstenite 0.24.0",
+ "tokio-tungstenite",
  "tokio-util",
  "tracing",
  "url",
