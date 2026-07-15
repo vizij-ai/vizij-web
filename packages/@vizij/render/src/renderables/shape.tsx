@@ -238,6 +238,16 @@ function InnerRenderedShape({
           standard.needsUpdate = true;
         }
       },
+      emissiveIntensity: (value: RawValue) => {
+        const standard = material.current as MeshStandardMaterial;
+        if (
+          standard?.emissiveIntensity !== undefined &&
+          instanceOfRawNumber(value)
+        ) {
+          standard.emissiveIntensity = value;
+          standard.needsUpdate = true;
+        }
+      },
       specular: (value: RawValue) => {
         const phong = material.current as MeshPhongMaterial;
         if (phong?.specular && instanceOfRawRGB(value)) {
@@ -368,6 +378,7 @@ const MATERIAL_FEATURE_KEYS: Array<Extract<keyof Shape["features"], string>> = [
   "metalness",
   "shininess",
   "emissive",
+  "emissiveIntensity",
   "specular",
 ];
 
@@ -379,6 +390,7 @@ const MATERIAL_NAME_SUFFIXES = [
   " roughness",
   " metalness",
   " shininess",
+  " emissive intensity",
   " emissive",
   " specular",
 ];

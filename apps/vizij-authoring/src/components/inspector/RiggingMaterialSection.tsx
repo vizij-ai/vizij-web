@@ -67,6 +67,7 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
     { key: "roughness", label: "Roughness" },
     { key: "metalness", label: "Metalness" },
     { key: "shininess", label: "Shininess" },
+    { key: "emissiveIntensity", label: "Emissive Intensity" },
   ]
     .map((row) => ({ ...row, feature: findFeature(row.key) }))
     .filter((row) => row.feature);

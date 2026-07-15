@@ -26,6 +26,7 @@ const MATERIAL_FEATURE_KEYS = [
   "metalness",
   "shininess",
   "emissive",
+  "emissiveIntensity",
   "specular",
 ] as const;
 
