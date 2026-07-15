@@ -35,6 +35,7 @@ export interface MaterialAnimatableIds {
   roughness?: string;
   metalness?: string;
   emissive?: string;
+  emissiveIntensity?: string;
   shininess?: string;
   specular?: string;
 }
@@ -154,6 +155,7 @@ export function importMesh(
   let roughnessAnimatable: AnimatableNumber | undefined;
   let metalnessAnimatable: AnimatableNumber | undefined;
   let emissiveAnimatable: AnimatableColor | undefined;
+  let emissiveIntensityAnimatable: AnimatableNumber | undefined;
   let shininessAnimatable: AnimatableNumber | undefined;
   let specularAnimatable: AnimatableColor | undefined;
   if (material.isMeshStandardMaterial) {
@@ -174,10 +176,16 @@ export function importMesh(
       },
     );
     emissiveAnimatable = makeColorAnimatable("emissive", material.emissive);
+    emissiveIntensityAnimatable = makeNumberAnimatable(
+      "emissive intensity",
+      material.emissiveIntensity,
+      { min: 0 },
+    );
     materialAnimatables.push(
       roughnessAnimatable,
       metalnessAnimatable,
       emissiveAnimatable,
+      emissiveIntensityAnimatable,
     );
   } else if ((mesh.material as MeshPhongMaterial).isMeshPhongMaterial) {
     const phong = mesh.material as MeshPhongMaterial;
@@ -185,10 +193,16 @@ export function importMesh(
       min: 0,
     });
     emissiveAnimatable = makeColorAnimatable("emissive", phong.emissive);
+    emissiveIntensityAnimatable = makeNumberAnimatable(
+      "emissive intensity",
+      phong.emissiveIntensity,
+      { min: 0 },
+    );
     specularAnimatable = makeColorAnimatable("specular", phong.specular);
     materialAnimatables.push(
       shininessAnimatable,
       emissiveAnimatable,
+      emissiveIntensityAnimatable,
       specularAnimatable,
     );
   }
@@ -204,6 +218,7 @@ export function importMesh(
       roughness: roughnessAnimatable?.id,
       metalness: metalnessAnimatable?.id,
       emissive: emissiveAnimatable?.id,
+      emissiveIntensity: emissiveIntensityAnimatable?.id,
       shininess: shininessAnimatable?.id,
       specular: specularAnimatable?.id,
     };
@@ -269,6 +284,14 @@ export function importMesh(
         : {}),
       ...(materialIds.emissive
         ? { emissive: { animated: true, value: materialIds.emissive } }
+        : {}),
+      ...(materialIds.emissiveIntensity
+        ? {
+            emissiveIntensity: {
+              animated: true,
+              value: materialIds.emissiveIntensity,
+            },
+          }
         : {}),
       ...(materialIds.shininess
         ? { shininess: { animated: true, value: materialIds.shininess } }

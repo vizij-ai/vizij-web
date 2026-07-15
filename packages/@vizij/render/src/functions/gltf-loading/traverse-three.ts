@@ -146,6 +146,7 @@ const MATERIAL_NAME_FEATURE_KEYS = [
   "metalness",
   "shininess",
   "emissive",
+  "emissiveIntensity",
   "specular",
 ];
 
@@ -157,6 +158,7 @@ const MATERIAL_NAME_SUFFIXES = [
   " roughness",
   " metalness",
   " shininess",
+  " emissive intensity",
   " emissive",
   " specular",
 ];

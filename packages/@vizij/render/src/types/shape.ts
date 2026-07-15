@@ -35,6 +35,7 @@ export interface Shape extends RenderableBase {
     metalness?: Feature; // AnimatedNumber;
     color?: Feature; // AnimatedColor;
     emissive?: Feature; // AnimatedColor;
+    emissiveIntensity?: Feature; // AnimatedNumber;
     specular?: Feature; // AnimatedColor;
     translation: Feature; // AnimatedVector3;
     rotation: Feature; // AnimatedVector3;

@@ -34,6 +34,7 @@ test("standard material imports roughness, metalness, and emissive", () => {
     metalness: 0.7,
     emissive: 0x102030,
   });
+  material.emissiveIntensity = 2.5;
   material.name = "Painted Metal";
   const mesh = new Mesh(new BoxGeometry(), material);
   mesh.name = "Panel";
@@ -61,6 +62,16 @@ test("standard material imports roughness, metalness, and emissive", () => {
     g: expectedEmissive.g,
     b: expectedEmissive.b,
   });
+
+  const emissiveIntensity = featureAnimatable(
+    shape,
+    animatables,
+    "emissiveIntensity",
+  );
+  assert.equal(emissiveIntensity.type, "number");
+  assert.equal(emissiveIntensity.default, 2.5);
+  assert.deepEqual(emissiveIntensity.constraints, { min: 0 });
+  assert.equal(emissiveIntensity.name, "Painted Metal emissive intensity");
 
   assert.equal(shape.features.shininess, undefined);
   assert.equal(shape.features.specular, undefined);
@@ -138,6 +149,7 @@ test("basic material does not fabricate PBR features", () => {
   assert.equal(shape.features.roughness, undefined);
   assert.equal(shape.features.metalness, undefined);
   assert.equal(shape.features.emissive, undefined);
+  assert.equal(shape.features.emissiveIntensity, undefined);
   assert.equal(shape.features.shininess, undefined);
   assert.equal(shape.features.specular, undefined);
 });
@@ -159,7 +171,14 @@ test("meshes sharing a named material share all material animatables", () => {
   const first = importSingleMesh(meshA);
   const second = importSingleMesh(meshB, first.newColorLookup);
 
-  const keys = ["color", "opacity", "roughness", "metalness", "emissive"];
+  const keys = [
+    "color",
+    "opacity",
+    "roughness",
+    "metalness",
+    "emissive",
+    "emissiveIntensity",
+  ];
   for (const key of keys) {
     assert.equal(
       second.shape.features[key].value,
