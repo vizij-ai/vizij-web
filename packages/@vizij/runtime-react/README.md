@@ -388,18 +388,18 @@ Mount one `VizijRuntimeProvider` per face; each owns its device. Give hidden or 
 
 ### Bundle-first player
 
-See [`apps/demo-vizij-player`](../../apps/demo-vizij-player/README.md) for the reference “one bundled GLB in, runtime UI out” flow.
+See [`apps/demo-vizij-player`](../../../apps/demo-vizij-player/README.md) for the reference “one bundled GLB in, runtime UI out” flow.
 
 ### Fullscreen face tutorials
 
 See:
 
-- [`apps/tutorial-fullscreen-face/tutorial.md`](../../apps/tutorial-fullscreen-face/tutorial.md)
-- [`apps/tutorial-agent-face/tutorial.md`](../../apps/tutorial-agent-face/tutorial.md)
+- [`apps/tutorial-fullscreen-face/tutorial.md`](../../../apps/tutorial-fullscreen-face/tutorial.md)
+- [`apps/tutorial-agent-face/tutorial.md`](../../../apps/tutorial-agent-face/tutorial.md)
 
 ### Runtime-truthful authoring
 
-See [`apps/vizij-authoring/README.md`](../../apps/vizij-authoring/README.md) for the `setGraphBundle()` and `transformOutputWrite()` tooling workflow.
+See [`apps/vizij-authoring/README.md`](../../../apps/vizij-authoring/README.md) for the `setGraphBundle()` and `transformOutputWrite()` tooling workflow.
 
 ## Development
 

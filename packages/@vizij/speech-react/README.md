@@ -118,4 +118,4 @@ pnpm --filter "@vizij/speech-react" build
 pnpm --filter "@vizij/speech-react" typecheck
 ```
 
-For an end-to-end validation target, use [`apps/vizij-standalone`](../../apps/vizij-standalone/README.md), which exercises STT, LLM, TTS, viseme playback, and runtime-react integration together.
+For an end-to-end validation target, use [`apps/vizij-standalone`](../../../apps/vizij-standalone/README.md), which exercises STT, LLM, TTS, viseme playback, and runtime-react integration together.
