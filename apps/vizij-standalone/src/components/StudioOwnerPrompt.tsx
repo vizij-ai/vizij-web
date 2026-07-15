@@ -95,8 +95,8 @@ export function StudioOwnerPrompt() {
         </h2>
         <p className="mt-2 text-sm text-neutral-400">
           Enter your Semio Studio user ID (Firebase UID) so this device appears
-          in your Studio account. You can enter several, comma-separated. Skip to
-          register the device unowned — no one sees it until you claim it.
+          in your Studio account. You can enter several, comma-separated. Skip
+          to register the device unowned — no one sees it until you claim it.
         </p>
         <input
           ref={inputRef}
