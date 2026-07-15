@@ -11,11 +11,6 @@ import {
   f64,
 } from "@vizij/arora-types";
 
-type GetSlotValuesRequestPayload = {
-  requestId?: string;
-  slots?: string[];
-};
-
 /**
  * Hook that syncs WebSocket updates to the runtime.
  * Uses the same pattern as useMouseGaze from vizij-showcase:
@@ -308,60 +303,45 @@ export function useWebSocketSync() {
       );
     });
 
-    // Listen for GetSlotValues requests from the WebSocket server
-    const unlistenGetSlots = listen<GetSlotValuesRequestPayload>(
-      "get-slot-values-request",
-      async (event) => {
-        const payload = event.payload;
-        const requestedSlots = Array.isArray(payload)
-          ? payload
-          : (payload.slots ?? []);
-        console.log(
-          "[vizij-standalone] GetSlotValues request for",
-          requestedSlots.length,
-          "slots:",
-          requestedSlots,
-        );
-
-        // Build response with current values from local state
-        const values: Record<string, AroraValue> = {};
-        for (const slot of requestedSlots) {
-          const currentValue = getRigValue(slot);
-          console.log(
-            "[vizij-standalone] getRigValue for",
-            slot,
-            "=",
-            currentValue,
-          );
-          if (currentValue !== undefined) {
-            values[slot] = f64(currentValue);
-          }
-        }
-
-        console.log(
-          "[vizij-standalone] Responding with",
-          Object.keys(values).length,
-          "values",
-        );
-
-        // Send response back to Rust
-        try {
-          await invoke("respond_slot_values", { values });
-        } catch (err) {
-          console.error(
-            "[vizij-standalone] Failed to respond with slot values:",
-            err,
-          );
-        }
-      },
-    );
-
     return () => {
       unlistenUpdates.then((f) => f());
       unlistenReset.then((f) => f());
-      unlistenGetSlots.then((f) => f());
     };
   }, [ready, faceId, setRigValue, getRigValue, inputConstraints]);
+
+  // Continuously mirror the webview's live values into the native store.
+  //
+  // Replaces the old 5s one-shot `get-slot-values-request`/`respond_slot_values`
+  // pull. The `publish_values` command writes these into the shared
+  // SimpleDataStore, which fans each real change out to every attached bridge
+  // (WS `values_changed`, ROS2 publish, Studio live-data). The store is
+  // change-only, so re-pushing the full snapshot every tick is cheap.
+  useEffect(() => {
+    if (!ready) return;
+
+    const constraintKeys = Object.keys(inputConstraints);
+    if (constraintKeys.length === 0) return;
+
+    const pushValues = () => {
+      const values: Record<string, AroraValue> = {};
+      for (const path of constraintKeys) {
+        const currentValue = getRigValue(path);
+        if (currentValue !== undefined) {
+          values[path] = f64(currentValue);
+        }
+      }
+      if (Object.keys(values).length > 0) {
+        invoke("publish_values", { values }).catch((err) => {
+          console.error("[vizij-standalone] Failed to publish values:", err);
+        });
+      }
+    };
+
+    // Push once immediately, then on a 10Hz interval for live data.
+    pushValues();
+    const interval = window.setInterval(pushValues, 100);
+    return () => window.clearInterval(interval);
+  }, [ready, inputConstraints, getRigValue]);
 
   return {
     ready,
