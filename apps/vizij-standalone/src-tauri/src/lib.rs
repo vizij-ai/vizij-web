@@ -309,7 +309,7 @@ fn random_device_suffix() -> String {
 /// our own. The published client crate bakes in the public Firebase config and
 /// the production bridge endpoint, so this is zero-config: nothing to set for a
 /// normal build. Optional runtime overrides for testing/ownership: `.env`
-/// Firebase (emulator), `ZENOH_ENDPOINTS` (a non-production bridge), and
+/// Firebase (emulator), `STUDIO_BRIDGE_ENDPOINT` (a non-production bridge), and
 /// `DEVICE_OWNERS`/`DEVICE_NAME`/… (device registration).
 ///
 /// The client runs on its own thread with a private Tokio runtime and is kept
@@ -348,10 +348,10 @@ fn spawn_studio_bridge(
     // into the published `arora-studio-bridge-client` crate itself (via its
     // `FirebaseOptions::from_env` baked fallback + `ZenohDeviceClient::new`), so
     // there is nothing to configure here. A local `.env` still overrides
-    // Firebase for emulator runs; `ZENOH_ENDPOINTS` points the client at a
+    // Firebase for emulator runs; `STUDIO_BRIDGE_ENDPOINT` points the client at a
     // non-production bridge (e.g. `tcp/localhost:7447`) for local testing.
     let firebase_options = FirebaseOptions::from_env();
-    let endpoint_override = std::env::var("ZENOH_ENDPOINTS")
+    let endpoint_override = std::env::var("STUDIO_BRIDGE_ENDPOINT")
         .ok()
         .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
         .filter(|s| !s.is_empty());
@@ -381,7 +381,7 @@ fn spawn_studio_bridge(
                 let firebase_emulator_options = FirebaseEmulatorOptions::from_env();
 
                 // Default to the bridge endpoint baked into the client crate; a
-                // runtime `ZENOH_ENDPOINTS` override targets a local/preprod one.
+                // runtime `STUDIO_BRIDGE_ENDPOINT` override targets a local/preprod one.
                 let connect = match endpoint_override {
                     Some(endpoint) => {
                         info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoint: {endpoint})");
