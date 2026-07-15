@@ -96,7 +96,7 @@ The store tracks world graph entries, controllers, debug overlays, and renderabl
 ## Controllers & Helpers
 
 - Controllers under `src/controllers` encapsulate input handling, camera logic, and other behaviours. Compose them with your own React components.
-- `loadGLTF` / `loadGLTFBlob` simplify loading rig assets and extract animatable metadata used by `@vizij/rig`.
+- `loadGLTF` / `loadGLTFBlob` simplify loading rig assets and extract animatable metadata used by `@vizij/runtime-react`.
 - `export` helpers produce snapshots of the current scene (useful for tooling or exporting frames).
 
 All exports are re-exported through `src/index.tsx`, so a simple `import { loadGLTF } from "@vizij/render"` works.
@@ -132,7 +132,7 @@ pnpm --filter "@vizij/render" size
 
 ## Publishing
 
-Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../.github/workflows/publish-npm.yml).
+Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
 
 1. Align dependency versions (`three`, `@react-three/*`, `zustand`, Vizij packages) and generate a changeset:
 
@@ -158,7 +158,7 @@ Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../.github/w
 
 ## Related Packages
 
-- [`@vizij/rig`](../@vizij/rig/README.md) – Hooks that consume the renderer to load rigged models.
-- [`@vizij/animation-react`](../@vizij/animation-react/README.md) – React bindings that feed animation values back into the renderer.
+- [`@vizij/runtime-react`](../runtime-react/README.md) – Hooks that consume the renderer to load rigged models.
+- [`@vizij/animation-react`](../animation-react/README.md) – React bindings that feed animation values back into the renderer.
 
 Questions or contributions? Open an issue so we can keep the renderer API and docs sharp for the whole Vizij ecosystem. 🎨

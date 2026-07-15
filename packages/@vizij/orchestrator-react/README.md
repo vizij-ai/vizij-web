@@ -198,7 +198,7 @@ pnpm --filter "@vizij/orchestrator-react" build
 pnpm --filter "@vizij/orchestrator-react" typecheck
 ```
 
-Vitest tests mock the wasm binding to keep execution fast. When you want end-to-end coverage against the real `vizij-orchestrator-wasm` build, rebuild the WASM package in `vizij-rs` (`pnpm run build:wasm:orchestrator`) and launch the `apps/demo-orchestrator` workspace.
+Vitest tests mock the wasm binding to keep execution fast. When you want end-to-end coverage against the real `vizij-orchestrator-wasm` build, rebuild the WASM package in `vizij-rs` (`pnpm run build:wasm:orchestrator`) and launch the `apps/minimal-demo-orchestrator` workspace.
 
 ---
 
@@ -238,7 +238,7 @@ Successful runs publish with provenance metadata using `NODE_AUTH_TOKEN`.
 
 - [`@vizij/orchestrator-wasm`](../../../vizij-rs/npm/@vizij/orchestrator-wasm/README.md) – wasm wrapper consumed by this package.
 - [`vizij-orchestrator-core`](../../../vizij-rs/crates/orchestrator/vizij-orchestrator-core/README.md) – Rust crate providing orchestrator logic.
-- [`@vizij/node-graph-react`](../@vizij/node-graph-react/README.md) & [`@vizij/animation-react`](../@vizij/animation-react/README.md) – React bindings for the other Vizij stacks.
-- `apps/demo-orchestrator` – Minimal showcase using this package end-to-end.
+- [`@vizij/node-graph-react`](../node-graph-react/README.md) & [`@vizij/animation-react`](../animation-react/README.md) – React bindings for the other Vizij stacks.
+- `apps/minimal-demo-orchestrator` – Minimal showcase using this package end-to-end.
 
 Questions or feedback? Open an issue in Vizij’s main repo—great documentation keeps orchestration predictable. 🔄
