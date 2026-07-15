@@ -168,14 +168,14 @@ source. The APKs CI builds ship **with** it (see [CI](#ci-1) below).
 
 How it works: the running app dials the Studio Bridge **outbound** over Zenoh.
 Android can't host a WebSocket server or do UDP discovery, so the device reaches
-*out* to the bridge rather than the other way round. It authenticates
+_out_ to the bridge rather than the other way round. It authenticates
 **anonymously** with the public Firebase project and registers its device info.
 It reuses the exact studio-bridge device client (`arora-studio-bridge-client`),
 no second transport.
 
 **On first run the app prompts, in its own UI, for the Studio user ID (Firebase
 UID) that should own the device.** The device connects and registers regardless
-of the answer — only *which Studio account(s) can see and claim it* depends on
+of the answer — only _which Studio account(s) can see and claim it_ depends on
 it. The choice is remembered (persisted app-side), so it asks only once. Setting
 the `DEVICE_OWNERS` env var overrides the prompt entirely (see below).
 
@@ -218,16 +218,16 @@ That's the whole setup — the app connects to production Studio with **no env
 vars**. The device info is self-generated: name `vizij-<random>` (a stable suffix
 per launch), model family `Vizij`, software version `vizij-standalone-<crate
 version>`, hardware version empty. The one thing the app needs to make the device
-show up under *your* account — the owning Firebase UID — it asks for **in its own
+show up under _your_ account — the owning Firebase UID — it asks for **in its own
 UI on first run** (see [Register this device](#register-this-device-to-your-studio-account)
 below). The variables below are **optional**: `DEVICE_OWNERS` pre-answers the
 prompt for headless/scripted runs, the others point at a non-production stack.
 
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device. When set (non-empty) it **overrides** the in-UI prompt and is not persisted. | *unset* (the app prompts in-UI on first run) |
-| `STUDIO_BRIDGE_ENDPOINT` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | *unset* (baked-in production endpoint) |
-| `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators | *unset* (baked-in config) |
+| Variable                                  | Purpose                                                                                                                                                                               | Default                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `DEVICE_OWNERS`                           | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device. When set (non-empty) it **overrides** the in-UI prompt and is not persisted. | _unset_ (the app prompts in-UI on first run) |
+| `STUDIO_BRIDGE_ENDPOINT`                  | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447`                                                                                             | _unset_ (baked-in production endpoint)       |
+| `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators                                                                                                  | _unset_ (baked-in config)                    |
 
 ### Register this device to your Studio account
 
