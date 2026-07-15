@@ -12,10 +12,33 @@ import {
 import type { VizijSpeechConfig } from "@vizij/render";
 import { useWebSocketSync } from "./hooks/useWebSocketSync";
 import { useSpeechController } from "./hooks/useSpeechController";
+import { EndpointsPanel } from "./components/EndpointsPanel";
 import { saveModel, loadSavedModel, getSavedModelMeta } from "./lib/modelStore";
 
-const DEFAULT_PORT = 9000;
 const NAMESPACE = "vizij-standalone";
+
+// Persist the background color chosen for a given model, keyed by its identity
+// (file name or URL), so reopening the same GLB restores its background.
+const BG_STORAGE_PREFIX = "vizij-standalone:bg:";
+const DEFAULT_BG_COLOR = "#737373";
+
+function loadStoredBgColor(modelKey: string | null): string | null {
+  if (!modelKey) return null;
+  try {
+    return localStorage.getItem(BG_STORAGE_PREFIX + modelKey);
+  } catch {
+    return null;
+  }
+}
+
+function storeBgColor(modelKey: string | null, color: string): void {
+  if (!modelKey) return;
+  try {
+    localStorage.setItem(BG_STORAGE_PREFIX + modelKey, color);
+  } catch {
+    // Storage unavailable/full — the color just won't be remembered.
+  }
+}
 
 type StandaloneTransportEntry = {
   id: string;
@@ -42,10 +65,23 @@ function App() {
   const [assetBundle, setAssetBundle] = useState<VizijAssetBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bgColor, setBgColor] = useState("#737373");
-  const [wsConnected, setWsConnected] = useState(false);
-  const [port, setPort] = useState(DEFAULT_PORT);
+  const [bgColor, setBgColor] = useState(DEFAULT_BG_COLOR);
   const [modelName, setModelName] = useState<string | null>(null);
+
+  // Restore the background remembered for the active model (or the default when
+  // none was saved). Runs whenever the model changes.
+  useEffect(() => {
+    setBgColor(loadStoredBgColor(modelName) ?? DEFAULT_BG_COLOR);
+  }, [modelName]);
+
+  // Change the background AND remember it for the active model.
+  const handleSetBgColor = useCallback(
+    (color: string) => {
+      setBgColor(color);
+      storeBgColor(modelName, color);
+    },
+    [modelName],
+  );
   const hasCheckedCliSource = useRef(false);
 
   // Load GLB from URL
@@ -129,17 +165,19 @@ function App() {
         if (source) {
           console.log("[vizij-standalone] Loading from CLI source:", source);
           if (source.startsWith("http://") || source.startsWith("https://")) {
+            setModelName(source);
             await loadFromUrl(source);
           } else {
-            const fileContents = await readFile(source);
             const fileName =
               source.split("/").pop() ||
               source.split("\\").pop() ||
               "model.glb";
+            const fileContents = await readFile(source);
             const mimeType = fileName.toLowerCase().endsWith(".glb")
               ? "model/gltf-binary"
               : "model/gltf+json";
             const file = new File([fileContents], fileName, { type: mimeType });
+            setModelName(fileName);
             await loadFromFile(file);
           }
         } else {
@@ -162,48 +200,23 @@ function App() {
     checkCliSource();
   }, [loadFromFile, loadFromUrl]);
 
-  // Start WebSocket server
+  // Ensure the WebSocket server is running (the Rust setup starts it too; this
+  // is a fallback). Its address and live status are shown by <EndpointsPanel>,
+  // which polls the Rust side directly.
   useEffect(() => {
-    let mounted = true;
-
     const startServer = async () => {
       try {
-        invoke<number>("get_port")
-          .then((resolvedPort) => {
-            if (mounted) setPort(resolvedPort);
-          })
-          .catch(() => {
-            if (mounted) setPort(DEFAULT_PORT);
-          });
-
         const running = await invoke<boolean>("is_ws_running");
-        if (mounted) setWsConnected(running);
-
         if (!running) {
           console.log("[vizij-standalone] Starting WebSocket server...");
           await invoke("start_ws_server");
-          if (mounted) setWsConnected(true);
         }
       } catch (err) {
         console.error("[vizij-standalone] WebSocket server error:", err);
-        if (mounted) setWsConnected(false);
       }
     };
 
     startServer();
-    const interval = setInterval(async () => {
-      try {
-        const running = await invoke<boolean>("is_ws_running");
-        if (mounted) setWsConnected(running);
-      } catch {
-        if (mounted) setWsConnected(false);
-      }
-    }, 2000);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
   }, []);
 
   // Loading state
@@ -247,17 +260,7 @@ function App() {
         >
           Open GLB/GLTF File
         </button>
-        <div className="mt-8 text-sm text-neutral-500">
-          <p>WebSocket server: ws://localhost:{port}</p>
-          <p>
-            Status:{" "}
-            <span
-              className={wsConnected ? "text-green-400" : "text-yellow-400"}
-            >
-              {wsConnected ? "Running" : "Starting..."}
-            </span>
-          </p>
-        </div>
+        <EndpointsPanel className="mt-8 max-w-md text-sm text-neutral-500" />
         <p className="mt-4 text-xs text-neutral-600">
           Tip: Use --glb &lt;path-or-url&gt; to load a model on startup
         </p>
@@ -275,9 +278,7 @@ function App() {
     >
       <AppContent
         bgColor={bgColor}
-        setBgColor={setBgColor}
-        wsConnected={wsConnected}
-        port={port}
+        setBgColor={handleSetBgColor}
         onBack={() => setAssetBundle(null)}
         onSwitchModel={handleOpenFile}
         modelName={modelName}
@@ -289,8 +290,6 @@ function App() {
 interface AppContentProps {
   bgColor: string;
   setBgColor: (color: string) => void;
-  wsConnected: boolean;
-  port: number;
   onBack: () => void;
   onSwitchModel: () => void | Promise<void>;
   modelName: string | null;
@@ -299,8 +298,6 @@ interface AppContentProps {
 function AppContent({
   bgColor,
   setBgColor,
-  wsConnected,
-  port,
   onBack,
   onSwitchModel,
   modelName,
@@ -674,11 +671,8 @@ function AppContent({
             />
           </div>
           <div className="text-xs text-neutral-400">
-            <p>WS: ws://localhost:{port}</p>
-            <p className={wsConnected ? "text-green-400" : "text-yellow-400"}>
-              {wsConnected ? "Connected" : "Connecting..."}
-            </p>
-            <p className="mt-1">
+            <EndpointsPanel className="max-w-xs" />
+            <p className="mt-2">
               Runtime:{" "}
               <span
                 className={
