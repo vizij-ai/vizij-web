@@ -225,9 +225,9 @@ prompt for headless/scripted runs, the others point at a non-production stack.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device. When set (non-empty) it **overrides** the in-UI prompt and is not persisted. | _unset_ (the app prompts in-UI on first run) |
-| `STUDIO_BRIDGE_ENDPOINT` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | _unset_ (baked-in production endpoint) |
-| `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators | _unset_ (baked-in config) |
+| `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device. When set (non-empty) it **overrides** the in-UI prompt and is not persisted. | *unset* (the app prompts in-UI on first run) |
+| `STUDIO_BRIDGE_ENDPOINT` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | *unset* (baked-in production endpoint) |
+| `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators | *unset* (baked-in config) |
 
 ### Register this device to your Studio account
 
