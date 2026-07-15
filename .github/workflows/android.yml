@@ -103,29 +103,60 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: echo "Generated AVD snapshot."
 
+      # The smoke test is genuinely flaky on the headless software GPU: the
+      # emulator intermittently dies with `Failed to find ColorBuffer: N`
+      # (swiftshader surface-allocation failure), taking adb offline with it.
+      # It is not an app regression, so we retry the emulator up to two times.
+      #
+      # The retry re-invokes the whole action (a FRESH emulator boot), because a
+      # ColorBuffer crash kills the emulator process — retrying against the same
+      # dead emulator cannot recover. The per-invocation script
+      # (.github/scripts/run-android-smoke.sh) additionally absorbs a transient
+      # `adb: device offline` at test start without paying for a full reboot.
+      #
+      # Shared action inputs (both attempts):
+      # - :app scope so only our AppLaunchTest runs (the bundled tauri plugin
+      #   libraries ship their own failing ExampleInstrumentedTest).
+      # - Universal flavor: it bundles x86_64 and installs on the x86_64 emulator.
+      # - The rustBuild* tasks are excluded inside the script (they need a parent
+      #   `tauri android build`/`dev` process); the prior "Build debug APK" step
+      #   already produced the .so, so the test reuses them.
       - name: Run instrumented smoke test
+        id: smoke-1
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           arch: x86_64
           target: google_apis
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           disable-animations: true
-          # The action's `script` runs from the repo root, so cd into the Gradle project.
-          # - :app scope so only our AppLaunchTest runs (the bundled tauri plugin
-          #   libraries ship their own failing ExampleInstrumentedTest).
-          # - Universal flavor: it bundles x86_64 and installs on the x86_64 emulator.
-          # - Exclude the rustBuild* tasks: they shell out to `tauri android
-          #   android-studio-script`, which only works when driven by a parent
-          #   `tauri android build`/`dev` (it connects back to that process over a
-          #   socket). The prior "Build debug APK" step already produced the .so,
-          #   so the test reuses them instead of rebuilding.
-          script: >-
-            cd ${{ env.ANDROID_DIR }} &&
-            ./gradlew :app:connectedUniversalDebugAndroidTest
-            -x rustBuildArm64Debug -x rustBuildArmDebug
-            -x rustBuildX86Debug -x rustBuildX86_64Debug
+          script: bash .github/scripts/run-android-smoke.sh
+
+      - name: Run instrumented smoke test (fresh-emulator retry)
+        id: smoke-2
+        if: steps.smoke-1.outcome == 'failure'
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          disable-animations: true
+          script: bash .github/scripts/run-android-smoke.sh
+
+      - name: Assert smoke test passed
+        if: always()
+        run: |
+          if [ "${{ steps.smoke-1.outcome }}" = "success" ] || [ "${{ steps.smoke-2.outcome }}" = "success" ]; then
+            echo "Emulator smoke test passed (attempt-1=${{ steps.smoke-1.outcome }}, attempt-2=${{ steps.smoke-2.outcome }})."
+            exit 0
+          fi
+          echo "::error::Emulator smoke test failed on all attempts (attempt-1=${{ steps.smoke-1.outcome }}, attempt-2=${{ steps.smoke-2.outcome }})."
+          exit 1
 
   # Pushes to main: build a RELEASE APK. It is signed when the keystore secrets
   # are present, otherwise produced unsigned (the build never fails for lack of
