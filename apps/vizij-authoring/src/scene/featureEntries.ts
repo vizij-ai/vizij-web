@@ -107,6 +107,8 @@ function resolveSupportedKind(
 
   switch (key) {
     case "color":
+    case "emissive":
+    case "specular":
       return { type: "vector3", descriptorType: "rgb" };
     case "opacity":
       return { type: "number" };

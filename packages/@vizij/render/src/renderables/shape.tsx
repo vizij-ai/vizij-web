@@ -210,6 +210,41 @@ function InnerRenderedShape({
           );
         }
       },
+      roughness: (value: RawValue) => {
+        const standard = material.current as MeshStandardMaterial;
+        if (standard?.roughness !== undefined && instanceOfRawNumber(value)) {
+          standard.roughness = value;
+          standard.needsUpdate = true;
+        }
+      },
+      metalness: (value: RawValue) => {
+        const standard = material.current as MeshStandardMaterial;
+        if (standard?.metalness !== undefined && instanceOfRawNumber(value)) {
+          standard.metalness = value;
+          standard.needsUpdate = true;
+        }
+      },
+      shininess: (value: RawValue) => {
+        const phong = material.current as MeshPhongMaterial;
+        if (phong?.shininess !== undefined && instanceOfRawNumber(value)) {
+          phong.shininess = value;
+          phong.needsUpdate = true;
+        }
+      },
+      emissive: (value: RawValue) => {
+        const standard = material.current as MeshStandardMaterial;
+        if (standard?.emissive && instanceOfRawRGB(value)) {
+          standard.emissive.setRGB(value.r, value.g, value.b);
+          standard.needsUpdate = true;
+        }
+      },
+      specular: (value: RawValue) => {
+        const phong = material.current as MeshPhongMaterial;
+        if (phong?.specular && instanceOfRawRGB(value)) {
+          phong.specular.setRGB(value.r, value.g, value.b);
+          phong.needsUpdate = true;
+        }
+      },
       ...morphTargetSettings[2],
     },
     shape,
@@ -332,6 +367,8 @@ const MATERIAL_FEATURE_KEYS: Array<Extract<keyof Shape["features"], string>> = [
   "roughness",
   "metalness",
   "shininess",
+  "emissive",
+  "specular",
 ];
 
 const MATERIAL_NAME_SUFFIXES = [
@@ -342,6 +379,8 @@ const MATERIAL_NAME_SUFFIXES = [
   " roughness",
   " metalness",
   " shininess",
+  " emissive",
+  " specular",
 ];
 
 function deriveMaterialName(

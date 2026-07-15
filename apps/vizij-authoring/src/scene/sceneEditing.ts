@@ -25,6 +25,8 @@ const MATERIAL_FEATURE_KEYS = [
   "roughness",
   "metalness",
   "shininess",
+  "emissive",
+  "specular",
 ] as const;
 
 type MaterialFeatureKey = (typeof MATERIAL_FEATURE_KEYS)[number];
