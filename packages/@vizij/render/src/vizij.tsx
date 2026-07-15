@@ -2,7 +2,8 @@ import { Suspense, memo, useContext, useEffect } from "react";
 import type { ReactNode, ComponentProps, CSSProperties } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { OrthographicCamera as OrthographicCameraType } from "three";
-import { Object3D, SRGBColorSpace, NoToneMapping } from "three";
+import { Object3D, PMREMGenerator, SRGBColorSpace, NoToneMapping } from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Line, OrthographicCamera, Text } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -139,6 +140,7 @@ export function InnerVizij({
   return (
     <>
       <ambientLight intensity={Math.PI / 2} />
+      <NeutralEnvironment />
       {/* <color attach="background" args={["white"]} /> */}
       <OrthographicCamera
         makeDefault
@@ -160,6 +162,46 @@ export function InnerVizij({
 }
 
 const MemoizedInnerVizij = memo(InnerVizij);
+
+/**
+ * Generates a neutral studio environment map and applies it to the scene.
+ *
+ * Metallic PBR materials have no diffuse response, so under the viewport's
+ * ambient-only lighting they render black. glTF defaults metallicFactor to 1,
+ * which makes this a common failure mode for imported assets. A prefiltered
+ * RoomEnvironment gives those materials something to reflect while leaving
+ * unlit (Basic) materials untouched.
+ *
+ * The intensity is kept below 1 so diffuse (metalness 0) surfaces, which are
+ * also lit by the ambient light, do not wash out.
+ */
+function NeutralEnvironment({ intensity = 0.5 }: { intensity?: number }) {
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+
+  useEffect(() => {
+    const pmrem = new PMREMGenerator(gl);
+    const room = new RoomEnvironment();
+    const envTexture = pmrem.fromScene(room, 0.04).texture;
+    scene.environment = envTexture;
+    return () => {
+      if (scene.environment === envTexture) {
+        scene.environment = null;
+      }
+      envTexture.dispose();
+      pmrem.dispose();
+    };
+  }, [gl, scene]);
+
+  useEffect(() => {
+    scene.environmentIntensity = intensity;
+    return () => {
+      scene.environmentIntensity = 1;
+    };
+  }, [scene, intensity]);
+
+  return null;
+}
 
 /**
  * Renders the inner world of the scene.
