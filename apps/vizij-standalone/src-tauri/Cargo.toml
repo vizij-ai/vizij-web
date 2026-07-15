@@ -24,7 +24,7 @@ arora-ros2 = { path = "../../../packages/arora-ros2", optional = true }
 # (and arora-engine's) carry `artifact = "cdylib"` dev-bindeps that require a
 # nightly `-Z bindeps` toolchain even to resolve, which would drag the whole
 # stable standalone onto nightly. See the studio-bridge feature notes below.
-arora-studio-bridge-client = { version = "3", optional = true }
+arora-studio-bridge-client = { version = "3.1.0", optional = true }
 arora-bridge = { version = "3", optional = true }
 # Install the process-wide rustls crypto provider (ring) the Zenoh/Firebase TLS
 # stacks need — matches the provider arora-studio-bridge-client is built against.
@@ -64,8 +64,9 @@ ros2 = ["arora-ros2"]
 #
 # Build with it on (plain stable toolchain — no nightly/bindeps needed):
 #   cargo build --features studio-bridge
-# Studio endpoint/identity is environment-only (FIREBASE_*, ZENOH_ENDPOINTS,
-# DEVICE_NAME, MODEL_FAMILY, …) — the same variables arora::studio reads.
+# Zero-config: the client crate (v3.1+) bakes in the Firebase config + bridge
+# endpoint. Runtime env overrides: STUDIO_BRIDGE_ENDPOINT (non-production bridge),
+# FIREBASE_* (emulator), DEVICE_OWNERS (ownership).
 studio-bridge = ["dep:arora-studio-bridge-client", "dep:arora-bridge", "dep:rustls"]
 
 [dev-dependencies]

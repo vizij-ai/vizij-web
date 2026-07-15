@@ -164,13 +164,11 @@ of the answer — only *which Studio account(s) can see and claim it* depends on
 it. The choice is remembered (persisted app-side), so it asks only once. Setting
 the `DEVICE_OWNERS` env var overrides the prompt entirely (see below).
 
-The public Firebase config and the production bridge endpoint are **baked in at
-build time** via [`src-tauri/.cargo/config.toml`](./src-tauri/.cargo/config.toml)
-(the `arora-studio-bridge-client` crate reads them through `option_env!`, which
-resolves against the build environment). So the feature is **zero-config** —
-there is nothing to set up to reach production Studio. All those values are
-public. Runtime env still overrides: `ZENOH_ENDPOINTS` for a non-production
-bridge, `FIREBASE_*` for a different project/emulator.
+The public Firebase config and the production bridge endpoint are **baked into
+`arora-studio-bridge-client` (v3.1+)** itself, so the feature is **zero-config** —
+there is nothing to set up to reach production Studio. Runtime env still
+overrides: `STUDIO_BRIDGE_ENDPOINT` for a non-production bridge, `FIREBASE_*` for
+a different project/emulator.
 
 > Status: the bridge connects and the device registers (an owning Studio user
 > can see and claim it). Streaming the standalone's **live data** into Studio is
@@ -211,7 +209,7 @@ prompt for headless/scripted runs, the others point at a non-production stack.
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `DEVICE_OWNERS` | Comma-separated Studio user IDs (Firebase UIDs) that own — and can therefore see and claim — the device. When set (non-empty) it **overrides** the in-UI prompt and is not persisted. | _unset_ (the app prompts in-UI on first run) |
-| `ZENOH_ENDPOINTS` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | _unset_ (baked-in production endpoint) |
+| `STUDIO_BRIDGE_ENDPOINT` | Point the client at a non-production bridge (first entry wins), e.g. `tcp/localhost:7447` | _unset_ (baked-in production endpoint) |
 | `FIREBASE_*` / `FIREBASE_*_EMULATOR_HOST` | Override the baked Firebase config / point auth/firestore/storage at local emulators | _unset_ (baked-in config) |
 
 ### Register this device to your Studio account
@@ -257,7 +255,7 @@ To develop against a local Studio Bridge instead of the production one:
 1. Run a local bridge (Zenoh router) — see
    [`studio-bridge/README.md`](../../../studio-bridge/README.md); the dev router
    listens on `tcp/localhost:7447`.
-2. Launch with `ZENOH_ENDPOINTS=tcp/localhost:7447` (env or a `.env` next to the
+2. Launch with `STUDIO_BRIDGE_ENDPOINT=tcp/localhost:7447` (env or a `.env` next to the
    app). Add `FIREBASE_*_EMULATOR_HOST` if you run the Firebase emulators. Both
    override the baked-in defaults, so a studio-bridge build transparently targets
    your local stack.
