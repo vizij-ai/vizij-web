@@ -9,7 +9,7 @@ export type RuntimeFaceFrameProps = {
   subtitle?: string;
   footer?: ReactNode;
   overlay?: ReactNode;
-  pointerTargetRef?: React.RefObject<HTMLDivElement>;
+  pointerTargetRef?: React.RefObject<HTMLDivElement | null>;
   onCanvasClick?: () => void;
   skipBounds?: boolean;
 };

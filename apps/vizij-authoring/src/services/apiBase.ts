@@ -1,12 +1,14 @@
 const ENV_KEY = "VITE_API_URL";
+const DEFAULT_API_BASE =
+  "https://us-central1-semio-vizij.cloudfunctions.net/api";
 
 export const getApiBase = (): string | undefined => {
   const value = import.meta.env.VITE_API_URL;
   if (typeof value !== "string") {
-    return undefined;
+    return DEFAULT_API_BASE;
   }
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+  return trimmed.length > 0 ? trimmed : DEFAULT_API_BASE;
 };
 
 export const requireApiBase = (): string => {

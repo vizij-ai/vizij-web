@@ -98,6 +98,12 @@ vi.mock("@vizij/orchestrator-react", () => ({
   useOrchestrator: () => ({}),
 }));
 
+// The real demo mounts its own runtime provider and fetches a GLB, neither of
+// which works in jsdom.
+vi.mock("./emptyStateDemo/EmptyStateDemo", () => ({
+  EmptyStateDemo: () => <div data-testid="empty-state-demo" />,
+}));
+
 vi.mock("../../motiongraph/components/MotionGraphValueSampler", () => ({
   MotionGraphValueSampler: ({ active }: { active: boolean }) => {
     motionGraphValueSamplerSpy({ active });
@@ -182,7 +188,12 @@ describe("Viewer", () => {
       onLoadQuori: () => {},
     });
 
-    expect(container.textContent).toContain("Empty Scene");
+    expect(
+      container.querySelector('[data-testid="empty-state-demo"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="main-import-file-button"]'),
+    ).toBeTruthy();
     expect(container.querySelector('[data-testid="runtime-face"]')).toBeNull();
     unmount();
   });

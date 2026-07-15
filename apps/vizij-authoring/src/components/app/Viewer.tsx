@@ -41,6 +41,7 @@ import {
   type RuntimeFaceOverlayAction,
 } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
+import { EmptyStateDemo } from "./emptyStateDemo/EmptyStateDemo";
 import {
   applyLockedRuntimeOutputWrite,
   buildLockedRuntimeOutputIndex,
@@ -761,18 +762,23 @@ export function Viewer({
         ) : (
           <div
             data-testid="main-viewer-empty-state"
-            className="flex flex-col items-center justify-center h-full text-text-primary gap-6 p-8 text-center animate-in fade-in duration-700"
+            className="flex flex-col items-center h-full overflow-y-auto text-text-primary gap-5 p-6 text-center animate-in fade-in duration-700"
           >
             <div className="flex flex-col gap-2">
               <p className="text-text-primary font-medium text-lg">
-                Empty Scene
+                See What Vizij Can Do
               </p>
-              <p className="text-sm max-w-xs mx-auto text-text-muted">
-                Load a Vizij asset (.glb) to begin rigging and composing your
-                scene.
+              <p className="text-sm max-w-md mx-auto text-text-muted">
+                Move your cursor over the face, tap an emotion, or make it speak
+                — then load a Vizij asset (.glb) below to begin rigging and
+                composing your own scene.
               </p>
             </div>
-            <div className="flex w-full max-w-3xl flex-col items-center gap-3">
+            <EmptyStateDemo />
+            <div className="flex w-full max-w-3xl flex-col items-center gap-3 border-t border-border-default/40 pt-4">
+              <p className="text-text-primary font-medium text-lg">
+                Get Started
+              </p>
               <Button
                 data-testid="main-import-file-button"
                 onClick={onImportClick}

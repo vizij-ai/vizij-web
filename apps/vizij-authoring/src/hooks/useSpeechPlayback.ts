@@ -14,7 +14,7 @@ import {
 
 export type SpeechStatus = "idle" | "preparing" | "speaking";
 
-type VisemeTimelineEntry = {
+export type VisemeTimelineEntry = {
   start: number;
   end: number;
   transitionStart: number;
@@ -30,7 +30,7 @@ type CachedSpeech = {
 };
 
 const DEFAULT_SCRIPT =
-  "With Vizij your avatar mirrors every beat of the conversation.";
+  "Vizij is a framework for defining, animating, and deploying expressive rendered robot faces";
 const MIN_VISEME_SPAN_MS = 45;
 const MAX_VISEME_SPAN_MS = 320;
 const RELEASE_TO_NEUTRAL_MS = 120;
@@ -57,6 +57,10 @@ export interface UseSpeechPlaybackReturn {
   selectedVoice: PollyVoice;
   setSelectedVoice: (voice: PollyVoice) => void;
   error: string | null;
+  isLoading: boolean;
+  words: VisemeData["words"];
+  visemeLabels: string[];
+  activeVisemeIndex: number;
   audioRef: React.RefObject<HTMLAudioElement | null>;
   handleSpeak: (textOverride?: string) => Promise<void>;
   handleStop: () => void;
@@ -83,6 +87,10 @@ export function useSpeechPlayback({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [words, setWords] = useState<VisemeData["words"]>([]);
+  const [visemeLabels, setVisemeLabels] = useState<string[]>([]);
+  const [activeVisemeIndex, setActiveVisemeIndex] = useState(-1);
+  const activeVisemeIndexRef = useRef(-1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -281,8 +289,17 @@ export function useSpeechPlayback({
     }
   }, []);
 
+  const applyActiveVisemeIndex = useCallback((index: number) => {
+    if (activeVisemeIndexRef.current === index) {
+      return;
+    }
+    activeVisemeIndexRef.current = index;
+    setActiveVisemeIndex(index);
+  }, []);
+
+  // Keep the timeline so replaying the same audio (e.g. via the native
+  // controls) re-syncs the mouth from the start; only the cursor resets.
   const resetVisemeState = useCallback(() => {
-    visemeTimelineRef.current = [];
     transitionCursorRef.current = 0;
     lastVisemePathRef.current = null;
   }, []);
@@ -307,11 +324,13 @@ export function useSpeechPlayback({
       resetVisemeState();
       revokeAudioSrc();
       autoplayRef.current = false;
+      applyActiveVisemeIndex(-1);
       if (resetStatus) {
         setStatus("idle");
       }
     },
     [
+      applyActiveVisemeIndex,
       clearVisemeInputs,
       resetVisemeState,
       revokeAudioSrc,
@@ -330,8 +349,9 @@ export function useSpeechPlayback({
     }
     const timeMs = audioRef.current.currentTime * 1000;
     triggerTransitionsUpToTime(timeMs);
+    applyActiveVisemeIndex(findVisemeIndex(visemeTimelineRef.current, timeMs));
     rafRef.current = requestAnimationFrame(syncFromAudio);
-  }, [triggerTransitionsUpToTime]);
+  }, [applyActiveVisemeIndex, triggerTransitionsUpToTime]);
 
   const startRAF = useCallback(() => {
     if (rafRef.current != null) {
@@ -353,11 +373,18 @@ export function useSpeechPlayback({
       visemePathsRef.current = merged;
       transitionCursorRef.current = 0;
       lastVisemePathRef.current = null;
+      setVisemeLabels(timeline.map((entry) => entry.displayLabel));
+      applyActiveVisemeIndex(-1);
       if (timeline.length > 0) {
         triggerTransitionsUpToTime(0);
       }
     },
-    [defaultVisemePaths, resolveSegmentPath, triggerTransitionsUpToTime],
+    [
+      applyActiveVisemeIndex,
+      defaultVisemePaths,
+      resolveSegmentPath,
+      triggerTransitionsUpToTime,
+    ],
   );
 
   const handleSpeak = useCallback(
@@ -380,6 +407,7 @@ export function useSpeechPlayback({
       if (cached) {
         const audioUrl = URL.createObjectURL(cached.audioBlob);
         audioSrcRef.current = audioUrl;
+        setWords(cached.visemeData.words ?? []);
         updateTimeline(cached.visemeData.visemes);
         if (audioRef.current) {
           audioRef.current.src = audioUrl;
@@ -399,6 +427,7 @@ export function useSpeechPlayback({
         speechCacheRef.current.set(cacheKey, { visemeData, audioBlob });
         const audioUrl = URL.createObjectURL(audioBlob);
         audioSrcRef.current = audioUrl;
+        setWords(visemeData.words ?? []);
         updateTimeline(visemeData.visemes);
         if (audioRef.current) {
           audioRef.current.src = audioUrl;
@@ -458,6 +487,10 @@ export function useSpeechPlayback({
     selectedVoice,
     setSelectedVoice,
     error,
+    isLoading,
+    words,
+    visemeLabels,
+    activeVisemeIndex,
     audioRef,
     handleSpeak,
     handleStop,
@@ -470,7 +503,20 @@ export function useSpeechPlayback({
   };
 }
 
-const createVisemeTimeline = (
+const findVisemeIndex = (
+  timeline: VisemeTimelineEntry[],
+  timeMs: number,
+): number => {
+  for (let i = timeline.length - 1; i >= 0; i -= 1) {
+    const entry = timeline[i];
+    if (timeMs >= entry.start && timeMs < entry.end) {
+      return i;
+    }
+  }
+  return -1;
+};
+
+export const createVisemeTimeline = (
   visemes: VisemeData["visemes"],
   resolveSegmentPath: (segment: string) => string | null,
 ): VisemeTimelineEntry[] => {
