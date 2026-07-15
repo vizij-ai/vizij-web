@@ -776,6 +776,9 @@ export function Viewer({
             </div>
             <EmptyStateDemo />
             <div className="flex w-full max-w-3xl flex-col items-center gap-3 border-t border-border-default/40 pt-4">
+              <p className="text-text-primary font-medium text-lg">
+                Get Started
+              </p>
               <Button
                 data-testid="main-import-file-button"
                 onClick={onImportClick}
