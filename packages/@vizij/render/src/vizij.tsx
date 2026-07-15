@@ -2,7 +2,7 @@ import { Suspense, memo, useContext, useEffect } from "react";
 import type { ReactNode, ComponentProps, CSSProperties } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { OrthographicCamera as OrthographicCameraType } from "three";
-import { Object3D, SRGBColorSpace, NoToneMapping } from "three";
+import { Object3D, SRGBColorSpace, AgXToneMapping } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Line, OrthographicCamera, Text } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -72,7 +72,7 @@ export function Vizij({
         onPointerMissed={onPointerMissed}
         gl={{
           outputColorSpace: SRGBColorSpace,
-          toneMapping: NoToneMapping,
+          toneMapping: AgXToneMapping,
           antialias: true,
         }}
       >
@@ -93,7 +93,7 @@ export function Vizij({
           onPointerMissed={onPointerMissed}
           gl={{
             outputColorSpace: SRGBColorSpace,
-            toneMapping: NoToneMapping,
+            toneMapping: AgXToneMapping,
             antialias: true,
           }}
         >
