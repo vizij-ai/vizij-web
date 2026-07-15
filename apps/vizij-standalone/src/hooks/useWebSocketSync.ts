@@ -215,10 +215,19 @@ export function useWebSocketSync() {
     const constraintKeys = Object.keys(inputConstraints);
     if (constraintKeys.length === 0) return;
 
-    const nodes: NodeInfo[] = constraintKeys.map((path) => {
+    // Register each input under its canonical store key. The constraint map
+    // holds ~4 aliases per input (raw, namespaced, and slash-prefixed variants);
+    // normalizeSlotPath collapses them to one clean key, so the seeded catalog
+    // matches what pushValues publishes and carries no empty chunks.
+    const seenPaths = new Set<string>();
+    const nodes: NodeInfo[] = [];
+    for (const path of constraintKeys) {
+      const cleanPath = normalizeSlotPath(path);
+      if (seenPaths.has(cleanPath)) continue;
+      seenPaths.add(cleanPath);
       const constraint = inputConstraints[path];
-      return {
-        path,
+      nodes.push({
+        path: cleanPath,
         kind: "input" as const,
         value_type: "f64" as AroraType, // Current nodes are all f64
         min: constraint?.min,
@@ -227,8 +236,8 @@ export function useWebSocketSync() {
           constraint?.defaultValue != null
             ? f64(constraint.defaultValue)
             : undefined,
-      };
-    });
+      });
+    }
 
     invoke("set_slots", { slots: nodes })
       .then(() => {
@@ -240,7 +249,7 @@ export function useWebSocketSync() {
       .catch((err) => {
         console.error("[vizij-standalone] Failed to sync slots:", err);
       });
-  }, [ready, inputConstraints]);
+  }, [ready, inputConstraints, normalizeSlotPath]);
 
   // Listen for WebSocket updates
   useEffect(() => {
@@ -327,7 +336,14 @@ export function useWebSocketSync() {
       for (const path of constraintKeys) {
         const currentValue = getRigValue(path);
         if (currentValue !== undefined) {
-          values[path] = f64(currentValue);
+          // Publish under the canonical store key, not the raw constraint-map
+          // alias. Rig input paths are stored with a leading slash (e.g.
+          // "/rblid/translation/z") and the map also holds namespaced variants;
+          // publishing those verbatim yields empty Zenoh chunks once the bridge
+          // prepends "state/{uid}/" ("state/<uid>//rblid/..."). normalizeSlotPath
+          // strips the leading slash, collapses "//", and drops the namespace,
+          // which also collapses the ~4 aliases of each input to one key.
+          values[normalizeSlotPath(path)] = f64(currentValue);
         }
       }
       if (Object.keys(values).length > 0) {
@@ -341,7 +357,7 @@ export function useWebSocketSync() {
     pushValues();
     const interval = window.setInterval(pushValues, 100);
     return () => window.clearInterval(interval);
-  }, [ready, inputConstraints, getRigValue]);
+  }, [ready, inputConstraints, getRigValue, normalizeSlotPath]);
 
   return {
     ready,
