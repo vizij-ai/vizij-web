@@ -70,6 +70,12 @@ struct StudioBridgeState {
     owners_tx: tokio::sync::watch::Sender<Vec<String>>,
     needs_prompt: StdMutex<bool>,
     owners: StdMutex<Vec<String>>,
+    /// The stable `vizij-<random>` name this device registers with Studio under
+    /// (generated once at startup). Reported to the UI by [`get_endpoints`].
+    device_name: String,
+    /// Display string for the bridge router endpoint: the `STUDIO_BRIDGE_ENDPOINT`
+    /// override, or a label for the baked-in production bridge when unset.
+    endpoint: String,
 }
 
 /// Reported to the frontend by `studio_bridge_owner_status`. `active` = the app
@@ -80,6 +86,47 @@ struct StudioBridgeState {
 struct StudioOwnerStatus {
     active: bool,
     needs_prompt: bool,
+    owners: Vec<String>,
+}
+
+/// A snapshot of every endpoint this app exposes, reported to the frontend by
+/// [`get_endpoints`] so the UI can list where the device is reachable. `ros2`
+/// and `studio` are `None` when their feature is compiled out.
+#[derive(Debug, Clone, Serialize)]
+struct EndpointsInfo {
+    ws: WsEndpoint,
+    ros2: Option<Ros2Endpoint>,
+    studio: Option<StudioEndpoint>,
+}
+
+/// The WebSocket bridge (`arora-bridge-ws`): the local control socket and, when
+/// enabled, the browser control panel served on the same port.
+#[derive(Debug, Clone, Serialize)]
+struct WsEndpoint {
+    url: String,
+    web_control_url: Option<String>,
+    running: bool,
+}
+
+/// The ROS 2 data-topic bridge (`arora-bridge-ros2`): keys are published under
+/// `/{namespace}/keys/{path}` on the given DDS domain.
+#[derive(Debug, Clone, Serialize)]
+struct Ros2Endpoint {
+    domain_id: u16,
+    namespace: String,
+}
+
+/// The Semio Studio bridge: how this device registers with Studio (the device
+/// info) and which Zenoh endpoint it reaches the bridge router over.
+#[derive(Debug, Clone, Serialize)]
+struct StudioEndpoint {
+    device_name: String,
+    model_family: Option<String>,
+    software_version: Option<String>,
+    /// The Zenoh endpoint of the bridge router (an override, or the baked-in
+    /// production bridge when unset).
+    endpoint: String,
+    /// Studio user IDs that see/claim this device; empty means unclaimed.
     owners: Vec<String>,
 }
 
@@ -830,6 +877,7 @@ fn spawn_studio_bridge(
     app: AppHandle,
     owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
     initial_owners: Vec<String>,
+    device_name: String,
 ) {
     use arora_studio_bridge_client::firestore_support::options::{
         FirebaseEmulatorOptions, FirebaseOptions,
@@ -895,7 +943,6 @@ fn spawn_studio_bridge(
                     }
                 };
                 let bridge: Box<dyn Bridge> = Box::new(client);
-                let device_name = format!("vizij-{}", random_device_suffix());
                 run_studio_pump(store, app, bridge, owners_rx, device_name, initial_owners).await;
             });
         })
@@ -1116,6 +1163,40 @@ fn studio_bridge_set_owners(app_handle: AppHandle, owners: Vec<String>) -> Resul
     }
 }
 
+/// Report every endpoint this app exposes so the UI can list them. `ros2` and
+/// `studio` are populated only when their feature is compiled in.
+#[tauri::command]
+fn get_endpoints(app_handle: AppHandle) -> EndpointsInfo {
+    let state = app_handle.state::<AppState>();
+    let running = state.cancel_token.lock().unwrap().is_some();
+    let ws = WsEndpoint {
+        url: format!("ws://localhost:{}", state.port),
+        web_control_url: state.web_port.map(|p| format!("http://localhost:{p}")),
+        running,
+    };
+
+    #[cfg(feature = "ros2")]
+    let ros2 = Some(Ros2Endpoint {
+        domain_id: state.ros2_domain_id,
+        namespace: state.ros2_namespace.clone(),
+    });
+    #[cfg(not(feature = "ros2"))]
+    let ros2 = None;
+
+    #[cfg(feature = "studio-bridge")]
+    let studio = Some(StudioEndpoint {
+        device_name: state.studio.device_name.clone(),
+        model_family: Some("Vizij".to_string()),
+        software_version: Some(concat!("vizij-standalone-", env!("CARGO_PKG_VERSION")).to_string()),
+        endpoint: state.studio.endpoint.clone(),
+        owners: state.studio.owners.lock().unwrap().clone(),
+    });
+    #[cfg(not(feature = "studio-bridge"))]
+    let studio = None;
+
+    EndpointsInfo { ws, ros2, studio }
+}
+
 #[tauri::command]
 async fn set_transport_catalog(
     app_handle: AppHandle,
@@ -1221,7 +1302,7 @@ pub fn run() {
             // set up the channel the in-UI owner prompt uses to re-register live.
             // Precedence: `DEVICE_OWNERS` env → a persisted choice → empty + prompt.
             #[cfg(feature = "studio-bridge")]
-            let (studio_state, studio_owners_rx, studio_initial_owners) = {
+            let (studio_state, studio_owners_rx, studio_initial_owners, studio_device_name) = {
                 let handle = app.handle();
                 let env_owners = std::env::var("DEVICE_OWNERS")
                     .ok()
@@ -1236,14 +1317,25 @@ pub fn run() {
                 };
                 let (owners_tx, owners_rx) =
                     tokio::sync::watch::channel::<Vec<String>>(initial_owners.clone());
+                // Generate the device name once (stable across re-registrations)
+                // and resolve the endpoint label the UI shows.
+                let device_name = format!("vizij-{}", random_device_suffix());
+                let endpoint = std::env::var("STUDIO_BRIDGE_ENDPOINT")
+                    .ok()
+                    .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "Semio Studio (baked-in bridge)".to_string());
                 (
                     StudioBridgeState {
                         owners_tx,
                         needs_prompt: StdMutex::new(needs_prompt),
                         owners: StdMutex::new(initial_owners.clone()),
+                        device_name: device_name.clone(),
+                        endpoint,
                     },
                     owners_rx,
                     initial_owners,
+                    device_name,
                 )
             };
 
@@ -1298,6 +1390,7 @@ pub fn run() {
                 app.handle().clone(),
                 studio_owners_rx,
                 studio_initial_owners,
+                studio_device_name,
             );
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -1417,6 +1510,7 @@ pub fn run() {
             set_transport_catalog,
             studio_bridge_owner_status,
             studio_bridge_set_owners,
+            get_endpoints,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
