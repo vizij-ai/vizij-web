@@ -30,7 +30,7 @@ type CachedSpeech = {
 };
 
 const DEFAULT_SCRIPT =
-  "With Vizij your avatar mirrors every beat of the conversation.";
+  "Vizij is a framework for defining, animating, and deploying expressive rendered robot faces";
 const MIN_VISEME_SPAN_MS = 45;
 const MAX_VISEME_SPAN_MS = 320;
 const RELEASE_TO_NEUTRAL_MS = 120;
