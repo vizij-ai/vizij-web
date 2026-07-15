@@ -1,4 +1,4 @@
-//! Subscribe to a vizij slot topic over ROS 2 and print received values.
+//! Subscribe to a vizij key topic over ROS 2 and print received values.
 //!
 //! Used to test cross-process DDS communication.
 //!
@@ -6,10 +6,10 @@
 //!
 //! ```bash
 //! # In terminal 1 - start subscriber:
-//! cargo run --example subscribe_slot -- /vizij/slots/blink
+//! cargo run --example subscribe_slot -- /vizij/keys/blink
 //!
 //! # In terminal 2 - publish:
-//! cargo run --example publish_slot -- /vizij/slots/blink 0.8
+//! cargo run --example publish_slot -- /vizij/keys/blink 0.8
 //! ```
 
 use std::env;
@@ -34,11 +34,11 @@ async fn main() {
 
     if args.len() < 2 {
         eprintln!("Usage: subscribe_slot <topic> [--reliable]");
-        eprintln!("  topic      - ROS 2 topic name, e.g. /vizij/slots/blink");
+        eprintln!("  topic      - ROS 2 topic name, e.g. /vizij/keys/blink");
         eprintln!("  --reliable - use Reliable QoS instead of BestEffort");
         eprintln!();
         eprintln!("Example:");
-        eprintln!("  cargo run --example subscribe_slot -- /vizij/slots/blink");
+        eprintln!("  cargo run --example subscribe_slot -- /vizij/keys/blink");
         std::process::exit(1);
     }
 

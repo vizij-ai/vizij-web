@@ -73,76 +73,91 @@ To disable the panel, launch with `--no-web-control`.
 
 ## Local Control Surface
 
-The app starts a local control endpoint on `ws://127.0.0.1:<port>` and, unless disabled, serves the browser control panel on `http://127.0.0.1:<port>/`.
+The app hosts a small **multi-bridge host**: one shared `arora_simple_data_store::SimpleDataStore`
+blackboard with several `arora_bridge::Bridge` endpoints attached to it — a
+WebSocket bridge ([`arora-bridge-ws`]), an optional ROS 2 data-topic bridge
+([`arora-bridge-ros2`]), and (opt-in) the Studio Zenoh bridge. All share the
+**same** store, so a value written on any bridge fans out to every other and to
+Studio's live-data view.
 
-The frontend runtime layer publishes:
+The app starts the WebSocket endpoint on `ws://127.0.0.1:<port>` and, unless
+disabled, serves the browser control panel on `http://127.0.0.1:<port>/`.
 
-- available slots from `inputConstraints`
-- current transport catalog for animations/programs
-- speech state updates
+The webview runtime:
 
-The Rust connection manager then exposes those over the Arora protocol surface. For protocol details, inspect:
+- advertises its **key catalog** (from `inputConstraints`) via the `set_slots`
+  Tauri command — the host mirrors it onto the WS registry (driving `list_keys`
+  and the `write_values` allow-list) and seeds default values into the store;
+- **continuously mirrors** its live values into the store via the
+  `publish_values` command (10 Hz), which is what feeds live data out to WS,
+  ROS 2, and Studio;
+- applies inbound writes it receives (as the `update-values` Tauri event) back
+  into the wasm runtime.
 
-- [`src-tauri/src/connection_manager.rs`](./src-tauri/src/connection_manager.rs)
-- [`packages/@vizij/arora-types`](../../packages/@vizij/arora-types)
+The WebSocket wire vocabulary is the `arora-bridge-ws` data layer: clients
+`write_values` / `read_values` at **keys**, `list_keys`, `list_methods`, and
+`invoke` methods; the server pushes live state as unsolicited `values_changed`.
+(This is the current vocabulary — the older `set_slot_values` / `SlotInfo`
+naming is gone.)
 
-For quick manual testing:
+For protocol details, inspect:
+
+- [`src-tauri/src/host.rs`](./src-tauri/src/host.rs) — the multi-bridge pump
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs) — the Tauri commands + method surface
+
+For quick manual testing (the built-in control panel speaks this vocabulary too):
 
 ```bash
 npx wscat -c ws://localhost:9000
+# > {"type":"list_keys"}
+# > {"type":"write_values","values":{"<key>":{"f64":0.5}}}
+# > {"type":"read_values","keys":["<key>"]}
+# > {"type":"invoke","method":"reset","request_id":"r1"}
 ```
 
-The server binds to `0.0.0.0`, so LAN clients can connect as well; treat it as a local-control endpoint and only expose it on trusted networks.
+The server binds loopback by default; expose it only on trusted networks.
 
 ## ROS2 Control Surface
 
-When built with the default `ros2` feature, the Tauri app also starts an `AroraRos2Node` alongside the WebSocket server.
+When built with the default `ros2` feature, the host also attaches an
+`arora-bridge-ros2` bridge sharing the same store.
 
 Current behavior:
 
-- input slots are exposed as ROS2 topics under `/{namespace}/slots/...`
-- methods are exposed as ROS2 services under `/{namespace}/methods/...`
-- the namespace defaults to `vizij`
-- the DDS domain defaults to `0`
+- keys are exposed as ROS 2 topics under `/{namespace}/keys/...` — the device
+  **publishes** each changed key to its topic and **subscribes** to the input
+  keys (the input topics are declared up front from the key catalog, so the
+  ROS 2 bridge is rebuilt when the catalog changes)
+- **data topics only** — there is **no** ROS 2 method/service surface. The
+  `reset` / `speak` / `mute` / `transport` methods stay on the WebSocket (and
+  Studio) bridge. Restoring ROS 2 method parity is tracked in **ARORA-62**.
+- the namespace defaults to `vizij`; the DDS domain defaults to `0`
 
 Relevant files:
 
 - [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs)
-- [`src-tauri/tests/ros2_smoke.rs`](./src-tauri/tests/ros2_smoke.rs)
-- [`../../../packages/arora-ros2/src/lib.rs`](../../../packages/arora-ros2/src/lib.rs)
+- [`src-tauri/src/host.rs`](./src-tauri/src/host.rs)
 
 ### Debugging the ROS2 connection
 
-The transport layer logs its lifecycle through `log`/`env_logger`: subscription
-setup, per-message receipt, subscription errors (with exponential backoff), and
-the connection manager's state changes. Turn it on with:
+Turn on logs with:
 
 ```bash
-RUST_LOG=arora_ros2=debug,vizij_standalone_lib=debug pnpm dev
+RUST_LOG=arora_bridge_ros2=debug,vizij_standalone_lib=debug pnpm dev
 ```
 
-Two example binaries exercise a slot topic across processes, without the app:
+Two example binaries exercise a key topic across processes, without the app:
 
 ```bash
-# terminal 1 — print every value received on a slot topic
-cargo run --example subscribe_slot -- /vizij/slots/blink            # BestEffort
-cargo run --example subscribe_slot -- /vizij/slots/blink --reliable # Reliable
+# terminal 1 — print every value received on a key topic
+cargo run --example subscribe_slot -- /vizij/keys/blink            # BestEffort
+cargo run --example subscribe_slot -- /vizij/keys/blink --reliable # Reliable
 
-# terminal 2 — publish a value to the slot topic
-cargo run --example publish_slot -- /vizij/slots/blink 0.8
+# terminal 2 — publish a value to the key topic
+cargo run --example publish_slot -- /vizij/keys/blink 0.8
 ```
 
 (run from `src-tauri/`; `ROS_DOMAIN_ID` selects the DDS domain, default `0`.)
-
-Cross-implementation tests (CycloneDDS via a `ros:jazzy` Docker container
-driving `ros2 topic pub` at the app's subscriptions, including a 270+-slot
-stress case) are `#[ignore]`d in
-[`../../../packages/arora-ros2/tests/tests.rs`](../../../packages/arora-ros2/tests/tests.rs);
-run them explicitly with Docker available:
-
-```bash
-cargo test -p arora-ros2 -- --ignored
-```
 
 ## Studio Bridge (connect this app to Semio Studio)
 
@@ -170,10 +185,12 @@ there is nothing to set up to reach production Studio. Runtime env still
 overrides: `STUDIO_BRIDGE_ENDPOINT` for a non-production bridge, `FIREBASE_*` for
 a different project/emulator.
 
-> Status: the bridge connects and the device registers (an owning Studio user
-> can see and claim it). Streaming the standalone's **live data** into Studio is
-> the remaining VIZ-67 step — the runtime runs as `arora-web` wasm in the
-> webview, and this native client is not yet attached to it.
+> Status: the bridge connects, the device registers (an owning Studio user can
+> see and claim it), **and it now streams live data**. The Studio bridge is a
+> third `arora_bridge::Bridge` sharing the multi-bridge host's `SimpleDataStore`,
+> so the webview's mirrored values (via `publish_values`) fan out to Studio like
+> any other bridge, and Studio's writes flow back into the webview — closing the
+> VIZ-67 live-data gap.
 
 ### Running with the feature
 
@@ -328,7 +345,7 @@ If you see a linker error like `LNK1181: cannot open input file 'Packet.lib'`, y
 
 ### Running without ROS2 (no Npcap required)
 
-`arora-ros2` is an optional Cargo dependency behind the `ros2` feature, which is **off by default**. This means the standard dev and build commands require no Npcap installation.
+`arora-bridge-ros2` is an optional Cargo dependency behind the `ros2` feature. Building without it (`--no-default-features`) requires no Npcap installation.
 
 To enable ROS2 support explicitly:
 
@@ -456,17 +473,18 @@ Never commit `keystore.properties` or the `.jks` (both are git-ignored).
 
 WebSocket/manual panel checks:
 
-- launch the app with a known GLB and verify the browser control panel lists slots
+- launch the app with a known GLB and verify the browser control panel lists keys (`{"type":"list_keys"}`)
 - call `reset` from the panel or `wscat`
 - if a bundle contains transport items, verify the Transport tab can list, play, pause, and stop them
 
-ROS2 smoke check:
+ROS2 data-topic check (data topics only — no method services; see ARORA-62):
 
 ```bash
-cargo test --manifest-path apps/vizij-standalone/src-tauri/Cargo.toml --features ros2 --test ros2_smoke -- --ignored
+# with the app running (default `ros2` feature), from src-tauri/:
+cargo run --example list_topics                          # see /vizij/keys/... topics
+cargo run --example subscribe_slot -- /vizij/keys/<key>  # observe a published key
+cargo run --example publish_slot   -- /vizij/keys/<key> 0.8  # drive an input key
 ```
-
-The smoke test requires a built frontend and a display because it launches the Tauri app.
 
 Direct `cargo run` note:
 

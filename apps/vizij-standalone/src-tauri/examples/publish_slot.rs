@@ -1,19 +1,19 @@
-//! Publish a value to a vizij slot topic over ROS 2.
+//! Publish a value to a vizij key topic over ROS 2.
 //!
-//! This example creates a ROS 2 node, discovers available slot topics,
+//! This example creates a ROS 2 node, discovers available key topics,
 //! and publishes a Float64 message to a specified topic.
 //!
 //! # Usage
 //!
 //! ```bash
-//! # Publish 0.8 to the blink slot (default namespace "vizij"):
-//! cargo run --example publish_slot -- /vizij/slots/blink 0.8
+//! # Publish 0.8 to the blink key (default namespace "vizij"):
+//! cargo run --example publish_slot -- /vizij/keys/blink 0.8
 //!
 //! # With a custom domain:
-//! ROS_DOMAIN_ID=42 cargo run --example publish_slot -- /vizij/slots/blink 1.0
+//! ROS_DOMAIN_ID=42 cargo run --example publish_slot -- /vizij/keys/blink 1.0
 //!
 //! # Publish repeatedly (every 100ms) for 5 seconds:
-//! cargo run --example publish_slot -- /vizij/slots/blink 0.5 --repeat
+//! cargo run --example publish_slot -- /vizij/keys/blink 0.5 --repeat
 //! ```
 
 use std::env;
@@ -37,12 +37,12 @@ async fn main() {
 
     if args.len() < 3 {
         eprintln!("Usage: publish_slot <topic> <value> [--repeat]");
-        eprintln!("  topic   - ROS 2 topic name, e.g. /vizij/slots/blink");
+        eprintln!("  topic   - ROS 2 topic name, e.g. /vizij/keys/blink");
         eprintln!("  value   - f64 value to publish, e.g. 0.8");
         eprintln!("  --repeat - publish repeatedly for 5 seconds");
         eprintln!();
         eprintln!("Example:");
-        eprintln!("  cargo run --example publish_slot -- /vizij/slots/blink 0.8");
+        eprintln!("  cargo run --example publish_slot -- /vizij/keys/blink 0.8");
         std::process::exit(1);
     }
 
