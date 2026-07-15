@@ -10,13 +10,14 @@ import { createBrowserSafeId } from "@vizij/utils";
 import type { World, Group as VizijGroup } from "../../types";
 import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";
+import type { MaterialAnimatableIds } from "./import-mesh";
 
 Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export function importGroup(
   group: Group,
   namespaces: string[],
-  colorLookup: Record<string, [string, string, boolean]>,
+  colorLookup: Record<string, MaterialAnimatableIds>,
   rootBounds?: {
     center: RawVector2;
     size: RawVector2;
@@ -25,11 +26,11 @@ export function importGroup(
   World,
   Record<string, AnimatableValue>,
   string,
-  Record<string, [string, string, boolean]>,
+  Record<string, MaterialAnimatableIds>,
 ] {
   let world: World = {};
   let animatables: Record<string, AnimatableValue> = {};
-  let newColorLookup: Record<string, [string, string, boolean]> = {};
+  let newColorLookup: Record<string, MaterialAnimatableIds> = {};
   const children: string[] = [];
 
   const translationAnimatable: AnimatableVector3 = {

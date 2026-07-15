@@ -54,8 +54,22 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   const findFeature = (key: string) =>
     node.features.find((f) => f.key.toLowerCase() === key.toLowerCase());
 
-  const colorFeature = findFeature("color");
-  const opacityFeature = findFeature("opacity");
+  const colorRows = [
+    { key: "color", label: "Color" },
+    { key: "emissive", label: "Emissive" },
+    { key: "specular", label: "Specular" },
+  ]
+    .map((row) => ({ ...row, feature: findFeature(row.key) }))
+    .filter((row) => row.feature);
+
+  const scalarRows = [
+    { key: "opacity", label: "Opacity" },
+    { key: "roughness", label: "Roughness" },
+    { key: "metalness", label: "Metalness" },
+    { key: "shininess", label: "Shininess" },
+  ]
+    .map((row) => ({ ...row, feature: findFeature(row.key) }))
+    .filter((row) => row.feature);
 
   // Material Logic
   const currentMaterial =
@@ -76,7 +90,11 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
     setAnimatableValue(targetId, value, { channel, saveToDefault: true });
   };
 
-  if (!showMaterialSelector && !colorFeature && !opacityFeature) {
+  if (
+    !showMaterialSelector &&
+    colorRows.length === 0 &&
+    scalarRows.length === 0
+  ) {
     return null;
   }
 
@@ -136,10 +154,11 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
         </div>
       )}
 
-      {colorFeature && (
+      {colorRows.map((row) => (
         <RiggingColorRow
-          label="Color"
-          feature={colorFeature}
+          key={row.key}
+          label={row.label}
+          feature={row.feature!}
           bindings={bindings}
           standardInputs={standardInputs}
           standardInputsById={standardInputsById}
@@ -155,12 +174,13 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           setStaticFeatureValue={setStaticFeatureValue}
           node={node}
         />
-      )}
+      ))}
 
-      {opacityFeature && (
+      {scalarRows.map((row) => (
         <RiggingScalarRow
-          label="Opacity"
-          feature={opacityFeature}
+          key={row.key}
+          label={row.label}
+          feature={row.feature!}
           bindings={bindings}
           standardInputs={standardInputs}
           standardInputsById={standardInputsById}
@@ -176,7 +196,7 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
           setStaticFeatureValue={setStaticFeatureValue}
           node={node}
         />
-      )}
+      ))}
     </div>
   );
 }
@@ -272,12 +292,13 @@ export function RiggingScalarRow({
     targetId && lockedInspectorTargetIds.has(targetId),
   );
 
-  const minVal = isBound
+  // Undefined means the constraint is unbounded — don't clamp edits to it.
+  const minVal: number | undefined = isBound
     ? standardInput!.range.min
-    : ((feature.descriptor?.constraints as any)?.min ?? 0);
-  const maxVal = isBound
+    : (feature.descriptor?.constraints as any)?.min;
+  const maxVal: number | undefined = isBound
     ? standardInput!.range.max
-    : ((feature.descriptor?.constraints as any)?.max ?? 0);
+    : (feature.descriptor?.constraints as any)?.max;
 
   const currentValue = authority.currentValue;
 
@@ -416,8 +437,8 @@ export function RiggingScalarRow({
         <CommitOnBlurNumberInput
           value={typeof val === "number" ? val : 0}
           step={0.01}
-          min={0}
-          max={1}
+          min={type === "current" || type === "default" ? minVal : undefined}
+          max={type === "current" || type === "default" ? maxVal : undefined}
           disabled={!canEdit}
           className="pl-1"
           onCommit={(num) => {
