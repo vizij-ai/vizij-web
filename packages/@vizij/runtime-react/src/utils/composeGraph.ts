@@ -1,19 +1,19 @@
 /**
  * Compose several Vizij graph specs into the ONE graph an Arora device runs.
  *
- * The device runs a single ProcessingGraph as its behavior, so what the
- * orchestrator used to hold as separate controllers (rig graph, pose graph,
- * playing program graphs) becomes a union of nodes and edges here. Node ids
+ * The device runs a single ProcessingGraph as its behavior, so the separate
+ * graph sources (rig graph, pose graph, playing program graphs) become a
+ * union of nodes and edges here. Node ids
  * are prefixed `${sourceId}::` so sources can't collide; `params.path` is
  * deliberately NOT prefixed — path identity on the device's shared store is
  * the cross-graph contract (a pose output written to a store path is read by
  * a rig input node with the same path on the next tick).
  *
  * Output-path collisions across sources (two `output` nodes writing one
- * path) are warned and resolved last-writer-wins by evaluation order. The
- * orchestrator's `add` merge for that case has no counterpart yet; current
- * bundles don't collide. If a real bundle does, insert an explicit combiner
- * node here instead of widening this warning.
+ * path) are warned and resolved last-writer-wins by evaluation order; there
+ * is no additive merge for that case yet, and current bundles don't collide.
+ * If a real bundle does, insert an explicit combiner node here instead of
+ * widening this warning.
  */
 
 type SpecRecord = Record<string, unknown>;
@@ -78,7 +78,7 @@ export function composeGraphSpecs(sources: GraphSource[]): ComposableSpec {
       if (owner && owner !== sourceId) {
         console.warn(
           `[vizij-runtime] output path "${path}" is written by both "${owner}" and "${sourceId}"; ` +
-            `last writer wins ("${sourceId}"). The orchestrator's "add" merge has no combiner node yet.`,
+            `last writer wins ("${sourceId}"). There is no combiner node for additive merges yet.`,
         );
       }
       outputOwners.set(path, sourceId);

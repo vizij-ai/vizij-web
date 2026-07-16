@@ -100,7 +100,7 @@ export function HeroSection() {
             key={face.namespace}
             active={hasEntered}
             visible={isVisible}
-            driveOrchestrator={index === 0}
+            driveRuntime={index === 0}
             label={face.label}
           >
             <HeroPassiveBehavior enabled={isVisible} />

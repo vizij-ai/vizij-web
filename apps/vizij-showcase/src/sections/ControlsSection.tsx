@@ -23,7 +23,7 @@ export function ControlsSection() {
         asset="quoriCurrentExtended"
         active={hasEntered}
         autostart={false}
-        driveOrchestrator={false}
+        driveRuntime={false}
         visible={isVisible}
         label="Rig composer"
         fallback={<ControlsFallback />}

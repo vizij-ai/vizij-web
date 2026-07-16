@@ -197,7 +197,7 @@ export type RuntimeError = {
   cause?: unknown;
   phase?:
     | "assets"
-    | "orchestrator"
+    | "engine"
     | "registration"
     | "animation"
     | "bridge"
@@ -353,7 +353,7 @@ export type VizijRuntimeProviderProps = {
   updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
   autostart?: boolean;
-  driveOrchestrator?: boolean;
+  driveRuntime?: boolean;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;

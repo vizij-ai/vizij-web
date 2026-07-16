@@ -3,11 +3,9 @@
  *
  * One wasm module per realm and one device per provider: `init()` is
  * memoized module-globally (StrictMode double-mounts must not race two wasm
- * initializations — same discipline as the orchestrator wrapper had), and
- * device creation is deduped through a promise so concurrent boots share one
- * device. Devices are deliberately never freed on unmount: the provider can
- * remount around a live device (parity with the orchestrator provider, whose
- * instance also outlived unmounts).
+ * initializations), and device creation is deduped through a promise so
+ * concurrent boots share one device. Devices are deliberately never freed on
+ * unmount: the provider can remount around a live device.
  *
  * Changing the composed graph goes through `restartDevice`: the device's
  * behavior is fixed at construction in arora-web 5.2, so a recompose tears

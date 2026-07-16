@@ -88,7 +88,7 @@ export function ReferenceFacePanel({
             file={referenceFace.file}
             active={true}
             visible={true}
-            driveOrchestrator={true}
+            driveRuntime={true}
             onStandardInputsReady={referenceFace.onStandardInputsReady}
             onLoadingStateChange={referenceFace.onLoadingStateChange}
             onAnimateValueReady={referenceFace.onAnimateValueReady}

@@ -274,7 +274,7 @@ function App() {
       assetBundle={assetBundle}
       namespace={NAMESPACE}
       autostart={true}
-      driveOrchestrator={true}
+      driveRuntime={true}
     >
       <AppContent
         bgColor={bgColor}
