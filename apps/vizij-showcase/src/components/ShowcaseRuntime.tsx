@@ -14,7 +14,7 @@ type ShowcaseRuntimeProps = {
   active?: boolean;
   fallback?: ReactNode;
   autostart?: boolean;
-  driveOrchestrator?: boolean;
+  driveRuntime?: boolean;
   visible?: boolean;
   hiddenStepHz?: number;
   label?: string;
@@ -27,7 +27,7 @@ export function ShowcaseRuntime({
   active = true,
   fallback = null,
   autostart = true,
-  driveOrchestrator = false,
+  driveRuntime = false,
   visible = true,
   hiddenStepHz = 1,
   label,
@@ -42,21 +42,21 @@ export function ShowcaseRuntime({
   }
 
   const shouldAutostart = autostart && visible;
-  const shouldDriveVisible = driveOrchestrator && visible;
-  const shouldDriveHidden = driveOrchestrator && !visible && hiddenStepHz > 0;
+  const shouldDriveVisible = driveRuntime && visible;
+  const shouldDriveHidden = driveRuntime && !visible && hiddenStepHz > 0;
 
   return (
     <VizijRuntimeProvider
       assetBundle={bundle}
       autostart={shouldAutostart}
-      driveOrchestrator={shouldDriveVisible}
+      driveRuntime={shouldDriveVisible}
     >
       <HiddenStepController enabled={shouldDriveHidden} hz={hiddenStepHz} />
       <RuntimeDebugBeacon
         namespace={namespace}
         label={label}
         visible={visible}
-        driver={driveOrchestrator}
+        driver={driveRuntime}
         autostart={shouldAutostart}
         hiddenStepHz={hiddenStepHz}
       />

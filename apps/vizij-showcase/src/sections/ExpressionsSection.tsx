@@ -27,7 +27,7 @@ export function ExpressionsSection() {
           asset="quoriCurrentExtended"
           active={hasEntered}
           autostart={poseActive && isVisible}
-          driveOrchestrator={false}
+          driveRuntime={false}
           visible={isVisible}
           hiddenStepHz={0}
           label="Expressions · panel"
@@ -43,7 +43,7 @@ export function ExpressionsSection() {
             asset="quoriCurrentExtended"
             active={hasEntered}
             autostart={poseActive && isVisible}
-            driveOrchestrator
+            driveRuntime
             visible={isVisible}
             hiddenStepHz={poseActive ? 1 : 0}
             label="Expressions · Quori"
