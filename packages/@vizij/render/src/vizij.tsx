@@ -2,7 +2,7 @@ import { Suspense, memo, useContext, useEffect } from "react";
 import type { ReactNode, ComponentProps, CSSProperties } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { OrthographicCamera as OrthographicCameraType } from "three";
-import { Object3D, SRGBColorSpace, AgXToneMapping } from "three";
+import { Object3D, SRGBColorSpace } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Line, OrthographicCamera, Text } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -12,7 +12,8 @@ import { useDefaultVizijStore } from "./store";
 import { useVizijStore } from "./hooks/use-vizij-store";
 import { recordRenderCounter } from "./memoryInvestigation";
 import type { VizijActions, VizijData } from "./store-types";
-import type { Group } from "./types";
+import type { Group, ToneMappingMode } from "./types";
+import { resolveToneMapping } from "./types";
 import { SelectionGlowEffect } from "./effects/selection-glow-effect";
 
 type RootBounds = NonNullable<Group["rootBounds"]>;
@@ -26,6 +27,13 @@ export interface VizijProps {
   namespace?: string;
   showSafeArea?: boolean;
   showSelectionGlow?: boolean;
+  /**
+   * View-transform applied by the WebGL renderer. Defaults to `"none"`
+   * (no tone mapping — matches plain web/canvas rendering). Faces authored in
+   * Blender typically want `"agx"` to compress over-driven emissive. Applied
+   * reactively, so it can be changed at runtime without remounting the canvas.
+   */
+  toneMapping?: ToneMappingMode;
   onPointerMissed?: ComponentProps<typeof Canvas>["onPointerMissed"];
 }
 
@@ -51,6 +59,7 @@ export function Vizij({
   namespace = "default",
   showSafeArea = false,
   showSelectionGlow = false,
+  toneMapping = "none",
   onPointerMissed,
 }: VizijProps): ReactNode {
   const ctx = useContext(VizijContext);
@@ -72,7 +81,6 @@ export function Vizij({
         onPointerMissed={onPointerMissed}
         gl={{
           outputColorSpace: SRGBColorSpace,
-          toneMapping: AgXToneMapping,
           antialias: true,
         }}
       >
@@ -81,6 +89,7 @@ export function Vizij({
           namespace={namespace}
           showSafeArea={showSafeArea}
           showSelectionGlow={showSelectionGlow}
+          toneMapping={toneMapping}
         />
       </Canvas>
     );
@@ -93,7 +102,6 @@ export function Vizij({
           onPointerMissed={onPointerMissed}
           gl={{
             outputColorSpace: SRGBColorSpace,
-            toneMapping: AgXToneMapping,
             antialias: true,
           }}
         >
@@ -102,6 +110,7 @@ export function Vizij({
             namespace={namespace}
             showSafeArea={showSafeArea}
             showSelectionGlow={showSelectionGlow}
+            toneMapping={toneMapping}
           />
         </Canvas>
       </VizijContext.Provider>
@@ -119,6 +128,7 @@ export interface InnerVizijProps {
   };
   showSafeArea?: boolean;
   showSelectionGlow?: boolean;
+  toneMapping?: ToneMappingMode;
 }
 
 export function InnerVizij({
@@ -127,6 +137,7 @@ export function InnerVizij({
   container,
   showSafeArea,
   showSelectionGlow,
+  toneMapping = "none",
 }: InnerVizijProps) {
   const sceneParentSizing: { width: number; height: number } | undefined =
     container
@@ -139,6 +150,7 @@ export function InnerVizij({
   return (
     <>
       <ambientLight intensity={Math.PI / 2} />
+      <ToneMappingController mode={toneMapping} />
       {/* <color attach="background" args={["white"]} /> */}
       <OrthographicCamera
         makeDefault
@@ -160,6 +172,43 @@ export function InnerVizij({
 }
 
 const MemoizedInnerVizij = memo(InnerVizij);
+
+/**
+ * Applies the selected tone-mapping mode to the WebGL renderer.
+ *
+ * Lives inside the `<Canvas>` so it can reach the renderer via `useThree`.
+ * three bakes the tone-mapping operator into each material's compiled program,
+ * so changing `gl.toneMapping` at runtime requires flagging existing materials
+ * for recompilation — otherwise already-rendered faces keep their old look
+ * until they happen to recompile for another reason.
+ */
+function ToneMappingController({ mode }: { mode: ToneMappingMode }) {
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+
+  useEffect(() => {
+    const resolved = resolveToneMapping(mode);
+    if (gl.toneMapping === resolved) {
+      return;
+    }
+    gl.toneMapping = resolved;
+    scene.traverse((object) => {
+      const material = (object as { material?: unknown }).material;
+      if (!material) {
+        return;
+      }
+      if (Array.isArray(material)) {
+        material.forEach((mat) => {
+          (mat as { needsUpdate?: boolean }).needsUpdate = true;
+        });
+      } else {
+        (material as { needsUpdate?: boolean }).needsUpdate = true;
+      }
+    });
+  }, [gl, scene, mode]);
+
+  return null;
+}
 
 /**
  * Renders the inner world of the scene.

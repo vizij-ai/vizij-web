@@ -6,6 +6,7 @@ import {
   type VizijPoseRigConfig,
   type VizijSpeechConfig,
   type VizijData,
+  type ToneMappingMode,
 } from "@vizij/render";
 import {
   buildRigGraphSpec,
@@ -119,6 +120,7 @@ interface UseVizijExportOptions {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
   loadedBundle: VizijBundleExtension | null;
+  toneMapping?: ToneMappingMode;
   authoredAnimationClips?: AnimationClipIR[];
   animatableComponents: AnimatableComponent[];
   animatables: Record<string, AnimatableValue>;
@@ -574,6 +576,7 @@ export function useVizijExport(
     includeVizijBundle,
     includeImportedAnimations,
     loadedBundle,
+    toneMapping,
     authoredAnimationClips,
     animatableComponents,
     animatables,
@@ -939,6 +942,7 @@ export function useVizijExport(
           faceId: exportFaceId,
           sourceName,
           loadedBundle,
+          toneMapping,
           poseRig,
           animatablesForExport,
           animatableComponents,
@@ -1123,6 +1127,7 @@ export function useVizijExport(
     setStoreState,
     sourceName,
     standardInputsById,
+    toneMapping,
     validOutputTargets,
     values,
   ]);
@@ -1328,6 +1333,7 @@ interface BuildVizijBundleOptions {
   faceId: string;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
+  toneMapping?: ToneMappingMode;
   poseRig: PoseRigExportState;
   animatablesForExport: Record<string, AnimatableValue>;
   animatableComponents: AnimatableComponent[];
@@ -1670,6 +1676,8 @@ function buildVizijBundle(
         }
       : null,
     animations: mergedAnimations,
+    // Preserve any previously-imported value if the caller did not supply one.
+    toneMapping: options.toneMapping ?? loadedBundle?.toneMapping,
     metadata: bundleMetadata,
   };
 }
