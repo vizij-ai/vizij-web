@@ -22,7 +22,6 @@ const ALL_PACKAGES = [
   "animation-wasm",
   "arora-web-wasm",
   "node-graph-wasm",
-  "orchestrator-wasm",
   "value-json",
   "wasm-loader",
   "test-fixtures",
@@ -37,8 +36,8 @@ Usage:
 
 Examples:
   pnpm run wasm:status
-  pnpm run wasm:link -- --pkgs "node-graph-wasm orchestrator-wasm"
-  WASM_PKGS="graph orchestrator" pnpm run wasm:link
+  pnpm run wasm:link -- --pkgs "node-graph-wasm arora-web-wasm"
+  WASM_PKGS="graph arora-web-wasm" pnpm run wasm:link
   pnpm run wasm:unlink -- --pkgs "all"
 
 Notes:
@@ -106,7 +105,6 @@ function normalizePackageToken(token) {
   if (t === "animation") return "animation-wasm";
   if (t === "graph") return "node-graph-wasm";
   if (t === "node-graph") return "node-graph-wasm";
-  if (t === "orchestrator") return "orchestrator-wasm";
   if (t === "fixtures") return "test-fixtures";
   return t;
 }
