@@ -124,6 +124,30 @@ and namespacing keeps their store keys apart.
 from its own loop; use it for surfaces that are stepped manually (see
 [Manual stepping](#manual-stepping)) or at a background cadence.
 
+### Where the composed graph comes from
+
+The device runs **one** graph, composed from several sources
+(`composeGraphSpecs`; the live list is `graphSourcesRef` in
+`VizijRuntimeProvider`). Each source has a distinct provenance:
+
+- **Rig graph** — shipped in the loaded GLB/asset bundle (`VIZIJ_bundle`'s
+  rig, or the explicit `rig` override). It maps rig input paths to the
+  face's morph/bone/material writes: this is the face itself.
+- **Pose-driver graph** — the bundle's `pose` graph (or the
+  `pose-driver`/`pose` graph discovered in the bundle). It turns high-level
+  pose controls into rig-input writes, which the rig source reads back
+  through the shared store paths on the next tick.
+- **Program graphs** — one source per *playing* program: procedural graphs
+  from the bundle's `programs` started via the transport, and (in
+  `vizij-authoring`) the motiongraph editor's graph, published as a program
+  so it evaluates on the device like everything else.
+
+Sources are namespaced by id (`source::node`) so nodes can't collide;
+**store paths are deliberately shared** — that is the cross-source contract.
+Bundle `animations` are *not* graph sources today: clips tick in the JS clip
+pipeline and only their computed values enter the device as inputs (moving
+them into the device is tracked as VIZ-61).
+
 ### Asset reloads vs graph re-registration
 
 When you swap the `assetBundle` prop, the runtime decides whether it needs to reload assets or only re-register controllers. That behavior is controlled by `updateTier` and is also exposed as `resolveRuntimeUpdatePlan()`.

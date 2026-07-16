@@ -2,8 +2,12 @@
  * Compose several Vizij graph specs into the ONE graph an Arora device runs.
  *
  * The device runs a single ProcessingGraph as its behavior, so the separate
- * graph sources (rig graph, pose graph, playing program graphs) become a
- * union of nodes and edges here. Node ids
+ * graph sources become a union of nodes and edges here. Sources and their
+ * provenance (see `graphSourcesRef` in VizijRuntimeProvider for details):
+ * the **rig** graph shipped in the loaded GLB/asset bundle, the bundle's
+ * **pose-driver** graph, and one source per **playing program** (bundle
+ * programs and the authoring motiongraph, which publishes the editor's
+ * graph as a program). Node ids
  * are prefixed `${sourceId}::` so sources can't collide; `params.path` is
  * deliberately NOT prefixed — path identity on the device's shared store is
  * the cross-graph contract (a pose output written to a store path is read by
