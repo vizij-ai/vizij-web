@@ -1258,7 +1258,7 @@ export function VizijRuntimeProvider({
   updateTier = "auto",
   autoCreate = true,
   autostart = false,
-  driveOrchestrator = true,
+  driveRuntime = true,
   mergeStrategy,
   onRegisterControllers,
   onStatusChange,
@@ -1280,7 +1280,7 @@ export function VizijRuntimeProvider({
         updateTier={updateTier}
         autoCreate={autoCreate}
         autostart={autostart}
-        driveOrchestrator={driveOrchestrator}
+        driveRuntime={driveRuntime}
         mergeStrategy={mergeStrategy}
         onRegisterControllers={onRegisterControllers}
         onStatusChange={onStatusChange}
@@ -1308,7 +1308,7 @@ type VizijRuntimeProviderInnerProps = {
   children: ReactNode;
   autoCreate: boolean;
   autostart: boolean;
-  driveOrchestrator: boolean;
+  driveRuntime: boolean;
 };
 
 function VizijRuntimeProviderInner({
@@ -1324,7 +1324,7 @@ function VizijRuntimeProviderInner({
   children,
   autoCreate,
   autostart,
-  driveOrchestrator,
+  driveRuntime,
 }: VizijRuntimeProviderInnerProps) {
   const [assetBundleOverride, setAssetBundleOverride] =
     useState<VizijAssetBundle | null>(null);
@@ -1446,7 +1446,7 @@ function VizijRuntimeProviderInner({
   const baseOutputPathsRef = useRef<Set<string>>(new Set());
   const namespacedOutputPathsRef = useRef<Set<string>>(new Set());
   const namespaceRef = useRef(namespace);
-  const driveOrchestratorRef = useRef(driveOrchestrator);
+  const driveRuntimeRef = useRef(driveRuntime);
   const rigInputMapRef = useRef<Record<string, string>>({});
   const rigPoseControlInputIdsRef = useRef<Set<string>>(new Set());
   const registeredGraphsRef = useRef<string[]>([]);
@@ -1534,7 +1534,7 @@ function VizijRuntimeProviderInner({
       ready: status.ready,
       loading: status.loading,
       autostart,
-      driveOrchestrator,
+      driveRuntime,
       loopMode,
       outputCount: status.outputPaths.length,
       graphControllerCount: status.controllers.graphs.length,
@@ -1555,7 +1555,7 @@ function VizijRuntimeProviderInner({
     });
   }, [
     autostart,
-    driveOrchestrator,
+    driveRuntime,
     faceId,
     loopMode,
     namespace,
@@ -1753,9 +1753,9 @@ function VizijRuntimeProviderInner({
   }, [autostart, updateLoopMode]);
 
   // ---------------------------------------------------------------------------
-  // The engine surface, device-backed. These keep the call shapes the file
-  // grew around the orchestrator (synchronous registration returning ids,
-  // snapshot getters), implemented over the single Arora device: registered
+  // The engine surface, device-backed. The call shapes (synchronous
+  // registration returning ids, snapshot getters) are implemented over the
+  // single Arora device: registered
   // graphs accumulate as sources in graphSourcesRef, and every registration
   // change recomposes the one graph and restarts the device, carrying the
   // store across (engine/aroraEngine.ts). Animations register as ids only —
@@ -1785,14 +1785,14 @@ function VizijRuntimeProviderInner({
         pushError({
           message: "Failed to (re)start the arora device",
           cause: err,
-          phase: "orchestrator",
+          phase: "engine",
           timestamp: performance.now(),
         });
       });
   }, [deviceSlot, pushError]);
 
   /** `ready` = wasm loaded; the device itself boots on first registration. */
-  const createOrchestrator = useCallback(async () => {
+  const initEngine = useCallback(async () => {
     await ensureWasmInit();
     setReady(true);
   }, []);
@@ -1865,7 +1865,7 @@ function VizijRuntimeProviderInner({
     [],
   );
 
-  const orchestratorSetInput = useCallback(
+  const deviceSetInput = useCallback(
     (path: string, value: ValueJSON, _shape?: ShapeJSON) => {
       const handle = deviceSlot.current;
       if (handle) {
@@ -1995,8 +1995,8 @@ function VizijRuntimeProviderInner({
   }, [namespace, faceId, reportStatus]);
 
   useEffect(() => {
-    driveOrchestratorRef.current = driveOrchestrator;
-  }, [driveOrchestrator]);
+    driveRuntimeRef.current = driveRuntime;
+  }, [driveRuntime]);
 
   const glbAsset = effectiveAssetBundle.glb;
   const baseBundle: VizijBundleExtension | null =
@@ -2124,16 +2124,16 @@ function VizijRuntimeProviderInner({
 
   useEffect(() => {
     if (!ready && autoCreate) {
-      createOrchestrator().catch((err: unknown) => {
+      initEngine().catch((err: unknown) => {
         pushError({
-          message: "Failed to create orchestrator runtime",
+          message: "Failed to initialize the engine",
           cause: err,
-          phase: "orchestrator",
+          phase: "engine",
           timestamp: performance.now(),
         });
       });
     }
-  }, [ready, autoCreate, createOrchestrator, pushError]);
+  }, [ready, autoCreate, initEngine, pushError]);
 
   const registerControllers = useCallback(async () => {
     clearControllers();
@@ -2626,13 +2626,13 @@ function VizijRuntimeProviderInner({
       const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
       const staged = stagedInputsRef.current.get(namespacedPath);
       if (staged) {
-        orchestratorSetInput(namespacedPath, staged.value, staged.shape);
+        deviceSetInput(namespacedPath, staged.value, staged.shape);
         stagedInputsRef.current.delete(namespacedPath);
         return;
       }
-      orchestratorSetInput(namespacedPath, { float: value });
+      deviceSetInput(namespacedPath, { float: value });
     },
-    [orchestratorSetInput, setInput],
+    [deviceSetInput, setInput],
   );
 
   const clearAnimationInput = useCallback(
@@ -3385,10 +3385,10 @@ function VizijRuntimeProviderInner({
       return;
     }
     stagedInputsRef.current.forEach(({ value, shape }, path) => {
-      orchestratorSetInput(path, value, shape);
+      deviceSetInput(path, value, shape);
     });
     stagedInputsRef.current.clear();
-  }, [orchestratorSetInput]);
+  }, [deviceSetInput]);
 
   const step = useCallback(
     (dt: number, opts?: { forceRuntime?: boolean }) => {
@@ -3399,7 +3399,7 @@ function VizijRuntimeProviderInner({
       }
       advanceAnimations(dt);
       flushStagedInputs();
-      if (driveOrchestratorRef.current || opts?.forceRuntime) {
+      if (driveRuntimeRef.current || opts?.forceRuntime) {
         stepRuntime(dt);
       }
     },

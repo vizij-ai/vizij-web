@@ -8,7 +8,7 @@ At runtime the app:
 
 1. loads a GLB from a CLI `--glb` source or the file picker
 2. builds a `VizijAssetBundle` from either a URL or a local file blob
-3. mounts `VizijRuntimeProvider` with `autostart` and `driveOrchestrator={true}`
+3. mounts `VizijRuntimeProvider` with `autostart` and `driveRuntime={true}`
 4. mirrors runtime `inputConstraints`, speech state, and transport inventory back to the Rust side
 5. applies incoming WebSocket or ROS2 control messages through the shared connection manager
 

@@ -20,7 +20,7 @@ import {
  * Maintains local input values state (like vizij-authoring's bindingAuthoringStore)
  * to track values we've set, since the orchestrator consumes inputs during evaluation.
  *
- * No step() call needed - driveOrchestrator={true} handles evaluation.
+ * No step() call needed - driveRuntime={true} handles evaluation.
  */
 export function useWebSocketSync() {
   const {
@@ -203,7 +203,7 @@ export function useWebSocketSync() {
       console.log("[vizij-standalone] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
 
-      // No step() needed - driveOrchestrator handles the animation loop
+      // No step() needed - driveRuntime handles the animation loop
     },
     [ready, setInput, faceId, normalizeSlotPath],
   );

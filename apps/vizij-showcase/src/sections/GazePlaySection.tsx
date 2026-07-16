@@ -22,7 +22,7 @@ export function GazePlaySection() {
         asset="quoriCurrentExtended"
         active={hasEntered}
         autostart={isVisible}
-        driveOrchestrator
+        driveRuntime
         visible={isVisible}
         hiddenStepHz={1}
         label="Gaze"

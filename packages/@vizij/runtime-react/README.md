@@ -120,7 +120,7 @@ mirrors changed values into the renderer store after every step. Providers
 are fully isolated from each other — multiple faces mean multiple devices,
 and namespacing keeps their store keys apart.
 
-`driveOrchestrator={false}` mounts a runtime that does not step its device
+`driveRuntime={false}` mounts a runtime that does not step its device
 from its own loop; use it for surfaces that are stepped manually (see
 [Manual stepping](#manual-stepping)) or at a background cadence.
 
@@ -204,7 +204,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 - `updateTier`: `"auto"` (default), `"assets"`, or `"graphs"`
 - `autoCreate`: load the engine wasm and boot the device automatically on mount
 - `autostart`: start the runtime loop automatically after registration
-- `driveOrchestrator`: whether this runtime instance should call `step()` during its loop
+- `driveRuntime`: whether this runtime instance should call `step()` during its loop
 - `mergeStrategy`: forwarded to graph registration
 - `transformOutputWrite(write)`: intercept or drop output writes before they hit the renderer store
 - `onRegisterControllers(ids)`: receive registered graph/animation ids
@@ -213,7 +213,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 ### Important runtime flags
 
 - `autostart` controls whether the device begins stepping automatically once ready.
-- `driveOrchestrator={false}` is useful for faces stepped manually or at a background cadence.
+- `driveRuntime={false}` is useful for faces stepped manually or at a background cadence.
 - `transformOutputWrite` is the hook to remap or suppress specific runtime outputs before they update renderer state.
 
 ## Runtime Context API
@@ -384,7 +384,7 @@ This is the same policy used internally by the provider to decide between:
 
 ### Multiple faces in one app
 
-Mount one `VizijRuntimeProvider` per face; each owns its device. Give hidden or non-driver faces `driveOrchestrator={false}` and step them at a background cadence (see `vizij-showcase`'s `HiddenStepController`).
+Mount one `VizijRuntimeProvider` per face; each owns its device. Give hidden or non-driver faces `driveRuntime={false}` and step them at a background cadence (see `vizij-showcase`'s `HiddenStepController`).
 
 ### Bundle-first player
 
