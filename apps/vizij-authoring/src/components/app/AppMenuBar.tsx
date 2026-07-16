@@ -1,4 +1,6 @@
 import React from "react";
+import type { ToneMappingMode } from "@vizij/render";
+import { TONE_MAPPING_MODES, TONE_MAPPING_LABELS } from "@vizij/render";
 import {
   MenuBar,
   Menu,
@@ -36,6 +38,8 @@ interface AppMenuBarProps {
   saveDirty: boolean;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
+  toneMapping: ToneMappingMode;
+  onSelectToneMapping: (mode: ToneMappingMode) => void;
   activeEditFocus: EditFocus;
   onSelectEditFocus: (focus: EditFocus) => void;
   rotationDisplayMode: RotationDisplayMode;
@@ -55,6 +59,8 @@ export function AppMenuBar({
   saveDirty,
   showSelectionGlow,
   onToggleSelectionGlow,
+  toneMapping,
+  onSelectToneMapping,
   activeEditFocus,
   onSelectEditFocus,
   rotationDisplayMode,
@@ -409,6 +415,24 @@ export function AppMenuBar({
         >
           Dark Mode
         </MenuCheckboxItem>
+        <MenuSubmenu
+          label="Tone Mapping (current face)"
+          testId="app-menu-settings-tone-mapping"
+        >
+          {TONE_MAPPING_MODES.map((mode) => (
+            <MenuCheckboxItem
+              key={mode}
+              checked={toneMapping === mode}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  onSelectToneMapping(mode);
+                }
+              }}
+            >
+              {TONE_MAPPING_LABELS[mode]}
+            </MenuCheckboxItem>
+          ))}
+        </MenuSubmenu>
       </Menu>
 
       <Button

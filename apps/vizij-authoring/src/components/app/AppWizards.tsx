@@ -1,4 +1,5 @@
 import React from "react";
+import type { ToneMappingMode } from "@vizij/render";
 import { DiscrepancyWizard } from "../discrepancy/DiscrepancyWizard";
 import { PoseGraphRemapWizard } from "../poseRig/PoseGraphRemapWizard";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
@@ -24,6 +25,7 @@ interface AppWizardsProps {
   };
   sourceName: string | null;
   loadedBundle: any;
+  toneMapping?: ToneMappingMode;
   authoredAnimationClips: AnimationClipIR[];
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   activeMotionGraphId?: string | null;
@@ -44,6 +46,7 @@ export function AppWizards({
   runtimeExportBodies,
   sourceName,
   loadedBundle,
+  toneMapping,
   authoredAnimationClips,
   authoredProceduralPrograms,
   activeMotionGraphId,
@@ -89,6 +92,7 @@ export function AppWizards({
         runtimeExportBodies={runtimeExportBodies}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
+        toneMapping={toneMapping}
         authoredAnimationClips={authoredAnimationClips}
         authoredProceduralPrograms={authoredProceduralPrograms}
         activeMotionGraphId={activeMotionGraphId}

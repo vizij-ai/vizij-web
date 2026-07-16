@@ -26,6 +26,8 @@ function renderMenuBar() {
       saveDirty={false}
       showSelectionGlow={false}
       onToggleSelectionGlow={vi.fn()}
+      toneMapping="none"
+      onSelectToneMapping={vi.fn()}
       activeEditFocus="default"
       onSelectEditFocus={vi.fn()}
       rotationDisplayMode="radians"

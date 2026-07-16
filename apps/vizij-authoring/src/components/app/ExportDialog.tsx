@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useVizijStore } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
-import type { VizijBundleExtension } from "@vizij/render";
+import type { VizijBundleExtension, ToneMappingMode } from "@vizij/render";
 import { ChevronRight } from "lucide-react";
 import {
   useBindingAuthoring,
@@ -59,6 +59,7 @@ interface ExportDialogProps {
   exportSceneRoot: unknown;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
+  toneMapping?: ToneMappingMode;
   authoredAnimationClips: AnimationClipIR[];
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   activeMotionGraphId?: string | null;
@@ -76,6 +77,7 @@ export function ExportDialog({
   exportSceneRoot,
   sourceName,
   loadedBundle,
+  toneMapping,
   authoredAnimationClips,
   authoredProceduralPrograms,
   activeMotionGraphId,
@@ -206,6 +208,7 @@ export function ExportDialog({
     includeVizijBundle,
     includeImportedAnimations,
     loadedBundle,
+    toneMapping,
     authoredAnimationClips,
     animatableComponents,
     animatables,
