@@ -299,6 +299,12 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   /** Current engine-store value of a path (read-your-own-write included). */
   getValueSnapshot: (path: string) => ValueJSON | undefined;
+  /**
+   * Notifies after each engine step, once the step's store changes have been
+   * applied. Pair with `getValueSnapshot` to sample values step-aligned.
+   * Returns an unsubscribe function.
+   */
+  subscribeToStep: (listener: () => void) => () => void;
   setGraphBundle: (
     bundle: RuntimeGraphBundle,
     options?: { tier?: "auto" | "assets" | "graphs" },

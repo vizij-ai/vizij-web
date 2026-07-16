@@ -56,7 +56,7 @@ function resolveData(node: EditorNode): InputSourceNodeData & {
 /**
  * Inspector panel for Input Source nodes.
  *
- * This component only writes to the editor store — the actual orchestrator
+ * This component only writes to the editor store — the actual runtime
  * communication is handled by `InputValueBridge` which runs inside the
  * VizijRuntimeProvider and watches the store for `appliedValue` changes.
  */

@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react";
-import { useOrchestrator } from "@vizij/orchestrator-react";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { useEditorStore, type EditorNode } from "../store/useEditorStore";
 import { INPUT_SOURCE_TYPE, type InputSourceNodeData } from "./InputSourceNode";
 
 /**
  * Headless component that bridges input source node values from the editor
- * store to the orchestrator.  Must be rendered inside VizijRuntimeProvider.
+ * store to the runtime.  Must be rendered inside VizijRuntimeProvider.
  *
  * It watches the editor store for input source nodes and pushes their
- * `appliedValue` to the orchestrator blackboard via `setInput()`.
+ * `appliedValue` through the runtime's `setInput()`, which stages the value
+ * and flushes it into the arora device store on the next engine step. The
+ * runtime namespaces paths itself, so raw editor paths are passed as-is.
  *
  * The inspector sets `appliedValue` according to the control mode:
  *  - Instant: `appliedValue` is set on every slider change
@@ -29,13 +30,12 @@ export function InputValueBridge({
 }
 
 function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
-  const { setInput, ready: orchestratorReady } = useOrchestrator();
-  const { namespace } = useVizijRuntime();
+  const { setInput, ready } = useVizijRuntime();
   // Track last pushed values to avoid redundant setInput calls.
   const pushedRef = useRef(new Map<string, number>());
 
   useEffect(() => {
-    if (!orchestratorReady) return;
+    if (!ready) return;
 
     const syncNodes = nodes ?? useEditorStore.getState().nodes;
 
@@ -59,7 +59,7 @@ function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
       pushedRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, orchestratorReady, namespace, setInput]);
+  }, [nodes, ready, setInput]);
 
   function syncAll(nodes: EditorNode[]) {
     for (const node of nodes) {
@@ -67,9 +67,6 @@ function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
       const d = node.data as InputSourceNodeData;
       if (!d.inputPath) continue;
 
-      const namespacedPath = namespace
-        ? `${namespace}/${d.inputPath}`
-        : d.inputPath;
       const value = d.appliedValue ?? d.defaultValue ?? 0;
       const valueType = d.valueType ?? "f32";
 
@@ -78,9 +75,9 @@ function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
 
       try {
         if (valueType === "bool") {
-          setInput(namespacedPath, { bool: value !== 0 });
+          setInput(d.inputPath, { bool: value !== 0 });
         } else {
-          setInput(namespacedPath, {
+          setInput(d.inputPath, {
             float: valueType === "i32" ? Math.round(value) : value,
           });
         }
@@ -88,7 +85,7 @@ function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
       } catch (err) {
         console.warn(
           "[motiongraph] InputValueBridge failed:",
-          namespacedPath,
+          d.inputPath,
           err,
         );
       }

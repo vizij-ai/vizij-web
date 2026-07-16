@@ -1,5 +1,4 @@
 import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
-import { OrchestratorProvider } from "@vizij/orchestrator-react";
 import type {
   RuntimeOutputWrite,
   VizijAssetBundle,
@@ -489,10 +488,10 @@ function MotionGraphRuntimeBridge({
   }, [controllerId, playbackState, resetValues, setInput]);
 
   return (
-    // The motiongraph tooling still runs on orchestrator-react; the runtime
-    // provider no longer nests an orchestrator (its engine is an Arora
-    // device), so this subtree brings its own.
-    <OrchestratorProvider autostart={false}>
+    // The motiongraph tooling runs on the runtime's arora device: the driver
+    // publishes the editor graph as a runtime program, inputs stage through
+    // the runtime, and the sampler reads the device store step-aligned.
+    <>
       <InputValueBridge active={active} nodes={nodes ?? undefined} />
       <MotionGraphDriverBridge
         active={active}
@@ -501,7 +500,7 @@ function MotionGraphRuntimeBridge({
         edges={edges ?? undefined}
       />
       <MotionGraphValueSampler active={active && plotActive} />
-    </OrchestratorProvider>
+    </>
   );
 }
 
