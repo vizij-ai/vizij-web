@@ -17,6 +17,7 @@ import {
   useVizijStoreGetter,
   useVizijStoreSetter,
 } from "@vizij/render";
+import type { ToneMappingMode } from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
 import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
@@ -618,6 +619,7 @@ export interface ViewerProps {
   ) => void;
   onClearSelection: () => void;
   showSelectionGlow: boolean;
+  toneMapping?: ToneMappingMode;
   onImportClick: () => void;
   onLoadQuori: () => void;
   presetLoadOptions?: readonly FacePresetAssetOption[];
@@ -648,6 +650,7 @@ export function Viewer({
   onRuntimeInputsReady,
   onClearSelection,
   showSelectionGlow,
+  toneMapping = "none",
   onImportClick,
   onLoadQuori,
   presetLoadOptions,
@@ -831,6 +834,7 @@ export function Viewer({
                 className="h-full w-full"
                 showSafeArea={faceBoundsOverlayVisible}
                 showSelectionGlow={showSelectionGlow}
+                toneMapping={toneMapping}
                 onPointerMissed={() => {
                   onClearSelection();
                 }}

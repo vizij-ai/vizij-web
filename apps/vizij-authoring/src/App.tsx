@@ -8,6 +8,8 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
+import type { ToneMappingMode } from "@vizij/render";
+import { normalizeToneMappingMode } from "@vizij/render";
 import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
@@ -616,6 +618,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   // Highlighting State (moved from Viewer)
   const [showSelectionGlow, setShowSelectionGlow] = useState(true);
+
+  // Per-face tone mapping. Sourced from the loaded face's VIZIJ_bundle and
+  // written back on export; editable at runtime via the Settings menu.
+  const [toneMapping, setToneMapping] = useState<ToneMappingMode>("none");
+  // Re-sync from the bundle whenever a new face loads. Keyed on the face-load
+  // session (not the bundle reference) so in-session edits are not clobbered by
+  // unrelated re-syncs of the same face.
+  useEffect(() => {
+    setToneMapping(normalizeToneMappingMode(loadedBundle?.toneMapping));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faceLoadSessionToken]);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [runtimeExportBodies, setRuntimeExportBodies] =
@@ -4497,6 +4510,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       saveDirty={hasUnsavedGlbChanges}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
+      toneMapping={toneMapping}
+      onSelectToneMapping={setToneMapping}
       activeEditFocus={activeEditFocus}
       onSelectEditFocus={uiActions.setEditFocus}
       rotationDisplayMode={rotationDisplayMode}
@@ -4828,6 +4843,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         onRuntimeExportBodiesChange={handleRuntimeExportBodiesChange}
         onClearSelection={handleClearSelectionWithInspectorSync}
         showSelectionGlow={showSelectionGlow}
+        toneMapping={toneMapping}
         onImportClick={handleImportClick}
         onLoadQuori={handleLoadQuori}
         presetLoadOptions={FACE_PRESET_GRID_OPTIONS}
@@ -5211,6 +5227,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         runtimeExportBodies={runtimeExportBodies}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
+        toneMapping={toneMapping}
         authoredAnimationClips={authoredAnimationClipsForExport}
         authoredProceduralPrograms={authoredProceduralProgramsForExport}
         activeMotionGraphId={activeMotionGraphIdForExport}

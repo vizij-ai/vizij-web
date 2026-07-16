@@ -1,3 +1,5 @@
+import type { ToneMappingMode } from "./tone-mapping";
+
 export type VizijBundleVersion = 1;
 
 export type VizijBundleGraphKind =
@@ -128,6 +130,13 @@ export interface VizijBundleExtension {
   graphs?: VizijBundleGraphEntry[];
   poses?: VizijBundlePoseSection | null;
   animations?: VizijBundleAnimationEntry[];
+  /**
+   * Scene-level view transform this face should be rendered with. Travels with
+   * the asset so a face authored in Blender (which typically wants `"agx"`)
+   * renders consistently wherever it is loaded. Omitted/unknown falls back to
+   * the renderer default (`"none"` — web match).
+   */
+  toneMapping?: ToneMappingMode;
   /**
    * Bundle-level metadata. May include `speechConfig: VizijSpeechConfig`
    * for configuring the STT/LLM/TTS speech pipeline.
