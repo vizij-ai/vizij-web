@@ -566,7 +566,7 @@ export function VoicePanel({
       <ul className="voice-panel__steps">
         <li>1. Request Amazon Polly neural audio + viseme metadata.</li>
         <li>2. Convert viseme timeline to Vizij rig input paths.</li>
-        <li>3. Blend visemes with orchestrator cues + expressions.</li>
+        <li>3. Blend visemes with runtime cues + expressions.</li>
       </ul>
     </div>
   );

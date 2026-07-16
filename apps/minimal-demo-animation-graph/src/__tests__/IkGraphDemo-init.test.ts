@@ -177,7 +177,7 @@ function registerMergedGraphMock(config: {
   return `merged-${config.graphs.length}`;
 }
 
-describe("Graph fixtures and orchestrator guards", () => {
+describe("Graph fixtures and runtime guards", () => {
   it("ik graph fixture exposes canonical edges and typed paths", () => {
     expect(() => ensureGraphHasCanonicalEdges(ikGraphSpec)).not.toThrow();
     const fkNode = ikGraphSpec.nodes.find(

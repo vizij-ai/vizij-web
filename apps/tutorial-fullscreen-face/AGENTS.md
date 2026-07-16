@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Showcase a fullscreen Vizij face controlled by orchestrator graphs. Mouse position steers gaze and keyboard shortcuts trigger pose weights generated from the exported pose rig.
+Showcase a fullscreen Vizij face controlled by runtime graphs. Mouse position steers gaze and keyboard shortcuts trigger pose weights generated from the exported pose rig.
 
 ## Runbook
 

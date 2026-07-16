@@ -18,7 +18,8 @@ import {
  *   setInput(fullPath, { float: value });
  *
  * Maintains local input values state (like vizij-authoring's bindingAuthoringStore)
- * to track values we've set, since the orchestrator consumes inputs during evaluation.
+ * to track values we've set, as a fallback while the device store has no
+ * entry for a path yet.
  *
  * No step() call needed - driveRuntime={true} handles evaluation.
  */
@@ -133,8 +134,8 @@ export function useWebSocketSync() {
     );
   }, [ready, inputConstraints, namespace, faceId]);
 
-  // Get a rig input value - tries orchestrator cache first, then local state
-  // The orchestrator caches values when setInput is called and after graph evaluation
+  // Get a rig input value - tries the device store first, then local state
+  // The device store holds values staged via setInput and written by graph evaluation
   const getRigValue = useCallback(
     (path: string): number | undefined => {
       if (!ready) return undefined;
@@ -142,12 +143,12 @@ export function useWebSocketSync() {
       // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
       const normalizedPath = normalizeSlotPath(path);
 
-      // Build the namespaced path that the orchestrator uses
+      // Build the namespaced path that the device store uses
       // Format: namespace/rig/faceId/path (e.g., "vizij-standalone/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
       const fullPath = `rig/${faceId}/${normalizedPath}`;
       const namespacedPath = `${namespace}/${fullPath}`;
 
-      // Try orchestrator cache first (most current after graph evaluation)
+      // Try the device store first (most current after graph evaluation)
       const cachedValue = getPathSnapshot(namespacedPath);
       if (cachedValue !== undefined) {
         const numValue = valueAsNumber(cachedValue);
@@ -203,7 +204,7 @@ export function useWebSocketSync() {
       console.log("[vizij-standalone] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
 
-      // No step() needed - driveRuntime handles the animation loop
+      // No step() needed - driveRuntime handles the engine loop
     },
     [ready, setInput, faceId, normalizeSlotPath],
   );

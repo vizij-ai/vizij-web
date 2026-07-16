@@ -59,7 +59,7 @@ const lookup = getLookup("actorA", jawOpen.id); // "actorA.jaw/open"
 const namespace = getNamespace(lookup); // "actorA"
 ```
 
-Use these primitives when defining rig channels, orchestrator inputs, or animation metadata so everything aligns with the same schema.
+Use these primitives when defining rig channels, runtime inputs, or animation metadata so everything aligns with the same schema.
 
 ---
 

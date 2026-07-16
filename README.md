@@ -47,7 +47,6 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.                | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                   | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/orchestrator-react`   | `packages/@vizij/orchestrator-react`   | React orchestrator bindings and hooks.                          | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                 | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
@@ -187,14 +186,14 @@ When you need edits from the Rust workspace:
 
    ```bash
    pnpm run link:wasm
-   # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
+   # optional: pnpm run watch:wasm:<animation|graph> for continuous rebuilds
    ```
 
 2. Back in this repo, link the packages you want (and verify status):
 
    ```bash
    # link a subset
-   pnpm run wasm:link -- --pkgs "node-graph-wasm orchestrator-wasm"
+   pnpm run wasm:link -- --pkgs "node-graph-wasm arora-web-wasm"
    # or link everything
    pnpm run wasm:link -- --pkgs all
 
@@ -319,7 +318,7 @@ The workflow logs the npm publish output for each changed package. After a succe
 
 ## Related Repositories
 
-- [`vizij-rs`](../vizij-rs) – Rust source for the animation, graph, and orchestrator cores plus WASM bundles.
+- [`vizij-rs`](../vizij-rs) – Rust source for the animation and graph cores plus WASM bundles.
 - [`vizij-docs`](../vizij-docs) – Canonical internal cross-repo architecture, roadmap, decisions, and status summaries.
 - [`vizij-ai.github.io`](../vizij-ai.github.io) – Curated public docs, tutorials, and showcase content.
 
