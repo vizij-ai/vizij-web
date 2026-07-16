@@ -144,7 +144,7 @@ export function InnerVizij({
         makeDefault
         position={[0, 0, 100]}
         near={0.1}
-        far={101}
+        far={1000}
       />
       <Suspense fallback={null}>
         <World

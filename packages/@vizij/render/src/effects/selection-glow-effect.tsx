@@ -35,7 +35,7 @@ type RenderableWithGeometry = {
 
 export function SelectionGlowEffect({
   enabled = false,
-  color = "#ff1010ff",
+  color = "#ff1010",
   opacity = 0.9,
   thresholdAngle = 2,
 }: SelectionGlowEffectProps) {
