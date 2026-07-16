@@ -10,16 +10,18 @@ import {
 
 /* ── Spec types (the Vizij GraphSpec format) ──────── */
 
-interface SpecNode {
+// Type aliases (not interfaces) so they satisfy structural index-signature
+// targets like runtime-react's GraphSpecLike.
+type SpecNode = {
   id: string;
   type: string;
   params?: Record<string, unknown>;
-}
+};
 
-interface SpecEdge {
+type SpecEdge = {
   from: { node_id: string; output?: string };
   to: { node_id: string; input: string };
-}
+};
 
 export interface BuiltGraphSpec {
   spec: {
