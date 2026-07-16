@@ -16,7 +16,6 @@
     "dev:minimal-demo-animation": "pnpm --filter minimal-demo-animation run dev",
     "dev:minimal-demo-animation-graph": "pnpm --filter minimal-demo-animation-graph run dev",
     "dev:minimal-demo-graph": "pnpm --filter minimal-demo-graph run dev",
-    "dev:minimal-demo-orchestrator": "pnpm --filter minimal-demo-orchestrator run dev",
     "dev:tutorial-agent-face": "pnpm --filter tutorial-agent-face run dev",
     "dev:tutorial-fullscreen-face": "pnpm --filter fullscreen-face run dev",
     "dev:vizij-standalone": "node scripts/check-snap-env.mjs && pnpm --filter vizij-standalone run dev",
