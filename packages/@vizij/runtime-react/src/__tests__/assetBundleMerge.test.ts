@@ -107,4 +107,54 @@ describe("mergeAssetBundle", () => {
       "bundle-animation",
     ]);
   });
+
+  it("derives starred references from the extracted bundle", () => {
+    const merged = mergeAssetBundle(
+      makeBaseBundle(),
+      makeExtractedBundle({
+        starred: {
+          items: [
+            { kind: "driver", id: "mouth_open" },
+            { kind: "pose", id: "smile" },
+          ],
+        },
+      }),
+      undefined,
+    );
+
+    expect(merged.starred).toEqual([
+      { kind: "driver", id: "mouth_open" },
+      { kind: "pose", id: "smile" },
+    ]);
+  });
+
+  it("drops malformed starred entries and empty sections", () => {
+    const merged = mergeAssetBundle(
+      makeBaseBundle(),
+      makeExtractedBundle({
+        starred: {
+          items: [
+            { kind: "driver", id: "keep" },
+            { kind: "bogus", id: "x" },
+            { kind: "pose", id: "" },
+          ],
+        } as VizijBundleExtension["starred"],
+      }),
+      undefined,
+    );
+
+    expect(merged.starred).toEqual([{ kind: "driver", id: "keep" }]);
+  });
+
+  it("lets an explicit base starred override win over the bundle", () => {
+    const merged = mergeAssetBundle(
+      makeBaseBundle({ starred: [] }),
+      makeExtractedBundle({
+        starred: { items: [{ kind: "driver", id: "from-bundle" }] },
+      }),
+      undefined,
+    );
+
+    expect(merged.starred).toEqual([]);
+  });
 });

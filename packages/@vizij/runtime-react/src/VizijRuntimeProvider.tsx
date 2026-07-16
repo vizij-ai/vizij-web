@@ -7,6 +7,8 @@ import {
   type VizijBundleExtension,
   type VizijBundleGraphEntry,
   type VizijBundleAnimationEntry,
+  type VizijBundleStarredSection,
+  type VizijStarredItem,
   loadGLTFWithBundle,
   loadGLTFFromBlobWithBundle,
 } from "@vizij/render";
@@ -875,6 +877,35 @@ function convertBundlePrograms(
 }
 
 /**
+ * Resolve the bundle's `starred` section into a validated list of references.
+ * Returns `undefined` when no valid starred items are present so consumers can
+ * treat "no bundle" and "empty starred" uniformly.
+ */
+function convertBundleStarred(
+  section: VizijBundleStarredSection | null | undefined,
+): VizijStarredItem[] | undefined {
+  const items = section?.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return undefined;
+  }
+  const resolved: VizijStarredItem[] = [];
+  for (const item of items) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const { kind, id } = item as Partial<VizijStarredItem>;
+    if (
+      (kind === "driver" || kind === "pose") &&
+      typeof id === "string" &&
+      id
+    ) {
+      resolved.push({ kind, id });
+    }
+  }
+  return resolved.length > 0 ? resolved : undefined;
+}
+
+/**
  * The default (neutral) value declared for an input path, resolved across the
  * path forms the constraint map is keyed by (namespaced, base, rig/face-
  * stripped, relative). Returns `undefined` when no finite default is declared.
@@ -1098,6 +1129,15 @@ export function mergeAssetBundle(
     convertBundlePrograms(resolvedBundle?.graphs),
   );
 
+  const hasBaseStarredOverride = Object.prototype.hasOwnProperty.call(
+    base,
+    "starred",
+  );
+  const starredFromBundle = convertBundleStarred(resolvedBundle?.starred);
+  const resolvedStarred = hasBaseStarredOverride
+    ? base.starred
+    : (base.starred ?? starredFromBundle);
+
   const merged: VizijAssetBundle = {
     ...base,
   };
@@ -1111,6 +1151,7 @@ export function mergeAssetBundle(
   merged.pose = resolvedPose;
   merged.animations = resolvedAnimations;
   merged.programs = programsFromBundle;
+  merged.starred = resolvedStarred;
   merged.bundle = resolvedBundle;
 
   return merged;
