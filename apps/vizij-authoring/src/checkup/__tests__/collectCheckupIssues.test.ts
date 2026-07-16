@@ -158,7 +158,7 @@ describe("collectPoseIssues / collectImportIssues", () => {
       unmatchedPoseOutputs: [{ poseName: "Smile", inputId: "jaw", value: 1 }],
     });
     expect(issues).toHaveLength(3);
-    expect(issues[2]!.message).toContain("1 active pose output");
+    expect(issues[2]!.message).toContain("1 active expression output");
   });
 
   it("maps a pending discrepancy review to warnings", () => {

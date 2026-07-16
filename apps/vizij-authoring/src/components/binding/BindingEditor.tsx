@@ -1166,7 +1166,7 @@ export function BindingEditor({
                 </div>
                 <p className="text-[10px] text-text-muted">
                   {normalizedSlotInputId === null
-                    ? "No driver source selected yet."
+                    ? "No control source selected yet."
                     : normalizedSlotInputId === SELF_BINDING_ID
                       ? "Driven by local slider control."
                       : `Source: ${currentLabel}`}
@@ -1260,7 +1260,7 @@ export function BindingEditor({
                         )
                       }
                       options={selectOptions}
-                      placeholder="Select binding input"
+                      placeholder="Select link input"
                       className="flex-1 min-w-0"
                       size="sm"
                     />
@@ -1419,7 +1419,7 @@ export function BindingEditor({
               htmlFor={`binding-expression-${targetId}`}
               className="text-[10px] font-black uppercase tracking-widest text-text-muted"
             >
-              Expression: {label} =
+              Formula: {label} =
             </label>
             <div className="flex items-center gap-2">
               <span
@@ -1430,7 +1430,7 @@ export function BindingEditor({
                     : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
                 )}
               >
-                {expressionDirty ? "Draft changed" : "Expression synced"}
+                {expressionDirty ? "Draft changed" : "Formula synced"}
               </span>
               <Button
                 type="button"

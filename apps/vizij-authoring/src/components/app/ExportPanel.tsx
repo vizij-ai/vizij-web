@@ -75,8 +75,8 @@ export function ExportPanel({
 
       <CardBody className="asset-card__body--compact">
         <FieldRow
-          label="Embed Vizij bundle"
-          hint="Graphs, poses, metadata"
+          label="Embed Face Package data"
+          hint="Graphs, expressions, metadata"
           renderLabelInControl
           control={
             <Switch
@@ -94,8 +94,8 @@ export function ExportPanel({
           round-tripping while still producing standard glTF animations.
         </p>
         <FieldRow
-          label="Pose group blend mode"
-          hint="Controls how poses blend within each pose group."
+          label="Expression set blend mode"
+          hint="Controls how expressions blend within each expression set."
           renderLabelInControl
           control={
             <div className="button-group button-group--segmented">
@@ -120,7 +120,7 @@ export function ExportPanel({
         />
         <FieldRow
           label="Cross-group blend mode"
-          hint="Controls how pose-group outputs combine per rig target."
+          hint="Controls how expression-set outputs combine per control target."
           renderLabelInControl
           control={
             <div className="button-group button-group--segmented">

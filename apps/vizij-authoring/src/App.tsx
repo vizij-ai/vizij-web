@@ -987,7 +987,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       });
       if (warnings.length > 0) {
         await showAlert(
-          `Pose graph imported with ${warnings.length} warning(s). Review Pose diagnostics in the Pose Rig panel.`,
+          `Expression graph imported with ${warnings.length} warning(s). Review Expression diagnostics in the Expressions panel.`,
         );
       }
     },
@@ -1192,7 +1192,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () =>
       authoredProceduralTargets.map((target) => ({
         value: target.targetId,
-        label: target.name.trim().length > 0 ? target.name : "Untitled Program",
+        label:
+          target.name.trim().length > 0 ? target.name : "Untitled Behavior",
       })),
     [authoredProceduralTargets],
   );
@@ -1408,7 +1409,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () => [
       ...authoredProceduralTargets.map((target) => ({
         id: target.targetId,
-        label: target.name.trim().length > 0 ? target.name : "Untitled Program",
+        label:
+          target.name.trim().length > 0 ? target.name : "Untitled Behavior",
         source: "authored" as const,
         selected: target.targetId === selectedProceduralTargetId,
         meta: `${target.snapshot.nodes.length} node${
@@ -1428,7 +1430,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             ? `${snapshot.nodes.length} node${
                 snapshot.nodes.length === 1 ? "" : "s"
               }`
-            : "Imported program",
+            : "Imported behavior",
           runtimeState:
             programTargetPlaybackById[target.value]?.state ?? "stopped",
         };
@@ -1765,7 +1767,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
 
       let snapshot: ProceduralProgramSnapshot | null = null;
-      let targetName = "Untitled Program";
+      let targetName = "Untitled Behavior";
       let source: "authored" | "imported" = "imported";
 
       const authoredProgramId = parseAuthoredProceduralTargetValue(
@@ -1783,7 +1785,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         targetName =
           authoredTarget.name.trim().length > 0
             ? authoredTarget.name
-            : "Untitled Program";
+            : "Untitled Behavior";
         source = "authored";
         snapshot =
           selectedProceduralTargetId === authoredTarget.targetId
@@ -2445,7 +2447,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       authoredProceduralTargets,
     );
     const nextProgramId = `authoring.motiongraph.program.${nextOrdinal}`;
-    const nextProgramName = `Procedural Program ${nextOrdinal}`;
+    const nextProgramName = `Behavior ${nextOrdinal}`;
     const nextTarget = createAuthoredProceduralTarget(
       nextProgramId,
       nextProgramName,
@@ -2465,7 +2467,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       );
       const nextProgramId = `authoring.motiongraph.program.${nextOrdinal}`;
       let sourceSnapshot: ProceduralProgramSnapshot | null = null;
-      let sourceName = `Procedural Program ${nextOrdinal}`;
+      let sourceName = `Behavior ${nextOrdinal}`;
 
       const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
       if (authoredProgramId) {
@@ -2534,10 +2536,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         proceduralTargetOptions.find(
           (option) => option.value === deletingTargetId,
         )?.label ?? activeTarget?.name;
-      const targetLabel = activeTarget?.name?.trim() || "this program";
+      const targetLabel = activeTarget?.name?.trim() || "this behavior";
       if (
         !window.confirm(
-          `Delete procedural program "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+          `Delete behavior "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
         )
       ) {
         return;
@@ -3362,7 +3364,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     : null;
   const activeProgramRuntimeName = activeProgramRuntimeTargetId
     ? (programTargetLabelById.get(activeProgramRuntimeTargetId) ??
-      "Untitled Program")
+      "Untitled Behavior")
     : null;
   const animationPanelStatusMessage =
     activeAnimationRuntimeTargetId &&
@@ -3469,9 +3471,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           : null,
         activeProgramRuntimeTargetId
           ? {
-              label: "Stop Program",
+              label: "Stop Behavior",
               onClick: clearProgramRuntimeState,
-              title: "Stop the active procedural program",
+              title: "Stop the active behavior",
               disabled: effectiveProgramRuntimePlaybackState === "stopped",
               testId: "main-runtime-stop-program",
             }
@@ -4456,7 +4458,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onPauseProgramTarget={handlePauseProgramTarget}
               onStopProgramTarget={handleStopProgramTarget}
               panelTitle="Authoring"
-              panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
+              panelDescription="Author and organize controls, expressions, expression sets, animations, and behaviors."
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
@@ -4478,7 +4480,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
-              panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
+              panelDescription="Preview and adjust live control and expression-weight inputs plus behavior I/O."
               onClosePanel={handleHideInputControlsPanel}
               motionGraphActive={effectiveMotionGraphPanelVisible}
               animationActive={effectiveAnimationPanelVisible}

@@ -470,7 +470,7 @@ export function GroupMappingEditor({
           <div className="group-mapping-editor__columns">
             {/* Input Drivers Column */}
             <div className="group-mapping-editor__column">
-              <h4 className="group-mapping-editor__title">Input Drivers</h4>
+              <h4 className="group-mapping-editor__title">Input Controls</h4>
               <div className="group-mapping-editor__slot-header">
                 <span></span>
                 <span>Use</span>

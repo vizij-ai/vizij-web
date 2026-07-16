@@ -95,12 +95,12 @@ function SetupTabContent({
   return (
     <div className="workbench-panel__scroll">
       <SidebarSection
-        title="Load reference face"
-        description="Load a GLB with a Vizij bundle containing a face rigged to the Standard Feature Space to use as reference."
+        title="Load comparison face"
+        description="Load a GLB with a Face Package containing a face rigged to the Standard Controls to use for comparison."
         instructions={{
-          label: "Reference GLB loader",
+          label: "Comparison GLB loader",
           summary:
-            "Load a GLB with a Vizij bundle containing a face rigged to a Standard Feature Space",
+            "Load a GLB with a Face Package containing a face rigged to Standard Controls",
           size: "compact",
           content: (
             <ol>
@@ -108,8 +108,8 @@ function SetupTabContent({
                 Click "Choose File" to load a GLB file from your computer.
               </li>
               <li>
-                The loader will displayed the loaded reference face side by side
-                to your own loaded model.
+                The loader will displayed the loaded comparison face side by
+                side to your own loaded model.
               </li>
             </ol>
           ),
@@ -129,20 +129,20 @@ function SetupTabContent({
 
       <SidebarSection
         title="Exporting (Soon)"
-        description="Save your Standard Feature Spaces configuration for reuse in other projects."
+        description="Save your Standard Controls configuration for reuse in other projects."
         instructions={{
           label: "Work in Progress",
-          summary: "Exporting feature space configurations is coming soon",
+          summary: "Exporting standard controls configurations is coming soon",
           size: "compact",
           content: (
             <ul>
               <li>
-                Currently Standard Feature Spaces configurations are exported as
-                part of the main Vizij bundle export.
+                Currently Standard Controls configurations are exported as part
+                of the main Face Package export.
               </li>
               <li>
-                Please use the main Import / Export tool to save your feature
-                space configuration to a Vizij bundle.
+                Please use the main Import / Export tool to save your standard
+                controls configuration to a Face Package.
               </li>
             </ul>
           ),

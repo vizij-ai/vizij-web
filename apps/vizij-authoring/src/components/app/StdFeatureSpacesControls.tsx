@@ -372,7 +372,7 @@ export function StdFeatureSpacesControls() {
               {namespaceNames.length > 0 && (
                 <div className="group-selector-section">
                   <span className="group-selector-section__label">
-                    Standard Feature Space:
+                    Standard Controls:
                   </span>
                   <div className="group-selector">
                     {namespaceNames.map((ns) => (
@@ -422,7 +422,7 @@ export function StdFeatureSpacesControls() {
                       size="sm"
                       onClick={handleResetPose}
                     >
-                      Reset Pose
+                      Reset Expression
                     </Button>
                   </div>
                 </div>
@@ -449,8 +449,8 @@ export function StdFeatureSpacesControls() {
 
       <div className="mapping-controls-layout__section mapping-controls-layout__section--mapping">
         <SidebarSection
-          title="Mapping Editor"
-          description="Configure bindings for your main face's standard inputs."
+          title="Control Map"
+          description="Configure links for your main face's standard controls."
         >
           {!mainFaceIsLoaded ? (
             <p className="sidebar__placeholder-text">
@@ -522,7 +522,7 @@ function MatchingInputGroup({
       <div className="reference-input-group__header">
         <span className="reference-input-group__header-label">Track</span>
         <span className="reference-input-group__header-status">Main</span>
-        <span className="reference-input-group__header-status">Ref</span>
+        <span className="reference-input-group__header-status">Comp</span>
       </div>
       <div className="reference-input-group__inputs">
         {inputs.map((input) => {

@@ -21,7 +21,7 @@ export function VizijBundleSummaryPanel({
     <Card className="bg-bg-panel border border-border-default shadow-md">
       <CardHeader className="pb-3 border-b border-border-default">
         <CardTitle className="text-sm font-bold text-text-primary flex items-center gap-2">
-          Imported Vizij Bundle
+          Imported Face Package
           {summary.present && (
             <span className="px-1.5 py-0.5 rounded-full bg-accent-subtle border border-accent/20 text-[9px] font-bold text-accent uppercase tracking-wide">
               Active

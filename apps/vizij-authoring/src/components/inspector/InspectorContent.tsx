@@ -2458,7 +2458,7 @@ export function InspectorContent({
                   variant="ghost"
                   size="sm"
                   className="h-6 w-6 p-0 text-text-muted hover:text-text-primary"
-                  title="Apply full reference pose weight"
+                  title="Apply full comparison expression weight"
                   onClick={() => setReferencePoseWeightValue(pose.id, 1)}
                 >
                   <Play size={12} fill="currentColor" />
@@ -2767,7 +2767,7 @@ export function InspectorContent({
     })();
 
     const handlePromptAddPoseGroupMembership = () => {
-      const response = promptDialog("Add pose to group", "");
+      const response = promptDialog("Add expression to set", "");
       if (response === null) {
         return;
       }
@@ -2849,11 +2849,11 @@ export function InspectorContent({
 
     const poseSemanticTooltips: PoseSemanticTooltips = {
       target:
-        "Control Target: authored pose value for this rig input when the pose contributes at 100%.",
+        "Control Target: authored expression value for this control input when the expression contributes at 100%.",
       poseDriven:
-        "Pose Driven: this pose's computed channel value at the current pose weight, before direct+pose compose.",
+        "Expression Driven: this expression's computed channel value at the current expression weight, before direct+expression compose.",
       contribution:
-        "Contribution Strength: (Pose Driven - Neutral) / (Target - Neutral) for this pose channel.",
+        "Contribution Strength: (Expression Driven - Resting) / (Target - Resting) for this expression channel.",
     };
 
     const handleBlend = (amount: number) => {
@@ -3000,7 +3000,7 @@ export function InspectorContent({
           </div>
         ) : null}
         <RiggingPropertyRow
-          label="Set Pose Percentage:"
+          label="Set Expression Percentage:"
           onScrub={(_, totalDelta) => {
             // Blend based on delta (assuming 100px = 100% blend)
             const newAmount = Math.max(
@@ -3019,7 +3019,7 @@ export function InspectorContent({
                   variant="ghost"
                   size="sm"
                   className="h-6 w-6 shrink-0 p-0 text-text-muted hover:text-text-primary"
-                  title="Play Pose (100%)"
+                  title="Play Expression (100%)"
                   onClick={() => {
                     handleBlend(1);
                   }}
@@ -3074,7 +3074,7 @@ export function InspectorContent({
               icon={Sliders}
               iconSize={18}
               title="No Connected Drivers"
-              description="This pose has no driver targets yet. Connect one or more rig drivers to define the pose output."
+              description="This expression has no control targets yet. Connect one or more controls to define the expression output."
               className="border border-dashed border-border-default/50 rounded-lg bg-bg-secondary/20 py-6"
             />
           )}
@@ -3170,7 +3170,7 @@ export function InspectorContent({
                               <select
                                 className="rounded border border-border-default/50 bg-bg-panel/40 px-1 py-0.5 text-[9px] text-text-primary"
                                 value={poseComposeMode}
-                                title="Compose direct/current value with this pose target for this channel."
+                                title="Compose direct/current value with this expression target for this channel."
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={(event) => event.stopPropagation()}
                                 onChange={(event) => {
@@ -3256,12 +3256,14 @@ export function InspectorContent({
             size={14}
             className="group-hover:text-accent transition-colors"
           />
-          <span className="font-normal text-xs">Connect Driver to Pose</span>
+          <span className="font-normal text-xs">
+            Connect Control to Expression
+          </span>
         </Button>
         <Modal
           open={showSelector}
           onClose={() => setShowSelector(false)}
-          title="Connect Driver to Pose"
+          title="Connect Control to Expression"
           maxWidth="md"
         >
           <VariableSelector
@@ -3334,7 +3336,7 @@ export function InspectorContent({
       const isRemovableCustomInput = rigInput.source === "custom";
       const deleteGuardrailMessage = isRemovableCustomInput
         ? null
-        : "This driver is system-managed and cannot be deleted from the inspector.";
+        : "This control is system-managed and cannot be deleted from the inspector.";
       const controllableResolution = resolveControllableInputId(
         input.id,
         inputBindings,
@@ -3351,7 +3353,7 @@ export function InspectorContent({
           ? controllableResolution.blockedReason
           : controllableResolution.inputId &&
               controllableResolution.inputId !== input.id
-            ? `This driver is derived from "${controllableResolution.inputId}" without a local self slot. Use the Parents expression/links below to add local control or adjust "${controllableResolution.inputId}".`
+            ? `This control is derived from "${controllableResolution.inputId}" without a local self slot. Use the parent formula/links below to add local control or adjust "${controllableResolution.inputId}".`
             : null;
       const {
         downstreamInputs,
@@ -3631,7 +3633,7 @@ export function InspectorContent({
           previousParentVariables,
           linkUpserts,
           manualNotice:
-            "Parent contribution formula uses a custom expression and was not rewritten. Update the formula above to include the new parent variable.",
+            "Parent contribution formula uses a custom formula and was not rewritten. Update the formula above to include the new parent control.",
         });
       };
       const removeParentLinkForInput = (
@@ -3650,7 +3652,7 @@ export function InspectorContent({
           previousParentVariables,
           linkDeletes: [buildRigPipelineV1LinkId(parentInputId, childInputId)],
           manualNotice:
-            "Parent contribution formula uses a custom expression and was not rewritten. Update the formula above to remove the deleted parent variable.",
+            "Parent contribution formula uses a custom formula and was not rewritten. Update the formula above to remove the deleted parent control.",
         });
       };
 
@@ -3744,7 +3746,7 @@ export function InspectorContent({
         );
         setRigLifecycleMessage({
           tone: "info",
-          text: "Driver metadata updated.",
+          text: "Control metadata updated.",
         });
       };
 
@@ -3865,7 +3867,7 @@ export function InspectorContent({
         );
 
         if (resolvedSelection.kind === "self-variable") {
-          alertDialog("A driver cannot directly drive itself.");
+          alertDialog("A control cannot directly drive itself.");
           return;
         }
 
@@ -3904,13 +3906,13 @@ export function InspectorContent({
           if (linkedCount === 0) {
             if (skippedLocked > 0) {
               alertDialog(
-                "Cannot add child drivers for locked face properties. Unlock them first in the Face Element inspector.",
+                "Cannot add child controls for locked face properties. Unlock them first in the Face Element inspector.",
               );
               return;
             }
             if (skippedExisting > 0) {
               alertDialog(
-                "Selected drivers are already driven by the selected rig driver.",
+                "Selected controls are already driven by the selected control.",
               );
               return;
             }
@@ -4096,7 +4098,7 @@ export function InspectorContent({
         );
 
         if (resolvedSelection.kind === "self-variable") {
-          alertDialog("A driver cannot directly drive itself.");
+          alertDialog("A control cannot directly drive itself.");
           return;
         }
 
@@ -4120,7 +4122,7 @@ export function InspectorContent({
 
           if (linkedCount === 0 && skippedExisting > 0) {
             alertDialog(
-              "Selected drivers are already linked as parents for the selected driver.",
+              "Selected controls are already linked as parents for the selected control.",
             );
           }
           return;
@@ -4717,7 +4719,7 @@ export function InspectorContent({
             linkUpserts,
             manualNotice:
               currentVariable !== nextVariable
-                ? "Parent contribution formula uses a custom expression and was not rewritten. Update the formula above to reflect the renamed parent variable."
+                ? "Parent contribution formula uses a custom formula and was not rewritten. Update the formula above to reflect the renamed parent control."
                 : null,
           });
         }
@@ -4749,7 +4751,7 @@ export function InspectorContent({
         stageRuntimeGraphPathValue(overrideValuePath, input.defaultValue);
         setRigLifecycleMessage({
           tone: "info",
-          text: "Legacy canonical self+parent binding migrated to staged pipeline metadata.",
+          text: "Legacy canonical self+parent link migrated to staged pipeline metadata.",
         });
       };
       const rigDisplayMin = toDisplayValue(input.range.min, input.path);
@@ -4852,7 +4854,7 @@ export function InspectorContent({
             </div>
           ) : null}
           <CollapsibleGroup
-            title="Driver Metadata"
+            title="Control Metadata"
             subtitle={`Default ${rigDisplayDefault.toFixed(3)} · Range ${rigDisplayMin.toFixed(3)}..${rigDisplayMax.toFixed(3)}`}
             defaultCollapsed={true}
             className="mb-0"
@@ -5325,8 +5327,8 @@ export function InspectorContent({
             onClose={() => setShowSelector(false)}
             title={
               rigLinkSelectorMode === "parent"
-                ? "Select Driver or Property to Use as Parent"
-                : "Select Driver or Property to Drive"
+                ? "Select Control or Property to Use as Parent"
+                : "Select Control or Property to Drive"
             }
             maxWidth="md"
           >
@@ -5540,7 +5542,7 @@ export function InspectorContent({
       icon={Info}
       iconSize={20}
       title="No selection"
-      description="Select an object, pose, or rig to see its properties here."
+      description="Select an object, expression, or control to see its properties here."
       className="h-full min-h-[300px]"
     />
   );

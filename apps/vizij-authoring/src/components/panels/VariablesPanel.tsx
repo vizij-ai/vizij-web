@@ -2390,14 +2390,16 @@ function TreeRowWrapper({
                 }}
                 title={
                   motionGraphInputEnabled
-                    ? "Remove from procedural animation programming inputs"
-                    : "Add as procedural animation programming input"
+                    ? "Remove from behavior inputs"
+                    : "Add as behavior input"
                 }
                 aria-label={
-                  motionGraphInputEnabled ? "Remove PAP Input" : "Add PAP Input"
+                  motionGraphInputEnabled
+                    ? "Remove Behavior Input"
+                    : "Add Behavior Input"
                 }
               >
-                {motionGraphInputEnabled ? "PAP In -" : "PAP In +"}
+                {motionGraphInputEnabled ? "Bhv In -" : "Bhv In +"}
               </Button>
             ) : null}
             {motionGraphContext?.active && canToggleMotionGraphOutput ? (
@@ -2419,16 +2421,16 @@ function TreeRowWrapper({
                 }}
                 title={
                   motionGraphOutputEnabled
-                    ? "Remove from procedural animation programming outputs"
-                    : "Add as procedural animation programming output"
+                    ? "Remove from behavior outputs"
+                    : "Add as behavior output"
                 }
                 aria-label={
                   motionGraphOutputEnabled
-                    ? "Remove PAP Output"
-                    : "Add PAP Output"
+                    ? "Remove Behavior Output"
+                    : "Add Behavior Output"
                 }
               >
-                {motionGraphOutputEnabled ? "PAP Out -" : "PAP Out +"}
+                {motionGraphOutputEnabled ? "Bhv Out -" : "Bhv Out +"}
               </Button>
             ) : null}
             {animationTrackContext?.active && canToggleAnimationTrack ? (
@@ -2484,12 +2486,14 @@ function TreeRowWrapper({
                 title={
                   poseTargetEnabled
                     ? poseTargetSaved
-                      ? "Update the selected pose target from this current input value"
-                      : "Save this current input value as a target on the selected pose"
-                    : "Select a pose before saving input targets"
+                      ? "Update the selected expression target from this current input value"
+                      : "Save this current input value as a target on the selected expression"
+                    : "Select an expression before saving input targets"
                 }
                 aria-label={
-                  poseTargetSaved ? "Update Pose Target" : "Save Pose Target"
+                  poseTargetSaved
+                    ? "Update Expression Target"
+                    : "Save Expression Target"
                 }
               >
                 {poseTargetSaved ? "Update Target" : "Save Target"}
@@ -2542,7 +2546,7 @@ function TreeRowWrapper({
                 <label
                   className="flex items-center gap-1 text-[9px] text-cyan-200"
                   onClick={(event) => event.stopPropagation()}
-                  title="Select pose for bulk copy"
+                  title="Select expression for bulk copy"
                 >
                   <input
                     type="checkbox"
@@ -2565,7 +2569,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "play");
                 }}
-                title="Apply Pose"
+                title="Apply Expression"
               >
                 <Play size={10} fill="currentColor" />
               </Button>
@@ -2578,7 +2582,7 @@ function TreeRowWrapper({
                     e.stopPropagation();
                     onAction?.(node, "key-pose");
                   }}
-                  title="Add pose channels as animation tracks at current time"
+                  title="Add expression channels as animation tracks at current time"
                 >
                   <Plus size={10} />
                 </Button>
@@ -2591,7 +2595,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "reset-pose");
                 }}
-                title="Reset this pose weight"
+                title="Reset this expression weight"
               >
                 <RotateCcw size={10} />
               </Button>
@@ -2603,7 +2607,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "duplicate-pose");
                 }}
-                title="Duplicate this pose"
+                title="Duplicate this expression"
               >
                 <Copy size={10} />
               </Button>
@@ -2615,7 +2619,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "delete-pose");
                 }}
-                title="Delete Pose"
+                title="Delete Expression"
               >
                 <Trash2 size={10} />
               </Button>
@@ -2626,7 +2630,7 @@ function TreeRowWrapper({
               <label
                 className="flex items-center gap-1 text-[9px] text-cyan-200"
                 onClick={(event) => event.stopPropagation()}
-                title="Select pose for bulk copy"
+                title="Select expression for bulk copy"
               >
                 <input
                   type="checkbox"
@@ -2648,7 +2652,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "play");
                 }}
-                title="Apply Pose"
+                title="Apply Expression"
               >
                 <Play size={10} fill="currentColor" />
               </Button>
@@ -2660,7 +2664,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "reset-pose");
                 }}
-                title="Reset pose targets to defaults"
+                title="Reset expression targets to defaults"
               >
                 <RotateCcw size={10} />
               </Button>
@@ -2673,7 +2677,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "copy-pose-to-main");
                 }}
-                title="Copy pose to main face"
+                title="Copy expression to main face"
               >
                 <Copy size={10} />
               </Button>
@@ -2730,7 +2734,7 @@ function TreeRowWrapper({
                   <label
                     className="flex items-center gap-1 text-[9px] text-cyan-200"
                     onClick={(event) => event.stopPropagation()}
-                    title="Select driver for bulk copy"
+                    title="Select control for bulk copy"
                   >
                     <input
                       type="checkbox"
@@ -2758,7 +2762,7 @@ function TreeRowWrapper({
                     e.stopPropagation();
                     onAction?.(node, "copy-to-main");
                   }}
-                  title="Copy driver to main face"
+                  title="Copy control to main face"
                 >
                   <Copy size={10} />
                 </Button>
@@ -2774,7 +2778,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "duplicate-variable");
                 }}
-                title="Duplicate driver"
+                title="Duplicate control"
               >
                 <Copy size={10} />
               </Button>
@@ -2790,7 +2794,7 @@ function TreeRowWrapper({
                   e.stopPropagation();
                   onAction?.(node, "delete-variable");
                 }}
-                title="Delete driver"
+                title="Delete control"
               >
                 <Trash2 size={10} />
               </Button>
@@ -2800,7 +2804,7 @@ function TreeRowWrapper({
               <label
                 className="flex items-center gap-1 text-[9px] text-cyan-200"
                 onClick={(event) => event.stopPropagation()}
-                title="Select all reference/shared drivers in this folder for bulk copy"
+                title="Select all comparison/shared controls in this folder for bulk copy"
               >
                 <input
                   type="checkbox"
@@ -2820,7 +2824,7 @@ function TreeRowWrapper({
               <label
                 className="flex items-center gap-1 text-[9px] text-cyan-200"
                 onClick={(event) => event.stopPropagation()}
-                title="Select all reference poses in this folder for bulk copy"
+                title="Select all comparison expressions in this folder for bulk copy"
               >
                 <input
                   type="checkbox"
@@ -3055,7 +3059,7 @@ export function VariablesPanel({
   onActiveSurfaceChange,
   availableSurfaces,
   panelTitle = "Control Elements",
-  panelDescription = "Author and organize drivers, poses, pose groups, and inputs.",
+  panelDescription = "Author and organize controls, expressions, expression sets, and inputs.",
   onClosePanel,
   motionGraphActive = false,
   animationActive = false,
@@ -4939,7 +4943,7 @@ export function VariablesPanel({
       const blockingMessages: string[] = [];
       const destinationPoseName = modalState.destinationPoseName.trim();
       if (!destinationPoseName) {
-        blockingMessages.push("Destination pose name is required.");
+        blockingMessages.push("Destination expression name is required.");
       }
       const matchingPoses = findMatchingPosesByName(poses, destinationPoseName);
       const overwriteTargetPose =
@@ -5210,7 +5214,7 @@ export function VariablesPanel({
   const variablesRootNode = useMemo(() => {
     const root: TreeNode = {
       id: "root",
-      label: "Drivers",
+      label: "Controls",
       type: "folder",
       children: new Map(),
       showChildren: true,
@@ -5238,7 +5242,7 @@ export function VariablesPanel({
   const posesRootNode = useMemo(() => {
     const root: TreeNode = {
       id: "root",
-      label: "Poses",
+      label: "Expressions",
       type: "folder",
       children: new Map(),
       showChildren: true,
@@ -5350,14 +5354,14 @@ export function VariablesPanel({
     }
     const driverFolder: TreeNode = {
       id: "starred/drivers",
-      label: "Drivers",
+      label: "Controls",
       type: "folder",
       children: new Map(),
       showChildren: true,
     };
     const poseFolder: TreeNode = {
       id: "starred/poses",
-      label: "Poses",
+      label: "Expressions",
       type: "folder",
       children: new Map(),
       showChildren: true,
@@ -6092,7 +6096,7 @@ export function VariablesPanel({
   }, [poses, referencePoseEntries, selectedReferencePoseIds]);
 
   const handleCreatePoseGroup = () => {
-    const value = window.prompt("Create pose group", "");
+    const value = window.prompt("Create expression set", "");
     if (!value) {
       return;
     }
@@ -6109,7 +6113,10 @@ export function VariablesPanel({
       return;
     }
     const normalizedCurrent = normalizePoseGroupPath(current.groupPath);
-    const value = window.prompt("Rename pose group", normalizedCurrent || "");
+    const value = window.prompt(
+      "Rename expression set",
+      normalizedCurrent || "",
+    );
     if (!value) {
       return;
     }
@@ -6131,7 +6138,7 @@ export function VariablesPanel({
       return;
     }
     const ok = window.confirm(
-      `Delete pose group "${current.label}" and unassign its poses?`,
+      `Delete expression set "${current.label}" and unassign its expressions?`,
     );
     if (!ok) {
       return;
@@ -6152,7 +6159,7 @@ export function VariablesPanel({
   const handleCreateBlendStage = () => {
     if (stageGroupOptions.length === 0 && stageDefinitions.length === 0) {
       setStageEditMessage(
-        "Create at least one configured pose group before adding a blend stage.",
+        "Create at least one configured expression set before adding a layer.",
       );
       return;
     }
@@ -6439,7 +6446,7 @@ export function VariablesPanel({
     if (id === "variables") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Drivers", variableItemCount),
+        label: formatSurfaceLabelWithCount("Controls", variableItemCount),
         testId: "control-authoring-tab-drivers",
         panelTestId: "control-authoring-panel-drivers",
       };
@@ -6447,7 +6454,7 @@ export function VariablesPanel({
     if (id === "poses") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Poses", poseItemCount),
+        label: formatSurfaceLabelWithCount("Expressions", poseItemCount),
         testId: "control-authoring-tab-poses",
         panelTestId: "control-authoring-panel-poses",
       };
@@ -6455,7 +6462,10 @@ export function VariablesPanel({
     if (id === "pose-groups") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Pose Groups", poseGroupItemCount),
+        label: formatSurfaceLabelWithCount(
+          "Expression Sets",
+          poseGroupItemCount,
+        ),
         testId: "control-authoring-tab-pose-groups",
         panelTestId: "control-authoring-panel-pose-groups",
       };
@@ -6471,7 +6481,7 @@ export function VariablesPanel({
     if (id === "programs") {
       return {
         id,
-        label: formatSurfaceLabelWithCount("Programs", programItemCount),
+        label: formatSurfaceLabelWithCount("Behaviors", programItemCount),
         testId: "control-authoring-tab-programs",
         panelTestId: "control-authoring-panel-programs",
       };
@@ -6798,7 +6808,7 @@ export function VariablesPanel({
                   <AuthoringTargetList
                     items={programTargets}
                     kindLabel="Program"
-                    emptyDescription="Create a program or import a bundle graph to edit it here."
+                    emptyDescription="Create a behavior or import a Face Package graph to edit it here."
                     onCreate={() => onCreateProgramTarget?.()}
                     onDuplicate={onDuplicateProgramTarget}
                     onDelete={onDeleteProgramTarget}
@@ -6879,8 +6889,8 @@ export function VariablesPanel({
                                             );
                                           }}
                                           disabled={!canAddInput}
-                                          title="Add PAP Input"
-                                          aria-label="Add PAP Input"
+                                          title="Add Behavior Input"
+                                          aria-label="Add Behavior Input"
                                         >
                                           <Plus size={11} />
                                           In
@@ -6897,8 +6907,8 @@ export function VariablesPanel({
                                             );
                                           }}
                                           disabled={!canAddOutput}
-                                          title="Add PAP Output"
-                                          aria-label="Add PAP Output"
+                                          title="Add Behavior Output"
+                                          aria-label="Add Behavior Output"
                                         >
                                           <Plus size={11} />
                                           Out
@@ -6995,8 +7005,8 @@ export function VariablesPanel({
                                                 pose,
                                               );
                                             }}
-                                            title="Add pose channels as animation tracks at current time"
-                                            aria-label="Add Pose Targets"
+                                            title="Add expression channels as animation tracks at current time"
+                                            aria-label="Add Expression Targets"
                                           >
                                             <Zap size={11} />
                                             Targets
@@ -7024,10 +7034,10 @@ export function VariablesPanel({
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
                         onClick={handleCreateVariable}
-                        title="Create a new driver and inspect it"
+                        title="Create a new control and inspect it"
                       >
                         <Plus size={11} />
-                        Add Driver
+                        Add Control
                       </Button>
                       <Button
                         variant="ghost"
@@ -7035,7 +7045,7 @@ export function VariablesPanel({
                         className="h-6 px-2 text-[10px] gap-1"
                         data-testid="variables-inputs-capture-current"
                         onClick={handleCaptureCurrentPose}
-                        title="Capture current input values as a new pose (non-neutral channels only)"
+                        title="Capture current input values as a new expression (non-resting channels only)"
                       >
                         <Camera size={11} />
                         Capture Current
@@ -7049,10 +7059,10 @@ export function VariablesPanel({
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
                         onClick={handleCreateVariable}
-                        title="Create a new driver and inspect it"
+                        title="Create a new control and inspect it"
                       >
                         <Plus size={11} />
-                        New Driver
+                        New Control
                       </Button>
                     )}
                     {isVariables && (
@@ -7064,12 +7074,12 @@ export function VariablesPanel({
                         disabled={!selectedMainVariableId}
                         title={
                           selectedMainVariableId
-                            ? "Duplicate selected driver and inspect the copy"
-                            : "Select a driver to duplicate"
+                            ? "Duplicate selected control and inspect the copy"
+                            : "Select a control to duplicate"
                         }
                       >
                         <Copy size={11} />
-                        Duplicate Driver
+                        Duplicate Control
                       </Button>
                     )}
                     {isPoses && (
@@ -7079,10 +7089,10 @@ export function VariablesPanel({
                           size="sm"
                           className="h-6 px-2 text-[10px] gap-1"
                           onClick={handleCreatePose}
-                          title="Create a new pose and inspect it"
+                          title="Create a new expression and inspect it"
                         >
                           <Activity size={11} className="text-purple-400" />
-                          New Pose
+                          New Expression
                         </Button>
                         <Button
                           variant="ghost"
@@ -7090,7 +7100,7 @@ export function VariablesPanel({
                           className="h-6 px-2 text-[10px] gap-1"
                           data-testid="variables-poses-capture-current"
                           onClick={handleCaptureCurrentPose}
-                          title="Capture current input values as a new pose (non-neutral channels only)"
+                          title="Capture current input values as a new expression (non-resting channels only)"
                         >
                           <Camera size={11} />
                           Capture Current
@@ -7108,12 +7118,12 @@ export function VariablesPanel({
                           title={
                             selectedPoseId &&
                             selectedPoseId !== "__pose_rig_neutral__"
-                              ? "Duplicate selected pose"
-                              : "Select a pose to duplicate"
+                              ? "Duplicate selected expression"
+                              : "Select an expression to duplicate"
                           }
                         >
                           <Copy size={11} />
-                          Duplicate Pose
+                          Duplicate Expression
                         </Button>
                         {referenceFace.file && (
                           <Button
@@ -7125,8 +7135,8 @@ export function VariablesPanel({
                             disabled={!canCopyReferencePoses}
                             title={
                               selectedReferencePoseCopyCount > 0
-                                ? "Copy selected reference poses to the main face"
-                                : "Copy a reference pose to the main face"
+                                ? "Copy selected comparison expressions to the main face"
+                                : "Copy a comparison expression to the main face"
                             }
                           >
                             <Copy size={11} />
@@ -7147,8 +7157,8 @@ export function VariablesPanel({
                         disabled={!canCopyReferenceDrivers}
                         title={
                           selectedReferenceRigCopyCount > 0
-                            ? "Copy selected reference drivers to main face"
-                            : "Copy reference-only drivers to main face"
+                            ? "Copy selected comparison controls to main face"
+                            : "Copy comparison-only controls to main face"
                         }
                       >
                         <Copy size={11} />
@@ -7186,8 +7196,8 @@ export function VariablesPanel({
                           onClick={handleRenameSelectedPoseGroup}
                           title={
                             selectedPoseGroup?.groupId
-                              ? "Rename selected pose group"
-                              : "Select a configured pose group first"
+                              ? "Rename selected expression set"
+                              : "Select a configured expression set first"
                           }
                         >
                           Rename
@@ -7200,8 +7210,8 @@ export function VariablesPanel({
                           onClick={handleDeleteSelectedPoseGroup}
                           title={
                             selectedPoseGroup?.groupId
-                              ? "Delete selected pose group"
-                              : "Select a configured pose group first"
+                              ? "Delete selected expression set"
+                              : "Select a configured expression set first"
                           }
                         >
                           Delete
@@ -7223,11 +7233,11 @@ export function VariablesPanel({
                         searchQuery
                           ? "Filter..."
                           : isVariables
-                            ? "Search drivers..."
+                            ? "Search controls..."
                             : isPoses
-                              ? "Search poses..."
+                              ? "Search expressions..."
                               : isPoseGroups
-                                ? "Search pose groups..."
+                                ? "Search expression sets..."
                                 : "Search inputs..."
                       }
                     />
@@ -7262,7 +7272,7 @@ export function VariablesPanel({
                       ) : isPoses ? (
                         <>
                           <span className="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-                            Poses Context
+                            Expressions Context
                           </span>
                           <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-yellow-500/40 text-yellow-200">
                             <Zap size={10} />
@@ -7329,7 +7339,7 @@ export function VariablesPanel({
                         <span className="text-[10px] text-text-muted">
                           {selectedPoseName
                             ? `Selected pose: ${selectedPoseName}`
-                            : "Select a pose to edit membership"}
+                            : "Select an expression to edit membership"}
                         </span>
                         {selectedPoseName && (
                           <div className="flex flex-wrap items-center gap-1">
@@ -7576,7 +7586,7 @@ export function VariablesPanel({
                                         }}
                                         title={
                                           referencesThisStage
-                                            ? "Delete blocked while later stages reference this stage"
+                                            ? "Delete blocked while later layers reference this layer"
                                             : "Delete blend stage"
                                         }
                                       >
@@ -7617,7 +7627,7 @@ export function VariablesPanel({
                             ...(referenceFace.file
                               ? ([["shared", "Shared"]] as const)
                               : []),
-                            ["reference", "Reference Face"],
+                            ["reference", "Comparison Face"],
                           ] as Array<[RigNodeSource, string]>
                         )
                           .filter(([source]) =>
@@ -7665,13 +7675,13 @@ export function VariablesPanel({
                           iconSize={18}
                           title={
                             filteredSearch.length > 0
-                              ? "No pose groups found"
-                              : "No pose groups yet"
+                              ? "No expression sets found"
+                              : "No expression sets yet"
                           }
                           description={
                             filteredSearch.length > 0
                               ? `No items found matching "${searchQuery}"`
-                              : "Create a group or assign poses to populate this list."
+                              : "Create a set or assign expressions to populate this list."
                           }
                           action={
                             filteredSearch.length > 0 ? (
@@ -7734,12 +7744,12 @@ export function VariablesPanel({
                                       }}
                                       title={
                                         !selectedPoseId
-                                          ? "Select a pose first"
+                                          ? "Select an expression first"
                                           : isUnassigned
-                                            ? "Unassigned membership is derived from poses with no groups"
+                                            ? "Unassigned membership is derived from expressions with no sets"
                                             : isMember
-                                              ? "Unassign selected pose"
-                                              : "Assign selected pose"
+                                              ? "Unassign selected expression"
+                                              : "Assign selected expression"
                                       }
                                     >
                                       {isMember ? "Unassign" : "Assign"}
@@ -7801,8 +7811,8 @@ export function VariablesPanel({
                                               row,
                                             );
                                           }}
-                                          title="Remove PAP Input"
-                                          aria-label="Remove PAP Input"
+                                          title="Remove Behavior Input"
+                                          aria-label="Remove Behavior Input"
                                         >
                                           <X size={11} />
                                         </Button>
@@ -7867,8 +7877,8 @@ export function VariablesPanel({
                                                 row,
                                               );
                                             }}
-                                            title="Remove PAP Output"
-                                            aria-label="Remove PAP Output"
+                                            title="Remove Behavior Output"
+                                            aria-label="Remove Behavior Output"
                                           >
                                             <X size={11} />
                                           </Button>
@@ -7961,8 +7971,8 @@ export function VariablesPanel({
                                                     pose,
                                                   );
                                                 }}
-                                                title="Add pose channels as animation tracks at current time"
-                                                aria-label="Add Pose Targets"
+                                                title="Add expression channels as animation tracks at current time"
+                                                aria-label="Add Expression Targets"
                                               >
                                                 <Zap size={11} />
                                                 Targets
@@ -8026,25 +8036,25 @@ export function VariablesPanel({
                             : isStarred
                               ? "No starred functionality"
                               : isVariables
-                                ? "No drivers defined"
+                                ? "No controls defined"
                                 : isPoses
-                                  ? "No poses defined"
+                                  ? "No expressions defined"
                                   : isInputs
                                     ? "No inputs defined"
-                                    : "No pose groups defined"
+                                    : "No expression sets defined"
                         }
                         description={
                           filteredSearch.length > 0
                             ? `No items found matching "${searchQuery}"`
                             : isStarred
-                              ? "Star drivers and poses to collect the approved way to control this face here."
+                              ? "Star controls and expressions to collect the approved way to control this face here."
                               : isVariables
                                 ? "Create new drivers or import a model with poses."
                                 : isPoses
                                   ? "Create a pose to get started."
                                   : isInputs
                                     ? "Inputs are populated from rig auto-generation and references."
-                                    : "No pose groups yet."
+                                    : "No expression sets yet."
                         }
                         action={
                           filteredSearch.length > 0 ? (
@@ -8648,7 +8658,7 @@ export function VariablesPanel({
         <Modal
           open={true}
           onClose={closePoseCopyModal}
-          title="Pose Copy Mapping"
+          title="Expression Copy Mapping"
           maxWidth="4xl"
         >
           <div className="space-y-4">

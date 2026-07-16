@@ -162,7 +162,7 @@ export function AppMenuBar({
           onSelect={onImportReferenceFace}
           testId="app-menu-file-import-reference-face"
         >
-          Import Reference Face...
+          Import Comparison Face...
         </MenuItem>
         <MenuItem onSelect={onExport} testId="app-menu-file-export">
           Export...
@@ -230,7 +230,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Pose Creation
+          Expression Creation
         </MenuCheckboxItem>
         <MenuCheckboxItem
           testId="app-menu-mode-pose-editing"
@@ -241,7 +241,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Pose Editing
+          Expression Editing
         </MenuCheckboxItem>
         <MenuCheckboxItem
           testId="app-menu-mode-procedural-animation"
@@ -252,7 +252,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Procedural Animations
+          Behavior Programming
         </MenuCheckboxItem>
         <MenuCheckboxItem
           testId="app-menu-mode-reference-face"
@@ -263,7 +263,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Reference Face
+          Comparison Face
         </MenuCheckboxItem>
       </Menu>
       <Menu label="View" testId="app-menu-view">
@@ -306,7 +306,7 @@ export function AppMenuBar({
               showAuthoringSurface("variables");
             }}
           >
-            Drivers
+            Controls
           </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "poses"}
@@ -317,7 +317,7 @@ export function AppMenuBar({
               showAuthoringSurface("poses");
             }}
           >
-            Poses
+            Expressions
           </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "pose-groups"}
@@ -328,7 +328,7 @@ export function AppMenuBar({
               showAuthoringSurface("pose-groups");
             }}
           >
-            Pose Groups
+            Expression Sets
           </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "animations"}
@@ -350,7 +350,7 @@ export function AppMenuBar({
               showAuthoringSurface("programs");
             }}
           >
-            Programs
+            Behaviors
           </MenuCheckboxItem>
         </MenuSubmenu>
         <MenuCheckboxItem
@@ -377,7 +377,7 @@ export function AppMenuBar({
             setCenterPanelVisibility("motiongraph", checked)
           }
         >
-          Program
+          Behavior
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={referenceFacePanelVisible}
@@ -385,7 +385,7 @@ export function AppMenuBar({
             setCenterPanelVisibility("referenceFace", checked)
           }
         >
-          Reference Face
+          Comparison Face
         </MenuCheckboxItem>
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>

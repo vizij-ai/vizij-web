@@ -47,10 +47,10 @@ export function VizijBundleAuditPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Vizij Bundle Graphs</CardTitle>
+        <CardTitle>Face Package Graphs</CardTitle>
         <CardDescription>
-          Recompile bundled IR graphs and compare them to the saved specs before
-          exporting a GLB.
+          Recompile Face Package IR graphs and compare them to the saved specs
+          before exporting a GLB.
         </CardDescription>
       </CardHeader>
       <CardBody compact className="bundle-audit">

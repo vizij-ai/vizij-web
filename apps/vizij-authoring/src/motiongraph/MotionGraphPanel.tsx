@@ -74,7 +74,7 @@ export function MotionGraphPanel({
             effectivePlaybackState === "playing" ||
             !handlePlay
           }
-          title="Play program"
+          title="Play behavior"
         >
           <Play className="h-3.5 w-3.5 fill-current" />
         </Button>
@@ -88,7 +88,7 @@ export function MotionGraphPanel({
             effectivePlaybackState === "paused" ||
             !handlePause
           }
-          title="Pause program"
+          title="Pause behavior"
         >
           <Pause className="h-3.5 w-3.5 fill-current" />
         </Button>
@@ -102,7 +102,7 @@ export function MotionGraphPanel({
             effectivePlaybackState === "stopped" ||
             !handleStop
           }
-          title="Stop program"
+          title="Stop behavior"
         >
           <Square className="h-3.5 w-3.5 fill-current" />
         </Button>
@@ -144,8 +144,8 @@ export function MotionGraphPanel({
   return (
     <Panel
       data-testid="motiongraph-panel-shell"
-      title="Program"
-      description="Author procedural animation programs in the workspace canvas."
+      title="Behavior Editor"
+      description="Author procedural animation behaviors in the workspace canvas."
       className="h-full min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
     >
@@ -172,7 +172,7 @@ export function MotionGraphPalettePanel({
   return (
     <Panel
       title="Node Palette"
-      description="Drag graph nodes into the active program."
+      description="Drag graph nodes into the active behavior."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={
         onClosePanel ? (

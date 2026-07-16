@@ -255,7 +255,7 @@ describe("VariablePipelineStages", () => {
       },
     );
     fireEvent.click(
-      within(parentStage).getByRole("button", { name: "Apply Expression" }),
+      within(parentStage).getByRole("button", { name: "Apply Formula" }),
     );
     expect(props.onParentExpressionChange).toHaveBeenCalledWith(
       "self - jawParent*2",
@@ -324,9 +324,7 @@ describe("VariablePipelineStages", () => {
         target: { value: "s1 = parent * scale + offset * 2" },
       },
     );
-    fireEvent.click(
-      within(parentStage).getByRole("button", { name: "Apply Formula" }),
-    );
+    fireEvent.click(within(parentStage).getByRole("button", { name: "Apply" }));
     expect(onParentFormulaChange).toHaveBeenCalledWith(
       "s1 = parent * scale + offset * 2",
     );
@@ -410,7 +408,7 @@ describe("VariablePipelineStages", () => {
 
     expect(
       within(parentStage).getByText(
-        /legacy read-only expression: expression includes custom math/i,
+        /legacy read-only formula: expression includes custom math/i,
       ),
     ).toBeTruthy();
     expect(
@@ -448,7 +446,7 @@ describe("VariablePipelineStages", () => {
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
-    const poseStage = openStage(view, "pipeline-stage-poses", /poses/i);
+    const poseStage = openStage(view, "pipeline-stage-poses", /expressions/i);
     fireEvent.click(within(poseStage).getByRole("button", { name: /smile/i }));
     openStage(view, "pipeline-stage-direct-input", /direct input/i);
     openStage(view, "pipeline-stage-override", /override/i);

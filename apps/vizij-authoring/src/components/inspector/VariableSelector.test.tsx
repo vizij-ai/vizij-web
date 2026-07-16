@@ -51,7 +51,7 @@ describe("VariableSelector", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "Jaw Open" },
       },
@@ -86,7 +86,7 @@ describe("VariableSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
 
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "mouth morph" },
       },
@@ -95,7 +95,7 @@ describe("VariableSelector", () => {
     expect(screen.getByText("Smile Left")).toBeTruthy();
 
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "ctrl_01" },
       },
@@ -269,7 +269,7 @@ describe("VariableSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "eye" },
       },
@@ -418,7 +418,7 @@ describe("VariableSelector", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "jaw" },
       },
@@ -430,7 +430,7 @@ describe("VariableSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Drivers\s*\d+/i }));
     fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "eye" },
       },
@@ -464,7 +464,7 @@ describe("VariableSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Properties\s*\d+/i }));
 
     fireEvent.change(
-      screen.getByPlaceholderText("Search drivers or properties..."),
+      screen.getByPlaceholderText("Search controls or properties..."),
       {
         target: { value: "notfound" },
       },

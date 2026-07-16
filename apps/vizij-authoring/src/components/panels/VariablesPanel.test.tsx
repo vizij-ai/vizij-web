@@ -360,9 +360,11 @@ describe("VariablesPanel", () => {
     );
 
     expect(within(view.container).getByText("Control Elements")).toBeTruthy();
-    expect(within(view.container).getByText("Drivers (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Poses (0)")).toBeTruthy();
-    expect(within(view.container).getByText("Pose Groups (0)")).toBeTruthy();
+    expect(within(view.container).getByText("Controls (0)")).toBeTruthy();
+    expect(within(view.container).getByText("Expressions (0)")).toBeTruthy();
+    expect(
+      within(view.container).getByText("Expression Sets (0)"),
+    ).toBeTruthy();
     expect(within(view.container).getByText("Inputs (0)")).toBeTruthy();
   });
 
@@ -393,7 +395,7 @@ describe("VariablesPanel", () => {
     );
 
     const contextRow = within(view.container)
-      .getByText("Poses Context")
+      .getByText("Expressions Context")
       .closest("div");
     expect(contextRow).toBeTruthy();
     const scoped = within(contextRow as HTMLElement);
@@ -490,7 +492,9 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Save Pose Target" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save Expression Target" }),
+    );
 
     expect(poseRigState.addPoseInput).toHaveBeenCalledWith(
       poseId,
@@ -618,7 +622,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/brow/up" },
       },
@@ -671,7 +675,7 @@ describe("VariablesPanel", () => {
     fireEvent.click(within(view.container).getByText(/^Preset \(\d+\)$/));
     fireEvent.click(within(view.container).getByText(/^Custom \(\d+\)$/));
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "brow" },
       },
@@ -714,10 +718,10 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel />);
     fireEvent.click(within(view.container).getByText(/^Custom \(\d+\)$/));
     fireEvent.click(
-      within(view.container).getByText(/^Reference Face \(\d+\)$/),
+      within(view.container).getByText(/^Comparison Face \(\d+\)$/),
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/jaw/open" },
       },
@@ -767,14 +771,14 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/brow/up" },
       },
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
 
     expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
@@ -798,13 +802,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/brow/up" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
     expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
       0,
@@ -885,13 +889,13 @@ describe("VariablesPanel", () => {
     const onSelectRig = vi.fn();
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/source" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
     fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
 
@@ -1027,13 +1031,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/brow/up" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
     fireEvent.click(
       screen.getByRole("button", { name: /Use current default/i }),
@@ -1104,7 +1108,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/" },
       },
@@ -1170,14 +1174,14 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/folder/" },
       },
     );
     fireEvent.click(
       within(view.container).getByTitle(
-        "Select all reference/shared drivers in this folder for bulk copy",
+        "Select all comparison/shared controls in this folder for bulk copy",
       ),
     );
 
@@ -1229,7 +1233,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/" },
       },
@@ -1300,7 +1304,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/" },
       },
@@ -1365,7 +1369,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/eyes/blink" },
       },
@@ -1457,7 +1461,9 @@ describe("VariablesPanel", () => {
       .forEach((checkbox) => fireEvent.click(checkbox));
     fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (2)" }));
 
-    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Expression Copy Mapping").length,
+    ).toBeGreaterThan(0);
     expect(poseRigState.createPose).toHaveBeenCalledTimes(1);
     expect(poseRigState.createPose).toHaveBeenNthCalledWith(1, "Ref Shared");
     expect(poseRigState.updatePoseGroup).toHaveBeenCalledTimes(1);
@@ -1534,13 +1540,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/eyes/blink" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
 
     expect(screen.getAllByText("Variable Copy Mapping").length).toBeGreaterThan(
@@ -1620,13 +1626,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/eyes/blink" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
 
     expect(screen.getByText(/Ref Child Prop/)).toBeTruthy();
@@ -1682,13 +1688,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/eyes/blink" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
 
     const applyCheckboxes = screen.getAllByRole("checkbox");
@@ -1767,13 +1773,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/eyes/blink" },
       },
     );
     fireEvent.click(
-      within(view.container).getByTitle("Copy driver to main face"),
+      within(view.container).getByTitle("Copy control to main face"),
     );
 
     expect(screen.getByText(/Reference Child/)).toBeTruthy();
@@ -1809,16 +1815,18 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Smile" },
       },
     );
     fireEvent.click(
-      within(view.container).getAllByTitle("Copy pose to main face")[0]!,
+      within(view.container).getAllByTitle("Copy expression to main face")[0]!,
     );
 
-    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Expression Copy Mapping").length,
+    ).toBeGreaterThan(0);
   });
 
   it("groups reference poses by folder metadata and supports folder bulk-select", () => {
@@ -1853,7 +1861,7 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(
       within(view.container).getByTitle(
-        "Select all reference poses in this folder for bulk copy",
+        "Select all comparison expressions in this folder for bulk copy",
       ),
     );
     expect(
@@ -1893,7 +1901,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Shared Smile" },
       },
@@ -1929,7 +1937,7 @@ describe("VariablesPanel", () => {
       />,
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Smile" },
       },
@@ -1968,14 +1976,14 @@ describe("VariablesPanel", () => {
       />,
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Smile Pose" },
       },
     );
 
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+    fireEvent.click(screen.getByTitle("Apply Expression"));
+    fireEvent.click(screen.getByTitle("Reset expression targets to defaults"));
 
     expect(
       referenceFaceState.handleInputPathValueChange,
@@ -2035,14 +2043,14 @@ describe("VariablesPanel", () => {
       />,
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Smile Pose" },
       },
     );
 
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+    fireEvent.click(screen.getByTitle("Apply Expression"));
+    fireEvent.click(screen.getByTitle("Reset expression targets to defaults"));
 
     expect(
       referenceFaceState.handleInputPathValueChange,
@@ -2106,14 +2114,14 @@ describe("VariablesPanel", () => {
       />,
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Angry Pose" },
       },
     );
 
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+    fireEvent.click(screen.getByTitle("Apply Expression"));
+    fireEvent.click(screen.getByTitle("Reset expression targets to defaults"));
 
     expect(referenceFaceState.handleInputValueChange).not.toHaveBeenCalled();
     expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
@@ -2167,13 +2175,13 @@ describe("VariablesPanel", () => {
       />,
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Smile Pose" },
       },
     );
 
-    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+    fireEvent.click(screen.getByTitle("Reset expression targets to defaults"));
 
     expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
       smileWeightInput.path,
@@ -2231,14 +2239,14 @@ describe("VariablesPanel", () => {
       />,
     );
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search poses..."),
+      within(view.container).getByPlaceholderText("Search expressions..."),
       {
         target: { value: "Ref Angry Pose" },
       },
     );
 
-    fireEvent.click(screen.getByTitle("Apply Pose"));
-    fireEvent.click(screen.getByTitle("Reset pose targets to defaults"));
+    fireEvent.click(screen.getByTitle("Apply Expression"));
+    fireEvent.click(screen.getByTitle("Reset expression targets to defaults"));
 
     expect(referenceFaceState.handleInputPathValueChange).toHaveBeenCalledWith(
       "/poses/ref_pose_angry.weight",
@@ -2286,9 +2294,11 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getByTitle("Copy expression to main face"),
     );
-    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Expression Copy Mapping").length,
+    ).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
@@ -2350,7 +2360,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getByTitle("Copy expression to main face"),
     );
 
     expect(poseRigState.createPose).not.toHaveBeenCalled();
@@ -2424,7 +2434,9 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Copy Ref Pose (1)" }));
 
-    expect(screen.getAllByText("Pose Copy Mapping").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Expression Copy Mapping").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Overwrite Pose" })).toBeTruthy();
     expect(poseRigState.createPose).not.toHaveBeenCalled();
 
@@ -2473,7 +2485,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getByTitle("Copy expression to main face"),
     );
     fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
 
@@ -2520,7 +2532,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getByTitle("Copy pose to main face"),
+      within(view.container).getByTitle("Copy expression to main face"),
     );
     fireEvent.click(screen.getByRole("button", { name: "Match Source Path" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm Copy" }));
@@ -2581,7 +2593,7 @@ describe("VariablesPanel", () => {
     );
 
     fireEvent.click(
-      within(view.container).getAllByTitle("Copy pose to main face")[0]!,
+      within(view.container).getAllByTitle("Copy expression to main face")[0]!,
     );
     fireEvent.click(
       screen.getByRole("button", { name: /Use current pose value/i }),
@@ -2640,7 +2652,7 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(
       within(view.container).getAllByRole("button", {
-        name: "New Driver",
+        name: "New Control",
       })[0]!,
     );
 
@@ -2709,7 +2721,7 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(
       within(view.container).getByRole("button", {
-        name: "Duplicate Driver",
+        name: "Duplicate Control",
       }),
     );
 
@@ -2738,7 +2750,7 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     const search = within(view.container).getByPlaceholderText(
-      "Search drivers...",
+      "Search controls...",
     );
 
     fireEvent.change(search, { target: { value: "blink" } });
@@ -2774,7 +2786,7 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/brow/up" },
       },
@@ -2799,7 +2811,7 @@ describe("VariablesPanel", () => {
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
 
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "standard/brow/up" },
       },
@@ -3076,13 +3088,13 @@ describe("VariablesPanel", () => {
 
     const view = render(<VariablesPanel />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "custom/smile" },
       },
     );
 
-    fireEvent.click(within(view.container).getAllByTitle("Delete driver")[0]!);
+    fireEvent.click(within(view.container).getAllByTitle("Delete control")[0]!);
 
     expect(confirmSpy).toHaveBeenCalledWith(
       `Delete custom driver "${customInput.label}"?\n\nThis removes the driver and cleans linked parent/child bindings.`,
@@ -3107,13 +3119,13 @@ describe("VariablesPanel", () => {
     const onSelectRig = vi.fn();
     const view = render(<VariablesPanel onSelectRig={onSelectRig} />);
     fireEvent.change(
-      within(view.container).getByPlaceholderText("Search drivers..."),
+      within(view.container).getByPlaceholderText("Search controls..."),
       {
         target: { value: "custom/brow" },
       },
     );
 
-    fireEvent.click(within(view.container).getAllByTitle("Delete driver")[0]!);
+    fireEvent.click(within(view.container).getAllByTitle("Delete control")[0]!);
 
     expect(bindingState.handleDeleteCustomStandardInput).toHaveBeenCalledWith(
       customInput.id,
@@ -3208,17 +3220,19 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "New Pose" }));
+    fireEvent.click(screen.getByRole("button", { name: "New Expression" }));
     expect(poseRigState.createPose).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(within(view.container).getByTitle("Duplicate this pose"));
+    fireEvent.click(
+      within(view.container).getByTitle("Duplicate this expression"),
+    );
     expect(poseRigState.duplicatePose).toHaveBeenCalledWith("pose_smile");
 
     fireEvent.click(within(view.container).getByTitle("Smile"));
     expect(onSelectPose).toHaveBeenCalledWith("pose_smile");
     expect(poseRigState.applyPose).not.toHaveBeenCalled();
 
-    fireEvent.click(within(view.container).getByTitle("Delete Pose"));
+    fireEvent.click(within(view.container).getByTitle("Delete Expression"));
     expect(confirmSpy).toHaveBeenCalledWith('Delete pose "Smile"?');
     expect(poseRigState.deletePose).toHaveBeenCalledWith("pose_smile");
     confirmSpy.mockRestore();
@@ -3299,7 +3313,9 @@ describe("VariablesPanel", () => {
       />,
     );
 
-    fireEvent.click(within(view.container).getAllByTitle("Apply Pose")[0]!);
+    fireEvent.click(
+      within(view.container).getAllByTitle("Apply Expression")[0]!,
+    );
 
     const updates = bindingState.applyStandardInputBatch.mock.calls[0]?.[0] as
       | Record<string, number>
@@ -3666,7 +3682,7 @@ describe("VariablesPanel", () => {
     ).toBeNull();
     expect(
       within(view.container).getByTitle(
-        "Delete blocked while later stages reference this stage",
+        "Delete blocked while later layers reference this layer",
       ),
     ).toHaveProperty("disabled", true);
     const blockedMoveButtons = within(view.container).getAllByTitle(
@@ -3764,7 +3780,7 @@ describe("VariablesPanel", () => {
       target: { value: "jaw open" },
     });
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Add PAP Output" })[0]!,
+      screen.getAllByRole("button", { name: "Add Behavior Output" })[0]!,
     );
     const beforeSearchEnabledOutputs = new Set(
       useEditorStore.getState().enabledOutputs,
@@ -3811,20 +3827,26 @@ describe("VariablesPanel", () => {
     fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
       target: { value: "jaw open" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add PAP Input" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add PAP Output" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Behavior Input" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Behavior Output" }),
+    );
 
     expect(useEditorStore.getState().enabledInputs.size).toBe(1);
     expect(useEditorStore.getState().enabledOutputs.size).toBe(1);
     expect(
-      screen.getByRole("button", { name: "Remove PAP Input" }),
+      screen.getByRole("button", { name: "Remove Behavior Input" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Remove PAP Output" }),
+      screen.getByRole("button", { name: "Remove Behavior Output" }),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove PAP Input" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove PAP Output" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Behavior Input" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Behavior Output" }),
+    );
 
     expect(useEditorStore.getState().enabledInputs.size).toBe(0);
     expect(useEditorStore.getState().enabledOutputs.size).toBe(0);
@@ -3854,10 +3876,12 @@ describe("VariablesPanel", () => {
     fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
       target: { value: "jaw open" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add PAP Output" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Behavior Output" }),
+    );
 
     const outputRow = screen
-      .getByRole("button", { name: "Remove PAP Output" })
+      .getByRole("button", { name: "Remove Behavior Output" })
       .closest('[role="button"]');
     expect(outputRow).toBeTruthy();
     const outputSlider = within(outputRow as HTMLElement).getByRole("slider");
@@ -4001,7 +4025,7 @@ describe("VariablesPanel", () => {
 
     fireEvent.click(
       within(view.container).getByTitle(
-        "Add pose channels as animation tracks at current time",
+        "Add expression channels as animation tracks at current time",
       ),
     );
 
@@ -4084,7 +4108,9 @@ describe("VariablesPanel", () => {
     fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
       target: { value: "Pose Weight Smile" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add Pose Targets" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Expression Targets" }),
+    );
 
     const animationState = useAnimationStore.getState();
     expect(animationState.tracks).toHaveLength(2);
@@ -4135,8 +4161,12 @@ describe("VariablesPanel", () => {
     expect(
       screen.getByRole("button", { name: "Add Animation Track" }),
     ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Add PAP Input" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add PAP Output" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Add Behavior Input" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Add Behavior Output" }),
+    ).toBeNull();
   });
 
   it("renders wrapped authoring tabs for animations and programs", () => {
@@ -4273,7 +4303,7 @@ describe("VariablesPanel", () => {
     expect(onStopAnimationTarget).toHaveBeenCalledWith("animation:live");
     expect(onDeleteAnimationTarget).toHaveBeenCalledWith("animation:wave");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Programs (2)" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Behaviors (2)" }));
 
     expect(screen.getByPlaceholderText("Search programs...")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "New Program" }));
@@ -4316,8 +4346,12 @@ describe("VariablesPanel", () => {
 
 describe("formatSurfaceLabelWithCount", () => {
   it("keeps count formatting stable for zero and non-zero values", () => {
-    expect(formatSurfaceLabelWithCount("Poses", 0)).toBe("Poses (0)");
-    expect(formatSurfaceLabelWithCount("Poses", 7)).toBe("Poses (7)");
+    expect(formatSurfaceLabelWithCount("Expressions", 0)).toBe(
+      "Expressions (0)",
+    );
+    expect(formatSurfaceLabelWithCount("Expressions", 7)).toBe(
+      "Expressions (7)",
+    );
   });
 });
 

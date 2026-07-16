@@ -130,7 +130,7 @@ describe("BindingEditor", () => {
       slots: [{ id: "s1", alias: "s1", inputId: "rig_driver_smile" }],
     } as AnimatableBinding);
 
-    const expressionField = screen.getByLabelText("Expression: Jaw Open =");
+    const expressionField = screen.getByLabelText("Formula: Jaw Open =");
     fireEvent.change(expressionField, { target: { value: "s1 * 2" } });
 
     expect(screen.getByText("Draft changed")).toBeTruthy();
@@ -193,7 +193,7 @@ describe("BindingEditor", () => {
     fireEvent.click(addButton);
     expect(callbacks.onAddBindingSlot).not.toHaveBeenCalled();
 
-    const expressionField = screen.getByLabelText("Expression: Jaw Open =");
+    const expressionField = screen.getByLabelText("Formula: Jaw Open =");
     expect((expressionField as HTMLTextAreaElement).disabled).toBe(true);
     fireEvent.change(expressionField, { target: { value: "s1 + s2" } });
     expect(callbacks.onBindingExpressionChange).not.toHaveBeenCalled();

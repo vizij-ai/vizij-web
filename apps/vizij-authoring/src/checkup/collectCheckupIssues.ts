@@ -79,7 +79,7 @@ export function collectRigGraphIssues(
       id: `rig-graph/binding/${targetId}`,
       section: "rig-graph",
       severity: "warning",
-      message: `Binding "${targetId}" has ${messages.length} issue${
+      message: `Link "${targetId}" has ${messages.length} issue${
         messages.length === 1 ? "" : "s"
       }`,
       details: preview(messages),
@@ -102,7 +102,7 @@ export function collectBundleIssues(
         id: `bundle/${entry.id}/error`,
         section: "bundle",
         severity: "error",
-        message: `Bundle graph "${label}" failed to audit${
+        message: `Face Package graph "${label}" failed to audit${
           entry.error ? `: ${entry.error}` : ""
         }`,
       });
@@ -111,7 +111,7 @@ export function collectBundleIssues(
         id: `bundle/${entry.id}/diff`,
         section: "bundle",
         severity: "warning",
-        message: `Bundle graph "${label}" differs from its rebuilt IR (${
+        message: `Face Package graph "${label}" differs from its rebuilt IR (${
           entry.diffCount
         }${entry.diffLimitReached ? "+" : ""} difference${
           entry.diffCount === 1 ? "" : "s"
@@ -123,7 +123,7 @@ export function collectBundleIssues(
         id: `bundle/${entry.id}/missing-ir`,
         section: "bundle",
         severity: "info",
-        message: `Bundle graph "${label}" has no IR payload, so it cannot be verified`,
+        message: `Face Package graph "${label}" has no IR payload, so it cannot be verified`,
       });
     }
     const missingTargets = entry.outputs.filter(
@@ -134,7 +134,7 @@ export function collectBundleIssues(
         id: `bundle/${entry.id}/missing-targets`,
         section: "bundle",
         severity: "error",
-        message: `Bundle graph "${label}" writes ${missingTargets.length} output${
+        message: `Face Package graph "${label}" writes ${missingTargets.length} output${
           missingTargets.length === 1 ? "" : "s"
         } with no runtime target`,
         details: preview(
@@ -251,9 +251,9 @@ export function collectPoseIssues(input: PoseCheckupInput): CheckupIssue[] {
       id: "poses/unmatched-outputs",
       section: "poses",
       severity: "warning",
-      message: `${input.unmatchedPoseOutputs.length} active pose output${
+      message: `${input.unmatchedPoseOutputs.length} active expression output${
         input.unmatchedPoseOutputs.length === 1 ? "" : "s"
-      } are not mapped into any rig chain`,
+      } are not mapped into any control chain`,
       details: preview(
         input.unmatchedPoseOutputs.map(
           (output) => `${output.poseName} → ${output.inputId}`,
@@ -299,10 +299,10 @@ export function collectImportIssues(
 }
 
 const SECTION_LABELS: Record<CheckupSectionId, string> = {
-  "rig-graph": "Rig Graph",
-  bundle: "Bundle Graphs",
+  "rig-graph": "Controls Graph",
+  bundle: "Face Package Graphs",
   "robot-data": "Robot Data",
-  poses: "Poses",
+  poses: "Expressions",
   import: "Import",
 };
 

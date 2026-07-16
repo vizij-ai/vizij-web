@@ -55,9 +55,9 @@ const HEALTH_TABS: ReadonlyArray<{ id: HealthTabId; label: string }> = [
   { id: "checkup", label: "Checkup" },
   { id: "playback", label: "Playback" },
   { id: "robot-audit", label: "RobotData" },
-  { id: "bundle-audit", label: "Bundle Graphs" },
+  { id: "bundle-audit", label: "Face Package Graphs" },
   { id: "diagnostics", label: "Graph Diagnostics" },
-  { id: "maintenance", label: "Rig Maintenance" },
+  { id: "maintenance", label: "Maintenance" },
 ];
 
 const CHECKUP_SECTION_TABS: Record<CheckupSectionId, HealthTabId> = {
@@ -429,7 +429,7 @@ export function DebugPanel({
 
   const handleClearCachedRig = useCallback(async () => {
     const confirmed = await showConfirm(
-      "Clear cached rig data for this asset? This removes saved inputs, bindings, and overrides.",
+      "Clear cached rig data for this asset? This removes saved inputs, links, and overrides.",
     );
     if (!confirmed) {
       return;
@@ -462,7 +462,7 @@ export function DebugPanel({
   return (
     <Panel
       title="Debug"
-      description="Monitor status, playback, and rig health."
+      description="Monitor status, playback, and face health."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={
         onClosePanel ? (
@@ -736,7 +736,7 @@ export function DebugPanel({
                 return (
                   <div className="flex flex-col gap-4">
                     <InstructionCallout
-                      label="Bundle Graphs"
+                      label="Face Package Graphs"
                       summary="Keep GraphSpecs + IR aligned"
                       size="compact"
                       icon={<FileCheck className="w-4 h-4 text-accent" />}
@@ -833,7 +833,7 @@ export function DebugPanel({
                 return (
                   <div className="flex flex-col gap-4">
                     <InstructionCallout
-                      label="Rig Maintenance"
+                      label="Maintenance"
                       summary="Clear overrides and cache"
                       size="compact"
                       icon={<Wrench className="w-4 h-4 text-text-muted" />}

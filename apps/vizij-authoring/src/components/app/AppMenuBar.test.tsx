@@ -62,8 +62,8 @@ describe("AppMenuBar", () => {
     expect(screen.getByText("Authoring")).toBeTruthy();
     expect(screen.getByText("Center Panel")).toBeTruthy();
     expect(screen.getByText("Animation")).toBeTruthy();
-    expect(screen.getByText("Program")).toBeTruthy();
-    expect(screen.getByText("Reference Face")).toBeTruthy();
+    expect(screen.getByText("Behavior")).toBeTruthy();
+    expect(screen.getByText("Comparison Face")).toBeTruthy();
     expect(screen.getByTestId("app-menu-view-center-animation")).toBeTruthy();
     expect(screen.getByTestId("app-menu-view-center-program")).toBeTruthy();
     expect(screen.getByTestId("app-menu-view-right-inspector")).toBeTruthy();
@@ -83,11 +83,11 @@ describe("AppMenuBar", () => {
     fireEvent.click(controlAuthoringTrigger);
 
     await waitFor(() => {
-      expect(screen.getByText("Drivers")).toBeTruthy();
-      expect(screen.getByText("Poses")).toBeTruthy();
-      expect(screen.getByText("Pose Groups")).toBeTruthy();
+      expect(screen.getByText("Controls")).toBeTruthy();
+      expect(screen.getByText("Expressions")).toBeTruthy();
+      expect(screen.getByText("Expression Sets")).toBeTruthy();
       expect(screen.getByText("Animations")).toBeTruthy();
-      expect(screen.getByText("Programs")).toBeTruthy();
+      expect(screen.getByText("Behaviors")).toBeTruthy();
     });
   });
 
@@ -109,7 +109,7 @@ describe("AppMenuBar", () => {
     renderMenuBar();
 
     fireEvent.click(screen.getByTestId("app-menu-view"));
-    fireEvent.click(await screen.findByText("Program"));
+    fireEvent.click(await screen.findByText("Behavior"));
 
     const panels = useWorkspaceStore.getState().panels;
     expect(panels.motiongraph.isVisible).toBe(true);
