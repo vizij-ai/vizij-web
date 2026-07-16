@@ -6,6 +6,7 @@ import {
   type VizijBundleGraphEntry,
   type VizijPoseRigConfig,
   type VizijSpeechConfig,
+  type VizijStarredItem,
   type VizijData,
   type ToneMappingMode,
 } from "@vizij/render";
@@ -57,6 +58,7 @@ import type {
   PoseRigIrFile,
 } from "../poseRig/types";
 import { useAnimationStore } from "../state/animationStore";
+import { getStarredForFace, useStarredStore } from "../state/starredStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
@@ -973,6 +975,10 @@ export function useVizijExport(
           poseConfigForExport,
           authoredAnimationClips: normalizedAuthoredAnimationClips,
           speechConfig: collectSpeechConfigFromLocalStorage(),
+          starredItems: getStarredForFace(
+            useStarredStore.getState(),
+            exportFaceId,
+          ),
         });
       } catch (error) {
         await alertDialog(
@@ -1554,6 +1560,7 @@ interface BuildVizijBundleOptions {
   poseGraphSpecForExport?: GraphSpec | null;
   poseConfigForExport?: PoseRigConfigFile | null;
   speechConfig?: VizijSpeechConfig | null;
+  starredItems?: VizijStarredItem[];
 }
 
 function clonePoseIrForBundle(
@@ -1906,6 +1913,10 @@ function buildVizijBundle(
     animations: mergedAnimations,
     // Preserve any previously-imported value if the caller did not supply one.
     toneMapping: options.toneMapping ?? loadedBundle?.toneMapping,
+    starred:
+      options.starredItems && options.starredItems.length > 0
+        ? { items: options.starredItems.map((item) => ({ ...item })) }
+        : null,
     metadata: bundleMetadata,
   };
 }

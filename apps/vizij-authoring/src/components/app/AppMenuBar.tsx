@@ -21,6 +21,7 @@ import type {
 import { cn } from "../../utils/cn";
 
 type AuthoringSurfaceMenuTarget =
+  | "starred"
   | "variables"
   | "poses"
   | "pose-groups"
@@ -151,6 +152,7 @@ export function AppMenuBar({
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
   const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
     if (
+      surface === "starred" ||
       surface === "variables" ||
       surface === "animations" ||
       surface === "programs"
@@ -409,6 +411,17 @@ export function AppMenuBar({
             setPanelVisibility("materials", nextVisible);
           }}
         >
+          <MenuCheckboxItem
+            checked={activeAuthoringSurface === "starred"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("starred");
+            }}
+          >
+            Starred
+          </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "variables"}
             onCheckedChange={(checked) => {

@@ -2,6 +2,7 @@ import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ReferencePoseDefinition } from "../../referenceFace/types";
 import type { InputCatalogRow } from "./inputCatalog";
+import type { StarredRef } from "../../state/starredStore";
 
 // ----------------------------------------------------------------------------
 // Tree node model shared by VariablesPanel (which builds the trees) and
@@ -217,4 +218,27 @@ export function collectNodeFaceOwnership(node: TreeNode): FaceOwnershipSummary {
     );
   });
   return summary;
+}
+
+/**
+ * Resolve the starrable reference for a tree node, or `null` if the node is not
+ * a this-face driver/pose that can be starred. Reference/shared drivers and
+ * non-main poses belong to another face and are never starrable here.
+ */
+export function starredRefForNode(node: TreeNode): StarredRef | null {
+  if (node.type === "rig") {
+    const data = node.data as RigNodeData | undefined;
+    if (!data || data.source === "reference" || data.source === "shared") {
+      return null;
+    }
+    return { kind: "driver", id: data.input.id };
+  }
+  if (node.type === "pose") {
+    const data = node.data as PoseNodeData | undefined;
+    if (!data || data.source !== "main") {
+      return null;
+    }
+    return { kind: "pose", id: data.pose.id };
+  }
+  return null;
 }

@@ -20,6 +20,7 @@ import {
   useWorkspaceStore,
   type WorkspacePanelId,
 } from "./state/workspaceStore";
+import { useStarredStore } from "./state/starredStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import {
@@ -96,7 +97,10 @@ import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { useSessionResetEffect } from "./hooks/authoringSessionLifecycle";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
-import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
+import {
+  getVisibleVariablesSurfaces,
+  type VariablesSurfaceTab,
+} from "./components/panels/variablesSurfaceOrder";
 import {
   radiansToRoundedDegrees,
   resolveRootSceneRotationInputs,
@@ -513,7 +517,7 @@ type CenterAuthoringMode =
   | "none";
 type AuthoringSurface = Extract<
   SurfaceTab,
-  "variables" | "poses" | "pose-groups" | "animations" | "programs"
+  "starred" | "variables" | "poses" | "pose-groups" | "animations" | "programs"
 >;
 
 function applyEditFocusPanelDefaults(
@@ -875,7 +879,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [pendingAnimationTargetSwitchId, setPendingAnimationTargetSwitchId] =
     useState<string | null>(null);
   const [activeAuthoringSurface, setActiveAuthoringSurface] =
-    useState<AuthoringSurface>("variables");
+    useState<AuthoringSurface>("starred");
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
     AuthoredProceduralTarget[]
   >([]);
@@ -3538,6 +3542,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pendingAnimationRuntimePlayTargetId,
   ]);
 
+  const setStarredForFace = useStarredStore((state) => state.setStarredForFace);
+
   useBundleSynchronizer({
     faceId,
     rootId: loader.rootId,
@@ -3549,6 +3555,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     adoptFaceId: handleFaceIdChange,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
     resetPoseState: poseRig.resetPoseState,
+    applyStarredFromBundle: setStarredForFace,
     onPhaseChange: onFaceLoadPhaseChange,
   });
 
@@ -3940,7 +3947,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const controlAuthoringSurfaces = useMemo<AuthoringSurface[]>(
     () =>
       visibleVariablesSurfaces.filter(
-        (surface): surface is AuthoringSurface => surface !== "inputs",
+        (surface): surface is Exclude<VariablesSurfaceTab, "inputs"> =>
+          surface !== "inputs",
       ),
     [visibleVariablesSurfaces],
   );
@@ -3948,7 +3956,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const authoringSurfaces = useMemo<AuthoringSurface[]>(
     () =>
       controlAuthoringPanelVisible
-        ? [...controlAuthoringSurfaces, "animations", "programs"]
+        ? ["starred", ...controlAuthoringSurfaces, "animations", "programs"]
         : controlAuthoringSurfaces,
     [controlAuthoringPanelVisible, controlAuthoringSurfaces],
   );

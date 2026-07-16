@@ -7,6 +7,7 @@ import {
   Plus,
   RotateCcw,
   Sliders,
+  Star,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -30,8 +31,10 @@ import {
   type PoseGroupNodeData,
   type PoseNodeData,
   type RigNodeData,
+  starredRefForNode,
   type TreeNode,
 } from "./variablesTreeModel";
+import { starredRefKey } from "../../state/starredStore";
 
 function OwnershipScopeIcon({
   Icon,
@@ -129,6 +132,8 @@ export interface TreeRowWrapperProps {
     targetedInputIds: ReadonlySet<string>;
     onSetTarget: (row: InputCatalogRow) => void;
   };
+  /** Set of starred keys (`kind:id`) for the active face; enables the star toggle. */
+  starredKeys?: ReadonlySet<string>;
   searchQuery: string;
 }
 
@@ -152,10 +157,15 @@ export function TreeRowWrapper({
   motionGraphContext,
   animationTrackContext,
   poseTargetContext,
+  starredKeys,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children.size > 0;
+  const starRef = starredKeys ? starredRefForNode(node) : null;
+  const isNodeStarred = Boolean(
+    starRef && starredKeys?.has(starredRefKey(starRef)),
+  );
   const isPoseGroupFolder =
     node.type === "folder" &&
     (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
@@ -446,6 +456,28 @@ export function TreeRowWrapper({
       onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
       highlightQuery={searchQuery}
       icon={<OwnershipScopeIcon Icon={Icon} scope={nodeOwnershipScope} />}
+      indicator={
+        starRef ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-5 w-5 p-0 transition-opacity",
+              isNodeStarred
+                ? "text-amber-300 hover:text-amber-200 opacity-100"
+                : "text-text-muted hover:text-amber-300 opacity-0 group-hover:opacity-100",
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction?.(node, "toggle-star");
+            }}
+            title={isNodeStarred ? "Remove from Starred" : "Add to Starred"}
+            aria-pressed={isNodeStarred}
+          >
+            <Star size={12} fill={isNodeStarred ? "currentColor" : "none"} />
+          </Button>
+        ) : undefined
+      }
       actions={
         <>
           {node.type === "pose" && !isReferencePoseNode && (
@@ -776,6 +808,7 @@ export function TreeRowWrapper({
                 motionGraphContext={motionGraphContext}
                 animationTrackContext={animationTrackContext}
                 poseTargetContext={poseTargetContext}
+                starredKeys={starredKeys}
                 searchQuery={searchQuery}
               />
             ))}
