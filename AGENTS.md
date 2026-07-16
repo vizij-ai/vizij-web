@@ -26,7 +26,6 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | ----------------------------- | ------------------------------------------------------------- |
 | `@vizij/animation-react`      | React bindings for the animation runtime                      |
 | `@vizij/node-graph-react`     | React bindings for graph runtime/staging                      |
-| `@vizij/orchestrator-react`   | Orchestrator provider, hooks, and blackboard utilities        |
 | `@vizij/render`               | Three.js renderer and controllers                             |
 | `@vizij/runtime-react`        | Higher-level runtime provider wiring renderer + orchestration |
 | `@vizij/utils`                | Shared utility layer                                          |

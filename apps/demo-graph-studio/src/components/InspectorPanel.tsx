@@ -745,7 +745,7 @@ function InputDefaultEditor({
       />
       <div style={{ fontSize: 11, color: "#94a3b8" }}>
         Fallback applies when the input has no upstream link. Values stage into
-        the runtime (and orchestrator mirrors when `mirrorWrites` is enabled).
+        the runtime (and runtime mirrors when `mirrorWrites` is enabled).
       </div>
     </div>
   );
@@ -1735,7 +1735,7 @@ export default function InspectorPanel(): JSX.Element {
               borderRadius: 6,
             }}
           >
-            Runtime defaults and staged values will mirror into orchestrator
+            Runtime defaults and staged values will mirror into runtime
             frames only when the controller enables{" "}
             <code>subs.mirrorWrites</code>. Keep this in mind when wiring graphs
             into shared blackboards.

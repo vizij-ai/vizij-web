@@ -22,7 +22,7 @@ The runtime provider is responsible for:
 1. loading the GLB or pre-built world
 2. extracting the embedded `VIZIJ_bundle` extension when present
 3. resolving a usable rig / pose / animation / program set
-4. registering graphs and clips with the orchestrator
+4. registering graphs and clips with the runtime engine
 5. exposing a stable runtime API through `useVizijRuntime()`
 6. rendering the face through `VizijRuntimeFace`
 
@@ -124,7 +124,7 @@ export function buildAssetBundleForSource(
 
 There are two important details here:
 
-- `namespace` ensures this runtime instance gets a stable identity in the orchestrator and renderer layers.
+- `namespace` ensures this runtime instance gets a stable identity in the engine and renderer layers.
 - `stageNeutralFilter` tells `stagePoseNeutral()` to restore neutral pose channels without stomping color inputs.
 
 The namespace here is intentionally app-specific. Other apps in this repo use different patterns:
@@ -142,7 +142,6 @@ Once a source exists, `App.tsx` creates an `assetBundle` and mounts the runtime:
   key={source.id}
   assetBundle={assetBundle}
   autostart
-  orchestratorScope="isolated"
 >
   <WorkspaceSurface sourceLabel={sourceLabel} sourceMeta={sourceMeta} />
 </VizijRuntimeProvider>
@@ -151,11 +150,9 @@ Once a source exists, `App.tsx` creates an `assetBundle` and mounts the runtime:
 The demo uses:
 
 - `autostart`
-  - the orchestrator starts stepping as soon as assets finish registering
-- `orchestratorScope="isolated"`
-  - each loaded face owns its own isolated runtime instance in this app
+  - the engine starts stepping as soon as assets finish registering
 
-If you are building a multi-face app that should share one orchestrator, runtime-react also supports shared orchestration. The package README covers that setup.
+Each `VizijRuntimeProvider` owns its own engine device, so every loaded face is an isolated runtime instance. For multi-face apps, mount one provider per face (the package README covers stepping hidden faces at a background cadence).
 
 ## 5. What The Provider Actually Does With The GLB
 
@@ -165,7 +162,7 @@ When the provider receives a bundle, it:
 2. extracts the embedded Vizij bundle extension if one exists
 3. finds the usable rig graph, pose graph, pose config, animations, and programs
 4. merges explicit bundle fields with discovered embedded content
-5. registers graphs and animation controllers with the orchestrator
+5. registers graphs and animation controllers with the runtime engine
 6. stages initial inputs
 7. exposes status, control functions, and diagnostic information through context
 
@@ -375,7 +372,7 @@ This is important because it means your operator UI does not need to hard-code e
 - prefer `resolveFaceControls()` for standard facial control families
 - use `inputConstraints` to respect authored min, max, and default values
 - fall back to `assetBundle.rig?.inputMetadata` for additional surfaced channels
-- write through `setInput()` even for UI-driven controls so the orchestrator remains the single runtime source of truth
+- write through `setInput()` even for UI-driven controls so the engine store remains the single runtime source of truth
 
 ## 12. How The Demo Explains The Loaded Bundle
 
@@ -641,7 +638,7 @@ Use programs when:
 - Control surfacing is only as good as the authored metadata. If `inputMetadata` or `inputConstraints` are sparse, the generic control panel will also be sparse.
 - Controller ids and renderer outputs tell you about runtime surfacing, not just static bundle structure. Use diagnostics to distinguish those two layers.
 - If you switch bundles, re-resolve all ids and paths. Do not cache pose paths, animation ids, or program ids across bundle swaps.
-- If your app is multi-face, revisit `orchestratorScope` and namespace strategy instead of blindly copying this demo’s isolated setup.
+- If your app is multi-face, revisit your namespace strategy instead of blindly copying this demo’s per-face setup.
 
 ## 17. Recommended Build Order For Your Own App
 

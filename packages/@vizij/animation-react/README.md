@@ -242,6 +242,6 @@ The workflow builds with the latest linked dependencies, runs tests, and publish
 
 - [`@vizij/animation-wasm`](../../../vizij-rs/npm/@vizij/animation-wasm/README.md) – WASM binding used internally.
 - [`vizij-animation-core`](../../../vizij-rs/crates/animation/vizij-animation-core/README.md) – underlying animation engine.
-- [`@vizij/node-graph-react`](../node-graph-react/README.md) / [`@vizij/orchestrator-react`](../orchestrator-react/README.md) – complementary React bindings.
+- [`@vizij/node-graph-react`](../node-graph-react/README.md) – complementary React bindings.
 
 Questions or feature requests? Open an issue—smooth React integration keeps Vizij animations easy to use. 🎬

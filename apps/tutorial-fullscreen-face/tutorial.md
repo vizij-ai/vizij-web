@@ -1,6 +1,6 @@
 # `tutorial-fullscreen-face` Runtime Walkthrough
 
-`tutorial-fullscreen-face` is the smallest maintained reference app for the current `@vizij/runtime-react` stack. It shows the default bundle-first path without layering on live speech, diagnostics panels, or shared orchestrator coordination.
+`tutorial-fullscreen-face` is the smallest maintained reference app for the current `@vizij/runtime-react` stack. It shows the default bundle-first path without layering on live speech, diagnostics panels, or shared runtime coordination.
 
 If you want to understand the baseline runtime flow, start here.
 
@@ -67,12 +67,12 @@ export function FaceApp() {
 What this gives the app:
 
 - asset loading
-- orchestrator creation
+- engine initialisation
 - graph/clip/program registration
 - merged runtime status
 - renderer-store bridging
 
-There is no custom `OrchestratorProvider` in this tutorial because it does not need a shared runtime topology.
+Each `VizijRuntimeProvider` owns its engine device, so there is no shared runtime topology to configure.
 
 ## 4. Ready / Loading / Error Handling
 
@@ -154,7 +154,7 @@ It does not cover:
 - uploaded GLB sources
 - diagnostics panels
 - clip/program transport UIs
-- shared orchestrator mode
+- shared runtime mode
 - runtime graph hot-swapping with `setGraphBundle()`
 - live speech, visemes, or tool-driven emotions
 
