@@ -16,12 +16,6 @@
       ],
       "@vizij/render": ["../../packages/@vizij/render/src"],
       "@vizij/render/*": ["../../packages/@vizij/render/src/*"],
-      "@vizij/orchestrator-react": [
-        "../../packages/@vizij/orchestrator-react/src"
-      ],
-      "@vizij/orchestrator-react/*": [
-        "../../packages/@vizij/orchestrator-react/src/*"
-      ],
       "@vizij/node-graph-authoring": [
         "../../packages/@vizij/node-graph-authoring/src"
       ],

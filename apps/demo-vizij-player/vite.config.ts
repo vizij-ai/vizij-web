@@ -14,10 +14,6 @@ export default defineConfig({
         "packages/@vizij/runtime-react/src",
       ),
       "@vizij/render": resolve(workspaceRoot, "packages/@vizij/render/src"),
-      "@vizij/orchestrator-react": resolve(
-        workspaceRoot,
-        "packages/@vizij/orchestrator-react/src",
-      ),
       "@vizij/node-graph-authoring": resolve(
         workspaceRoot,
         "packages/@vizij/node-graph-authoring/src",
@@ -32,9 +28,7 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/orchestrator-wasm/**",
         "!**/node_modules/@vizij/node-graph-wasm/**",
-        "!**/node_modules/@vizij/orchestrator-react/**",
         "!**/node_modules/@vizij/render/**",
         "!**/node_modules/@vizij/utils/**",
       ],
@@ -46,10 +40,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: [
-      "@vizij/orchestrator-wasm",
       "@vizij/node-graph-wasm",
       "@vizij/arora-web-wasm",
     ],
-    include: ["@vizij/orchestrator-react", "@vizij/render"],
+    include: ["@vizij/render"],
   },
 });
