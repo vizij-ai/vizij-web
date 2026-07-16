@@ -46,10 +46,15 @@ export interface HistoryManagerOptions {
   /** Trailing debounce applied to notifyChange bursts (default 400ms). */
   debounceMs?: number;
   /**
-   * Window after a restore during which the next commit replaces the present
-   * entry instead of pushing a new one (default 1000ms). Restoring a snapshot
-   * can echo asynchronously (React setters re-render, derived drafts rebuild
-   * with fresh references); absorbing that echo prevents duplicate entries.
+   * Window after a restore during which commits replace the present entry
+   * instead of pushing a new one (default 4000ms). Restoring a snapshot
+   * echoes asynchronously — React setters re-render, the rig graph
+   * recompiles, derived drafts rebuild, sometimes with regenerated ids — and
+   * those cascades can take seconds. An echo that committed as a real entry
+   * would pollute undo and clear the redo stack, so the window must outlast
+   * the recompile cascade. Known limitation: a genuine user edit made inside
+   * the window right after an undo is absorbed into the present entry rather
+   * than becoming its own undo step (the edit itself is never lost).
    */
   absorbAfterRestoreMs?: number;
   onStatusChange?: (status: HistoryStatus) => void;
@@ -68,38 +73,98 @@ export interface HistoryManager {
   getStatus: () => HistoryStatus;
 }
 
-function snapshotsEqual(
-  left: Record<string, HistorySnapshot>,
-  right: Record<string, HistorySnapshot>,
-): boolean {
-  const leftIds = Object.keys(left);
-  const rightIds = Object.keys(right);
-  if (leftIds.length !== rightIds.length) {
+/**
+ * Structural equality over captured snapshots. Derived-state rebuilds
+ * (auto-input reconciliation, pose draft projection) routinely produce
+ * identity-new but content-equal store state; comparing by content keeps
+ * those echoes from becoming history entries (which would pollute undo and
+ * clear the redo stack). Runs once per settled burst, so the deep walk is
+ * cheap in practice. Set members are compared by identity/value (`has`),
+ * which is exact for the string sets the scopes use.
+ */
+export function deepValueEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (
+    typeof left !== "object" ||
+    typeof right !== "object" ||
+    left === null ||
+    right === null
+  ) {
     return false;
   }
-  for (const scopeId of leftIds) {
-    const leftSnapshot = left[scopeId];
-    const rightSnapshot = right[scopeId];
-    if (!rightSnapshot) {
+  if (left instanceof Map || right instanceof Map) {
+    if (!(left instanceof Map) || !(right instanceof Map)) {
       return false;
     }
-    const leftKeys = Object.keys(leftSnapshot);
-    const rightKeys = Object.keys(rightSnapshot);
-    if (leftKeys.length !== rightKeys.length) {
+    if (left.size !== right.size) {
       return false;
     }
-    for (const key of leftKeys) {
-      if (!Object.is(leftSnapshot[key], rightSnapshot[key])) {
+    for (const [key, value] of left) {
+      if (!right.has(key) || !deepValueEqual(value, right.get(key))) {
         return false;
       }
+    }
+    return true;
+  }
+  if (left instanceof Set || right instanceof Set) {
+    if (!(left instanceof Set) || !(right instanceof Set)) {
+      return false;
+    }
+    if (left.size !== right.size) {
+      return false;
+    }
+    for (const value of left) {
+      if (!right.has(value)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) {
+      return false;
+    }
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let index = 0; index < left.length; index += 1) {
+      if (!deepValueEqual(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  const leftKeys = Object.keys(left as Record<string, unknown>);
+  const rightKeys = Object.keys(right as Record<string, unknown>);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+  for (const key of leftKeys) {
+    if (
+      !Object.prototype.hasOwnProperty.call(right, key) ||
+      !deepValueEqual(
+        (left as Record<string, unknown>)[key],
+        (right as Record<string, unknown>)[key],
+      )
+    ) {
+      return false;
     }
   }
   return true;
 }
 
+function snapshotsEqual(
+  left: Record<string, HistorySnapshot>,
+  right: Record<string, HistorySnapshot>,
+): boolean {
+  return deepValueEqual(left, right);
+}
+
 const DEFAULT_CAPACITY = 100;
 const DEFAULT_DEBOUNCE_MS = 400;
-const DEFAULT_ABSORB_MS = 1000;
+const DEFAULT_ABSORB_MS = 4000;
 
 export function createHistoryManager(
   options?: HistoryManagerOptions,

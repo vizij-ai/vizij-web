@@ -22,7 +22,6 @@ const POSE_DOC_FIELDS = [
   "poseConfigDraft",
   "poseIrDraft",
   "lastImportedConfig",
-  "selectedPoseId",
 ] as const;
 
 type PoseDocField = (typeof POSE_DOC_FIELDS)[number];

@@ -97,7 +97,7 @@ describe("createHistoryManager", () => {
     manager.undo();
     expect(manager.getStatus().canRedo).toBe(true);
 
-    vi.setSystemTime(Date.now() + 2000); // leave the absorb window
+    vi.setSystemTime(Date.now() + 10_000); // leave the absorb window
     scope.set({ value: 5 });
     vi.advanceTimersByTime(150);
     expect(manager.getStatus().canRedo).toBe(false);
@@ -190,6 +190,43 @@ describe("createHistoryManager", () => {
     expect(first.get().value).toBe(0);
     // Unregistered scope untouched.
     expect(second.get().value).toBe(10);
+  });
+
+  it("treats content-equal (identity-new) snapshots as unchanged", () => {
+    // Derived-state rebuilds recreate maps/arrays with identical content;
+    // those echoes must not create entries or clear the redo stack.
+    const manager = createHistoryManager({
+      debounceMs: 100,
+      absorbAfterRestoreMs: 0,
+    });
+    let doc: { items: Map<string, { v: number }>; tags: Set<string> } = {
+      items: new Map([["a", { v: 1 }]]),
+      tags: new Set(["x"]),
+    };
+    manager.registerScope({
+      id: "deep",
+      capture: () => ({ items: doc.items, tags: doc.tags }),
+      restore: (snapshot) => {
+        doc = snapshot as typeof doc;
+      },
+    });
+
+    doc = { items: new Map([["a", { v: 2 }]]), tags: doc.tags };
+    manager.notifyChange();
+    vi.advanceTimersByTime(150);
+    manager.undo();
+    expect(manager.getStatus().canRedo).toBe(true);
+
+    // Echo: rebuild with fresh identities but equal content, well outside
+    // any absorb window.
+    vi.setSystemTime(Date.now() + 60_000);
+    doc = { items: new Map([["a", { v: 1 }]]), tags: new Set(["x"]) };
+    manager.notifyChange();
+    vi.advanceTimersByTime(150);
+
+    expect(manager.getStatus().canRedo).toBe(true);
+    expect(manager.redo()).toBe(true);
+    expect(doc.items.get("a")?.v).toBe(2);
   });
 
   it("ignores notifications while restoring", () => {
