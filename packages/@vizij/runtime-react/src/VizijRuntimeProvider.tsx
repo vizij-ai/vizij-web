@@ -1909,11 +1909,24 @@ function VizijRuntimeProviderInner({
     [deviceSlot],
   );
 
+  /** Listeners notified after each engine step's changes have been applied. */
+  const stepListenersRef = useRef<Set<() => void>>(new Set());
+
+  const subscribeToStep = useCallback((listener: () => void) => {
+    const listeners = stepListenersRef.current;
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
+
   /**
    * One tick: step the device (dt seconds → ms at exactly this boundary),
    * then pull the changed keys and apply them to the render store. The
    * push-model frame subscription this replaces re-rendered the provider
-   * every step; the pull model renders only what the changes touch.
+   * every step; the pull model renders only what the changes touch —
+   * step-aligned consumers subscribe through `subscribeToStep` and read
+   * the values they care about via `getValueSnapshot`.
    */
   const stepRuntime = useCallback(
     (dt: number) => {
@@ -1923,6 +1936,13 @@ function VizijRuntimeProviderInner({
       }
       handle.device.step(dt * 1000);
       applyEngineChangesRef.current(handle.device.drainChanges());
+      stepListenersRef.current.forEach((listener) => {
+        try {
+          listener();
+        } catch (err) {
+          console.error("[vizij-runtime] step listener error", err);
+        }
+      });
     },
     [deviceSlot],
   );
@@ -3512,6 +3532,7 @@ function VizijRuntimeProviderInner({
       assetBundle,
       setInput,
       getValueSnapshot: getPathSnapshot,
+      subscribeToStep,
       setGraphBundle,
       setValue: setRendererValue,
       stagePoseNeutral,
@@ -3539,6 +3560,7 @@ function VizijRuntimeProviderInner({
       assetBundle,
       setInput,
       getPathSnapshot,
+      subscribeToStep,
       setGraphBundle,
       setRendererValue,
       stagePoseNeutral,
