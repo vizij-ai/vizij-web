@@ -26,7 +26,7 @@ export interface InputSourceNodeData {
   controlMode?: InputControlMode;
   /** Target value set by the control slider (staged for trigger mode) */
   targetValue?: number;
-  /** The value currently applied to the orchestrator */
+  /** The value currently applied to the runtime */
   appliedValue?: number;
 }
 

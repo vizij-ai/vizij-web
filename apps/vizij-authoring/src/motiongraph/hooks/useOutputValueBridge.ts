@@ -1,6 +1,6 @@
 /**
  * Singleton pub/sub bridge for shuttling output values from inside
- * VizijRuntimeProvider (where the orchestrator lives) to the inspector
+ * VizijRuntimeProvider (where the arora device lives) to the inspector
  * chart (which lives outside it).
  */
 
