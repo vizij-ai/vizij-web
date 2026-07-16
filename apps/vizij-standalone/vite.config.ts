@@ -50,10 +50,7 @@ export default defineConfig(async () => ({
     },
   },
   optimizeDeps: {
-    exclude: [
-      "@vizij/node-graph-wasm",
-      "@vizij/arora-web-wasm",
-    ],
+    exclude: ["@vizij/node-graph-wasm", "@vizij/arora-web-wasm"],
     include: [
       "@vizij/node-graph-react",
       "@vizij/node-graph-authoring",
