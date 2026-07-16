@@ -1412,7 +1412,25 @@ function VizijRuntimeProviderInner({
   }
   const deviceSlot = deviceSlotRef.current;
   const [ready, setReady] = useState(false);
-  /** Specs currently composed into the device, in evaluation order. */
+  /**
+   * Specs currently composed into the device's ONE graph, in evaluation order.
+   * Every (un)registration recomposes and restarts the device. Where each
+   * source comes from:
+   *
+   * - **rig** — the loaded asset bundle's rig graph (authored into the GLB):
+   *   maps rig input paths to the face's morph/bone/material writes.
+   * - **pose** — the bundle's pose-driver graph (`assetBundle.pose.graph`, or
+   *   the `pose-driver`/`pose` graph picked from the bundle): turns high-level
+   *   pose controls into rig-input writes. When both rig and pose are present
+   *   they register as one merged source (`registerMergedGraph`).
+   * - **one source per playing program** (`playProgram`): procedural graphs
+   *   from the bundle's `programs`, plus the authoring motiongraph — the
+   *   editor publishes its graph as a program so it evaluates on the device.
+   *
+   * Bundle `animations` are NOT composed here: clips still tick in the JS
+   * clip pipeline (`advanceAnimations`) and only their computed values enter
+   * the device as inputs — moving them into the device is VIZ-61.
+   */
   const graphSourcesRef = useRef<GraphSource[]>([]);
 
   const namespace = namespaceProp ?? assetBundle.namespace ?? "default";
@@ -2213,6 +2231,8 @@ function VizijRuntimeProviderInner({
           outputs: rigOutputs,
         };
 
+        // Source "rig": the bundle's rig graph (from the GLB) — rig input
+        // paths → the face's morph/bone/material writes.
         graphConfigs.push({
           id: namespaceControllerId(rigAsset.id, namespace, "graph"),
           spec: stripNulls(namespaceGraphSpec(rigSpec, namespace)),
@@ -2237,6 +2257,9 @@ function VizijRuntimeProviderInner({
           outputs: poseOutputs,
         };
 
+        // Source "pose": the bundle's pose-driver graph — high-level pose
+        // controls → rig-input writes (read back by the rig source above via
+        // the shared store paths).
         graphConfigs.push({
           id: namespaceControllerId(poseGraphAsset.id, namespace, "graph"),
           spec: stripNulls(namespaceGraphSpec(poseSpec, namespace)),
@@ -3149,6 +3172,9 @@ function VizijRuntimeProviderInner({
         return;
       }
 
+      // Source per playing program: bundle `programs` (procedural graphs
+      // started via the transport) and the authoring motiongraph, which
+      // publishes the editor's graph as a program.
       const config = buildProgramRegistrationConfig(program);
       if (!config) {
         pushError({
