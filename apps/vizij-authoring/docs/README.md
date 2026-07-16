@@ -31,6 +31,8 @@ This folder is organized into active execution docs, active contracts, reference
    - UI behavior contract for authoring workflows.
 3. `apps/vizij-authoring/docs/Authoring_Blueprint.md`
    - Detailed layer and namespace contract.
+4. `apps/vizij-authoring/docs/FEATURE_INVENTORY.md`
+   - Exhaustive catalog of the tool's features/capabilities, the code that implements each, architecture (WASM engines, data-model schemas, state stores), and known gaps.
 
 ## Active Notes and References
 
