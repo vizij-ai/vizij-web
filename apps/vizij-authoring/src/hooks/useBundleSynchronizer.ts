@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { VizijBundleExtension } from "@vizij/render";
+import type { VizijBundleExtension, VizijStarredItem } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import type { AnimationClipIR } from "../types/animationClipIr";
@@ -37,7 +37,34 @@ interface UseBundleSynchronizerOptions {
   adoptFaceId?: (nextFaceId: string) => void;
   importPoseConfigFromData: (config: PoseRigConfigFile) => void;
   resetPoseState?: () => void;
+  /**
+   * Replace the starred set for the active face from the loaded bundle. Only
+   * invoked when the bundle carries a `starred` section, so older GLBs never
+   * wipe a designer's locally-starred selections.
+   */
+  applyStarredFromBundle?: (faceId: string, items: VizijStarredItem[]) => void;
   onPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
+}
+
+function sanitizeStarredItems(value: unknown): VizijStarredItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const items: VizijStarredItem[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const candidate = entry as Partial<VizijStarredItem>;
+    if (
+      (candidate.kind === "driver" || candidate.kind === "pose") &&
+      typeof candidate.id === "string" &&
+      candidate.id.length > 0
+    ) {
+      items.push({ kind: candidate.kind, id: candidate.id });
+    }
+  }
+  return items;
 }
 
 const MAX_FACE_ID_WAIT_ATTEMPTS = 30;
@@ -132,12 +159,15 @@ export function useBundleSynchronizer({
   adoptFaceId,
   importPoseConfigFromData,
   resetPoseState,
+  applyStarredFromBundle,
   onPhaseChange,
 }: UseBundleSynchronizerOptions) {
   const faceIdRef = useLatestRef(faceId);
   const importGraphSpecRef = useLatestRef(importGraphSpec);
   const importPoseConfigFromDataRef = useLatestRef(importPoseConfigFromData);
+  const applyStarredFromBundleRef = useLatestRef(applyStarredFromBundle);
   const adoptFaceIdRef = useLatestRef(adoptFaceId);
+  const appliedStarredKeyRef = useRef<string | null>(null);
   const importedRigFingerprintsRef = useRef<Set<string>>(new Set());
   const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
@@ -493,4 +523,23 @@ export function useBundleSynchronizer({
     skipDiscrepancyCheck,
     standardInputCount,
   ]);
+
+  // Hydrate the starred set from the bundle once the active face has settled.
+  // Independent of the rig/pose import gating above so it always round-trips,
+  // and only fires when the bundle actually carries a `starred` section (older
+  // GLBs must not wipe locally-starred selections). The fingerprint guard keeps
+  // in-session toggles from being clobbered on unrelated re-renders.
+  useEffect(() => {
+    const starredSection = loadedBundle?.starred;
+    if (!starredSection || !faceId) {
+      return;
+    }
+    const items = sanitizeStarredItems(starredSection.items);
+    const key = `${faceId}::${stableJsonFingerprint(items) ?? String(items.length)}`;
+    if (appliedStarredKeyRef.current === key) {
+      return;
+    }
+    appliedStarredKeyRef.current = key;
+    applyStarredFromBundleRef.current?.(faceId, items);
+  }, [applyStarredFromBundleRef, faceId, loadedBundle]);
 }

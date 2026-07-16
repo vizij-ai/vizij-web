@@ -8,6 +8,11 @@ interface TreeRowProps {
   label: string;
   icon?: ReactNode;
   actions?: ReactNode;
+  /**
+   * Always-visible trailing control, rendered before the hover-only `actions`
+   * group (e.g. a star toggle that must remain visible when the row is starred).
+   */
+  indicator?: ReactNode;
   isSelected?: boolean;
   onToggle: () => void;
   onSelect?: (event: React.MouseEvent<HTMLDivElement>) => void;
@@ -26,6 +31,7 @@ export function TreeRow({
   label,
   icon,
   actions,
+  indicator,
   isSelected,
   onToggle,
   onSelect,
@@ -122,11 +128,19 @@ export function TreeRow({
             {label}
           </span>
 
+          {/* Always-visible indicator (e.g. star toggle) */}
+          {indicator && (
+            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+              {indicator}
+            </div>
+          )}
+
           {/* Actions (Hover) - visible when group hovered OR row selected */}
           {actions && (
             <div
               className={cn(
-                "flex items-center gap-1.5 ml-auto opacity-0 transition-opacity",
+                "flex items-center gap-1.5 shrink-0 opacity-0 transition-opacity",
+                !indicator && "ml-auto",
                 // Show actions on hover OR when selected
                 "group-hover:opacity-100",
                 isSelected && "opacity-100",
