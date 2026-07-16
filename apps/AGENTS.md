@@ -24,7 +24,6 @@ Use this file when working under `apps/`.
 | `minimal-demo-animation`       | Minimal animation runtime smoke test.                                 |
 | `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters. |
 | `minimal-demo-graph`           | Lightweight node-graph playground (inputs/outputs/staging demos).     |
-| `minimal-demo-orchestrator`    | Blackboard visualiser to test orchestrator controller coordination.   |
 | `tutorial-fullscreen-face`     | Lightweight getting-started face demo for the runtime provider.       |
 | `vizij-showcase`               | Larger face showcase with advanced controls and staging helpers.      |
 

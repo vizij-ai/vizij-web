@@ -52,7 +52,6 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `minimal-demo-animation`       | Minimal animation smoke surface      |
 | `minimal-demo-animation-graph` | Combined animation + graph sample    |
 | `minimal-demo-graph`           | Minimal graph sample                 |
-| `minimal-demo-orchestrator`    | Minimal orchestrator sample          |
 | `tutorial-fullscreen-face`     | Runtime tutorial example             |
 | `tutorial-agent-face`          | Tutorial/demo with agent interaction |
 | `vizij-showcase`               | Shareable showcase/demo surface      |

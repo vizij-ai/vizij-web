@@ -70,7 +70,6 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-orchestrator`    | `apps/minimal-demo-orchestrator`    | Orchestrator blackboard visualiser with canned controllers.             | `dev`, `build`, `typecheck`, `preview` |
 | `tutorial-fullscreen-face`     | `apps/tutorial-fullscreen-face`     | Runtime tutorial app built on `@vizij/runtime-react`.                   | `dev`, `build`, `typecheck`            |
 | `tutorial-agent-face`          | `apps/tutorial-agent-face`          | Tutorial/demo app with agent-facing interaction flow.                   | `dev`, `build`, `typecheck`            |
 | `vizij-showcase`               | `apps/vizij-showcase`               | Shareable fullscreen showcase with runtime, voice, and staging helpers. | `dev`, `build`, `typecheck`            |
