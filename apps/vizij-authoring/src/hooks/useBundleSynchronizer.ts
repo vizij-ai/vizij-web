@@ -167,7 +167,7 @@ export function useBundleSynchronizer({
   const importPoseConfigFromDataRef = useLatestRef(importPoseConfigFromData);
   const applyStarredFromBundleRef = useLatestRef(applyStarredFromBundle);
   const adoptFaceIdRef = useLatestRef(adoptFaceId);
-  const appliedStarredKeyRef = useRef<string | null>(null);
+  const appliedStarredKeysRef = useRef<Set<string>>(new Set());
   const importedRigFingerprintsRef = useRef<Set<string>>(new Set());
   const importedPoseFingerprintsRef = useRef<Set<string>>(new Set());
   const inflightRigFingerprintsRef = useRef<Set<string>>(new Set());
@@ -524,22 +524,25 @@ export function useBundleSynchronizer({
     standardInputCount,
   ]);
 
-  // Hydrate the starred set from the bundle once the active face has settled.
-  // Independent of the rig/pose import gating above so it always round-trips,
-  // and only fires when the bundle actually carries a `starred` section (older
-  // GLBs must not wipe locally-starred selections). The fingerprint guard keeps
-  // in-session toggles from being clobbered on unrelated re-renders.
+  // Mirror the starred set from the loaded glb — the bundle is the single
+  // source of truth (there is no localStorage working copy). Always hydrate
+  // from the bundle, using an empty set when the glb has no `starred` section,
+  // so a face never shows stars inherited from a previous face/session. The
+  // fingerprint guard keeps in-session toggles from being clobbered on
+  // unrelated re-renders, while still re-hydrating when the bundle changes.
   useEffect(() => {
-    const starredSection = loadedBundle?.starred;
-    if (!starredSection || !faceId) {
+    if (!faceId) {
       return;
     }
-    const items = sanitizeStarredItems(starredSection.items);
-    const key = `${faceId}::${stableJsonFingerprint(items) ?? String(items.length)}`;
-    if (appliedStarredKeyRef.current === key) {
+    const items = loadedBundle
+      ? sanitizeStarredItems(loadedBundle.starred?.items)
+      : [];
+    const source = loadedBundle ? "bundle" : "no-bundle";
+    const key = `${faceId}::${source}::${stableJsonFingerprint(items) ?? String(items.length)}`;
+    if (appliedStarredKeysRef.current.has(key)) {
       return;
     }
-    appliedStarredKeyRef.current = key;
+    appliedStarredKeysRef.current.add(key);
     applyStarredFromBundleRef.current?.(faceId, items);
   }, [applyStarredFromBundleRef, faceId, loadedBundle]);
 }
