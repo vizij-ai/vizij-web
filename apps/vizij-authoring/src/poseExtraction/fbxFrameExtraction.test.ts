@@ -3,6 +3,8 @@ import {
   AnimationClip,
   Euler,
   Group,
+  Mesh,
+  NumberKeyframeTrack,
   Object3D,
   Quaternion,
   QuaternionKeyframeTrack,
@@ -11,7 +13,9 @@ import {
 import type { World } from "@vizij/render";
 import {
   channelSampleToRawValue,
+  collectClipFrameTimes,
   indexRawChannels,
+  isChannelMapped,
   sampleFrameToInputValues,
   sampleFrameToRenderWrites,
   sampleRawTrackAtTime,
@@ -42,6 +46,41 @@ function buildFixture() {
   } as unknown as World;
 
   return { node, scene, world };
+}
+
+// A mesh with morph targets, mirroring how `import-geometry.ts` records
+// `Shape.morphTargets` (ordered featureKeys) + per-morph number features.
+function buildMorphFixture() {
+  const mesh = new Mesh();
+  mesh.name = "Mouth";
+  mesh.morphTargetDictionary = { ltsneer: 0, jawud: 1, sidewide: 2 };
+  mesh.morphTargetInfluences = [0, 0, 0];
+  const scene = new Group();
+  scene.add(mesh);
+
+  const world = {
+    [mesh.uuid]: {
+      id: mesh.uuid,
+      name: "Mouth",
+      type: "shape",
+      morphTargets: ["ltsneer", "jawud", "sidewide"],
+      features: {
+        translation: { animated: true, value: "anim-translation" },
+        ltsneer: { animated: true, value: "anim-m0" },
+        jawud: { animated: true, value: "anim-m1" },
+        sidewide: { animated: true, value: "anim-m2" },
+      },
+    },
+  } as unknown as World;
+
+  // Flat weights track: 3 morphs × 2 keyframes (t=0 all zero, t=1 ramp).
+  const track = new NumberKeyframeTrack(
+    "Mouth.morphTargetInfluences",
+    [0, 1],
+    [0, 0, 0, 1, 0.5, 0.25],
+  );
+  const clip = new AnimationClip("smile", 1, [track]);
+  return { scene, world, clip };
 }
 
 describe("sampleRawTrackAtTime", () => {
@@ -211,5 +250,54 @@ describe("summarizeClips", () => {
     const [a, b] = summarizeClips([named, unnamed]);
     expect(a).toMatchObject({ id: "wave", name: "wave", duration: 2 });
     expect(b).toMatchObject({ id: "fbx-animation-1", name: "Animation 2" });
+  });
+});
+
+describe("morph weights", () => {
+  it("indexes a weights channel to the mesh's ordered per-morph animatables", () => {
+    const { scene, world, clip } = buildMorphFixture();
+    const [binding] = indexRawChannels([clip], scene, world);
+    expect(binding.property).toBe("weights");
+    expect(binding.animatableId).toBeNull();
+    expect(binding.morphTargets).toEqual(["anim-m0", "anim-m1", "anim-m2"]);
+    expect(isChannelMapped(binding)).toBe(true);
+  });
+
+  it("splits the flat weights sample into per-morph render writes", () => {
+    const { scene, world, clip } = buildMorphFixture();
+    const bindings = indexRawChannels([clip], scene, world);
+    const writes = sampleFrameToRenderWrites(bindings, "smile", 0.5, "default");
+    expect(writes).toEqual([
+      { id: "anim-m0", namespace: "default", value: 0.5 },
+      { id: "anim-m1", namespace: "default", value: 0.25 },
+      { id: "anim-m2", namespace: "default", value: 0.125 },
+    ]);
+  });
+
+  it("maps each morph to its scalar input id", () => {
+    const { scene, world, clip } = buildMorphFixture();
+    const bindings = indexRawChannels([clip], scene, world);
+    const resolveInputId = (componentId: string): string | null =>
+      ({ "anim-m0": "in0", "anim-m1": "in1", "anim-m2": "in2" })[componentId] ??
+      null;
+    const values = sampleFrameToInputValues(
+      bindings,
+      "smile",
+      1,
+      resolveInputId,
+    );
+    expect(values).toEqual({ in0: 1, in1: 0.5, in2: 0.25 });
+  });
+});
+
+describe("collectClipFrameTimes", () => {
+  it("returns the sorted union of track keyframe times", () => {
+    const { scene, world, clip } = buildMorphFixture();
+    const bindings = indexRawChannels([clip], scene, world);
+    expect(collectClipFrameTimes(bindings, "smile")).toEqual([0, 1]);
+  });
+
+  it("falls back to [0] when no times are present", () => {
+    expect(collectClipFrameTimes([], "missing")).toEqual([0]);
   });
 });

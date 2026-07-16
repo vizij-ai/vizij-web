@@ -10,6 +10,8 @@ export interface KeyframeTrackLike {
   name: string;
   getValueSize?: () => number;
   createInterpolant: () => { evaluate: (time: number) => ArrayLike<number> };
+  /** Keyframe times (seconds); used to bake a clip at its native keyframes. */
+  times?: ArrayLike<number>;
 }
 
 /** Minimal shape of a THREE.AnimationClip we rely on. */
@@ -71,8 +73,14 @@ export interface RawChannelBinding {
   nodeUuid: string | null;
   /** Mapped renderable feature. */
   property: RawChannelProperty;
-  /** Vizij animatable id owning this channel. Null when unmapped (e.g. weights, bones). */
+  /** Vizij animatable id owning this channel. Null for weights/bones (see morphTargets). */
   animatableId: string | null;
+  /**
+   * For `weights` channels: the per-morph scalar animatable ids in glTF morph
+   * index order (index j corresponds to sample slot j). `null` at a slot means
+   * that morph had no resolvable animatable. Undefined for non-weights channels.
+   */
+  morphTargets?: Array<string | null>;
   /** Animatable value type inferred from the feature. */
   animatableType: AnimatableValue["type"] | null;
   /** Numeric entries per keyframe in the source track. */
@@ -133,6 +141,42 @@ function readFeatureAnimatableId(
   return null;
 }
 
+/**
+ * Read a mesh renderable's per-morph scalar animatable ids in morph-target
+ * order. The renderer stores `Shape.morphTargets` as featureKeys in
+ * `morphTargetDictionary` (i.e. glTF morph index) order, and each featureKey
+ * maps to an `AnimatableNumber` via `features[featureKey].value` — so slot j
+ * here lines up with slot j of a flat glTF `weights` sampler track. Slots whose
+ * feature can't be resolved are kept as `null` to preserve index alignment.
+ */
+function readMorphAnimatableIds(renderable: unknown): Array<string | null> {
+  if (!renderable || typeof renderable !== "object") {
+    return [];
+  }
+  const record = renderable as {
+    morphTargets?: unknown;
+    features?: Record<string, unknown>;
+  };
+  const keys = Array.isArray(record.morphTargets)
+    ? (record.morphTargets as unknown[])
+    : [];
+  const features = record.features ?? {};
+  return keys.map((key) => {
+    if (typeof key !== "string") {
+      return null;
+    }
+    const feature = features[key];
+    if (!feature || typeof feature !== "object") {
+      return null;
+    }
+    const { animated, value } = feature as {
+      animated?: boolean;
+      value?: unknown;
+    };
+    return animated === true && typeof value === "string" ? value : null;
+  });
+}
+
 function inferAnimatableType(
   property: RawChannelProperty,
 ): AnimatableValue["type"] | null {
@@ -150,11 +194,12 @@ function inferAnimatableType(
 }
 
 /**
- * Resolve every track of every clip to a render-store animatable. Tracks whose
+ * Resolve every track of every clip to render targets. Transform channels
+ * resolve to a single animatable (`animatableId`); `weights` channels resolve to
+ * the target mesh's ordered per-morph animatables (`morphTargets`). Tracks whose
  * target node isn't a Vizij renderable (e.g. skeleton bones, which the importer
- * skips) or whose property has no animatable (morph weights) resolve with
- * `animatableId: null` so callers can surface them as unmapped rather than
- * silently dropping them.
+ * skips) resolve unmapped so callers can surface them rather than silently
+ * dropping them.
  */
 export function indexRawChannels(
   clips: AnimationClipLike[],
@@ -177,10 +222,13 @@ export function indexRawChannels(
 
       let nodeUuid: string | null = null;
       let animatableId: string | null = null;
+      let morphTargets: Array<string | null> | undefined;
       if (nodeName) {
         const node = findSceneNode(scene, nodeName);
         nodeUuid = node?.uuid ?? null;
-        if (nodeUuid && property && property !== "weights") {
+        if (nodeUuid && property === "weights") {
+          morphTargets = readMorphAnimatableIds(world[nodeUuid]);
+        } else if (nodeUuid && property) {
           animatableId = readFeatureAnimatableId(world[nodeUuid], property);
         }
       }
@@ -201,6 +249,7 @@ export function indexRawChannels(
         nodeUuid,
         property: property ?? "weights",
         animatableId,
+        morphTargets,
         animatableType: property ? inferAnimatableType(property) : null,
         valueSize,
       });
@@ -299,6 +348,18 @@ function isVectorRawValue(
 }
 
 /**
+ * A channel is mapped when we can drive a rig target from it: a transform
+ * channel with a resolved animatable, or a weights channel with at least one
+ * resolved per-morph animatable.
+ */
+export function isChannelMapped(binding: RawChannelBinding): boolean {
+  if (binding.property === "weights") {
+    return Boolean(binding.morphTargets?.some((id) => id));
+  }
+  return Boolean(binding.animatableId);
+}
+
+/**
  * Sample every mapped channel of a clip at `timeSeconds` into render-store
  * writes (`setValues`). `namespace` is the render namespace the viewport uses.
  */
@@ -310,7 +371,24 @@ export function sampleFrameToRenderWrites(
 ): Array<{ id: string; namespace: string; value: RawValue }> {
   const writes: Array<{ id: string; namespace: string; value: RawValue }> = [];
   bindings.forEach((binding) => {
-    if (binding.clipId !== clipId || !binding.animatableId) {
+    if (binding.clipId !== clipId) {
+      return;
+    }
+    if (binding.property === "weights") {
+      const ids = binding.morphTargets;
+      if (!ids || ids.length === 0) {
+        return;
+      }
+      const sample = sampleRawTrackAtTime(binding.track, timeSeconds);
+      ids.forEach((id, index) => {
+        const value = sample[index];
+        if (id && typeof value === "number") {
+          writes.push({ id, namespace, value });
+        }
+      });
+      return;
+    }
+    if (!binding.animatableId) {
       return;
     }
     const sample = sampleRawTrackAtTime(binding.track, timeSeconds);
@@ -337,7 +415,29 @@ export function sampleFrameToInputValues(
 ): Record<string, number> {
   const values: Record<string, number> = {};
   bindings.forEach((binding) => {
-    if (binding.clipId !== clipId || !binding.animatableId) {
+    if (binding.clipId !== clipId) {
+      return;
+    }
+    if (binding.property === "weights") {
+      const ids = binding.morphTargets;
+      if (!ids || ids.length === 0) {
+        return;
+      }
+      const sample = sampleRawTrackAtTime(binding.track, timeSeconds);
+      ids.forEach((animatableId, index) => {
+        const value = sample[index];
+        if (!animatableId || typeof value !== "number") {
+          return;
+        }
+        // A morph is a scalar animatable: its componentId is the animatable id.
+        const inputId = resolveInputId(animatableId);
+        if (inputId) {
+          values[inputId] = value;
+        }
+      });
+      return;
+    }
+    if (!binding.animatableId) {
       return;
     }
     const sample = sampleRawTrackAtTime(binding.track, timeSeconds);
@@ -361,4 +461,31 @@ export function sampleFrameToInputValues(
     }
   });
   return values;
+}
+
+/**
+ * Collect the sorted, de-duplicated union of keyframe times across a clip's
+ * tracks — the native sample points for baking the clip into a timeline. Falls
+ * back to `[0]` when no track exposes times.
+ */
+export function collectClipFrameTimes(
+  bindings: RawChannelBinding[],
+  clipId: string,
+): number[] {
+  const times = new Set<number>();
+  bindings.forEach((binding) => {
+    if (binding.clipId !== clipId || !binding.track.times) {
+      return;
+    }
+    for (let i = 0; i < binding.track.times.length; i += 1) {
+      const t = binding.track.times[i];
+      if (typeof t === "number" && Number.isFinite(t)) {
+        times.add(t);
+      }
+    }
+  });
+  if (times.size === 0) {
+    return [0];
+  }
+  return Array.from(times).sort((a, b) => a - b);
 }
