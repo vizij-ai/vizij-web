@@ -12,6 +12,7 @@ import { Button } from "../ui/Button";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
+import { appHistory, useHistoryStatus } from "../../state/history/historyStore";
 import type {
   EditFocus,
   RotationDisplayMode,
@@ -100,6 +101,8 @@ export function AppMenuBar({
   );
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
+  const canUndo = useHistoryStatus((state) => state.canUndo);
+  const canRedo = useHistoryStatus((state) => state.canRedo);
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
   const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
@@ -177,8 +180,20 @@ export function AppMenuBar({
         <MenuItem onSelect={() => {}}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit" testId="app-menu-edit">
-        <MenuItem>Undo</MenuItem>
-        <MenuItem>Redo</MenuItem>
+        <MenuItem
+          onSelect={() => appHistory.undo()}
+          disabled={!canUndo}
+          testId="app-menu-edit-undo"
+        >
+          Undo
+        </MenuItem>
+        <MenuItem
+          onSelect={() => appHistory.redo()}
+          disabled={!canRedo}
+          testId="app-menu-edit-redo"
+        >
+          Redo
+        </MenuItem>
       </Menu>
       <Menu label="Mode" testId="app-menu-mode">
         <MenuLabel>Edit Focus</MenuLabel>

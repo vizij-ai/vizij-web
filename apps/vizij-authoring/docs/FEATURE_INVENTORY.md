@@ -338,17 +338,17 @@ rig-graph payload, pose-graph payload, pose config, and pose IR + diagnostics
 
 ## 14. Internal `@vizij` dependency map
 
-| Package | Kind | Capability it powers |
-|---|---|---|
-| `@vizij/utils` | workspace | Core value/type vocabulary: `AnimatableNumber/Color/…`, `StandardRigInput`, `RawValue`, namespace helpers, id helpers. The shared type layer every layer agrees on. |
-| `@vizij/node-graph-authoring` | workspace | Authoring-time compiler: `buildRigGraphSpec`, `compileIrGraph`, `bindingToDefinition`, `createDefaultBinding`; `BindingMap`, `IrGraph`, `MachineReport`. Turns authored bindings/expressions into GraphSpec + IR; ships the `vizij-ir-report` CLI. |
-| `@vizij/render` | workspace | Renderer + scene store: `createVizijStore`/`VizijContext`/`useVizijStore*` (Zustand `world`/`animatables`/`values`), `loadGLTFFromBlobWithBundle`, `exportScene`; types `World`, `Feature`, `VizijBundleExtension`. |
-| `@vizij/node-graph-wasm` | npm (WASM) | Canonical graph spec format + normalization for rig/pose/motion graphs. |
-| `@vizij/runtime-react` | workspace | Bundle-first, runtime-truthful core: `VizijRuntimeProvider`, `VizijRuntimeFace`, `useVizijRuntime`, `useAnimationTransport`, `useMotionGraphNamespace`, `useSpeechPlayback`; `setGraphBundle()` hot-swap, `transformOutputWrite()` output remap. |
-| `@vizij/orchestrator-react` | workspace | `OrchestratorProvider`, `useOrchestrator` over `@vizij/orchestrator-wasm`. |
-| `@vizij/node-graph-react` | workspace | `init()` (WASM init) + `getNodeSchemas()` (palette catalog). |
-| `@vizij/value-json` | npm | JSON (de)serialization for the Vizij value type. |
-| `@deepgram/sdk` | npm | Deepgram STT SDK for the Speech panel. |
+| Package                       | Kind       | Capability it powers                                                                                                                                                                                                                               |
+| ----------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@vizij/utils`                | workspace  | Core value/type vocabulary: `AnimatableNumber/Color/…`, `StandardRigInput`, `RawValue`, namespace helpers, id helpers. The shared type layer every layer agrees on.                                                                                |
+| `@vizij/node-graph-authoring` | workspace  | Authoring-time compiler: `buildRigGraphSpec`, `compileIrGraph`, `bindingToDefinition`, `createDefaultBinding`; `BindingMap`, `IrGraph`, `MachineReport`. Turns authored bindings/expressions into GraphSpec + IR; ships the `vizij-ir-report` CLI. |
+| `@vizij/render`               | workspace  | Renderer + scene store: `createVizijStore`/`VizijContext`/`useVizijStore*` (Zustand `world`/`animatables`/`values`), `loadGLTFFromBlobWithBundle`, `exportScene`; types `World`, `Feature`, `VizijBundleExtension`.                                |
+| `@vizij/node-graph-wasm`      | npm (WASM) | Canonical graph spec format + normalization for rig/pose/motion graphs.                                                                                                                                                                            |
+| `@vizij/runtime-react`        | workspace  | Bundle-first, runtime-truthful core: `VizijRuntimeProvider`, `VizijRuntimeFace`, `useVizijRuntime`, `useAnimationTransport`, `useMotionGraphNamespace`, `useSpeechPlayback`; `setGraphBundle()` hot-swap, `transformOutputWrite()` output remap.   |
+| `@vizij/orchestrator-react`   | workspace  | `OrchestratorProvider`, `useOrchestrator` over `@vizij/orchestrator-wasm`.                                                                                                                                                                         |
+| `@vizij/node-graph-react`     | workspace  | `init()` (WASM init) + `getNodeSchemas()` (palette catalog).                                                                                                                                                                                       |
+| `@vizij/value-json`           | npm        | JSON (de)serialization for the Vizij value type.                                                                                                                                                                                                   |
+| `@deepgram/sdk`               | npm        | Deepgram STT SDK for the Speech panel.                                                                                                                                                                                                             |
 
 Local Vite alias (not an npm package): **`@vizij/authoring-shared` → `src/shared/index.ts`**,
 re-exporting `useDialogQueue`, `useBundleAudit`, `usePoseGraphImport`, `useVizijExport`,
@@ -392,12 +392,14 @@ re-exporting `useDialogQueue`, `useBundleAudit`, `usePoseGraphImport`, `useVizij
 Two coexisting patterns:
 
 **Zustand global stores (`create`)**
+
 - `src/state/workspaceStore.ts` — panel visibility/ordering + exclusive-center logic.
 - `src/state/animationStore.ts` — timeline authoring + transport.
 - `src/state/themeStore.ts` — theme, persisted to `localStorage`.
 - `src/motiongraph/store/useEditorStore.ts` — reactflow program editor state.
 
 **Context + `useSyncExternalStore` (provider-scoped, reset per loaded face)**
+
 - `src/state/RigControllerProvider.tsx` → `useBindingAuthoring` (`bindingAuthoringStore.tsx`)
   and `useGraphRuntime` (`graphRuntimeStore.tsx` — compiled `graphSpec`, `poseGraphSpec`,
   `poseConfig`, world/animatables/values mirror, status/errors, `graphMachineReport`,
@@ -406,7 +408,7 @@ Two coexisting patterns:
 - `src/state/AuthoringUiProvider.tsx` → `useAuthoringUiState` / `useAuthoringUiActions`.
 - `src/state/selectionStore.tsx` — unified selection stack.
 - `src/state/ReferenceFaceContext.tsx`, `SharedVariableSyncContext.tsx` — reference-face state
-  + main↔reference variable mirroring.
+  - main↔reference variable mirroring.
 
 The renderer's own store (`createVizijStore()` from `@vizij/render`) is created in
 `src/main.tsx` and provided via `VizijContext`.

@@ -24,6 +24,7 @@ import {
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
+import { HistoryBridge } from "../components/app/HistoryBridge";
 import {
   buildStandardInputIdRemap,
   remapPoseConfigInputIds,
@@ -502,6 +503,7 @@ export function PoseRigProvider({
   return (
     <PoseRigStoreProvider store={poseRigStore}>
       <PoseRigController rootId={rootId} onLoadPhaseChange={onLoadPhaseChange}>
+        <HistoryBridge />
         {children}
       </PoseRigController>
     </PoseRigStoreProvider>
