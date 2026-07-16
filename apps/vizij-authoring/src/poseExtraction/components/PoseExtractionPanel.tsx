@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { Camera, Film, Trash2, AlertTriangle, Play, Pause } from "lucide-react";
+import {
+  Camera,
+  Film,
+  Trash2,
+  AlertTriangle,
+  Play,
+  Pause,
+  Clapperboard,
+} from "lucide-react";
 import { Panel } from "../../components/ui/Panel";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -54,6 +62,7 @@ export function PoseExtractionPanel({
     seek,
     togglePlay,
     captureFrame,
+    bakeActiveClip,
     channelCount,
     unmappedChannels,
   } = api;
@@ -64,12 +73,14 @@ export function PoseExtractionPanel({
   const [captured, setCaptured] = useState<CapturedFrame[]>([]);
   const [group, setGroup] = useState("");
   const [poseName, setPoseName] = useState("");
+  const [bakeStatus, setBakeStatus] = useState<string | null>(null);
 
   // Default the group to `fbx/<clip>` whenever the active clip changes.
   useEffect(() => {
     if (activeClip) {
       setGroup(`fbx/${sanitizeGroupSegment(activeClip.name)}`);
     }
+    setBakeStatus(null);
   }, [activeClipId, activeClip]);
 
   const defaultPoseName = useMemo(() => {
@@ -102,6 +113,21 @@ export function PoseExtractionPanel({
       { poseId, name, time, clipId: activeClipId ?? "" },
     ]);
     setPoseName("");
+  };
+
+  const handleBake = () => {
+    const result = bakeActiveClip();
+    if (!result) {
+      setBakeStatus(null);
+      return;
+    }
+    if (result.inputCount === 0) {
+      setBakeStatus("No mappable channels to bake.");
+      return;
+    }
+    setBakeStatus(
+      `Baked ${result.inputCount} input${result.inputCount === 1 ? "" : "s"} · ${result.keyframeCount} keyframe${result.keyframeCount === 1 ? "" : "s"} to the timeline.`,
+    );
   };
 
   const handleRename = (poseId: string, nextName: string) => {
@@ -200,7 +226,7 @@ export function PoseExtractionPanel({
             <span>
               {unmappedChannels.length} channel
               {unmappedChannels.length === 1 ? "" : "s"} couldn&apos;t be mapped
-              to a rig input (bones or morph weights) and will be skipped on
+              to a rig input (e.g. skeleton bones) and will be skipped on
               capture.
             </span>
           </div>
@@ -237,6 +263,21 @@ export function PoseExtractionPanel({
             >
               <Camera className="mr-1.5 h-3.5 w-3.5" />
               Capture frame
+            </Button>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-2 border-t border-border-default/60 pt-2">
+            <span className="text-[11px] text-text-muted">
+              {bakeStatus ?? "Bake the whole clip into the animation timeline."}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleBake}
+              disabled={!activeClipId || channelCount === 0}
+              title="Sample every keyframe of this clip into the animation timeline"
+            >
+              <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
+              Bake clip → timeline
             </Button>
           </div>
         </div>

@@ -5,9 +5,19 @@ import { useBindingAuthoring } from "../state/RigControllerProvider";
 import { usePoseRigStore, NEUTRAL_POSE_ID } from "../poseRig/store";
 import { PoseSnapshotService } from "../poseRig/services/poseSnapshotService";
 import { resolveDeterministicPoseId } from "../poseRig/utils";
+import { useAnimationStore } from "../state/animationStore";
+import {
+  ANIMATION_CLIP_IR_SCHEMA_VERSION,
+  AUTHORED_TIMELINE_CLIP_ID,
+  type AnimationClipIR,
+  type AnimationKeyframeIR,
+  type AnimationTrackIR,
+} from "../types/animationClipIr";
 import { DEFAULT_NAMESPACE } from "../utils/constants";
 import {
+  collectClipFrameTimes,
   indexRawChannels,
+  isChannelMapped,
   sampleFrameToInputValues,
   sampleFrameToRenderWrites,
   summarizeClips,
@@ -16,6 +26,11 @@ import {
   type RawChannelBinding,
   type RawClipSummary,
 } from "./fbxFrameExtraction";
+
+export interface BakeResult {
+  inputCount: number;
+  keyframeCount: number;
+}
 
 export interface FbxPoseExtractionApi {
   /** True when raw (FBX-derived) clips are present to extract from. */
@@ -36,6 +51,12 @@ export interface FbxPoseExtractionApi {
     name: string;
     group?: string | null;
   }) => string | null;
+  /**
+   * Bake the whole active clip into the authored animation timeline (sampling
+   * every native keyframe into per-input tracks). Returns a summary, or null if
+   * nothing could be baked.
+   */
+  bakeActiveClip: () => BakeResult | null;
   /** Number of channels in the active clip that map to a rig input. */
   channelCount: number;
   /** Active-clip channels that couldn't be mapped (bones, morph weights, …). */
@@ -114,11 +135,11 @@ export function useFbxPoseExtraction(
     [bindings, activeClipId],
   );
   const mappedChannelCount = useMemo(
-    () => activeBindings.filter((binding) => binding.animatableId).length,
+    () => activeBindings.filter(isChannelMapped).length,
     [activeBindings],
   );
   const unmappedChannels = useMemo(
-    () => activeBindings.filter((binding) => !binding.animatableId),
+    () => activeBindings.filter((binding) => !isChannelMapped(binding)),
     [activeBindings],
   );
 
@@ -132,6 +153,15 @@ export function useFbxPoseExtraction(
       }
     });
     return (componentId: string): string | null => map.get(componentId) ?? null;
+  }, [managedStandardInputs]);
+
+  // standard-input id -> its typed path, so baked tracks bind to the right input.
+  const inputPathById = useMemo(() => {
+    const map = new Map<string, string>();
+    managedStandardInputs.forEach((entry) => {
+      map.set(entry.input.id, entry.input.path);
+    });
+    return map;
   }, [managedStandardInputs]);
 
   const seek = useCallback(
@@ -279,6 +309,67 @@ export function useFbxPoseExtraction(
     ],
   );
 
+  const bakeActiveClip = useCallback((): BakeResult | null => {
+    if (!activeClipId || !activeClip) {
+      return null;
+    }
+    setIsPlaying(false);
+    const times = collectClipFrameTimes(bindings, activeClipId);
+    const keyframesByInput = new Map<string, AnimationKeyframeIR[]>();
+    times.forEach((t, frameIndex) => {
+      const values = sampleFrameToInputValues(
+        bindings,
+        activeClipId,
+        t,
+        resolveInputId,
+      );
+      Object.entries(values).forEach(([inputId, value]) => {
+        let keyframes = keyframesByInput.get(inputId);
+        if (!keyframes) {
+          keyframes = [];
+          keyframesByInput.set(inputId, keyframes);
+        }
+        keyframes.push({
+          id: `${inputId}-${frameIndex}`,
+          time: t,
+          value,
+          interpolation: "linear",
+        });
+      });
+    });
+
+    if (keyframesByInput.size === 0) {
+      return { inputCount: 0, keyframeCount: 0 };
+    }
+
+    let keyframeCount = 0;
+    let trackIndex = 0;
+    const tracks: AnimationTrackIR[] = [];
+    keyframesByInput.forEach((keyframes, inputId) => {
+      keyframeCount += keyframes.length;
+      tracks.push({
+        id: `fbx-bake-${trackIndex}`,
+        variableId: inputId,
+        channel: inputPathById.get(inputId) ?? inputId,
+        interpolation: "linear",
+        keyframes,
+      });
+      trackIndex += 1;
+    });
+
+    const lastTime = times[times.length - 1] ?? 0;
+    const clip: AnimationClipIR = {
+      schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
+      id: AUTHORED_TIMELINE_CLIP_ID,
+      name: activeClip.name,
+      duration: activeClip.duration > 0 ? activeClip.duration : lastTime,
+      tracks,
+    };
+
+    useAnimationStore.getState().importClipIr(clip);
+    return { inputCount: keyframesByInput.size, keyframeCount };
+  }, [activeClip, activeClipId, bindings, inputPathById, resolveInputId]);
+
   return {
     isAvailable: clips.length > 0,
     clips,
@@ -290,6 +381,7 @@ export function useFbxPoseExtraction(
     seek,
     togglePlay,
     captureFrame,
+    bakeActiveClip,
     channelCount: mappedChannelCount,
     unmappedChannels,
   };
