@@ -5,11 +5,11 @@ import type { AnimatableValue, RawValue } from "@vizij/utils";
 import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
 
 // ---------------------------------------------------------------------------
-// Engine-facing types, formerly re-exported from @vizij/orchestrator-react.
-// The engine is now an Arora device running ONE composed graph; these types
-// survive as the vocabulary of the asset bundle and the provider's public
-// surface. Registration configs are metadata feeding the composed spec and
-// the tracked-output sets — the device has no per-controller registration.
+// Engine-facing types. The engine is an Arora device running ONE composed
+// graph; these types are the vocabulary of the asset bundle and the
+// provider's public surface. Registration configs are metadata feeding the
+// composed spec and the tracked-output sets — the device has no
+// per-controller registration.
 // ---------------------------------------------------------------------------
 
 /** Value shape hint. Accepted through the public surface, unused by the device. */

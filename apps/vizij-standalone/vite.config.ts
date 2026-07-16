@@ -33,8 +33,6 @@ export default defineConfig(async () => ({
       ignored: [
         "**/src-tauri/**",
         "**/node_modules/**",
-        "!**/node_modules/@vizij/orchestrator-wasm/**",
-        "!**/node_modules/@vizij/orchestrator-react/**",
         "!**/node_modules/@vizij/node-graph-wasm/**",
         "!**/node_modules/@vizij/node-graph-react/**",
         "!**/node_modules/@vizij/node-graph-authoring/**",
@@ -53,12 +51,10 @@ export default defineConfig(async () => ({
   },
   optimizeDeps: {
     exclude: [
-      "@vizij/orchestrator-wasm",
       "@vizij/node-graph-wasm",
       "@vizij/arora-web-wasm",
     ],
     include: [
-      "@vizij/orchestrator-react",
       "@vizij/node-graph-react",
       "@vizij/node-graph-authoring",
       "@vizij/render",
