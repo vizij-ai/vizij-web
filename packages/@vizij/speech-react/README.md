@@ -45,7 +45,7 @@ This package is not a standalone face runtime. It assumes your app already has a
 
 The intended layering is:
 
-1. `@vizij/runtime-react` owns face loading, orchestrator registration, and runtime control.
+1. `@vizij/runtime-react` owns face loading, graph registration, and runtime control.
 2. Your app adapts runtime methods such as `setInput()` and `animateValue()` to the callback shape expected by `useSpeechPlayback()`.
 3. `@vizij/speech-react` handles STT, optional LLM turn generation, and viseme/emotion playback against those runtime callbacks.
 

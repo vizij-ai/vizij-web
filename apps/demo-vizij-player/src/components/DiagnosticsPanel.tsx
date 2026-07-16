@@ -52,7 +52,7 @@ export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
           <strong>Runtime controllers</strong>
           <p className="diagnostic-copy">
             These are the controller ids the runtime exposes from the
-            orchestrator layer. Graph controllers cover registered rig, pose, or
+            runtime layer. Graph controllers cover registered rig, pose, or
             program graphs. Animation controllers cover registered embedded
             clips.
           </p>

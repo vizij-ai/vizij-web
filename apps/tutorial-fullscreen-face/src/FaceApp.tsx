@@ -114,7 +114,7 @@ function FaceRuntime() {
   if (!ready) {
     return (
       <div className="fullscreen">
-        <div className="status">Initialising orchestrator…</div>
+        <div className="status">Initialising runtime…</div>
       </div>
     );
   }

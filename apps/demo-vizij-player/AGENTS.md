@@ -12,7 +12,7 @@ Bundle-first showcase surface for facial exports built on `@vizij/runtime-react`
 
 ## Integration Tips
 
-- Coordinate runtime-react, render, or orchestrator API changes with the relevant packages and rebuild them before testing.
+- Coordinate runtime-react or render API changes with the relevant packages and rebuild them before testing.
 - State persistence lives under `src/state`; bump storage versioning whenever the persisted source or panel model changes.
 - Maintain logging prefixes (`demo-vizij-player:`) so console output stays searchable.
 - Keep the curated sample catalog aligned with the bundle-rich assets that actually exist in `apps/vizij-authoring/public/assets`.

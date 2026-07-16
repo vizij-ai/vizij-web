@@ -252,6 +252,5 @@ The action will build, test, and publish the package with provenance metadata.
 - [`@vizij/node-graph-wasm`](../../../vizij-rs/npm/@vizij/node-graph-wasm/README.md) – wasm wrapper consumed by this package.
 - [`vizij-graph-wasm`](../../../vizij-rs/crates/node-graph/vizij-graph-wasm/README.md) – Rust crate providing the wasm binding.
 - [`vizij-graph-core`](../../../vizij-rs/crates/node-graph/vizij-graph-core/README.md) – Core evaluator that ultimately runs the graph.
-- [`@vizij/orchestrator-react`](../orchestrator-react/README.md) – React provider for coordinating graphs and animations together.
 
 Need help or spot something missing? File an issue in the Vizij repo—consistent docs keep our integration story sharp. ⚙️

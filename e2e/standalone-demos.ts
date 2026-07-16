@@ -4,7 +4,7 @@
 // both the web servers and the specs are generated from it.
 //
 // These are the "run it on its own" demos that exercise the wasm + render stack
-// end to end (orchestrator / animation / node-graph). Booting each and asserting
+// end to end (animation / node-graph). Booting each and asserting
 // it renders without page errors is the canary for that stack regressing.
 export interface StandaloneDemo {
   /** pnpm workspace filter / package name. */
