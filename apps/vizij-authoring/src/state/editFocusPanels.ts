@@ -18,6 +18,7 @@ export function createEditFocusPanelVisibility(
     debug: base.debug.isVisible,
     animation: base.animation.isVisible,
     motiongraph: base.motiongraph.isVisible,
+    poseExtraction: base.poseExtraction.isVisible,
     toolbar: base.toolbar.isVisible,
     referenceFace: base.referenceFace.isVisible,
     materials: base.materials.isVisible,
@@ -33,6 +34,7 @@ export function createEditFocusPanelVisibility(
     nextVisibility.motiongraphPalette = false;
     nextVisibility.animation = true;
     nextVisibility.motiongraph = false;
+    nextVisibility.poseExtraction = false;
     nextVisibility.referenceFace = false;
     return nextVisibility;
   }
@@ -46,6 +48,7 @@ export function createEditFocusPanelVisibility(
     nextVisibility.motiongraphPalette = true;
     nextVisibility.animation = false;
     nextVisibility.motiongraph = true;
+    nextVisibility.poseExtraction = false;
     nextVisibility.referenceFace = false;
     return nextVisibility;
   }
@@ -53,6 +56,7 @@ export function createEditFocusPanelVisibility(
   if (focus === "reference-face") {
     nextVisibility.animation = false;
     nextVisibility.motiongraph = false;
+    nextVisibility.poseExtraction = false;
     nextVisibility.referenceFace = true;
     nextVisibility.motiongraphPalette = false;
     return nextVisibility;

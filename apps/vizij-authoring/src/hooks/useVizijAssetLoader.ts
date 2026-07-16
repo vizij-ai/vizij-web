@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LoadedVizijAsset, VizijBundleExtension } from "@vizij/render";
+import type {
+  LoadedVizijAsset,
+  VizijAnimationClipData,
+  VizijBundleExtension,
+} from "@vizij/render";
 import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import type {
+  AnimationClipLike,
+  Object3DLike,
+} from "../poseExtraction/fbxFrameExtraction";
 import { findRootId } from "../utils/world";
 import { waitForNextFrame } from "../utils/frame";
 
@@ -329,6 +337,10 @@ export function useVizijAssetLoader() {
   const [error, setError] = useState<string | null>(null);
   const [bundle, setBundle] = useState<VizijBundleExtension | null>(null);
   const [exportSceneRoot, setExportSceneRoot] = useState<unknown>(null);
+  const [rawClips, setRawClips] = useState<AnimationClipLike[]>([]);
+  const [importedAnimations, setImportedAnimations] = useState<
+    VizijAnimationClipData[]
+  >([]);
   const [faceLoadProgress, setFaceLoadProgress] = useState(0);
   const [faceLoadSteps, setFaceLoadSteps] = useState<FaceLoadStep[]>(
     createDefaultFaceLoadSteps,
@@ -864,6 +876,8 @@ export function useVizijAssetLoader() {
           animatables,
           bundle: loadedBundle,
           scene,
+          rawClips: loadedRawClips,
+          animations: loadedAnimations,
         } = await loader();
         assertCurrentLoad();
         await waitForNextFrame();
@@ -986,6 +1000,8 @@ export function useVizijAssetLoader() {
         setSourceName(label);
         setBundle(loadedBundle ?? null);
         setExportSceneRoot(scene ?? null);
+        setRawClips(loadedRawClips ?? []);
+        setImportedAnimations(loadedAnimations ?? []);
         await waitForNextFrame();
         assertCurrentLoad();
 
@@ -1015,6 +1031,8 @@ export function useVizijAssetLoader() {
         console.error("demo-vizij-render: failed to load Vizij", err);
         setBundle(null);
         setExportSceneRoot(null);
+        setRawClips([]);
+        setImportedAnimations([]);
         markImportFlowError(activeStepId, { sessionToken });
       } finally {
         if (
@@ -1074,6 +1092,8 @@ export function useVizijAssetLoader() {
     setError(null);
     setBundle(null);
     setExportSceneRoot(null);
+    setRawClips([]);
+    setImportedAnimations([]);
     setFaceLoadProgress(0);
     setFaceLoadSteps(createDefaultFaceLoadSteps());
     setIsImportFlowActive(false);
@@ -1151,6 +1171,9 @@ export function useVizijAssetLoader() {
     loadFromUrl,
     bundle,
     exportSceneRoot,
+    sceneRoot: exportSceneRoot as Object3DLike | null,
+    rawClips,
+    importedAnimations,
     updateBundle,
   };
 }

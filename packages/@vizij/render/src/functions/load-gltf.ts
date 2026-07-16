@@ -208,6 +208,12 @@ export type LoadedVizijAsset = {
   bundle: VizijBundleExtension | null;
   animations: VizijAnimationClipData[];
   scene: Group;
+  /**
+   * Raw THREE.AnimationClip[] as parsed from the glTF/GLB, before any Vizij
+   * metadata correlation. Surfaced so callers can read arbitrary FBX-derived
+   * clips (which `extractVizijAnimations` drops when nodes lack RobotData).
+   */
+  rawClips: AnimationClip[];
 };
 
 function parseScene(
@@ -241,7 +247,14 @@ function parseScene(
   // } else {
   //   console.info("[vizij-render] No bundle extracted during GLTF load.");
   // }
-  return { world, animatables, bundle, animations, scene };
+  return {
+    world,
+    animatables,
+    bundle,
+    animations,
+    scene,
+    rawClips: clips ?? [],
+  };
 }
 
 function createTrackedGLTFLoader() {

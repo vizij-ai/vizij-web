@@ -20,6 +20,7 @@ interface WorkspaceState {
     // Bottom
     animation: PanelState;
     motiongraph: PanelState;
+    poseExtraction: PanelState;
     // Center Top
     toolbar: PanelState;
     referenceFace: PanelState;
@@ -39,6 +40,7 @@ const EXCLUSIVE_CENTER_PANEL_IDS = [
   "animation",
   "motiongraph",
   "referenceFace",
+  "poseExtraction",
 ] as const satisfies readonly WorkspacePanelId[];
 const EXCLUSIVE_CENTER_PANEL_ID_SET: ReadonlySet<WorkspacePanelId> = new Set(
   EXCLUSIVE_CENTER_PANEL_IDS,
@@ -87,6 +89,7 @@ export function createInitialWorkspacePanels(): WorkspacePanels {
     debug: { isVisible: false, order: 2 },
     animation: { isVisible: false, order: 0 },
     motiongraph: { isVisible: false, order: 1 },
+    poseExtraction: { isVisible: false, order: 2 },
     toolbar: { isVisible: true, order: 0 },
     referenceFace: { isVisible: false, order: 0 },
     materials: { isVisible: true, order: 3 },

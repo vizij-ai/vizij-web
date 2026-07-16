@@ -23,6 +23,7 @@ import {
   type SurfaceTab,
 } from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
+import { useFbxPoseExtraction, PoseExtractionPanel } from "./poseExtraction";
 import {
   Viewer,
   type RuntimeExportBodiesSnapshot,
@@ -614,6 +615,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     sourceName,
     isLoading,
     exportSceneRoot,
+    sceneRoot,
+    rawClips,
     faceLoadSessionToken,
     faceLoadMilestones,
     faceLoadInFlightOperationCount,
@@ -774,6 +777,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
+
+  const fbxPoseExtraction = useFbxPoseExtraction({
+    world: runtimeWorld,
+    animatables: runtimeAnimatables,
+    rawClips,
+    scene: sceneRoot,
+  });
 
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
   const [motionGraphSplitVertical, setMotionGraphSplitVertical] =
@@ -3299,6 +3309,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationPanelVisible = useWorkspaceStore(
     (state) => state.panels.animation.isVisible,
   );
+  const poseExtractionPanelVisible = useWorkspaceStore(
+    (state) => state.panels.poseExtraction.isVisible,
+  );
   const motionGraphPanelVisible = useWorkspaceStore(
     (state) => state.panels.motiongraph.isVisible,
   );
@@ -3631,6 +3644,29 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const handleHideAnimationPanel = useCallback(() => {
     setWorkspacePanelVisibility("animation", false);
   }, [setWorkspacePanelVisibility]);
+  const handleHidePoseExtractionPanel = useCallback(() => {
+    setWorkspacePanelVisibility("poseExtraction", false);
+  }, [setWorkspacePanelVisibility]);
+  // Auto-open the Pose Extraction panel once when a GLB with raw FBX clips loads;
+  // re-arm the latch when the clips go away so the next such load re-opens it.
+  const autoOpenedFbxExtractionRef = useRef(false);
+  useEffect(() => {
+    if (fbxPoseExtraction.isAvailable) {
+      if (!autoOpenedFbxExtractionRef.current) {
+        autoOpenedFbxExtractionRef.current = true;
+        setWorkspacePanelVisibility("poseExtraction", true);
+      }
+      return;
+    }
+    autoOpenedFbxExtractionRef.current = false;
+    if (poseExtractionPanelVisible) {
+      setWorkspacePanelVisibility("poseExtraction", false);
+    }
+  }, [
+    fbxPoseExtraction.isAvailable,
+    poseExtractionPanelVisible,
+    setWorkspacePanelVisibility,
+  ]);
   const handleHideMotionGraphPanel = useCallback(() => {
     setWorkspacePanelVisibility("motiongraph", false);
   }, [setWorkspacePanelVisibility]);
@@ -4232,6 +4268,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const effectiveControlAuthoringPanelVisible =
     sceneLoaded && controlAuthoringPanelVisible;
   const effectiveAnimationPanelVisible = sceneLoaded && animationPanelVisible;
+  const effectivePoseExtractionPanelVisible =
+    sceneLoaded && poseExtractionPanelVisible;
   const effectiveMotionGraphPanelVisible =
     sceneLoaded && motionGraphPanelVisible;
   const effectiveMotionGraphPalettePanelVisible =
@@ -4484,29 +4522,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           }
           leftBottomVisible={effectiveControlAuthoringPanelVisible}
           viewport={viewportContent}
-          bottomVisible={effectiveAnimationPanelVisible}
+          bottomVisible={
+            effectiveAnimationPanelVisible ||
+            effectivePoseExtractionPanelVisible
+          }
           bottomPanel={
-            <AnimationPanel
-              onClosePanel={handleHideAnimationPanel}
-              onInspectTrack={handleInspectAnimationTrackFromTimeline}
-              playbackState={selectedAnimationPanelPlaybackState}
-              onPlayTransport={
-                resolvedSelectedAnimationTargetId
-                  ? handlePlayAnimationRuntime
-                  : undefined
-              }
-              onPauseTransport={
-                selectedAnimationCanPauseOrStop
-                  ? handlePauseAnimationRuntime
-                  : undefined
-              }
-              onStopTransport={
-                selectedAnimationCanPauseOrStop
-                  ? handleStopAnimationRuntime
-                  : undefined
-              }
-              statusMessage={animationPanelStatusMessage}
-            />
+            effectivePoseExtractionPanelVisible ? (
+              <PoseExtractionPanel
+                api={fbxPoseExtraction}
+                onClose={handleHidePoseExtractionPanel}
+              />
+            ) : (
+              <AnimationPanel
+                onClosePanel={handleHideAnimationPanel}
+                onInspectTrack={handleInspectAnimationTrackFromTimeline}
+                playbackState={selectedAnimationPanelPlaybackState}
+                onPlayTransport={
+                  resolvedSelectedAnimationTargetId
+                    ? handlePlayAnimationRuntime
+                    : undefined
+                }
+                onPauseTransport={
+                  selectedAnimationCanPauseOrStop
+                    ? handlePauseAnimationRuntime
+                    : undefined
+                }
+                onStopTransport={
+                  selectedAnimationCanPauseOrStop
+                    ? handleStopAnimationRuntime
+                    : undefined
+                }
+                statusMessage={animationPanelStatusMessage}
+              />
+            )
           }
           centerPanelDefaultSize={centerPanelDefaultSize}
           // Right

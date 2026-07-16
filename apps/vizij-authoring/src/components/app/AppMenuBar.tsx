@@ -95,6 +95,9 @@ export function AppMenuBar({
   const referenceFacePanelVisible = useWorkspaceStore(
     (state) => state.panels.referenceFace.isVisible,
   );
+  const poseExtractionPanelVisible = useWorkspaceStore(
+    (state) => state.panels.poseExtraction.isVisible,
+  );
   const setPanelVisibility = useWorkspaceStore(
     (state) => state.setPanelVisibility,
   );
@@ -119,7 +122,7 @@ export function AppMenuBar({
     onSelectAuthoringSurface(surface);
   };
   const setCenterPanelVisibility = (
-    panel: "animation" | "motiongraph" | "referenceFace",
+    panel: "animation" | "motiongraph" | "referenceFace" | "poseExtraction",
     isVisible: boolean,
   ) => {
     setPanelVisibility(panel, isVisible);
@@ -139,7 +142,11 @@ export function AppMenuBar({
       onSelectEditFocus("procedural-animation-programming");
       return;
     }
-    onSelectEditFocus("reference-face");
+    if (panel === "referenceFace") {
+      onSelectEditFocus("reference-face");
+      return;
+    }
+    // poseExtraction has no dedicated edit focus; leave the current focus intact.
   };
 
   return (
@@ -358,6 +365,15 @@ export function AppMenuBar({
           }
         >
           Reference Face
+        </MenuCheckboxItem>
+        <MenuCheckboxItem
+          testId="app-menu-view-center-pose-extraction"
+          checked={poseExtractionPanelVisible}
+          onCheckedChange={(checked) =>
+            setCenterPanelVisibility("poseExtraction", checked)
+          }
+        >
+          Pose Extraction
         </MenuCheckboxItem>
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
