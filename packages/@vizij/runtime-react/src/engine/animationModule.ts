@@ -331,6 +331,24 @@ export interface AnimationTrackOutput {
 }
 
 /**
+ * Read a scalar number out of an Arora `Value` JSON, across the encodings a
+ * sampled track value can arrive in (`f32`/`f64`/`float` scalars, integer
+ * scalars). Non-scalar or unknown shapes return `null`.
+ */
+export function aroraValueToNumber(value: AroraValueJSON): number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  for (const key of ["f32", "f64", "float", "i32", "i64", "u32", "u64"]) {
+    if (key in value) {
+      const parsed = Number((value as Record<string, unknown>)[key]);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+  }
+  return null;
+}
+
+/**
  * Decode the `[TrackOutput]` value the animations source writes to
  * `ANIMATIONS_OUT_PATH` (a `structs` of the declared TrackOutput type).
  * Tolerant: unknown shapes decode to an empty list.
