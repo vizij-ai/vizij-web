@@ -32,6 +32,9 @@ arora-studio-bridge-client = { version = "3.1.0", optional = true }
 # Install the process-wide rustls crypto provider (ring) the Zenoh/Firebase TLS
 # stacks need — matches the provider arora-studio-bridge-client is built against.
 rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
+# Encrypt the persisted anonymous refresh token at rest (XSalsa20Poly1305), the
+# same mechanism arora uses for its saved token. Only needed with studio-bridge.
+crypto_secretbox = { version = "0.1.1", optional = true }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
@@ -74,10 +77,12 @@ ros2 = ["dep:arora-bridge-ros2"]
 #   cargo build --features studio-bridge
 # Zero-config: the client crate (v3.1+) bakes in the Firebase config + bridge
 # endpoint. Runtime env overrides: STUDIO_BRIDGE_ENDPOINT (non-production bridge),
-# FIREBASE_* (emulator), DEVICE_OWNERS (ownership).
-studio-bridge = ["dep:arora-studio-bridge-client", "dep:rustls"]
+# DEVICE_OWNERS (ownership). vizij always talks to real Firebase — no emulator.
+studio-bridge = ["dep:arora-studio-bridge-client", "dep:rustls", "dep:crypto_secretbox"]
 
 [dev-dependencies]
 ros2-client = "0.8"
 rand = "0.9"
 tokio = { version = "1", features = ["full"] }
+# The mock `Bridge` in the studio-bridge tests implements an `#[async_trait]` trait.
+async-trait = "0.1"
