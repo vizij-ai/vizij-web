@@ -1019,7 +1019,9 @@ fn spawn_studio_bridge(
     initial_owners: Vec<String>,
     device_name: String,
 ) {
-    use arora_studio_bridge_client::firestore_support::options::FirebaseOptions;
+    use arora_studio_bridge_client::firestore_support::options::{
+        FirebaseEmulatorOptions, FirebaseOptions,
+    };
     use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
 
     let firebase_options = FirebaseOptions::from_env();
@@ -1071,18 +1073,17 @@ fn spawn_studio_bridge(
                     let _ = rustls::crypto::ring::default_provider().install_default();
                 }
 
-                // vizij always talks to real Firebase — no emulator wiring at all,
-                // so a stray FIREBASE_*_EMULATOR_HOST can never divert device info.
-                let no_emulator: Option<
-                    &arora_studio_bridge_client::firestore_support::options::FirebaseEmulatorOptions,
-                > = None;
+                // Firebase emulator wiring is left to its default behavior:
+                // `FirebaseEmulatorOptions::from_env()` picks up the emulator when
+                // `FIREBASE_*_EMULATOR_HOST` is set, and targets real Firebase otherwise.
+                let firebase_emulator_options = FirebaseEmulatorOptions::from_env();
 
                 let connect = match endpoint_override {
                     Some(endpoint) => {
                         info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoint: {endpoint})");
                         ZenohDeviceClient::new_endpoint(
                             &firebase_options,
-                            no_emulator,
+                            Some(&firebase_emulator_options),
                             refresh_token,
                             save_token,
                             endpoint,
@@ -1093,7 +1094,7 @@ fn spawn_studio_bridge(
                         info!("studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint");
                         ZenohDeviceClient::new(
                             &firebase_options,
-                            no_emulator,
+                            Some(&firebase_emulator_options),
                             refresh_token,
                             save_token,
                         )
