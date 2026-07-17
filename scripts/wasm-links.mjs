@@ -19,6 +19,7 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const DEFAULT_VIZIJ_RS = path.resolve(REPO_ROOT, "..", "vizij-rs");
 
 const ALL_PACKAGES = [
+  "animation-module",
   "animation-wasm",
   "arora-web-wasm",
   "node-graph-wasm",
