@@ -13,14 +13,22 @@
  * the runtime-owned `arora/*` golden keys, re-written into the new device).
  * VIZ-57 replaces this with an in-place behavior load once `BrowserRuntime`
  * exposes the interpreter module's LOAD function.
+ *
+ * A slot can also load Arora wasm **modules** into every device it starts
+ * (`setModules`) — e.g. the animation module. Module guest state lives in
+ * the module instance, so unlike the store it does NOT survive a restart;
+ * owners replay their module setup calls from `onDeviceStarted`.
  */
 import {
   init,
   startDevice,
   type AroraDevice,
+  type DeviceModule,
   type ValueJSON,
   type InitInput,
 } from "@vizij/arora-web-wasm";
+
+export type { DeviceModule };
 
 /** Store keys owned by the arora runtime itself (frame clock etc.). */
 const GOLDEN_PREFIX = "arora/";
@@ -52,6 +60,16 @@ export interface DeviceHandle {
  */
 export class DeviceSlot {
   private handle: DeviceHandle | null = null;
+  /** Arora wasm modules loaded into every device this slot starts. */
+  private modules: DeviceModule[] | undefined;
+  /**
+   * Runs (inside the serialized op) each time a fresh device comes up — a
+   * boot or a restart — before the (re)start promise resolves. Module guest
+   * state does not survive a restart (a new device instantiates its modules
+   * from scratch), so this is where owners replay module setup calls (e.g.
+   * re-`load_animation` the clips).
+   */
+  onDeviceStarted?: (handle: DeviceHandle) => void;
   /**
    * Serializes device (re)starts. Every `ensure`/`restart` chains behind the
    * previous op so two recomposes never run concurrently — a second restart
@@ -68,6 +86,14 @@ export class DeviceSlot {
     return this.handle;
   }
 
+  /**
+   * The modules every subsequent device start loads. Takes effect at the
+   * next `ensure`/`restart`; the live device (if any) is not touched.
+   */
+  setModules(modules: DeviceModule[] | undefined): void {
+    this.modules = modules && modules.length > 0 ? modules : undefined;
+  }
+
   private enqueue<T>(op: () => Promise<T>): Promise<T> {
     const run = this.opChain.then(op, op);
     this.opChain = run.then(
@@ -77,16 +103,21 @@ export class DeviceSlot {
     return run;
   }
 
+  private async boot(spec: object): Promise<DeviceHandle> {
+    await ensureWasmInit();
+    const device = await startDevice(spec, undefined, this.modules);
+    this.handle = { device, spec };
+    this.onDeviceStarted?.(this.handle);
+    return this.handle;
+  }
+
   /** Boot the device with `spec` if none is live; otherwise return the live one. */
   ensure(spec: object): Promise<DeviceHandle> {
     return this.enqueue(async () => {
       if (this.handle) {
         return this.handle;
       }
-      await ensureWasmInit();
-      const device = await startDevice(spec);
-      this.handle = { device, spec };
-      return this.handle;
+      return this.boot(spec);
     });
   }
 
@@ -106,10 +137,7 @@ export class DeviceSlot {
       // First live device: same path as `ensure`, inlined so it runs inside
       // this queued op instead of enqueuing behind itself (which would deadlock).
       if (!old) {
-        await ensureWasmInit();
-        const device = await startDevice(spec);
-        this.handle = { device, spec };
-        return this.handle;
+        return this.boot(spec);
       }
 
       const carried: Record<string, ValueJSON> = {};
@@ -119,12 +147,13 @@ export class DeviceSlot {
         }
       }
 
-      const device = await startDevice(spec);
+      const device = await startDevice(spec, undefined, this.modules);
       if (Object.keys(carried).length > 0) {
         device.writeValues(carried);
       }
       this.handle = { device, spec };
       old.device.dispose();
+      this.onDeviceStarted?.(this.handle);
       return this.handle;
     });
   }
