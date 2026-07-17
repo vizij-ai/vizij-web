@@ -777,6 +777,104 @@ fn random_device_suffix() -> String {
     suffix
 }
 
+/// Tauri event emitted when the Studio bridge fails to connect or register, so
+/// the failure is visible to the UI instead of only reaching the log.
+#[cfg(feature = "studio-bridge")]
+const STUDIO_BRIDGE_ERROR_EVENT: &str = "studio-bridge:error";
+
+/// Paths of the persisted device identity: the encrypted anonymous refresh token
+/// and the key that encrypts it, both under `app_local_data_dir()`. Reusing the
+/// token across launches gives the device ONE stable Studio identity (one
+/// `devices/{uid}` doc) instead of minting a fresh anonymous user — and orphaning
+/// the previous doc and its owners/permissions — every launch.
+#[cfg(feature = "studio-bridge")]
+fn studio_token_paths(
+    app: &tauri::AppHandle,
+) -> Result<(std::path::PathBuf, std::path::PathBuf), String> {
+    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    Ok((
+        dir.join("studio_refresh_token.key"),
+        dir.join("studio_refresh_token"),
+    ))
+}
+
+/// Load the 32-byte token-encryption key from `key_path`, if present and valid.
+#[cfg(feature = "studio-bridge")]
+fn studio_load_key(key_path: &std::path::Path) -> Option<crypto_secretbox::Key> {
+    use crypto_secretbox::aead::generic_array::GenericArray;
+    let bytes = std::fs::read(key_path).ok()?;
+    (bytes.len() == 32).then(|| *GenericArray::from_slice(&bytes))
+}
+
+/// Load the token-encryption key, generating and persisting one on first use.
+#[cfg(feature = "studio-bridge")]
+fn studio_load_or_create_key(key_path: &std::path::Path) -> std::io::Result<crypto_secretbox::Key> {
+    use crypto_secretbox::aead::{KeyInit, OsRng};
+    use crypto_secretbox::XSalsa20Poly1305;
+    if let Some(key) = studio_load_key(key_path) {
+        return Ok(key);
+    }
+    let key = XSalsa20Poly1305::generate_key(&mut OsRng);
+    if let Some(parent) = key_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(key_path, key.as_slice())?;
+    Ok(key)
+}
+
+/// Read + decrypt the persisted anonymous refresh token, if present.
+///
+/// Stored as `nonce (24 bytes) || XSalsa20Poly1305 ciphertext`, matching arora's
+/// token storage. Returns `None` when nothing is saved or the blob can't be
+/// decrypted (e.g. a rotated key).
+#[cfg(feature = "studio-bridge")]
+fn read_studio_refresh_token(
+    key_path: &std::path::Path,
+    token_path: &std::path::Path,
+) -> Option<String> {
+    use crypto_secretbox::aead::generic_array::GenericArray;
+    use crypto_secretbox::aead::{Aead, KeyInit};
+    use crypto_secretbox::{Nonce, XSalsa20Poly1305};
+
+    let blob = std::fs::read(token_path).ok()?;
+    if blob.len() <= 24 {
+        return None;
+    }
+    let key = studio_load_key(key_path)?;
+    let cipher = XSalsa20Poly1305::new(&key);
+    let (nonce_bytes, ciphertext) = blob.split_at(24);
+    let nonce: Nonce = *GenericArray::from_slice(nonce_bytes);
+    let plaintext = cipher.decrypt(&nonce, ciphertext).ok()?;
+    let token = String::from_utf8(plaintext).ok()?.trim().to_string();
+    (!token.is_empty()).then_some(token)
+}
+
+/// Encrypt + persist the anonymous refresh token as the client rotates it, so the
+/// same device identity survives restarts. Encrypted at rest (XSalsa20Poly1305)
+/// under a key stored next to it, like arora's saved token.
+#[cfg(feature = "studio-bridge")]
+fn write_studio_refresh_token(
+    key_path: &std::path::Path,
+    token_path: &std::path::Path,
+    token: &str,
+) -> Result<(), String> {
+    use crypto_secretbox::aead::{Aead, AeadCore, KeyInit, OsRng};
+    use crypto_secretbox::XSalsa20Poly1305;
+
+    let key = studio_load_or_create_key(key_path).map_err(|e| e.to_string())?;
+    let cipher = XSalsa20Poly1305::new(&key);
+    let nonce = XSalsa20Poly1305::generate_nonce(&mut OsRng);
+    let ciphertext = cipher
+        .encrypt(&nonce, token.as_bytes())
+        .map_err(|e| format!("failed to encrypt refresh token: {e}"))?;
+    if let Some(parent) = token_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut blob = nonce.as_slice().to_vec();
+    blob.extend_from_slice(&ciphertext);
+    std::fs::write(token_path, blob).map_err(|e| e.to_string())
+}
+
 /// The Studio bridge pump. Registers the device, serves access requests, and —
 /// the VIZ-67 close — shares the SAME store as the WS/ROS2 bridges: it fans the
 /// store's live changes out to Studio (`try_send`) and applies Studio's inbound
@@ -789,10 +887,48 @@ fn random_device_suffix() -> String {
 async fn run_studio_pump(
     store: SimpleDataStore,
     app: AppHandle,
+    bridge: Box<dyn Bridge>,
+    owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
+    device_name: String,
+    initial_owners: Vec<String>,
+) {
+    // Production wiring for the injectable core: surface failures as a Tauri event
+    // and route inbound events through the real store/webview handler. The core
+    // itself is Tauri-free so it can run against a mock bridge under test.
+    let error_app = app.clone();
+    let on_error = move |message: String| {
+        let _ = error_app.emit(STUDIO_BRIDGE_ERROR_EVENT, message);
+    };
+    let on_inbound = move |store: &SimpleDataStore, event| host::handle_inbound(store, &app, event);
+    run_studio_pump_core(
+        store,
+        bridge,
+        owners_rx,
+        device_name,
+        initial_owners,
+        on_error,
+        on_inbound,
+    )
+    .await;
+}
+
+/// The Tauri-free core of the studio pump — the injection seam.
+///
+/// Takes the bridge (the real `ZenohDeviceClient` in production, a mock in tests)
+/// plus two sinks: `on_error` for a surfaced failure message (production emits a
+/// Tauri event) and `on_inbound` for an inbound event (production applies it to
+/// the store + webview). Registers the device, keeps it registered as owners
+/// change, and fans store changes out to the bridge — with no dependency on a
+/// running Tauri app, so the registration mechanics are testable with a mock.
+#[cfg(feature = "studio-bridge")]
+async fn run_studio_pump_core(
+    store: SimpleDataStore,
     mut bridge: Box<dyn Bridge>,
     mut owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
     device_name: String,
     initial_owners: Vec<String>,
+    mut on_error: impl FnMut(String),
+    mut on_inbound: impl FnMut(&SimpleDataStore, arora_bridge::Inbound),
 ) {
     use futures_util::StreamExt;
 
@@ -801,6 +937,7 @@ async fn run_studio_pump(
     let info = studio_device_info(device_name.clone(), initial_owners.clone());
     if let Err(e) = bridge.update_device_info(Some(info)).await {
         log::error!("studio-bridge: failed to register device info: {e}");
+        on_error(format!("Failed to register this device with Studio: {e}"));
     } else {
         info!(
             "studio-bridge: registered device \"{device_name}\" with Studio ({} owner(s))",
@@ -838,7 +975,7 @@ async fn run_studio_pump(
                 None => break,
             },
             maybe_event = inbound.next() => match maybe_event {
-                Some(event) => host::handle_inbound(&store, &app, event),
+                Some(event) => on_inbound(&store, event),
                 None => break, // endpoint disconnected
             },
             changed = owners_rx.changed() => {
@@ -852,7 +989,10 @@ async fn run_studio_pump(
                         "studio-bridge: re-registered device \"{device_name}\" ({} owner(s))",
                         owners.len()
                     ),
-                    Err(e) => log::error!("studio-bridge: failed to re-register device info: {e}"),
+                    Err(e) => {
+                        log::error!("studio-bridge: failed to re-register device info: {e}");
+                        on_error(format!("Failed to update this device's owners in Studio: {e}"));
+                    }
                 }
             }
         }
@@ -879,9 +1019,7 @@ fn spawn_studio_bridge(
     initial_owners: Vec<String>,
     device_name: String,
 ) {
-    use arora_studio_bridge_client::firestore_support::options::{
-        FirebaseEmulatorOptions, FirebaseOptions,
-    };
+    use arora_studio_bridge_client::firestore_support::options::FirebaseOptions;
     use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
 
     let firebase_options = FirebaseOptions::from_env();
@@ -889,6 +1027,29 @@ fn spawn_studio_bridge(
         .ok()
         .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
         .filter(|s| !s.is_empty());
+
+    // Load the saved (encrypted) anonymous refresh token, if any, so the device
+    // keeps ONE stable Studio identity across launches, and wire the save-callback
+    // so the client persists the token as it rotates. Without this, every launch
+    // minted a fresh anonymous user — a new devices/{uid} doc — orphaning the
+    // previous one and its owners/permissions. Mirrors arora's own device path.
+    let token_paths = studio_token_paths(&app).ok();
+    let refresh_token = token_paths
+        .as_ref()
+        .and_then(|(key_path, token_path)| read_studio_refresh_token(key_path, token_path));
+    if refresh_token.is_some() {
+        info!("studio-bridge: reusing the saved device identity");
+    } else {
+        info!("studio-bridge: no saved device identity yet; one will be created");
+    }
+    let save_token: Option<Box<dyn FnMut(String) + Send + Sync>> =
+        token_paths.map(|(key_path, token_path)| {
+            Box::new(move |token: String| {
+                if let Err(e) = write_studio_refresh_token(&key_path, &token_path, &token) {
+                    log::warn!("studio-bridge: failed to save device identity: {e}");
+                }
+            }) as Box<dyn FnMut(String) + Send + Sync>
+        });
 
     std::thread::Builder::new()
         .name("studio-bridge".into())
@@ -910,16 +1071,20 @@ fn spawn_studio_bridge(
                     let _ = rustls::crypto::ring::default_provider().install_default();
                 }
 
-                let firebase_emulator_options = FirebaseEmulatorOptions::from_env();
+                // vizij always talks to real Firebase — no emulator wiring at all,
+                // so a stray FIREBASE_*_EMULATOR_HOST can never divert device info.
+                let no_emulator: Option<
+                    &arora_studio_bridge_client::firestore_support::options::FirebaseEmulatorOptions,
+                > = None;
 
                 let connect = match endpoint_override {
                     Some(endpoint) => {
                         info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoint: {endpoint})");
                         ZenohDeviceClient::new_endpoint(
                             &firebase_options,
-                            Some(&firebase_emulator_options),
-                            None,
-                            None,
+                            no_emulator,
+                            refresh_token,
+                            save_token,
                             endpoint,
                         )
                         .await
@@ -928,9 +1093,9 @@ fn spawn_studio_bridge(
                         info!("studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint");
                         ZenohDeviceClient::new(
                             &firebase_options,
-                            Some(&firebase_emulator_options),
-                            None,
-                            None,
+                            no_emulator,
+                            refresh_token,
+                            save_token,
                         )
                         .await
                     }
@@ -939,6 +1104,10 @@ fn spawn_studio_bridge(
                     Ok(client) => client,
                     Err(e) => {
                         log::error!("studio-bridge: failed to connect to Semio Studio: {e:?}");
+                        let _ = app.emit(
+                            STUDIO_BRIDGE_ERROR_EVENT,
+                            format!("Failed to connect to Semio Studio: {e:?}"),
+                        );
                         return;
                     }
                 };
@@ -1514,4 +1683,175 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(all(test, feature = "studio-bridge"))]
+mod studio_bridge_tests {
+    use super::*;
+    use arora_bridge::{Bridge, BridgeError, BridgeResult, DeviceInfo, Inbound, InboundStream};
+    use async_trait::async_trait;
+    use std::sync::{Arc, Mutex};
+    use tokio::sync::mpsc;
+
+    /// A stand-in for the real `ZenohDeviceClient` — implementing the same
+    /// `arora_bridge::Bridge` trait vizij consumes — so the registration mechanics
+    /// can be exercised with NO Firebase/Zenoh. (ZenohDeviceClient's own behavior
+    /// is covered by studio-bridge's tests.) Records every `update_device_info`
+    /// payload; `fail` makes registration error, to exercise the error path.
+    struct MockDeviceClient {
+        updates: mpsc::UnboundedSender<Option<DeviceInfo>>,
+        fail: bool,
+    }
+
+    #[async_trait]
+    impl Bridge for MockDeviceClient {
+        fn take_inbound(&mut self) -> InboundStream {
+            Box::pin(futures_util::stream::pending())
+        }
+        fn try_send(&mut self, _change: &arora_types::data::StateChange) {}
+        async fn get_device_info(&self) -> BridgeResult<Option<DeviceInfo>> {
+            Ok(None)
+        }
+        async fn update_device_info(
+            &self,
+            info: Option<DeviceInfo>,
+        ) -> BridgeResult<Option<DeviceInfo>> {
+            let _ = self.updates.send(info.clone());
+            if self.fail {
+                Err(BridgeError::Other("mock connection lost".into()))
+            } else {
+                Ok(info)
+            }
+        }
+    }
+
+    /// Spawn the pump core against a mock bridge. Returns the owner sender, the
+    /// stream of recorded `update_device_info` payloads, the collected error
+    /// messages, and the task handle.
+    fn spawn_core(
+        fail: bool,
+    ) -> (
+        tokio::sync::watch::Sender<Vec<String>>,
+        mpsc::UnboundedReceiver<Option<DeviceInfo>>,
+        Arc<Mutex<Vec<String>>>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let (updates_tx, updates_rx) = mpsc::unbounded_channel();
+        let bridge: Box<dyn Bridge> = Box::new(MockDeviceClient {
+            updates: updates_tx,
+            fail,
+        });
+        let store = SimpleDataStore::new();
+        let (owners_tx, owners_rx) = tokio::sync::watch::channel::<Vec<String>>(Vec::new());
+        let errors = Arc::new(Mutex::new(Vec::<String>::new()));
+        let errors_sink = errors.clone();
+        let handle = tokio::spawn(run_studio_pump_core(
+            store,
+            bridge,
+            owners_rx,
+            "vizij-test".to_string(),
+            Vec::new(),
+            move |message| errors_sink.lock().unwrap().push(message),
+            |_store, _event: Inbound| {},
+        ));
+        (owners_tx, updates_rx, errors, handle)
+    }
+
+    /// After the operator chooses an owner, the device re-registers with that uid
+    /// in its owners — the wiring that makes the devices/{uid} doc readable and
+    /// claimable by that user.
+    #[tokio::test]
+    async fn owner_choice_reregisters_with_that_owner() {
+        let (owners_tx, mut updates_rx, errors, handle) = spawn_core(false);
+
+        // Initial registration, before any owner is chosen: ownerless.
+        let first = updates_rx.recv().await.unwrap().unwrap();
+        assert!(first.owners.is_empty(), "initial registration is ownerless");
+
+        // Operator picks an owner → re-registration carries it.
+        owners_tx.send(vec!["studio-user-uid".to_string()]).unwrap();
+        let second = updates_rx.recv().await.unwrap().unwrap();
+        assert_eq!(second.owners, vec!["studio-user-uid".to_string()]);
+        assert_eq!(second.model_family.as_deref(), Some("Vizij"));
+
+        drop(owners_tx); // ends the pump loop
+        let _ = handle.await;
+        assert!(errors.lock().unwrap().is_empty(), "no errors on success");
+    }
+
+    /// A failed registration is surfaced (via `on_error`, a Tauri event in
+    /// production) rather than swallowed.
+    #[tokio::test]
+    async fn failed_registration_is_surfaced() {
+        let (owners_tx, mut updates_rx, errors, handle) = spawn_core(true);
+
+        // The attempt is still made against the bridge...
+        let _ = updates_rx.recv().await.unwrap();
+
+        drop(owners_tx);
+        let _ = handle.await;
+
+        // ...and its failure reached the error sink.
+        let errors = errors.lock().unwrap();
+        assert!(
+            errors
+                .iter()
+                .any(|m| m.contains("Failed to register this device with Studio")),
+            "expected a surfaced registration error, got {errors:?}"
+        );
+    }
+
+    /// The refresh token is persisted encrypted and loads back decrypted — the
+    /// stable-identity mechanic, exercised through the exact save-callback body
+    /// `spawn_studio_bridge` wires to the client.
+    #[test]
+    fn refresh_token_round_trips_encrypted() {
+        let dir = std::env::temp_dir().join(format!(
+            "vizij-studio-token-{}-{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key_path = dir.join("studio_refresh_token.key");
+        let token_path = dir.join("studio_refresh_token");
+
+        // Nothing persisted yet.
+        assert_eq!(read_studio_refresh_token(&key_path, &token_path), None);
+
+        // The save-callback, built exactly as spawn_studio_bridge builds it.
+        let mut save_token: Box<dyn FnMut(String)> = {
+            let key_path = key_path.clone();
+            let token_path = token_path.clone();
+            Box::new(move |token: String| {
+                write_studio_refresh_token(&key_path, &token_path, &token).unwrap();
+            })
+        };
+        save_token("secret-refresh-token".to_string());
+
+        // On disk it is ciphertext, not the plaintext token.
+        let blob = std::fs::read(&token_path).unwrap();
+        assert!(
+            !blob
+                .windows("secret-refresh-token".len())
+                .any(|w| w == b"secret-refresh-token"),
+            "token must not be stored in plaintext"
+        );
+
+        // And it loads back decrypted on the next launch.
+        assert_eq!(
+            read_studio_refresh_token(&key_path, &token_path).as_deref(),
+            Some("secret-refresh-token")
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parse_owners_trims_and_drops_empty() {
+        assert_eq!(
+            parse_owners(" a , ,b, "),
+            vec!["a".to_string(), "b".to_string()]
+        );
+        assert!(parse_owners("  ,, ").is_empty());
+    }
 }
