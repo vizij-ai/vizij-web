@@ -3,7 +3,6 @@ import {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,
-  sampleAnimationClipOutputValues,
 } from "../utils/animationBridge";
 
 describe("resolveAnimationBridgeOutputPaths", () => {
@@ -62,35 +61,6 @@ describe("resolveAnimationBridgeOutputPaths", () => {
         "hugo",
       ),
     ).toEqual(["controls/jaw/open", "rig/hugo/controls/jaw/open"]);
-  });
-
-  it("samples clip outputs directly onto target rig paths with additive merging", () => {
-    const outputs = sampleAnimationClipOutputValues(
-      {
-        tracks: [
-          {
-            channel: "controls/jaw/open",
-            keyframes: [
-              { time: 0, value: 0.2 },
-              { time: 1, value: 0.6 },
-            ],
-          },
-          {
-            channel: "controls/jaw/open",
-            keyframes: [
-              { time: 0, value: 0.1 },
-              { time: 1, value: 0.4 },
-            ],
-          },
-        ],
-      },
-      1,
-      1,
-      "hugo",
-    );
-
-    expect(outputs.get("controls/jaw/open")).toBeCloseTo(1, 6);
-    expect(outputs.get("rig/hugo/controls/jaw/open")).toBeCloseTo(1, 6);
   });
 
   it("clears removed aggregate paths instead of converting them to zero writes", () => {

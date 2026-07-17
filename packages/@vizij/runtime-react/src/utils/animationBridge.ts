@@ -1,5 +1,4 @@
-import type { AnimationClipLike, AnimationTrackLike } from "../types";
-import { sampleTrackAtTime } from "./clipPlayback";
+import type { AnimationClipLike } from "../types";
 
 export type AnimationAggregateOperation =
   | {
@@ -100,40 +99,6 @@ export function collectAnimationClipOutputPaths(
   return Array.from(outputPaths).sort((left, right) =>
     left.localeCompare(right),
   );
-}
-
-export function sampleAnimationClipOutputValues(
-  clip: AnimationClipLike,
-  timeSeconds: number,
-  weight = 1,
-  faceId?: string,
-  rigInputMap?: Record<string, string>,
-): Map<string, number> {
-  const appliedWeight =
-    Number.isFinite(weight) && weight >= 0 ? Number(weight) : 1;
-  const outputValues = new Map<string, number>();
-  const tracks = Array.isArray(clip.tracks) ? clip.tracks : [];
-
-  tracks.forEach((track) => {
-    const channel =
-      typeof track.channel === "string" ? track.channel.trim() : "";
-    if (!channel) {
-      return;
-    }
-
-    const sampledValue = sampleTrackAtTime(
-      track as AnimationTrackLike,
-      timeSeconds,
-    );
-    const weightedValue = sampledValue * appliedWeight;
-    resolveAnimationBridgeOutputPaths(channel, faceId, rigInputMap).forEach(
-      (path) => {
-        outputValues.set(path, (outputValues.get(path) ?? 0) + weightedValue);
-      },
-    );
-  });
-
-  return outputValues;
 }
 
 export function diffAnimationAggregateValues(
