@@ -141,12 +141,39 @@ The device runs **one** graph, composed from several sources
   from the bundle's `programs` started via the transport, and (in
   `vizij-authoring`) the motiongraph editor's graph, published as a program
   so it evaluates on the device like everything else.
+- **Animations** — a single source, composed whenever any clip is playing.
+  It is an `ExternalFunction` node that steps the **animation module**
+  ([`@vizij/animation-module`](https://www.npmjs.com/package/@vizij/animation-module))
+  every device tick off the golden `arora/dt`. Clips register into the module
+  as data (through its call surface), the module samples them **inside the
+  device**, and its per-track outputs are routed on to the rig-input store
+  paths (VIZ-61 Stage B — the JS clip pipeline no longer samples clips).
 
 Sources are namespaced by id (`source::node`) so nodes can't collide;
 **store paths are deliberately shared** — that is the cross-source contract.
-Bundle `animations` are *not* graph sources today: clips tick in the JS clip
-pipeline and only their computed values enter the device as inputs (moving
-them into the device is tracked as VIZ-61).
+
+### Animations and the device
+
+Playback ticks inside the device. `play`/`pause`/`stop` map to the
+animations source's lifecycle plus the module's player: play loads the clip
+and registers the source, pause drops the source (holding the last pose),
+stop tears the player down and clears the outputs to neutral.
+
+The 0.1.0 module is ticking-and-loop only. These transport semantics are
+**not implemented by the module and are not faked in JS** — each warns once
+and is reported honestly (tracked for module-side transport, VIZ-61 Stage C):
+
+- **seek** — `seekAnimation` is a no-op (no module seek); scrubbing and a
+  live playhead in `vizij-authoring` are unavailable on the device path.
+- **playhead feedback** — `getAnimationState().time` is always `0` (the
+  module emits no time feedback); `duration`, `playing`, `loop` are known.
+- **one-shot** — clips play in Loop mode only; `setAnimationLoop(false)` is
+  not honored.
+- **speed / weight** — `playAnimation({ speed, weight })` are ignored (the
+  module has no post-add control).
+- **keypoint transitions** — the module's keypoint carries no per-keypoint
+  timing, so authored linear/step/cubic transitions are dropped; the engine
+  samples with its default ease.
 
 ### Asset reloads vs graph re-registration
 
