@@ -13,6 +13,7 @@ import {
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { valueAsNumber, type ValueJSON } from "@vizij/value-json";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
+import { loadAnimationModule } from "@vizij/animation-module";
 import { DeviceSlot, ensureWasmInit, isGoldenPath } from "./engine/aroraEngine";
 import { composeGraphSpecs, type GraphSource } from "./utils/composeGraph";
 import type {
@@ -67,17 +68,22 @@ import {
   resolvePoseControlInputPath,
   shouldUseLegacyPoseWeightFallback,
 } from "./utils/poseRuntime";
-import {
-  advanceClipTime,
-  clampAnimationTime,
-  resolveClipDurationSeconds,
-} from "./utils/clipPlayback";
+import { resolveClipDurationSeconds } from "./utils/clipPlayback";
 import {
   collectAnimationClipOutputPaths,
   diffAnimationAggregateValues,
-  sampleAnimationClipOutputValues,
+  resolveAnimationBridgeOutputPaths,
 } from "./utils/animationBridge";
 import { valueJSONToRaw } from "./utils/valueConversion";
+import { AnimationModuleHost } from "./engine/animationModuleHost";
+import type { DeviceModule } from "./engine/aroraEngine";
+import {
+  ANIMATIONS_OUT_PATH,
+  animationsGraphSource,
+  aroraValueToNumber,
+  decodeTrackOutputs,
+  type StoredAnimationClipLike,
+} from "./engine/animationModule";
 import type { VizijInputMetadata } from "./types";
 
 type ProviderProps = PropsWithChildren<VizijRuntimeProviderProps>;
@@ -1426,10 +1432,13 @@ function VizijRuntimeProviderInner({
    * - **one source per playing program** (`playProgram`): procedural graphs
    *   from the bundle's `programs`, plus the authoring motiongraph — the
    *   editor publishes its graph as a program so it evaluates on the device.
-   *
-   * Bundle `animations` are NOT composed here: clips still tick in the JS
-   * clip pipeline (`advanceAnimations`) and only their computed values enter
-   * the device as inputs — moving them into the device is VIZ-61.
+   * - **animations** — a single source (`animationsGraphSource`) registered
+   *   whenever any clip is playing: an `ExternalFunction` node that steps the
+   *   animation module every device tick off the golden `arora/dt`. Clips
+   *   register into the module as data (via the call surface), the module
+   *   samples them inside the device, and its per-track outputs land at
+   *   `ANIMATIONS_OUT_PATH`, routed on to rig-input store paths. This is the
+   *   VIZ-61 Stage B migration: the JS clip pipeline no longer samples clips.
    */
   const graphSourcesRef = useRef<GraphSource[]>([]);
 
@@ -1516,15 +1525,29 @@ function VizijRuntimeProviderInner({
   const inputDriverIdsRef = useRef<Set<string>>(new Set());
 
   const animationTweensRef = useRef<Map<string, AnimationState>>(new Map());
+  // Minimal per-clip transport state (duration/playing/loop/speed). The device
+  // OWNS clip sampling and time now (the animation module); this map exists
+  // only for the control surface (getAnimationState, loop-mode decisions) and
+  // the play() completion promise. Notably it does NOT track the playhead
+  // time — the 0.1.0 module emits no time/duration feedback (see the module
+  // capability gaps in engine/animationModule.ts).
   const clipPlaybackRef = useRef<Map<string, ClipPlaybackState>>(new Map());
   const programPlaybackRef = useRef<Map<string, ProgramTransportState>>(
     new Map(),
   );
   const programControllerIdsRef = useRef<Map<string, string>>(new Map());
-  const clipOutputValuesRef = useRef<Map<string, Map<string, number>>>(
-    new Map(),
-  );
-  const clipAggregateValuesRef = useRef<Map<string, number>>(new Map());
+  // Device-side animation playback: the module's guest state as the runtime
+  // sees it (loaded clips, players, instances). Lazily constructed once the
+  // module artifact is available; reads the live device from the slot.
+  const animationModuleRef = useRef<DeviceModule | null>(null);
+  const animationHostRef = useRef<AnimationModuleHost | null>(null);
+  // Whether the animations graph source is composed into the device.
+  const animationsSourceRegisteredRef = useRef(false);
+  // Last aggregate the device's animation outputs were routed to (path ->
+  // summed value), so a stopped/cleared track can be diffed back to neutral.
+  const animationRoutedValuesRef = useRef<Map<string, number>>(new Map());
+  // Capability-gap warnings already emitted (once each) — see warnAnimationGap.
+  const animationGapWarnedRef = useRef<Set<string>>(new Set());
   const animationSystemActiveRef = useRef(true);
   const stagedInputsRef = useRef<
     Map<string, { value: ValueJSON; shape?: ShapeJSON }>
@@ -1773,15 +1796,38 @@ function VizijRuntimeProviderInner({
   // ---------------------------------------------------------------------------
   // The engine surface, device-backed. The call shapes (synchronous
   // registration returning ids, snapshot getters) are implemented over the
-  // single Arora device: registered
-  // graphs accumulate as sources in graphSourcesRef, and every registration
-  // change recomposes the one graph and restarts the device, carrying the
-  // store across (engine/aroraEngine.ts). Animations register as ids only —
-  // playback is the JS clip pipeline writing inputs like any other caller.
+  // single Arora device: registered graphs accumulate as sources in
+  // graphSourcesRef, and every registration change recomposes the one graph
+  // and restarts the device, carrying the store across (engine/aroraEngine.ts).
+  // Animations tick INSIDE the device: the animation module samples the loaded
+  // clips each step and the "animations" source drives it (see the
+  // graphSourcesRef provenance note and engine/animationModule*.ts).
   // ---------------------------------------------------------------------------
 
   /** Writes made before the device is live, replayed when it boots. */
   const pendingWritesRef = useRef<Map<string, ValueJSON>>(new Map());
+
+  /** The live device, or null before it boots. */
+  const getDevice = useCallback(
+    () => deviceSlot.current?.device ?? null,
+    [deviceSlot],
+  );
+
+  /**
+   * The animation module host, constructed once the module artifact has
+   * loaded. Also arms the slot: every device this slot starts loads the
+   * module, and each fresh device replays the host's setup calls (module
+   * guest state does not survive a restart).
+   */
+  const ensureAnimationHost = useCallback((): AnimationModuleHost | null => {
+    if (!animationModuleRef.current) {
+      return null;
+    }
+    if (!animationHostRef.current) {
+      animationHostRef.current = new AnimationModuleHost(getDevice);
+    }
+    return animationHostRef.current;
+  }, [getDevice]);
   /** Applies a step's drained store changes to the render store; bound below. */
   const applyEngineChangesRef = useRef<
     (changes: Record<string, ValueJSON | null>) => void
@@ -1814,6 +1860,41 @@ function VizijRuntimeProviderInner({
     await ensureWasmInit();
     setReady(true);
   }, []);
+
+  // Load the animation module when the bundle carries animations, and arm the
+  // device slot with it: every device this slot starts loads the module, and
+  // each fresh device (a boot or a restart) replays the host's setup calls,
+  // because module guest state does not survive a restart.
+  const hasBundleAnimations = (assetBundle.animations?.length ?? 0) > 0;
+  useEffect(() => {
+    if (!hasBundleAnimations || animationModuleRef.current) {
+      return;
+    }
+    let cancelled = false;
+    loadAnimationModule()
+      .then((module) => {
+        if (cancelled) {
+          return;
+        }
+        animationModuleRef.current = module;
+        deviceSlot.setModules([module]);
+        deviceSlot.onDeviceStarted = (handle) => {
+          animationHostRef.current?.replayInto(handle.device);
+        };
+        ensureAnimationHost();
+      })
+      .catch((err: unknown) => {
+        pushError({
+          message: "Failed to load the animation module",
+          cause: err,
+          phase: "engine",
+          timestamp: performance.now(),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceSlot, ensureAnimationHost, hasBundleAnimations, pushError]);
 
   const removeGraph = useCallback(
     (id: ControllerId) => {
@@ -1866,7 +1947,12 @@ function VizijRuntimeProviderInner({
     [recomposeDevice],
   );
 
-  /** Animations are ids only: the JS clip pipeline is the playback engine. */
+  /**
+   * Animations are device data: registration returns a stable id (the
+   * clip's) and the clip's payload is handed to the module host in
+   * `registerControllers` via `host.setClips`. The module — not JS — samples
+   * the clip once it plays.
+   */
   const registerAnimation = useCallback(
     (cfg: AnimationRegistrationConfig): string =>
       cfg.id ?? `animation-${registeredAnimationsRef.current.length}`,
@@ -1874,6 +1960,35 @@ function VizijRuntimeProviderInner({
   );
 
   const removeAnimation = useCallback((_id: ControllerId) => {}, []);
+
+  /**
+   * Compose (or drop) the single "animations" graph source, which makes the
+   * animation module tick inside the device. Registered whenever any clip is
+   * playing (the module has one engine, stepped whole), dropped when none is —
+   * mirroring how a program source's lifecycle follows play/stop.
+   */
+  const setAnimationsSourceRegistered = useCallback(
+    (registered: boolean) => {
+      if (registered === animationsSourceRegisteredRef.current) {
+        return;
+      }
+      animationsSourceRegisteredRef.current = registered;
+      if (registered) {
+        graphSourcesRef.current = [
+          ...graphSourcesRef.current.filter(
+            (s) => s.sourceId !== animationsGraphSource().sourceId,
+          ),
+          animationsGraphSource(),
+        ];
+      } else {
+        graphSourcesRef.current = graphSourcesRef.current.filter(
+          (s) => s.sourceId !== animationsGraphSource().sourceId,
+        );
+      }
+      recomposeDevice();
+    },
+    [recomposeDevice],
+  );
 
   const listControllers = useCallback(
     (): { graphs: ControllerId[]; anims: ControllerId[] } => ({
@@ -1926,6 +2041,62 @@ function VizijRuntimeProviderInner({
     },
     [deviceSlot],
   );
+
+  /**
+   * Route the animation module's per-tick `[TrackOutput]` (read from
+   * `ANIMATIONS_OUT_PATH`, written by the animations source last step) to the
+   * rig-input store paths the JS clip pipeline used to write — the same
+   * `resolveAnimationBridgeOutputPaths` routing, keyed by each track's
+   * authored default key. The engine already sums instances per track, so its
+   * outputs are the aggregate; a path that stops appearing (a stopped clip)
+   * is diff-cleared back to neutral. Runs each frame just before staged
+   * inputs flush, so routed values reach the device like any other input.
+   */
+  const routeAnimationOutputs = useCallback(() => {
+    // Only track while the animations source is composed in (i.e. something is
+    // playing). When it is not, the device's out path is stale, so leave the
+    // last routed values in place — that is what freezes a paused pose.
+    if (!animationsSourceRegisteredRef.current) {
+      return;
+    }
+    const device = deviceSlot.current?.device;
+    const previous = animationRoutedValuesRef.current;
+    const next = new Map<string, number>();
+    if (device) {
+      const raw = device.readValues([ANIMATIONS_OUT_PATH])[ANIMATIONS_OUT_PATH];
+      if (raw) {
+        for (const output of decodeTrackOutputs(raw)) {
+          const value = aroraValueToNumber(output.value);
+          if (value === null) {
+            continue;
+          }
+          const paths = resolveAnimationBridgeOutputPaths(
+            output.defaultKey,
+            faceId ?? undefined,
+            rigInputMapRef.current,
+          );
+          for (const path of paths) {
+            next.set(path, (next.get(path) ?? 0) + value);
+          }
+        }
+      }
+    }
+    diffAnimationAggregateValues(
+      previous,
+      next,
+      POSE_CONTROL_BRIDGE_EPSILON,
+    ).forEach((operation) => {
+      if (operation.kind === "clear") {
+        clearAnimationInputRef.current(operation.path);
+        return;
+      }
+      setInput(operation.path, { float: operation.value });
+    });
+    animationRoutedValuesRef.current = next;
+  }, [deviceSlot, faceId, setInput]);
+
+  /** Bound below (after `clearAnimationInput` is defined) to avoid a cycle. */
+  const clearAnimationInputRef = useRef<(path: string) => void>(() => {});
 
   /** Listeners notified after each engine step's changes have been applied. */
   const stepListenersRef = useRef<Set<() => void>>(new Set());
@@ -1999,8 +2170,7 @@ function VizijRuntimeProviderInner({
     baseOutputPathsRef.current = new Set();
     namespacedOutputPathsRef.current = new Set();
     rigPoseControlInputIdsRef.current = new Set();
-    clipOutputValuesRef.current.clear();
-    clipAggregateValuesRef.current.clear();
+    animationRoutedValuesRef.current.clear();
   }, [listControllers, removeAnimation, removeGraph, pushError]);
 
   useEffect(() => {
@@ -2339,23 +2509,22 @@ function VizijRuntimeProviderInner({
       console.log("[vizij-runtime] registered graph ids", graphIds);
     }
 
+    // Animations are device data: hand each clip's stored payload to the
+    // module host (keyed by its bundle id, which the transport surface uses).
+    // The module loads a clip lazily on first play and samples it inside the
+    // device — no JS clip pipeline. `registerAnimation` stays for API
+    // compatibility but only mints ids.
     const animationIds: string[] = [];
+    const hostClips: Array<{ id: string; stored: StoredAnimationClipLike }> =
+      [];
     for (const anim of assetBundle.animations ?? []) {
       try {
-        const controllerId =
-          namespaceControllerId(anim.id, namespace, "animation") ?? anim.id;
-        const animationPayload =
-          anim.setup?.animation ??
+        const stored =
+          (anim.setup?.animation as StoredAnimationClipLike | undefined) ??
           toStoredAnimationClip(anim.id, anim.clip as AnimationClipLike);
-        const config: AnimationRegistrationConfig = {
-          id: controllerId,
-          setup: {
-            ...(anim.setup ?? {}),
-            animation: animationPayload,
-          } as AnimationRegistrationConfig["setup"],
-        };
-        const id = registerAnimation(config);
-        animationIds.push(id);
+        hostClips.push({ id: anim.id, stored });
+        registerAnimation({ id: anim.id });
+        animationIds.push(anim.id);
       } catch (err: unknown) {
         if (isRuntimeDebugEnabled()) {
           console.warn("[vizij-runtime] failed animation registration", {
@@ -2371,6 +2540,7 @@ function VizijRuntimeProviderInner({
         });
       }
     }
+    ensureAnimationHost()?.setClips(hostClips);
 
     registeredAnimationsRef.current = animationIds;
 
@@ -2407,6 +2577,7 @@ function VizijRuntimeProviderInner({
   }, [
     assetBundle,
     clearControllers,
+    ensureAnimationHost,
     listControllers,
     mergeStrategy,
     namespace,
@@ -2640,24 +2811,6 @@ function VizijRuntimeProviderInner({
     return completion;
   }, []);
 
-  const setAnimationInput = useCallback(
-    (path: string, value: number, options?: { immediate?: boolean }) => {
-      setInput(path, { float: value });
-      if (!options?.immediate) {
-        return;
-      }
-      const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
-      const staged = stagedInputsRef.current.get(namespacedPath);
-      if (staged) {
-        deviceSetInput(namespacedPath, staged.value, staged.shape);
-        stagedInputsRef.current.delete(namespacedPath);
-        return;
-      }
-      deviceSetInput(namespacedPath, { float: value });
-    },
-    [deviceSetInput, setInput],
-  );
-
   const clearAnimationInput = useCallback(
     (path: string) => {
       const namespacedPath = namespaceTypedPath(path, namespaceRef.current);
@@ -2667,107 +2820,18 @@ function VizijRuntimeProviderInner({
     [removeInput],
   );
 
-  const buildClipOutputValues = useCallback(
-    (
-      clip: VizijAnimationAsset,
-      state: ClipPlaybackState,
-    ): Map<string, number> =>
-      sampleAnimationClipOutputValues(
-        clip.clip as AnimationClipLike,
-        state.time,
-        state.weight,
-        faceId ?? undefined,
-        rigInputMapRef.current,
-      ),
-    [faceId],
-  );
+  // routeAnimationOutputs (defined above) diff-clears through this ref so it
+  // needn't depend on this callback (which depends on `removeInput`).
+  useEffect(() => {
+    clearAnimationInputRef.current = clearAnimationInput;
+  }, [clearAnimationInput]);
 
-  const computeClipAggregateValues = useCallback((): Map<string, number> => {
-    const aggregate = new Map<string, number>();
-    clipOutputValuesRef.current.forEach((outputValues) => {
-      outputValues.forEach((value, path) => {
-        aggregate.set(path, (aggregate.get(path) ?? 0) + value);
-      });
-    });
-    return aggregate;
-  }, []);
-
-  const stageClipAggregateValues = useCallback(
-    (nextAggregate: Map<string, number>, options?: { immediate?: boolean }) => {
-      diffAnimationAggregateValues(
-        clipAggregateValuesRef.current,
-        nextAggregate,
-        POSE_CONTROL_BRIDGE_EPSILON,
-      ).forEach((operation) => {
-        if (operation.kind === "clear") {
-          clearAnimationInput(operation.path);
-          return;
-        }
-        setAnimationInput(operation.path, operation.value, options);
-      });
-
-      clipAggregateValuesRef.current = nextAggregate;
-    },
-    [clearAnimationInput, setAnimationInput],
-  );
-
-  const syncClipOutputs = useCallback(
-    (options?: { immediate?: boolean }) => {
-      stageClipAggregateValues(computeClipAggregateValues(), options);
-    },
-    [computeClipAggregateValues, stageClipAggregateValues],
-  );
-
-  const writeClipOutputs = useCallback(
-    (
-      clip: VizijAnimationAsset,
-      state: ClipPlaybackState,
-      options?: { immediate?: boolean },
-    ) => {
-      if (!animationSystemActiveRef.current) {
-        return;
-      }
-      clipOutputValuesRef.current.set(
-        clip.id,
-        buildClipOutputValues(clip, state),
-      );
-      syncClipOutputs(options);
-    },
-    [buildClipOutputValues, syncClipOutputs],
-  );
-
-  const clearClipOutputs = useCallback(
-    (clipId: string, options?: { immediate?: boolean }) => {
-      if (!clipOutputValuesRef.current.has(clipId)) {
-        return;
-      }
-      clipOutputValuesRef.current.delete(clipId);
-      syncClipOutputs(options);
-    },
-    [syncClipOutputs],
-  );
-
-  const createClipPlaybackState = useCallback(
-    (clip: VizijAnimationAsset): ClipPlaybackState => {
-      const duration = resolveClipDurationSeconds(
-        clip.clip as AnimationClipLike,
-      );
-      return {
-        id: clip.id,
-        time: 0,
-        duration,
-        speed: 1,
-        weight: Number.isFinite(clip.weight) ? Number(clip.weight) : 1,
-        loop: false,
-        playing: false,
-        resolve: null,
-        completion: null,
-      };
-    },
-    [],
-  );
-
-  const ensureClipPlaybackState = useCallback(
+  /**
+   * Minimal control-surface state for a clip. `time` is NOT tracked — the
+   * 0.1.0 module gives no playhead feedback (documented gap); duration comes
+   * from the clip, loop defaults to the module's Loop, speed is fixed at 1.
+   */
+  const ensureClipState = useCallback(
     (
       id: string,
     ): { clip: VizijAnimationAsset; state: ClipPlaybackState } | null => {
@@ -2775,71 +2839,54 @@ function VizijRuntimeProviderInner({
       if (!clip) {
         return null;
       }
+      const duration = resolveClipDurationSeconds(
+        clip.clip as AnimationClipLike,
+      );
       const existing = clipPlaybackRef.current.get(id);
       if (existing) {
-        existing.duration = resolveClipDurationSeconds(
-          clip.clip as AnimationClipLike,
-          existing.duration,
-        );
-        existing.time = clampAnimationTime(existing.time, existing.duration);
+        existing.duration = duration;
         return { clip, state: existing };
       }
-      const next = createClipPlaybackState(clip);
-      clipPlaybackRef.current.set(id, next);
-      return { clip, state: next };
+      const state: ClipPlaybackState = {
+        id,
+        time: 0,
+        duration,
+        speed: 1,
+        weight: 1,
+        loop: true,
+        playing: false,
+        resolve: null,
+        completion: null,
+      };
+      clipPlaybackRef.current.set(id, state);
+      return { clip, state };
     },
-    [createClipPlaybackState, resolveClipById],
+    [resolveClipById],
   );
 
-  const advanceClipPlayback = useCallback(
-    (dt: number) => {
-      if (clipPlaybackRef.current.size === 0) {
+  /**
+   * Clear a stopped clip's routed inputs back to neutral. The clip's tracks
+   * resolve to the same rig-input paths the module output routes to, so the
+   * stopped contribution is removed deterministically (rather than waiting
+   * for the device to stop emitting it).
+   */
+  const clearClipOutputs = useCallback(
+    (clipId: string) => {
+      const clip = resolveClipById(clipId);
+      if (!clip) {
         return;
       }
-      const toDelete: string[] = [];
-      clipPlaybackRef.current.forEach((state, key) => {
-        const clip = resolveClipById(state.id);
-        if (!clip) {
-          toDelete.push(key);
-          resolveClipPromise(state);
-          return;
-        }
-
-        state.duration = resolveClipDurationSeconds(
-          clip.clip as AnimationClipLike,
-          state.duration,
-        );
-
-        const { time, completed } = advanceClipTime(
-          {
-            time: state.time,
-            duration: state.duration,
-            speed: state.speed,
-            loop: state.loop,
-            playing: state.playing,
-          },
-          dt,
-        );
-        state.time = clampAnimationTime(time, state.duration);
-
-        if (state.playing || completed) {
-          writeClipOutputs(clip, state);
-        }
-
-        if (completed) {
-          toDelete.push(key);
-          resolveClipPromise(state);
-        }
-      });
-
-      toDelete.forEach((key) => {
-        clipPlaybackRef.current.delete(key);
-        if (animationSystemActiveRef.current) {
-          clearClipOutputs(key);
-        }
-      });
+      const paths = collectAnimationClipOutputPaths(
+        clip.clip as AnimationClipLike,
+        faceId ?? undefined,
+        rigInputMapRef.current,
+      );
+      for (const path of paths) {
+        clearAnimationInput(path);
+        animationRoutedValuesRef.current.delete(path);
+      }
     },
-    [clearClipOutputs, resolveClipById, resolveClipPromise, writeClipOutputs],
+    [clearAnimationInput, faceId, resolveClipById],
   );
 
   const animateValue = useCallback(
@@ -2926,43 +2973,93 @@ function VizijRuntimeProviderInner({
     ],
   );
 
+  /**
+   * Warn once per capability the 0.1.0 animation module does not implement, so
+   * a caller that relies on it sees the gap instead of a silent divergence
+   * between what it asked for and what the device plays.
+   */
+  const warnAnimationGap = useCallback((key: string, message: string) => {
+    if (animationGapWarnedRef.current.has(key)) {
+      return;
+    }
+    animationGapWarnedRef.current.add(key);
+    console.warn(`[vizij-runtime] ${message}`);
+  }, []);
+
+  /**
+   * Sync the animations graph source to whether any clip is playing (the
+   * module has one engine, stepped whole) and refresh the loop mode.
+   */
+  const syncAnimationsSource = useCallback(() => {
+    const host = animationHostRef.current;
+    setAnimationsSourceRegistered(host ? host.hasPlaying() : false);
+    updateLoopMode();
+  }, [setAnimationsSourceRegistered, updateLoopMode]);
+
   const playAnimation = useCallback(
     (id: string, options?: PlayAnimationOptions) => {
-      const ensured = ensureClipPlaybackState(id);
+      const ensured = ensureClipState(id);
       if (!ensured) {
         return Promise.reject(
           new Error(`Animation ${id} is not part of the current asset bundle.`),
         );
       }
-      const { clip, state } = ensured;
-      const shouldReset = options?.reset === true;
-      if (shouldReset) {
-        resolveClipPromise(state);
-        state.time = 0;
-      }
-      const speed = options?.speed ?? state.speed ?? 1;
-      const weight = options?.weight ?? state.weight ?? clip.weight ?? 1;
-      state.speed = Number.isFinite(speed) && speed > 0 ? speed : 1;
-      state.weight = Number.isFinite(weight) ? Number(weight) : 1;
-      state.duration = resolveClipDurationSeconds(
-        clip.clip as AnimationClipLike,
-        state.duration,
-      );
-      state.time = clampAnimationTime(state.time, state.duration);
-      state.playing = true;
+      const { state } = ensured;
+      const host = ensureAnimationHost();
 
+      if (options?.speed != null && options.speed !== 1) {
+        warnAnimationGap(
+          "speed",
+          "playAnimation(speed) is ignored: the animation module has no post-add speed control (fixed at 1). Tracked as a module-transport follow-up.",
+        );
+      }
+      if (options?.weight != null && options.weight !== 1) {
+        warnAnimationGap(
+          "weight",
+          "playAnimation(weight) is ignored: the animation module uses the default per-instance weight. Tracked as a module-transport follow-up.",
+        );
+      }
+
+      // reset = restart from 0. The module has no seek/reset, so stop() (which
+      // voids the player) then play() reloads a fresh player at t=0.
+      if (options?.reset === true && host) {
+        host.stop(id);
+        clearClipOutputs(id);
+      }
+
+      state.speed = 1;
+      state.playing = true;
       const completion = ensureClipPromise(state);
       clipPlaybackRef.current.set(id, state);
-      writeClipOutputs(clip, state);
+
+      if (host) {
+        void host.play(id).catch((err: unknown) => {
+          pushError({
+            message: `Failed to start animation ${id} on the device`,
+            cause: err,
+            phase: "animation",
+            timestamp: performance.now(),
+          });
+        });
+      } else {
+        warnAnimationGap(
+          "module-not-ready",
+          "playAnimation called before the animation module finished loading; playback starts once it is ready.",
+        );
+      }
+      syncAnimationsSource();
       markActivity();
       return completion;
     },
     [
-      ensureClipPlaybackState,
+      clearClipOutputs,
+      ensureAnimationHost,
       ensureClipPromise,
+      ensureClipState,
       markActivity,
-      resolveClipPromise,
-      writeClipOutputs,
+      pushError,
+      syncAnimationsSource,
+      warnAnimationGap,
     ],
   );
 
@@ -2973,36 +3070,43 @@ function VizijRuntimeProviderInner({
         return;
       }
       state.playing = false;
-      updateLoopMode();
+      // Freeze: the host stops advancing this clip; the last routed pose stays
+      // applied because routeAnimationOutputs stops once the source drops.
+      animationHostRef.current?.pause(id);
+      syncAnimationsSource();
     },
-    [updateLoopMode],
+    [syncAnimationsSource],
   );
 
   const seekAnimation = useCallback(
-    (id: string, timeSeconds: number) => {
-      const ensured = ensureClipPlaybackState(id);
-      if (!ensured) {
+    (id: string, _timeSeconds: number) => {
+      if (!clipPlaybackRef.current.has(id)) {
         return;
       }
-      const { clip, state } = ensured;
-      state.time = clampAnimationTime(timeSeconds, state.duration);
-      clipPlaybackRef.current.set(id, state);
-      writeClipOutputs(clip, state, { immediate: true });
+      warnAnimationGap(
+        "seek",
+        "seekAnimation is a no-op: the 0.1.0 animation module has no seek. Scrubbing/seeking needs module-side transport (VIZ-61 Stage C).",
+      );
     },
-    [ensureClipPlaybackState, writeClipOutputs],
+    [warnAnimationGap],
   );
 
   const setAnimationLoop = useCallback(
     (id: string, enabled: boolean) => {
-      const ensured = ensureClipPlaybackState(id);
+      const ensured = ensureClipState(id);
       if (!ensured) {
         return;
       }
       ensured.state.loop = Boolean(enabled);
-      clipPlaybackRef.current.set(id, ensured.state);
+      if (!enabled) {
+        warnAnimationGap(
+          "loop-once",
+          "setAnimationLoop(false) is not honored: the animation module plays in Loop mode only. One-shot playback needs module-side loop control (VIZ-61 Stage C).",
+        );
+      }
       updateLoopMode();
     },
-    [ensureClipPlaybackState, updateLoopMode],
+    [ensureClipState, updateLoopMode, warnAnimationGap],
   );
 
   const getAnimationState = useCallback(
@@ -3011,12 +3115,14 @@ function VizijRuntimeProviderInner({
       if (!state) {
         return null;
       }
+      // `time` is not tracked: the module emits no playhead feedback. It is
+      // reported as 0 (a documented gap, VIZ-61 Stage C), not an estimate.
       return {
-        time: state.time,
+        time: 0,
         duration: state.duration,
         playing: state.playing,
         loop: state.loop,
-        speed: state.speed,
+        speed: 1,
       };
     },
     [],
@@ -3030,12 +3136,13 @@ function VizijRuntimeProviderInner({
         state.playing = false;
         resolveClipPromise(state);
       }
+      animationHostRef.current?.stop(id);
       if (options?.clearOutputs !== false) {
         clearClipOutputs(id);
       }
-      updateLoopMode();
+      syncAnimationsSource();
     },
-    [clearClipOutputs, resolveClipPromise, updateLoopMode],
+    [clearClipOutputs, resolveClipPromise, syncAnimationsSource],
   );
 
   const refreshControllerStatus = useCallback(() => {
@@ -3398,14 +3505,6 @@ function VizijRuntimeProviderInner({
     [faceId, namespace, pushError, setInput, setRendererValue],
   );
 
-  const advanceAnimations = useCallback(
-    (dt: number) => {
-      advanceAnimationTweens(dt);
-      advanceClipPlayback(dt);
-    },
-    [advanceAnimationTweens, advanceClipPlayback],
-  );
-
   const flushStagedInputs = useCallback(() => {
     if (stagedInputsRef.current.size === 0) {
       return;
@@ -3423,13 +3522,18 @@ function VizijRuntimeProviderInner({
         const alpha = 0.1;
         avgStepDtRef.current = prev * (1 - alpha) + dt * alpha;
       }
-      advanceAnimations(dt);
+      // Imperative value tweens (animateValue) stay JS-side — they are UI
+      // value easings, not clips. Clip playback now ticks INSIDE the device
+      // (the animation module); routeAnimationOutputs pulls the previous
+      // step's per-track outputs and stages them so they flush this frame.
+      advanceAnimationTweens(dt);
+      routeAnimationOutputs();
       flushStagedInputs();
       if (driveRuntimeRef.current || opts?.forceRuntime) {
         stepRuntime(dt);
       }
     },
-    [advanceAnimations, flushStagedInputs, stepRuntime],
+    [advanceAnimationTweens, flushStagedInputs, routeAnimationOutputs, stepRuntime],
   );
 
   useEffect(() => {
@@ -3498,8 +3602,7 @@ function VizijRuntimeProviderInner({
       clipPlaybackRef.current.clear();
       programPlaybackRef.current.clear();
       programControllerIdsRef.current.clear();
-      clipOutputValuesRef.current.clear();
-      clipAggregateValuesRef.current.clear();
+      animationRoutedValuesRef.current.clear();
     };
   }, []);
 
@@ -3578,7 +3681,6 @@ function VizijRuntimeProviderInner({
       setAnimationActive,
       isAnimationActive,
       step,
-      advanceAnimations,
       inputConstraints,
     }),
     [
@@ -3606,7 +3708,6 @@ function VizijRuntimeProviderInner({
       setAnimationActive,
       isAnimationActive,
       step,
-      advanceAnimations,
       inputConstraints,
     ],
   );

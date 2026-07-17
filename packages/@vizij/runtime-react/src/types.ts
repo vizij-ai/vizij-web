@@ -338,7 +338,6 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   setAnimationActive: (active: boolean) => void;
   isAnimationActive: () => boolean;
   step: (dt: number, opts?: { forceRuntime?: boolean }) => void;
-  advanceAnimations: (dt: number) => void;
   inputConstraints: Record<
     string,
     { min?: number; max?: number; defaultValue?: number }
