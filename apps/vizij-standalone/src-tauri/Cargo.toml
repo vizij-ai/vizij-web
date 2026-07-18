@@ -58,11 +58,13 @@ tao = "0.30"
 windows = { version = "0.58", features = ["Win32_System_Console"] }
 
 [features]
-default = ["ros2"]
-# ROS 2 data-topic bridge (`arora-bridge-ros2`). Data topics only — the device's
-# keys are exposed under `/{ns}/keys/{path}`; there is no ROS 2 method/service
-# surface (that parity is tracked in ARORA-62). reset/speak/mute/transport stay
-# on the WebSocket + Studio bridges.
+default = []
+# ROS 2 data-topic bridge (`arora-bridge-ros2`). Opt-in — build with
+# `--features ros2` (or `pnpm tauri ... -- --features ros2`) for robot/ROS
+# deployments; the default standalone build has no ROS 2 stack. Data topics only:
+# the device's keys are exposed under `/{ns}/keys/{path}`; there is no ROS 2
+# method/service surface (that parity is tracked in ARORA-62). reset/speak/mute/
+# transport stay on the WebSocket + Studio bridges.
 ros2 = ["dep:arora-bridge-ros2"]
 # Opt-in Studio Bridge (VIZ-67 producer side): build the app so a Semio Studio
 # can connect *to* this running standalone and view/drive its live data. Off by
