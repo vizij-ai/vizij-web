@@ -61,21 +61,89 @@ struct AppState {
     studio: StudioBridgeState,
 }
 
-/// State backing the in-UI "who owns this device" prompt for the studio-bridge
-/// feature. `owners_tx` pushes a new owner list to the bridge thread so it can
+/// State backing the studio-bridge device identity UI (the first-launch owner
+/// prompt and the settings page's editable device info). `registration_tx`
+/// pushes a new registration (name + owner uids) to the bridge thread so it can
 /// re-register live (no restart); `needs_prompt`/`owners` back the
 /// `studio_bridge_owner_status` command the React modal reads on mount.
 #[cfg(feature = "studio-bridge")]
 struct StudioBridgeState {
-    owners_tx: tokio::sync::watch::Sender<Vec<String>>,
+    registration_tx: tokio::sync::watch::Sender<StudioRegistration>,
     needs_prompt: StdMutex<bool>,
-    owners: StdMutex<Vec<String>>,
-    /// The stable `vizij-<random>` name this device registers with Studio under
-    /// (generated once at startup). Reported to the UI by [`get_endpoints`].
-    device_name: String,
+    /// The full configured user list (uid + role), as persisted.
+    owners: StdMutex<Vec<StudioOwnerEntry>>,
+    /// The name this device registers with Studio under: the persisted choice,
+    /// or a generated `vizij-<random>` on first launch. Editable from the
+    /// settings page; reported to the UI by [`get_endpoints`].
+    device_name: StdMutex<String>,
     /// Display string for the bridge router endpoint: the `STUDIO_BRIDGE_ENDPOINT`
     /// override, or a label for the baked-in production bridge when unset.
     endpoint: String,
+}
+
+/// Role a Studio user holds on this device. Only `Owner` entries are carried in
+/// the Studio registration today (`arora_bridge::DeviceInfo` exposes a flat
+/// owner list); editor/viewer entries are persisted locally so the choice is
+/// kept for when the bridge client can carry them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+enum StudioRole {
+    #[default]
+    Owner,
+    Editor,
+    Viewer,
+}
+
+/// One Studio user entry: a Firebase UID plus the role it holds on this device.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StudioOwnerEntry {
+    uid: String,
+    #[serde(default)]
+    role: StudioRole,
+}
+
+/// The persisted device config (`studio_device.json`): the chosen device name
+/// and the user entries. `name: None` means "no name chosen yet" (a generated
+/// one is used).
+#[cfg(feature = "studio-bridge")]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct StudioDeviceConfig {
+    name: Option<String>,
+    #[serde(default)]
+    owners: Vec<StudioOwnerEntry>,
+}
+
+/// What the bridge thread registers with Studio: the device name plus the owner
+/// uids (the entries whose role is `Owner`).
+#[cfg(feature = "studio-bridge")]
+#[derive(Debug, Clone, PartialEq)]
+struct StudioRegistration {
+    name: String,
+    owners: Vec<String>,
+}
+
+/// The uids that go into the Studio registration: entries with the `Owner` role.
+#[cfg(feature = "studio-bridge")]
+fn owner_uids(entries: &[StudioOwnerEntry]) -> Vec<String> {
+    entries
+        .iter()
+        .filter(|entry| entry.role == StudioRole::Owner)
+        .map(|entry| entry.uid.clone())
+        .collect()
+}
+
+/// Trim uids, drop empty ones, and de-duplicate (first entry wins).
+#[cfg(feature = "studio-bridge")]
+fn sanitize_owner_entries(entries: Vec<StudioOwnerEntry>) -> Vec<StudioOwnerEntry> {
+    let mut seen = std::collections::HashSet::new();
+    entries
+        .into_iter()
+        .map(|entry| StudioOwnerEntry {
+            uid: entry.uid.trim().to_string(),
+            role: entry.role,
+        })
+        .filter(|entry| !entry.uid.is_empty() && seen.insert(entry.uid.clone()))
+        .collect()
 }
 
 /// Reported to the frontend by `studio_bridge_owner_status`. `active` = the app
@@ -705,11 +773,11 @@ async fn respawn_ros2(app: &AppHandle) {
 // Studio bridge (opt-in)
 // =============================================================================
 
-/// The Studio device info this app registers with. See the field notes on the
-/// original migration: everything is self-describing except `name` (a stable
-/// per-launch `vizij-<random>`) and `owners` (the Studio user IDs that see/claim
-/// this device), both passed in because they must stay identical across
-/// re-registrations.
+/// The Studio device info this app registers with. Everything is
+/// self-describing except `name` (the persisted/user-chosen device name, or a
+/// generated `vizij-<random>` until one is chosen) and `owners` (the Studio
+/// user IDs that see/claim this device), both passed in from the current
+/// [`StudioRegistration`].
 #[cfg(feature = "studio-bridge")]
 fn studio_device_info(name: String, owners: Vec<String>) -> arora_bridge::DeviceInfo {
     arora_bridge::DeviceInfo {
@@ -732,31 +800,62 @@ fn parse_owners(raw: &str) -> Vec<String> {
         .collect()
 }
 
-/// Path of the persisted owner file (`app_local_data_dir()/studio_owners.json`).
+/// Path of the legacy owner file (`app_local_data_dir()/studio_owners.json`),
+/// a plain uid array. Read-only nowadays: [`read_persisted_device_config`]
+/// falls back to it for devices configured before `studio_device.json` existed.
 #[cfg(feature = "studio-bridge")]
 fn studio_owners_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     Ok(dir.join("studio_owners.json"))
 }
 
-/// Read the persisted owner list. `Some(vec)` when a choice was persisted (even
-/// an empty array — an explicit "register unowned"); `None` when never chosen.
+/// Path of the persisted device config (`app_local_data_dir()/studio_device.json`).
 #[cfg(feature = "studio-bridge")]
-fn read_persisted_owners(app: &tauri::AppHandle) -> Option<Vec<String>> {
-    let path = studio_owners_file(app).ok()?;
-    let bytes = std::fs::read(&path).ok()?;
-    serde_json::from_slice::<Vec<String>>(&bytes).ok()
+fn studio_device_config_file(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("studio_device.json"))
 }
 
-/// Persist the owner list so the choice survives restarts and the modal never
-/// asks again.
+/// Read the persisted device config. `Some` when a choice was persisted (even
+/// with an empty owner list — an explicit "register unowned"); `None` when
+/// never chosen (the owner prompt should ask). Falls back to the legacy
+/// `studio_owners.json` uid array (every uid meaning role Owner, no name).
 #[cfg(feature = "studio-bridge")]
-fn persist_studio_owners(app: &tauri::AppHandle, owners: &[String]) -> Result<(), String> {
-    let path = studio_owners_file(app)?;
+fn read_persisted_device_config(app: &tauri::AppHandle) -> Option<StudioDeviceConfig> {
+    if let Ok(path) = studio_device_config_file(app) {
+        if let Ok(bytes) = std::fs::read(&path) {
+            if let Ok(config) = serde_json::from_slice::<StudioDeviceConfig>(&bytes) {
+                return Some(config);
+            }
+        }
+    }
+    let legacy_path = studio_owners_file(app).ok()?;
+    let bytes = std::fs::read(&legacy_path).ok()?;
+    let owners = serde_json::from_slice::<Vec<String>>(&bytes).ok()?;
+    Some(StudioDeviceConfig {
+        name: None,
+        owners: owners
+            .into_iter()
+            .map(|uid| StudioOwnerEntry {
+                uid,
+                role: StudioRole::Owner,
+            })
+            .collect(),
+    })
+}
+
+/// Persist the device config so name/owner edits survive restarts and the
+/// owner modal never asks again.
+#[cfg(feature = "studio-bridge")]
+fn persist_studio_device_config(
+    app: &tauri::AppHandle,
+    config: &StudioDeviceConfig,
+) -> Result<(), String> {
+    let path = studio_device_config_file(app)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let json = serde_json::to_vec(owners).map_err(|e| e.to_string())?;
+    let json = serde_json::to_vec(config).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -878,8 +977,8 @@ fn write_studio_refresh_token(
 /// The Studio bridge pump. Registers the device, serves access requests, and —
 /// the VIZ-67 close — shares the SAME store as the WS/ROS2 bridges: it fans the
 /// store's live changes out to Studio (`try_send`) and applies Studio's inbound
-/// commands back into the store (mirroring writes to the webview). Owner changes
-/// from the in-UI prompt re-register the device live under the same name.
+/// commands back into the store (mirroring writes to the webview). Name/owner
+/// changes from the UI re-register the device live.
 ///
 /// Runs on the studio thread's private runtime, so its Zenoh session and this
 /// loop live for the process (independent of the WS `start/stop`).
@@ -888,9 +987,8 @@ async fn run_studio_pump(
     store: SimpleDataStore,
     app: AppHandle,
     bridge: Box<dyn Bridge>,
-    owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
-    device_name: String,
-    initial_owners: Vec<String>,
+    registration_rx: tokio::sync::watch::Receiver<StudioRegistration>,
+    initial: StudioRegistration,
 ) {
     // Production wiring for the injectable core: surface failures as a Tauri event
     // and route inbound events through the real store/webview handler. The core
@@ -903,9 +1001,8 @@ async fn run_studio_pump(
     run_studio_pump_core(
         store,
         bridge,
-        owners_rx,
-        device_name,
-        initial_owners,
+        registration_rx,
+        initial,
         on_error,
         on_inbound,
     )
@@ -917,16 +1014,16 @@ async fn run_studio_pump(
 /// Takes the bridge (the real `ZenohDeviceClient` in production, a mock in tests)
 /// plus two sinks: `on_error` for a surfaced failure message (production emits a
 /// Tauri event) and `on_inbound` for an inbound event (production applies it to
-/// the store + webview). Registers the device, keeps it registered as owners
-/// change, and fans store changes out to the bridge — with no dependency on a
-/// running Tauri app, so the registration mechanics are testable with a mock.
+/// the store + webview). Registers the device, keeps it registered as the name
+/// or owners change, and fans store changes out to the bridge — with no
+/// dependency on a running Tauri app, so the registration mechanics are
+/// testable with a mock.
 #[cfg(feature = "studio-bridge")]
 async fn run_studio_pump_core(
     store: SimpleDataStore,
     mut bridge: Box<dyn Bridge>,
-    mut owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
-    device_name: String,
-    initial_owners: Vec<String>,
+    mut registration_rx: tokio::sync::watch::Receiver<StudioRegistration>,
+    initial: StudioRegistration,
     mut on_error: impl FnMut(String),
     mut on_inbound: impl FnMut(&SimpleDataStore, arora_bridge::Inbound),
 ) {
@@ -934,14 +1031,15 @@ async fn run_studio_pump_core(
 
     // Initial registration (env → persisted → empty). Always runs — the device
     // is visible/claimable regardless of ownership.
-    let info = studio_device_info(device_name.clone(), initial_owners.clone());
+    let info = studio_device_info(initial.name.clone(), initial.owners.clone());
     if let Err(e) = bridge.update_device_info(Some(info)).await {
         log::error!("studio-bridge: failed to register device info: {e}");
         on_error(format!("Failed to register this device with Studio: {e}"));
     } else {
         info!(
-            "studio-bridge: registered device \"{device_name}\" with Studio ({} owner(s))",
-            initial_owners.len()
+            "studio-bridge: registered device \"{}\" with Studio ({} owner(s))",
+            initial.name,
+            initial.owners.len()
         );
     }
     info!("studio-bridge: connected; a Studio can now see this device and its live data.");
@@ -978,20 +1076,21 @@ async fn run_studio_pump_core(
                 Some(event) => on_inbound(&store, event),
                 None => break, // endpoint disconnected
             },
-            changed = owners_rx.changed() => {
+            changed = registration_rx.changed() => {
                 if changed.is_err() {
                     break; // sender dropped at shutdown
                 }
-                let owners = owners_rx.borrow_and_update().clone();
-                let info = studio_device_info(device_name.clone(), owners.clone());
+                let registration = registration_rx.borrow_and_update().clone();
+                let info = studio_device_info(registration.name.clone(), registration.owners.clone());
                 match bridge.update_device_info(Some(info)).await {
                     Ok(_) => info!(
-                        "studio-bridge: re-registered device \"{device_name}\" ({} owner(s))",
-                        owners.len()
+                        "studio-bridge: re-registered device \"{}\" ({} owner(s))",
+                        registration.name,
+                        registration.owners.len()
                     ),
                     Err(e) => {
                         log::error!("studio-bridge: failed to re-register device info: {e}");
-                        on_error(format!("Failed to update this device's owners in Studio: {e}"));
+                        on_error(format!("Failed to update this device's info in Studio: {e}"));
                     }
                 }
             }
@@ -1015,9 +1114,8 @@ async fn run_studio_pump_core(
 fn spawn_studio_bridge(
     store: SimpleDataStore,
     app: AppHandle,
-    owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
-    initial_owners: Vec<String>,
-    device_name: String,
+    registration_rx: tokio::sync::watch::Receiver<StudioRegistration>,
+    initial: StudioRegistration,
 ) {
     use arora_studio_bridge_client::firestore_support::options::{
         FirebaseEmulatorOptions, FirebaseOptions,
@@ -1113,7 +1211,7 @@ fn spawn_studio_bridge(
                     }
                 };
                 let bridge: Box<dyn Bridge> = Box::new(client);
-                run_studio_pump(store, app, bridge, owners_rx, device_name, initial_owners).await;
+                run_studio_pump(store, app, bridge, registration_rx, initial).await;
             });
         })
         .expect("failed to spawn studio-bridge thread");
@@ -1303,7 +1401,14 @@ fn studio_bridge_owner_status(app_handle: AppHandle) -> StudioOwnerStatus {
     {
         let state = app_handle.state::<AppState>();
         let needs_prompt = *state.studio.needs_prompt.lock().unwrap();
-        let owners = state.studio.owners.lock().unwrap().clone();
+        let owners = state
+            .studio
+            .owners
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|entry| entry.uid.clone())
+            .collect();
         StudioOwnerStatus {
             active: true,
             needs_prompt,
@@ -1321,28 +1426,111 @@ fn studio_bridge_owner_status(app_handle: AppHandle) -> StudioOwnerStatus {
     }
 }
 
-/// Persist the chosen owner UID(s) and push them to the bridge thread so the
-/// device is re-registered live (no restart).
+/// Persist + apply a device-config change: store it, update the app state, and
+/// push the new registration to the bridge thread so the device is
+/// re-registered live (no restart). `name: None` keeps the current name.
+#[cfg(feature = "studio-bridge")]
+fn apply_studio_device_config(
+    app: &AppHandle,
+    name: Option<String>,
+    owners: Vec<StudioOwnerEntry>,
+) -> Result<(), String> {
+    let owners = sanitize_owner_entries(owners);
+    let state = app.state::<AppState>();
+    let device_name = match name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) {
+        Some(name) => name,
+        None => state.studio.device_name.lock().unwrap().clone(),
+    };
+    persist_studio_device_config(
+        app,
+        &StudioDeviceConfig {
+            name: Some(device_name.clone()),
+            owners: owners.clone(),
+        },
+    )?;
+    *state.studio.owners.lock().unwrap() = owners.clone();
+    *state.studio.device_name.lock().unwrap() = device_name.clone();
+    *state.studio.needs_prompt.lock().unwrap() = false;
+    // Ignore a send error: it only means the bridge thread has exited.
+    let _ = state.studio.registration_tx.send(StudioRegistration {
+        name: device_name,
+        owners: owner_uids(&owners),
+    });
+    Ok(())
+}
+
+/// Persist the chosen owner UID(s) (as `Owner`-role entries) and push them to
+/// the bridge thread so the device is re-registered live (no restart).
 #[tauri::command]
 fn studio_bridge_set_owners(app_handle: AppHandle, owners: Vec<String>) -> Result<(), String> {
     #[cfg(feature = "studio-bridge")]
     {
-        let owners: Vec<String> = owners
+        let entries = owners
             .into_iter()
-            .map(|o| o.trim().to_string())
-            .filter(|o| !o.is_empty())
+            .map(|uid| StudioOwnerEntry {
+                uid,
+                role: StudioRole::Owner,
+            })
             .collect();
-        persist_studio_owners(&app_handle, &owners)?;
-        let state = app_handle.state::<AppState>();
-        *state.studio.owners.lock().unwrap() = owners.clone();
-        *state.studio.needs_prompt.lock().unwrap() = false;
-        // Ignore a send error: it only means the bridge thread has exited.
-        let _ = state.studio.owners_tx.send(owners);
-        Ok(())
+        apply_studio_device_config(&app_handle, None, entries)
     }
     #[cfg(not(feature = "studio-bridge"))]
     {
         let _ = (&app_handle, owners);
+        Ok(())
+    }
+}
+
+/// The device identity shown/edited in the settings page. `active` is false
+/// when the app was built without the studio-bridge feature (the UI hides the
+/// section then).
+#[derive(Debug, Clone, Serialize)]
+struct StudioDeviceConfigView {
+    active: bool,
+    device_name: String,
+    owners: Vec<StudioOwnerEntry>,
+}
+
+/// Report the current Studio device identity (name + owner entries with roles).
+#[tauri::command]
+fn get_studio_device_config(app_handle: AppHandle) -> StudioDeviceConfigView {
+    #[cfg(feature = "studio-bridge")]
+    {
+        let state = app_handle.state::<AppState>();
+        let device_name = state.studio.device_name.lock().unwrap().clone();
+        let owners = state.studio.owners.lock().unwrap().clone();
+        StudioDeviceConfigView {
+            active: true,
+            device_name,
+            owners,
+        }
+    }
+    #[cfg(not(feature = "studio-bridge"))]
+    {
+        let _ = &app_handle;
+        StudioDeviceConfigView {
+            active: false,
+            device_name: String::new(),
+            owners: Vec::new(),
+        }
+    }
+}
+
+/// Persist an edited Studio device identity (name + owner entries) and
+/// re-register the device live.
+#[tauri::command]
+fn set_studio_device_config(
+    app_handle: AppHandle,
+    device_name: String,
+    owners: Vec<StudioOwnerEntry>,
+) -> Result<(), String> {
+    #[cfg(feature = "studio-bridge")]
+    {
+        apply_studio_device_config(&app_handle, Some(device_name), owners)
+    }
+    #[cfg(not(feature = "studio-bridge"))]
+    {
+        let _ = (&app_handle, device_name, owners);
         Ok(())
     }
 }
@@ -1369,11 +1557,11 @@ fn get_endpoints(app_handle: AppHandle) -> EndpointsInfo {
 
     #[cfg(feature = "studio-bridge")]
     let studio = Some(StudioEndpoint {
-        device_name: state.studio.device_name.clone(),
+        device_name: state.studio.device_name.lock().unwrap().clone(),
         model_family: Some("Vizij".to_string()),
         software_version: Some(concat!("vizij-standalone-", env!("CARGO_PKG_VERSION")).to_string()),
         endpoint: state.studio.endpoint.clone(),
-        owners: state.studio.owners.lock().unwrap().clone(),
+        owners: owner_uids(&state.studio.owners.lock().unwrap()),
     });
     #[cfg(not(feature = "studio-bridge"))]
     let studio = None;
@@ -1482,35 +1670,51 @@ pub fn run() {
                     .and_then(|v| v.parse::<u32>().ok())
             });
 
-            // Resolve who owns this device for the studio-bridge feature, and
-            // set up the channel the in-UI owner prompt uses to re-register live.
-            // Precedence: `DEVICE_OWNERS` env → a persisted choice → empty + prompt.
+            // Resolve this device's Studio identity (name + owners) for the
+            // studio-bridge feature, and set up the channel the UI (owner
+            // prompt + settings page) uses to re-register live. Owner
+            // precedence: `DEVICE_OWNERS` env → the persisted config → empty +
+            // prompt. The name is the persisted choice, or a generated
+            // `vizij-<random>` until one is chosen.
             #[cfg(feature = "studio-bridge")]
-            let (studio_state, studio_owners_rx, studio_initial_owners, studio_device_name) = {
+            let (studio_state, studio_registration_rx, studio_initial_registration) = {
                 let handle = app.handle();
                 let env_owners = std::env::var("DEVICE_OWNERS")
                     .ok()
                     .map(|s| parse_owners(&s))
                     .unwrap_or_default();
-                let (initial_owners, needs_prompt) = if !env_owners.is_empty() {
+                let persisted = read_persisted_device_config(handle);
+                let needs_prompt = env_owners.is_empty() && persisted.is_none();
+                let mut config = persisted.unwrap_or_default();
+                if !env_owners.is_empty() {
                     // An env override becomes the persisted choice too, so the
                     // next launch WITHOUT `DEVICE_OWNERS` keeps these owners
                     // (and the device identity stays claimable) instead of
                     // falling back to the previous persisted value or a prompt.
-                    if let Err(e) = persist_studio_owners(handle, &env_owners) {
+                    config.owners = env_owners
+                        .into_iter()
+                        .map(|uid| StudioOwnerEntry {
+                            uid,
+                            role: StudioRole::Owner,
+                        })
+                        .collect();
+                    if let Err(e) = persist_studio_device_config(handle, &config) {
                         log::warn!("studio-bridge: failed to persist DEVICE_OWNERS override: {e}");
                     }
-                    (env_owners, false)
-                } else if let Some(persisted) = read_persisted_owners(handle) {
-                    (persisted, false)
-                } else {
-                    (Vec::new(), true)
+                }
+                let device_name = config
+                    .name
+                    .clone()
+                    .map(|n| n.trim().to_string())
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| format!("vizij-{}", random_device_suffix()));
+                let registration = StudioRegistration {
+                    name: device_name.clone(),
+                    owners: owner_uids(&config.owners),
                 };
-                let (owners_tx, owners_rx) =
-                    tokio::sync::watch::channel::<Vec<String>>(initial_owners.clone());
-                // Generate the device name once (stable across re-registrations)
-                // and resolve the endpoint label the UI shows.
-                let device_name = format!("vizij-{}", random_device_suffix());
+                let (registration_tx, registration_rx) =
+                    tokio::sync::watch::channel(registration.clone());
+                // Resolve the endpoint label the UI shows.
                 let endpoint = std::env::var("STUDIO_BRIDGE_ENDPOINT")
                     .ok()
                     .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
@@ -1518,15 +1722,14 @@ pub fn run() {
                     .unwrap_or_else(|| "Semio Studio (baked-in bridge)".to_string());
                 (
                     StudioBridgeState {
-                        owners_tx,
+                        registration_tx,
                         needs_prompt: StdMutex::new(needs_prompt),
-                        owners: StdMutex::new(initial_owners.clone()),
-                        device_name: device_name.clone(),
+                        owners: StdMutex::new(config.owners),
+                        device_name: StdMutex::new(device_name),
                         endpoint,
                     },
-                    owners_rx,
-                    initial_owners,
-                    device_name,
+                    registration_rx,
+                    registration,
                 )
             };
 
@@ -1579,9 +1782,8 @@ pub fn run() {
             spawn_studio_bridge(
                 store,
                 app.handle().clone(),
-                studio_owners_rx,
-                studio_initial_owners,
-                studio_device_name,
+                studio_registration_rx,
+                studio_initial_registration,
             );
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -1701,6 +1903,8 @@ pub fn run() {
             set_transport_catalog,
             studio_bridge_owner_status,
             studio_bridge_set_owners,
+            get_studio_device_config,
+            set_studio_device_config,
             get_endpoints,
         ])
         .run(tauri::generate_context!())
@@ -1747,13 +1951,13 @@ mod studio_bridge_tests {
         }
     }
 
-    /// Spawn the pump core against a mock bridge. Returns the owner sender, the
-    /// stream of recorded `update_device_info` payloads, the collected error
-    /// messages, and the task handle.
+    /// Spawn the pump core against a mock bridge. Returns the registration
+    /// sender, the stream of recorded `update_device_info` payloads, the
+    /// collected error messages, and the task handle.
     fn spawn_core(
         fail: bool,
     ) -> (
-        tokio::sync::watch::Sender<Vec<String>>,
+        tokio::sync::watch::Sender<StudioRegistration>,
         mpsc::UnboundedReceiver<Option<DeviceInfo>>,
         Arc<Mutex<Vec<String>>>,
         tokio::task::JoinHandle<()>,
@@ -1764,39 +1968,49 @@ mod studio_bridge_tests {
             fail,
         });
         let store = SimpleDataStore::new();
-        let (owners_tx, owners_rx) = tokio::sync::watch::channel::<Vec<String>>(Vec::new());
+        let initial = StudioRegistration {
+            name: "vizij-test".to_string(),
+            owners: Vec::new(),
+        };
+        let (registration_tx, registration_rx) = tokio::sync::watch::channel(initial.clone());
         let errors = Arc::new(Mutex::new(Vec::<String>::new()));
         let errors_sink = errors.clone();
         let handle = tokio::spawn(run_studio_pump_core(
             store,
             bridge,
-            owners_rx,
-            "vizij-test".to_string(),
-            Vec::new(),
+            registration_rx,
+            initial,
             move |message| errors_sink.lock().unwrap().push(message),
             |_store, _event: Inbound| {},
         ));
-        (owners_tx, updates_rx, errors, handle)
+        (registration_tx, updates_rx, errors, handle)
     }
 
     /// After the operator chooses an owner, the device re-registers with that uid
     /// in its owners — the wiring that makes the devices/{uid} doc readable and
-    /// claimable by that user.
+    /// claimable by that user. A device rename rides the same channel.
     #[tokio::test]
     async fn owner_choice_reregisters_with_that_owner() {
-        let (owners_tx, mut updates_rx, errors, handle) = spawn_core(false);
+        let (registration_tx, mut updates_rx, errors, handle) = spawn_core(false);
 
         // Initial registration, before any owner is chosen: ownerless.
         let first = updates_rx.recv().await.unwrap().unwrap();
         assert!(first.owners.is_empty(), "initial registration is ownerless");
+        assert_eq!(first.name.as_deref(), Some("vizij-test"));
 
-        // Operator picks an owner → re-registration carries it.
-        owners_tx.send(vec!["studio-user-uid".to_string()]).unwrap();
+        // Operator picks an owner and a name → re-registration carries both.
+        registration_tx
+            .send(StudioRegistration {
+                name: "my-face".to_string(),
+                owners: vec!["studio-user-uid".to_string()],
+            })
+            .unwrap();
         let second = updates_rx.recv().await.unwrap().unwrap();
         assert_eq!(second.owners, vec!["studio-user-uid".to_string()]);
+        assert_eq!(second.name.as_deref(), Some("my-face"));
         assert_eq!(second.model_family.as_deref(), Some("Vizij"));
 
-        drop(owners_tx); // ends the pump loop
+        drop(registration_tx); // ends the pump loop
         let _ = handle.await;
         assert!(errors.lock().unwrap().is_empty(), "no errors on success");
     }
@@ -1805,12 +2019,12 @@ mod studio_bridge_tests {
     /// production) rather than swallowed.
     #[tokio::test]
     async fn failed_registration_is_surfaced() {
-        let (owners_tx, mut updates_rx, errors, handle) = spawn_core(true);
+        let (registration_tx, mut updates_rx, errors, handle) = spawn_core(true);
 
         // The attempt is still made against the bridge...
         let _ = updates_rx.recv().await.unwrap();
 
-        drop(owners_tx);
+        drop(registration_tx);
         let _ = handle.await;
 
         // ...and its failure reached the error sink.
@@ -1875,5 +2089,63 @@ mod studio_bridge_tests {
             vec!["a".to_string(), "b".to_string()]
         );
         assert!(parse_owners("  ,, ").is_empty());
+    }
+
+    /// Only `Owner`-role entries reach the Studio registration; editor/viewer
+    /// entries stay local (the bridge client's DeviceInfo has no role fields).
+    #[test]
+    fn owner_uids_filters_non_owner_roles() {
+        let entries = vec![
+            StudioOwnerEntry {
+                uid: "owner-uid".to_string(),
+                role: StudioRole::Owner,
+            },
+            StudioOwnerEntry {
+                uid: "editor-uid".to_string(),
+                role: StudioRole::Editor,
+            },
+            StudioOwnerEntry {
+                uid: "viewer-uid".to_string(),
+                role: StudioRole::Viewer,
+            },
+        ];
+        assert_eq!(owner_uids(&entries), vec!["owner-uid".to_string()]);
+    }
+
+    /// Uids are trimmed, empties dropped, duplicates collapsed (first wins).
+    #[test]
+    fn sanitize_owner_entries_trims_dedupes() {
+        let entries = vec![
+            StudioOwnerEntry {
+                uid: " a ".to_string(),
+                role: StudioRole::Owner,
+            },
+            StudioOwnerEntry {
+                uid: "".to_string(),
+                role: StudioRole::Editor,
+            },
+            StudioOwnerEntry {
+                uid: "a".to_string(),
+                role: StudioRole::Viewer,
+            },
+            StudioOwnerEntry {
+                uid: "b".to_string(),
+                role: StudioRole::Editor,
+            },
+        ];
+        let sanitized = sanitize_owner_entries(entries);
+        assert_eq!(
+            sanitized,
+            vec![
+                StudioOwnerEntry {
+                    uid: "a".to_string(),
+                    role: StudioRole::Owner,
+                },
+                StudioOwnerEntry {
+                    uid: "b".to_string(),
+                    role: StudioRole::Editor,
+                },
+            ]
+        );
     }
 }
