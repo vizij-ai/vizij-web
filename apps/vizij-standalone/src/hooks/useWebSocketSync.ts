@@ -267,30 +267,49 @@ export function useWebSocketSync() {
       "[vizij-standalone] Will use path format: rig/" + faceId + "/<path>",
     );
 
-    // Listen for arora-types Value updates from the WebSocket server
+    // Writes arriving from the native bridges (WS, ROS2, Studio) — the
+    // native→device half of the store bridge (VIZ-74). Two path vocabularies
+    // land here:
+    //  - Legacy WS clients send SHORT rig-input paths (they match an entry in
+    //    `inputConstraints`, e.g. "standard/vizij/mouth/morph/jaw_open"):
+    //    numeric-only, routed through setRigValue (rig/{faceId}/ prefix).
+    //  - Everything else is a FULL device-store path exactly as consumers read
+    //    it (e.g. Studio writing back "rig/{faceId}/…" or "background/color"):
+    //    applied verbatim via setInput. Values pass through untouched — the
+    //    device normalizes canonical arora serde forms itself — so structured
+    //    values work, not just scalars.
     const unlistenUpdates = listen<Record<string, AroraValue>>(
       "update-values",
       (event) => {
-        console.log("[vizij-standalone] Received update:", event.payload);
-
         Object.entries(event.payload).forEach(([path, aroraValue]) => {
-          if (aroraValue === undefined) return;
+          if (aroraValue === undefined || aroraValue === null) return;
 
-          // Extract numeric value from the arora Value
-          const numValue = extractNumericValue(aroraValue);
-          if (numValue === null) {
-            console.warn(
-              `[vizij-standalone] Non-numeric value for path ${path}:`,
-              aroraValue,
-            );
+          const cleanPath = normalizeSlotPath(path);
+          const isLegacyRigInput =
+            inputConstraints[cleanPath] !== undefined ||
+            (namespace !== undefined &&
+              inputConstraints[`${namespace}/${cleanPath}`] !== undefined);
+
+          if (isLegacyRigInput) {
+            const numValue = extractNumericValue(aroraValue);
+            if (numValue === null) {
+              console.warn(
+                `[vizij-standalone] Non-numeric value for rig input ${path}:`,
+                aroraValue,
+              );
+              return;
+            }
+            setRigValue(cleanPath, numValue);
             return;
           }
 
-          // Clean up the incoming path - remove leading slashes
-          const cleanPath = path.replace(/^\/+/, "").trim();
-
-          // Use setRigValue which builds: rig/${faceId}/${cleanPath}
-          setRigValue(cleanPath, numValue);
+          setInput(
+            cleanPath,
+            // The device accepts canonical arora Value serde directly
+            // (normalize_value_json tries it first); ValueJSON is the
+            // declared surface type only.
+            aroraValue as unknown as Parameters<typeof setInput>[1],
+          );
         });
       },
     );
@@ -320,7 +339,15 @@ export function useWebSocketSync() {
       unlistenUpdates.then((f) => f());
       unlistenReset.then((f) => f());
     };
-  }, [ready, faceId, setRigValue, getRigValue, inputConstraints]);
+  }, [
+    ready,
+    faceId,
+    namespace,
+    setRigValue,
+    setInput,
+    inputConstraints,
+    normalizeSlotPath,
+  ]);
 
   // Continuously mirror the webview's live values into the native store.
   //
