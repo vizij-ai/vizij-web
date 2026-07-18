@@ -3533,7 +3533,12 @@ function VizijRuntimeProviderInner({
         stepRuntime(dt);
       }
     },
-    [advanceAnimationTweens, flushStagedInputs, routeAnimationOutputs, stepRuntime],
+    [
+      advanceAnimationTweens,
+      flushStagedInputs,
+      routeAnimationOutputs,
+      stepRuntime,
+    ],
   );
 
   useEffect(() => {

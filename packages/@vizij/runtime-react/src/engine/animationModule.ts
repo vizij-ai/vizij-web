@@ -381,7 +381,9 @@ export function decodeTrackOutputs(raw: unknown): AnimationTrackOutput[] {
     }
     outputs.push({
       trackId:
-        trackId && "str" in trackId ? String((trackId as { str: unknown }).str) : "",
+        trackId && "str" in trackId
+          ? String((trackId as { str: unknown }).str)
+          : "",
       defaultKey:
         defaultKey && "str" in defaultKey
           ? String((defaultKey as { str: unknown }).str)
