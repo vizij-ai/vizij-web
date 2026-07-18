@@ -22,6 +22,30 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+
+            <!-- Open .glb/.gltf models with Vizij Standalone (VIEW intent).
+                 The mimeType filter serves "open with" from file managers; the
+                 pathPattern filters catch file://content:// URIs that arrive
+                 without a mimeType, e.g. `adb shell am start
+                 -a android.intent.action.VIEW
+                 -d file:///sdcard/Download/model.glb -t model/gltf-binary`. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="model/gltf-binary" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.glb" />
+                <data android:pathPattern=".*\\.gltf" />
+            </intent-filter>
         </activity>
 
         <provider

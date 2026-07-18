@@ -1217,10 +1217,24 @@ async fn publish_values(
     Ok(())
 }
 
-/// Get the GLB source from CLI argument (path or URL).
+/// Get the GLB source: a CLI argument (path or URL) on desktop, or — on Android,
+/// where there is no CLI — a model opened via an "open with" / VIEW intent, which
+/// `MainActivity` copies to `<app_local_data_dir>/opened_model.glb`.
 #[tauri::command]
 async fn get_glb_source(app_handle: AppHandle) -> Option<String> {
-    app_handle.state::<AppState>().glb_source.clone()
+    if let Some(src) = app_handle.state::<AppState>().glb_source.clone() {
+        return Some(src);
+    }
+    #[cfg(target_os = "android")]
+    {
+        if let Ok(dir) = app_handle.path().app_local_data_dir() {
+            let model = dir.join("opened_model.glb");
+            if model.exists() {
+                return Some(model.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
 }
 
 /// Check if the bridge host is running.
