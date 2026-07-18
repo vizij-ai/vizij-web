@@ -1493,6 +1493,13 @@ pub fn run() {
                     .map(|s| parse_owners(&s))
                     .unwrap_or_default();
                 let (initial_owners, needs_prompt) = if !env_owners.is_empty() {
+                    // An env override becomes the persisted choice too, so the
+                    // next launch WITHOUT `DEVICE_OWNERS` keeps these owners
+                    // (and the device identity stays claimable) instead of
+                    // falling back to the previous persisted value or a prompt.
+                    if let Err(e) = persist_studio_owners(handle, &env_owners) {
+                        log::warn!("studio-bridge: failed to persist DEVICE_OWNERS override: {e}");
+                    }
                     (env_owners, false)
                 } else if let Some(persisted) = read_persisted_owners(handle) {
                     (persisted, false)
