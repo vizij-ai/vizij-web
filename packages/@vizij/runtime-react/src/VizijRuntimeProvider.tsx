@@ -2136,7 +2136,25 @@ function VizijRuntimeProviderInner({
         return;
       }
       handle.device.step(dt * 1000);
-      applyEngineChangesRef.current(handle.device.drainChanges());
+      const changes = handle.device.drainChanges() as Record<
+        string,
+        ValueJSON | null
+      >;
+      applyEngineChangesRef.current(changes);
+      // Fan this step's store changes to subscribers (e.g. the standalone's
+      // native-store bridge): change-driven, so mirrors need no polling.
+      if (storeChangeListenersRef.current.size > 0) {
+        const paths = Object.keys(changes);
+        if (paths.length > 0) {
+          storeChangeListenersRef.current.forEach((listener) => {
+            try {
+              listener(changes);
+            } catch (err) {
+              console.error("[vizij-runtime] store-change listener error", err);
+            }
+          });
+        }
+      }
       stepListenersRef.current.forEach((listener) => {
         try {
           listener();
@@ -2146,6 +2164,20 @@ function VizijRuntimeProviderInner({
       });
     },
     [deviceSlot],
+  );
+
+  const storeChangeListenersRef = useRef(
+    new Set<(changes: Record<string, unknown>) => void>(),
+  );
+  const subscribeToStoreChanges = useCallback(
+    (listener: (changes: Record<string, unknown>) => void) => {
+      const listeners = storeChangeListenersRef.current;
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    [],
   );
 
   const clearControllers = useCallback(() => {
@@ -3679,6 +3711,7 @@ function VizijRuntimeProviderInner({
       setInput,
       getValueSnapshot: getPathSnapshot,
       getStoreSnapshot,
+      subscribeToStoreChanges,
       subscribeToStep,
       setGraphBundle,
       setValue: setRendererValue,
@@ -3707,6 +3740,7 @@ function VizijRuntimeProviderInner({
       setInput,
       getPathSnapshot,
       getStoreSnapshot,
+      subscribeToStoreChanges,
       subscribeToStep,
       setGraphBundle,
       setRendererValue,
