@@ -303,10 +303,19 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
    * A snapshot of EVERY key currently in the device store, as path → Value in
    * arora's serde JSON shape (pass-through from the device; not `ValueJSON`).
    * `undefined` until the device exists. For mirrors/bridges that forward the
-   * whole store (e.g. the standalone's native-store mirror), not for per-path
+   * whole store (e.g. the standalone's native-store bridge), not for per-path
    * sampling — use `getValueSnapshot` for that.
    */
   getStoreSnapshot: () => Record<string, unknown> | undefined;
+  /**
+   * Notifies with each step's drained store changes (path → Value in arora's
+   * serde JSON shape; `null` for a cleared key). The change-driven counterpart
+   * to `getStoreSnapshot` for store bridges: seed from the snapshot, then stay
+   * current from these. Returns an unsubscribe function.
+   */
+  subscribeToStoreChanges: (
+    listener: (changes: Record<string, unknown>) => void,
+  ) => () => void;
   /**
    * Notifies after each engine step, once the step's store changes have been
    * applied. Pair with `getValueSnapshot` to sample values step-aligned.

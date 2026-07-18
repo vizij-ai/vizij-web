@@ -32,8 +32,9 @@ export function useWebSocketSync() {
     faceId: runtimeFaceId,
     // The runtime's engine-store snapshot (most current after graph evaluation).
     getValueSnapshot: getPathSnapshot,
-    // Whole-store snapshot for the native mirror (every key, arora-serde values).
+    // Whole-store snapshot + change feed for the native-store bridge.
     getStoreSnapshot,
+    subscribeToStoreChanges,
   } = useVizijRuntime();
 
   // Get faceId like useMouseGaze does
@@ -331,43 +332,68 @@ export function useWebSocketSync() {
   useEffect(() => {
     if (!ready) return;
 
-    const pushValues = () => {
-      // Mirror the WHOLE device store, not just the rig-input constraint keys:
-      // outputs, pose/emotion/viseme drivers, and structured values all reach
-      // the native store (and thus WS/ROS2/Studio). Values are already in
-      // arora's serde shape — pass-through, no conversion.
-      //
-      // TODO(ticket): this JS mirror between the device's store and the native
-      // SimpleDataStore is a stopgap; the bridges should attach to the device's
-      // own store instead (single-store architecture).
-      const snapshot = getStoreSnapshot();
-      if (!snapshot) return;
-      const values: Record<string, unknown> = {};
-      for (const [path, value] of Object.entries(snapshot)) {
-        if (value === null || value === undefined) continue;
-        // Internal keys stay device-side: arora's golden keys (`arora/…`) and
-        // the animation module's per-tick out-blob.
-        if (path.startsWith("arora/") || path === "vizij/animations/out") {
-          continue;
-        }
-        // Publish under the canonical store key (leading slash stripped,
-        // "//" collapsed, namespace dropped) — publishing raw aliases yields
-        // empty Zenoh chunks once the bridge prepends "state/{uid}/".
-        values[normalizeSlotPath(path)] = value;
-      }
-      if (Object.keys(values).length > 0) {
-        invoke("publish_values", { values }).catch((err) => {
-          console.error("[vizij-standalone] Failed to publish values:", err);
-        });
+    // The device↔native store bridge, VIZ-74: the device store is canonical;
+    // its changes stream to the native store (and thus WS/ROS2/Studio) as they
+    // happen — no polling, no snapshots after the first. Values are already in
+    // arora's serde shape — pass-through, no conversion. The reverse direction
+    // is the `update-values` Tauri event handled above. The remaining step to
+    // a literal single store is running the device natively (tracked on the
+    // ticket); until then this IPC bridge IS the store seam.
+    const FLUSH_MS = 50;
+    let pending: Record<string, unknown> = {};
+    let flushTimer: number | null = null;
+    let cancelled = false;
+
+    // Internal keys stay device-side: arora's golden keys (`arora/…`) and the
+    // animation module's per-tick out-blob. Everything else publishes under
+    // the canonical store key (leading slash stripped, "//" collapsed,
+    // namespace dropped) — raw aliases yield empty Zenoh chunks once the
+    // bridge prepends "state/{uid}/".
+    const stage = (path: string, value: unknown) => {
+      if (value === null || value === undefined) return;
+      if (path.startsWith("arora/") || path === "vizij/animations/out") return;
+      pending[normalizeSlotPath(path)] = value;
+    };
+
+    const flush = () => {
+      flushTimer = null;
+      if (cancelled) return;
+      const values = pending;
+      pending = {};
+      if (Object.keys(values).length === 0) return;
+      invoke("publish_values", { values }).catch((err) => {
+        console.error("[vizij-standalone] Failed to publish values:", err);
+      });
+    };
+
+    const scheduleFlush = () => {
+      if (flushTimer === null) {
+        flushTimer = window.setTimeout(flush, FLUSH_MS);
       }
     };
 
-    // Push once immediately, then on a 10Hz interval for live data. The native
-    // store is change-only, so re-pushing the full snapshot every tick is cheap.
-    pushValues();
-    const interval = window.setInterval(pushValues, 100);
-    return () => window.clearInterval(interval);
-  }, [ready, getStoreSnapshot, normalizeSlotPath]);
+    // Seed the native store with the full current state once, then stay
+    // current from the per-step change feed.
+    const snapshot = getStoreSnapshot();
+    if (snapshot) {
+      for (const [path, value] of Object.entries(snapshot)) {
+        stage(path, value);
+      }
+      scheduleFlush();
+    }
+    const unsubscribe = subscribeToStoreChanges((changes) => {
+      for (const [path, value] of Object.entries(changes)) {
+        stage(path, value);
+      }
+      scheduleFlush();
+    });
+
+    return () => {
+      cancelled = true;
+      if (flushTimer !== null) window.clearTimeout(flushTimer);
+      unsubscribe();
+    };
+  }, [ready, getStoreSnapshot, subscribeToStoreChanges, normalizeSlotPath]);
 
   return {
     ready,
