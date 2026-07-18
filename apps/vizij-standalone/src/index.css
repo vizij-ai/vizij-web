@@ -1,10 +1,9 @@
 @import "tailwindcss";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* No universal margin/padding reset here: Tailwind's preflight already zeroes
+   them, and an un-layered universal `padding: 0` would override the layered
+   padding utilities (px-2, py-3, ...), leaving buttons without internal
+   padding. */
 
 html,
 body,

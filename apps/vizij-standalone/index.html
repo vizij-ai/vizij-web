@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover extends the page under the Android status/navigation
+         bars (edge-to-edge), making env(safe-area-inset-*) report their sizes so
+         the UI can pad itself clear of them. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Vizij Standalone</title>
   </head>
   <body>
