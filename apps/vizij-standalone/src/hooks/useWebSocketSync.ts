@@ -32,6 +32,8 @@ export function useWebSocketSync() {
     faceId: runtimeFaceId,
     // The runtime's engine-store snapshot (most current after graph evaluation).
     getValueSnapshot: getPathSnapshot,
+    // Whole-store snapshot for the native mirror (every key, arora-serde values).
+    getStoreSnapshot,
   } = useVizijRuntime();
 
   // Get faceId like useMouseGaze does
@@ -329,23 +331,29 @@ export function useWebSocketSync() {
   useEffect(() => {
     if (!ready) return;
 
-    const constraintKeys = Object.keys(inputConstraints);
-    if (constraintKeys.length === 0) return;
-
     const pushValues = () => {
-      const values: Record<string, AroraValue> = {};
-      for (const path of constraintKeys) {
-        const currentValue = getRigValue(path);
-        if (currentValue !== undefined) {
-          // Publish under the canonical store key, not the raw constraint-map
-          // alias. Rig input paths are stored with a leading slash (e.g.
-          // "/rblid/translation/z") and the map also holds namespaced variants;
-          // publishing those verbatim yields empty Zenoh chunks once the bridge
-          // prepends "state/{uid}/" ("state/<uid>//rblid/..."). normalizeSlotPath
-          // strips the leading slash, collapses "//", and drops the namespace,
-          // which also collapses the ~4 aliases of each input to one key.
-          values[normalizeSlotPath(path)] = f64(currentValue);
+      // Mirror the WHOLE device store, not just the rig-input constraint keys:
+      // outputs, pose/emotion/viseme drivers, and structured values all reach
+      // the native store (and thus WS/ROS2/Studio). Values are already in
+      // arora's serde shape — pass-through, no conversion.
+      //
+      // TODO(ticket): this JS mirror between the device's store and the native
+      // SimpleDataStore is a stopgap; the bridges should attach to the device's
+      // own store instead (single-store architecture).
+      const snapshot = getStoreSnapshot();
+      if (!snapshot) return;
+      const values: Record<string, unknown> = {};
+      for (const [path, value] of Object.entries(snapshot)) {
+        if (value === null || value === undefined) continue;
+        // Internal keys stay device-side: arora's golden keys (`arora/…`) and
+        // the animation module's per-tick out-blob.
+        if (path.startsWith("arora/") || path === "vizij/animations/out") {
+          continue;
         }
+        // Publish under the canonical store key (leading slash stripped,
+        // "//" collapsed, namespace dropped) — publishing raw aliases yields
+        // empty Zenoh chunks once the bridge prepends "state/{uid}/".
+        values[normalizeSlotPath(path)] = value;
       }
       if (Object.keys(values).length > 0) {
         invoke("publish_values", { values }).catch((err) => {
@@ -354,11 +362,12 @@ export function useWebSocketSync() {
       }
     };
 
-    // Push once immediately, then on a 10Hz interval for live data.
+    // Push once immediately, then on a 10Hz interval for live data. The native
+    // store is change-only, so re-pushing the full snapshot every tick is cheap.
     pushValues();
     const interval = window.setInterval(pushValues, 100);
     return () => window.clearInterval(interval);
-  }, [ready, inputConstraints, getRigValue, normalizeSlotPath]);
+  }, [ready, getStoreSnapshot, normalizeSlotPath]);
 
   return {
     ready,
