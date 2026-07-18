@@ -71,7 +71,9 @@ export class AnimationModuleHost {
    * dropped. Does not touch the device — loading is lazy (on first play), so
    * muted/unused clips never enter the module.
    */
-  setClips(clips: Array<{ id: string; stored: StoredAnimationClipLike }>): void {
+  setClips(
+    clips: Array<{ id: string; stored: StoredAnimationClipLike }>,
+  ): void {
     const nextIds = new Set(clips.map((clip) => clip.id));
     for (const id of Array.from(this.clips.keys())) {
       if (!nextIds.has(id)) {

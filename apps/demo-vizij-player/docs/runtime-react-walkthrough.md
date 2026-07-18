@@ -138,11 +138,7 @@ The namespace here is intentionally app-specific. Other apps in this repo use di
 Once a source exists, `App.tsx` creates an `assetBundle` and mounts the runtime:
 
 ```tsx
-<VizijRuntimeProvider
-  key={source.id}
-  assetBundle={assetBundle}
-  autostart
->
+<VizijRuntimeProvider key={source.id} assetBundle={assetBundle} autostart>
   <WorkspaceSurface sourceLabel={sourceLabel} sourceMeta={sourceMeta} />
 </VizijRuntimeProvider>
 ```

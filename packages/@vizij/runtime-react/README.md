@@ -137,7 +137,7 @@ The device runs **one** graph, composed from several sources
   `pose-driver`/`pose` graph discovered in the bundle). It turns high-level
   pose controls into rig-input writes, which the rig source reads back
   through the shared store paths on the next tick.
-- **Program graphs** — one source per *playing* program: procedural graphs
+- **Program graphs** — one source per _playing_ program: procedural graphs
   from the bundle's `programs` started via the transport, and (in
   `vizij-authoring`) the motiongraph editor's graph, published as a program
   so it evaluates on the device like everything else.
