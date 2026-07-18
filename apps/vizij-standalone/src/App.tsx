@@ -12,8 +12,11 @@ import {
 import type { VizijSpeechConfig } from "@vizij/render";
 import { useWebSocketSync } from "./hooks/useWebSocketSync";
 import { useSpeechController } from "./hooks/useSpeechController";
+import { useStudioDevice } from "./hooks/useStudioDevice";
 import { EndpointsPanel } from "./components/EndpointsPanel";
+import { DeviceInfoSettings } from "./components/DeviceInfoSettings";
 import { saveModel, loadSavedModel, getSavedModelMeta } from "./lib/modelStore";
+import { ANDROID_BACK_EVENT, leaveApp } from "./lib/androidBack";
 
 const NAMESPACE = "vizij-standalone";
 
@@ -83,6 +86,24 @@ function App() {
     [modelName],
   );
   const hasCheckedCliSource = useRef(false);
+
+  // Android back gesture routing: `AppContent` registers a handler here for
+  // its own layers (the settings page). When nothing in-content consumes the
+  // gesture, it acts like the visible Back button (leave the model), and with
+  // no model loaded it hands control back to the OS.
+  const contentBackHandler = useRef<(() => boolean) | null>(null);
+  useEffect(() => {
+    const onAndroidBack = () => {
+      if (contentBackHandler.current?.()) return;
+      if (assetBundle) {
+        setAssetBundle(null);
+        return;
+      }
+      leaveApp();
+    };
+    window.addEventListener(ANDROID_BACK_EVENT, onAndroidBack);
+    return () => window.removeEventListener(ANDROID_BACK_EVENT, onAndroidBack);
+  }, [assetBundle]);
 
   // Load GLB from URL
   const loadFromUrl = useCallback(async (url: string) => {
@@ -282,6 +303,7 @@ function App() {
         onBack={() => setAssetBundle(null)}
         onSwitchModel={handleOpenFile}
         modelName={modelName}
+        backHandlerRef={contentBackHandler}
       />
     </VizijRuntimeProvider>
   );
@@ -293,6 +315,8 @@ interface AppContentProps {
   onBack: () => void;
   onSwitchModel: () => void | Promise<void>;
   modelName: string | null;
+  /** Where the Android back handler for in-content layers is registered. */
+  backHandlerRef: { current: (() => boolean) | null };
 }
 
 function AppContent({
@@ -301,10 +325,30 @@ function AppContent({
   onBack,
   onSwitchModel,
   modelName,
+  backHandlerRef,
 }: AppContentProps) {
   const runtime = useVizijRuntime();
   const [controlsVisible, setControlsVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Studio device identity (name + owners) shown in the overlay and edited in
+  // the settings page. `null`/inactive when built without studio-bridge.
+  const { config: studioConfig, save: saveStudioConfig } = useStudioDevice();
+
+  // Android back: close the settings page first; anything else falls through
+  // to the app-level handler (same action as the visible Back button).
+  useEffect(() => {
+    backHandlerRef.current = () => {
+      if (settingsOpen) {
+        setSettingsOpen(false);
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      backHandlerRef.current = null;
+    };
+  }, [backHandlerRef, settingsOpen]);
 
   // Hook that syncs WebSocket updates using same pattern as useMouseGaze:
   // setInput(`rig/${faceId}/${path}`, { float: value });
@@ -632,7 +676,9 @@ function AppContent({
         onEnded={speech.handleAudioEnded}
       />
 
-      {/* Tap-revealed controls (tap anywhere on the face to toggle) */}
+      {/* Tap-revealed controls (tap anywhere on the face to toggle). All the
+          edge-hugging overlays offset by the safe-area insets so they stay
+          clear of the Android status/navigation bars (edge-to-edge). */}
       {controlsVisible && (
         <>
           <button
@@ -640,25 +686,30 @@ function AppContent({
               e.stopPropagation();
               onBack();
             }}
-            className="absolute top-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
+            className="absolute top-[calc(env(safe-area-inset-top,0px)+0.5rem)] left-[calc(env(safe-area-inset-left,0px)+0.5rem)] px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
           >
             Back
           </button>
+          {studioConfig?.active && studioConfig.device_name && (
+            <div className="absolute top-[calc(env(safe-area-inset-top,0px)+0.5rem)] left-1/2 -translate-x-1/2 px-3 py-2 bg-black/50 text-white rounded-lg text-sm">
+              {studioConfig.device_name}
+            </div>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
               setSettingsOpen(true);
             }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium shadow-lg transition-colors"
+            className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] left-1/2 -translate-x-1/2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium shadow-lg transition-colors"
           >
-            Switch model
+            Settings
           </button>
         </>
       )}
 
       {/* Settings panel — dev only */}
       {import.meta.env.DEV && (
-        <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
+        <div className="absolute top-[calc(env(safe-area-inset-top,0px)+0.5rem)] right-[calc(env(safe-area-inset-right,0px)+0.5rem)] p-3 bg-black/50 rounded-lg text-white text-sm">
           <div className="mb-2">
             <label className="block text-xs text-neutral-400 mb-1">
               Background
@@ -871,7 +922,7 @@ function AppContent({
       {speech.enabled && speech.keysConfigured && (
         <button
           onClick={speech.toggleMic}
-          className={`absolute bottom-2 right-2 px-4 py-3 rounded-full text-white text-sm font-medium transition-colors ${
+          className={`absolute bottom-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] right-[calc(env(safe-area-inset-right,0px)+0.5rem)] px-4 py-3 rounded-full text-white text-sm font-medium transition-colors ${
             speech.listening
               ? "bg-red-600 hover:bg-red-700"
               : speech.status === "thinking"
@@ -927,18 +978,17 @@ function AppContent({
               "[vizij-standalone] Programs (" + programs.length + "):",
               programs.map((p) => p.id).join(", "),
             );
-            const meta = runtime.assetBundle?.bundle?.metadata;
           }}
-          className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
+          className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] left-[calc(env(safe-area-inset-left,0px)+0.5rem)] px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
         >
           Debug
         </button>
       )}
 
-      {/* Settings screen — opened from the "Switch model" control */}
+      {/* Settings screen — opened from the "Settings" control */}
       {settingsOpen && (
         <div
-          className="absolute inset-0 z-20 flex flex-col bg-neutral-900/95 text-neutral-100"
+          className="absolute inset-0 z-20 flex flex-col bg-neutral-900/95 text-neutral-100 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-white/10 p-4">
@@ -977,6 +1027,12 @@ function AppContent({
                 className="h-10 w-24 cursor-pointer rounded"
               />
             </div>
+            {studioConfig?.active && (
+              <DeviceInfoSettings
+                config={studioConfig}
+                onSave={saveStudioConfig}
+              />
+            )}
           </div>
         </div>
       )}
