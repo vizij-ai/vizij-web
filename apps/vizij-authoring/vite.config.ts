@@ -83,6 +83,7 @@ export default defineConfig(({ mode }) => {
         "@vizij/animation-wasm",
         "@vizij/node-graph-wasm",
         "@vizij/arora-web-wasm",
+        "@vizij/animation-module",
       ],
       include: ["@vizij/node-graph-react"],
       force: true,

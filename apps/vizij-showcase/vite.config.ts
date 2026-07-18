@@ -39,7 +39,11 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/node-graph-wasm", "@vizij/arora-web-wasm"],
+    exclude: [
+      "@vizij/node-graph-wasm",
+      "@vizij/arora-web-wasm",
+      "@vizij/animation-module",
+    ],
     include: ["@vizij/render"],
   },
 });
