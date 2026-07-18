@@ -889,9 +889,12 @@ importers:
 
   packages/@vizij/runtime-react:
     dependencies:
+      '@vizij/animation-module':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@vizij/arora-web-wasm':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.2.0
+        version: 0.2.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../node-graph-authoring
@@ -2670,11 +2673,14 @@ packages:
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
 
+  '@vizij/animation-module@0.1.0':
+    resolution: {integrity: sha512-Ry2xx9dHSN/BDkrUlNMVcYuWdnYMcIiUzJcJip+VB/v7txttq+VqfgEAs74gsPWrhg2Cg0pToWNPQEK78xmb2g==}
+
   '@vizij/animation-wasm@0.4.0':
     resolution: {integrity: sha512-CbDWOZQ73tx/syzGfKjlPwIOo0Hw/v1TK4JYg/rpuyBQAaGP7pFzxYyYVZ8cj1bEPV6gJO9jk+5jxt0Q2QgnIw==}
 
-  '@vizij/arora-web-wasm@0.1.2':
-    resolution: {integrity: sha512-jyLXoF+7nuI6SdHuso1GYA14ILI9K6DmmPVMkQvlPhqogLn4SdHXxTFXm0mxh96Lc9B3SKkuuLAD65wHUEhFfg==}
+  '@vizij/arora-web-wasm@0.2.0':
+    resolution: {integrity: sha512-tKhcZiThAWQMe1FYvXfKlaXbW4mqY+EN/BGt2iiWMG+ThPRjyHw/dPWUZmE+XpPc1WGT88CSbGZK6/u5yyWR5Q==}
 
   '@vizij/node-graph-wasm@0.7.0':
     resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
@@ -6913,12 +6919,14 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
+  '@vizij/animation-module@0.1.0': {}
+
   '@vizij/animation-wasm@0.4.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/arora-web-wasm@0.1.2':
+  '@vizij/arora-web-wasm@0.2.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
