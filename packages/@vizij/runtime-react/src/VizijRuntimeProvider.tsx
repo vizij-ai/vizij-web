@@ -2042,6 +2042,18 @@ function VizijRuntimeProviderInner({
     [deviceSlot],
   );
 
+  // Whole-store snapshot (path → arora-serde Value, pass-through from the
+  // device) for mirrors/bridges that forward every key — see the context doc.
+  const getStoreSnapshot = useCallback(():
+    | Record<string, unknown>
+    | undefined => {
+    const handle = deviceSlot.current;
+    if (!handle) {
+      return undefined;
+    }
+    return handle.device.snapshot() as Record<string, unknown>;
+  }, [deviceSlot]);
+
   /**
    * Route the animation module's per-tick `[TrackOutput]` (read from
    * `ANIMATIONS_OUT_PATH`, written by the animations source last step) to the
@@ -3666,6 +3678,7 @@ function VizijRuntimeProviderInner({
       assetBundle,
       setInput,
       getValueSnapshot: getPathSnapshot,
+      getStoreSnapshot,
       subscribeToStep,
       setGraphBundle,
       setValue: setRendererValue,
@@ -3693,6 +3706,7 @@ function VizijRuntimeProviderInner({
       assetBundle,
       setInput,
       getPathSnapshot,
+      getStoreSnapshot,
       subscribeToStep,
       setGraphBundle,
       setRendererValue,
