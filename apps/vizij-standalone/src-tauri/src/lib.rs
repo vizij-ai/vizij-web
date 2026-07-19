@@ -1212,6 +1212,22 @@ async fn publish_values(
         change.set.insert(Key::from(path), Some(value));
     }
     if !change.is_empty() {
+        // The webview flushes device state changes here as it steps, so the
+        // inter-batch gap is the stepping cadence as seen from the native side.
+        static LAST_PUBLISH: StdMutex<Option<std::time::Instant>> = StdMutex::new(None);
+        let now = std::time::Instant::now();
+        let gap = LAST_PUBLISH
+            .lock()
+            .map(|mut last| last.replace(now).map(|prev| now.duration_since(prev)))
+            .unwrap_or(None);
+        match gap {
+            Some(gap) => log::debug!(
+                "stepping: batch of {} key(s), {:.0} ms since previous",
+                change.set.len(),
+                gap.as_secs_f64() * 1000.0
+            ),
+            None => log::debug!("stepping: first batch of {} key(s)", change.set.len()),
+        }
         store.write(change).map_err(|e| e.to_string())?;
     }
     Ok(())
