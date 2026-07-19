@@ -118,6 +118,13 @@ type ProgramTransportState = {
 type LoopMode = "active" | "idle-visible" | "idle-hidden" | "stopped";
 
 const ACTIVE_GRACE_MS = 250;
+// EXPERIMENT: the active loop steps on a setInterval timer at this rate
+// instead of requestAnimationFrame. Timers keep firing while the document
+// is hidden (Chromium throttles them to >= 1 s) whereas rAF stops
+// entirely; the trade-off is that steps are no longer frame-aligned. dt is
+// still the measured wall-clock delta between fires, not the nominal
+// period.
+const ACTIVE_STEP_HZ = 60;
 const VISIBLE_IDLE_FPS = 30;
 const HIDDEN_IDLE_FPS = 1;
 
@@ -3589,12 +3596,16 @@ function VizijRuntimeProviderInner({
     if (loopMode !== "active") {
       return;
     }
-    let rafId: number | null = null;
+    if (typeof window === "undefined") {
+      return;
+    }
     let lastTime: number | null = null;
-    const tick = (timestamp: number) => {
+    const interval = 1000 / ACTIVE_STEP_HZ;
+    const tick = () => {
       if (loopModeRef.current !== "active") {
         return;
       }
+      const timestamp = now();
       if (lastTime == null) {
         lastTime = timestamp;
       }
@@ -3602,13 +3613,10 @@ function VizijRuntimeProviderInner({
       lastTime = timestamp;
       step(dt || 0);
       requestLoopMode(computeDesiredLoopMode());
-      rafId = requestAnimationFrame(tick);
     };
-    rafId = requestAnimationFrame(tick);
+    const intervalId = window.setInterval(tick, interval);
     return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
+      window.clearInterval(intervalId);
     };
   }, [loopMode, computeDesiredLoopMode, requestLoopMode, step]);
 
