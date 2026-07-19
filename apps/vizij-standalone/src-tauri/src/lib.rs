@@ -1425,7 +1425,12 @@ pub fn run() {
         return;
     }
 
-    let log_level = cli.log_level;
+    // RUST_LOG (a plain level name: error/warn/info/debug/trace) overrides the
+    // CLI flag; it is also the only level knob on Android, which has no CLI.
+    let log_level = std::env::var("RUST_LOG")
+        .ok()
+        .and_then(|v| v.parse::<LevelFilter>().ok())
+        .unwrap_or(cli.log_level);
 
     tauri::Builder::default()
         .plugin(
