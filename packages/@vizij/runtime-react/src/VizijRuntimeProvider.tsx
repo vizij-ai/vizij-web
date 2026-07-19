@@ -120,6 +120,28 @@ type LoopMode = "active" | "idle-visible" | "idle-hidden" | "stopped";
 const ACTIVE_GRACE_MS = 250;
 const VISIBLE_IDLE_FPS = 30;
 const HIDDEN_IDLE_FPS = 1;
+// The step loops follow the native engine driver contract: engine time
+// advances whenever steps run, and never across a suspension. A pause is a
+// SUSPENSION — the host stopped scheduling JS entirely (e.g. an OS-suspended
+// WebView) — detected as an inter-step wall-clock gap beyond this threshold,
+// far outside any plausible frame period. A detected suspension re-baselines
+// the clock and steps with dt = 0, so the paused span never reaches the
+// engine. Document visibility is deliberately NOT a pause signal: hidden
+// pages are expected to keep running (the interval fallback keeps ticking,
+// rAF throttles as the browser decides) with their real dt.
+const IMPLICIT_PAUSE_GAP_S = 5;
+
+const inferImplicitPause = (dt: number): number => {
+  if (dt <= IMPLICIT_PAUSE_GAP_S) {
+    return dt;
+  }
+  console.warn(
+    `[vizij-runtime] step loop woke after a ${dt.toFixed(
+      1,
+    )}s wall-clock gap; treating it as a suspension (dt = 0)`,
+  );
+  return 0;
+};
 
 const DEFAULT_MERGE: MergeStrategyOptions = {
   outputs: "add",
@@ -3598,7 +3620,9 @@ function VizijRuntimeProviderInner({
       if (lastTime == null) {
         lastTime = timestamp;
       }
-      const dt = Math.max(0, (timestamp - lastTime) / 1000);
+      // dt is measured between consecutive frames; an implausible gap
+      // means the host suspended the loop (see IMPLICIT_PAUSE_GAP_S).
+      const dt = inferImplicitPause(Math.max(0, (timestamp - lastTime) / 1000));
       lastTime = timestamp;
       step(dt || 0);
       requestLoopMode(computeDesiredLoopMode());
@@ -3634,7 +3658,9 @@ function VizijRuntimeProviderInner({
         return;
       }
       const current = now();
-      const dt = Math.max(0, (current - lastTime) / 1000);
+      // dt is measured between consecutive ticks; an implausible gap
+      // means the host suspended the loop (see IMPLICIT_PAUSE_GAP_S).
+      const dt = inferImplicitPause(Math.max(0, (current - lastTime) / 1000));
       lastTime = current;
       step(dt || 0);
       requestLoopMode(computeDesiredLoopMode());
