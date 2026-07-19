@@ -1425,20 +1425,39 @@ pub fn run() {
         return;
     }
 
-    // RUST_LOG (a plain level name: error/warn/info/debug/trace) overrides the
-    // CLI flag; it is also the only level knob on Android, which has no CLI.
-    let log_level = std::env::var("RUST_LOG")
-        .ok()
-        .and_then(|v| v.parse::<LevelFilter>().ok())
-        .unwrap_or(cli.log_level);
+    // RUST_LOG overrides the CLI flag; it is also the only level knob on
+    // Android, which has no CLI. env_logger-style directives, comma-separated:
+    // a bare level ("debug") sets the global level, "target=level" pairs
+    // ("vizij_standalone_lib=debug") set per-target levels.
+    let mut log_level = cli.log_level;
+    let mut log_level_for: Vec<(String, LevelFilter)> = Vec::new();
+    if let Ok(directives) = std::env::var("RUST_LOG") {
+        for directive in directives.split(',').map(str::trim) {
+            match directive.split_once('=') {
+                None => {
+                    if let Ok(level) = directive.parse::<LevelFilter>() {
+                        log_level = level;
+                    }
+                }
+                Some((target, level)) => {
+                    if let Ok(level) = level.parse::<LevelFilter>() {
+                        log_level_for.push((target.to_string(), level));
+                    }
+                }
+            }
+        }
+    }
 
     tauri::Builder::default()
-        .plugin(
-            tauri_plugin_log::Builder::new()
+        .plugin({
+            let mut log_builder = tauri_plugin_log::Builder::new()
                 .level(log_level)
-                .level_for("rustdds", LevelFilter::Warn)
-                .build(),
-        )
+                .level_for("rustdds", LevelFilter::Warn);
+            for (target, level) in log_level_for {
+                log_builder = log_builder.level_for(target, level);
+            }
+            log_builder.build()
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(move |app| {
