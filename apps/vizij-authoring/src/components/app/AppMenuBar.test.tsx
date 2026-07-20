@@ -20,7 +20,6 @@ function renderMenuBar() {
       onImport={vi.fn()}
       onImportSkipChecks={vi.fn()}
       onImportReferenceFace={vi.fn()}
-      onSave={vi.fn()}
       onExport={vi.fn()}
       canSave
       saveDirty={false}

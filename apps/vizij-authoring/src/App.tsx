@@ -3197,19 +3197,29 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       workingSignature &&
       workingSignature !== lastWorkingSavedSignature,
   );
-  const handleSaveWorking = useCallback(() => {
-    if (!workingSaveContent || !workingSignature) {
+  // Autosave: whenever the working document settles into a new state, write
+  // it to local storage. No button to remember — the indicator in the menu
+  // bar reflects "Saving…" vs "Saved".
+  useEffect(() => {
+    if (!canSaveWorking || !workingSaveContent || !workingSignature) {
       return;
     }
-    const saved = saveWorkingDocument(workingSaveContent);
-    if (!saved) {
-      void showAlert(
-        "Unable to save working changes locally (storage unavailable or full).",
-      );
+    if (workingSignature === lastWorkingSavedSignature) {
       return;
     }
-    setLastWorkingSavedSignature(workingSignature);
-  }, [showAlert, workingSaveContent, workingSignature]);
+    const timer = setTimeout(() => {
+      const saved = saveWorkingDocument(workingSaveContent);
+      if (saved) {
+        setLastWorkingSavedSignature(workingSignature);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    canSaveWorking,
+    lastWorkingSavedSignature,
+    workingSaveContent,
+    workingSignature,
+  ]);
 
   const workingRestorePromptedSessionRef = useRef<string | null>(null);
   useEffect(() => {
@@ -4108,7 +4118,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
-      onSave={handleSaveWorking}
       onExport={() => setShowExportDialog(true)}
       canSave={canSaveWorking}
       saveDirty={workingSaveDirty}

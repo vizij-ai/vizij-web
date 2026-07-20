@@ -8,7 +8,6 @@ import {
   MenuLabel,
   MenuSubmenu,
 } from "../ui/MenuBar";
-import { Button } from "../ui/Button";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
@@ -32,9 +31,10 @@ interface AppMenuBarProps {
   onImport: () => void;
   onImportSkipChecks: () => void;
   onImportReferenceFace: () => void;
-  onSave: () => void;
   onExport: () => void;
+  /** Whether autosave is active for the loaded face. */
   canSave: boolean;
+  /** True while working changes are pending an autosave write. */
   saveDirty: boolean;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
@@ -51,7 +51,6 @@ export function AppMenuBar({
   onImport,
   onImportSkipChecks,
   onImportReferenceFace,
-  onSave,
   onExport,
   canSave,
   saveDirty,
@@ -165,15 +164,7 @@ export function AppMenuBar({
           Import Comparison Face...
         </MenuItem>
         <MenuItem onSelect={onExport} testId="app-menu-file-export">
-          Publish...
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem
-          onSelect={onSave}
-          disabled={!canSave}
-          testId="app-menu-file-save"
-        >
-          Save
+          Export...
         </MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => {}}>Exit</MenuItem>
@@ -436,28 +427,24 @@ export function AppMenuBar({
         </MenuCheckboxItem>
       </Menu>
 
-      <Button
-        data-testid="app-save-button"
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!canSave}
-        onClick={onSave}
-        className={cn(
-          "ml-2 h-8 rounded-lg px-3 text-sm font-semibold",
-          saveDirty
-            ? "bg-accent/10 text-accent ring-1 ring-accent/35 hover:bg-accent/15 hover:text-accent"
-            : "text-text-secondary",
-        )}
-      >
-        {saveDirty ? (
-          <span
-            aria-hidden="true"
-            className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-current"
-          />
-        ) : null}
-        Save
-      </Button>
+      {canSave ? (
+        <span
+          data-testid="app-autosave-status"
+          role="status"
+          className={cn(
+            "ml-2 flex h-8 items-center rounded-lg px-3 text-xs font-medium",
+            saveDirty ? "text-accent" : "text-text-muted",
+          )}
+        >
+          {saveDirty ? (
+            <span
+              aria-hidden="true"
+              className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current"
+            />
+          ) : null}
+          {saveDirty ? "Saving…" : "Saved"}
+        </span>
+      ) : null}
 
       <div className="flex-1" />
       <ThemeToggle className="mr-2" />
