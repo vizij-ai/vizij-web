@@ -54,7 +54,10 @@
     "wasm:link": "node ./scripts/wasm-links.mjs link",
     "wasm:unlink": "node ./scripts/wasm-links.mjs unlink",
     "e2e": "pnpm --filter vizij-e2e run e2e",
-    "e2e:heavy": "pnpm --filter vizij-e2e run e2e:heavy"
+    "e2e:heavy": "pnpm --filter vizij-e2e run e2e:heavy",
+    "api:check": "node ./scripts/check-api-surface.mjs",
+    "api:update": "node ./scripts/check-api-surface.mjs --update",
+    "publint": "pnpm --filter @vizij/face-core --filter @vizij/runtime-react --filter @vizij/render exec publint"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.7",
@@ -67,6 +70,7 @@
     "lint-staged": "^15.2.10",
     "markdownlint-cli": "^0.48.0",
     "prettier": "^3.4.2",
+    "publint": "^0.3.12",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.22.0",
     "vitest": "^3.2.4",

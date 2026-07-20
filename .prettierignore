@@ -1,4 +1,5 @@
 dist
+api-snapshots
 coverage
 node_modules
 .pnpm

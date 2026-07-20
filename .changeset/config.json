@@ -4,6 +4,7 @@
   "commit": false,
   "access": "public",
   "baseBranch": "main",
+  "fixed": [["@vizij/face-core", "@vizij/runtime-react", "@vizij/render"]],
   "updateInternalDependencies": "patch",
   "ignore": []
 }
