@@ -165,7 +165,7 @@ export function AppMenuBar({
           Import Comparison Face...
         </MenuItem>
         <MenuItem onSelect={onExport} testId="app-menu-file-export">
-          Export...
+          Publish...
         </MenuItem>
         <MenuSeparator />
         <MenuItem
@@ -174,9 +174,6 @@ export function AppMenuBar({
           testId="app-menu-file-save"
         >
           Save
-        </MenuItem>
-        <MenuItem onSelect={onExport} disabled={!canSave}>
-          Save As...
         </MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={() => {}}>Exit</MenuItem>

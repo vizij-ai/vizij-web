@@ -99,6 +99,13 @@ import {
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
 import {
+  buildWorkingSignature,
+  loadWorkingDocument,
+  saveWorkingDocument,
+  type WorkingSaveBehaviorV1,
+  type WorkingSaveContent,
+} from "./workingSave/workingSave";
+import {
   getMemoryInvestigationFlags,
   updateMemoryDebugState,
 } from "./debug/memoryInvestigation";
@@ -969,7 +976,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.customInputPaths,
   );
 
-  const { alert: showAlert } = useDialogQueue();
+  const { alert: showAlert, confirm: showConfirm } = useDialogQueue();
 
   useEffect(() => {
     uiActions.setIncludeVizijBundle(true);
@@ -3098,12 +3105,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       standardInputs,
     ],
   );
-  const { isDirty: hasUnsavedGlbChanges, markSaved: markGlbExportSaved } =
-    useExportDirtyState({
-      sessionKey: exportSessionKey,
-      ready: exportSessionReady,
-      snapshot: exportDirtySnapshot,
-    });
+  const { markSaved: markGlbExportSaved } = useExportDirtyState({
+    sessionKey: exportSessionKey,
+    ready: exportSessionReady,
+    snapshot: exportDirtySnapshot,
+  });
 
   const handleRegisterGlbExportHandler = useCallback(
     (handler: (() => Promise<void>) | null) => {
@@ -3111,17 +3117,161 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [],
   );
-  const handleSaveExport = useCallback(() => {
-    if (!canExport) {
+
+  // Working save (Save) — persists the authored document locally, distinct
+  // from Publish which produces the shareable Face Package GLB.
+  const workingSaveAnimations = useMemo<AnimationClipIR[]>(() => {
+    const authoredClipId = parseAuthoredAnimationTargetValue(
+      selectedAnimationTargetId,
+    );
+    const liveActiveClip =
+      authoredClipId && selectedAuthoredAnimationTarget
+        ? exportAnimationClipIr({
+            id: selectedAuthoredAnimationTarget.clipId,
+            name: selectedAuthoredAnimationTarget.name,
+          })
+        : null;
+    return authoredAnimationTargets.map((target) =>
+      liveActiveClip &&
+      target.targetId === selectedAuthoredAnimationTarget?.targetId
+        ? liveActiveClip
+        : target.clip,
+    );
+  }, [
+    authoredAnimationTargets,
+    exportAnimationClipIr,
+    selectedAnimationTargetId,
+    selectedAuthoredAnimationTarget,
+  ]);
+  const workingSaveBehaviors = useMemo<WorkingSaveBehaviorV1[]>(
+    () =>
+      authoredProceduralTargets.map((target) => ({
+        programId: target.programId,
+        name: target.name,
+        snapshot:
+          target.targetId === selectedAuthoredProceduralTarget?.targetId
+            ? snapshotProceduralEditorState()
+            : target.snapshot,
+      })),
+    [
+      authoredProceduralTargets,
+      selectedAuthoredProceduralTarget,
+      proceduralEditorNodes,
+      proceduralEditorEdges,
+      proceduralEditorEnabledInputs,
+      proceduralEditorEnabledOutputs,
+      proceduralEditorCustomInputPaths,
+    ],
+  );
+  const workingSaveContent = useMemo<WorkingSaveContent | null>(() => {
+    if (!faceId.trim()) {
+      return null;
+    }
+    return {
+      faceId,
+      pose: {
+        config: poseRig.poseConfigDraft ?? null,
+        ir: poseRig.poseIrDraft ?? null,
+      },
+      animations: workingSaveAnimations,
+      behaviors: workingSaveBehaviors,
+    };
+  }, [
+    faceId,
+    poseRig.poseConfigDraft,
+    poseRig.poseIrDraft,
+    workingSaveAnimations,
+    workingSaveBehaviors,
+  ]);
+  const workingSignature = useMemo(
+    () =>
+      workingSaveContent ? buildWorkingSignature(workingSaveContent) : null,
+    [workingSaveContent],
+  );
+  const [lastWorkingSavedSignature, setLastWorkingSavedSignature] = useState<
+    string | null
+  >(null);
+  const canSaveWorking = exportSessionReady && Boolean(faceId.trim());
+  const workingSaveDirty = Boolean(
+    canSaveWorking &&
+      workingSignature &&
+      workingSignature !== lastWorkingSavedSignature,
+  );
+  const handleSaveWorking = useCallback(() => {
+    if (!workingSaveContent || !workingSignature) {
       return;
     }
-    const exportGlb = exportGlbHandlerRef.current;
-    if (!exportGlb) {
-      setShowExportDialog(true);
+    const saved = saveWorkingDocument(workingSaveContent);
+    if (!saved) {
+      void showAlert(
+        "Unable to save working changes locally (storage unavailable or full).",
+      );
       return;
     }
-    void exportGlb();
-  }, [canExport]);
+    setLastWorkingSavedSignature(workingSignature);
+  }, [showAlert, workingSaveContent, workingSignature]);
+
+  const workingRestorePromptedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!exportSessionReady || !workingSignature || !faceId.trim()) {
+      return;
+    }
+    if (workingRestorePromptedSessionRef.current === exportSessionKey) {
+      return;
+    }
+    workingRestorePromptedSessionRef.current = exportSessionKey;
+    const saved = loadWorkingDocument(faceId);
+    if (!saved) {
+      return;
+    }
+    const savedSignature = buildWorkingSignature(saved);
+    if (savedSignature === workingSignature) {
+      setLastWorkingSavedSignature(savedSignature);
+      return;
+    }
+    const savedAtLabel = new Date(saved.savedAt).toLocaleString();
+    void (async () => {
+      const confirmed = await showConfirm(
+        `Restore working changes saved ${savedAtLabel}? Choosing Cancel keeps the file's current contents; the working save stays available.`,
+      );
+      if (!confirmed) {
+        return;
+      }
+      if (saved.animations.length > 0) {
+        setAuthoredAnimationTargets(
+          saved.animations.map((clip) => ({
+            targetId: authoredAnimationTargetValue(clip.id),
+            clipId: clip.id,
+            name: clip.name?.trim() || clip.id,
+            clip,
+          })),
+        );
+      }
+      if (saved.behaviors.length > 0) {
+        setAuthoredProceduralTargets(
+          saved.behaviors.map((behavior) => ({
+            targetId: authoredProceduralTargetValue(behavior.programId),
+            programId: behavior.programId,
+            name: behavior.name,
+            snapshot: behavior.snapshot as ProceduralProgramSnapshot,
+          })),
+        );
+      }
+      if (saved.pose.ir) {
+        poseRig.importPoseIrFromData(saved.pose.ir);
+      } else if (saved.pose.config) {
+        poseRig.importPoseConfigFromData(saved.pose.config);
+      }
+      setLastWorkingSavedSignature(savedSignature);
+    })();
+  }, [
+    exportSessionKey,
+    exportSessionReady,
+    faceId,
+    poseRig,
+    showConfirm,
+    workingSignature,
+  ]);
 
   useEffect(() => {
     if (
@@ -3958,10 +4108,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
-      onSave={handleSaveExport}
+      onSave={handleSaveWorking}
       onExport={() => setShowExportDialog(true)}
-      canSave={canExport}
-      saveDirty={hasUnsavedGlbChanges}
+      canSave={canSaveWorking}
+      saveDirty={workingSaveDirty}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
       activeEditFocus={activeEditFocus}
