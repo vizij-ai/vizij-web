@@ -831,6 +831,9 @@ importers:
 
   packages/@vizij/render:
     dependencies:
+      '@vizij/face-core':
+        specifier: workspace:*
+        version: link:../face-core
       '@vizij/utils':
         specifier: workspace:*
         version: link:../utils
@@ -907,6 +910,9 @@ importers:
       '@vizij/animation-module':
         specifier: ^0.2.0
         version: 0.2.0
+      '@vizij/face-core':
+        specifier: workspace:*
+        version: link:../face-core
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../node-graph-authoring

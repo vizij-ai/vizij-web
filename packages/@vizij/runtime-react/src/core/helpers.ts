@@ -10,7 +10,7 @@ import type {
   VizijBundleExtension,
   VizijBundleGraphEntry,
   VizijBundleAnimationEntry,
-} from "@vizij/render";
+} from "@vizij/face-core";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import type { ValueJSON } from "@vizij/value-json";
 import type {

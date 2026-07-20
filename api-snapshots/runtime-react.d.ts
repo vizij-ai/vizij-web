@@ -4,7 +4,8 @@ import { ReactNode, PropsWithChildren } from 'react';
 import { ValueJSON } from '@vizij/value-json';
 import { IrGraph } from '@vizij/node-graph-authoring';
 import { AnimatableValue, RawValue } from '@vizij/utils';
-import { World, VizijBundleExtension, VizijProps } from '@vizij/render';
+import { VizijBundleExtension } from '@vizij/face-core';
+import { World, VizijProps } from '@vizij/render';
 
 /** Value shape hint. Accepted through the public surface, unused by the device. */
 type ShapeJSON = Record<string, unknown>;

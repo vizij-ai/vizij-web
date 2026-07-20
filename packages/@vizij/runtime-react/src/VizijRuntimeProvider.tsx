@@ -4,10 +4,10 @@ import {
   VizijContext,
   createVizijStore,
   type VizijStore,
-  type VizijBundleExtension,
   loadGLTFWithBundle,
   loadGLTFFromBlobWithBundle,
 } from "@vizij/render";
+import type { VizijBundleExtension } from "@vizij/face-core";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { RUN_PERIOD_MS, isGoldenPath } from "./engine/aroraEngine";
 import type { MergeStrategyOptions } from "./types";

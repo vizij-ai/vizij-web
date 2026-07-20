@@ -7,3 +7,5 @@
  * `docs/redesign/06-track-2-implementation.md` §3 for the plan.
  */
 export const FACE_CORE_PLACEHOLDER = true;
+
+export * from "./facePackage";

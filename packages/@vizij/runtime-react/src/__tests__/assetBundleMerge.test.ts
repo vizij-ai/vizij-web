@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { VizijBundleExtension } from "@vizij/render";
+import type { VizijBundleExtension } from "@vizij/face-core";
 import { mergeAssetBundle } from "../VizijRuntimeProvider";
 import type {
   VizijAnimationAsset,

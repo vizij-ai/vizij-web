@@ -6,6 +6,8 @@ import * as zustand from 'zustand';
 import * as THREE from 'three';
 import { Mesh, Group as Group$1, BufferGeometry, ShapeGeometry, AnimationClip, Object3D } from 'three';
 import { RawValue, AnimatableValue, RawVector2 } from '@vizij/utils';
+import { VizijBundleExtension } from '@vizij/face-core';
+export { VizijAnimationId, VizijBundleAnimationClip, VizijBundleAnimationEntry, VizijBundleAnimationKeyframe, VizijBundleAnimationTrack, VizijBundleExtension, VizijBundleGraphEntry, VizijBundleGraphKind, VizijBundleGraphMetadata, VizijBundlePoseSection, VizijBundleVersion, VizijGraphId, VizijPoseDefinition, VizijPoseId, VizijPoseRigConfig, VizijSpeechConfig } from '@vizij/face-core';
 
 interface VizijProps {
     style?: CSSProperties;
@@ -279,124 +281,6 @@ interface Selection {
     };
 }
 
-type VizijBundleVersion = 1;
-type VizijBundleGraphKind = "rig" | "pose" | "pose-driver" | "animation-bridge" | "low-level" | string;
-type VizijPoseId = string;
-type VizijAnimationId = string;
-type VizijGraphId = string;
-interface VizijBundleGraphMetadata {
-    hash?: string;
-    source?: string;
-    kind?: VizijBundleGraphKind;
-    exportedAt?: string;
-    [key: string]: unknown;
-}
-interface VizijBundleGraphEntry {
-    id: VizijGraphId;
-    kind: VizijBundleGraphKind;
-    spec: Record<string, unknown>;
-    label?: string;
-    metadata?: VizijBundleGraphMetadata;
-    ir?: Record<string, unknown> | null;
-}
-interface VizijPoseDefinition {
-    id: VizijPoseId;
-    name?: string;
-    description?: string;
-    group?: string | null;
-    values: Record<string, number | undefined>;
-}
-interface VizijPoseRigConfig {
-    version: number;
-    faceId?: string | null;
-    title?: string;
-    description?: string;
-    neutralInputs: Record<string, number>;
-    poses: VizijPoseDefinition[];
-    metadata?: Record<string, unknown>;
-    [key: string]: unknown;
-}
-interface VizijBundlePoseSection {
-    config: VizijPoseRigConfig;
-    metadata?: {
-        hash?: string;
-        exportedAt?: string;
-        [key: string]: unknown;
-    };
-}
-interface VizijBundleAnimationKeyframe {
-    time: number;
-    value: number;
-    easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" | string;
-    inTangent?: number | null;
-    outTangent?: number | null;
-    [key: string]: unknown;
-}
-interface VizijBundleAnimationTrack {
-    channel: string;
-    keyframes: VizijBundleAnimationKeyframe[];
-    interpolation?: "step" | "linear" | "cubic" | string;
-    [key: string]: unknown;
-}
-interface VizijBundleAnimationClip {
-    id: VizijAnimationId;
-    name?: string;
-    duration?: number;
-    tracks: VizijBundleAnimationTrack[];
-    metadata?: Record<string, unknown>;
-    [key: string]: unknown;
-}
-interface VizijBundleAnimationEntry {
-    id: VizijAnimationId;
-    clip: VizijBundleAnimationClip;
-    metadata?: {
-        hash?: string;
-        sampleRateHz?: number;
-        rigGraphHash?: string;
-        poseGraphHash?: string | null;
-        bakedClipIndex?: number | null;
-        tolerance?: number;
-        exportedAt?: string;
-        [key: string]: unknown;
-    };
-}
-interface VizijSpeechConfig {
-    /** TTS voice name (e.g., "Ruth") */
-    voice?: string;
-    /** Speech mode */
-    mode?: "echo" | "conversation";
-    /** Agent name for LLM system prompt */
-    agentName?: string;
-    /** Custom system prompt (supports {{agent_name}} template) */
-    systemPrompt?: string;
-    /** Input path for avatar-speaking state (default: /speech/speaking) */
-    speakingInputPath?: string;
-    /** Input path for user-speaking state (default: /speech/user_speaking) */
-    userSpeakingInputPath?: string;
-    /** Input path for thinking state (default: /speech/thinking) */
-    thinkingInputPath?: string;
-    /** Pose group ID for viseme mapping */
-    visemeGroupId?: string;
-    /** Pose group ID for emotion mapping */
-    emotionGroupId?: string;
-    /** TTS API base URL */
-    apiBaseUrl?: string;
-    /** Auto-activate microphone when speech is ready (default: false) */
-    autoActivateMic?: boolean;
-}
-interface VizijBundleExtension {
-    version: VizijBundleVersion;
-    exportedAt?: string;
-    graphs?: VizijBundleGraphEntry[];
-    poses?: VizijBundlePoseSection | null;
-    animations?: VizijBundleAnimationEntry[];
-    /**
-     * Bundle-level metadata. May include `speechConfig: VizijSpeechConfig`
-     * for configuring the STT/LLM/TTS speech pipeline.
-     */
-    metadata?: Record<string, unknown>;
-}
-
 interface VizijAnimationTrackData {
     /** Vizij animatable id extracted from RobotData.features.*.value.id */
     componentId: string;
@@ -653,4 +537,4 @@ declare function exportScene(data: Group$1, fileNameOrOptions?: string | ExportS
 declare function extractVizijBundle(object: Object3D, parserJson?: unknown): VizijBundleExtension | null;
 declare function applyVizijBundle(object: Object3D, bundle: VizijBundleExtension | null): () => void;
 
-export { type AnimatedFeature, type Ellipse, type EllipseFeature, EmptyModelError, type ExportSceneOptions, type Feature, type Group, type GroupFeature, InnerVizij, type InnerVizijProps, type LoadedVizijAsset, type Rectangle, type RectangleFeature, type RenderableBase, type RenderableFeature, type Selection, type Shape, type ShapeFeature, ShapeMaterial, type StaticFeature, type Stored, type StoredAnimatedFeature, type StoredEllipse, type StoredFeatures, type StoredGroup, type StoredRectangle, type StoredRenderable, type StoredShape, Vizij, type VizijActions, type VizijAnimationClipData, type VizijAnimationId, type VizijAnimationTrackData, type VizijBundleAnimationClip, type VizijBundleAnimationEntry, type VizijBundleAnimationKeyframe, type VizijBundleAnimationTrack, type VizijBundleExtension, type VizijBundleGraphEntry, type VizijBundleGraphKind, type VizijBundleGraphMetadata, type VizijBundlePoseSection, type VizijBundleVersion, VizijContext, type VizijData, type VizijGraphId, type VizijPoseDefinition, type VizijPoseId, type VizijPoseRigConfig, type VizijProps, VizijSlice, type VizijSpeechConfig, type VizijStore, type VizijStoreGetter, type VizijStoreSetter, type World, applyVizijBundle, createVizijStore, exportScene, extractVizijBundle, loadGLTF, loadGLTFFromBlob, loadGLTFFromBlobWithBundle, loadGLTFWithBundle, loadGltfFromBlob, parseGlbJsonChunk, useDefaultVizijStore, useFeatures, useVizijStore, useVizijStoreGetter, useVizijStoreSetter, useVizijStoreSubscription };
+export { type AnimatedFeature, type Ellipse, type EllipseFeature, EmptyModelError, type ExportSceneOptions, type Feature, type Group, type GroupFeature, InnerVizij, type InnerVizijProps, type LoadedVizijAsset, type Rectangle, type RectangleFeature, type RenderableBase, type RenderableFeature, type Selection, type Shape, type ShapeFeature, ShapeMaterial, type StaticFeature, type Stored, type StoredAnimatedFeature, type StoredEllipse, type StoredFeatures, type StoredGroup, type StoredRectangle, type StoredRenderable, type StoredShape, Vizij, type VizijActions, type VizijAnimationClipData, type VizijAnimationTrackData, VizijContext, type VizijData, type VizijProps, VizijSlice, type VizijStore, type VizijStoreGetter, type VizijStoreSetter, type World, applyVizijBundle, createVizijStore, exportScene, extractVizijBundle, loadGLTF, loadGLTFFromBlob, loadGLTFFromBlobWithBundle, loadGLTFWithBundle, loadGltfFromBlob, parseGlbJsonChunk, useDefaultVizijStore, useFeatures, useVizijStore, useVizijStoreGetter, useVizijStoreSetter, useVizijStoreSubscription };
