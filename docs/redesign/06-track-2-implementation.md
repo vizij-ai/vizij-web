@@ -235,12 +235,18 @@ Unchanged from the synthesis: all four consumer apps + both tutorials run
 unmodified on the adapter; plus a **headless smoke test** (`new FaceRuntime` →
 `init` → `step` → `writeInput` → `onValuesChanged`, no DOM).
 
-**Flagged risk — wasm-in-Node:** the smoke test assumes
-`@vizij/arora-web-wasm` and `@vizij/animation-module` initialize outside a
-browser (module loading was fetch/URL-sensitive as recently as #69/#71). If
-they don't, the fallback gate is a browser-context smoke test (Playwright,
-no React) — still proves framework-freedom, weaker on "Node/robot host"
-claims. Worth a one-day spike **before** committing to the R1 ticket text.
+**Flagged risk — wasm-in-Node: RESOLVED (spiked 2026-07-20).** Both modules
+run headless in plain Node 20 with no DOM and no bundler: `@vizij/arora-web-wasm`
+`init()` completes in ~50ms, `startDevice` accepts a real input-node spec, and
+`setValue → step(16) → drainChanges` round-trips values (golden `arora/dt`
+/ `arora/time` keys present); `@vizij/animation-module`'s
+`loadAnimationModule()` resolves its header + wasm bytes. The
+`@vizij/wasm-loader` Node entrypoint (file-URL → `fs/promises` read) is what
+makes this work. The spike is kept as a runnable gate:
+`pnpm --filter @vizij/runtime-react smoke:node`
+(`packages/@vizij/runtime-react/scripts/headless-node-smoke.mjs`); R1 PR-4
+extends it to drive `FaceRuntime` directly and it moves to face-core with the
+package. The Playwright fallback gate is not needed.
 
 ---
 
