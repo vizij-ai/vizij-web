@@ -30,6 +30,9 @@ interface WorkspaceState {
     panelId: keyof WorkspaceState["panels"],
     isVisible: boolean,
   ) => void;
+  /** Draws the face bounds (camera safe area) rectangle over the main viewport. */
+  faceBoundsOverlayVisible: boolean;
+  setFaceBoundsOverlayVisible: (isVisible: boolean) => void;
 }
 
 export type WorkspacePanels = WorkspaceState["panels"];
@@ -95,6 +98,9 @@ export function createInitialWorkspacePanels(): WorkspacePanels {
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   panels: createInitialWorkspacePanels(),
+  faceBoundsOverlayVisible: false,
+  setFaceBoundsOverlayVisible: (isVisible) =>
+    set({ faceBoundsOverlayVisible: isVisible }),
   togglePanel: (panelId) =>
     set((state) => {
       const nextVisibility = !state.panels[panelId].isVisible;

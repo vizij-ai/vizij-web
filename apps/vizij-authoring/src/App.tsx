@@ -3049,6 +3049,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     loadingCoordinatorSettled &&
     !loadingSessionActive &&
     !isLoading;
+  const rootBoundsForExport = rootId
+    ? ((runtimeWorld[rootId] as { rootBounds?: unknown } | undefined)
+        ?.rootBounds ?? null)
+    : null;
   const exportDirtySnapshot = useMemo(
     () =>
       buildGlbExportDirtySnapshot({
@@ -3058,6 +3062,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         animatables,
         animatableComponents,
         featureLabelOverrides,
+        rootBounds: rootBoundsForExport,
         standardInputs,
         bindings,
         inputBindings,
@@ -3089,6 +3094,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       poseRig.poseGraphFileName,
       poseRig.poseGraphSpec,
       poseRig.poseIrDraft,
+      rootBoundsForExport,
       standardInputs,
     ],
   );

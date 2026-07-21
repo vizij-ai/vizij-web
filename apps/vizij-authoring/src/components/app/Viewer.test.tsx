@@ -36,6 +36,9 @@ const setGraphBundleSpy = vi.fn((payload: unknown) => {
   }
 });
 const setVizijStoreSpy = vi.fn();
+const getVizijStoreStateSpy = vi.fn(() => ({
+  world: {} as Record<string, unknown>,
+}));
 const stopAnimationSpy = vi.fn();
 const setAnimationActiveSpy = vi.fn();
 const pauseAnimationSpy = vi.fn();
@@ -59,6 +62,8 @@ vi.mock("@vizij/render", () => ({
       world: {},
     }),
   useVizijStoreSetter: () => setVizijStoreSpy,
+  useVizijStoreGetter: () => getVizijStoreStateSpy,
+  deriveRootBounds: () => null,
 }));
 
 vi.mock("@vizij/runtime-react", () => ({

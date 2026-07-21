@@ -73,6 +73,7 @@ import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { RiggingPropertyRow } from "./RiggingPropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
+import { FaceBoundsSection } from "./FaceBoundsSection";
 import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
@@ -2619,6 +2620,7 @@ export function InspectorContent({
               </Button>
             </div>
           ) : null}
+          <FaceBoundsSection node={node} />
           <RiggingTransformSection node={node} />
 
           <RiggingMorphTargetsSection node={node} />

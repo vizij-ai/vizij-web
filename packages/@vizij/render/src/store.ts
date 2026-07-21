@@ -6,7 +6,12 @@ import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { Group, Mesh } from "three";
-import { type RawValue, type AnimatableValue, getLookup } from "@vizij/utils";
+import {
+  type RawValue,
+  type RawVector2,
+  type AnimatableValue,
+  getLookup,
+} from "@vizij/utils";
 import type { World } from "./types/world";
 import { createNewElement } from "./actions/create-new-element";
 import { removeFromTree } from "./actions/remove-children";
@@ -247,6 +252,28 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
         } else {
           if (rotation) state.world[id].origin.rotation = rotation;
           if (translation) state.world[id].origin.translation = translation;
+        }
+      }),
+    );
+  },
+  setRootBounds: (
+    id: string,
+    rootBounds: { center: RawVector2; size: RawVector2 } | undefined,
+  ) => {
+    set(
+      produce((state: VizijData) => {
+        const entry = state.world[id];
+        if (!entry || entry.type !== "group") {
+          return;
+        }
+        if (rootBounds) {
+          entry.rootBounds = {
+            center: { ...rootBounds.center },
+            size: { ...rootBounds.size },
+          };
+          entry.root = true;
+        } else {
+          delete entry.rootBounds;
         }
       }),
     );
