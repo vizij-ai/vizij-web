@@ -193,7 +193,7 @@ When you need edits from the Rust workspace:
 
    ```bash
    # link a subset
-   pnpm run wasm:link -- --pkgs "node-graph-wasm arora-web-wasm"
+   pnpm run wasm:link -- --pkgs "node-graph-wasm runtime"
    # or link everything
    pnpm run wasm:link -- --pkgs all
 

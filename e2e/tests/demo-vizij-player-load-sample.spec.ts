@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
 
 // Regression for the arora value-marshalling bug: `demo-vizij-player` mounts the
-// arora runtime (`@vizij/runtime-react` → `@vizij/arora-web-wasm`). Loading a
+// arora runtime (`@vizij/runtime-react` → `@vizij/runtime`). Loading a
 // sample drives `setValue` with vizij `ValueJSON` shorthand (`{"float": …}`,
 // `{"vec3": …}`); the arora store speaks the canonical `Value` serde (`{"f32": …}`),
 // so before @vizij/arora-web-wasm@0.1.2 every write threw `unknown variant 'float'`
