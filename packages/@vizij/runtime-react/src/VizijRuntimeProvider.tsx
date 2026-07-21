@@ -14,7 +14,12 @@ import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import { valueAsNumber, type ValueJSON } from "@vizij/value-json";
 import { getLookup, type AnimatableValue, type RawValue } from "@vizij/utils";
 import { loadAnimationModule } from "@vizij/animation-module";
-import { DeviceSlot, ensureWasmInit, isGoldenPath } from "./engine/aroraEngine";
+import {
+  DeviceSlot,
+  RUN_PERIOD_MS,
+  ensureWasmInit,
+  isGoldenPath,
+} from "./engine/aroraEngine";
 import { composeGraphSpecs, type GraphSource } from "./utils/composeGraph";
 import type {
   GraphRegistrationConfig,
@@ -1442,8 +1447,8 @@ function VizijRuntimeProviderInner({
   const [ready, setReady] = useState(false);
   /**
    * Specs currently composed into the device's ONE graph, in evaluation order.
-   * Every (un)registration recomposes and restarts the device. Where each
-   * source comes from:
+   * Every (un)registration recomposes, swapping the device's graph in place.
+   * Where each source comes from:
    *
    * - **rig** — the loaded asset bundle's rig graph (authored into the GLB):
    *   maps rig input paths to the face's morph/bone/material writes.
@@ -1819,8 +1824,8 @@ function VizijRuntimeProviderInner({
   // The engine surface, device-backed. The call shapes (synchronous
   // registration returning ids, snapshot getters) are implemented over the
   // single Arora device: registered graphs accumulate as sources in
-  // graphSourcesRef, and every registration change recomposes the one graph
-  // and restarts the device, carrying the store across (engine/aroraEngine.ts).
+  // graphSourcesRef, and every registration change recomposes the one graph,
+  // swapped into the running device in place (engine/aroraEngine.ts).
   // Animations tick INSIDE the device: the animation module samples the loaded
   // clips each step and the "animations" source drives it (see the
   // graphSourcesRef provenance note and engine/animationModule*.ts).
@@ -1837,9 +1842,9 @@ function VizijRuntimeProviderInner({
 
   /**
    * The animation module host, constructed once the module artifact has
-   * loaded. Also arms the slot: every device this slot starts loads the
-   * module, and each fresh device replays the host's setup calls (module
-   * guest state does not survive a restart).
+   * loaded. Also arms the slot: every device this slot boots loads the
+   * module, and a rebuilt device replays the host's setup calls (module
+   * guest state does not survive a rebuild).
    */
   const ensureAnimationHost = useCallback((): AnimationModuleHost | null => {
     if (!animationModuleRef.current) {
@@ -1858,7 +1863,7 @@ function VizijRuntimeProviderInner({
   const recomposeDevice = useCallback(() => {
     const spec = composeGraphSpecs(graphSourcesRef.current);
     deviceSlot
-      .restart(spec)
+      .recompose(spec)
       .then((handle) => {
         if (pendingWritesRef.current.size > 0) {
           handle.device.writeValues(
@@ -1869,7 +1874,7 @@ function VizijRuntimeProviderInner({
       })
       .catch((err: unknown) => {
         pushError({
-          message: "Failed to (re)start the arora device",
+          message: "Failed to (re)compose the arora device",
           cause: err,
           phase: "engine",
           timestamp: performance.now(),
@@ -1884,16 +1889,18 @@ function VizijRuntimeProviderInner({
   }, []);
 
   // Load the animation module when the bundle carries animations, and arm the
-  // device slot with it: every device this slot starts loads the module, and
-  // each fresh device (a boot or a restart) replays the host's setup calls,
-  // because module guest state does not survive a restart.
+  // device slot with it. The slot is told the load is in flight right away —
+  // boots wait for it, so the device is always built WITH the module (a live
+  // device cannot load one; a changed module set forces a rebuild).
+  // `onDeviceStarted` replays the host's setup calls into a rebuilt device,
+  // whose module guest state starts from scratch.
   const hasBundleAnimations = (assetBundle.animations?.length ?? 0) > 0;
   useEffect(() => {
     if (!hasBundleAnimations || animationModuleRef.current) {
       return;
     }
     let cancelled = false;
-    loadAnimationModule()
+    const loading = loadAnimationModule()
       .then((module) => {
         if (cancelled) {
           return;
@@ -1913,6 +1920,7 @@ function VizijRuntimeProviderInner({
           timestamp: performance.now(),
         });
       });
+    deviceSlot.waitForModules(loading);
     return () => {
       cancelled = true;
     };
@@ -2144,12 +2152,13 @@ function VizijRuntimeProviderInner({
   }, []);
 
   /**
-   * One tick: step the device (dt seconds → ms at exactly this boundary),
-   * then pull the changed keys and apply them to the render store. The
-   * push-model frame subscription this replaces re-rendered the provider
-   * every step; the pull model renders only what the changes touch —
-   * step-aligned consumers subscribe through `subscribeToStep` and read
-   * the values they care about via `getValueSnapshot`.
+   * One tick: pull the changed keys off the device and apply them to the
+   * render store. A device under its own `run()` loop is already stepping —
+   * only the drain happens here; a manually driven one is stepped first
+   * (dt seconds → ms at exactly this boundary). The pull model renders only
+   * what the changes touch — step-aligned consumers subscribe through
+   * `subscribeToStep` and read the values they care about via
+   * `getValueSnapshot`.
    */
   const stepRuntime = useCallback(
     (dt: number) => {
@@ -2157,7 +2166,9 @@ function VizijRuntimeProviderInner({
       if (!handle) {
         return;
       }
-      handle.device.step(dt * 1000);
+      if (!handle.device.running) {
+        handle.device.step(dt * 1000);
+      }
       const changes = handle.device.drainChanges() as Record<
         string,
         ValueJSON | null
@@ -2251,6 +2262,29 @@ function VizijRuntimeProviderInner({
   useEffect(() => {
     driveRuntimeRef.current = driveRuntime;
   }, [driveRuntime]);
+
+  // A driving provider hands its device to the device's own loop: it paces
+  // itself (RUN_PERIOD_MS), and the JS loop below only pumps — tweens,
+  // routing, staged-input flush, change drain. A non-driving provider leaves
+  // the device manually stepped (step via forceRuntime). Once under run() a
+  // device cannot be handed back: turning driveRuntime off later only stops
+  // this provider's pump cadence from being the active one.
+  useEffect(() => {
+    deviceSlot.onRunEnded = (error: unknown) => {
+      pushError({
+        message: "The device's run loop ended: stepping failed",
+        cause: error,
+        phase: "engine",
+        timestamp: performance.now(),
+      });
+    };
+    if (driveRuntime) {
+      deviceSlot.runPeriodMs = RUN_PERIOD_MS;
+      deviceSlot.startRun();
+    } else {
+      deviceSlot.runPeriodMs = null;
+    }
+  }, [deviceSlot, driveRuntime, pushError]);
 
   const glbAsset = effectiveAssetBundle.glb;
   const baseBundle: VizijBundleExtension | null =

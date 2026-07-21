@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@vizij/animation-module": "^0.1.1",
-    "@vizij/arora-web-wasm": "^0.2.0",
+    "@vizij/arora-web-wasm": "^1.0.0",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/render": "workspace:*",
     "@vizij/utils": "workspace:*",

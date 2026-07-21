@@ -369,6 +369,13 @@ export type VizijRuntimeProviderProps = {
   updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
   autostart?: boolean;
+  /**
+   * Whether this provider's device paces itself: when true the device is
+   * handed to its own `run()` loop at boot and the provider only pumps its
+   * changes; when false the device advances solely on `step(dt,
+   * { forceRuntime: true })` calls from the host. A device handed to `run()`
+   * keeps its loop even if this later turns false.
+   */
   driveRuntime?: boolean;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
