@@ -29,7 +29,13 @@ interface BoundsFieldProps {
   onCommit: (value: number) => void;
 }
 
-function BoundsField({ label, value, step, testId, onCommit }: BoundsFieldProps) {
+function BoundsField({
+  label,
+  value,
+  step,
+  testId,
+  onCommit,
+}: BoundsFieldProps) {
   const scrubStartRef = useRef(0);
   return (
     <div
@@ -131,8 +137,7 @@ export function FaceBoundsSection({ node }: FaceBoundsSectionProps) {
     0.01,
     Math.max(bounds.size.x, bounds.size.y) / 200,
   );
-  const aspect =
-    bounds.size.y > 0 ? bounds.size.x / bounds.size.y : Number.NaN;
+  const aspect = bounds.size.y > 0 ? bounds.size.x / bounds.size.y : Number.NaN;
 
   return (
     <div
@@ -217,9 +222,7 @@ export function FaceBoundsSection({ node }: FaceBoundsSectionProps) {
       </div>
       <div className="flex items-center justify-between gap-1.5 px-0.5">
         <span className="text-[9px] text-text-muted">
-          {Number.isFinite(aspect)
-            ? `Aspect ${aspect.toFixed(3)}`
-            : "Aspect —"}
+          {Number.isFinite(aspect) ? `Aspect ${aspect.toFixed(3)}` : "Aspect —"}
           {hasStoredBounds ? "" : " · using default bounds"}
         </span>
         <Button
