@@ -74,6 +74,7 @@ import { PropertyRow } from "../editor/molecules/PropertyRow";
 import { BothFacesField } from "./BothFacesField";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
+import { FaceBoundsSection } from "./FaceBoundsSection";
 import { RiggingTransformSection } from "./RiggingTransformSection";
 import { BindingConnections } from "./BindingConnections";
 import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
@@ -2558,6 +2559,7 @@ export function InspectorContent({
               </Button>
             </div>
           ) : null}
+          <FaceBoundsSection node={node} />
           <RiggingTransformSection node={node} />
 
           <RiggingMorphTargetsSection node={node} />
