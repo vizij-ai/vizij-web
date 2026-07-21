@@ -1,6 +1,6 @@
 # @vizij/runtime-react
 
-`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, composes the rig/pose/program graphs into the behavior of an Arora device ([`@vizij/arora-web-wasm`](https://www.npmjs.com/package/@vizij/arora-web-wasm) — an Arora runtime compiled to WebAssembly), mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
+`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, composes the rig/pose/program graphs into the behavior of an Arora device ([`@vizij/runtime`](https://www.npmjs.com/package/@vizij/runtime) — an Arora runtime compiled to WebAssembly), mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
 
 The package is intentionally aimed at app authors. If your app wants to render a Vizij face and drive it through authored rig inputs, this is the layer to build on.
 
@@ -24,10 +24,10 @@ pnpm add @vizij/runtime-react react react-dom
 If your app also imports lower-level renderer or engine APIs directly, install those packages too:
 
 ```bash
-pnpm add @vizij/render @vizij/arora-web-wasm
+pnpm add @vizij/render @vizij/runtime
 ```
 
-`@vizij/runtime-react`, `@vizij/render`, and `@vizij/arora-web-wasm` should stay on the same workspace/release line.
+`@vizij/runtime-react`, `@vizij/render`, and `@vizij/runtime` should stay on the same workspace/release line.
 
 ### Bundler Notes
 

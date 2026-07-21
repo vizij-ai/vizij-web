@@ -23,7 +23,7 @@
  *    another clip plays is NOT expressible against this module (documented
  *    capability gap — a future module-transport extension, not faked here).
  */
-import type { AroraDevice } from "@vizij/arora-web-wasm";
+import type { AroraDevice } from "@vizij/runtime";
 import {
   addInstanceCall,
   callResultU32,

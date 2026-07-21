@@ -26,7 +26,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/arora-web-wasm", "@vizij/animation-module"],
+    exclude: ["@vizij/runtime", "@vizij/animation-module"],
     include: ["@vizij/render"],
   },
 });

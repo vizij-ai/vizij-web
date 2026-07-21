@@ -82,7 +82,7 @@ export default defineConfig(({ mode }) => {
       exclude: [
         "@vizij/animation-wasm",
         "@vizij/node-graph-wasm",
-        "@vizij/arora-web-wasm",
+        "@vizij/runtime",
         "@vizij/animation-module",
       ],
       include: ["@vizij/node-graph-react"],

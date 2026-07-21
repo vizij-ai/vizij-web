@@ -21,7 +21,7 @@ const DEFAULT_VIZIJ_RS = path.resolve(REPO_ROOT, "..", "vizij-rs");
 const ALL_PACKAGES = [
   "animation-module",
   "animation-wasm",
-  "arora-web-wasm",
+  "runtime",
   "node-graph-wasm",
   "value-json",
   "wasm-loader",
@@ -37,8 +37,8 @@ Usage:
 
 Examples:
   pnpm run wasm:status
-  pnpm run wasm:link -- --pkgs "node-graph-wasm arora-web-wasm"
-  WASM_PKGS="graph arora-web-wasm" pnpm run wasm:link
+  pnpm run wasm:link -- --pkgs "node-graph-wasm runtime"
+  WASM_PKGS="graph runtime" pnpm run wasm:link
   pnpm run wasm:unlink -- --pkgs "all"
 
 Notes:

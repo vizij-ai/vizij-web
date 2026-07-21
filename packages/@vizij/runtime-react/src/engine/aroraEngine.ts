@@ -32,7 +32,7 @@ import {
   type DeviceModule,
   type ValueJSON,
   type InitInput,
-} from "@vizij/arora-web-wasm";
+} from "@vizij/runtime";
 
 export type { DeviceModule };
 

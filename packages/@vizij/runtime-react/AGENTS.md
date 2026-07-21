@@ -1,7 +1,7 @@
 # Agent Notes - @vizij/runtime-react
 
 - Run scripts with `pnpm --filter "@vizij/runtime-react"` (`build`, `test`, `typecheck`, `lint`, `dev`, `clean`). Builds are handled by `tsup`; keep bundles in `dist/`.
-- The runtime stitches together `@vizij/render`, `@vizij/arora-web-wasm` (the engine device), and asset bundle helpers. When updating hooks or provider props, verify the tutorial runtime (`apps/tutorial-fullscreen-face`) and any sample bundles still load without console errors.
+- The runtime stitches together `@vizij/render`, `@vizij/runtime` (the engine device), and asset bundle helpers. When updating hooks or provider props, verify the tutorial runtime (`apps/tutorial-fullscreen-face`) and any sample bundles still load without console errors.
 - Keep README usage samples aligned with the render package and the arora-web wasm; export changes there usually require mirrored docs and new integration notes here.
 - Before publishing, run:
 
