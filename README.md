@@ -49,7 +49,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via th
 | `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                 | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/speech-react`         | `packages/@vizij/speech-react`         | Shared STT/LLM/TTS speech pipeline hooks for Vizij React apps.   | `dev`, `build`, `typecheck`, `clean`         |
+| `@vizij/speech-react`         | `packages/@vizij/speech-react`         | Shared STT/LLM/TTS speech pipeline hooks for Vizij React apps.  | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
 
 ### Apps

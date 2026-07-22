@@ -20,7 +20,7 @@ Use this file when working under `apps/`.
 | `demo-animation-studio`        | Advanced animation playground with preset + rig editors.              |
 | `demo-graph-studio`            | Node graph editor; depends heavily on `@vizij/node-graph-react`.      |
 | `vizij-authoring`              | GLB inspector/exporter and motiongraph authoring surface.             |
-| `demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.     |
+| `demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.    |
 | `minimal-demo-animation`       | Minimal animation runtime smoke test.                                 |
 | `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters. |
 | `minimal-demo-graph`           | Lightweight node-graph playground (inputs/outputs/staging demos).     |
