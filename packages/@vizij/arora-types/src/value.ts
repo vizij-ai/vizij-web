@@ -1,5 +1,5 @@
 /**
- * Arora Value - matches Rust arora_schema::Value serde format.
+ * Arora Value - matches Rust arora_types::value::Value serde format.
  *
  * The Rust enum uses #[serde(rename = "...")] on variants with externally tagged
  * serialization (the default), which produces JSON like:
@@ -43,7 +43,7 @@ export type AroraValue =
   | { "value[]": AroraValue[] };
 
 /**
- * Arora Type - matches Rust arora_schema::Type serde format.
+ * Arora Type - matches Rust arora_types::value::Type serde format.
  * Describes the type of a Value without holding data.
  */
 export type AroraType =

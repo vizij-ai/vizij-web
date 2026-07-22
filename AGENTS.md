@@ -33,13 +33,6 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps                        |
 | `@vizij/arora-types`          | TypeScript protocol surface for standalone/control work       |
 
-### Local Rust crates under `packages/`
-
-| Crate              | Focus                                           |
-| ------------------ | ----------------------------------------------- |
-| `arora-connection` | Core Arora connection traits/types              |
-| `arora-websocket`  | WebSocket implementation for the Arora protocol |
-
 ### Apps (`apps/*`)
 
 | App                            | Focus                                |
