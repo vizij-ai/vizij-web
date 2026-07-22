@@ -39,11 +39,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: [
-      "@vizij/node-graph",
-      "@vizij/runtime",
-      "@vizij/animation-module",
-    ],
+    exclude: ["@vizij/node-graph", "@vizij/runtime", "@vizij/animation-module"],
     include: ["@vizij/render"],
   },
 });

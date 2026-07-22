@@ -48,9 +48,10 @@ vi.mock("@vizij/node-graph-authoring", async () => {
 });
 
 vi.mock("@vizij/node-graph", async () => {
-  const actual = await vi.importActual<typeof import("@vizij/node-graph")>(
-    "@vizij/node-graph",
-  );
+  const actual =
+    await vi.importActual<typeof import("@vizij/node-graph")>(
+      "@vizij/node-graph",
+    );
   return {
     ...actual,
     normalizeGraphSpec: vi.fn(),

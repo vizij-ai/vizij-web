@@ -15,8 +15,7 @@ let mode: "ok" | "fail" = "ok";
 let lastGraph: any = null;
 
 vi.mock("@vizij/node-graph", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@vizij/node-graph")>();
+  const actual = await importOriginal<typeof import("@vizij/node-graph")>();
   const {
     listNodeGraphFixtures,
     loadNodeGraphBundle,

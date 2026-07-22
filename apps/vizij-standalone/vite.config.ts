@@ -50,11 +50,7 @@ export default defineConfig(async () => ({
     },
   },
   optimizeDeps: {
-    exclude: [
-      "@vizij/node-graph",
-      "@vizij/runtime",
-      "@vizij/animation-module",
-    ],
+    exclude: ["@vizij/node-graph", "@vizij/runtime", "@vizij/animation-module"],
     include: [
       "@vizij/node-graph-react",
       "@vizij/node-graph-authoring",
