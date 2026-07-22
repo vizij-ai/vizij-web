@@ -11,7 +11,7 @@ import type {
   StoredAnimation,
   Value as WasmValue,
   BakedAnimationData,
-} from "@vizij/animation-wasm";
+} from "@vizij/animation";
 
 type AnimationSourceMap =
   | Map<number, StoredAnimation>

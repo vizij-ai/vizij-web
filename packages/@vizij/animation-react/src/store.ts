@@ -1,4 +1,4 @@
-import type { OutputsWithDerivatives } from "@vizij/animation-wasm";
+import type { OutputsWithDerivatives } from "@vizij/animation";
 import type { Value, Unsubscribe } from "./types";
 
 type SubscriberMap = Map<string, Set<() => void>>;

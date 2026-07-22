@@ -1,5 +1,5 @@
 import React from "react";
-import type { CoreEvent } from "@vizij/animation-wasm";
+import type { CoreEvent } from "@vizij/animation";
 
 /**
  * EventsLog (MVP)

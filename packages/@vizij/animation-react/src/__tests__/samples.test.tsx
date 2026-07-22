@@ -2,7 +2,7 @@
 import React from "react";
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
-import { init as initAnimationWasm } from "@vizij/animation-wasm";
+import { init as initAnimationWasm } from "@vizij/animation";
 import {
   AnimationProvider,
   useAnimation,

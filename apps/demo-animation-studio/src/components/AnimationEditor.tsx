@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { StoredAnimation } from "@vizij/animation-wasm";
+import type { StoredAnimation } from "@vizij/animation";
 import { cloneDeepSafe } from "@vizij/utils";
 
 const cloneAnimation = (anim: StoredAnimation): StoredAnimation =>

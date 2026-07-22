@@ -20,7 +20,7 @@ const DEFAULT_VIZIJ_RS = path.resolve(REPO_ROOT, "..", "vizij-rs");
 
 const ALL_PACKAGES = [
   "animation-module",
-  "animation-wasm",
+  "animation",
   "runtime",
   "node-graph-wasm",
   "value-json",
@@ -103,7 +103,6 @@ function normalizePackageToken(token) {
   const t = token.trim().toLowerCase();
   if (!t) return null;
   if (t === "all" || t === "*") return "all";
-  if (t === "animation") return "animation-wasm";
   if (t === "graph") return "node-graph-wasm";
   if (t === "node-graph") return "node-graph-wasm";
   if (t === "fixtures") return "test-fixtures";

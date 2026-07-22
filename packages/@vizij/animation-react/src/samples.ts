@@ -3,7 +3,7 @@ import {
   loadAnimationFixture,
   loadAnimationJson,
   resolveAnimationPath,
-} from "@vizij/animation-wasm";
+} from "@vizij/animation";
 
 export {
   listAnimationFixtures,

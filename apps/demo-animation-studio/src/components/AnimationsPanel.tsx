@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import type { StoredAnimation } from "@vizij/animation-wasm";
+import type { StoredAnimation } from "@vizij/animation";
 import { useAnimation } from "@vizij/animation-react";
 
 function cloneWithoutTransitions(anim: StoredAnimation): StoredAnimation {

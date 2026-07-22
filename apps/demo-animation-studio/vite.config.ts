@@ -12,7 +12,7 @@ export default defineConfig({
       // anymatch supports negation; first ignore, then unignore our packages
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
+        "!**/node_modules/@vizij/animation/**",
         "!**/node_modules/@vizij/animation-react/**",
       ],
     },
@@ -23,7 +23,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Prevent pre-bundling the wasm ESM shim in dev; let Vite handle it directly
-    exclude: ["@vizij/animation-wasm"],
+    exclude: ["@vizij/animation"],
     // Ensure react binding is optimized for fast refreshed named exports
     include: ["@vizij/animation-react"],
     force: true,

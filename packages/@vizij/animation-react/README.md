@@ -2,7 +2,7 @@
 
 > **React provider and hooks for Vizij’s animation WASM runtime.**
 
-This package wraps `@vizij/animation-wasm` with React-friendly primitives so applications can load animations, manage players/instances, stream outputs, and bake results using idiomatic hooks.
+This package wraps `@vizij/animation` with React-friendly primitives so applications can load animations, manage players/instances, stream outputs, and bake results using idiomatic hooks.
 
 ---
 
@@ -23,7 +23,7 @@ This package wraps `@vizij/animation-wasm` with React-friendly primitives so app
 
 ## Overview
 
-- Initialises `@vizij/animation-wasm` automatically and manages the wasm engine lifecycle.
+- Initialises `@vizij/animation` automatically and manages the wasm engine lifecycle.
 - Loads one or more `StoredAnimation` clips, creates players/instances, and keeps them in sync with React state.
 - Provides fine-grained subscriptions (`useAnimTarget`) backed by `useSyncExternalStore`.
 - Supports manual or automatic playback (`autostart` with RAF or manual stepping via `step`).
@@ -35,18 +35,18 @@ This package wraps `@vizij/animation-wasm` with React-friendly primitives so app
 
 ```bash
 # pnpm
-pnpm add @vizij/animation-react @vizij/animation-wasm react react-dom
+pnpm add @vizij/animation-react @vizij/animation react react-dom
 
 # npm
-npm install @vizij/animation-react @vizij/animation-wasm react react-dom
+npm install @vizij/animation-react @vizij/animation react react-dom
 
 # yarn
-yarn add @vizij/animation-react @vizij/animation-wasm react react-dom
+yarn add @vizij/animation-react @vizij/animation react react-dom
 ```
 
-During local development with linked WASM packages, ensure your bundler preserves symlinks and excludes `@vizij/animation-wasm` from pre-bundling (see the [`vizij-web` README](../../../README.md#local-wasm-development) for a Vite example).
+During local development with linked WASM packages, ensure your bundler preserves symlinks and excludes `@vizij/animation` from pre-bundling (see the [`vizij-web` README](../../../README.md#local-wasm-development) for a Vite example).
 
-> **Bundler note:** `@vizij/animation-react` depends on `@vizij/animation-wasm`, which emits a `.wasm` artefact. Enable async WebAssembly and treat `.wasm` files as emitted assets in your bundler. For Next.js:
+> **Bundler note:** `@vizij/animation-react` depends on `@vizij/animation`, which emits a `.wasm` artefact. Enable async WebAssembly and treat `.wasm` files as emitted assets in your bundler. For Next.js:
 >
 > ```js
 > // next.config.js
@@ -73,7 +73,7 @@ During local development with linked WASM packages, ensure your bundler preserve
 
 - `react >= 18`
 - `react-dom >= 18`
-- `@vizij/animation-wasm` (keep the version in sync with the `vizij-rs` publish)
+- `@vizij/animation` (keep the version in sync with the `vizij-rs` publish)
 
 When working from source, update these ranges before cutting a release so downstream apps do not end up with duplicate React copies or mismatched WASM ABIs.
 
@@ -240,7 +240,7 @@ The workflow builds with the latest linked dependencies, runs tests, and publish
 
 ## Related Packages
 
-- [`@vizij/animation-wasm`](../../../vizij-rs/npm/@vizij/animation-wasm/README.md) – WASM binding used internally.
+- [`@vizij/animation`](../../../vizij-rs/npm/@vizij/animation/README.md) – WASM binding used internally.
 - [`vizij-animation-core`](../../../vizij-rs/crates/animation/vizij-animation-core/README.md) – underlying animation engine.
 - [`@vizij/node-graph-react`](../node-graph-react/README.md) – complementary React bindings.
 
