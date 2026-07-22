@@ -43,7 +43,6 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via th
 | Package                       | Path                                   | Summary                                                         | Key scripts                                  |
 | ----------------------------- | -------------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
 | `@vizij/animation-react`      | `packages/@vizij/animation-react`      | React provider for the animation WASM engine.                   | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/arora-types`          | `packages/@vizij/arora-types`          | TypeScript protocol types for standalone/control work.          | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.                | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                   | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |

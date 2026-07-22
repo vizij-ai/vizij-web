@@ -15,7 +15,6 @@ Use this note when touching anything under `packages/`.
 | Package                       | Path                          | Notes                                                          |
 | ----------------------------- | ----------------------------- | -------------------------------------------------------------- |
 | `@vizij/animation-react`      | `@vizij/animation-react`      | React bindings for the animation runtime.                      |
-| `@vizij/arora-types`          | `@vizij/arora-types`          | TypeScript protocol surface for standalone/control work.       |
 | `@vizij/minimal-demo-ui`      | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps.                        |
 | `@vizij/node-graph-authoring` | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                  |
 | `@vizij/node-graph-react`     | `@vizij/node-graph-react`     | React bindings for node graphs and staging helpers.            |
