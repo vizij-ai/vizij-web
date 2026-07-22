@@ -112,6 +112,7 @@ import type { RuntimeGraphSpec } from "./runtimeGraphSpec";
 import { useRigGraphImport } from "./useRigGraphImport";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
 import { useRigPersistence } from "./useRigPersistence";
+import { useRigHistoryScope } from "./useRigHistoryScope";
 import {
   buildBindingIssuesMap,
   buildGraphMachineReport,
@@ -2811,6 +2812,33 @@ export function useRigController(
     rebuildAutoInputs,
     alertDialog,
     pendingFaceRenameRef,
+  });
+
+  useRigHistoryScope({
+    autoInputs,
+    customInputs,
+    bindings,
+    inputBindings,
+    selectedStandardInputRoots,
+    selectedStandardInputSubgroups,
+    disabledStandardInputIds,
+    lockedInspectorTargetIds,
+    hiddenDriverIds,
+    featureLabelOverrides,
+    featureFlags,
+    standardInputSchema,
+    setAutoInputs,
+    setCustomInputs,
+    setBindings,
+    setInputBindings,
+    setSelectedStandardInputRoots,
+    setSelectedStandardInputSubgroups,
+    setDisabledStandardInputIds,
+    setLockedInspectorTargetIds,
+    setHiddenDriverIds,
+    setFeatureLabelOverrides,
+    setFeatureFlags,
+    setStandardInputSchema: handleSetStandardInputSchema,
   });
 
   const refreshAutoMetadataForShape = useCallback(

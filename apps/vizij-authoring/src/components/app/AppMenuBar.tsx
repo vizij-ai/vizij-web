@@ -8,10 +8,10 @@ import {
   MenuLabel,
   MenuSubmenu,
 } from "../ui/MenuBar";
-import { Button } from "../ui/Button";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
+import { appHistory, useHistoryStatus } from "../../state/history/historyStore";
 import type {
   EditFocus,
   RotationDisplayMode,
@@ -19,6 +19,7 @@ import type {
 import { cn } from "../../utils/cn";
 
 type AuthoringSurfaceMenuTarget =
+  | "starred"
   | "variables"
   | "poses"
   | "pose-groups"
@@ -30,9 +31,10 @@ interface AppMenuBarProps {
   onImport: () => void;
   onImportSkipChecks: () => void;
   onImportReferenceFace: () => void;
-  onSave: () => void;
   onExport: () => void;
+  /** Whether autosave is active for the loaded face. */
   canSave: boolean;
+  /** True while working changes are pending an autosave write. */
   saveDirty: boolean;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
@@ -49,7 +51,6 @@ export function AppMenuBar({
   onImport,
   onImportSkipChecks,
   onImportReferenceFace,
-  onSave,
   onExport,
   canSave,
   saveDirty,
@@ -100,10 +101,13 @@ export function AppMenuBar({
   );
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
+  const canUndo = useHistoryStatus((state) => state.canUndo);
+  const canRedo = useHistoryStatus((state) => state.canRedo);
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
   const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
     if (
+      surface === "starred" ||
       surface === "variables" ||
       surface === "animations" ||
       surface === "programs"
@@ -157,28 +161,29 @@ export function AppMenuBar({
           onSelect={onImportReferenceFace}
           testId="app-menu-file-import-reference-face"
         >
-          Import Reference Face...
+          Import Comparison Face...
         </MenuItem>
         <MenuItem onSelect={onExport} testId="app-menu-file-export">
           Export...
         </MenuItem>
         <MenuSeparator />
-        <MenuItem
-          onSelect={onSave}
-          disabled={!canSave}
-          testId="app-menu-file-save"
-        >
-          Save
-        </MenuItem>
-        <MenuItem onSelect={onExport} disabled={!canSave}>
-          Save As...
-        </MenuItem>
-        <MenuSeparator />
         <MenuItem onSelect={() => {}}>Exit</MenuItem>
       </Menu>
       <Menu label="Edit" testId="app-menu-edit">
-        <MenuItem>Undo</MenuItem>
-        <MenuItem>Redo</MenuItem>
+        <MenuItem
+          onSelect={() => appHistory.undo()}
+          disabled={!canUndo}
+          testId="app-menu-edit-undo"
+        >
+          Undo
+        </MenuItem>
+        <MenuItem
+          onSelect={() => appHistory.redo()}
+          disabled={!canRedo}
+          testId="app-menu-edit-redo"
+        >
+          Redo
+        </MenuItem>
       </Menu>
       <Menu label="Mode" testId="app-menu-mode">
         <MenuLabel>Edit Focus</MenuLabel>
@@ -213,7 +218,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Pose Creation
+          Expression Creation
         </MenuCheckboxItem>
         <MenuCheckboxItem
           testId="app-menu-mode-pose-editing"
@@ -224,7 +229,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Pose Editing
+          Expression Editing
         </MenuCheckboxItem>
         <MenuCheckboxItem
           testId="app-menu-mode-procedural-animation"
@@ -235,7 +240,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Procedural Animations
+          Behavior Programming
         </MenuCheckboxItem>
         <MenuCheckboxItem
           testId="app-menu-mode-reference-face"
@@ -246,7 +251,7 @@ export function AppMenuBar({
             }
           }}
         >
-          Reference Face
+          Comparison Face
         </MenuCheckboxItem>
       </Menu>
       <Menu label="View" testId="app-menu-view">
@@ -270,6 +275,17 @@ export function AppMenuBar({
           }}
         >
           <MenuCheckboxItem
+            checked={activeAuthoringSurface === "starred"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("starred");
+            }}
+          >
+            Starred
+          </MenuCheckboxItem>
+          <MenuCheckboxItem
             checked={activeAuthoringSurface === "variables"}
             onCheckedChange={(checked) => {
               if (!checked) {
@@ -278,7 +294,7 @@ export function AppMenuBar({
               showAuthoringSurface("variables");
             }}
           >
-            Drivers
+            Controls
           </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "poses"}
@@ -289,7 +305,7 @@ export function AppMenuBar({
               showAuthoringSurface("poses");
             }}
           >
-            Poses
+            Expressions
           </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "pose-groups"}
@@ -300,7 +316,7 @@ export function AppMenuBar({
               showAuthoringSurface("pose-groups");
             }}
           >
-            Pose Groups
+            Expression Sets
           </MenuCheckboxItem>
           <MenuCheckboxItem
             checked={activeAuthoringSurface === "animations"}
@@ -322,7 +338,7 @@ export function AppMenuBar({
               showAuthoringSurface("programs");
             }}
           >
-            Programs
+            Behaviors
           </MenuCheckboxItem>
         </MenuSubmenu>
         <MenuCheckboxItem
@@ -349,7 +365,7 @@ export function AppMenuBar({
             setCenterPanelVisibility("motiongraph", checked)
           }
         >
-          Program
+          Behavior
         </MenuCheckboxItem>
         <MenuCheckboxItem
           checked={referenceFacePanelVisible}
@@ -357,7 +373,7 @@ export function AppMenuBar({
             setCenterPanelVisibility("referenceFace", checked)
           }
         >
-          Reference Face
+          Comparison Face
         </MenuCheckboxItem>
         <MenuSeparator />
         <MenuLabel>Right Panel</MenuLabel>
@@ -411,28 +427,24 @@ export function AppMenuBar({
         </MenuCheckboxItem>
       </Menu>
 
-      <Button
-        data-testid="app-save-button"
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!canSave}
-        onClick={onSave}
-        className={cn(
-          "ml-2 h-8 rounded-lg px-3 text-sm font-semibold",
-          saveDirty
-            ? "bg-accent/10 text-accent ring-1 ring-accent/35 hover:bg-accent/15 hover:text-accent"
-            : "text-text-secondary",
-        )}
-      >
-        {saveDirty ? (
-          <span
-            aria-hidden="true"
-            className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-current"
-          />
-        ) : null}
-        Save
-      </Button>
+      {canSave ? (
+        <span
+          data-testid="app-autosave-status"
+          role="status"
+          className={cn(
+            "ml-2 flex h-8 items-center rounded-lg px-3 text-xs font-medium",
+            saveDirty ? "text-accent" : "text-text-muted",
+          )}
+        >
+          {saveDirty ? (
+            <span
+              aria-hidden="true"
+              className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current"
+            />
+          ) : null}
+          {saveDirty ? "Saving…" : "Saved"}
+        </span>
+      ) : null}
 
       <div className="flex-1" />
       <ThemeToggle className="mr-2" />

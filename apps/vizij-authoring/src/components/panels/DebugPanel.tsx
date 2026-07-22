@@ -24,6 +24,16 @@ import { InstructionCallout } from "../common/InstructionCallout";
 import { RobotDataAuditPanel } from "../app/RobotDataAuditPanel";
 import { VizijBundleAuditPanel } from "../app/VizijBundleAuditPanel";
 import { GraphDiagnosticsPanel } from "../app/GraphDiagnosticsPanel";
+import { CheckupPanel } from "../app/CheckupPanel";
+import {
+  buildCheckupReport,
+  collectBundleIssues,
+  collectImportIssues,
+  collectPoseIssues,
+  collectRigGraphIssues,
+  collectRobotDataIssues,
+} from "../../checkup/collectCheckupIssues";
+import type { CheckupIssue, CheckupSectionId } from "../../checkup/types";
 import { useRobotDataAuditRunner } from "../../hooks/useRobotDataAuditRunner";
 import { useBundleAudit } from "../../hooks/useBundleAudit";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
@@ -34,6 +44,7 @@ import { assessLegacyBindingMigration } from "../inspector/pipelineStages";
 import { collectGlobalUnmatchedPoseOutputs } from "../inspector/rigConnections";
 
 type HealthTabId =
+  | "checkup"
   | "playback"
   | "robot-audit"
   | "bundle-audit"
@@ -41,12 +52,21 @@ type HealthTabId =
   | "maintenance";
 
 const HEALTH_TABS: ReadonlyArray<{ id: HealthTabId; label: string }> = [
+  { id: "checkup", label: "Checkup" },
   { id: "playback", label: "Playback" },
   { id: "robot-audit", label: "RobotData" },
-  { id: "bundle-audit", label: "Bundle Graphs" },
+  { id: "bundle-audit", label: "Face Package Graphs" },
   { id: "diagnostics", label: "Graph Diagnostics" },
-  { id: "maintenance", label: "Rig Maintenance" },
+  { id: "maintenance", label: "Maintenance" },
 ];
+
+const CHECKUP_SECTION_TABS: Record<CheckupSectionId, HealthTabId> = {
+  "rig-graph": "diagnostics",
+  bundle: "bundle-audit",
+  "robot-data": "robot-audit",
+  poses: "diagnostics",
+  import: "diagnostics",
+};
 
 const UNMATCHED_OUTPUT_PREVIEW_LIMIT = 24;
 
@@ -72,7 +92,7 @@ export function DebugPanel({
   isLoading,
   onClosePanel,
 }: DebugPanelProps) {
-  const [activeTab, setActiveTab] = useState<HealthTabId>("playback");
+  const [activeTab, setActiveTab] = useState<HealthTabId>("checkup");
 
   // Graph Runtime Hook
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
@@ -113,9 +133,16 @@ export function DebugPanel({
   );
   const bindings = useBindingAuthoring((state) => state.bindings);
   const inputBindings = useBindingAuthoring((state) => state.inputBindings);
+  const bindingIssues = useBindingAuthoring((state) => state.bindingIssues);
+
+  const graphMachineReport = useGraphRuntime(
+    (state) => state.graphMachineReport,
+  );
+  const discrepancyReview = useGraphRuntime((state) => state.discrepancyReview);
 
   const poses = usePoseRigStore((state) => state.poses);
   const neutralInputs = usePoseRigStore((state) => state.neutralInputs);
+  const poseDiagnostics = usePoseRigStore((state) => state.poseDiagnostics);
 
   const migrationEntries = useMemo(
     () =>
@@ -196,6 +223,102 @@ export function DebugPanel({
       : bundleAuditError
         ? "error"
         : "idle";
+
+  // Unified Checkup report
+  const checkupRunning =
+    robotAudit.status === "running" || bundleAuditStatus === "running";
+  const checkupReport = useMemo(() => {
+    const bundleIssues: CheckupIssue[] = collectBundleIssues(bundleAudit);
+    if (bundleAuditError) {
+      bundleIssues.push({
+        id: "bundle/audit-error",
+        section: "bundle",
+        severity: "error",
+        message: `Bundle audit failed: ${bundleAuditError}`,
+      });
+    }
+    const robotDataIssues: CheckupIssue[] = collectRobotDataIssues(
+      robotAudit.result,
+    );
+    if (robotAudit.error) {
+      robotDataIssues.push({
+        id: "robot-data/audit-error",
+        section: "robot-data",
+        severity: "error",
+        message: `RobotData audit failed: ${robotAudit.error}`,
+      });
+    }
+    if (robotAudit.result && robotAudit.isResultStale) {
+      robotDataIssues.push({
+        id: "robot-data/stale",
+        section: "robot-data",
+        severity: "info",
+        message:
+          "RobotData results are from a previous load — re-run the checkup",
+      });
+    }
+    return buildCheckupReport([
+      {
+        id: "rig-graph",
+        issues: collectRigGraphIssues({
+          graphStatus,
+          graphError,
+          graphWarning,
+          machineReport: graphMachineReport,
+          bindingIssues,
+        }),
+        hasResult: true,
+      },
+      {
+        id: "bundle",
+        issues: bundleIssues,
+        running: bundleAuditStatus === "running",
+        hasResult: bundleAudit !== null || Boolean(bundleAuditError),
+      },
+      {
+        id: "robot-data",
+        issues: robotDataIssues,
+        running: robotAudit.status === "running",
+        hasResult: robotAudit.result !== null || Boolean(robotAudit.error),
+      },
+      {
+        id: "poses",
+        issues: collectPoseIssues({
+          poseDiagnostics,
+          unmatchedPoseOutputs,
+        }),
+        hasResult: true,
+      },
+      {
+        id: "import",
+        issues: collectImportIssues(discrepancyReview),
+        hasResult: true,
+      },
+    ]);
+  }, [
+    bundleAudit,
+    bundleAuditError,
+    bundleAuditStatus,
+    robotAudit.result,
+    robotAudit.error,
+    robotAudit.isResultStale,
+    robotAudit.status,
+    graphStatus,
+    graphError,
+    graphWarning,
+    graphMachineReport,
+    bindingIssues,
+    poseDiagnostics,
+    unmatchedPoseOutputs,
+    discrepancyReview,
+  ]);
+
+  const handleRunCheckup = useCallback(() => {
+    refreshBundleAudit();
+    if (canRunRobotDataAudit) {
+      robotAudit.runAudit();
+    }
+  }, [refreshBundleAudit, canRunRobotDataAudit, robotAudit]);
 
   // Callbacks for Bundle Audit
   const handleOverwriteBundleGraph = useCallback(
@@ -306,7 +429,7 @@ export function DebugPanel({
 
   const handleClearCachedRig = useCallback(async () => {
     const confirmed = await showConfirm(
-      "Clear cached rig data for this asset? This removes saved inputs, bindings, and overrides.",
+      "Clear cached rig data for this asset? This removes saved inputs, links, and overrides.",
     );
     if (!confirmed) {
       return;
@@ -339,7 +462,7 @@ export function DebugPanel({
   return (
     <Panel
       title="Debug"
-      description="Monitor status, playback, and rig health."
+      description="Monitor status, playback, and face health."
       className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={
         onClosePanel ? (
@@ -374,6 +497,18 @@ export function DebugPanel({
           variant="underline"
           renderPanel={(tabId) => {
             switch (tabId) {
+              case "checkup":
+                return (
+                  <CheckupPanel
+                    report={checkupReport}
+                    canRun={canRunRobotDataAudit || Boolean(loadedBundle)}
+                    running={checkupRunning}
+                    onRunAll={handleRunCheckup}
+                    onOpenSection={(sectionId) =>
+                      setActiveTab(CHECKUP_SECTION_TABS[sectionId])
+                    }
+                  />
+                );
               case "playback":
                 return (
                   <div className="flex flex-col gap-5 text-xs font-mono">
@@ -601,7 +736,7 @@ export function DebugPanel({
                 return (
                   <div className="flex flex-col gap-4">
                     <InstructionCallout
-                      label="Bundle Graphs"
+                      label="Face Package Graphs"
                       summary="Keep GraphSpecs + IR aligned"
                       size="compact"
                       icon={<FileCheck className="w-4 h-4 text-accent" />}
@@ -698,7 +833,7 @@ export function DebugPanel({
                 return (
                   <div className="flex flex-col gap-4">
                     <InstructionCallout
-                      label="Rig Maintenance"
+                      label="Maintenance"
                       summary="Clear overrides and cache"
                       size="compact"
                       icon={<Wrench className="w-4 h-4 text-text-muted" />}

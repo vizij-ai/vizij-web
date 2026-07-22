@@ -67,11 +67,11 @@ const modeMeta: Record<
     badgeClassName: "bg-color-accent-subtle text-color-accent",
   },
   "procedural-animation-programming": {
-    label: "PAP Mode",
+    label: "Behavior Mode",
     badgeClassName: "bg-color-warning-subtle text-color-warning",
   },
   "reference-face": {
-    label: "Reference Face Mode",
+    label: "Comparison Face Mode",
     badgeClassName: "bg-bg-secondary text-text-secondary",
   },
   none: {

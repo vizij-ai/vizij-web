@@ -34,9 +34,9 @@ import {
 } from "./rigConnections";
 
 const poseSourceKindLabels: Record<string, string> = {
-  "pose-entry": "Pose entry",
-  "pose-group-output": "Pose group output",
-  "pose-aggregate-output": "Pose aggregate output",
+  "pose-entry": "Expression entry",
+  "pose-group-output": "Expression set output",
+  "pose-aggregate-output": "Expression aggregate output",
 };
 
 const traversalStageLabels: Record<PoseRigTraversalNode["kind"], string> = {
@@ -167,12 +167,12 @@ export function BindingConnections({
       },
       {
         id: "pose-group-aggregates",
-        label: "Pose Group Aggregates",
+        label: "Expression Set Aggregates",
         rigs: poseGroupAggregateRigs,
       },
       {
         id: "pose-aggregates",
-        label: "Pose Aggregates",
+        label: "Expression Aggregates",
         rigs: aggregateOutputRigs,
       },
     ].filter((category) => category.rigs.length > 0);
@@ -1234,7 +1234,7 @@ export function BindingConnections({
         {isTraceSectionOpen && trace.targets.length === 0 ? (
           <p className="text-[10px] text-text-muted italic px-1">
             {trace.diagnostics[0] ??
-              "No traceable pose/rig path for this selection."}
+              "No traceable expression/control path for this selection."}
           </p>
         ) : isTraceSectionOpen ? (
           <div className="flex flex-col gap-1.5">

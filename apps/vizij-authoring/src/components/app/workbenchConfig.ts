@@ -23,19 +23,19 @@ export const WORKBENCH_OPTIONS: WorkbenchOption[] = [
   {
     id: "scene-composer",
     label: "Rigging",
-    description: "Inspect objects, manage drivers, and edit bindings.",
+    description: "Inspect objects, manage controls, and edit links.",
     icon: "view_in_ar",
   },
   {
     id: "pose-rig",
-    label: "Posing",
-    description: "Edit the pose graph and rig logic.",
+    label: "Expressions",
+    description: "Edit the expression graph and rig logic.",
     icon: "accessibility_new",
   },
   {
     id: "std-feature-spaces",
-    label: "Standard Feature Spaces",
-    description: "Map your model to standard feature spaces.",
+    label: "Standard Controls",
+    description: "Map your model to the standard controls.",
     icon: "face",
   },
 ];

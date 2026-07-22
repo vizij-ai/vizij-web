@@ -738,7 +738,7 @@ export function assessLegacyBindingMigration(
       reason:
         typeof pipeline.legacy.reason === "string"
           ? pipeline.legacy.reason
-          : "Legacy expression marked read-only.",
+          : "Legacy formula marked read-only.",
     };
   }
 
@@ -747,7 +747,7 @@ export function assessLegacyBindingMigration(
       kind: "non-convertible",
       expression,
       canonicalExpression,
-      reason: "Legacy expression is empty.",
+      reason: "Legacy formula is empty.",
     };
   }
 
@@ -784,7 +784,7 @@ export function assessLegacyBindingMigration(
       expression,
       canonicalExpression,
       reason:
-        "Expression is not a canonical additive self+parent form. Keep this binding legacy/read-only.",
+        "Formula is not a canonical additive self+parent form. Keep this link legacy/read-only.",
     };
   }
   if (
@@ -797,7 +797,7 @@ export function assessLegacyBindingMigration(
       expression,
       canonicalExpression,
       reason:
-        "Expression is not a canonical additive self+parent form. Keep this binding legacy/read-only.",
+        "Formula is not a canonical additive self+parent form. Keep this link legacy/read-only.",
     };
   }
   const hasUnsupportedSelfFactor = selfAliases.some((alias) => {

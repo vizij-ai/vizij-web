@@ -531,7 +531,7 @@ export function HierarchyPanel({
       <div className="flex flex-col mt-1">
         <TreeRow
           depth={0}
-          label="Reference Face"
+          label="Comparison Face"
           hasChildren={true}
           isExpanded={isRefExpanded}
           onToggle={() => toggleNode("virtual_ref_face")}

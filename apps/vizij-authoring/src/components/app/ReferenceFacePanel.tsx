@@ -215,7 +215,7 @@ export function ReferenceFacePanel({
               size="sm"
               className="text-[11px] h-7 px-2"
               onClick={handleLoadClick}
-              title="Load a different reference face"
+              title="Load a different comparison face"
             >
               Swap
             </Button>
@@ -225,7 +225,7 @@ export function ReferenceFacePanel({
               size="sm"
               className="text-[11px] h-7 px-2 text-amber-300 hover:text-amber-200"
               onClick={handleUnloadClick}
-              title="Unload reference face"
+              title="Unload comparison face"
             >
               Unload
             </Button>

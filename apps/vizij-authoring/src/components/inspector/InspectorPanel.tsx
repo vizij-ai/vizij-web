@@ -1576,7 +1576,7 @@ export function InspectorPanel({
                 size="sm"
                 className="h-6 px-2 text-[10px]"
                 onClick={() => onSelectPoseGroup?.(null)}
-                title="Close Pose Group Inspector"
+                title="Close Expression Set Inspector"
               >
                 Close
               </Button>
@@ -1744,7 +1744,7 @@ export function InspectorPanel({
                 <EmptyState
                   icon={Activity}
                   iconSize={16}
-                  title="No Poses In Group"
+                  title="No Expressions In Set"
                   description="This group no longer contains pose entries."
                   className="py-3"
                 />

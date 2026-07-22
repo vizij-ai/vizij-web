@@ -14,23 +14,23 @@ export const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
     content: (
       <ol>
         <li>
-          Drop in a Vizij GLB or use the loader below to populate the bundle
-          summary and runtime preview.
+          Drop in a Vizij GLB or use the loader below to populate the Face
+          Package summary and runtime preview.
         </li>
         <li>
-          Run RobotData and bundle audits before exporting—green statuses
+          Run RobotData and Face Package audits before exporting—green statuses
           confirm GraphSpecs and IR are in sync.
         </li>
         <li>
-          Use the export + optional sections to save GLBs, rig graphs, and pose
-          configs once everything checks out.
+          Use the export + optional sections to save GLBs, rig graphs, and
+          expression configs once everything checks out.
         </li>
       </ol>
     ),
   },
   "scene-composer": {
     label: "Scene composer quickstart",
-    summary: "Select nodes, inspect drivers, edit bindings",
+    summary: "Select nodes, inspect controls, edit links",
     content: (
       <ol>
         <li>
@@ -38,7 +38,7 @@ export const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
           selections remain in sync with the viewport.
         </li>
         <li>
-          The inspector surfaces drivers, bindings, and metadata for the active
+          The inspector surfaces controls, links, and metadata for the active
           object—tweak values to preview changes live.
         </li>
         <li>
@@ -46,48 +46,49 @@ export const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
           in the viewer.
         </li>
         <li>
-          Pose the face by manipulating drivers and save the pose with the
-          viewport header.
+          Shape the face by manipulating controls and save the expression with
+          the viewport header.
         </li>
       </ol>
     ),
   },
   "pose-rig": {
-    label: "Pose rig workflow",
-    summary: "Capture neutrals → sculpt poses → export grouped graphs",
+    label: "Expression rig workflow",
+    summary:
+      "Capture the resting face → sculpt expressions → export grouped graphs",
     content: (
       <ol>
         <li>
-          Capture/overwrite the neutral pose, then create pose entries to store
-          sculpted driver deltas.
+          Capture/overwrite the resting face, then create expression entries to
+          store sculpted control deltas.
         </li>
         <li>
-          Assign group labels to define rig path prefixes and batch apply names
-          to related poses.
+          Assign set labels to define rig path prefixes and batch apply names to
+          related expressions.
         </li>
         <li>
-          Export grouped pose graphs or import an existing graph to reuse naming
-          + weights.
+          Export grouped expression graphs or import an existing graph to reuse
+          naming + weights.
         </li>
       </ol>
     ),
   },
   "std-feature-spaces": {
-    label: "Standard Feature Spaces workflow",
-    summary: "Map your face to a Standard Feature Space",
+    label: "Standard Controls workflow",
+    summary: "Map your face to a set of Standard Controls",
     content: (
       <div>
         <p>
-          The Standard Feature Spaces Editor allows you to align your face to
-          predefined feature spaces. This enables consistent facial rigging and
+          The Standard Controls editor allows you to align your face to
+          predefined control sets. This enables consistent facial rigging and
           animation across different models by providing a common reference
           frame.
         </p>
         <p>
-          There is no single Standard Feature Space. Instead we refer to a
+          There is no single set of Standard Controls. Instead we refer to a
           Standard, which may be developed by the community or specific
           entities. By mapping your face to a given Standard, your face complies
-          with its feature space, and thus supports being controlled by rigs and
+          with its controls, and thus supports being controlled by rigs and
           animations built for that Standard.
         </p>
         <ol>
@@ -101,7 +102,7 @@ export const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
           </li>
           <li>
             The reference model can be any face that is already rigged to the
-            Standard feature space.
+            Standard controls.
           </li>
           <li>
             Use the reference controls to set features on the reference model.
@@ -112,26 +113,26 @@ export const WORKBENCH_GUIDES: Record<WorkbenchView, WorkbenchGuide> = {
             close as as possible.
           </li>
           <li>
-            Once you are satisfied with the mapping, save the mapping
-            configuration into your Vizij bundle for future use.
+            Once you are satisfied with the mapping, save the Control Map
+            configuration into your Face Package for future use.
           </li>
         </ol>
         <p className="mt-4 font-bold text-slate-200">
-          Mapping Editor Status Indicators:
+          Control Map Status Indicators:
         </p>
         <ul className="mt-2 space-y-1">
           <li className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500" />
             <span className="text-slate-300">
               <strong className="text-slate-200">Green</strong> — Track exists
-              and has a binding configured. Ready to use.
+              and has a link configured. Ready to use.
             </span>
           </li>
           <li className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-500" />
             <span className="text-slate-300">
               <strong className="text-slate-200">Blue</strong> — Track exists
-              but has no binding. Configure a binding to drive features.
+              but has no link. Configure a link to drive features.
             </span>
           </li>
           <li className="flex items-center gap-2">

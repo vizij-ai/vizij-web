@@ -353,7 +353,7 @@ export function PoseGraphRemapWizard({
     <Modal
       open={true}
       onClose={onCancel}
-      title="Pose Graph Import"
+      title="Expression Graph Import"
       maxWidth="4xl"
     >
       <div className="space-y-6">
@@ -475,7 +475,7 @@ export function PoseGraphRemapWizard({
               )}
               <input
                 className="ml-auto h-8 min-w-[180px] bg-slate-900 border border-white/10 rounded-lg px-3 text-[11px] text-slate-200 focus:outline-none focus:border-blue-500/50"
-                placeholder="Search pose, variable, or path"
+                placeholder="Search expression, control, or path"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />

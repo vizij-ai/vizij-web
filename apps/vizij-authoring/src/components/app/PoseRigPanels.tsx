@@ -149,7 +149,7 @@ export function PoseRigImportPanel({
         </div>
         <p className="asset-card__hint asset-card__hint--muted">
           {poseIrEnabled
-            ? "Import Pose IR JSON snapshots when your core pose rig build exposes Pose IR hooks."
+            ? "Import Expression IR JSON snapshots when your core expression rig build exposes Expression IR hooks."
             : (poseIrSupportHint ??
               "Pose IR import is unavailable in this build.")}
         </p>

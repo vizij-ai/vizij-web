@@ -111,7 +111,7 @@ export function InspectorHeader({
     label = "Group";
   } else if (isPose) {
     Icon = Activity;
-    label = "Pose";
+    label = "Expression";
     iconClass = "text-purple-400";
     bgClass = "bg-purple-500/10 border-purple-500/20";
   } else if (isRig) {

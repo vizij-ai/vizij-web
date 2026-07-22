@@ -16,6 +16,7 @@ import {
   useWorkspaceStore,
   type WorkspacePanelId,
 } from "./state/workspaceStore";
+import { useStarredStore } from "./state/starredStore";
 import { AppMenuBar } from "./components/app/AppMenuBar";
 import { DebugPanel } from "./components/panels/DebugPanel";
 import {
@@ -81,7 +82,10 @@ import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { useSessionResetEffect } from "./hooks/authoringSessionLifecycle";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
-import { getVisibleVariablesSurfaces } from "./components/panels/variablesSurfaceOrder";
+import {
+  getVisibleVariablesSurfaces,
+  type VariablesSurfaceTab,
+} from "./components/panels/variablesSurfaceOrder";
 import {
   radiansToRoundedDegrees,
   resolveRootSceneRotationInputs,
@@ -94,6 +98,13 @@ import {
   buildGlbExportDirtySnapshot,
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
+import {
+  buildWorkingSignature,
+  loadWorkingDocument,
+  saveWorkingDocument,
+  type WorkingSaveBehaviorV1,
+  type WorkingSaveContent,
+} from "./workingSave/workingSave";
 import {
   getMemoryInvestigationFlags,
   updateMemoryDebugState,
@@ -527,7 +538,7 @@ type CenterAuthoringMode =
   | "none";
 type AuthoringSurface = Extract<
   SurfaceTab,
-  "variables" | "poses" | "pose-groups" | "animations" | "programs"
+  "starred" | "variables" | "poses" | "pose-groups" | "animations" | "programs"
 >;
 
 function applyEditFocusPanelDefaults(
@@ -793,7 +804,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [pendingAnimationTargetSwitchId, setPendingAnimationTargetSwitchId] =
     useState<string | null>(null);
   const [activeAuthoringSurface, setActiveAuthoringSurface] =
-    useState<AuthoringSurface>("variables");
+    useState<AuthoringSurface>("starred");
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
     AuthoredProceduralTarget[]
   >([]);
@@ -965,7 +976,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.customInputPaths,
   );
 
-  const { alert: showAlert } = useDialogQueue();
+  const { alert: showAlert, confirm: showConfirm } = useDialogQueue();
 
   useEffect(() => {
     uiActions.setIncludeVizijBundle(true);
@@ -983,7 +994,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       });
       if (warnings.length > 0) {
         await showAlert(
-          `Pose graph imported with ${warnings.length} warning(s). Review Pose diagnostics in the Pose Rig panel.`,
+          `Expression graph imported with ${warnings.length} warning(s). Review Expression diagnostics in the Expressions panel.`,
         );
       }
     },
@@ -1188,7 +1199,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () =>
       authoredProceduralTargets.map((target) => ({
         value: target.targetId,
-        label: target.name.trim().length > 0 ? target.name : "Untitled Program",
+        label:
+          target.name.trim().length > 0 ? target.name : "Untitled Behavior",
       })),
     [authoredProceduralTargets],
   );
@@ -1404,7 +1416,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     () => [
       ...authoredProceduralTargets.map((target) => ({
         id: target.targetId,
-        label: target.name.trim().length > 0 ? target.name : "Untitled Program",
+        label:
+          target.name.trim().length > 0 ? target.name : "Untitled Behavior",
         source: "authored" as const,
         selected: target.targetId === selectedProceduralTargetId,
         meta: `${target.snapshot.nodes.length} node${
@@ -1424,7 +1437,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             ? `${snapshot.nodes.length} node${
                 snapshot.nodes.length === 1 ? "" : "s"
               }`
-            : "Imported program",
+            : "Imported behavior",
           runtimeState:
             programTargetPlaybackById[target.value]?.state ?? "stopped",
         };
@@ -1761,7 +1774,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
 
       let snapshot: ProceduralProgramSnapshot | null = null;
-      let targetName = "Untitled Program";
+      let targetName = "Untitled Behavior";
       let source: "authored" | "imported" = "imported";
 
       const authoredProgramId = parseAuthoredProceduralTargetValue(
@@ -1779,7 +1792,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         targetName =
           authoredTarget.name.trim().length > 0
             ? authoredTarget.name
-            : "Untitled Program";
+            : "Untitled Behavior";
         source = "authored";
         snapshot =
           selectedProceduralTargetId === authoredTarget.targetId
@@ -2441,7 +2454,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       authoredProceduralTargets,
     );
     const nextProgramId = `authoring.motiongraph.program.${nextOrdinal}`;
-    const nextProgramName = `Procedural Program ${nextOrdinal}`;
+    const nextProgramName = `Behavior ${nextOrdinal}`;
     const nextTarget = createAuthoredProceduralTarget(
       nextProgramId,
       nextProgramName,
@@ -2461,7 +2474,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       );
       const nextProgramId = `authoring.motiongraph.program.${nextOrdinal}`;
       let sourceSnapshot: ProceduralProgramSnapshot | null = null;
-      let sourceName = `Procedural Program ${nextOrdinal}`;
+      let sourceName = `Behavior ${nextOrdinal}`;
 
       const authoredProgramId = parseAuthoredProceduralTargetValue(targetId);
       if (authoredProgramId) {
@@ -2530,10 +2543,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         proceduralTargetOptions.find(
           (option) => option.value === deletingTargetId,
         )?.label ?? activeTarget?.name;
-      const targetLabel = activeTarget?.name?.trim() || "this program";
+      const targetLabel = activeTarget?.name?.trim() || "this behavior";
       if (
         !window.confirm(
-          `Delete procedural program "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
+          `Delete behavior "${activeOptionLabel || targetLabel}"? This cannot be undone.`,
         )
       ) {
         return;
@@ -3092,12 +3105,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       standardInputs,
     ],
   );
-  const { isDirty: hasUnsavedGlbChanges, markSaved: markGlbExportSaved } =
-    useExportDirtyState({
-      sessionKey: exportSessionKey,
-      ready: exportSessionReady,
-      snapshot: exportDirtySnapshot,
-    });
+  const { markSaved: markGlbExportSaved } = useExportDirtyState({
+    sessionKey: exportSessionKey,
+    ready: exportSessionReady,
+    snapshot: exportDirtySnapshot,
+  });
 
   const handleRegisterGlbExportHandler = useCallback(
     (handler: (() => Promise<void>) | null) => {
@@ -3105,17 +3117,171 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [],
   );
-  const handleSaveExport = useCallback(() => {
-    if (!canExport) {
+
+  // Working save (Save) — persists the authored document locally, distinct
+  // from Publish which produces the shareable Face Package GLB.
+  const workingSaveAnimations = useMemo<AnimationClipIR[]>(() => {
+    const authoredClipId = parseAuthoredAnimationTargetValue(
+      selectedAnimationTargetId,
+    );
+    const liveActiveClip =
+      authoredClipId && selectedAuthoredAnimationTarget
+        ? exportAnimationClipIr({
+            id: selectedAuthoredAnimationTarget.clipId,
+            name: selectedAuthoredAnimationTarget.name,
+          })
+        : null;
+    return authoredAnimationTargets.map((target) =>
+      liveActiveClip &&
+      target.targetId === selectedAuthoredAnimationTarget?.targetId
+        ? liveActiveClip
+        : target.clip,
+    );
+  }, [
+    authoredAnimationTargets,
+    exportAnimationClipIr,
+    selectedAnimationTargetId,
+    selectedAuthoredAnimationTarget,
+  ]);
+  const workingSaveBehaviors = useMemo<WorkingSaveBehaviorV1[]>(
+    () =>
+      authoredProceduralTargets.map((target) => ({
+        programId: target.programId,
+        name: target.name,
+        snapshot:
+          target.targetId === selectedAuthoredProceduralTarget?.targetId
+            ? snapshotProceduralEditorState()
+            : target.snapshot,
+      })),
+    [
+      authoredProceduralTargets,
+      selectedAuthoredProceduralTarget,
+      proceduralEditorNodes,
+      proceduralEditorEdges,
+      proceduralEditorEnabledInputs,
+      proceduralEditorEnabledOutputs,
+      proceduralEditorCustomInputPaths,
+    ],
+  );
+  const workingSaveContent = useMemo<WorkingSaveContent | null>(() => {
+    if (!faceId.trim()) {
+      return null;
+    }
+    return {
+      faceId,
+      pose: {
+        config: poseRig.poseConfigDraft ?? null,
+        ir: poseRig.poseIrDraft ?? null,
+      },
+      animations: workingSaveAnimations,
+      behaviors: workingSaveBehaviors,
+    };
+  }, [
+    faceId,
+    poseRig.poseConfigDraft,
+    poseRig.poseIrDraft,
+    workingSaveAnimations,
+    workingSaveBehaviors,
+  ]);
+  const workingSignature = useMemo(
+    () =>
+      workingSaveContent ? buildWorkingSignature(workingSaveContent) : null,
+    [workingSaveContent],
+  );
+  const [lastWorkingSavedSignature, setLastWorkingSavedSignature] = useState<
+    string | null
+  >(null);
+  const canSaveWorking = exportSessionReady && Boolean(faceId.trim());
+  const workingSaveDirty = Boolean(
+    canSaveWorking &&
+      workingSignature &&
+      workingSignature !== lastWorkingSavedSignature,
+  );
+  // Autosave: whenever the working document settles into a new state, write
+  // it to local storage. No button to remember — the indicator in the menu
+  // bar reflects "Saving…" vs "Saved".
+  useEffect(() => {
+    if (!canSaveWorking || !workingSaveContent || !workingSignature) {
       return;
     }
-    const exportGlb = exportGlbHandlerRef.current;
-    if (!exportGlb) {
-      setShowExportDialog(true);
+    if (workingSignature === lastWorkingSavedSignature) {
       return;
     }
-    void exportGlb();
-  }, [canExport]);
+    const timer = setTimeout(() => {
+      const saved = saveWorkingDocument(workingSaveContent);
+      if (saved) {
+        setLastWorkingSavedSignature(workingSignature);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    canSaveWorking,
+    lastWorkingSavedSignature,
+    workingSaveContent,
+    workingSignature,
+  ]);
+
+  const workingRestorePromptedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!exportSessionReady || !workingSignature || !faceId.trim()) {
+      return;
+    }
+    if (workingRestorePromptedSessionRef.current === exportSessionKey) {
+      return;
+    }
+    workingRestorePromptedSessionRef.current = exportSessionKey;
+    const saved = loadWorkingDocument(faceId);
+    if (!saved) {
+      return;
+    }
+    const savedSignature = buildWorkingSignature(saved);
+    if (savedSignature === workingSignature) {
+      setLastWorkingSavedSignature(savedSignature);
+      return;
+    }
+    const savedAtLabel = new Date(saved.savedAt).toLocaleString();
+    void (async () => {
+      const confirmed = await showConfirm(
+        `Restore working changes saved ${savedAtLabel}? Choosing Cancel keeps the file's current contents; the working save stays available.`,
+      );
+      if (!confirmed) {
+        return;
+      }
+      if (saved.animations.length > 0) {
+        setAuthoredAnimationTargets(
+          saved.animations.map((clip) => ({
+            targetId: authoredAnimationTargetValue(clip.id),
+            clipId: clip.id,
+            name: clip.name?.trim() || clip.id,
+            clip,
+          })),
+        );
+      }
+      if (saved.behaviors.length > 0) {
+        setAuthoredProceduralTargets(
+          saved.behaviors.map((behavior) => ({
+            targetId: authoredProceduralTargetValue(behavior.programId),
+            programId: behavior.programId,
+            name: behavior.name,
+            snapshot: behavior.snapshot as ProceduralProgramSnapshot,
+          })),
+        );
+      }
+      if (saved.pose.ir) {
+        poseRig.importPoseIrFromData(saved.pose.ir);
+      } else if (saved.pose.config) {
+        poseRig.importPoseConfigFromData(saved.pose.config);
+      }
+      setLastWorkingSavedSignature(savedSignature);
+    })();
+  }, [
+    exportSessionKey,
+    exportSessionReady,
+    faceId,
+    poseRig,
+    showConfirm,
+    workingSignature,
+  ]);
 
   useEffect(() => {
     if (
@@ -3186,6 +3352,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     pendingAnimationRuntimePlayTargetId,
   ]);
 
+  const setStarredForFace = useStarredStore((state) => state.setStarredForFace);
+
   useBundleSynchronizer({
     faceId,
     rootId: loader.rootId,
@@ -3197,6 +3365,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     adoptFaceId: handleFaceIdChange,
     importPoseConfigFromData: poseRig.importPoseConfigFromData,
     resetPoseState: poseRig.resetPoseState,
+    applyStarredFromBundle: setStarredForFace,
     onPhaseChange: onFaceLoadPhaseChange,
   });
 
@@ -3355,7 +3524,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     : null;
   const activeProgramRuntimeName = activeProgramRuntimeTargetId
     ? (programTargetLabelById.get(activeProgramRuntimeTargetId) ??
-      "Untitled Program")
+      "Untitled Behavior")
     : null;
   const animationPanelStatusMessage =
     activeAnimationRuntimeTargetId &&
@@ -3462,9 +3631,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           : null,
         activeProgramRuntimeTargetId
           ? {
-              label: "Stop Program",
+              label: "Stop Behavior",
               onClick: clearProgramRuntimeState,
-              title: "Stop the active procedural program",
+              title: "Stop the active behavior",
               disabled: effectiveProgramRuntimePlaybackState === "stopped",
               testId: "main-runtime-stop-program",
             }
@@ -3588,7 +3757,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const controlAuthoringSurfaces = useMemo<AuthoringSurface[]>(
     () =>
       visibleVariablesSurfaces.filter(
-        (surface): surface is AuthoringSurface => surface !== "inputs",
+        (surface): surface is Exclude<VariablesSurfaceTab, "inputs"> =>
+          surface !== "inputs",
       ),
     [visibleVariablesSurfaces],
   );
@@ -3596,7 +3766,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const authoringSurfaces = useMemo<AuthoringSurface[]>(
     () =>
       controlAuthoringPanelVisible
-        ? [...controlAuthoringSurfaces, "animations", "programs"]
+        ? ["starred", ...controlAuthoringSurfaces, "animations", "programs"]
         : controlAuthoringSurfaces,
     [controlAuthoringPanelVisible, controlAuthoringSurfaces],
   );
@@ -3948,10 +4118,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
-      onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
-      canSave={canExport}
-      saveDirty={hasUnsavedGlbChanges}
+      canSave={canSaveWorking}
+      saveDirty={workingSaveDirty}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
       activeEditFocus={activeEditFocus}
@@ -4448,7 +4617,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onPauseProgramTarget={handlePauseProgramTarget}
               onStopProgramTarget={handleStopProgramTarget}
               panelTitle="Authoring"
-              panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
+              panelDescription="Author and organize controls, expressions, expression sets, animations, and behaviors."
               onClosePanel={handleHideControlAuthoringPanel}
               animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
@@ -4470,7 +4639,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               onSelectScene={handleSelectObjectWithInspectorSync}
               availableSurfaces={inputControlSurfaces}
               panelTitle="Input Controls"
-              panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
+              panelDescription="Preview and adjust live control and expression-weight inputs plus behavior I/O."
               onClosePanel={handleHideInputControlsPanel}
               motionGraphActive={effectiveMotionGraphPanelVisible}
               animationActive={effectiveAnimationPanelVisible}

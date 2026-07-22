@@ -2060,3 +2060,11 @@ export function usePoseRigStore<T>(selector: (state: PoseRigState) => T): T {
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   return value;
 }
+
+export function usePoseRigStoreApi(): PoseRigStore {
+  const store = useContext(PoseRigStoreContext);
+  if (!store) {
+    throw new Error("Missing PoseRigStoreProvider");
+  }
+  return store;
+}

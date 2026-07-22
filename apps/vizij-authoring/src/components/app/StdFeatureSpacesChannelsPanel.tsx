@@ -977,7 +977,7 @@ export function StdFeatureSpacesChannelsPanel() {
   return (
     <Panel
       title="Standard Channels"
-      description="View and edit the standard input channel hierarchy."
+      description="View and edit the standard control channel hierarchy."
       className="flex flex-col h-full overflow-hidden"
     >
       {!anyFaceLoaded ? (

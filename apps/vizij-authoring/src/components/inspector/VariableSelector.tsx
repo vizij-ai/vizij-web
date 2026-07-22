@@ -485,7 +485,7 @@ export function VariableSelector({
         <PanelSearch
           value={search}
           onChange={setSearch}
-          placeholder="Search drivers or properties..."
+          placeholder="Search controls or properties..."
           className="h-9"
         />
       </div>

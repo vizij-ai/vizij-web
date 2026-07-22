@@ -423,7 +423,7 @@ function ParentDirectControlEditor({
 
 export function VariablePipelineStages({
   parentExpression,
-  parentExpressionTitle = "Authored Parent Expression",
+  parentExpressionTitle = "Authored Parent Formula",
   parentExpressionReadOnly = false,
   parentExpressionReadOnlyReason = null,
   parentExpressionAttentionKey = 0,
@@ -607,7 +607,7 @@ export function VariablePipelineStages({
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Driver Pipeline
+            Control Pipeline
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
             <span
@@ -622,7 +622,7 @@ export function VariablePipelineStages({
                 poses.length > 0 ? "info" : "muted",
               )}`}
             >
-              {poses.length} {poses.length === 1 ? "pose" : "poses"}
+              {poses.length} {poses.length === 1 ? "expression" : "expressions"}
             </span>
             <span
               className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stageHeaderBadgeClass(
@@ -652,7 +652,7 @@ export function VariablePipelineStages({
       <StageSection
         key={`pipeline-stage-parents-${parentExpressionAttentionKey}`}
         title="Parents"
-        hoverText="Upstream drivers that contribute parent math."
+        hoverText="Upstream controls that contribute parent math."
         count={parents.length}
         countLabel={`${parents.length} ${parents.length === 1 ? "parent link" : "parent links"}`}
         headerBadges={[
@@ -707,7 +707,7 @@ export function VariablePipelineStages({
                   }
                   disabled={!canEditParentExpression || !parentExpressionDirty}
                 >
-                  Apply Expression
+                  Apply Formula
                 </Button>
                 <Button
                   variant="ghost"
@@ -720,7 +720,7 @@ export function VariablePipelineStages({
                 </Button>
                 {parentExpressionReadOnly ? (
                   <span className="text-[10px] text-amber-300/90">
-                    Legacy read-only expression
+                    Legacy read-only formula
                     {parentExpressionReadOnlyReason
                       ? `: ${parentExpressionReadOnlyReason}`
                       : "."}
@@ -861,7 +861,7 @@ export function VariablePipelineStages({
                                 }
                                 disabled={!parentFormulaDirty}
                               >
-                                Apply Formula
+                                Apply
                               </Button>
                               <Button
                                 variant="ghost"
@@ -906,10 +906,10 @@ export function VariablePipelineStages({
       </StageSection>
 
       <StageSection
-        title="Poses"
-        hoverText="Pose targets and blend weights for this driver."
+        title="Expressions"
+        hoverText="Expression targets and blend weights for this control."
         count={poses.length}
-        countLabel={`${poses.length} ${poses.length === 1 ? "pose target" : "pose targets"}`}
+        countLabel={`${poses.length} ${poses.length === 1 ? "expression target" : "expression targets"}`}
         testId="pipeline-stage-poses"
         className={sourceSectionClass}
       >
@@ -936,7 +936,7 @@ export function VariablePipelineStages({
                       className="h-6 text-[10px] gap-1.5"
                       onClick={pose.onInspect}
                     >
-                      Inspect Pose
+                      Inspect Expression
                       <ArrowRight size={11} aria-hidden="true" />
                     </Button>
                   ) : undefined
@@ -968,14 +968,14 @@ export function VariablePipelineStages({
           </div>
         ) : (
           <span className="text-[10px] text-text-muted">
-            No pose targets for this driver.
+            No expression targets for this control.
           </span>
         )}
       </StageSection>
 
       <StageSection
         title="Direct Input"
-        hoverText="Optional direct control path for this driver."
+        hoverText="Optional direct control path for this control."
         headerBadges={[
           {
             label: directInputEnabled ? "Direct enabled" : "Direct disabled",
@@ -1141,7 +1141,7 @@ export function VariablePipelineStages({
       {showClampStage ? (
         <StageSection
           title="Clamp"
-          hoverText="Final output bounding for this driver."
+          hoverText="Final output bounding for this control."
           headerBadges={[
             {
               label: clampEnabled ? "Clamp enabled" : "Clamp disabled",
@@ -1197,7 +1197,7 @@ export function VariablePipelineStages({
               data-testid="pipeline-compiled-source-poses"
             >
               <div className="text-[10px] font-semibold text-fuchsia-100">
-                Poses
+                Expressions
               </div>
               <div className="text-[11px] font-mono text-fuchsia-50">
                 {formatPipelineValue(diagnostics.poseContribution)}
@@ -1217,7 +1217,7 @@ export function VariablePipelineStages({
           </div>
 
           <div className="text-[10px] text-text-muted text-center font-medium">
-            Parents + poses + direct blend into one pipeline value.
+            Parents + expressions + direct blend into one pipeline value.
           </div>
 
           <div
@@ -1282,7 +1282,7 @@ export function VariablePipelineStages({
 
       <StageSection
         title="Children"
-        hoverText="Downstream drivers driven by this driver."
+        hoverText="Downstream controls driven by this control."
         count={children.length}
         countLabel={`${children.length} ${children.length === 1 ? "child link" : "child links"}`}
         testId="pipeline-stage-children"
@@ -1390,7 +1390,7 @@ export function VariablePipelineStages({
           </div>
         ) : (
           <span className="text-[10px] text-text-muted">
-            No children currently driven by this driver.
+            No children currently driven by this control.
           </span>
         )}
         {onAddChild ? (
