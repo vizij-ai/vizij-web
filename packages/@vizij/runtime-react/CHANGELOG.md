@@ -1,5 +1,14 @@
 # @vizij/runtime-react
 
+## 0.3.0
+
+### Minor Changes
+
+- Track `@vizij/runtime@2.0.0`, whose client API renamed the "device"/"Arora"
+  vocabulary to "runtime" (`startDevice`→`startRuntime`, `AroraDevice`→`Runtime`,
+  `DeviceModule`→`RuntimeModule`). This package's own hooks are unchanged; the
+  re-exported `DeviceModule` type is now `RuntimeModule`.
+
 ## 0.2.0
 
 ### Minor Changes

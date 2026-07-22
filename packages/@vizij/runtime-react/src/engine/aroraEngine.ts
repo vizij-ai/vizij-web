@@ -27,14 +27,14 @@
  */
 import {
   init,
-  startDevice,
-  type AroraDevice,
-  type DeviceModule,
+  startRuntime,
+  type Runtime,
+  type RuntimeModule,
   type ValueJSON,
   type InitInput,
 } from "@vizij/runtime";
 
-export type { DeviceModule };
+export type { RuntimeModule };
 
 /** Store keys owned by the arora runtime itself (frame clock etc.). */
 const GOLDEN_PREFIX = "arora/";
@@ -62,11 +62,11 @@ export function ensureWasmInit(input?: InitInput): Promise<void> {
 }
 
 export interface DeviceHandle {
-  device: AroraDevice;
+  device: Runtime;
   /** The composed spec the device currently runs (for recompose diffing). */
   spec: object;
   /** The slot's module list the device was built with (identity compare). */
-  modules: DeviceModule[] | undefined;
+  modules: RuntimeModule[] | undefined;
 }
 
 /**
@@ -77,7 +77,7 @@ export interface DeviceHandle {
 export class DeviceSlot {
   private handle: DeviceHandle | null = null;
   /** Arora wasm modules loaded into every device this slot boots. */
-  private modules: DeviceModule[] | undefined;
+  private modules: RuntimeModule[] | undefined;
   /** Module loading a boot must wait out before it reads `modules`. */
   private modulesLoading: Promise<unknown> | null = null;
   /**
@@ -115,7 +115,7 @@ export class DeviceSlot {
    * The modules every subsequent device boot loads. The live device (if any)
    * is not touched: a later `recompose` that sees the list changed rebuilds.
    */
-  setModules(modules: DeviceModule[] | undefined): void {
+  setModules(modules: RuntimeModule[] | undefined): void {
     this.modules = modules && modules.length > 0 ? modules : undefined;
   }
 
@@ -139,7 +139,7 @@ export class DeviceSlot {
     }
   }
 
-  private maybeRun(device: AroraDevice): void {
+  private maybeRun(device: Runtime): void {
     if (this.runPeriodMs === null || device.running) {
       return;
     }
@@ -168,7 +168,7 @@ export class DeviceSlot {
     if (this.modulesLoading) {
       await this.modulesLoading;
     }
-    const device = await startDevice(spec, undefined, this.modules);
+    const device = await startRuntime(spec, undefined, this.modules);
     this.handle = { device, spec, modules: this.modules };
     this.onDeviceStarted?.(this.handle);
     this.maybeRun(device);
@@ -194,7 +194,7 @@ export class DeviceSlot {
       }
     }
 
-    const device = await startDevice(spec, undefined, this.modules);
+    const device = await startRuntime(spec, undefined, this.modules);
     if (Object.keys(carried).length > 0) {
       device.writeValues(carried);
     }

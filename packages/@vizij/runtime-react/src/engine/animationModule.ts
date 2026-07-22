@@ -122,7 +122,7 @@ export type AroraValueJSON =
   | { structs: { id: string; elements: Array<{ fields: AroraField[] }> } }
   | Record<string, unknown>;
 
-/** An Arora `Call` payload for `AroraDevice.call`. */
+/** An Arora `Call` payload for `Runtime.call`. */
 export interface AnimationModuleCall {
   id: string;
   args: AroraField[];
