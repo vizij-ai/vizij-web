@@ -3152,7 +3152,9 @@ function VizijRuntimeProviderInner({
       return {
         time: feedback?.time ?? 0,
         duration:
-          feedback && feedback.duration > 0 ? feedback.duration : state.duration,
+          feedback && feedback.duration > 0
+            ? feedback.duration
+            : state.duration,
         playing: feedback ? feedback.state === "playing" : state.playing,
         loop: state.loop,
         speed: feedback?.speed ?? state.speed,

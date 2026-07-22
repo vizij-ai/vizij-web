@@ -154,7 +154,10 @@ interface StoredKeypointLike {
   stamp?: unknown;
   value?: unknown;
   /** Authored timing handles (`linear`/`step` ride through; absent = default ease). */
-  transitions?: { in?: { x: number; y: number }; out?: { x: number; y: number } };
+  transitions?: {
+    in?: { x: number; y: number };
+    out?: { x: number; y: number };
+  };
 }
 
 const field = (id: string, value: AroraValueJSON): AroraField => ({
@@ -235,8 +238,12 @@ export function storedClipToModuleValue(
                 ? [
                     {
                       fields: [
-                        field(ANIMATION_MODULE_FIELD.handleX, { f32: handle.x }),
-                        field(ANIMATION_MODULE_FIELD.handleY, { f32: handle.y }),
+                        field(ANIMATION_MODULE_FIELD.handleX, {
+                          f32: handle.x,
+                        }),
+                        field(ANIMATION_MODULE_FIELD.handleY, {
+                          f32: handle.y,
+                        }),
                       ],
                     },
                   ]
@@ -368,13 +375,18 @@ export function seekCall(player: number, timeNs: number): AnimationModuleCall {
     id: ANIMATION_MODULE_FN.seek,
     args: [
       field(ANIMATION_MODULE_PARAM.seekPlayer, { u32: player }),
-      field(ANIMATION_MODULE_PARAM.seekTimeNs, { u64: Math.max(0, Math.round(timeNs)) }),
+      field(ANIMATION_MODULE_PARAM.seekTimeNs, {
+        u64: Math.max(0, Math.round(timeNs)),
+      }),
     ],
   };
 }
 
 /** `set_speed(player, speed)`: playback speed multiplier. */
-export function setSpeedCall(player: number, speed: number): AnimationModuleCall {
+export function setSpeedCall(
+  player: number,
+  speed: number,
+): AnimationModuleCall {
   return {
     id: ANIMATION_MODULE_FN.setSpeed,
     args: [
@@ -498,7 +510,10 @@ export function animationsGraphSource(): GraphSource {
       edges: [
         { from: { node_id: "dt" }, to: { node_id: "step", input: "args_0" } },
         { from: { node_id: "step" }, to: { node_id: "apply", input: "in" } },
-        { from: { node_id: "states" }, to: { node_id: "states-out", input: "in" } },
+        {
+          from: { node_id: "states" },
+          to: { node_id: "states-out", input: "in" },
+        },
       ],
     },
   };
@@ -568,9 +583,11 @@ export function decodePlayerStates(raw: unknown): AnimationPlayerState[] {
         stateValue && "str" in stateValue
           ? String((stateValue as { str: unknown }).str)
           : "",
-      time: (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateTimeNs)) ?? 0) / 1e9,
+      time:
+        (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateTimeNs)) ?? 0) / 1e9,
       duration:
-        (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateDurationNs)) ?? 0) / 1e9,
+        (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateDurationNs)) ?? 0) /
+        1e9,
       speed: fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateSpeed)) ?? 1,
     });
   }

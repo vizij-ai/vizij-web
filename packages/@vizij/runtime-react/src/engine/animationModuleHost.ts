@@ -90,9 +90,12 @@ export class AnimationModuleHost {
   }
 
   /** The clip's transport state as last commanded. */
-  transportOf(
-    clipId: string,
-  ): { playing: boolean; speed: number; loop: AnimationLoopMode; weight: number } | null {
+  transportOf(clipId: string): {
+    playing: boolean;
+    speed: number;
+    loop: AnimationLoopMode;
+    weight: number;
+  } | null {
     const entry = this.clips.get(clipId);
     if (!entry) {
       return null;
@@ -290,7 +293,9 @@ export class AnimationModuleHost {
     }
     if (entry.animId === null) {
       const anim = await device.call(
-        loadAnimationCall(storedClipToModuleValue(entry.stored, this.resolveKeys)),
+        loadAnimationCall(
+          storedClipToModuleValue(entry.stored, this.resolveKeys),
+        ),
       );
       entry.animId = callResultU32(anim);
     }
@@ -318,7 +323,9 @@ export class AnimationModuleHost {
         followups.push(setLoopCall(entry.playerId, entry.loop));
       }
       if (entry.instId !== null && entry.weight !== 1) {
-        followups.push(setWeightCall(entry.playerId, entry.instId, entry.weight));
+        followups.push(
+          setWeightCall(entry.playerId, entry.instId, entry.weight),
+        );
       }
     }
     for (const call of followups) {
