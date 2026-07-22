@@ -61,12 +61,12 @@ importers:
       '@eslint/plugin-kit':
         specifier: 0.4.0
         version: 0.4.0
+      '@vizij/animation':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/animation-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/animation-react
-      '@vizij/animation-wasm':
-        specifier: ^0.4.0
-        version: 0.4.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
@@ -242,12 +242,12 @@ importers:
 
   apps/minimal-demo-animation-graph:
     dependencies:
+      '@vizij/animation':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@vizij/animation-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/animation-react
-      '@vizij/animation-wasm':
-        specifier: ^0.4.0
-        version: 0.4.0
       '@vizij/minimal-demo-ui':
         specifier: workspace:*
         version: link:../../packages/@vizij/minimal-demo-ui
@@ -675,7 +675,7 @@ importers:
 
   packages/@vizij/animation-react:
     dependencies:
-      '@vizij/animation-wasm':
+      '@vizij/animation':
         specifier: ^0.4.0
         version: 0.4.0
       '@vizij/value-json':
@@ -2661,8 +2661,8 @@ packages:
   '@vizij/animation-module@0.2.0':
     resolution: {integrity: sha512-r2CQSteOTi9DyxMPckgO6cIHeIVxRHADdBezuk57kzYPruaHSLJY3QnaUACj9jG+ymBocZD95QDbyB6luz/Z3g==}
 
-  '@vizij/animation-wasm@0.4.0':
-    resolution: {integrity: sha512-CbDWOZQ73tx/syzGfKjlPwIOo0Hw/v1TK4JYg/rpuyBQAaGP7pFzxYyYVZ8cj1bEPV6gJO9jk+5jxt0Q2QgnIw==}
+  '@vizij/animation@0.4.0':
+    resolution: {integrity: sha512-0yOCMbq2bGxL2TiiiLhMw5wWJtQnU7a46bnQqEwaeUomGIvOitqGw6qhlJ1xqVNLO6wletrV3daIMpcYruso/Q==}
 
   '@vizij/node-graph-wasm@0.7.0':
     resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
@@ -6906,7 +6906,7 @@ snapshots:
 
   '@vizij/animation-module@0.2.0': {}
 
-  '@vizij/animation-wasm@0.4.0':
+  '@vizij/animation@0.4.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
