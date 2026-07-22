@@ -18,11 +18,13 @@ Status: proposal for discussion — nothing here is committed work.
 > place** (VIZ-57), retiring most of the restart-and-carry-the-store dance;
 > animation transport/feedback is now fully device-side; and PR #75's
 > suspension inference landed. Consequences threaded through below: §3.3's
-> step-driver extraction shrinks to pump-loop policy, §3.4's L0 dependency is
-> `@vizij/runtime`, and **R1's hollow-out should be (re)done only after the
-> VIZ-53 wave settles** — a first extraction pass was completed and validated
-> against the pre-wave provider (proving the §3.1 method end-to-end), then
-> parked when the wave superseded the code it had ported.
+> step-driver extraction shrinks to pump-loop policy, and §3.4's L0 dependency
+> is `@vizij/runtime`. **R1's hollow-out has been re-ported onto the wave**:
+> the first extraction pass (against the pre-wave provider) proved the §3.1
+> method end-to-end, and Victor's arora-9 delta was then transplanted into the
+> extracted `FaceRuntime`/adapter split — so runtime changes and the extraction
+> now coexist on this branch. Until the VIZ-53 wave fully settles, expect each
+> new runtime change on main to need the same delta-transplant treatment.
 
 ---
 
