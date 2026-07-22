@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { BuildGraphResult } from "@vizij/node-graph-authoring";
 import { resolveRuntimeGraphSpec } from "../runtimeGraphSpec";
 

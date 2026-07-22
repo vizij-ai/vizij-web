@@ -1,4 +1,4 @@
-import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec, NodeSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   buildPoseControlRelativePath,

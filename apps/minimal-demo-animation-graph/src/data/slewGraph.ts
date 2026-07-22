@@ -1,4 +1,4 @@
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { slewPaths } from "./slewAnimation";
 
 export const slewGraphSpec: GraphSpec = {

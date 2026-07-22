@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import type { FC, PropsWithChildren } from "react";
 import { init as initGraphWasm, getNodeSchemas } from "@vizij/node-graph-react";
-import type { Registry as WasmRegistry } from "@vizij/node-graph-wasm";
+import type { Registry as WasmRegistry } from "@vizij/node-graph";
 import { useEditorStore } from "../store/useEditorStore";
 
 export type Registry = WasmRegistry;

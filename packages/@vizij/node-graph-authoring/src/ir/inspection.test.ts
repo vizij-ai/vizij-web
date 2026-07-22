@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { cloneDeepSafe } from "@vizij/utils";
 import type { BuildGraphResult } from "../graphBuilder";
 import type { MachineReport } from "./inspection";

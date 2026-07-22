@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { createGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import {
   buildFallbackGraphPath,

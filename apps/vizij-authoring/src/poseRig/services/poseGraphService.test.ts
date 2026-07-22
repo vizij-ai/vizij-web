@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   POSE_IR_SYNTHETIC_BOUNDARY_CONTRACT,

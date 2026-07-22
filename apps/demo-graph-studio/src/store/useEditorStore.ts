@@ -5,7 +5,7 @@ import type {
   NodeSpec,
   NodeParams,
   ValueJSON,
-} from "@vizij/node-graph-wasm";
+} from "@vizij/node-graph";
 
 /**
  * Minimal editor store for the node-graph-editor app.

@@ -2,7 +2,7 @@
 
 > **React provider and hook suite for Vizij node graphs – load WASM specs, stage inputs, and consume outputs with idiomatic patterns.**
 
-This package wraps `@vizij/node-graph-wasm` in a declarative React API. It handles WASM initialisation, graph loading, readiness promises, staged inputs, playback loops, and `useSyncExternalStore`-friendly subscriptions.
+This package wraps `@vizij/node-graph` in a declarative React API. It handles WASM initialisation, graph loading, readiness promises, staged inputs, playback loops, and `useSyncExternalStore`-friendly subscriptions.
 
 ---
 
@@ -22,7 +22,7 @@ This package wraps `@vizij/node-graph-wasm` in a declarative React API. It handl
 
 ## Overview
 
-- `GraphProvider` wraps your component tree with a graph runtime derived from `@vizij/node-graph-wasm`.
+- `GraphProvider` wraps your component tree with a graph runtime derived from `@vizij/node-graph`.
 - Hooks such as `useGraphRuntime`, `useGraphOutputs`, `useNodeOutput`, `useGraphPlayback`, and `useGraphInput` expose runtime controls and derived state.
 - Built-in readiness flow (`waitForGraph`, `waitForGraphReady`) ensures initial parameters and staged inputs land before evaluations begin.
 - Managed staged input store prevents redundant allocations and guards against invalid cleanups – `stageInput(path, undefined, …)` now removes entries safely.
@@ -34,18 +34,18 @@ This package wraps `@vizij/node-graph-wasm` in a declarative React API. It handl
 
 ```bash
 # pnpm
-pnpm add @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
+pnpm add @vizij/node-graph-react @vizij/node-graph react react-dom
 
 # npm
-npm install @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
+npm install @vizij/node-graph-react @vizij/node-graph react react-dom
 
 # yarn
-yarn add @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
+yarn add @vizij/node-graph-react @vizij/node-graph react react-dom
 ```
 
 When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../../README.md#local-wasm-development) for details.
 
-> **Bundler note:** The underlying `@vizij/node-graph-wasm` package emits a `.wasm` binary. Enable async WebAssembly and emit `.wasm` assets in your bundler. For Next.js:
+> **Bundler note:** The underlying `@vizij/node-graph` package emits a `.wasm` binary. Enable async WebAssembly and emit `.wasm` assets in your bundler. For Next.js:
 >
 > ```js
 > // next.config.js
@@ -64,7 +64,7 @@ When consuming linked WASM packages during development, configure Vite (or your 
 > };
 > ```
 >
-> Passing a string URL to `@vizij/node-graph-wasm`’s `init()` keeps Webpack’s URL wrapper from interfering.
+> Passing a string URL to `@vizij/node-graph`’s `init()` keeps Webpack’s URL wrapper from interfering.
 
 ---
 
@@ -72,7 +72,7 @@ When consuming linked WASM packages during development, configure Vite (or your 
 
 - `react >= 18`
 - `react-dom >= 18`
-- `@vizij/node-graph-wasm` (ensure the wasm package is published from `vizij-rs` before tagging a release)
+- `@vizij/node-graph` (ensure the wasm package is published from `vizij-rs` before tagging a release)
 
 Keep these versions aligned across Vizij packages to avoid duplicate React instances or ABI mismatches.
 
@@ -159,7 +159,7 @@ function Awaiter() {
 - `initialParams` / `initialInputs` – One-shot seeds applied after `loadGraph` succeeds.
 - `autoStart` / `autoMode` / `updateHz` – Control playback loops (`"manual"`, `"raf"`, `"interval"`).
 - `exposeGraphReadyPromise` (default `true`) – Expose `waitForGraphReady`, `on`, and `off` helpers on the runtime.
-- `wasmInitInput` – Forwards optional init input to `@vizij/node-graph-wasm.init`.
+- `wasmInitInput` – Forwards optional init input to `@vizij/node-graph.init`.
 
 ### Runtime Surface
 
@@ -179,7 +179,7 @@ function Awaiter() {
 
 ### WASM Initialisation (0.2.4+)
 
-- `GraphProvider` and `useGraphInstance` both await `@vizij/node-graph-wasm.init()` before constructing graphs.
+- `GraphProvider` and `useGraphInstance` both await `@vizij/node-graph.init()` before constructing graphs.
 - `normalizeSpec` is awaited before invoking wasm constructors to avoid passing unresolved promises (previous versions produced `{}` specs and confusing errors).
 
 ---
@@ -249,7 +249,7 @@ The action will build, test, and publish the package with provenance metadata.
 
 ## Related Packages
 
-- [`@vizij/node-graph-wasm`](../../../vizij-rs/npm/@vizij/node-graph-wasm/README.md) – wasm wrapper consumed by this package.
+- [`@vizij/node-graph`](../../../vizij-rs/npm/@vizij/node-graph/README.md) – wasm wrapper consumed by this package.
 - [`vizij-graph-wasm`](../../../vizij-rs/crates/node-graph/vizij-graph-wasm/README.md) – Rust crate providing the wasm binding.
 - [`vizij-graph-core`](../../../vizij-rs/crates/node-graph/vizij-graph-core/README.md) – Core evaluator that ultimately runs the graph.
 

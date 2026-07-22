@@ -4,7 +4,7 @@ import {
   loadNodeGraphSpec,
   loadNodeGraphSpecJson,
   loadNodeGraphStage,
-} from "@vizij/node-graph-wasm";
+} from "@vizij/node-graph";
 
 export { GraphProvider } from "./GraphProvider";
 export { useGraphRuntime } from "./useGraphRuntime";
@@ -53,4 +53,4 @@ export const samples = {
   loadStage: loadNodeGraphStage,
 } as const;
 
-export * from "@vizij/node-graph-wasm";
+export * from "@vizij/node-graph";

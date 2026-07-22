@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { requireNodeSignature } from "@vizij/node-graph-wasm/metadata";
+import { requireNodeSignature } from "@vizij/node-graph/metadata";
 import {
   SELF_BINDING_ID,
   type StandardRigInput,

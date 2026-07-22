@@ -7,7 +7,7 @@ import {
   type InputBindingMap,
   type StandardInputValues,
 } from "@vizij/node-graph-authoring";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
 import {
   SELF_BINDING_ID,
   createStandardRigInputFromPath,

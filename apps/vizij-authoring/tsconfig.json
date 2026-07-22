@@ -18,7 +18,7 @@
       "@vizij/utils/*": ["../../packages/@vizij/utils/src/*"],
       "@vizij/authoring-shared": ["./src/shared/index.ts"],
       "@vizij/authoring-shared/*": ["./src/shared/*"],
-      "@vizij/node-graph-wasm/metadata": [
+      "@vizij/node-graph/metadata": [
         "../../packages/@vizij/node-graph-authoring/src/metadata-shim.d.ts"
       ]
     },

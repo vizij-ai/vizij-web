@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export function getNodeGraphWasmInitInput(): Uint8Array {
   const wasmPath = resolve(
     here,
-    "../../node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
+    "../../node_modules/@vizij/node-graph/dist/pkg/vizij_graph_wasm_bg.wasm",
   );
 
   const bytes = readFileSync(wasmPath);

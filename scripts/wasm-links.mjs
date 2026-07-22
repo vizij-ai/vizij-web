@@ -22,7 +22,7 @@ const ALL_PACKAGES = [
   "animation-module",
   "animation",
   "runtime",
-  "node-graph-wasm",
+  "node-graph",
   "value-json",
   "wasm-loader",
   "test-fixtures",
@@ -37,12 +37,12 @@ Usage:
 
 Examples:
   pnpm run wasm:status
-  pnpm run wasm:link -- --pkgs "node-graph-wasm runtime"
+  pnpm run wasm:link -- --pkgs "node-graph runtime"
   WASM_PKGS="graph runtime" pnpm run wasm:link
   pnpm run wasm:unlink -- --pkgs "all"
 
 Notes:
-  - Packages are names without the scope. e.g. "node-graph-wasm" maps to "@vizij/node-graph-wasm".
+  - Packages are names without the scope. e.g. "node-graph" maps to "@vizij/node-graph".
   - By default, expects sibling repo at: ${DEFAULT_VIZIJ_RS}
   - Linking uses direct symlinks under vizij-web/node_modules/@vizij/* (no pnpm global linking).
   - This script always prints a status summary after link/unlink.
@@ -103,8 +103,8 @@ function normalizePackageToken(token) {
   const t = token.trim().toLowerCase();
   if (!t) return null;
   if (t === "all" || t === "*") return "all";
-  if (t === "graph") return "node-graph-wasm";
-  if (t === "node-graph") return "node-graph-wasm";
+  if (t === "graph") return "node-graph";
+  if (t === "node-graph") return "node-graph";
   if (t === "fixtures") return "test-fixtures";
   return t;
 }

@@ -3,20 +3,20 @@ import { describe, it, expect, vi, afterAll } from "vitest";
 import { act, render, waitFor } from "@testing-library/react";
 import { GraphProvider } from "@vizij/node-graph-react";
 import { useGraphRuntime } from "@vizij/node-graph-react";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { cloneDeepSafe } from "@vizij/utils";
 import { ikGraphSpec } from "../data/ikGraph";
 import { slewGraphSpec } from "../data/slewGraph";
 import { makeTypedPath } from "../utils/typedPath";
 
-// Local mock of @vizij/node-graph-wasm for this app test scope.
+// Local mock of @vizij/node-graph for this app test scope.
 // We keep semantics consistent with the package tests but scoped to the app.
 let mode: "ok" | "fail" = "ok";
 let lastGraph: any = null;
 
-vi.mock("@vizij/node-graph-wasm", async (importOriginal) => {
+vi.mock("@vizij/node-graph", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@vizij/node-graph-wasm")>();
+    await importOriginal<typeof import("@vizij/node-graph")>();
   const {
     listNodeGraphFixtures,
     loadNodeGraphBundle,
@@ -126,7 +126,7 @@ describe("Demo (animation-graph) init behavior with declarative seeds", () => {
     });
 
     // Assert seeds were applied to the underlying graph
-    const wasm: any = await import("@vizij/node-graph-wasm");
+    const wasm: any = await import("@vizij/node-graph");
     const g = wasm.__getLastGraph?.();
     expect(g).toBeTruthy();
     expect(g.setParam).toHaveBeenCalled();

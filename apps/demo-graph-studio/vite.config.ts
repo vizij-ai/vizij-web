@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../.."); // vizij_ws
 // const localWasmPkg = path.resolve(
 //   __dirname,
-//   "../../vizij-rs/npm/@vizij/node-graph-wasm",
+//   "../../vizij-rs/npm/@vizij/node-graph",
 // );
 // const localWasmPkgPkg = path.resolve(localWasmPkg, "pkg");
 
@@ -42,7 +42,7 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/node-graph/**",
       ],
     },
   },
@@ -51,7 +51,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Keep the wasm shim out of the esbuild prebundle so its relative pkg/ URLs remain valid
-    exclude: ["@vizij/node-graph-wasm"],
+    exclude: ["@vizij/node-graph"],
   },
   assetsInclude: ["**/*.wasm"],
 });

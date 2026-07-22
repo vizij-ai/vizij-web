@@ -31,7 +31,7 @@
     "@radix-ui/react-icons": "^1.3.2",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph-wasm": "^0.7.0",
+    "@vizij/node-graph": "^0.7.0",
     "@vizij/render": "workspace:*",
     "@vizij/runtime-react": "workspace:*",
     "@vizij/utils": "workspace:*",

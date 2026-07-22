@@ -15,9 +15,9 @@ import type {
   AnimatableValue,
   StandardRigInput,
 } from "@vizij/utils";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { exportScene } from "@vizij/render";
-import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec } from "@vizij/node-graph";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
 import { useVizijExport } from "../useVizijExport";
@@ -47,9 +47,9 @@ vi.mock("@vizij/node-graph-authoring", async () => {
   };
 });
 
-vi.mock("@vizij/node-graph-wasm", async () => {
-  const actual = await vi.importActual<typeof import("@vizij/node-graph-wasm")>(
-    "@vizij/node-graph-wasm",
+vi.mock("@vizij/node-graph", async () => {
+  const actual = await vi.importActual<typeof import("@vizij/node-graph")>(
+    "@vizij/node-graph",
   );
   return {
     ...actual,

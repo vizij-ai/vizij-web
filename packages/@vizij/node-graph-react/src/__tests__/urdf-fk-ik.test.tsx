@@ -6,7 +6,7 @@ import type { FC } from "react";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-import type { GraphSpec, ValueJSON } from "@vizij/node-graph-wasm";
+import type { GraphSpec, ValueJSON } from "@vizij/node-graph";
 import {
   fromAroraValueJSON,
   isNormalizedValue,
@@ -190,12 +190,12 @@ describe("URDF FK/IK integration", () => {
     };
 
     const candidatePaths = [
-      "node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
-      "node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
-      "../node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
-      "../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
-      "../../node_modules/@vizij/node-graph-wasm/dist/pkg/vizij_graph_wasm_bg.wasm",
-      "../../node_modules/@vizij/node-graph-wasm/pkg/vizij_graph_wasm_bg.wasm",
+      "node_modules/@vizij/node-graph/dist/pkg/vizij_graph_wasm_bg.wasm",
+      "node_modules/@vizij/node-graph/pkg/vizij_graph_wasm_bg.wasm",
+      "../node_modules/@vizij/node-graph/dist/pkg/vizij_graph_wasm_bg.wasm",
+      "../node_modules/@vizij/node-graph/pkg/vizij_graph_wasm_bg.wasm",
+      "../../node_modules/@vizij/node-graph/dist/pkg/vizij_graph_wasm_bg.wasm",
+      "../../node_modules/@vizij/node-graph/pkg/vizij_graph_wasm_bg.wasm",
     ].map((entry) => resolvePath(process.cwd(), entry));
 
     let wasmBytes: Buffer | null = null;
@@ -215,7 +215,7 @@ describe("URDF FK/IK integration", () => {
 
     if (!wasmBytes) {
       throw new Error(
-        "vizij_graph_wasm_bg.wasm not found; install @vizij/node-graph-wasm or run pnpm install.",
+        "vizij_graph_wasm_bg.wasm not found; install @vizij/node-graph or run pnpm install.",
       );
     }
 

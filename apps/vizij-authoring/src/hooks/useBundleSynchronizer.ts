@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { VizijBundleExtension } from "@vizij/render";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
 import type { PoseRigConfigFile } from "../poseRig/types";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import {

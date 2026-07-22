@@ -6,7 +6,7 @@
  * for completeness and future use.
  */
 
-import type { PortSnapshot } from "@vizij/node-graph-wasm";
+import type { PortSnapshot } from "@vizij/node-graph";
 import {
   valueAsNumber as sharedValueAsNumber,
   valueAsVec3 as sharedValueAsVec3,

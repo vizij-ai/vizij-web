@@ -20,7 +20,7 @@
 ## Overview
 
 - Built with Vite + React.
-- Uses `@vizij/node-graph-react` (provider + hooks) which in turn wraps the WASM runtime (`@vizij/node-graph-wasm`).
+- Uses `@vizij/node-graph-react` (provider + hooks) which in turn wraps the WASM runtime (`@vizij/node-graph`).
 - Demonstrates staging behaviour: inputs are re-staged every frame when playback is active, ensuring `Input` nodes always see host values.
 - Includes sample graphs from the npm package plus a local URDF IK position example.
 
@@ -34,7 +34,7 @@ pnpm install
 
 # Ensure the WASM package is built (if you are linking locally)
 node ../vizij-rs/scripts/build-graph-wasm.mjs
-cd ../vizij-rs/npm/@vizij/node-graph-wasm && pnpm run build
+cd ../vizij-rs/npm/@vizij/node-graph && pnpm run build
 cd ../../../vizij-web
 
 # Run the demo
@@ -111,7 +111,7 @@ The loader accepts a few shapes and normalises them to the canonical `GraphSpec`
    { "spec": { "nodes": [...] } }
    ```
 
-All formats are normalised through `@vizij/node-graph-wasm` before loading.
+All formats are normalised through `@vizij/node-graph` before loading.
 
 ---
 
@@ -126,7 +126,7 @@ All formats are normalised through `@vizij/node-graph-wasm` before loading.
 
 ## Troubleshooting
 
-- **WASM module errors** – Ensure `@vizij/node-graph-wasm` has been built (`pkg/` present) and the wrapper points to `dist/src/index.js`. Linked packages must be rebuilt after Rust changes.
+- **WASM module errors** – Ensure `@vizij/node-graph` has been built (`pkg/` present) and the wrapper points to `dist/src/index.js`. Linked packages must be rebuilt after Rust changes.
 - **No output updates when playing** – Confirm playback is enabled and that the per-frame staging effect runs (check logs in `App.tsx`). Verify input paths match existing `Input` nodes.
 - **React hook warnings when switching graphs** – The demo uses dedicated components for output subscriptions. If you replicate the pattern, avoid calling hooks inside arrays where the number of iterations can change between renders.
 - **Missing inputs** – Graphs without explicit `Input` nodes won’t show controls; ensure your spec exposes host-modifiable data through dedicated nodes.

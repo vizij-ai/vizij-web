@@ -20,7 +20,7 @@
     "@eslint/plugin-kit": "0.4.0",
     "@vizij/minimal-demo-ui": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph-wasm": "^0.7.0",
+    "@vizij/node-graph": "^0.7.0",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.2.0",
     "react": "^19.2.3",

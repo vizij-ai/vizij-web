@@ -8,7 +8,7 @@ export default defineConfig({
       ignored: [
         "**/node_modules/**",
         "!**/node_modules/@vizij/animation/**",
-        "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/node-graph/**",
       ],
     },
     headers: {
@@ -17,6 +17,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/animation", "@vizij/node-graph-wasm"],
+    exclude: ["@vizij/animation", "@vizij/node-graph"],
   },
 });

@@ -12,7 +12,7 @@ import {
   type BindingMap,
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
-import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph-wasm";
+import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
 import type {
   AnimatableComponent,
   AnimatableValue,

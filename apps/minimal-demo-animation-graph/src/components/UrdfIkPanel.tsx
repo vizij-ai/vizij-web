@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { ValueJSON } from "@vizij/node-graph-wasm";
+import type { ValueJSON } from "@vizij/node-graph";
 import {
   useGraphRuntime,
   useNodeOutput,
