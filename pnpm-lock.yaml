@@ -890,8 +890,8 @@ importers:
   packages/@vizij/runtime-react:
     dependencies:
       '@vizij/animation-module':
-        specifier: ^0.1.1
-        version: 0.1.1
+        specifier: ^0.2.0
+        version: 0.2.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../node-graph-authoring
@@ -899,8 +899,8 @@ importers:
         specifier: workspace:*
         version: link:../render
       '@vizij/runtime':
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.1.0
+        version: 1.1.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2673,8 +2673,8 @@ packages:
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
 
-  '@vizij/animation-module@0.1.1':
-    resolution: {integrity: sha512-ZSpZk44S2NM7nAlQty9wMIY9qHQLKJWrOYeqRmuLuAc1h6SnvCyBnx2WVYqYoeojesro782zXFxDL5S7KukDqw==}
+  '@vizij/animation-module@0.2.0':
+    resolution: {integrity: sha512-r2CQSteOTi9DyxMPckgO6cIHeIVxRHADdBezuk57kzYPruaHSLJY3QnaUACj9jG+ymBocZD95QDbyB6luz/Z3g==}
 
   '@vizij/animation-wasm@0.4.0':
     resolution: {integrity: sha512-CbDWOZQ73tx/syzGfKjlPwIOo0Hw/v1TK4JYg/rpuyBQAaGP7pFzxYyYVZ8cj1bEPV6gJO9jk+5jxt0Q2QgnIw==}
@@ -2682,8 +2682,8 @@ packages:
   '@vizij/node-graph-wasm@0.7.0':
     resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
 
-  '@vizij/runtime@1.0.2':
-    resolution: {integrity: sha512-J/wD043IjAAj4aXQmy0zRCOA1MmBj1MEKNepWYm0T8Xd3C7cfl53AfiDnxSAyqJi/5LD3sE6vbHinu8Al3Gu0w==}
+  '@vizij/runtime@1.1.0':
+    resolution: {integrity: sha512-ReDsEMeuqzJmNLJec+9m0Wfvaj2Lm/5dIkr5ROrBziBLT4Wg7oFR1AF9+UG/FHuSRJBw4vOwdPdKjTk0/ZKxOQ==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
@@ -6919,7 +6919,7 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@vizij/animation-module@0.1.1': {}
+  '@vizij/animation-module@0.2.0': {}
 
   '@vizij/animation-wasm@0.4.0':
     dependencies:
@@ -6931,7 +6931,7 @@ snapshots:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/runtime@1.0.2':
+  '@vizij/runtime@1.1.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5

@@ -3,26 +3,28 @@
  * Arora wasm module — as consumed by the runtime's Arora device.
  *
  * The module's declared ABI (ids from its `module.yaml` and type records,
- * version 0.1.0) is mirrored here as constants: the call surface is
- * `load_animation` / `create_player` / `add_instance` (setup) and
- * `step(dt_ns)` (per tick, fed the runtime's golden `arora/dt`). `step`
- * returns `[TrackOutput]` — per-track identity plus the track's authored
- * default key and sampled value; the consumer decides the final store key.
+ * version 0.2.0) is mirrored here as constants:
+ * - setup — `load_animation` / `create_player` / `add_instance`;
+ * - per tick — `step(dt_ns)` (fed the runtime's golden `arora/dt`),
+ *   returning `[TrackOutput]`: per-track identity plus the track's authored
+ *   default key and sampled value. The device graph applies the batch onto
+ *   its keys via a path-less `output` node (`key_field`/`value_field`), so
+ *   the final store keys are decided at clip **load** time (see
+ *   `storedClipToModuleValue`'s `resolveKeys`);
+ * - transport — `play` / `pause` / `stop` / `seek(time_ns)` / `set_speed` /
+ *   `set_loop` / `set_weight` (buffered into the next step, in issue order)
+ *   and `remove_instance` (immediate);
+ * - feedback — `player_states()`, written to `ANIMATION_PLAYERS_PATH` by the
+ *   animations source each tick. A patch: the vision is state changes as
+ *   first-class, combinable values, not a second feedback channel.
  *
  * Call arguments and returns use the **Arora `Value` JSON encoding**
  * (`{ str }`, `{ f32 }`, `{ u32 }`, `{ struct }`, `{ structs }`, …), which is
  * distinct from the Vizij `ValueJSON` vocabulary the store surface speaks.
  *
- * What the 0.1.0 module surface does NOT declare (the honest capability
- * gaps — playback stays in the JS clip pipeline until the module exposes
- * them; see the README's "Animations and the device" section):
- * - player commands: pause / seek / stop / speed / loop mode / windows
- *   (`module.yaml` marks them "a future extension");
- * - playback feedback: player time / duration / playing;
- * - per-keypoint `transitions` (cubic-bezier timing): the module's
- *   `Keypoint` is `{ id, stamp, value }`, so authored linear/step/cubic
- *   timing is dropped and the engine samples its default ease instead;
- * - per-instance weights (blending) and instance removal.
+ * Remaining fidelity gap: authored `cubic` keyframes carry no explicit
+ * handles in the stored form, so they still sample the engine's default
+ * ease (`linear`/`step` timing rides through as explicit handles).
  */
 import type { GraphSource } from "../utils/composeGraph";
 
@@ -32,6 +34,15 @@ export const ANIMATION_MODULE_FN = {
   createPlayer: "76697a69-6a00-0000-0f00-000000000002",
   addInstance: "76697a69-6a00-0000-0f00-000000000003",
   step: "76697a69-6a00-0000-0f00-000000000004",
+  play: "76697a69-6a00-0000-0f00-000000000005",
+  pause: "76697a69-6a00-0000-0f00-000000000006",
+  stop: "76697a69-6a00-0000-0f00-000000000007",
+  seek: "76697a69-6a00-0000-0f00-000000000008",
+  setSpeed: "76697a69-6a00-0000-0f00-000000000009",
+  setLoop: "76697a69-6a00-0000-0f00-00000000000a",
+  setWeight: "76697a69-6a00-0000-0f00-00000000000b",
+  removeInstance: "76697a69-6a00-0000-0f00-00000000000c",
+  playerStates: "76697a69-6a00-0000-0f00-00000000000d",
 } as const;
 
 export const ANIMATION_MODULE_PARAM = {
@@ -40,6 +51,20 @@ export const ANIMATION_MODULE_PARAM = {
   player: "76697a69-6a00-0000-0f03-000000000001",
   anim: "76697a69-6a00-0000-0f03-000000000002",
   dtNs: "76697a69-6a00-0000-0f04-000000000001",
+  playPlayer: "76697a69-6a00-0000-0f05-000000000001",
+  pausePlayer: "76697a69-6a00-0000-0f06-000000000001",
+  stopPlayer: "76697a69-6a00-0000-0f07-000000000001",
+  seekPlayer: "76697a69-6a00-0000-0f08-000000000001",
+  seekTimeNs: "76697a69-6a00-0000-0f08-000000000002",
+  speedPlayer: "76697a69-6a00-0000-0f09-000000000001",
+  speedValue: "76697a69-6a00-0000-0f09-000000000002",
+  loopPlayer: "76697a69-6a00-0000-0f0a-000000000001",
+  loopMode: "76697a69-6a00-0000-0f0a-000000000002",
+  weightPlayer: "76697a69-6a00-0000-0f0b-000000000001",
+  weightInstance: "76697a69-6a00-0000-0f0b-000000000002",
+  weightValue: "76697a69-6a00-0000-0f0b-000000000003",
+  removePlayer: "76697a69-6a00-0000-0f0c-000000000001",
+  removeInstance: "76697a69-6a00-0000-0f0c-000000000002",
 } as const;
 
 // --- declared structure ids (records/structure/*.yaml) -----------------------
@@ -47,7 +72,9 @@ export const ANIMATION_MODULE_TYPE = {
   clip: "76697a69-6a00-0000-0000-000000000100",
   track: "76697a69-6a00-0000-0000-000000000101",
   keypoint: "76697a69-6a00-0000-0000-000000000102",
+  transitionHandle: "76697a69-6a00-0000-0000-000000000103",
   trackOutput: "76697a69-6a00-0000-0000-000000000110",
+  playerState: "76697a69-6a00-0000-0000-000000000111",
 } as const;
 
 export const ANIMATION_MODULE_FIELD = {
@@ -61,9 +88,18 @@ export const ANIMATION_MODULE_FIELD = {
   keypointId: "76697a69-6a00-0000-0102-000000000001",
   keypointStamp: "76697a69-6a00-0000-0102-000000000002",
   keypointValue: "76697a69-6a00-0000-0102-000000000003",
+  keypointTransitionsIn: "76697a69-6a00-0000-0102-000000000004",
+  keypointTransitionsOut: "76697a69-6a00-0000-0102-000000000005",
+  handleX: "76697a69-6a00-0000-0103-000000000001",
+  handleY: "76697a69-6a00-0000-0103-000000000002",
   outputTrackId: "76697a69-6a00-0000-0110-000000000001",
   outputDefaultKey: "76697a69-6a00-0000-0110-000000000002",
   outputValue: "76697a69-6a00-0000-0110-000000000003",
+  statePlayer: "76697a69-6a00-0000-0111-000000000001",
+  stateState: "76697a69-6a00-0000-0111-000000000002",
+  stateTimeNs: "76697a69-6a00-0000-0111-000000000003",
+  stateDurationNs: "76697a69-6a00-0000-0111-000000000004",
+  stateSpeed: "76697a69-6a00-0000-0111-000000000005",
 } as const;
 
 // --- the Arora `Value` JSON encoding (narrow, only what this seam needs) -----
@@ -117,6 +153,8 @@ interface StoredKeypointLike {
   id?: unknown;
   stamp?: unknown;
   value?: unknown;
+  /** Authored timing handles (`linear`/`step` ride through; absent = default ease). */
+  transitions?: { in?: { x: number; y: number }; out?: { x: number; y: number } };
 }
 
 const field = (id: string, value: AroraValueJSON): AroraField => ({
@@ -124,17 +162,24 @@ const field = (id: string, value: AroraValueJSON): AroraField => ({
   value,
 });
 
+/** One target path per authored key; identity when no resolver is given. */
+export type ResolveTrackKeys = (animatableId: string) => string[];
+
 /**
  * Convert a stored clip into the module's declared `AnimationClip` value.
  *
- * Faithful for identity, timing, and scalar keyframe values. Deliberately
- * dropped because the module's `Keypoint` cannot carry them (documented
- * capability gap, NOT approximated here): per-keypoint `transitions` —
- * the module engine samples its default ease between keypoints instead of
- * the authored linear/step/cubic timing.
+ * Faithful for identity, timing handles, and scalar keyframe values.
+ * `resolveKeys` decides the **final store keys** at load time: each track is
+ * emitted once per resolved target path, with that path as its
+ * `animatable_id` — so the module's `[TrackOutput]` names the store keys the
+ * path-less `output` node applies, and no per-tick re-keying exists anywhere.
+ * Authored `cubic` keyframes carry no explicit handles in the stored form,
+ * so they sample the engine's default ease (`linear`/`step` ride through as
+ * handles).
  */
 export function storedClipToModuleValue(
   clip: StoredAnimationClipLike,
+  resolveKeys?: ResolveTrackKeys,
 ): AroraValueJSON {
   const name =
     typeof clip.name === "string" && clip.name.trim().length > 0
@@ -181,6 +226,23 @@ export function storedClipToModuleValue(
             typeof rawPoint.id === "string" && rawPoint.id.trim().length > 0
               ? rawPoint.id.trim()
               : `${trackId}:point-${pointIndex}`;
+          const handles = (
+            handle: { x: number; y: number } | undefined,
+          ): AroraValueJSON => ({
+            structs: {
+              id: ANIMATION_MODULE_TYPE.transitionHandle,
+              elements: handle
+                ? [
+                    {
+                      fields: [
+                        field(ANIMATION_MODULE_FIELD.handleX, { f32: handle.x }),
+                        field(ANIMATION_MODULE_FIELD.handleY, { f32: handle.y }),
+                      ],
+                    },
+                  ]
+                : [],
+            },
+          });
           return {
             fields: [
               field(ANIMATION_MODULE_FIELD.keypointId, { str: pointId }),
@@ -188,6 +250,14 @@ export function storedClipToModuleValue(
                 f32: Math.max(0, Math.min(1, stamp)),
               }),
               field(ANIMATION_MODULE_FIELD.keypointValue, { f32: value }),
+              field(
+                ANIMATION_MODULE_FIELD.keypointTransitionsIn,
+                handles(rawPoint.transitions?.in),
+              ),
+              field(
+                ANIMATION_MODULE_FIELD.keypointTransitionsOut,
+                handles(rawPoint.transitions?.out),
+              ),
             ],
           };
         })
@@ -197,11 +267,14 @@ export function storedClipToModuleValue(
         return null;
       }
 
-      return {
+      const targets = resolveKeys?.(animatableId) ?? [animatableId];
+      return targets.map((target, targetIndex) => ({
         fields: [
-          field(ANIMATION_MODULE_FIELD.trackId, { str: trackId }),
+          field(ANIMATION_MODULE_FIELD.trackId, {
+            str: targetIndex === 0 ? trackId : `${trackId}~${targetIndex}`,
+          }),
           field(ANIMATION_MODULE_FIELD.trackName, { str: trackName }),
-          field(ANIMATION_MODULE_FIELD.trackAnimatable, { str: animatableId }),
+          field(ANIMATION_MODULE_FIELD.trackAnimatable, { str: target }),
           field(ANIMATION_MODULE_FIELD.trackPoints, {
             structs: {
               id: ANIMATION_MODULE_TYPE.keypoint,
@@ -209,9 +282,10 @@ export function storedClipToModuleValue(
             },
           }),
         ],
-      };
+      }));
     })
-    .filter(Boolean) as Array<{ fields: AroraField[] }>;
+    .filter(Boolean)
+    .flat() as Array<{ fields: AroraField[] }>;
 
   return {
     struct: {
@@ -264,6 +338,96 @@ export function addInstanceCall(
   };
 }
 
+/** `play(player)`: resume or start playback at the next step. */
+export function playCall(player: number): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.play,
+    args: [field(ANIMATION_MODULE_PARAM.playPlayer, { u32: player })],
+  };
+}
+
+/** `pause(player)`: hold the playhead at the next step. */
+export function pauseCall(player: number): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.pause,
+    args: [field(ANIMATION_MODULE_PARAM.pausePlayer, { u32: player })],
+  };
+}
+
+/** `stop(player)`: reset the playhead to the window start at the next step. */
+export function stopCall(player: number): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.stop,
+    args: [field(ANIMATION_MODULE_PARAM.stopPlayer, { u32: player })],
+  };
+}
+
+/** `seek(player, time_ns)`: move the playhead (nanoseconds, the dt_ns base). */
+export function seekCall(player: number, timeNs: number): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.seek,
+    args: [
+      field(ANIMATION_MODULE_PARAM.seekPlayer, { u32: player }),
+      field(ANIMATION_MODULE_PARAM.seekTimeNs, { u64: Math.max(0, Math.round(timeNs)) }),
+    ],
+  };
+}
+
+/** `set_speed(player, speed)`: playback speed multiplier. */
+export function setSpeedCall(player: number, speed: number): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.setSpeed,
+    args: [
+      field(ANIMATION_MODULE_PARAM.speedPlayer, { u32: player }),
+      field(ANIMATION_MODULE_PARAM.speedValue, { f32: speed }),
+    ],
+  };
+}
+
+/** `set_loop(player, mode)`: `"once" | "loop" | "ping_pong"`. */
+export function setLoopCall(
+  player: number,
+  mode: "once" | "loop" | "ping_pong",
+): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.setLoop,
+    args: [
+      field(ANIMATION_MODULE_PARAM.loopPlayer, { u32: player }),
+      field(ANIMATION_MODULE_PARAM.loopMode, { str: mode }),
+    ],
+  };
+}
+
+/** `set_weight(player, instance, weight)`: per-instance blend weight. */
+export function setWeightCall(
+  player: number,
+  instance: number,
+  weight: number,
+): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.setWeight,
+    args: [
+      field(ANIMATION_MODULE_PARAM.weightPlayer, { u32: player }),
+      field(ANIMATION_MODULE_PARAM.weightInstance, { u32: instance }),
+      field(ANIMATION_MODULE_PARAM.weightValue, { f32: weight }),
+    ],
+  };
+}
+
+/** `remove_instance(player, instance)`: detach immediately. */
+export function removeInstanceCall(
+  player: number,
+  instance: number,
+): AnimationModuleCall {
+  return {
+    id: ANIMATION_MODULE_FN.removeInstance,
+    args: [
+      field(ANIMATION_MODULE_PARAM.removePlayer, { u32: player }),
+      field(ANIMATION_MODULE_PARAM.removeInstance, { u32: instance }),
+    ],
+  };
+}
+
 /** The `{ u32 }` a setup call returns, or `null` on any other shape. */
 export function callResultU32(result: { ret: unknown }): number | null {
   const ret = result.ret;
@@ -278,10 +442,10 @@ export function callResultU32(result: { ret: unknown }): number | null {
 
 /**
  * Store path the animations source writes the module's per-tick
- * `[TrackOutput]` to. Not an `arora/` golden key, so it carries across
- * device restarts like any other store value.
+ * `[PlayerState]` feedback to. Not an `arora/` golden key, so it carries
+ * across device restarts like any other store value.
  */
-export const ANIMATIONS_OUT_PATH = "vizij/animations/out";
+export const ANIMATION_PLAYERS_PATH = "vizij/animations/players";
 
 /**
  * Source id of the animations graph source (see `composeGraphSpecs` for how
@@ -292,8 +456,11 @@ export const ANIMATIONS_SOURCE_ID = "animations";
 /**
  * The graph source that makes the animation module tick **inside the
  * device**: an `ExternalFunction` node calls the module's `step` every
- * device tick, fed the runtime's golden `arora/dt` (nanoseconds), and the
- * returned `[TrackOutput]` lands at `ANIMATIONS_OUT_PATH`.
+ * device tick, fed the runtime's golden `arora/dt` (nanoseconds), and a
+ * path-less `output` node applies the returned `[TrackOutput]` batch onto
+ * the store keys each record names (`default_key` — the final rig paths,
+ * decided at clip load). A second `ExternalFunction` node writes the
+ * `player_states()` feedback to `ANIMATION_PLAYERS_PATH`.
  */
 export function animationsGraphSource(): GraphSource {
   return {
@@ -309,37 +476,54 @@ export function animationsGraphSource(): GraphSource {
             param_ids: [ANIMATION_MODULE_PARAM.dtNs],
           },
         },
-        { id: "out", type: "output", params: { path: ANIMATIONS_OUT_PATH } },
+        {
+          id: "apply",
+          type: "output",
+          params: {
+            key_field: ANIMATION_MODULE_FIELD.outputDefaultKey,
+            value_field: ANIMATION_MODULE_FIELD.outputValue,
+          },
+        },
+        {
+          id: "states",
+          type: "externalfunction",
+          params: { function: ANIMATION_MODULE_FN.playerStates, param_ids: [] },
+        },
+        {
+          id: "states-out",
+          type: "output",
+          params: { path: ANIMATION_PLAYERS_PATH },
+        },
       ],
       edges: [
         { from: { node_id: "dt" }, to: { node_id: "step", input: "args_0" } },
-        { from: { node_id: "step" }, to: { node_id: "out", input: "in" } },
+        { from: { node_id: "step" }, to: { node_id: "apply", input: "in" } },
+        { from: { node_id: "states" }, to: { node_id: "states-out", input: "in" } },
       ],
     },
   };
 }
 
-// --- TrackOutput decoding -------------------------------------------------------
+// --- PlayerState decoding -------------------------------------------------------
 
-export interface AnimationTrackOutput {
-  /** The authored track's stable id. */
-  trackId: string;
-  /** The track's authored key (its `animatableId`) — the default store key. */
-  defaultKey: string;
-  /** The sampled value, in the Arora `Value` encoding. */
-  value: AroraValueJSON;
+export interface AnimationPlayerState {
+  /** The module `PlayerId` (correlate via the host's per-clip player ids). */
+  player: number;
+  /** `"playing" | "paused" | "stopped"` — the engine's derived state. */
+  state: string;
+  /** Playhead in seconds. */
+  time: number;
+  /** Full player length in seconds. */
+  duration: number;
+  /** Playback speed multiplier. */
+  speed: number;
 }
 
-/**
- * Read a scalar number out of an Arora `Value` JSON, across the encodings a
- * sampled track value can arrive in (`f32`/`f64`/`float` scalars, integer
- * scalars). Non-scalar or unknown shapes return `null`.
- */
-export function aroraValueToNumber(value: AroraValueJSON): number | null {
+function fieldNumber(value: AroraValueJSON | undefined): number | null {
   if (!value || typeof value !== "object") {
     return null;
   }
-  for (const key of ["f32", "f64", "float", "i32", "i64", "u32", "u64"]) {
+  for (const key of ["u64", "u32", "f32", "f64"]) {
     if (key in value) {
       const parsed = Number((value as Record<string, unknown>)[key]);
       return Number.isFinite(parsed) ? parsed : null;
@@ -349,17 +533,17 @@ export function aroraValueToNumber(value: AroraValueJSON): number | null {
 }
 
 /**
- * Decode the `[TrackOutput]` value the animations source writes to
- * `ANIMATIONS_OUT_PATH` (a `structs` of the declared TrackOutput type).
+ * Decode the `[PlayerState]` value the animations source writes to
+ * `ANIMATION_PLAYERS_PATH` (a `structs` of the declared PlayerState type).
  * Tolerant: unknown shapes decode to an empty list.
  */
-export function decodeTrackOutputs(raw: unknown): AnimationTrackOutput[] {
+export function decodePlayerStates(raw: unknown): AnimationPlayerState[] {
   if (!raw || typeof raw !== "object" || !("structs" in raw)) {
     return [];
   }
   const structs = (raw as { structs?: { elements?: unknown } }).structs;
   const elements = Array.isArray(structs?.elements) ? structs.elements : [];
-  const outputs: AnimationTrackOutput[] = [];
+  const states: AnimationPlayerState[] = [];
   for (const element of elements) {
     const fields = (element as { fields?: unknown })?.fields;
     if (!Array.isArray(fields)) {
@@ -373,23 +557,22 @@ export function decodeTrackOutputs(raw: unknown): AnimationTrackOutput[] {
         byId.set(id, value as AroraValueJSON);
       }
     }
-    const trackId = byId.get(ANIMATION_MODULE_FIELD.outputTrackId);
-    const defaultKey = byId.get(ANIMATION_MODULE_FIELD.outputDefaultKey);
-    const value = byId.get(ANIMATION_MODULE_FIELD.outputValue);
-    if (!value) {
+    const player = fieldNumber(byId.get(ANIMATION_MODULE_FIELD.statePlayer));
+    if (player === null) {
       continue;
     }
-    outputs.push({
-      trackId:
-        trackId && "str" in trackId
-          ? String((trackId as { str: unknown }).str)
+    const stateValue = byId.get(ANIMATION_MODULE_FIELD.stateState);
+    states.push({
+      player,
+      state:
+        stateValue && "str" in stateValue
+          ? String((stateValue as { str: unknown }).str)
           : "",
-      defaultKey:
-        defaultKey && "str" in defaultKey
-          ? String((defaultKey as { str: unknown }).str)
-          : "",
-      value,
+      time: (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateTimeNs)) ?? 0) / 1e9,
+      duration:
+        (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateDurationNs)) ?? 0) / 1e9,
+      speed: fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateSpeed)) ?? 1,
     });
   }
-  return outputs;
+  return states;
 }
