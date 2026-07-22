@@ -13,7 +13,7 @@ import {
   type BakingConfig,
   type BakedAnimationData,
   type BakedAnimationBundle,
-} from "@vizij/animation-wasm";
+} from "@vizij/animation";
 import { AnimationContext } from "./context";
 import { createAnimationStore } from "./store";
 import type {
@@ -198,7 +198,7 @@ export function AnimationProvider({
         await init(wasmInitInput);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error("Failed to init @vizij/animation-wasm", err);
+        console.error("Failed to init @vizij/animation", err);
         return;
       }
 

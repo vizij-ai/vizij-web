@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ChangeEventHandler } from "react";
-import type { StoredAnimation, Config } from "@vizij/animation-wasm";
+import type { StoredAnimation, Config } from "@vizij/animation";
 import type { InstanceSpec } from "./PlayersPanel";
 import type { PrebindRule } from "./PrebindPanel";
 

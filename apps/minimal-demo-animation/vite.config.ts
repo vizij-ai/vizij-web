@@ -7,7 +7,7 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
+        "!**/node_modules/@vizij/animation/**",
       ],
     },
     headers: {
@@ -17,6 +17,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Prevent pre-bundling the wasm ESM shim in dev; let Vite handle it directly
-    exclude: ["@vizij/animation-wasm"],
+    exclude: ["@vizij/animation"],
   },
 });

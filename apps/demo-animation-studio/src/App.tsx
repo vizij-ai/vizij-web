@@ -5,9 +5,9 @@ import type {
   Config,
   CoreEvent,
   Outputs,
-} from "@vizij/animation-wasm";
+} from "@vizij/animation";
 import type { Value } from "@vizij/animation-react";
-import { init, abi_version } from "@vizij/animation-wasm";
+import { init, abi_version } from "@vizij/animation";
 import presets from "./presets";
 import AnimationsPanel from "./components/AnimationsPanel";
 import type { InstanceSpec } from "./components/PlayersPanel";

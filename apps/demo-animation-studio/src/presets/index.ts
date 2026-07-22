@@ -11,7 +11,7 @@
  * - Text: string
  *
  * Note: StoredValue does not include a Vec4 variant, so Vec4 is not authored in presets directly.
- * Matches StoredAnimation shape consumed by @vizij/animation-wasm Engine.loadAnimation({ format: "stored" }).
+ * Matches StoredAnimation shape consumed by @vizij/animation Engine.loadAnimation({ format: "stored" }).
  * Interpolation control points are included on a subset of tracks to demonstrate transitions vs defaults.
  */
 const preset = {

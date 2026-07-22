@@ -1,4 +1,4 @@
-import type { StoredAnimation } from "@vizij/animation-wasm";
+import type { StoredAnimation } from "@vizij/animation";
 import { makeTypedPath } from "../utils/typedPath";
 
 export const JOINT_IDS = [

@@ -5,7 +5,7 @@ import type {
   PlayerInfo,
   InstanceInfo,
   StoredAnimation,
-} from "@vizij/animation-wasm";
+} from "@vizij/animation";
 import { formatValue } from "../utils/valueFormat";
 import type { InstanceSpan, TimelineMarker } from "./Timeline";
 import Timeline from "./Timeline";

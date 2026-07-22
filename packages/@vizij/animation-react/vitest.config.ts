@@ -7,7 +7,7 @@ export default defineConfig({
     pool: "threads",
   },
   optimizeDeps: {
-    exclude: ["@vizij/animation-wasm"],
+    exclude: ["@vizij/animation"],
   },
   assetsInclude: ["**/*.wasm"],
 });

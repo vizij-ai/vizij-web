@@ -2,7 +2,7 @@
 
 > **TypeScript packages, React integrations, and demo applications that showcase Vizij’s real-time animation platform.**
 
-This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation-wasm` and `@vizij/node-graph-wasm` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
+This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation` and `@vizij/node-graph-wasm` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
 
 ---
 
