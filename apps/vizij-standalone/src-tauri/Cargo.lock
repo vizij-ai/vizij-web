@@ -190,9 +190,9 @@ dependencies = [
 [[package]]
 name = "arora-bridge"
 version = "4.0.0"
-source = "git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend#9f0af4bc1d9afdf0f7b5d25b1e66831f4f8dc821"
+source = "git+https://github.com/semio-ai/arora-sdk?branch=main#d57383514734aa13757b60f147e310f70e498e4d"
 dependencies = [
- "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend)",
+ "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=main)",
  "async-trait",
  "futures-channel",
  "futures-core",
@@ -202,10 +202,10 @@ dependencies = [
 [[package]]
 name = "arora-bridge-ros2"
 version = "3.0.0"
-source = "git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend#9f0af4bc1d9afdf0f7b5d25b1e66831f4f8dc821"
+source = "git+https://github.com/semio-ai/arora-sdk?branch=main#d57383514734aa13757b60f147e310f70e498e4d"
 dependencies = [
- "arora-bridge 4.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend)",
- "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend)",
+ "arora-bridge 4.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=main)",
+ "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=main)",
  "async-trait",
  "futures",
  "log",
@@ -294,7 +294,7 @@ dependencies = [
 [[package]]
 name = "arora-types"
 version = "2.0.0"
-source = "git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend#9f0af4bc1d9afdf0f7b5d25b1e66831f4f8dc821"
+source = "git+https://github.com/semio-ai/arora-sdk?branch=main#d57383514734aa13757b60f147e310f70e498e4d"
 dependencies = [
  "async-trait",
  "derive_more 2.1.1",
@@ -2648,7 +2648,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.61.2",
+ "windows-core 0.58.0",
 ]
 
 [[package]]
@@ -3728,7 +3728,7 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff32365de1b6743cb203b710788263c44a03de03802daf96092f2da4fe6ba4d7"
 dependencies = [
- "proc-macro-crate 2.0.2",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -6113,7 +6113,7 @@ version = "72.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b31c4b2434980b67ad83f300a58088ba14d59454dcd79ba3d87419bbd924d31e"
 dependencies = [
- "proc-macro-crate 2.0.2",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
