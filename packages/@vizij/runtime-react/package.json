@@ -32,6 +32,7 @@
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "test": "NODE_ENV=test vitest --run --passWithNoTests",
+    "smoke:node": "node scripts/headless-node-smoke.mjs",
     "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
@@ -39,6 +40,7 @@
   },
   "dependencies": {
     "@vizij/animation-module": "^0.2.0",
+    "@vizij/face-core": "workspace:*",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/render": "workspace:*",
     "@vizij/runtime": "^1.1.0",

@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import type { ValueJSON } from "@vizij/value-json";
 import type { IrGraph } from "@vizij/node-graph-authoring";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
+import type { VizijBundleExtension } from "@vizij/face-core";
+import type { World, VizijProps } from "@vizij/render";
 
 // ---------------------------------------------------------------------------
 // Engine-facing types. The engine is an Arora device running ONE composed

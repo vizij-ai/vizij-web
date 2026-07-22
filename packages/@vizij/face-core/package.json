@@ -1,0 +1,46 @@
+{
+  "name": "@vizij/face-core",
+  "description": "Headless, framework-agnostic Vizij face runtime controller (L1 of the package suite). Currently a placeholder: the FaceRuntime extraction lands here per docs/redesign/06-track-2-implementation.md.",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vizij-ai/vizij-web",
+    "directory": "packages/@vizij/face-core"
+  },
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts src/index.ts",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts src/index.ts",
+    "test": "vitest --run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx -- .",
+    "lint:fix": "pnpm --filter \"$npm_package_name\" exec eslint --ext .js,.jsx,.ts,.tsx --fix -- .",
+    "clean": "rm -rf dist .turbo coverage tsconfig.tsbuildinfo",
+    "reset": "rm -rf node_modules",
+    "prepack": "pnpm run build && pnpm run typecheck"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {}
+}

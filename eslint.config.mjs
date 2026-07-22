@@ -13,6 +13,7 @@ export default tseslint.config(
   {
     ignores: [
       "**/dist/**",
+      "**/api-snapshots/**",
       "**/coverage/**",
       "**/node_modules/**",
       "**/.vite/**",
