@@ -2,14 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import { valueAsNumber } from "@vizij/value-json";
-import {
-  type AroraValue,
-  type AroraType,
-  type NodeInfo,
-  extractNumericValue,
-  f64,
-} from "@vizij/arora-types";
+import { valueAsNumber, type AroraValueJSON } from "@vizij/value-json";
+import type { AroraType, NodeInfo } from "./aroraWsProtocol";
 
 /**
  * Hook that syncs WebSocket updates to the runtime.
@@ -18,9 +12,10 @@ import {
  *   setInput(fullPath, { float: value });
  *
  * Maintains local input values state (like vizij-authoring's bindingAuthoringStore)
- * to track values we've set, since the orchestrator consumes inputs during evaluation.
+ * to track values we've set, as a fallback while the device store has no
+ * entry for a path yet.
  *
- * No step() call needed - driveOrchestrator={true} handles evaluation.
+ * No step() call needed - driveRuntime={true} handles evaluation.
  */
 export function useWebSocketSync() {
   const {
@@ -31,6 +26,9 @@ export function useWebSocketSync() {
     faceId: runtimeFaceId,
     // The runtime's engine-store snapshot (most current after graph evaluation).
     getValueSnapshot: getPathSnapshot,
+    // Whole-store snapshot + change feed for the native-store bridge.
+    getStoreSnapshot,
+    subscribeToStoreChanges,
   } = useVizijRuntime();
 
   // Get faceId like useMouseGaze does
@@ -133,8 +131,8 @@ export function useWebSocketSync() {
     );
   }, [ready, inputConstraints, namespace, faceId]);
 
-  // Get a rig input value - tries orchestrator cache first, then local state
-  // The orchestrator caches values when setInput is called and after graph evaluation
+  // Get a rig input value - tries the device store first, then local state
+  // The device store holds values staged via setInput and written by graph evaluation
   const getRigValue = useCallback(
     (path: string): number | undefined => {
       if (!ready) return undefined;
@@ -142,12 +140,12 @@ export function useWebSocketSync() {
       // Normalize path: remove leading slashes, empty segments, and namespace prefix if present
       const normalizedPath = normalizeSlotPath(path);
 
-      // Build the namespaced path that the orchestrator uses
+      // Build the namespaced path that the device store uses
       // Format: namespace/rig/faceId/path (e.g., "vizij-standalone/rig/quori_latest/standard/vizij/mouth/morph/jaw_open")
       const fullPath = `rig/${faceId}/${normalizedPath}`;
       const namespacedPath = `${namespace}/${fullPath}`;
 
-      // Try orchestrator cache first (most current after graph evaluation)
+      // Try the device store first (most current after graph evaluation)
       const cachedValue = getPathSnapshot(namespacedPath);
       if (cachedValue !== undefined) {
         const numValue = valueAsNumber(cachedValue);
@@ -203,7 +201,7 @@ export function useWebSocketSync() {
       console.log("[vizij-standalone] setInput:", fullPath, "=", value);
       setInput(fullPath, { float: value });
 
-      // No step() needed - driveOrchestrator handles the animation loop
+      // No step() needed - driveRuntime handles the engine loop
     },
     [ready, setInput, faceId, normalizeSlotPath],
   );
@@ -234,7 +232,7 @@ export function useWebSocketSync() {
         max: constraint?.max,
         default_value:
           constraint?.defaultValue != null
-            ? f64(constraint.defaultValue)
+            ? { f64: constraint.defaultValue }
             : undefined,
       });
     }
@@ -263,30 +261,49 @@ export function useWebSocketSync() {
       "[vizij-standalone] Will use path format: rig/" + faceId + "/<path>",
     );
 
-    // Listen for arora-types Value updates from the WebSocket server
-    const unlistenUpdates = listen<Record<string, AroraValue>>(
+    // Writes arriving from the native bridges (WS, ROS2, Studio) — the
+    // native→device half of the store bridge (VIZ-74). Two path vocabularies
+    // land here:
+    //  - Legacy WS clients send SHORT rig-input paths (they match an entry in
+    //    `inputConstraints`, e.g. "standard/vizij/mouth/morph/jaw_open"):
+    //    numeric-only, routed through setRigValue (rig/{faceId}/ prefix).
+    //  - Everything else is a FULL device-store path exactly as consumers read
+    //    it (e.g. Studio writing back "rig/{faceId}/…" or "background/color"):
+    //    applied verbatim via setInput. Values pass through untouched — the
+    //    device normalizes canonical arora serde forms itself — so structured
+    //    values work, not just scalars.
+    const unlistenUpdates = listen<Record<string, AroraValueJSON>>(
       "update-values",
       (event) => {
-        console.log("[vizij-standalone] Received update:", event.payload);
-
         Object.entries(event.payload).forEach(([path, aroraValue]) => {
-          if (aroraValue === undefined) return;
+          if (aroraValue === undefined || aroraValue === null) return;
 
-          // Extract numeric value from the arora Value
-          const numValue = extractNumericValue(aroraValue);
-          if (numValue === null) {
-            console.warn(
-              `[vizij-standalone] Non-numeric value for path ${path}:`,
-              aroraValue,
-            );
+          const cleanPath = normalizeSlotPath(path);
+          const isLegacyRigInput =
+            inputConstraints[cleanPath] !== undefined ||
+            (namespace !== undefined &&
+              inputConstraints[`${namespace}/${cleanPath}`] !== undefined);
+
+          if (isLegacyRigInput) {
+            const numValue = valueAsNumber(aroraValue);
+            if (numValue === undefined) {
+              console.warn(
+                `[vizij-standalone] Non-numeric value for rig input ${path}:`,
+                aroraValue,
+              );
+              return;
+            }
+            setRigValue(cleanPath, numValue);
             return;
           }
 
-          // Clean up the incoming path - remove leading slashes
-          const cleanPath = path.replace(/^\/+/, "").trim();
-
-          // Use setRigValue which builds: rig/${faceId}/${cleanPath}
-          setRigValue(cleanPath, numValue);
+          setInput(
+            cleanPath,
+            // The device accepts canonical arora Value serde directly
+            // (normalize_value_json tries it first); ValueJSON is the
+            // declared surface type only.
+            aroraValue as unknown as Parameters<typeof setInput>[1],
+          );
         });
       },
     );
@@ -316,7 +333,15 @@ export function useWebSocketSync() {
       unlistenUpdates.then((f) => f());
       unlistenReset.then((f) => f());
     };
-  }, [ready, faceId, setRigValue, getRigValue, inputConstraints]);
+  }, [
+    ready,
+    faceId,
+    namespace,
+    setRigValue,
+    setInput,
+    inputConstraints,
+    normalizeSlotPath,
+  ]);
 
   // Continuously mirror the webview's live values into the native store.
   //
@@ -328,36 +353,68 @@ export function useWebSocketSync() {
   useEffect(() => {
     if (!ready) return;
 
-    const constraintKeys = Object.keys(inputConstraints);
-    if (constraintKeys.length === 0) return;
+    // The device↔native store bridge, VIZ-74: the device store is canonical;
+    // its changes stream to the native store (and thus WS/ROS2/Studio) as they
+    // happen — no polling, no snapshots after the first. Values are already in
+    // arora's serde shape — pass-through, no conversion. The reverse direction
+    // is the `update-values` Tauri event handled above. The remaining step to
+    // a literal single store is running the device natively (tracked on the
+    // ticket); until then this IPC bridge IS the store seam.
+    const FLUSH_MS = 50;
+    let pending: Record<string, unknown> = {};
+    let flushTimer: number | null = null;
+    let cancelled = false;
 
-    const pushValues = () => {
-      const values: Record<string, AroraValue> = {};
-      for (const path of constraintKeys) {
-        const currentValue = getRigValue(path);
-        if (currentValue !== undefined) {
-          // Publish under the canonical store key, not the raw constraint-map
-          // alias. Rig input paths are stored with a leading slash (e.g.
-          // "/rblid/translation/z") and the map also holds namespaced variants;
-          // publishing those verbatim yields empty Zenoh chunks once the bridge
-          // prepends "state/{uid}/" ("state/<uid>//rblid/..."). normalizeSlotPath
-          // strips the leading slash, collapses "//", and drops the namespace,
-          // which also collapses the ~4 aliases of each input to one key.
-          values[normalizeSlotPath(path)] = f64(currentValue);
-        }
-      }
-      if (Object.keys(values).length > 0) {
-        invoke("publish_values", { values }).catch((err) => {
-          console.error("[vizij-standalone] Failed to publish values:", err);
-        });
+    // Internal keys stay device-side: arora's golden keys (`arora/…`) and the
+    // animation module's per-tick out-blob. Everything else publishes under
+    // the canonical store key (leading slash stripped, "//" collapsed,
+    // namespace dropped) — raw aliases yield empty Zenoh chunks once the
+    // bridge prepends "state/{uid}/".
+    const stage = (path: string, value: unknown) => {
+      if (value === null || value === undefined) return;
+      if (path.startsWith("arora/") || path === "vizij/animations/out") return;
+      pending[normalizeSlotPath(path)] = value;
+    };
+
+    const flush = () => {
+      flushTimer = null;
+      if (cancelled) return;
+      const values = pending;
+      pending = {};
+      if (Object.keys(values).length === 0) return;
+      invoke("publish_values", { values }).catch((err) => {
+        console.error("[vizij-standalone] Failed to publish values:", err);
+      });
+    };
+
+    const scheduleFlush = () => {
+      if (flushTimer === null) {
+        flushTimer = window.setTimeout(flush, FLUSH_MS);
       }
     };
 
-    // Push once immediately, then on a 10Hz interval for live data.
-    pushValues();
-    const interval = window.setInterval(pushValues, 100);
-    return () => window.clearInterval(interval);
-  }, [ready, inputConstraints, getRigValue, normalizeSlotPath]);
+    // Seed the native store with the full current state once, then stay
+    // current from the per-step change feed.
+    const snapshot = getStoreSnapshot();
+    if (snapshot) {
+      for (const [path, value] of Object.entries(snapshot)) {
+        stage(path, value);
+      }
+      scheduleFlush();
+    }
+    const unsubscribe = subscribeToStoreChanges((changes) => {
+      for (const [path, value] of Object.entries(changes)) {
+        stage(path, value);
+      }
+      scheduleFlush();
+    });
+
+    return () => {
+      cancelled = true;
+      if (flushTimer !== null) window.clearTimeout(flushTimer);
+      unsubscribe();
+    };
+  }, [ready, getStoreSnapshot, subscribeToStoreChanges, normalizeSlotPath]);
 
   return {
     ready,

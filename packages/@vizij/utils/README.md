@@ -59,7 +59,7 @@ const lookup = getLookup("actorA", jawOpen.id); // "actorA.jaw/open"
 const namespace = getNamespace(lookup); // "actorA"
 ```
 
-Use these primitives when defining rig channels, orchestrator inputs, or animation metadata so everything aligns with the same schema.
+Use these primitives when defining rig channels, runtime inputs, or animation metadata so everything aligns with the same schema.
 
 ---
 
@@ -86,7 +86,7 @@ pnpm --filter "@vizij/utils" typecheck
 
 ## Publishing
 
-Releases flow through [`.github/workflows/publish-npm.yml`](../../.github/workflows/publish-npm.yml).
+Releases flow through [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
 
 1. Record a changeset and apply the version bump:
 
@@ -111,7 +111,7 @@ Releases flow through [`.github/workflows/publish-npm.yml`](../../.github/workfl
 
 ## Related Packages
 
-- [`@vizij/animation-react`](../@vizij/animation-react/README.md) – Re-exports value helpers for React consumers.
+- [`@vizij/animation-react`](../animation-react/README.md) – Re-exports value helpers for React consumers.
 - [`@vizij/render`](../render/README.md) – Uses the namespace helpers to manage store ids.
 
 Have ideas for additional shared helpers? Open a PR and document the changes here to keep the ecosystem aligned. 🧰

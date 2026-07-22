@@ -158,13 +158,47 @@ jobs:
           echo "::error::Emulator smoke test failed on all attempts (attempt-1=${{ steps.smoke-1.outcome }}, attempt-2=${{ steps.smoke-2.outcome }})."
           exit 1
 
-  # Pushes to main: build a RELEASE APK. It is signed when the keystore secrets
-  # are present, otherwise produced unsigned (the build never fails for lack of
-  # a key — see src-tauri/gen/android/app/build.gradle.kts).
-  release-apk:
-    name: Release APK
+  # Pushes to main: release-on-version-bump. When tauri.conf.json's `version`
+  # has no `vizij-standalone-v<version>` GitHub release yet (i.e. the version
+  # was bumped), build the SIGNED release APK and publish it as that release —
+  # the per-app tag prefix keeps releases distinct in this monorepo. A push
+  # without a version bump produces no release. See the app README ("Android
+  # release process").
+  release-version:
+    name: Detect version bump
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check whether this version already has a release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(jq -r .version "$APP_DIR/src-tauri/tauri.conf.json")
+          TAG="vizij-standalone-v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — no version bump; skipping the release build."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release $TAG yet — building and publishing it."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-apk:
+    name: Release APK
+    needs: release-version
+    if: github.event_name == 'push' && needs.release-version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -204,20 +238,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build:packages
 
-      - name: Configure release signing (if secrets present)
+      - name: Configure release signing
         working-directory: ${{ env.ANDROID_DIR }}
         env:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          # Published releases are always signed: a missing keystore is a hard
+          # failure, not an unsigned artifact.
           if [ -z "$ANDROID_KEY_BASE64" ]; then
-            echo "::warning::ANDROID_KEY_BASE64 not set — the release APK will be UNSIGNED."
-            exit 0
+            echo "::error::ANDROID_KEY_BASE64 is not set — a published release APK must be signed (see the app README, 'Android release process')."
+            exit 1
           fi
           {
             echo "keyAlias=$ANDROID_KEY_ALIAS"
-            echo "password=$ANDROID_KEY_PASSWORD"
+            # Empty when the keystore is passwordless (ANDROID_KEY_PASSWORD unset).
+            echo "password=${ANDROID_KEY_PASSWORD}"
           } > keystore.properties
           echo "$ANDROID_KEY_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
@@ -236,3 +273,18 @@ jobs:
           name: vizij-standalone-release-apk
           path: ${{ env.ANDROID_DIR }}/app/build/outputs/apk/**/release/*.apk
           if-no-files-found: error
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-version.outputs.tag }}
+          VERSION: ${{ needs.release-version.outputs.version }}
+        run: |
+          mapfile -t APKS < <(find "$ANDROID_DIR/app/build/outputs/apk" -path '*/release/*.apk')
+          if [ "${#APKS[@]}" -eq 0 ]; then
+            echo "::error::No release APK found to publish."
+            exit 1
+          fi
+          gh release create "$TAG" "${APKS[@]}" \
+            --title "vizij-standalone v$VERSION" \
+            --notes "Signed Android release APK for vizij-standalone v\`$VERSION\` (Studio-connected build). Cut automatically by the version bump in \`apps/vizij-standalone/src-tauri/tauri.conf.json\` — see the app README, \"Android release process\"."

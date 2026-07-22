@@ -22,7 +22,7 @@ Fullscreen Vizij face wired to a live Gemini agent. Mouse steers gaze, number ke
 ## Integration Tips
 
 - The app loads Quori from `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb`; update `faceAssetUrl` in `src/FaceApp.tsx` if the canonical sample rig moves.
-- Runtime namespace is `tutorial-agent-face`; keep consistent so orchestrator inputs and gaze hooks stay aligned.
+- Runtime namespace is `tutorial-agent-face`; keep consistent so runtime inputs and gaze hooks stay aligned.
 - Mouth animation resolves viseme pose IDs from the runtime pose bundle and stages canonical pose-weight inputs under `rig/<face>/poses/<poseId>.weight`; adjust `visemeMapping.ts` only if the exported viseme pose IDs change.
 - UI includes a "Mouth source" selector (text baseline, audio+text synth, or audio+text align); only one generator runs at a time. The align option runs a Viterbi aligner over Gemini audio features + phoneme probs, guided by the text timeline.
 - Blend tuning: sliders for viseme blend window (ms) and viseme lead (ms, default +450). Positive lead makes the mouth move earlier relative to audio playback.

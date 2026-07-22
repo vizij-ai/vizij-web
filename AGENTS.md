@@ -26,33 +26,24 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | ----------------------------- | ------------------------------------------------------------- |
 | `@vizij/animation-react`      | React bindings for the animation runtime                      |
 | `@vizij/node-graph-react`     | React bindings for graph runtime/staging                      |
-| `@vizij/orchestrator-react`   | Orchestrator provider, hooks, and blackboard utilities        |
 | `@vizij/render`               | Three.js renderer and controllers                             |
 | `@vizij/runtime-react`        | Higher-level runtime provider wiring renderer + orchestration |
 | `@vizij/utils`                | Shared utility layer                                          |
 | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI                  |
 | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps                        |
-| `@vizij/arora-types`          | TypeScript protocol surface for standalone/control work       |
-
-### Local Rust crates under `packages/`
-
-| Crate              | Focus                                           |
-| ------------------ | ----------------------------------------------- |
-| `arora-connection` | Core Arora connection traits/types              |
-| `arora-websocket`  | WebSocket implementation for the Arora protocol |
+| `@vizij/speech-react`         | STT/LLM/TTS speech pipeline hooks for Vizij React apps        |
 
 ### Apps (`apps/*`)
 
 | App                            | Focus                                |
 | ------------------------------ | ------------------------------------ |
 | `vizij-authoring`              | Runtime-truthful authoring surface   |
-| `demo-vizij-player`            | Authoring/runtime playback demo      |
+| `demo-vizij-player`            | Bundle-first runtime-react player    |
 | `demo-animation-studio`        | Animation playground                 |
 | `demo-graph-studio`            | Graph editing demo                   |
 | `minimal-demo-animation`       | Minimal animation smoke surface      |
 | `minimal-demo-animation-graph` | Combined animation + graph sample    |
 | `minimal-demo-graph`           | Minimal graph sample                 |
-| `minimal-demo-orchestrator`    | Minimal orchestrator sample          |
 | `tutorial-fullscreen-face`     | Runtime tutorial example             |
 | `tutorial-agent-face`          | Tutorial/demo with agent interaction |
 | `vizij-showcase`               | Shareable showcase/demo surface      |

@@ -19,10 +19,10 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const DEFAULT_VIZIJ_RS = path.resolve(REPO_ROOT, "..", "vizij-rs");
 
 const ALL_PACKAGES = [
+  "animation-module",
   "animation-wasm",
-  "arora-web-wasm",
+  "runtime",
   "node-graph-wasm",
-  "orchestrator-wasm",
   "value-json",
   "wasm-loader",
   "test-fixtures",
@@ -37,8 +37,8 @@ Usage:
 
 Examples:
   pnpm run wasm:status
-  pnpm run wasm:link -- --pkgs "node-graph-wasm orchestrator-wasm"
-  WASM_PKGS="graph orchestrator" pnpm run wasm:link
+  pnpm run wasm:link -- --pkgs "node-graph-wasm runtime"
+  WASM_PKGS="graph runtime" pnpm run wasm:link
   pnpm run wasm:unlink -- --pkgs "all"
 
 Notes:
@@ -106,7 +106,6 @@ function normalizePackageToken(token) {
   if (t === "animation") return "animation-wasm";
   if (t === "graph") return "node-graph-wasm";
   if (t === "node-graph") return "node-graph-wasm";
-  if (t === "orchestrator") return "orchestrator-wasm";
   if (t === "fixtures") return "test-fixtures";
   return t;
 }

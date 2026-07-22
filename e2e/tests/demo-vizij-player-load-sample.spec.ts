@@ -2,11 +2,11 @@ import { test, expect } from "@playwright/test";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
 
 // Regression for the arora value-marshalling bug: `demo-vizij-player` mounts the
-// arora runtime (`@vizij/runtime-react` → `@vizij/arora-web-wasm`). Loading a
+// arora runtime (`@vizij/runtime-react` → `@vizij/runtime`). Loading a
 // sample drives `setValue` with vizij `ValueJSON` shorthand (`{"float": …}`,
 // `{"vec3": …}`); the arora store speaks the canonical `Value` serde (`{"f32": …}`),
 // so before @vizij/arora-web-wasm@0.1.2 every write threw `unknown variant 'float'`
-// and surfaced as "Failed to create orchestrator runtime". The boot-only smoke
+// and surfaced as "Failed to initialize the engine". The boot-only smoke
 // (standalone-demos-smoke) never loaded a sample, so it missed this. This test
 // loads the curated sample and asserts the runtime accepts the values.
 //
@@ -17,7 +17,7 @@ const player = STANDALONE_DEMOS.find((d) => d.filter === "demo-vizij-player");
 if (!player) throw new Error("demo-vizij-player missing from STANDALONE_DEMOS");
 
 const RUNTIME_ERROR =
-  /unknown variant|Failed to create orchestrator|expected magic word|failed to init wasm/i;
+  /unknown variant|Failed to initialize the engine|expected magic word|failed to init wasm/i;
 
 test("demo-vizij-player loads a sample without a runtime value error", async ({
   page,

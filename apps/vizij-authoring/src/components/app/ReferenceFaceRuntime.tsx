@@ -32,7 +32,7 @@ type ReferenceFaceRuntimeProps = {
   active?: boolean;
   fallback?: ReactNode;
   autostart?: boolean;
-  driveOrchestrator?: boolean;
+  driveRuntime?: boolean;
   visible?: boolean;
   /** Called when standard inputs are detected from the loaded face */
   onStandardInputsReady?: (
@@ -250,7 +250,7 @@ export function ReferenceFaceRuntime({
   active = true,
   fallback = null,
   autostart = true,
-  driveOrchestrator = false,
+  driveRuntime = false,
   visible = true,
   onStandardInputsReady,
   onLoadingStateChange,
@@ -298,12 +298,12 @@ export function ReferenceFaceRuntime({
   }
 
   const shouldAutostart = autostart && visible;
-  const shouldDriveVisible = driveOrchestrator && visible;
+  const shouldDriveVisible = driveRuntime && visible;
   return (
     <VizijRuntimeProvider
       assetBundle={activeBundleConfig.bundle}
       autostart={shouldAutostart}
-      driveOrchestrator={shouldDriveVisible}
+      driveRuntime={shouldDriveVisible}
     >
       <ReferenceFaceBridge
         onStandardInputsReady={onStandardInputsReady}

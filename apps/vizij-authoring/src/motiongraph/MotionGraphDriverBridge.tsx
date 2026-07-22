@@ -35,8 +35,8 @@ function MotionGraphDriverInner({
   edges?: EditorEdge[];
 }) {
   // Use the runtime's own namespace so the motiongraph's output paths match
-  // the rig's namespaced Input node paths on the orchestrator blackboard.
-  // Pass `controllers` as a resync signal so the driver re-registers its
+  // the rig's namespaced Input node paths in the arora device store.
+  // Pass `controllers` as a resync signal so the driver re-publishes its
   // graph whenever VizijRuntimeProvider clears and re-registers its own
   // controllers (rig/pose graphs).
   const { namespace, controllers } = useVizijRuntime();

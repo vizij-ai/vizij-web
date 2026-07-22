@@ -51,10 +51,9 @@ export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
         <div className="diagnostics-block">
           <strong>Runtime controllers</strong>
           <p className="diagnostic-copy">
-            These are the controller ids the runtime exposes from the
-            orchestrator layer. Graph controllers cover registered rig, pose, or
-            program graphs. Animation controllers cover registered embedded
-            clips.
+            These are the controller ids the runtime exposes. Graph controllers
+            cover registered rig, pose, or program graphs. Animation controllers
+            cover registered embedded clips.
           </p>
           {hasControllers ? (
             <ul className="mono-list">

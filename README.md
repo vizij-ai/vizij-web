@@ -2,7 +2,7 @@
 
 > **TypeScript packages, React integrations, and demo applications that showcase Vizij’s real-time animation platform.**
 
-This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@vizij/*-wasm` packages and exposes production-ready packages plus a suite of internal apps.
+This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation-wasm` and `@vizij/node-graph-wasm` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
 
 ---
 
@@ -43,21 +43,13 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | Package                       | Path                                   | Summary                                                         | Key scripts                                  |
 | ----------------------------- | -------------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
 | `@vizij/animation-react`      | `packages/@vizij/animation-react`      | React provider for the animation WASM engine.                   | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/arora-types`          | `packages/@vizij/arora-types`          | TypeScript protocol types for standalone/control work.          | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.                | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                   | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/orchestrator-react`   | `packages/@vizij/orchestrator-react`   | React orchestrator bindings and hooks.                          | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                 | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/speech-react`         | `packages/@vizij/speech-react`         | Shared STT/LLM/TTS speech pipeline hooks for Vizij React apps.  | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
-
-### Local protocol / standalone crates
-
-| Crate              | Path                        | Summary                                              |
-| ------------------ | --------------------------- | ---------------------------------------------------- |
-| `arora-connection` | `packages/arora-connection` | Rust protocol traits and shared connection types     |
-| `arora-websocket`  | `packages/arora-websocket`  | Rust WebSocket implementation for the Arora protocol |
 
 ### Apps
 
@@ -66,11 +58,10 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                | `dev`, `build`, `typecheck`, `preview` |
 | `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                               | `dev`, `build`, `typecheck`, `preview` |
 | `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.           | `dev`, `build`, `typecheck`, `preview` |
-| `demo-vizij-player`            | `apps/demo-vizij-player`            | Authoring surface for facial rigs and runtime-driven playback.          | `dev`, `build`, `typecheck`, `preview` |
+| `demo-vizij-player`            | `apps/demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.      | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-orchestrator`    | `apps/minimal-demo-orchestrator`    | Orchestrator blackboard visualiser with canned controllers.             | `dev`, `build`, `typecheck`, `preview` |
 | `tutorial-fullscreen-face`     | `apps/tutorial-fullscreen-face`     | Runtime tutorial app built on `@vizij/runtime-react`.                   | `dev`, `build`, `typecheck`            |
 | `tutorial-agent-face`          | `apps/tutorial-agent-face`          | Tutorial/demo app with agent-facing interaction flow.                   | `dev`, `build`, `typecheck`            |
 | `vizij-showcase`               | `apps/vizij-showcase`               | Shareable fullscreen showcase with runtime, voice, and staging helpers. | `dev`, `build`, `typecheck`            |
@@ -188,14 +179,14 @@ When you need edits from the Rust workspace:
 
    ```bash
    pnpm run link:wasm
-   # optional: pnpm run watch:wasm:<animation|graph|orchestrator> for continuous rebuilds
+   # optional: pnpm run watch:wasm:<animation|graph> for continuous rebuilds
    ```
 
 2. Back in this repo, link the packages you want (and verify status):
 
    ```bash
    # link a subset
-   pnpm run wasm:link -- --pkgs "node-graph-wasm orchestrator-wasm"
+   pnpm run wasm:link -- --pkgs "node-graph-wasm runtime"
    # or link everything
    pnpm run wasm:link -- --pkgs all
 
@@ -320,7 +311,7 @@ The workflow logs the npm publish output for each changed package. After a succe
 
 ## Related Repositories
 
-- [`vizij-rs`](../vizij-rs) – Rust source for the animation, graph, and orchestrator cores plus WASM bundles.
+- [`vizij-rs`](../vizij-rs) – Rust source for the animation and graph cores plus WASM bundles.
 - [`vizij-docs`](../vizij-docs) – Canonical internal cross-repo architecture, roadmap, decisions, and status summaries.
 - [`vizij-ai.github.io`](../vizij-ai.github.io) – Curated public docs, tutorials, and showcase content.
 

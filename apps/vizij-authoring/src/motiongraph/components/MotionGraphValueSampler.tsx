@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useOrchestrator } from "@vizij/orchestrator-react";
 import { useVizijRuntime } from "@vizij/runtime-react";
+import { valueAsNumber, type ValueJSON } from "@vizij/value-json";
 import { useEditorStore } from "../store/useEditorStore";
 import {
   outputValueBridge,
@@ -9,8 +9,8 @@ import {
 import { OUTPUT_TARGET_TYPE } from "./OutputTargetNode";
 
 /**
- * Headless component that subscribes to orchestrator frames and samples
- * output values, writing them into the shared outputValueBridge.
+ * Headless component that samples output values from the arora device store
+ * after each engine step, writing them into the shared outputValueBridge.
  * Must be rendered inside VizijRuntimeProvider.
  */
 export function MotionGraphValueSampler({ active }: { active: boolean }) {
@@ -21,18 +21,14 @@ export function MotionGraphValueSampler({ active }: { active: boolean }) {
 }
 
 function MotionGraphValueSamplerInner() {
-  const { subscribeToFrame, getFrameSnapshot } = useOrchestrator();
-  const { namespace } = useVizijRuntime();
+  const { subscribeToStep, getValueSnapshot, namespace } = useVizijRuntime();
   const activeRef = useRef(true);
 
   useEffect(() => {
     let debugCount = 0;
     const normalizedNamespace = normalizePath(namespace);
-    const unsub = subscribeToFrame(() => {
+    const unsub = subscribeToStep(() => {
       if (!activeRef.current) return;
-
-      const frame = getFrameSnapshot();
-      if (!frame) return;
 
       // Collect all output target paths from editor store
       const { nodes } = useEditorStore.getState();
@@ -45,12 +41,6 @@ function MotionGraphValueSamplerInner() {
 
       if (outputPaths.length === 0) return;
 
-      // Build a canonical map of frame writes for exact path matching.
-      const writesByPath = new Map<string, unknown>();
-      for (const write of frame.merged_writes) {
-        writesByPath.set(normalizePath(write.path), write.value);
-      }
-
       const snapshot: PathSnapshot = new Map();
       for (const outputPath of outputPaths) {
         const normalizedOutputPath = normalizePath(outputPath);
@@ -60,11 +50,12 @@ function MotionGraphValueSamplerInner() {
         }
 
         let matchedPath: string | null = null;
-        let matchedValue: unknown;
+        let matchedValue: ValueJSON | undefined;
         for (const pathCandidate of pathCandidates) {
-          if (writesByPath.has(pathCandidate)) {
+          const value = getValueSnapshot(pathCandidate);
+          if (value !== undefined) {
             matchedPath = pathCandidate;
-            matchedValue = writesByPath.get(pathCandidate);
+            matchedValue = value;
             break;
           }
         }
@@ -81,7 +72,7 @@ function MotionGraphValueSamplerInner() {
           debugCount++;
           console.log("[MgValueSampler] matched", {
             outputPath,
-            writePath: matchedPath,
+            storePath: matchedPath,
             rawValue: matchedValue,
             extractedNum: num,
           });
@@ -92,24 +83,18 @@ function MotionGraphValueSamplerInner() {
     });
 
     return unsub;
-  }, [getFrameSnapshot, namespace, subscribeToFrame]);
+  }, [getValueSnapshot, namespace, subscribeToStep]);
 
   return null;
 }
 
-function extractNumericValue(value: unknown): number | null {
-  if (typeof value === "number") return value;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  if (value != null && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    // Handle ValueJSON format: { type: 'Float', data: N }
-    if (typeof obj.data === "number") return obj.data;
-    // Handle WASM-style typed values like { f32: 0.5 }
-    const keys = Object.keys(obj);
-    if (keys.length === 1) {
-      const inner = obj[keys[0]];
-      if (typeof inner === "number") return inner;
-    }
+function extractNumericValue(value: ValueJSON | undefined): number | null {
+  if (value === undefined || value === null) return null;
+  const num = valueAsNumber(value);
+  if (typeof num === "number" && Number.isFinite(num)) return num;
+  if (typeof value === "object") {
+    const inner = (value as Record<string, unknown>).bool;
+    if (typeof inner === "boolean") return inner ? 1 : 0;
   }
   return null;
 }

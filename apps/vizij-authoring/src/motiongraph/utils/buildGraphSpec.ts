@@ -8,18 +8,20 @@ import {
   INPUT_SOURCE_PORT_ID,
 } from "../components/InputSourceNode";
 
-/* ── Spec types (match orchestrator-wasm GraphSpec format) ──────── */
+/* ── Spec types (the Vizij GraphSpec format) ──────── */
 
-interface SpecNode {
+// Type aliases (not interfaces) so they satisfy structural index-signature
+// targets like runtime-react's GraphSpecLike.
+type SpecNode = {
   id: string;
   type: string;
   params?: Record<string, unknown>;
-}
+};
 
-interface SpecEdge {
+type SpecEdge = {
   from: { node_id: string; output?: string };
   to: { node_id: string; input: string };
-}
+};
 
 export interface BuiltGraphSpec {
   spec: {
@@ -301,8 +303,8 @@ function buildGraphSpecInternal(
 /* ── Public API ──────────────────────────────────────────────────── */
 
 /**
- * Convert editor state to an orchestrator GraphSpec with namespaced
- * output paths (for live registration with the orchestrator).
+ * Convert editor state to a GraphSpec with namespaced
+ * output paths (for live registration with the runtime).
  */
 export function buildGraphSpec(
   nodes: EditorNode[],
@@ -313,7 +315,7 @@ export function buildGraphSpec(
 }
 
 /**
- * Convert editor state to an orchestrator GraphSpec WITHOUT namespace
+ * Convert editor state to a GraphSpec WITHOUT namespace
  * (for embedding in a portable GLB bundle — namespace is applied at
  * load time by VizijRuntimeProvider.namespaceGraphSpec()).
  */

@@ -16,14 +16,14 @@ export function ControlsSection() {
       <SectionIntro
         eyebrow="Fine-grain control"
         title="Every feature is controllable."
-        description="Dial any part of the face—from color and opacity to 3D position, rotation, and scale. Search a path, add it, and drive exact values through Vizij’s orchestrator."
+        description="Dial any part of the face—from color and opacity to 3D position, rotation, and scale. Search a path, add it, and drive exact values through Vizij’s runtime."
       />
       <ShowcaseRuntime
         namespace="controls"
         asset="quoriCurrentExtended"
         active={hasEntered}
         autostart={false}
-        driveOrchestrator={false}
+        driveRuntime={false}
         visible={isVisible}
         label="Rig composer"
         fallback={<ControlsFallback />}

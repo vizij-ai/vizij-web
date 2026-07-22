@@ -1,6 +1,6 @@
 {
   "name": "@vizij/runtime-react",
-  "description": "Runtime provider that bridges Vizij renderer assets with orchestrator controllers for React apps.",
+  "description": "Runtime provider that drives Vizij renderer assets with an arora device engine for React apps.",
   "version": "0.2.0",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -38,10 +38,10 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
-    "@vizij/arora-web-wasm": "^0.1.2",
+    "@vizij/animation-module": "^0.2.0",
     "@vizij/node-graph-authoring": "workspace:*",
-    "@vizij/orchestrator-react": "workspace:*",
     "@vizij/render": "workspace:*",
+    "@vizij/runtime": "^1.1.0",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.2.0"
   },

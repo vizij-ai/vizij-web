@@ -145,6 +145,9 @@ const MATERIAL_NAME_FEATURE_KEYS = [
   "roughness",
   "metalness",
   "shininess",
+  "emissive",
+  "emissiveIntensity",
+  "specular",
 ];
 
 const MATERIAL_NAME_SUFFIXES = [
@@ -155,6 +158,9 @@ const MATERIAL_NAME_SUFFIXES = [
   " roughness",
   " metalness",
   " shininess",
+  " emissive intensity",
+  " emissive",
+  " specular",
 ];
 
 function applyStoredRenderableNames(

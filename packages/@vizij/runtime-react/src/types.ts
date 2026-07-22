@@ -10,11 +10,11 @@ import type {
 } from "@vizij/render";
 
 // ---------------------------------------------------------------------------
-// Engine-facing types, formerly re-exported from @vizij/orchestrator-react.
-// The engine is now an Arora device running ONE composed graph; these types
-// survive as the vocabulary of the asset bundle and the provider's public
-// surface. Registration configs are metadata feeding the composed spec and
-// the tracked-output sets — the device has no per-controller registration.
+// Engine-facing types. The engine is an Arora device running ONE composed
+// graph; these types are the vocabulary of the asset bundle and the
+// provider's public surface. Registration configs are metadata feeding the
+// composed spec and the tracked-output sets — the device has no
+// per-controller registration.
 // ---------------------------------------------------------------------------
 
 /** Value shape hint. Accepted through the public surface, unused by the device. */
@@ -208,7 +208,7 @@ export type RuntimeError = {
   cause?: unknown;
   phase?:
     | "assets"
-    | "orchestrator"
+    | "engine"
     | "registration"
     | "animation"
     | "bridge"
@@ -310,6 +310,29 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   setInput: (path: string, value: ValueJSON, shape?: ShapeJSON) => void;
   /** Current engine-store value of a path (read-your-own-write included). */
   getValueSnapshot: (path: string) => ValueJSON | undefined;
+  /**
+   * A snapshot of EVERY key currently in the device store, as path → Value in
+   * arora's serde JSON shape (pass-through from the device; not `ValueJSON`).
+   * `undefined` until the device exists. For mirrors/bridges that forward the
+   * whole store (e.g. the standalone's native-store bridge), not for per-path
+   * sampling — use `getValueSnapshot` for that.
+   */
+  getStoreSnapshot: () => Record<string, unknown> | undefined;
+  /**
+   * Notifies with each step's drained store changes (path → Value in arora's
+   * serde JSON shape; `null` for a cleared key). The change-driven counterpart
+   * to `getStoreSnapshot` for store bridges: seed from the snapshot, then stay
+   * current from these. Returns an unsubscribe function.
+   */
+  subscribeToStoreChanges: (
+    listener: (changes: Record<string, unknown>) => void,
+  ) => () => void;
+  /**
+   * Notifies after each engine step, once the step's store changes have been
+   * applied. Pair with `getValueSnapshot` to sample values step-aligned.
+   * Returns an unsubscribe function.
+   */
+  subscribeToStep: (listener: () => void) => () => void;
   setGraphBundle: (
     bundle: RuntimeGraphBundle,
     options?: { tier?: "auto" | "assets" | "graphs" },
@@ -343,7 +366,6 @@ export type VizijRuntimeContextValue = VizijRuntimeStatus & {
   setAnimationActive: (active: boolean) => void;
   isAnimationActive: () => boolean;
   step: (dt: number, opts?: { forceRuntime?: boolean }) => void;
-  advanceAnimations: (dt: number) => void;
   inputConstraints: Record<
     string,
     { min?: number; max?: number; defaultValue?: number }
@@ -358,7 +380,14 @@ export type VizijRuntimeProviderProps = {
   updateTier?: RuntimeUpdateTier;
   autoCreate?: boolean;
   autostart?: boolean;
-  driveOrchestrator?: boolean;
+  /**
+   * Whether this provider's device paces itself: when true the device is
+   * handed to its own `run()` loop at boot and the provider only pumps its
+   * changes; when false the device advances solely on `step(dt,
+   * { forceRuntime: true })` calls from the host. A device handed to `run()`
+   * keeps its loop even if this later turns false.
+   */
+  driveRuntime?: boolean;
   mergeStrategy?: MergeStrategyOptions;
   onRegisterControllers?: (ids: { graphs: string[]; anims: string[] }) => void;
   onStatusChange?: (status: VizijRuntimeStatus) => void;

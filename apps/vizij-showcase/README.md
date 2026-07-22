@@ -22,7 +22,7 @@ Some faces are visible and interactive; others are decorative or hidden until sc
 `ShowcaseRuntime` therefore separates:
 
 - `autostart`
-- `driveOrchestrator`
+- `driveRuntime`
 - `visible`
 - `hiddenStepHz`
 

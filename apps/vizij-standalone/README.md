@@ -8,7 +8,7 @@ At runtime the app:
 
 1. loads a GLB from a CLI `--glb` source or the file picker
 2. builds a `VizijAssetBundle` from either a URL or a local file blob
-3. mounts `VizijRuntimeProvider` with `autostart` and `driveOrchestrator={true}`
+3. mounts `VizijRuntimeProvider` with `autostart` and `driveRuntime={true}`
 4. mirrors runtime `inputConstraints`, speech state, and transport inventory back to the Rust side
 5. applies incoming WebSocket or ROS2 control messages through the shared connection manager
 
@@ -464,10 +464,31 @@ is used, otherwise the release APK is built unsigned. To enable signing in CI:
 
 2. Add these GitHub repository secrets:
    - `ANDROID_KEY_ALIAS` — the key alias (e.g. `upload`)
-   - `ANDROID_KEY_PASSWORD` — the keystore/key password
    - `ANDROID_KEY_BASE64` — the keystore, base64-encoded (`base64 -w0 upload-keystore.jks`)
+   - `ANDROID_KEY_PASSWORD` — only if the keystore has a password (omit for a
+     passwordless keystore; the same value is used for the store and the key)
 
 Never commit `keystore.properties` or the `.jks` (both are git-ignored).
+Back the keystore up somewhere durable: it is the app's update identity —
+losing it means installed devices can never update to a new build.
+
+### Release process
+
+Releases are cut from `main` by bumping the app version — nothing else:
+
+1. Bump `version` in `src-tauri/tauri.conf.json` (semver). Android's
+   `versionCode` is derived from it, so never reuse or lower a version.
+2. Merge to `main`. The `android.yml` workflow sees that no
+   `vizij-standalone-v<version>` GitHub release exists yet, builds the
+   **signed** release APK, and publishes it as release
+   `vizij-standalone-v<version>` with the APK attached. The per-app tag
+   prefix keeps releases distinct in this monorepo.
+3. A push to `main` without a version bump produces no release (the existing
+   tag short-circuits the build).
+
+The release build **fails** if `ANDROID_KEY_BASE64` is missing — published
+APKs are always signed. Verify a download with
+`apksigner verify --print-certs <apk>`.
 
 ## Manual Checks
 

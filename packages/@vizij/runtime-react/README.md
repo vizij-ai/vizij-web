@@ -1,6 +1,6 @@
 # @vizij/runtime-react
 
-`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, composes the rig/pose/program graphs into the behavior of an Arora device ([`@vizij/arora-web-wasm`](https://www.npmjs.com/package/@vizij/arora-web-wasm) — an Arora runtime compiled to WebAssembly), mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
+`@vizij/runtime-react` is the bundle-first React runtime for Vizij faces. It loads a GLB or prebuilt world, extracts embedded Vizij metadata, composes the rig/pose/program graphs into the behavior of an Arora device ([`@vizij/runtime`](https://www.npmjs.com/package/@vizij/runtime) — an Arora runtime compiled to WebAssembly), mirrors resolved values into the renderer store, and exposes a React-friendly control surface for apps.
 
 The package is intentionally aimed at app authors. If your app wants to render a Vizij face and drive it through authored rig inputs, this is the layer to build on.
 
@@ -24,10 +24,10 @@ pnpm add @vizij/runtime-react react react-dom
 If your app also imports lower-level renderer or engine APIs directly, install those packages too:
 
 ```bash
-pnpm add @vizij/render @vizij/arora-web-wasm
+pnpm add @vizij/render @vizij/runtime
 ```
 
-`@vizij/runtime-react`, `@vizij/render`, and `@vizij/arora-web-wasm` should stay on the same workspace/release line.
+`@vizij/runtime-react`, `@vizij/render`, and `@vizij/runtime` should stay on the same workspace/release line.
 
 ### Bundler Notes
 
@@ -120,9 +120,58 @@ mirrors changed values into the renderer store after every step. Providers
 are fully isolated from each other — multiple faces mean multiple devices,
 and namespacing keeps their store keys apart.
 
-`driveOrchestrator={false}` mounts a runtime that does not step its device
+`driveRuntime={false}` mounts a runtime that does not step its device
 from its own loop; use it for surfaces that are stepped manually (see
 [Manual stepping](#manual-stepping)) or at a background cadence.
+
+### Where the composed graph comes from
+
+The device runs **one** graph, composed from several sources
+(`composeGraphSpecs`; the live list is `graphSourcesRef` in
+`VizijRuntimeProvider`). Each source has a distinct provenance:
+
+- **Rig graph** — shipped in the loaded GLB/asset bundle (`VIZIJ_bundle`'s
+  rig, or the explicit `rig` override). It maps rig input paths to the
+  face's morph/bone/material writes: this is the face itself.
+- **Pose-driver graph** — the bundle's `pose` graph (or the
+  `pose-driver`/`pose` graph discovered in the bundle). It turns high-level
+  pose controls into rig-input writes, which the rig source reads back
+  through the shared store paths on the next tick.
+- **Program graphs** — one source per _playing_ program: procedural graphs
+  from the bundle's `programs` started via the transport, and (in
+  `vizij-authoring`) the motiongraph editor's graph, published as a program
+  so it evaluates on the device like everything else.
+- **Animations** — a single source, composed whenever any clip is playing.
+  It is an `ExternalFunction` node that steps the **animation module**
+  ([`@vizij/animation-module`](https://www.npmjs.com/package/@vizij/animation-module))
+  every device tick off the golden `arora/dt`. Clips register into the module
+  as data (through its call surface), the module samples them **inside the
+  device**, and its per-track outputs are routed on to the rig-input store
+  paths (VIZ-61 Stage B — the JS clip pipeline no longer samples clips).
+
+Sources are namespaced by id (`source::node`) so nodes can't collide;
+**store paths are deliberately shared** — that is the cross-source contract.
+
+### Animations and the device
+
+Playback lives inside the device, end to end. Clips load into the animation
+module with their **final store keys resolved at load** (the rig routing the
+JS pipeline used to apply per tick), the composed animations source steps
+the module off the golden `arora/dt`, and a path-less `output` node applies
+the sampled batch onto those keys — no JS touches the per-tick path.
+
+Transport rides the module (0.2.0): `play`/`pause` resume and hold the
+player, `stop` resets its playhead (the next tick emits the clip's t=0
+pose; `stopAnimation({ clearOutputs: false })` holds the pose instead),
+`seekAnimation`, `setAnimationLoop(false)` (one-shot), and
+`playAnimation({ speed, weight })` are real player commands.
+`getAnimationState()` reads the module's `player_states` feedback — a live
+playhead, duration, playing, speed — and `playAnimation()`'s promise
+resolves when a non-looping clip reaches its end.
+
+Remaining fidelity gap: authored `cubic` keyframes carry no explicit
+handles in the stored form, so they sample the engine's default ease
+(`linear`/`step` timing rides through as explicit bezier handles).
 
 ### Asset reloads vs graph re-registration
 
@@ -204,7 +253,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 - `updateTier`: `"auto"` (default), `"assets"`, or `"graphs"`
 - `autoCreate`: load the engine wasm and boot the device automatically on mount
 - `autostart`: start the runtime loop automatically after registration
-- `driveOrchestrator`: whether this runtime instance should call `step()` during its loop
+- `driveRuntime`: whether this runtime instance should call `step()` during its loop
 - `mergeStrategy`: forwarded to graph registration
 - `transformOutputWrite(write)`: intercept or drop output writes before they hit the renderer store
 - `onRegisterControllers(ids)`: receive registered graph/animation ids
@@ -213,7 +262,7 @@ Optional pre-parsed `VizijBundleExtension`. Useful when you already decoded bund
 ### Important runtime flags
 
 - `autostart` controls whether the device begins stepping automatically once ready.
-- `driveOrchestrator={false}` is useful for faces stepped manually or at a background cadence.
+- `driveRuntime={false}` is useful for faces stepped manually or at a background cadence.
 - `transformOutputWrite` is the hook to remap or suppress specific runtime outputs before they update renderer state.
 
 ## Runtime Context API
@@ -384,22 +433,22 @@ This is the same policy used internally by the provider to decide between:
 
 ### Multiple faces in one app
 
-Mount one `VizijRuntimeProvider` per face; each owns its device. Give hidden or non-driver faces `driveOrchestrator={false}` and step them at a background cadence (see `vizij-showcase`'s `HiddenStepController`).
+Mount one `VizijRuntimeProvider` per face; each owns its device. Give hidden or non-driver faces `driveRuntime={false}` and step them at a background cadence (see `vizij-showcase`'s `HiddenStepController`).
 
 ### Bundle-first player
 
-See [`apps/demo-vizij-player`](../../apps/demo-vizij-player/README.md) for the reference “one bundled GLB in, runtime UI out” flow.
+See [`apps/demo-vizij-player`](../../../apps/demo-vizij-player/README.md) for the reference “one bundled GLB in, runtime UI out” flow.
 
 ### Fullscreen face tutorials
 
 See:
 
-- [`apps/tutorial-fullscreen-face/tutorial.md`](../../apps/tutorial-fullscreen-face/tutorial.md)
-- [`apps/tutorial-agent-face/tutorial.md`](../../apps/tutorial-agent-face/tutorial.md)
+- [`apps/tutorial-fullscreen-face/tutorial.md`](../../../apps/tutorial-fullscreen-face/tutorial.md)
+- [`apps/tutorial-agent-face/tutorial.md`](../../../apps/tutorial-agent-face/tutorial.md)
 
 ### Runtime-truthful authoring
 
-See [`apps/vizij-authoring/README.md`](../../apps/vizij-authoring/README.md) for the `setGraphBundle()` and `transformOutputWrite()` tooling workflow.
+See [`apps/vizij-authoring/README.md`](../../../apps/vizij-authoring/README.md) for the `setGraphBundle()` and `transformOutputWrite()` tooling workflow.
 
 ## Development
 

@@ -16,8 +16,6 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/orchestrator-wasm/**",
-        "!**/node_modules/@vizij/orchestrator-react/**",
         "!**/node_modules/@vizij/render/**",
         "!**/node_modules/@vizij/utils/**",
       ],
@@ -28,7 +26,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/orchestrator-wasm"],
-    include: ["@vizij/orchestrator-react", "@vizij/render"],
+    exclude: ["@vizij/runtime", "@vizij/animation-module"],
+    include: ["@vizij/render"],
   },
 });

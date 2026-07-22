@@ -20,18 +20,23 @@ tauri-build = { version = "2.5.6", features = [] }
 # standalone stays on the stable toolchain. (Depending on `arora`/`arora-engine`
 # would drag in their `artifact = "cdylib"` dev-bindeps, which need a nightly
 # `-Z bindeps` toolchain even to resolve.)
-arora-bridge = "3"
-arora-bridge-ws = "3.1"
-arora-bridge-ros2 = { version = "2", optional = true }
-arora-simple-data-store = "1"
-arora-types = "1"
+arora-bridge = "4"
+arora-bridge-ws = "4"
+# The dual-backend ROS 2 bridge: DDS (default) or the rmw_zenoh-compatible Zenoh
+# backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features.
+arora-bridge-ros2 = { version = "3.1", optional = true, default-features = false }
+arora-simple-data-store = "2"
+arora-types = "2"
 # Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client — the
 # same `ZenohDeviceClient` arora uses for its Studio connection, which implements
 # arora's `Bridge`. A plain crates.io crate (no artifact bindeps).
-arora-studio-bridge-client = { version = "3.1.0", optional = true }
+arora-studio-bridge-client = { version = "6", optional = true }
 # Install the process-wide rustls crypto provider (ring) the Zenoh/Firebase TLS
 # stacks need — matches the provider arora-studio-bridge-client is built against.
 rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
+# Encrypt the persisted anonymous refresh token at rest (XSalsa20Poly1305), the
+# same mechanism arora uses for its saved token. Only needed with studio-bridge.
+crypto_secretbox = { version = "0.1.1", optional = true }
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
@@ -55,12 +60,19 @@ tao = "0.30"
 windows = { version = "0.58", features = ["Win32_System_Console"] }
 
 [features]
-default = ["ros2"]
-# ROS 2 data-topic bridge (`arora-bridge-ros2`). Data topics only — the device's
-# keys are exposed under `/{ns}/keys/{path}`; there is no ROS 2 method/service
-# surface (that parity is tracked in ARORA-62). reset/speak/mute/transport stay
-# on the WebSocket + Studio bridges.
-ros2 = ["dep:arora-bridge-ros2"]
+default = []
+# ROS 2 data-topic bridge (`arora-bridge-ros2`). Opt-in — build with
+# `--features ros2` (or `pnpm tauri ... -- --features ros2`) for robot/ROS
+# deployments; the default standalone build has no ROS 2 stack. Data topics only:
+# the device's keys are exposed under `/{ns}/keys/{path}`; there is no ROS 2
+# method/service surface (that parity is tracked in ARORA-62). reset/speak/mute/
+# transport stay on the WebSocket + Studio bridges.
+# `ros2` defaults to the DDS backend (`ros2-dds`); `ros2-zenoh` selects the
+# rmw_zenoh-compatible Zenoh backend instead. Exactly one backend is active
+# (arora-bridge-ros2 forwards to ros2-client's mutually-exclusive `dds`/`zenoh`).
+ros2 = ["ros2-dds"]
+ros2-dds = ["dep:arora-bridge-ros2", "arora-bridge-ros2/dds"]
+ros2-zenoh = ["dep:arora-bridge-ros2", "arora-bridge-ros2/zenoh"]
 # Opt-in Studio Bridge (VIZ-67 producer side): build the app so a Semio Studio
 # can connect *to* this running standalone and view/drive its live data. Off by
 # default — the normal standalone build is unchanged. When on, the Tauri host
@@ -74,10 +86,12 @@ ros2 = ["dep:arora-bridge-ros2"]
 #   cargo build --features studio-bridge
 # Zero-config: the client crate (v3.1+) bakes in the Firebase config + bridge
 # endpoint. Runtime env overrides: STUDIO_BRIDGE_ENDPOINT (non-production bridge),
-# FIREBASE_* (emulator), DEVICE_OWNERS (ownership).
-studio-bridge = ["dep:arora-studio-bridge-client", "dep:rustls"]
+# DEVICE_OWNERS (ownership). vizij always talks to real Firebase — no emulator.
+studio-bridge = ["dep:arora-studio-bridge-client", "dep:rustls", "dep:crypto_secretbox"]
 
 [dev-dependencies]
 ros2-client = "0.8"
 rand = "0.9"
 tokio = { version = "1", features = ["full"] }
+# The mock `Bridge` in the studio-bridge tests implements an `#[async_trait]` trait.
+async-trait = "0.1"

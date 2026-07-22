@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
 
 // Light suite (CI): each standalone demo boots and renders without page errors.
-// These demos drive the wasm packages (orchestrator / animation / node-graph)
+// These demos drive the wasm packages (animation / node-graph)
 // and the renderer end to end, so a failed wasm load, a crashed React root, or
 // a module-level exception all surface here — the canary that a standalone demo
 // regressed. One test per demo (see standalone-demos.ts); each runs on its own

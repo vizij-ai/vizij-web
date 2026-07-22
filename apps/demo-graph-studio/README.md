@@ -28,15 +28,15 @@
 
 ```bash
 pnpm install
-pnpm --filter vizij-node-graph-editor dev
+pnpm --filter demo-graph-studio dev
 ```
 
 Additional scripts:
 
 ```bash
-pnpm --filter vizij-node-graph-editor build      # production build + type checks
-pnpm --filter vizij-node-graph-editor preview    # preview production output
-pnpm --filter vizij-node-graph-editor test       # Vitest unit tests
+pnpm --filter demo-graph-studio build      # production build + type checks
+pnpm --filter demo-graph-studio preview    # preview production output
+pnpm --filter demo-graph-studio test       # Vitest unit tests
 ```
 
 ---

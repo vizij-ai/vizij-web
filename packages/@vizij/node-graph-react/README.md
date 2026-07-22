@@ -43,7 +43,7 @@ npm install @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
 yarn add @vizij/node-graph-react @vizij/node-graph-wasm react react-dom
 ```
 
-When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../README.md#local-wasm-development) for details.
+When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../../README.md#local-wasm-development) for details.
 
 > **Bundler note:** The underlying `@vizij/node-graph-wasm` package emits a `.wasm` binary. Enable async WebAssembly and emit `.wasm` assets in your bundler. For Next.js:
 >
@@ -211,7 +211,7 @@ pnpm --filter "@vizij/node-graph-react" build
 pnpm --filter "@vizij/node-graph-react" typecheck
 ```
 
-Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise the real WASM runtime end-to-end, rebuild the wrapper in `vizij-rs` and run one of the demo apps (e.g., `apps/demo-graph`).
+Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise the real WASM runtime end-to-end, rebuild the wrapper in `vizij-rs` and run one of the demo apps (e.g., `apps/demo-graph-studio`).
 
 ---
 
@@ -252,6 +252,5 @@ The action will build, test, and publish the package with provenance metadata.
 - [`@vizij/node-graph-wasm`](../../../vizij-rs/npm/@vizij/node-graph-wasm/README.md) – wasm wrapper consumed by this package.
 - [`vizij-graph-wasm`](../../../vizij-rs/crates/node-graph/vizij-graph-wasm/README.md) – Rust crate providing the wasm binding.
 - [`vizij-graph-core`](../../../vizij-rs/crates/node-graph/vizij-graph-core/README.md) – Core evaluator that ultimately runs the graph.
-- [`@vizij/orchestrator-react`](../@vizij/orchestrator-react/README.md) – React provider for coordinating graphs and animations together.
 
 Need help or spot something missing? File an issue in the Vizij repo—consistent docs keep our integration story sharp. ⚙️

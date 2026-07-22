@@ -90,7 +90,7 @@ export function ExportPanel({
           }
         />
         <p className="asset-card__hint">
-          Embeds orchestrator graphs, pose configs, and stored Vizij clips for
+          Embeds runtime graphs, pose configs, and stored Vizij clips for
           round-tripping while still producing standard glTF animations.
         </p>
         <FieldRow

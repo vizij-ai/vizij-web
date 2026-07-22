@@ -32,7 +32,6 @@
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/node-graph-wasm": "^0.7.0",
-    "@vizij/orchestrator-react": "workspace:*",
     "@vizij/render": "workspace:*",
     "@vizij/runtime-react": "workspace:*",
     "@vizij/utils": "workspace:*",
