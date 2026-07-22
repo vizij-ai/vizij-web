@@ -31,7 +31,6 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `@vizij/utils`                | Shared utility layer                                          |
 | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI                  |
 | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps                        |
-| `@vizij/arora-types`          | TypeScript protocol surface for standalone/control work       |
 | `@vizij/speech-react`         | STT/LLM/TTS speech pipeline hooks for Vizij React apps        |
 
 ### Apps (`apps/*`)

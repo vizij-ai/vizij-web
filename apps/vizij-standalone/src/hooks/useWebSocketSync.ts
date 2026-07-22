@@ -2,14 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import { valueAsNumber } from "@vizij/value-json";
-import {
-  type AroraValue,
-  type AroraType,
-  type NodeInfo,
-  extractNumericValue,
-  f64,
-} from "@vizij/arora-types";
+import { valueAsNumber, type AroraValueJSON } from "@vizij/value-json";
+import type { AroraType, NodeInfo } from "./aroraWsProtocol";
 
 /**
  * Hook that syncs WebSocket updates to the runtime.
@@ -238,7 +232,7 @@ export function useWebSocketSync() {
         max: constraint?.max,
         default_value:
           constraint?.defaultValue != null
-            ? f64(constraint.defaultValue)
+            ? { f64: constraint.defaultValue }
             : undefined,
       });
     }
@@ -278,7 +272,7 @@ export function useWebSocketSync() {
     //    applied verbatim via setInput. Values pass through untouched — the
     //    device normalizes canonical arora serde forms itself — so structured
     //    values work, not just scalars.
-    const unlistenUpdates = listen<Record<string, AroraValue>>(
+    const unlistenUpdates = listen<Record<string, AroraValueJSON>>(
       "update-values",
       (event) => {
         Object.entries(event.payload).forEach(([path, aroraValue]) => {
@@ -291,8 +285,8 @@ export function useWebSocketSync() {
               inputConstraints[`${namespace}/${cleanPath}`] !== undefined);
 
           if (isLegacyRigInput) {
-            const numValue = extractNumericValue(aroraValue);
-            if (numValue === null) {
+            const numValue = valueAsNumber(aroraValue);
+            if (numValue === undefined) {
               console.warn(
                 `[vizij-standalone] Non-numeric value for rig input ${path}:`,
                 aroraValue,
