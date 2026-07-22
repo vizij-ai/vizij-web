@@ -180,19 +180,7 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb06e17e4b19c0655a28086bc52444906784fac5acb95d86cbf7e366c160180a"
 dependencies = [
- "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "async-trait",
- "futures-channel",
- "futures-core",
- "futures-util",
-]
-
-[[package]]
-name = "arora-bridge"
-version = "4.0.0"
-source = "git+https://github.com/semio-ai/arora-sdk?branch=main#d57383514734aa13757b60f147e310f70e498e4d"
-dependencies = [
- "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=main)",
+ "arora-types",
  "async-trait",
  "futures-channel",
  "futures-core",
@@ -201,11 +189,12 @@ dependencies = [
 
 [[package]]
 name = "arora-bridge-ros2"
-version = "3.0.0"
-source = "git+https://github.com/semio-ai/arora-sdk?branch=main#d57383514734aa13757b60f147e310f70e498e4d"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7efc0bc42a2cc0081f2a9028f2fa6f061a02fe80afb34104a4e4fb0afe5fbd1"
 dependencies = [
- "arora-bridge 4.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=main)",
- "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=main)",
+ "arora-bridge",
+ "arora-types",
  "async-trait",
  "futures",
  "log",
@@ -222,8 +211,8 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b5ecf594d0c1ccad8c5e02bca657fdd8ea187087a1ec436779721323501a4b0"
 dependencies = [
- "arora-bridge 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-bridge",
+ "arora-types",
  "async-trait",
  "futures",
  "futures-util",
@@ -241,7 +230,7 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc8cbede58f2a86b8153eaa30b219b973331b9af5c23de859cf2de5d6fae7d67"
 dependencies = [
- "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-types",
 ]
 
 [[package]]
@@ -250,8 +239,8 @@ version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c15511e5dd5fe205fda59066db205740ec3e1256936025a1918970fa94e89e3"
 dependencies = [
- "arora-bridge 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-bridge",
+ "arora-types",
  "async-stream",
  "async-trait",
  "chrono",
@@ -279,22 +268,6 @@ name = "arora-types"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "750822222b2135d4c174071e3c781126cea382fe742b170db370937e6c0bf23f"
-dependencies = [
- "async-trait",
- "derive_more 2.1.1",
- "indexmap 2.13.0",
- "js-sys",
- "lazy_static",
- "semver",
- "serde",
- "uuid",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "arora-types"
-version = "2.0.0"
-source = "git+https://github.com/semio-ai/arora-sdk?branch=main#d57383514734aa13757b60f147e310f70e498e4d"
 dependencies = [
  "async-trait",
  "derive_more 2.1.1",
@@ -2648,7 +2621,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.58.0",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
@@ -3728,7 +3701,7 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff32365de1b6743cb203b710788263c44a03de03802daf96092f2da4fe6ba4d7"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -6113,7 +6086,7 @@ version = "72.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b31c4b2434980b67ad83f300a58088ba14d59454dcd79ba3d87419bbd924d31e"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -6183,7 +6156,7 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d33e3c9d81b89b46140184efa3b8c16d8b7e68a52bae43b081766b9e4bc4d2b"
 dependencies = [
- "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-types",
  "chrono",
  "js-sys",
  "partially",
@@ -7462,12 +7435,12 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vizij-standalone"
 version = "0.1.0"
 dependencies = [
- "arora-bridge 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-bridge",
  "arora-bridge-ros2",
  "arora-bridge-ws",
  "arora-simple-data-store",
  "arora-studio-bridge-client",
- "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-types",
  "async-trait",
  "base64 0.22.1",
  "clap",
