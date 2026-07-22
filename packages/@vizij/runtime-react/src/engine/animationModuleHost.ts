@@ -24,7 +24,7 @@
  *    resolved target. The module's `[TrackOutput]` then names the keys the
  *    graph's path-less `output` node applies; nothing re-keys per tick.
  */
-import type { AroraDevice } from "@vizij/runtime";
+import type { Runtime } from "@vizij/runtime";
 import {
   addInstanceCall,
   callResultU32,
@@ -64,7 +64,7 @@ export class AnimationModuleHost {
   private readonly clips = new Map<string, ClipEntry>();
 
   constructor(
-    private readonly getDevice: () => AroraDevice | null,
+    private readonly getDevice: () => Runtime | null,
     /** Final store keys for an authored track key, resolved at load time. */
     private readonly resolveKeys: ResolveTrackKeys = (key) => [key],
   ) {}
@@ -259,7 +259,7 @@ export class AnimationModuleHost {
    * started device (module guest state did not survive the rebuild). Voids
    * stale ids first. Called from `DeviceSlot.onDeviceStarted`.
    */
-  replayInto(device: AroraDevice): void {
+  replayInto(device: Runtime): void {
     for (const entry of this.clips.values()) {
       entry.animId = null;
       entry.playerId = null;
@@ -271,9 +271,7 @@ export class AnimationModuleHost {
   }
 
   /** Fire-and-forget a transport call against the live device, if any. */
-  private dispatch(
-    issue: (device: AroraDevice) => Promise<unknown> | null,
-  ): void {
+  private dispatch(issue: (device: Runtime) => Promise<unknown> | null): void {
     const device = this.getDevice();
     if (!device) {
       return;
@@ -284,10 +282,7 @@ export class AnimationModuleHost {
     });
   }
 
-  private async ensureLoaded(
-    device: AroraDevice,
-    entry: ClipEntry,
-  ): Promise<void> {
+  private async ensureLoaded(device: Runtime, entry: ClipEntry): Promise<void> {
     if (entry.instId !== null) {
       return;
     }

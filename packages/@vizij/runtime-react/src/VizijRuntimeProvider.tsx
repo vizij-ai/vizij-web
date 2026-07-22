@@ -80,7 +80,7 @@ import {
 } from "./utils/animationBridge";
 import { valueJSONToRaw } from "./utils/valueConversion";
 import { AnimationModuleHost } from "./engine/animationModuleHost";
-import type { DeviceModule } from "./engine/aroraEngine";
+import type { RuntimeModule } from "./engine/aroraEngine";
 import {
   ANIMATION_PLAYERS_PATH,
   animationsGraphSource,
@@ -1566,7 +1566,7 @@ function VizijRuntimeProviderInner({
   // Device-side animation playback: the module's guest state as the runtime
   // sees it (loaded clips, players, instances). Lazily constructed once the
   // module artifact is available; reads the live device from the slot.
-  const animationModuleRef = useRef<DeviceModule | null>(null);
+  const animationModuleRef = useRef<RuntimeModule | null>(null);
   const animationHostRef = useRef<AnimationModuleHost | null>(null);
   // Whether the animations graph source is composed into the device.
   const animationsSourceRegisteredRef = useRef(false);
