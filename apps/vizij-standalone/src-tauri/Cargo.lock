@@ -176,11 +176,23 @@ dependencies = [
 
 [[package]]
 name = "arora-bridge"
-version = "3.0.1"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74ad91fff7a4be172b8ffdd2c188dd66c9073304310b92d35b6a5cadea014a16"
+checksum = "eb06e17e4b19c0655a28086bc52444906784fac5acb95d86cbf7e366c160180a"
 dependencies = [
- "arora-types",
+ "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "async-trait",
+ "futures-channel",
+ "futures-core",
+ "futures-util",
+]
+
+[[package]]
+name = "arora-bridge"
+version = "4.0.0"
+source = "git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend#93e5930a03c95b8ed5d59f7bd87b601d98f0fafa"
+dependencies = [
+ "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend)",
  "async-trait",
  "futures-channel",
  "futures-core",
@@ -189,16 +201,15 @@ dependencies = [
 
 [[package]]
 name = "arora-bridge-ros2"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cce6de0818de3e4b8bb6906e16303bfc89036533060171c726b7b7bc0adfd68"
+version = "3.0.0"
+source = "git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend#93e5930a03c95b8ed5d59f7bd87b601d98f0fafa"
 dependencies = [
- "arora-bridge",
- "arora-types",
+ "arora-bridge 4.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend)",
+ "arora-types 2.0.0 (git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend)",
  "async-trait",
  "futures",
  "log",
- "ros2-client",
+ "ros2-client 0.10.0",
  "serde",
  "serde_json",
  "tokio",
@@ -207,12 +218,12 @@ dependencies = [
 
 [[package]]
 name = "arora-bridge-ws"
-version = "3.1.1"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f3a12035aece82ddde1a354ce153828382e80859ccaddfa1f04771364060294"
+checksum = "6b5ecf594d0c1ccad8c5e02bca657fdd8ea187087a1ec436779721323501a4b0"
 dependencies = [
- "arora-bridge",
- "arora-types",
+ "arora-bridge 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-trait",
  "futures",
  "futures-util",
@@ -226,21 +237,21 @@ dependencies = [
 
 [[package]]
 name = "arora-simple-data-store"
-version = "1.0.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e6b1beaf5b408289a5b2269fdb447c19a488bb571fcc0d910f76f0ff145cc35"
+checksum = "fc8cbede58f2a86b8153eaa30b219b973331b9af5c23de859cf2de5d6fae7d67"
 dependencies = [
- "arora-types",
+ "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "arora-studio-bridge-client"
-version = "3.1.0"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d04979397c5479028e08c78c32a2b5ee2d3d4a2e9dca4e5a24bd6545b2a57c55"
+checksum = "0c15511e5dd5fe205fda59066db205740ec3e1256936025a1918970fa94e89e3"
 dependencies = [
- "arora-bridge",
- "arora-types",
+ "arora-bridge 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-stream",
  "async-trait",
  "chrono",
@@ -265,9 +276,25 @@ dependencies = [
 
 [[package]]
 name = "arora-types"
-version = "1.9.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfadc34ee6f612d2f7047030c1a8628e78d10611e94dfdda8c4a69a2db52f644"
+checksum = "750822222b2135d4c174071e3c781126cea382fe742b170db370937e6c0bf23f"
+dependencies = [
+ "async-trait",
+ "derive_more 2.1.1",
+ "indexmap 2.13.0",
+ "js-sys",
+ "lazy_static",
+ "semver",
+ "serde",
+ "uuid",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "arora-types"
+version = "2.0.0"
+source = "git+https://github.com/semio-ai/arora-sdk?branch=feat%2Fros2-client-zenoh-backend#93e5930a03c95b8ed5d59f7bd87b601d98f0fafa"
 dependencies = [
  "async-trait",
  "derive_more 2.1.1",
@@ -520,6 +547,15 @@ name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bit-vec"
@@ -791,6 +827,21 @@ dependencies = [
  "byteorder",
  "log",
  "paste",
+ "serde",
+ "serde_repr",
+ "static_assertions",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "cdr-encoding"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cd0f96619d833f771daff46c9755785f6fdea3d9ff67ec329f52f66936b0d6d"
+dependencies = [
+ "byteorder",
+ "log",
+ "pastey",
  "serde",
  "serde_repr",
  "static_assertions",
@@ -3104,6 +3155,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
+name = "leb128"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c83bff1d572d6b9aeef67ddfc8448e4a3737909cb28e81f97c791b9018703e52"
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3521,6 +3578,7 @@ dependencies = [
  "cfg-if 1.0.4",
  "cfg_aliases",
  "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -3936,6 +3994,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pastey"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "pem"
@@ -5054,12 +5118,46 @@ dependencies = [
  "mio-extras",
  "nom 8.0.0",
  "pin-utils",
- "rustdds",
+ "rustdds 0.11.8",
  "serde",
  "serde_repr",
  "tracing",
  "uuid",
  "widestring",
+]
+
+[[package]]
+name = "ros2-client"
+version = "0.10.0"
+source = "git+https://github.com/semio-ai/ros2-client?branch=feat%2Fstd-msgs-scalar-hashes#aac27652a892ae2d5e2be21b14f1188acc26254e"
+dependencies = [
+ "async-channel",
+ "bstr",
+ "byteorder",
+ "bytes",
+ "cdr-encoding 0.10.2",
+ "cdr-encoding-size",
+ "chrono",
+ "clap",
+ "futures",
+ "itertools",
+ "lazy_static",
+ "libc",
+ "log",
+ "mio 0.6.23",
+ "mio-extras",
+ "nom 8.0.0",
+ "pin-utils",
+ "rustdds 0.13.1",
+ "serde",
+ "serde_repr",
+ "sha2",
+ "tracing",
+ "uuid",
+ "widestring",
+ "xxhash-rust",
+ "zenoh",
+ "zenoh-ext",
 ]
 
 [[package]]
@@ -5133,7 +5231,7 @@ dependencies = [
  "bit-vec 0.8.0",
  "byteorder",
  "bytes",
- "cdr-encoding",
+ "cdr-encoding 0.10.2",
  "cdr-encoding-size",
  "chrono",
  "enumflags2",
@@ -5149,6 +5247,44 @@ dependencies = [
  "num-derive",
  "num-traits",
  "paste",
+ "pnet",
+ "pnet_sys",
+ "rand 0.9.2",
+ "serde",
+ "serde_repr",
+ "socket2 0.6.1",
+ "socketpair",
+ "speedy",
+ "static_assertions",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "rustdds"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "679e56ae1ec6eb11214e965875e732ef5fd265e63d82200f4aa7cd7f43b1c1d5"
+dependencies = [
+ "bit-vec 0.8.0",
+ "byteorder",
+ "bytes",
+ "cdr-encoding 0.11.0",
+ "cdr-encoding-size",
+ "chrono",
+ "enumflags2",
+ "futures",
+ "if-addrs",
+ "io-extras",
+ "local-ip-address",
+ "log",
+ "md5",
+ "mio 0.6.23",
+ "mio 0.8.11",
+ "mio-extras",
+ "nix",
+ "num-derive",
+ "num-traits",
+ "pastey",
  "pnet",
  "pnet_sys",
  "rand 0.9.2",
@@ -6042,11 +6178,11 @@ dependencies = [
 
 [[package]]
 name = "studio-bridge-msgs"
-version = "1.0.0"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cc8447b3d63944f1c1ba6a5e7a46bca5a5000aacb35ece6363145606d70c5f2"
+checksum = "2d33e3c9d81b89b46140184efa3b8c16d8b7e68a52bae43b081766b9e4bc4d2b"
 dependencies = [
- "arora-types",
+ "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "js-sys",
  "partially",
@@ -7325,12 +7461,12 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vizij-standalone"
 version = "0.1.0"
 dependencies = [
- "arora-bridge",
+ "arora-bridge 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "arora-bridge-ros2",
  "arora-bridge-ws",
  "arora-simple-data-store",
  "arora-studio-bridge-client",
- "arora-types",
+ "arora-types 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-trait",
  "base64 0.22.1",
  "clap",
@@ -7339,7 +7475,7 @@ dependencies = [
  "futures-util",
  "log",
  "rand 0.9.2",
- "ros2-client",
+ "ros2-client 0.8.2",
  "rustls",
  "serde",
  "serde_json",
@@ -8299,6 +8435,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "xxhash-rust"
+version = "0.8.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee1b19627c7c60102ab80d3a9cbe18de90bfe03bfa6c3715447681f0e8c8af6"
+
+[[package]]
 name = "yasna"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8426,6 +8568,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "toml 0.9.11+spec-1.1.0",
  "tracing",
  "uhlc",
  "validated_struct",
@@ -8461,6 +8604,26 @@ dependencies = [
  "rand_chacha 0.3.1",
  "sha3",
  "zenoh-result",
+]
+
+[[package]]
+name = "zenoh-ext"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e4de171bff459816b1ca9e6657c4ae9783d2c1fc569e1721a380521425e897d"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "flume",
+ "futures",
+ "leb128",
+ "serde",
+ "tokio",
+ "tracing",
+ "uhlc",
+ "zenoh",
+ "zenoh-macros",
+ "zenoh-util",
 ]
 
 [[package]]
