@@ -4361,6 +4361,7 @@ describe("resolveVisibleRootForActiveSurface", () => {
     const variablesRoot = { id: "variables" };
     const posesRoot = { id: "poses" };
     const inputRoot = { id: "inputs" };
+    const starredRoot = { id: "starred" };
     const filterTree = vi.fn((root: { id: string }) => ({
       id: `${root.id}:filtered`,
     }));
@@ -4371,11 +4372,36 @@ describe("resolveVisibleRootForActiveSurface", () => {
       variablesRootNode: variablesRoot,
       posesRootNode: posesRoot,
       inputRootNode: inputRoot,
+      starredRootNode: starredRoot,
       filterTree,
     });
 
     expect(result).toEqual({ id: "variables:filtered" });
     expect(filterTree).toHaveBeenCalledTimes(1);
     expect(filterTree).toHaveBeenCalledWith(variablesRoot, "jaw");
+  });
+
+  it("filters the starred tree when starred is active", () => {
+    const variablesRoot = { id: "variables" };
+    const posesRoot = { id: "poses" };
+    const inputRoot = { id: "inputs" };
+    const starredRoot = { id: "starred" };
+    const filterTree = vi.fn((root: { id: string }) => ({
+      id: `${root.id}:filtered`,
+    }));
+
+    const result = resolveVisibleRootForActiveSurface({
+      activeSurface: "starred",
+      query: "jaw",
+      variablesRootNode: variablesRoot,
+      posesRootNode: posesRoot,
+      inputRootNode: inputRoot,
+      starredRootNode: starredRoot,
+      filterTree,
+    });
+
+    expect(result).toEqual({ id: "starred:filtered" });
+    expect(filterTree).toHaveBeenCalledTimes(1);
+    expect(filterTree).toHaveBeenCalledWith(starredRoot, "jaw");
   });
 });

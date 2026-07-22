@@ -22,6 +22,7 @@ import {
   Users,
   X,
   Camera,
+  Star,
 } from "lucide-react";
 import {
   addBindingSlot,
@@ -49,6 +50,11 @@ import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
 import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
+import {
+  starredRefKey,
+  useStarredStore,
+  type StarredRef,
+} from "../../state/starredStore";
 import {
   useBindingAuthoring,
   useGraphRuntime,
@@ -112,6 +118,7 @@ type NodeType = "folder" | "pose" | "rig" | "input";
 type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
 type FaceOwnershipScope = "main" | "reference" | "shared" | "none";
 export type SurfaceTab =
+  | "starred"
   | "variables"
   | "poses"
   | "pose-groups"
@@ -127,6 +134,9 @@ type FilterableSurfaceTab = Exclude<
   SurfaceTab,
   "pose-groups" | "animations" | "programs"
 >;
+// Fallback surface list used only when no `availableSurfaces` prop is provided.
+// The app supplies its own ordered list (with "starred" first); "variables"
+// stays first here so standalone/test renders default to the Drivers surface.
 const DEFAULT_SURFACES: SurfaceTab[] = [
   "variables",
   "poses",
@@ -134,7 +144,10 @@ const DEFAULT_SURFACES: SurfaceTab[] = [
   "animations",
   "programs",
   "inputs",
+  "starred",
 ];
+
+const EMPTY_STARRED: StarredRef[] = [];
 
 const UNASSIGNED_POSE_GROUP_PATH = "__unassigned__";
 const UNASSIGNED_POSE_GROUP_LABEL = "Unassigned";
@@ -344,6 +357,29 @@ interface TreeNode {
   children: Map<string, TreeNode>;
   showChildren: boolean; // Default expansion state
   data?: TreeNodeData;
+}
+
+/**
+ * Resolve the starrable reference for a tree node, or `null` if the node is not
+ * a this-face driver/pose that can be starred. Reference/shared drivers and
+ * non-main poses belong to another face and are never starrable here.
+ */
+function starredRefForNode(node: TreeNode): StarredRef | null {
+  if (node.type === "rig") {
+    const data = node.data as RigNodeData | undefined;
+    if (!data || data.source === "reference" || data.source === "shared") {
+      return null;
+    }
+    return { kind: "driver", id: data.input.id };
+  }
+  if (node.type === "pose") {
+    const data = node.data as PoseNodeData | undefined;
+    if (!data || data.source !== "main") {
+      return null;
+    }
+    return { kind: "pose", id: data.pose.id };
+  }
+  return null;
 }
 
 interface BindingInputLike {
@@ -1950,6 +1986,7 @@ export function resolveVisibleRootForActiveSurface<T>({
   variablesRootNode,
   posesRootNode,
   inputRootNode,
+  starredRootNode,
   filterTree,
 }: {
   activeSurface: SurfaceTab;
@@ -1957,8 +1994,18 @@ export function resolveVisibleRootForActiveSurface<T>({
   variablesRootNode: T;
   posesRootNode: T;
   inputRootNode: T;
+  starredRootNode: T;
   filterTree: (node: T, searchQuery: string) => T;
 }): T {
+  if (activeSurface === "starred") {
+    return filterTreeForActiveSurface({
+      activeSurface,
+      targetSurface: "starred",
+      rootNode: starredRootNode,
+      query,
+      filterTree,
+    });
+  }
   if (activeSurface === "poses") {
     return filterTreeForActiveSurface({
       activeSurface,
@@ -2147,6 +2194,8 @@ interface TreeRowWrapperProps {
     targetedInputIds: ReadonlySet<string>;
     onSetTarget: (row: InputCatalogRow) => void;
   };
+  /** Set of starred keys (`kind:id`) for the active face; enables the star toggle. */
+  starredKeys?: ReadonlySet<string>;
   searchQuery: string;
 }
 
@@ -2170,10 +2219,15 @@ function TreeRowWrapper({
   motionGraphContext,
   animationTrackContext,
   poseTargetContext,
+  starredKeys,
   searchQuery,
 }: TreeRowWrapperProps) {
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children.size > 0;
+  const starRef = starredKeys ? starredRefForNode(node) : null;
+  const isNodeStarred = Boolean(
+    starRef && starredKeys?.has(starredRefKey(starRef)),
+  );
   const isPoseGroupFolder =
     node.type === "folder" &&
     (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
@@ -2458,6 +2512,28 @@ function TreeRowWrapper({
       onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
       highlightQuery={searchQuery}
       icon={<OwnershipScopeIcon Icon={Icon} scope={nodeOwnershipScope} />}
+      indicator={
+        starRef ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-5 w-5 p-0 transition-opacity",
+              isNodeStarred
+                ? "text-amber-300 hover:text-amber-200 opacity-100"
+                : "text-text-muted hover:text-amber-300 opacity-0 group-hover:opacity-100",
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction?.(node, "toggle-star");
+            }}
+            title={isNodeStarred ? "Remove from Starred" : "Add to Starred"}
+            aria-pressed={isNodeStarred}
+          >
+            <Star size={12} fill={isNodeStarred ? "currentColor" : "none"} />
+          </Button>
+        ) : undefined
+      }
       actions={
         <>
           {node.type === "pose" && !isReferencePoseNode && (
@@ -2808,6 +2884,7 @@ function TreeRowWrapper({
                 motionGraphContext={motionGraphContext}
                 animationTrackContext={animationTrackContext}
                 poseTargetContext={poseTargetContext}
+                starredKeys={starredKeys}
                 searchQuery={searchQuery}
               />
             ))}
@@ -4143,6 +4220,18 @@ export function VariablesPanel({
     const trimmed = runtimeFaceId?.trim();
     return trimmed && trimmed.length > 0 ? trimmed : "face";
   }, [runtimeFaceId]);
+  // Per-face starred set. Keyed by the raw (trimmed) face id so it matches the
+  // key used at glb export/import time.
+  const starredFaceId = useMemo(() => {
+    const trimmed = runtimeFaceId?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : null;
+  }, [runtimeFaceId]);
+  const starredRefs = useStarredStore((state) =>
+    starredFaceId
+      ? (state.byFace[starredFaceId] ?? EMPTY_STARRED)
+      : EMPTY_STARRED,
+  );
+  const toggleStarred = useStarredStore((state) => state.toggleStarred);
   const motionGraphDisplayInputRoot = useMemo(
     () =>
       filterTreeForActiveSurface({
@@ -5241,6 +5330,60 @@ export function VariablesPanel({
     sharedPoseLinks,
   ]);
 
+  // Starred surface: collect the live driver/pose nodes referenced by the
+  // per-face starred set. Reuse the exact same TreeNode objects so edits to the
+  // underlying driver/pose flow through here and row actions behave identically.
+  const starredKeys = useMemo(
+    () => new Set(starredRefs.map((ref) => starredRefKey(ref))),
+    [starredRefs],
+  );
+  const starredRootNode = useMemo(() => {
+    const root: TreeNode = {
+      id: "root",
+      label: "Starred",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+    if (starredKeys.size === 0) {
+      return root;
+    }
+    const driverFolder: TreeNode = {
+      id: "starred/drivers",
+      label: "Drivers",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+    const poseFolder: TreeNode = {
+      id: "starred/poses",
+      label: "Poses",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+    const collect = (node: TreeNode, folder: TreeNode) => {
+      for (const child of node.children.values()) {
+        const ref = starredRefForNode(child);
+        if (ref && starredKeys.has(starredRefKey(ref))) {
+          folder.children.set(child.id, child);
+        }
+        if (child.children.size > 0) {
+          collect(child, folder);
+        }
+      }
+    };
+    collect(variablesRootNode, driverFolder);
+    collect(posesRootNode, poseFolder);
+    if (driverFolder.children.size > 0) {
+      root.children.set(driverFolder.id, driverFolder);
+    }
+    if (poseFolder.children.size > 0) {
+      root.children.set(poseFolder.id, poseFolder);
+    }
+    return root;
+  }, [variablesRootNode, posesRootNode, starredKeys]);
+
   const visibleRoot = useMemo(
     () =>
       resolveVisibleRootForActiveSurface({
@@ -5249,6 +5392,7 @@ export function VariablesPanel({
         variablesRootNode,
         posesRootNode,
         inputRootNode,
+        starredRootNode,
         filterTree: filterTreeBySearch,
       }),
     [
@@ -5256,6 +5400,7 @@ export function VariablesPanel({
       inputRootNode,
       posesRootNode,
       searchQuery,
+      starredRootNode,
       variablesRootNode,
     ],
   );
@@ -5265,7 +5410,8 @@ export function VariablesPanel({
     if (
       (activeSurface !== "variables" &&
         activeSurface !== "poses" &&
-        activeSurface !== "inputs") ||
+        activeSurface !== "inputs" &&
+        activeSurface !== "starred") ||
       !searchQuery.trim()
     ) {
       return;
@@ -5422,6 +5568,14 @@ export function VariablesPanel({
   );
 
   const handleAction = (node: TreeNode, action: string) => {
+    if (action === "toggle-star") {
+      const ref = starredRefForNode(node);
+      if (!ref || !starredFaceId) {
+        return;
+      }
+      toggleStarred(starredFaceId, ref);
+      return;
+    }
     if (node.type === "pose" && action === "copy-pose-to-main") {
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source !== "reference") {
@@ -6079,6 +6233,20 @@ export function VariablesPanel({
   const animationItemCount = animationTargets.length;
   const programItemCount = programTargets.length;
   const inputItemCount = inputRows.length;
+  const starredItemCount = useMemo(() => {
+    let count = 0;
+    const walk = (node: TreeNode) => {
+      for (const child of node.children.values()) {
+        if (child.type === "folder") {
+          walk(child);
+        } else {
+          count += 1;
+        }
+      }
+    };
+    walk(starredRootNode);
+    return count;
+  }, [starredRootNode]);
   const poseGroupsForSurface = useMemo(() => {
     const list = [...visiblePoseGroups];
     list.sort((a, b) => {
@@ -6187,17 +6355,19 @@ export function VariablesPanel({
   ]);
 
   const totalCount =
-    activeSurface === "variables"
-      ? variableItemCount
-      : activeSurface === "poses"
-        ? poseItemCount
-        : activeSurface === "pose-groups"
-          ? poseGroupItemCount
-          : activeSurface === "animations"
-            ? animationItemCount
-            : activeSurface === "programs"
-              ? programItemCount
-              : inputItemCount;
+    activeSurface === "starred"
+      ? starredItemCount
+      : activeSurface === "variables"
+        ? variableItemCount
+        : activeSurface === "poses"
+          ? poseItemCount
+          : activeSurface === "pose-groups"
+            ? poseGroupItemCount
+            : activeSurface === "animations"
+              ? animationItemCount
+              : activeSurface === "programs"
+                ? programItemCount
+                : inputItemCount;
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
@@ -6258,6 +6428,14 @@ export function VariablesPanel({
   ) : null;
 
   const surfaceTabs = allSurfaces.map((id) => {
+    if (id === "starred") {
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Starred", starredItemCount),
+        testId: "control-authoring-tab-starred",
+        panelTestId: "control-authoring-panel-starred",
+      };
+    }
     if (id === "variables") {
       return {
         id,
@@ -6307,17 +6485,19 @@ export function VariablesPanel({
   });
 
   const surfaceForTab = (id: string): SurfaceTab =>
-    id === "poses"
-      ? "poses"
-      : id === "pose-groups"
-        ? "pose-groups"
-        : id === "animations"
-          ? "animations"
-          : id === "programs"
-            ? "programs"
-            : id === "inputs"
-              ? "inputs"
-              : "variables";
+    id === "starred"
+      ? "starred"
+      : id === "poses"
+        ? "poses"
+        : id === "pose-groups"
+          ? "pose-groups"
+          : id === "animations"
+            ? "animations"
+            : id === "programs"
+              ? "programs"
+              : id === "inputs"
+                ? "inputs"
+                : "variables";
 
   const selectedPoseName = selectedPoseId
     ? (poseNameById.get(selectedPoseId) ?? selectedPoseId)
@@ -6584,6 +6764,7 @@ export function VariablesPanel({
               if (surfaceForTab(id) !== activeSurface) {
                 return null;
               }
+              const isStarred = id === "starred";
               const isVariables = id === "variables";
               const isPoseGroups = id === "pose-groups";
               const isPoses = id === "poses";
@@ -7842,24 +8023,28 @@ export function VariablesPanel({
                         title={
                           filteredSearch.length > 0
                             ? "No results"
-                            : isVariables
-                              ? "No drivers defined"
-                              : isPoses
-                                ? "No poses defined"
-                                : isInputs
-                                  ? "No inputs defined"
-                                  : "No pose groups defined"
+                            : isStarred
+                              ? "No starred functionality"
+                              : isVariables
+                                ? "No drivers defined"
+                                : isPoses
+                                  ? "No poses defined"
+                                  : isInputs
+                                    ? "No inputs defined"
+                                    : "No pose groups defined"
                         }
                         description={
                           filteredSearch.length > 0
                             ? `No items found matching "${searchQuery}"`
-                            : isVariables
-                              ? "Create new drivers or import a model with poses."
-                              : isPoses
-                                ? "Create a pose to get started."
-                                : isInputs
-                                  ? "Inputs are populated from rig auto-generation and references."
-                                  : "No pose groups yet."
+                            : isStarred
+                              ? "Star drivers and poses to collect the approved way to control this face here."
+                              : isVariables
+                                ? "Create new drivers or import a model with poses."
+                                : isPoses
+                                  ? "Create a pose to get started."
+                                  : isInputs
+                                    ? "Inputs are populated from rig auto-generation and references."
+                                    : "No pose groups yet."
                         }
                         action={
                           filteredSearch.length > 0 ? (
@@ -7921,6 +8106,7 @@ export function VariablesPanel({
                             motionGraphContext={motionGraphInputContext}
                             animationTrackContext={animationTrackInputContext}
                             poseTargetContext={poseTargetInputContext}
+                            starredKeys={starredKeys}
                             searchQuery={searchQuery}
                           />
                         ))

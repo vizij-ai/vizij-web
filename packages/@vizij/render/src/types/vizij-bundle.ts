@@ -97,6 +97,22 @@ export interface VizijBundleAnimationEntry {
   };
 }
 
+export type VizijStarredKind = "driver" | "pose";
+
+/**
+ * A starred reference collected into the "Starred" control surface. Points at a
+ * real driver (standard-input id) or pose (pose id) by stable id so both the
+ * source panel and the Starred panel render the same underlying object.
+ */
+export interface VizijStarredItem {
+  kind: VizijStarredKind;
+  id: string;
+}
+
+export interface VizijBundleStarredSection {
+  items: VizijStarredItem[];
+}
+
 export interface VizijSpeechConfig {
   /** TTS voice name (e.g., "Ruth") */
   voice?: string;
@@ -128,6 +144,11 @@ export interface VizijBundleExtension {
   graphs?: VizijBundleGraphEntry[];
   poses?: VizijBundlePoseSection | null;
   animations?: VizijBundleAnimationEntry[];
+  /**
+   * Designer-curated set of starred drivers/poses (the "Starred" control
+   * surface). References real functionality by stable id.
+   */
+  starred?: VizijBundleStarredSection | null;
   /**
    * Bundle-level metadata. May include `speechConfig: VizijSpeechConfig`
    * for configuring the STT/LLM/TTS speech pipeline.
