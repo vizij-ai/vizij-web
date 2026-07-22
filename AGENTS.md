@@ -32,13 +32,14 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI                  |
 | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps                        |
 | `@vizij/arora-types`          | TypeScript protocol surface for standalone/control work       |
+| `@vizij/speech-react`         | STT/LLM/TTS speech pipeline hooks for Vizij React apps        |
 
 ### Apps (`apps/*`)
 
 | App                            | Focus                                |
 | ------------------------------ | ------------------------------------ |
 | `vizij-authoring`              | Runtime-truthful authoring surface   |
-| `demo-vizij-player`            | Authoring/runtime playback demo      |
+| `demo-vizij-player`            | Bundle-first runtime-react player    |
 | `demo-animation-studio`        | Animation playground                 |
 | `demo-graph-studio`            | Graph editing demo                   |
 | `minimal-demo-animation`       | Minimal animation smoke surface      |

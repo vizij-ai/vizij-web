@@ -12,12 +12,16 @@ Use this note when touching anything under `packages/`.
 
 ## Workspace Snapshot
 
-| Package                   | Path                      | Notes                                                          |
-| ------------------------- | ------------------------- | -------------------------------------------------------------- |
-| `@vizij/animation-react`  | `@vizij/animation-react`  | React bindings for the animation runtime.                      |
-| `@vizij/node-graph-react` | `@vizij/node-graph-react` | React bindings for node graphs and staging helpers.            |
-| `@vizij/render`           | `@vizij/render`           | Three.js renderer/controllers used across demos.               |
-| `@vizij/runtime-react`    | `@vizij/runtime-react`    | All-in-one runtime provider that wires render + orchestration. |
-| `@vizij/utils`            | `@vizij/utils`            | Shared math/value helpers used by all other packages/apps.     |
+| Package                       | Path                          | Notes                                                          |
+| ----------------------------- | ----------------------------- | -------------------------------------------------------------- |
+| `@vizij/animation-react`      | `@vizij/animation-react`      | React bindings for the animation runtime.                      |
+| `@vizij/arora-types`          | `@vizij/arora-types`          | TypeScript protocol surface for standalone/control work.       |
+| `@vizij/minimal-demo-ui`      | `@vizij/minimal-demo-ui`      | Shared UI/chrome for minimal demo apps.                        |
+| `@vizij/node-graph-authoring` | `@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                  |
+| `@vizij/node-graph-react`     | `@vizij/node-graph-react`     | React bindings for node graphs and staging helpers.            |
+| `@vizij/render`               | `@vizij/render`               | Three.js renderer/controllers used across demos.               |
+| `@vizij/runtime-react`        | `@vizij/runtime-react`        | All-in-one runtime provider that wires render + orchestration. |
+| `@vizij/speech-react`         | `@vizij/speech-react`         | STT/LLM/TTS speech pipeline hooks for Vizij React apps.        |
+| `@vizij/utils`                | `@vizij/utils`                | Shared math/value helpers used by all other packages/apps.     |
 
 See each package’s own `AGENTS.md` for test expectations, release notes, and integration tips.
