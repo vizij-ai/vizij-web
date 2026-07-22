@@ -2,7 +2,7 @@
 
 > **TypeScript packages, React integrations, and demo applications that showcase Vizij’s real-time animation platform.**
 
-This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@vizij/*-wasm` packages and exposes production-ready packages plus a suite of internal apps.
+This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation-wasm` and `@vizij/node-graph-wasm` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
 
 ---
 
@@ -49,6 +49,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                 | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
+| `@vizij/speech-react`         | `packages/@vizij/speech-react`         | Shared STT/LLM/TTS speech pipeline hooks for Vizij React apps.   | `dev`, `build`, `typecheck`, `clean`         |
 | `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
 
 ### Apps
@@ -58,7 +59,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                | `dev`, `build`, `typecheck`, `preview` |
 | `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                               | `dev`, `build`, `typecheck`, `preview` |
 | `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.           | `dev`, `build`, `typecheck`, `preview` |
-| `demo-vizij-player`            | `apps/demo-vizij-player`            | Authoring surface for facial rigs and runtime-driven playback.          | `dev`, `build`, `typecheck`, `preview` |
+| `demo-vizij-player`            | `apps/demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.      | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
 | `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |

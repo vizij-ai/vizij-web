@@ -20,11 +20,13 @@ Use this file when working under `apps/`.
 | `demo-animation-studio`        | Advanced animation playground with preset + rig editors.              |
 | `demo-graph-studio`            | Node graph editor; depends heavily on `@vizij/node-graph-react`.      |
 | `vizij-authoring`              | GLB inspector/exporter and motiongraph authoring surface.             |
-| `demo-vizij-player`            | Facial rig runtime authoring surface for end-to-end workflows.        |
+| `demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.     |
 | `minimal-demo-animation`       | Minimal animation runtime smoke test.                                 |
 | `minimal-demo-animation-graph` | Combined animation + node-graph sample featuring URDF IK and filters. |
 | `minimal-demo-graph`           | Lightweight node-graph playground (inputs/outputs/staging demos).     |
 | `tutorial-fullscreen-face`     | Lightweight getting-started face demo for the runtime provider.       |
+| `tutorial-agent-face`          | Live conversational runtime demo (Gemini Live, visemes, agent tools). |
 | `vizij-showcase`               | Larger face showcase with advanced controls and staging helpers.      |
+| `vizij-standalone`             | Tauri desktop runtime app wrapping `@vizij/runtime-react`.            |
 
 Each app directory contains its own `AGENTS.md` (if not, add one before doing extensive work) alongside README/setup instructions.
