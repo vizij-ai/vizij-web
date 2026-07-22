@@ -25,7 +25,7 @@ arora-bridge-ws = "4"
 # The dual-backend ROS 2 bridge: DDS (default) or the rmw_zenoh-compatible Zenoh
 # backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features. Not yet
 # on crates.io, so tracked to the arora-sdk branch until it publishes.
-arora-bridge-ros2 = { git = "https://github.com/semio-ai/arora-sdk", branch = "feat/ros2-client-zenoh-backend", optional = true, default-features = false }
+arora-bridge-ros2 = { git = "https://github.com/semio-ai/arora-sdk", branch = "main", optional = true, default-features = false }
 arora-simple-data-store = "2"
 arora-types = "2"
 # Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client — the
