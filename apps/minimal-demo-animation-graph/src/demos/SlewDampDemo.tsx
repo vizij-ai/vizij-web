@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  AnimationProvider,
-  useAnimTarget,
-  valueAsNumber as animationValueAsNumber,
-} from "@vizij/animation-react";
+import { valueAsNumber as animationValueAsNumber } from "@vizij/value-json";
 import {
   GraphProvider,
   useGraphRuntime,
@@ -11,6 +7,7 @@ import {
   valueAsNumber,
 } from "@vizij/node-graph-react";
 import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
+import { useAnimationRuntime } from "../animationRuntime";
 import { animationValueToValueJSON } from "../utils/animationValueToGraph";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import { slewAnimation, slewPaths } from "../data/slewAnimation";
@@ -20,7 +17,8 @@ import { ParamEditor } from "../components/ParamEditor";
 
 function SlewDampInner() {
   const runtime = useGraphRuntime();
-  const driverValue = useAnimTarget(slewPaths.driver);
+  const anim = useAnimationRuntime(slewAnimation);
+  const driverValue = anim.values[slewPaths.driver];
   const driverNumber = animationValueAsNumber(driverValue);
 
   const [maxRate, setMaxRate] = useState(1.5);
@@ -188,20 +186,8 @@ function SlewDampInner() {
 
 export function SlewDampDemo() {
   return (
-    <AnimationProvider
-      animations={slewAnimation}
-      prebind={(path) => path}
-      autostart
-      updateHz={60}
-    >
-      <GraphProvider
-        spec={slewGraphSpec}
-        autoStart
-        autoMode="raf"
-        updateHz={60}
-      >
-        <SlewDampInner />
-      </GraphProvider>
-    </AnimationProvider>
+    <GraphProvider spec={slewGraphSpec} autoStart autoMode="raf" updateHz={60}>
+      <SlewDampInner />
+    </GraphProvider>
   );
 }

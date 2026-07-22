@@ -7,7 +7,8 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
+        "!**/node_modules/@vizij/runtime/**",
+        "!**/node_modules/@vizij/animation-module/**",
         "!**/node_modules/@vizij/node-graph-wasm/**",
       ],
     },
@@ -17,6 +18,10 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/animation-wasm", "@vizij/node-graph-wasm"],
+    exclude: [
+      "@vizij/runtime",
+      "@vizij/animation-module",
+      "@vizij/node-graph-wasm",
+    ],
   },
 });

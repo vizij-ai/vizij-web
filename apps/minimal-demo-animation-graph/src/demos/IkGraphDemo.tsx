@@ -1,10 +1,5 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo } from "react";
 import {
-  AnimationProvider,
-  useAnimTarget,
-  valueAsNumber as animationValueAsNumber,
-} from "@vizij/animation-react";
-import {
   GraphProvider,
   useGraphRuntime,
   useGraphOutputs,
@@ -13,8 +8,12 @@ import {
   valueAsVector,
   useGraphLoaded,
 } from "@vizij/node-graph-react";
-import { toValueJSON } from "@vizij/value-json";
+import {
+  toValueJSON,
+  valueAsNumber as animationValueAsNumber,
+} from "@vizij/value-json";
 import { minimalDemoTheme } from "@vizij/minimal-demo-ui";
+import { useAnimationRuntime } from "../animationRuntime";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import {
   UrdfIkPanel,
@@ -45,12 +44,13 @@ function IkGraphInner() {
   const runtime = useGraphRuntime();
   const { graphLoaded, waitForGraphReady } = useGraphLoaded();
 
-  const joint1Anim = useAnimTarget(ikPaths.jointAnimation.joint1);
-  const joint2Anim = useAnimTarget(ikPaths.jointAnimation.joint2);
-  const joint3Anim = useAnimTarget(ikPaths.jointAnimation.joint3);
-  const joint4Anim = useAnimTarget(ikPaths.jointAnimation.joint4);
-  const joint5Anim = useAnimTarget(ikPaths.jointAnimation.joint5);
-  const joint6Anim = useAnimTarget(ikPaths.jointAnimation.joint6);
+  const anim = useAnimationRuntime(ikAnimation);
+  const joint1Anim = anim.values[ikPaths.jointAnimation.joint1];
+  const joint2Anim = anim.values[ikPaths.jointAnimation.joint2];
+  const joint3Anim = anim.values[ikPaths.jointAnimation.joint3];
+  const joint4Anim = anim.values[ikPaths.jointAnimation.joint4];
+  const joint5Anim = anim.values[ikPaths.jointAnimation.joint5];
+  const joint6Anim = anim.values[ikPaths.jointAnimation.joint6];
 
   const jointInputs = useMemo(() => {
     const values = [
@@ -331,35 +331,28 @@ function IkGraphInner() {
 
 export function IkGraphDemo() {
   return (
-    <AnimationProvider
-      animations={ikAnimation}
-      prebind={(path) => path}
-      autostart
+    <GraphProvider
+      spec={ikGraphSpec}
+      waitForGraph
+      initialParams={{
+        fk: {
+          urdf_xml: sampleUrdf,
+          root_link: "base_link",
+          tip_link: "tool",
+        },
+        ik_solver: {
+          urdf_xml: sampleUrdf,
+          root_link: "base_link",
+          tip_link: "tool",
+        },
+      }}
+      initialInputs={{
+        [ikPaths.jointInput]: { vector: [0, 0, 0, 0, 0, 0] },
+      }}
+      autoStart={false}
       updateHz={60}
     >
-      <GraphProvider
-        spec={ikGraphSpec}
-        waitForGraph
-        initialParams={{
-          fk: {
-            urdf_xml: sampleUrdf,
-            root_link: "base_link",
-            tip_link: "tool",
-          },
-          ik_solver: {
-            urdf_xml: sampleUrdf,
-            root_link: "base_link",
-            tip_link: "tool",
-          },
-        }}
-        initialInputs={{
-          [ikPaths.jointInput]: { vector: [0, 0, 0, 0, 0, 0] },
-        }}
-        autoStart={false}
-        updateHz={60}
-      >
-        <IkGraphInner />
-      </GraphProvider>
-    </AnimationProvider>
+      <IkGraphInner />
+    </GraphProvider>
   );
 }

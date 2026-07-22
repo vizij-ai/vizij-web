@@ -18,9 +18,11 @@
   },
   "dependencies": {
     "@eslint/plugin-kit": "0.4.0",
-    "@vizij/animation-react": "workspace:*",
+    "@vizij/animation-module": "^0.2.0",
     "@vizij/minimal-demo-ui": "workspace:*",
+    "@vizij/runtime": "^1.1.0",
     "@vizij/utils": "workspace:*",
+    "@vizij/value-json": "^0.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

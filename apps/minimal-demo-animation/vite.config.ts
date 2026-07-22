@@ -7,7 +7,8 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/animation-wasm/**",
+        "!**/node_modules/@vizij/runtime/**",
+        "!**/node_modules/@vizij/animation-module/**",
       ],
     },
     headers: {
@@ -16,7 +17,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Prevent pre-bundling the wasm ESM shim in dev; let Vite handle it directly
-    exclude: ["@vizij/animation-wasm"],
+    // The device + module wasm packages are excluded from pre-bundling so Vite
+    // handles their `new URL(..., import.meta.url)` wasm assets directly.
+    exclude: ["@vizij/runtime", "@vizij/animation-module"],
   },
 });

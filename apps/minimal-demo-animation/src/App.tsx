@@ -1,46 +1,26 @@
 import React from "react";
-import type { ChangeEvent, Dispatch } from "react";
-import {
-  AnimationProvider,
-  useAnimTarget,
-  valueAsNumber,
-  useAnimation,
-  samples as animationSamples,
-} from "@vizij/animation-react";
+import type { ChangeEvent } from "react";
+import { valueAsNumber, type ValueJSON } from "@vizij/value-json";
 import {
   MinimalDemoChrome,
   MinimalDemoSection,
   minimalDemoTheme,
 } from "@vizij/minimal-demo-ui";
 import { cloneDeepSafe } from "@vizij/utils";
+import {
+  useAnimationRuntime,
+  type AnimationRuntimeApi,
+  type StoredAnimation,
+} from "./animationRuntime";
+import { listSamples, loadSample } from "./samples";
 
 const toPretty = (value: unknown) => JSON.stringify(value, null, 2);
-
-type StoredAnimation = Record<string, unknown>;
-type PlayerInfo = {
-  id: number;
-  name?: string;
-  time: number;
-  length: number;
-  start_time?: number;
-  end_time?: number | null;
-};
-
-const normalizeAnimations = (
-  source: StoredAnimation[] | StoredAnimation,
-): StoredAnimation[] => (Array.isArray(source) ? source : [source]);
-
-const cloneAnimationsList = (anims: StoredAnimation[]): StoredAnimation[] => {
-  return cloneDeepSafe(anims);
-};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
 type AnimationSummary = {
   primaryAnimationId?: string | number;
-  primaryTrackAnimatableId?: string;
-  primaryTrackLabel?: string | number;
   animatableIds: string[];
 };
 
@@ -50,8 +30,12 @@ type AnimationValidationResult = {
   summary: AnimationSummary;
 };
 
+const normalizeAnimations = (
+  source: StoredAnimation[] | StoredAnimation,
+): StoredAnimation[] => (Array.isArray(source) ? source : [source]);
+
 const describeAnimation = (anim: StoredAnimation, index: number): string => {
-  const candidate = anim as any;
+  const candidate = anim as { id?: unknown; name?: unknown };
   if (typeof candidate?.id === "string" && candidate.id.trim() !== "") {
     return `animation "${candidate.id}"`;
   }
@@ -62,22 +46,6 @@ const describeAnimation = (anim: StoredAnimation, index: number): string => {
     return `animation "${candidate.name}"`;
   }
   return `animation[${index}]`;
-};
-
-const describeTrack = (
-  anim: StoredAnimation,
-  animIndex: number,
-  track: unknown,
-  trackIndex: number,
-): string => {
-  const trackObj = track as any;
-  if (typeof trackObj?.id === "string" && trackObj.id.trim() !== "") {
-    return `track "${trackObj.id}" of ${describeAnimation(anim, animIndex)}`;
-  }
-  if (typeof trackObj?.id === "number") {
-    return `track ${trackObj.id} of ${describeAnimation(anim, animIndex)}`;
-  }
-  return `track[${trackIndex}] of ${describeAnimation(anim, animIndex)}`;
 };
 
 const validateAnimations = (
@@ -94,7 +62,7 @@ const validateAnimations = (
       return;
     }
 
-    const animObj = anim as any;
+    const animObj = anim as { id?: unknown; tracks?: unknown };
     const animId = animObj.id;
     if (summary.primaryAnimationId === undefined) {
       if (typeof animId === "string" && animId.trim() !== "") {
@@ -117,24 +85,14 @@ const validateAnimations = (
       return;
     }
 
-    tracks.forEach((track: any, trackIndex: number) => {
-      if (!track || typeof track !== "object") {
-        errors.push(
-          `${describeTrack(anim, animIndex, track, trackIndex)} must be an object.`,
-        );
-        return;
-      }
-      const animatableId =
-        track.animatableId ?? track.animatable_id ?? track.target ?? undefined;
+    tracks.forEach((track: unknown) => {
+      const trackObj = track as { animatableId?: unknown };
+      const animatableId = trackObj?.animatableId;
       if (typeof animatableId !== "string" || animatableId.trim() === "") {
         errors.push(
-          `${describeTrack(anim, animIndex, track, trackIndex)} is missing a valid animatableId.`,
+          `${describeAnimation(anim, animIndex)} has a track missing a valid animatableId.`,
         );
         return;
-      }
-      if (!summary.primaryTrackAnimatableId) {
-        summary.primaryTrackAnimatableId = animatableId;
-        summary.primaryTrackLabel = track.id ?? trackIndex;
       }
       animatableIdSet.add(animatableId);
     });
@@ -171,25 +129,8 @@ function parseAnimations(text: string): StoredAnimation[] {
   throw new Error("Expected a StoredAnimation object or an array of them.");
 }
 
-type PanelProps = {
-  animations: StoredAnimation[];
-  setAnimations: Dispatch<StoredAnimation[] | null>;
-  initialAnimations: StoredAnimation[];
-  sampleOptions: string[];
-  selectedSample: string | null;
-  baselineSampleId: string | null;
-  onRequestSample: (id: string) => Promise<StoredAnimation[]>;
-  onSampleApplied: (id: string | null, baseline: StoredAnimation[]) => void;
-  onCustomSpec: () => void;
-  loadingSamples: boolean;
-};
-
-type TrackedKeyValueProps = {
-  targetKey: string;
-};
-
-const formatValue = (value: unknown) => {
-  const numeric = valueAsNumber(value as any);
+const formatValue = (value: ValueJSON | null | undefined) => {
+  const numeric = valueAsNumber(value ?? undefined);
   if (typeof numeric === "number" && Number.isFinite(numeric)) {
     return numeric.toFixed(4);
   }
@@ -205,8 +146,13 @@ const formatValue = (value: unknown) => {
   }
 };
 
-function TrackedKeyValue({ targetKey }: TrackedKeyValueProps) {
-  const value = useAnimTarget(targetKey);
+function TrackedKeyValue({
+  targetKey,
+  value,
+}: {
+  targetKey: string;
+  value: ValueJSON | null | undefined;
+}) {
   return (
     <div
       style={{
@@ -219,13 +165,7 @@ function TrackedKeyValue({ targetKey }: TrackedKeyValueProps) {
         color: minimalDemoTheme.text,
       }}
     >
-      <code
-        style={{
-          fontSize: 11,
-          opacity: 0.7,
-          wordBreak: "break-word",
-        }}
-      >
+      <code style={{ fontSize: 11, opacity: 0.7, wordBreak: "break-word" }}>
         {targetKey}
       </code>
       <strong
@@ -242,28 +182,31 @@ function TrackedKeyValue({ targetKey }: TrackedKeyValueProps) {
   );
 }
 
+type PanelProps = {
+  anim: AnimationRuntimeApi;
+  animations: StoredAnimation[];
+  setAnimations: (next: StoredAnimation[]) => void;
+  sampleOptions: string[];
+  selectedSample: string | null;
+  setSelectedSample: (id: string | null) => void;
+};
+
 function Panel({
+  anim,
   animations,
   setAnimations,
-  initialAnimations,
   sampleOptions,
   selectedSample,
-  baselineSampleId,
-  onRequestSample,
-  onSampleApplied,
-  onCustomSpec,
-  loadingSamples,
+  setSelectedSample,
 }: PanelProps) {
   const currentValidation = React.useMemo(
     () => validateAnimations(animations),
     [animations],
   );
   const allTrackedKeys = currentValidation.summary.animatableIds;
-  const primaryKey = allTrackedKeys[0];
-  const primaryValue = useAnimTarget(primaryKey);
   const currentAnimationId =
     currentValidation.summary.primaryAnimationId ?? undefined;
-  const animApi = useAnimation();
+
   const [warnings, setWarnings] = React.useState<string[]>(() =>
     currentValidation.warnings.slice(),
   );
@@ -272,24 +215,21 @@ function Panel({
   );
   const [error, setError] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<string | null>(null);
-  const [isSampleLoading, setIsSampleLoading] = React.useState(false);
-  const players = animApi.listPlayers?.() ?? [];
-  const primaryPlayer = players[0] as PlayerInfo | undefined;
-  const playerStart = Number(primaryPlayer?.start_time ?? 0) || 0;
-  const playerLengthRaw = Number(primaryPlayer?.length ?? 0) || 0;
-  const playerLength =
-    playerLengthRaw > playerStart
-      ? playerLengthRaw
-      : playerStart + (playerLengthRaw > 0 ? playerLengthRaw : 1);
-  const playerTimeRaw = Number(primaryPlayer?.time ?? playerStart) || 0;
-  const clampedTime = clamp(playerTimeRaw, playerStart, playerLength);
+
+  const primaryPlayer = anim.players[0];
+  const playerLength = Math.max(
+    Number(primaryPlayer?.duration ?? 0) || 0,
+    0.01,
+  );
+  const playerTime = clamp(
+    Number(primaryPlayer?.time ?? 0) || 0,
+    0,
+    playerLength,
+  );
 
   React.useEffect(() => {
     const { warnings: nextWarnings } = validateAnimations(animations);
     setWarnings(nextWarnings.slice());
-  }, [animations]);
-
-  React.useEffect(() => {
     setEditorText(
       toPretty(animations.length === 1 ? animations[0] : animations),
     );
@@ -298,7 +238,7 @@ function Panel({
   const applyAnimations = React.useCallback(
     (
       nextInput: StoredAnimation[] | StoredAnimation,
-      opts?: { source?: "sample" | "custom"; sampleId?: string | null },
+      opts?: { sampleId?: string | null },
     ) => {
       setStatus(null);
       setError(null);
@@ -319,70 +259,28 @@ function Panel({
         return false;
       }
 
-      const clonedList = cloneAnimationsList(normalizedList);
-
-      if (animApi.ready) {
-        try {
-          animApi.reload(clonedList);
-        } catch (err: unknown) {
-          setError(
-            `Animation engine rejected payload: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-          setWarnings(validationWarnings.slice());
-          return false;
-        }
-      }
-
-      setAnimations(clonedList);
+      // A new clips identity reloads the runtime inside the hook.
+      setAnimations(cloneDeepSafe(normalizedList));
+      setSelectedSample(opts?.sampleId ?? null);
 
       const segments: string[] = [];
-      if (normalizedList.length === 1) {
-        segments.push("Loaded 1 animation clip.");
-      } else {
-        segments.push(`Loaded ${normalizedList.length} animation clips.`);
-      }
-      if (summary.primaryAnimationId !== undefined) {
-        segments.push(`Animation ID: ${summary.primaryAnimationId}.`);
-      }
+      segments.push(
+        normalizedList.length === 1
+          ? "Loaded 1 animation clip."
+          : `Loaded ${normalizedList.length} animation clips.`,
+      );
       if (summary.animatableIds.length > 0) {
-        const keysPreview =
-          summary.animatableIds.length > 3
-            ? `${summary.animatableIds.slice(0, 3).join(", ")} (+${
-                summary.animatableIds.length - 3
-              } more)`
-            : summary.animatableIds.join(", ");
         segments.push(
           `Tracking ${summary.animatableIds.length} key${
             summary.animatableIds.length === 1 ? "" : "s"
-          }: ${keysPreview}.`,
+          }: ${summary.animatableIds.join(", ")}.`,
         );
-      } else {
-        segments.push("No animatableId detected.");
       }
-      if (validationWarnings.length > 0) {
-        const warningText =
-          validationWarnings.length === 1
-            ? `Warning: ${validationWarnings[0]}`
-            : `Warnings: ${validationWarnings.join(" ")}`;
-        segments.push(warningText);
-      }
-      if (!animApi.ready) {
-        segments.push("Engine is initialising; clip will load when ready.");
-      }
-
       setStatus(segments.join(" "));
       setWarnings(validationWarnings.slice());
-      setError(null);
-      if (opts?.source === "sample") {
-        onSampleApplied(opts.sampleId ?? null, clonedList);
-      } else if (opts?.source === "custom") {
-        onCustomSpec();
-      }
       return true;
     },
-    [animApi, setAnimations, onSampleApplied, onCustomSpec],
+    [setAnimations, setSelectedSample],
   );
 
   const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -391,17 +289,12 @@ function Panel({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const text = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("Failed to read file"));
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.readAsText(file);
-      });
+      const text = await file.text();
       const parsed = parseAnimations(text);
       setEditorText(toPretty(parsed.length === 1 ? parsed[0] : parsed));
-      applyAnimations(parsed, { source: "custom" });
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
+      applyAnimations(parsed, { sampleId: null });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
       setStatus(null);
     } finally {
       e.currentTarget.value = "";
@@ -412,10 +305,9 @@ function Panel({
     setStatus(null);
     setError(null);
     try {
-      const parsed = parseAnimations(editorText);
-      applyAnimations(parsed, { source: "custom" });
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
+      applyAnimations(parseAnimations(editorText), { sampleId: null });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -423,9 +315,8 @@ function Panel({
     try {
       const parsed = parseAnimations(editorText);
       setEditorText(toPretty(parsed.length === 1 ? parsed[0] : parsed));
-    } catch (err: any) {
-      setError(err?.message ?? String(err));
-      setStatus(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -434,78 +325,27 @@ function Panel({
     setStatus("Saved animation JSON.");
   };
 
-  const sampleSelectValue = selectedSample ?? "__custom__";
-
-  const handleSampleSelect = React.useCallback(
-    async (event: ChangeEvent<HTMLSelectElement>) => {
-      const id = event.target.value;
-      if (!id || id === "__custom__" || id === selectedSample) {
-        return;
-      }
-      setStatus(null);
-      setError(null);
-      setIsSampleLoading(true);
-      try {
-        const payload = await onRequestSample(id);
-        const ok = applyAnimations(payload, {
-          source: "sample",
-          sampleId: id,
-        });
-        if (!ok) {
-          return;
-        }
-      } catch (err: any) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(`Failed to load sample "${id}": ${message}`);
-        setStatus(null);
-      } finally {
-        setIsSampleLoading(false);
-      }
-    },
-    [applyAnimations, onRequestSample, selectedSample],
-  );
-
-  const onRestoreInitial = () => {
-    const restored = applyAnimations(initialAnimations, {
-      source: "sample",
-      sampleId: baselineSampleId ?? null,
-    });
-    if (restored) {
-      setEditorText(
-        toPretty(
-          initialAnimations.length === 1
-            ? initialAnimations[0]
-            : initialAnimations,
-        ),
-      );
+  const handleSampleSelect = (event: ChangeEvent<HTMLSelectElement>) => {
+    const id = event.target.value;
+    if (!id || id === "__custom__") return;
+    try {
+      const payload = loadSample(id);
+      setEditorText(toPretty(payload));
+      applyAnimations(payload, { sampleId: id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  const playerId = primaryPlayer?.id as number | undefined;
-
-  const sendCommand = React.useCallback(
-    (cmd: unknown) => {
-      if (playerId === undefined) return;
-      animApi.step(0, { player_cmds: [cmd] });
-      animApi.step(1 / 120);
-    },
-    [animApi, playerId],
-  );
-
-  const onSeek = React.useCallback(
-    (nextTime: number) => {
-      if (playerId === undefined) return;
-      const clamped = clamp(nextTime, playerStart, playerLength);
-      sendCommand({ Seek: { player: playerId, time: clamped } });
-    },
-    [playerId, playerStart, playerLength, sendCommand],
-  );
+  const onSeek = (nextTime: number) => {
+    anim.seek(clamp(nextTime, 0, playerLength));
+  };
 
   return (
     <MinimalDemoChrome
       title="Vizij animation demo"
-      subtitle="Minimal Vizij sample"
-      description="Load StoredAnimation clips, scrub them, and watch tracked keys update in real time."
+      subtitle="Minimal Vizij sample (runtime path)"
+      description="Load StoredAnimation clips, scrub them, and watch tracked keys update — driven by @vizij/animation-module running in a @vizij/runtime instance."
     >
       <MinimalDemoSection
         title="Active clip"
@@ -522,12 +362,10 @@ function Panel({
               {allTrackedKeys.length > 0 ? allTrackedKeys.join(", ") : "—"}
             </code>
           </p>
-          {primaryKey ? (
-            <p style={{ margin: 0 }}>
-              Primary value ({primaryKey}):{" "}
-              <strong>{formatValue(primaryValue)}</strong>
-            </p>
-          ) : null}
+          <p style={{ margin: 0, opacity: 0.7 }}>
+            Runtime: {anim.ready ? "running" : "starting…"}
+            {anim.error ? ` — error: ${anim.error}` : ""}
+          </p>
         </div>
       </MinimalDemoSection>
 
@@ -544,54 +382,31 @@ function Panel({
             background: minimalDemoTheme.card,
           }}
         >
-          <button
-            type="button"
-            onClick={() => sendCommand({ Play: { player: playerId } })}
-            disabled={playerId === undefined}
-          >
+          <button type="button" onClick={anim.play} disabled={!anim.ready}>
             Play
           </button>
-          <button
-            type="button"
-            onClick={() => sendCommand({ Pause: { player: playerId } })}
-            disabled={playerId === undefined}
-          >
+          <button type="button" onClick={anim.pause} disabled={!anim.ready}>
             Pause
           </button>
-          <button
-            type="button"
-            onClick={() => sendCommand({ Stop: { player: playerId } })}
-            disabled={playerId === undefined}
-          >
+          <button type="button" onClick={anim.stop} disabled={!anim.ready}>
             Reset
           </button>
           <div style={{ marginLeft: "auto", minWidth: 160 }}>
-            <div
+            <input
+              type="range"
+              min={0}
+              max={playerLength}
+              step={playerLength / 200}
+              value={playerTime}
+              onChange={(event) => onSeek(Number(event.target.value))}
+              disabled={!anim.ready}
               style={{
-                display: "grid",
-                gap: 4,
+                appearance: "none",
+                width: "100%",
+                cursor: anim.ready ? "pointer" : "not-allowed",
+                accentColor: "#ef4444",
               }}
-            >
-              <input
-                type="range"
-                min={playerStart}
-                max={playerLength}
-                step={
-                  playerLength - playerStart > 0
-                    ? (playerLength - playerStart) / 200
-                    : 0.01
-                }
-                value={clampedTime}
-                onChange={(event) => onSeek(Number(event.target.value))}
-                disabled={playerId === undefined}
-                style={{
-                  appearance: "none",
-                  width: "100%",
-                  cursor: playerId === undefined ? "not-allowed" : "pointer",
-                  accentColor: "#ef4444",
-                }}
-              />
-            </div>
+            />
             <div
               style={{
                 display: "flex",
@@ -600,12 +415,12 @@ function Panel({
                 marginTop: 6,
               }}
             >
-              <span>{playerStart.toFixed(2)}s</span>
+              <span>0.00s</span>
               <span>{playerLength.toFixed(2)}s</span>
             </div>
           </div>
           <div style={{ fontSize: 12, opacity: 0.75 }}>
-            Time: {clampedTime.toFixed(2)}s
+            Time: {playerTime.toFixed(2)}s
           </div>
         </div>
       </MinimalDemoSection>
@@ -621,7 +436,11 @@ function Panel({
             }}
           >
             {allTrackedKeys.map((key) => (
-              <TrackedKeyValue key={key} targetKey={key} />
+              <TrackedKeyValue
+                key={key}
+                targetKey={key}
+                value={anim.values[key]}
+              />
             ))}
           </div>
         ) : (
@@ -644,19 +463,10 @@ function Panel({
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <strong>Sample</strong>
             <select
-              value={sampleSelectValue}
+              value={selectedSample ?? "__custom__"}
               onChange={handleSampleSelect}
-              disabled={
-                loadingSamples || isSampleLoading || sampleOptions.length === 0
-              }
             >
-              <option value="__custom__">
-                {loadingSamples
-                  ? "Loading samples…"
-                  : sampleOptions.length === 0
-                    ? "No samples available"
-                    : "Custom (editor/file)"}
-              </option>
+              <option value="__custom__">Custom (editor/file)</option>
               {sampleOptions.map((name) => (
                 <option key={name} value={name}>
                   {name}
@@ -681,14 +491,6 @@ function Panel({
           <button type="button" onClick={onDownload}>
             Save JSON
           </button>
-          <button type="button" onClick={onRestoreInitial}>
-            Restore initial clip
-          </button>
-          {isSampleLoading ? (
-            <span style={{ color: minimalDemoTheme.muted }}>
-              Loading sample…
-            </span>
-          ) : null}
         </div>
         <textarea
           value={editorText}
@@ -717,8 +519,8 @@ function Panel({
         ) : null}
         <p style={{ opacity: 0.65, fontSize: 14, margin: 0 }}>
           Paste or load a StoredAnimation JSON payload, tweak it, then apply to
-          reload the WASM engine. The provider will stream updates to the value
-          above.
+          reload the runtime. The tracked values above stream from the runtime
+          store each frame.
         </p>
       </section>
     </MinimalDemoChrome>
@@ -726,134 +528,30 @@ function Panel({
 }
 
 export default function App() {
-  const [animations, setAnimations] = React.useState<StoredAnimation[] | null>(
-    null,
-  );
-  const [initialAnimations, setInitialAnimations] = React.useState<
-    StoredAnimation[]
-  >([]);
-  const [sampleOptions, setSampleOptions] = React.useState<string[]>([]);
+  const sampleOptions = React.useMemo(() => listSamples(), []);
+  const [animations, setAnimations] = React.useState<StoredAnimation[]>(() => [
+    loadSample(
+      sampleOptions.includes("simple-scalar-ramp")
+        ? "simple-scalar-ramp"
+        : sampleOptions[0],
+    ),
+  ]);
   const [selectedSample, setSelectedSample] = React.useState<string | null>(
-    null,
-  );
-  const [baselineSampleId, setBaselineSampleId] = React.useState<string | null>(
-    null,
-  );
-  const [loadingSamples, setLoadingSamples] = React.useState(true);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
-  const mountedRef = React.useRef(true);
-
-  React.useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const requestSample = React.useCallback(async (id: string) => {
-    const payload = (await animationSamples.load(id)) as
-      | StoredAnimation
-      | StoredAnimation[];
-    const normalized = normalizeAnimations(payload);
-    return cloneAnimationsList(normalized);
-  }, []);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const names = await animationSamples.list();
-        if (cancelled || !mountedRef.current) return;
-        const sorted = names.slice().sort((a, b) => a.localeCompare(b));
-        setSampleOptions(sorted);
-        if (sorted.length > 0) {
-          const preferred = sorted.includes("simple-scalar-ramp")
-            ? "simple-scalar-ramp"
-            : sorted[0];
-          const normalized = await requestSample(preferred);
-          if (cancelled || !mountedRef.current) return;
-          setAnimations(cloneAnimationsList(normalized));
-          setInitialAnimations(cloneAnimationsList(normalized));
-          setSelectedSample(preferred);
-          setBaselineSampleId(preferred);
-        } else {
-          setAnimations([]);
-          setInitialAnimations([]);
-          setBaselineSampleId(null);
-        }
-      } catch (err: any) {
-        if (cancelled || !mountedRef.current) return;
-        const message =
-          err instanceof Error ? err.message : String(err ?? "unknown");
-        setLoadError(`Failed to load animation samples: ${message}`);
-      } finally {
-        if (!cancelled && mountedRef.current) {
-          setLoadingSamples(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [requestSample]);
-
-  const handleSampleApplied = React.useCallback(
-    (sampleId: string | null, baseline: StoredAnimation[]) => {
-      setInitialAnimations(cloneAnimationsList(baseline));
-      if (sampleId) {
-        setSelectedSample(sampleId);
-        setBaselineSampleId(sampleId);
-      } else {
-        setSelectedSample(null);
-        setBaselineSampleId(null);
-      }
-    },
-    [],
+    sampleOptions.includes("simple-scalar-ramp")
+      ? "simple-scalar-ramp"
+      : (sampleOptions[0] ?? null),
   );
 
-  const handleCustomSpec = React.useCallback(() => {
-    setSelectedSample(null);
-  }, []);
-
-  if (animations === null) {
-    return (
-      <div
-        style={{
-          fontFamily: "Inter, system-ui, sans-serif",
-          maxWidth: 640,
-          margin: "2rem auto",
-          padding: "0 1rem",
-        }}
-      >
-        <h1 style={{ margin: "0 0 1rem" }}>Vizij Animation Demo</h1>
-        <p style={{ color: minimalDemoTheme.muted }}>
-          {loadingSamples
-            ? "Loading animation samples…"
-            : (loadError ??
-              "Unable to load animation samples. Check the console for details.")}
-        </p>
-      </div>
-    );
-  }
+  const anim = useAnimationRuntime(animations, { autoplay: true });
 
   return (
-    <AnimationProvider
+    <Panel
+      anim={anim}
       animations={animations}
-      prebind={(path) => path}
-      autostart
-      updateHz={60}
-    >
-      <Panel
-        animations={animations}
-        setAnimations={setAnimations}
-        initialAnimations={initialAnimations}
-        sampleOptions={sampleOptions}
-        selectedSample={selectedSample}
-        baselineSampleId={baselineSampleId}
-        onRequestSample={requestSample}
-        onSampleApplied={handleSampleApplied}
-        onCustomSpec={handleCustomSpec}
-        loadingSamples={loadingSamples}
-      />
-    </AnimationProvider>
+      setAnimations={setAnimations}
+      sampleOptions={sampleOptions}
+      selectedSample={selectedSample}
+      setSelectedSample={setSelectedSample}
+    />
   );
 }
