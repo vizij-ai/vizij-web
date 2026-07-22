@@ -51,13 +51,6 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via `@
 | `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
 | `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
 
-### Local protocol / standalone crates
-
-| Crate              | Path                        | Summary                                              |
-| ------------------ | --------------------------- | ---------------------------------------------------- |
-| `arora-connection` | `packages/arora-connection` | Rust protocol traits and shared connection types     |
-| `arora-websocket`  | `packages/arora-websocket`  | Rust WebSocket implementation for the Arora protocol |
-
 ### Apps
 
 | App                            | Path                                | Purpose                                                                 | Typical scripts                        |
