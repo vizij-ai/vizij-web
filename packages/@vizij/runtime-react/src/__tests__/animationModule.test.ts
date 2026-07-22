@@ -92,7 +92,9 @@ describe("storedClipToModuleValue", () => {
     // absent sides stay empty (the engine's default ease).
     const firstPoint = fieldsById(points.structs.elements[0].fields);
     expect(points.structs.elements[0].fields).toHaveLength(5);
-    expect(firstPoint.get(ANIMATION_MODULE_FIELD.keypointTransitionsIn)).toEqual({
+    expect(
+      firstPoint.get(ANIMATION_MODULE_FIELD.keypointTransitionsIn),
+    ).toEqual({
       structs: {
         id: ANIMATION_MODULE_TYPE.transitionHandle,
         elements: [
@@ -106,7 +108,9 @@ describe("storedClipToModuleValue", () => {
       },
     });
     const secondPoint = fieldsById(points.structs.elements[1].fields);
-    expect(secondPoint.get(ANIMATION_MODULE_FIELD.keypointTransitionsIn)).toEqual({
+    expect(
+      secondPoint.get(ANIMATION_MODULE_FIELD.keypointTransitionsIn),
+    ).toEqual({
       structs: { id: ANIMATION_MODULE_TYPE.transitionHandle, elements: [] },
     });
   });
@@ -221,7 +225,10 @@ describe("call builders", () => {
       id: ANIMATION_MODULE_FN.seek,
       args: [
         { id: ANIMATION_MODULE_PARAM.seekPlayer, value: { u32: 3 } },
-        { id: ANIMATION_MODULE_PARAM.seekTimeNs, value: { u64: 1_500_000_000 } },
+        {
+          id: ANIMATION_MODULE_PARAM.seekTimeNs,
+          value: { u64: 1_500_000_000 },
+        },
       ],
     });
     expect(setSpeedCall(3, 2)).toEqual({
