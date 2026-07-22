@@ -107,15 +107,15 @@ importers:
       '@eslint/plugin-kit':
         specifier: 0.4.0
         version: 0.4.0
+      '@vizij/node-graph':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-authoring
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
-      '@vizij/node-graph-wasm':
-        specifier: ^0.7.0
-        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
@@ -251,12 +251,12 @@ importers:
       '@vizij/minimal-demo-ui':
         specifier: workspace:*
         version: link:../../packages/@vizij/minimal-demo-ui
+      '@vizij/node-graph':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
-      '@vizij/node-graph-wasm':
-        specifier: ^0.7.0
-        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
@@ -306,12 +306,12 @@ importers:
       '@vizij/minimal-demo-ui':
         specifier: workspace:*
         version: link:../../packages/@vizij/minimal-demo-ui
+      '@vizij/node-graph':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
-      '@vizij/node-graph-wasm':
-        specifier: ^0.7.0
-        version: 0.7.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../../packages/@vizij/utils
@@ -453,15 +453,15 @@ importers:
       '@radix-ui/react-icons':
         specifier: ^1.3.2
         version: 1.3.2(react@19.2.3)
+      '@vizij/node-graph':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-authoring
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
-      '@vizij/node-graph-wasm':
-        specifier: ^0.7.0
-        version: 0.7.0
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
@@ -602,15 +602,15 @@ importers:
       '@tauri-apps/plugin-log':
         specifier: 2.8.0
         version: 2.8.0
+      '@vizij/node-graph':
+        specifier: ^0.7.0
+        version: 0.7.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-authoring
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
-      '@vizij/node-graph-wasm':
-        specifier: ^0.7.0
-        version: 0.7.0
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
@@ -736,7 +736,7 @@ importers:
 
   packages/@vizij/node-graph-authoring:
     dependencies:
-      '@vizij/node-graph-wasm':
+      '@vizij/node-graph':
         specifier: ^0.7.0
         version: 0.7.0
       '@vizij/utils':
@@ -761,7 +761,7 @@ importers:
 
   packages/@vizij/node-graph-react:
     dependencies:
-      '@vizij/node-graph-wasm':
+      '@vizij/node-graph':
         specifier: ^0.7.0
         version: 0.7.0
       '@vizij/value-json':
@@ -2664,8 +2664,8 @@ packages:
   '@vizij/animation@0.4.0':
     resolution: {integrity: sha512-0yOCMbq2bGxL2TiiiLhMw5wWJtQnU7a46bnQqEwaeUomGIvOitqGw6qhlJ1xqVNLO6wletrV3daIMpcYruso/Q==}
 
-  '@vizij/node-graph-wasm@0.7.0':
-    resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
+  '@vizij/node-graph@0.7.0':
+    resolution: {integrity: sha512-8EtlkEQyLlaEjMeQPJK4XmjB+Y/n4FsZ7U2Z2h7j1/Fob03F00kqVQU+O8ncHjODSwpzeMsJ1D/rulMupiydUA==}
 
   '@vizij/runtime@2.0.0':
     resolution: {integrity: sha512-DYBjC4j9eoy/l5/Hol8vpXaVqRE5/l0chG71B6oG6fjxW4aV2X3970a7Uokba/5k+jE4O+cVA2ff0tK6shBwOQ==}
@@ -6911,7 +6911,7 @@ snapshots:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/node-graph-wasm@0.7.0':
+  '@vizij/node-graph@0.7.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
