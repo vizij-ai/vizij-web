@@ -1,16 +1,5 @@
 import type { AnimationClipLike } from "../types";
 
-export type AnimationAggregateOperation =
-  | {
-      kind: "set";
-      path: string;
-      value: number;
-    }
-  | {
-      kind: "clear";
-      path: string;
-    };
-
 export function resolveAnimationBridgeOutputPaths(
   channel: string,
   faceId?: string,
@@ -99,44 +88,4 @@ export function collectAnimationClipOutputPaths(
   return Array.from(outputPaths).sort((left, right) =>
     left.localeCompare(right),
   );
-}
-
-export function diffAnimationAggregateValues(
-  previousAggregate: Map<string, number>,
-  nextAggregate: Map<string, number>,
-  epsilon = 1e-6,
-): AnimationAggregateOperation[] {
-  const operations: AnimationAggregateOperation[] = [];
-  const changedPaths = new Set<string>();
-
-  previousAggregate.forEach((previousValue, path) => {
-    const nextValue = nextAggregate.get(path);
-    if (
-      nextValue === undefined ||
-      Math.abs(nextValue - previousValue) > epsilon
-    ) {
-      changedPaths.add(path);
-    }
-  });
-
-  nextAggregate.forEach((nextValue, path) => {
-    const previousValue = previousAggregate.get(path);
-    if (
-      previousValue === undefined ||
-      Math.abs(nextValue - previousValue) > epsilon
-    ) {
-      changedPaths.add(path);
-    }
-  });
-
-  changedPaths.forEach((path) => {
-    const nextValue = nextAggregate.get(path);
-    if (nextValue === undefined) {
-      operations.push({ kind: "clear", path });
-      return;
-    }
-    operations.push({ kind: "set", path, value: nextValue });
-  });
-
-  return operations;
 }

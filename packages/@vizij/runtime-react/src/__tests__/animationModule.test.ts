@@ -4,14 +4,22 @@ import {
   ANIMATION_MODULE_FN,
   ANIMATION_MODULE_PARAM,
   ANIMATION_MODULE_TYPE,
-  ANIMATIONS_OUT_PATH,
+  ANIMATION_PLAYERS_PATH,
   ANIMATIONS_SOURCE_ID,
   addInstanceCall,
   animationsGraphSource,
   callResultU32,
   createPlayerCall,
-  decodeTrackOutputs,
+  decodePlayerStates,
   loadAnimationCall,
+  pauseCall,
+  playCall,
+  removeInstanceCall,
+  seekCall,
+  setLoopCall,
+  setSpeedCall,
+  setWeightCall,
+  stopCall,
   storedClipToModuleValue,
   type AroraField,
   type AroraStruct,
@@ -32,9 +40,7 @@ const rampStoredClip = {
           id: "k0",
           stamp: 0,
           value: 0,
-          // Authored timing metadata the module's Keypoint cannot carry.
-          // The converter must drop it (documented capability gap), not
-          // approximate it.
+          // Authored timing handles ride through as TransitionHandle arrays.
           transitions: { in: { x: 1, y: 1 }, out: { x: 0, y: 0 } },
         },
         { id: "k1", stamp: 1, value: 1 },
@@ -48,7 +54,7 @@ function fieldsById(fields: AroraField[]): Map<string, unknown> {
 }
 
 describe("storedClipToModuleValue", () => {
-  it("emits the module's declared AnimationClip structure", () => {
+  it("emits the module's declared AnimationClip structure with timing handles", () => {
     const value = storedClipToModuleValue(rampStoredClip) as {
       struct: AroraStruct;
     };
@@ -82,19 +88,50 @@ describe("storedClipToModuleValue", () => {
     expect(points.structs.id).toBe(ANIMATION_MODULE_TYPE.keypoint);
     expect(points.structs.elements).toHaveLength(2);
 
+    // Five declared Keypoint fields; authored handles fill the arrays and
+    // absent sides stay empty (the engine's default ease).
     const firstPoint = fieldsById(points.structs.elements[0].fields);
-    expect(firstPoint.get(ANIMATION_MODULE_FIELD.keypointId)).toEqual({
-      str: "k0",
+    expect(points.structs.elements[0].fields).toHaveLength(5);
+    expect(firstPoint.get(ANIMATION_MODULE_FIELD.keypointTransitionsIn)).toEqual({
+      structs: {
+        id: ANIMATION_MODULE_TYPE.transitionHandle,
+        elements: [
+          {
+            fields: [
+              { id: ANIMATION_MODULE_FIELD.handleX, value: { f32: 1 } },
+              { id: ANIMATION_MODULE_FIELD.handleY, value: { f32: 1 } },
+            ],
+          },
+        ],
+      },
     });
-    expect(firstPoint.get(ANIMATION_MODULE_FIELD.keypointStamp)).toEqual({
-      f32: 0,
+    const secondPoint = fieldsById(points.structs.elements[1].fields);
+    expect(secondPoint.get(ANIMATION_MODULE_FIELD.keypointTransitionsIn)).toEqual({
+      structs: { id: ANIMATION_MODULE_TYPE.transitionHandle, elements: [] },
     });
-    expect(firstPoint.get(ANIMATION_MODULE_FIELD.keypointValue)).toEqual({
-      f32: 0,
+  });
+
+  it("resolves final store keys at load: one track per target", () => {
+    const value = storedClipToModuleValue(rampStoredClip, (key) => [
+      `rig/quori/${key}`,
+      key,
+    ]) as { struct: AroraStruct };
+    const clipFields = fieldsById(value.struct.fields);
+    const tracks = clipFields.get(ANIMATION_MODULE_FIELD.clipTracks) as {
+      structs: { elements: Array<{ fields: AroraField[] }> };
+    };
+    expect(tracks.structs.elements).toHaveLength(2);
+    const first = fieldsById(tracks.structs.elements[0].fields);
+    const second = fieldsById(tracks.structs.elements[1].fields);
+    expect(first.get(ANIMATION_MODULE_FIELD.trackAnimatable)).toEqual({
+      str: "rig/quori/node/x",
     });
-    // Exactly the three declared Keypoint fields: transitions are dropped,
-    // never smuggled through.
-    expect(points.structs.elements[0].fields).toHaveLength(3);
+    expect(first.get(ANIMATION_MODULE_FIELD.trackId)).toEqual({ str: "t0" });
+    expect(second.get(ANIMATION_MODULE_FIELD.trackAnimatable)).toEqual({
+      str: "node/x",
+    });
+    // The duplicate keeps a distinct track identity.
+    expect(second.get(ANIMATION_MODULE_FIELD.trackId)).toEqual({ str: "t0~1" });
   });
 
   it("skips tracks without a key and points without finite numbers", () => {
@@ -147,7 +184,7 @@ describe("storedClipToModuleValue", () => {
 });
 
 describe("call builders", () => {
-  it("build the declared calls", () => {
+  it("build the declared setup calls", () => {
     const clipValue = storedClipToModuleValue(rampStoredClip);
     expect(loadAnimationCall(clipValue)).toEqual({
       id: ANIMATION_MODULE_FN.loadAnimation,
@@ -166,6 +203,58 @@ describe("call builders", () => {
     });
   });
 
+  it("build the declared transport calls", () => {
+    expect(playCall(3)).toEqual({
+      id: ANIMATION_MODULE_FN.play,
+      args: [{ id: ANIMATION_MODULE_PARAM.playPlayer, value: { u32: 3 } }],
+    });
+    expect(pauseCall(3)).toEqual({
+      id: ANIMATION_MODULE_FN.pause,
+      args: [{ id: ANIMATION_MODULE_PARAM.pausePlayer, value: { u32: 3 } }],
+    });
+    expect(stopCall(3)).toEqual({
+      id: ANIMATION_MODULE_FN.stop,
+      args: [{ id: ANIMATION_MODULE_PARAM.stopPlayer, value: { u32: 3 } }],
+    });
+    // Seconds→nanoseconds happens at the caller; the builder carries u64 ns.
+    expect(seekCall(3, 1.5e9)).toEqual({
+      id: ANIMATION_MODULE_FN.seek,
+      args: [
+        { id: ANIMATION_MODULE_PARAM.seekPlayer, value: { u32: 3 } },
+        { id: ANIMATION_MODULE_PARAM.seekTimeNs, value: { u64: 1_500_000_000 } },
+      ],
+    });
+    expect(setSpeedCall(3, 2)).toEqual({
+      id: ANIMATION_MODULE_FN.setSpeed,
+      args: [
+        { id: ANIMATION_MODULE_PARAM.speedPlayer, value: { u32: 3 } },
+        { id: ANIMATION_MODULE_PARAM.speedValue, value: { f32: 2 } },
+      ],
+    });
+    expect(setLoopCall(3, "once")).toEqual({
+      id: ANIMATION_MODULE_FN.setLoop,
+      args: [
+        { id: ANIMATION_MODULE_PARAM.loopPlayer, value: { u32: 3 } },
+        { id: ANIMATION_MODULE_PARAM.loopMode, value: { str: "once" } },
+      ],
+    });
+    expect(setWeightCall(3, 4, 0.5)).toEqual({
+      id: ANIMATION_MODULE_FN.setWeight,
+      args: [
+        { id: ANIMATION_MODULE_PARAM.weightPlayer, value: { u32: 3 } },
+        { id: ANIMATION_MODULE_PARAM.weightInstance, value: { u32: 4 } },
+        { id: ANIMATION_MODULE_PARAM.weightValue, value: { f32: 0.5 } },
+      ],
+    });
+    expect(removeInstanceCall(3, 4)).toEqual({
+      id: ANIMATION_MODULE_FN.removeInstance,
+      args: [
+        { id: ANIMATION_MODULE_PARAM.removePlayer, value: { u32: 3 } },
+        { id: ANIMATION_MODULE_PARAM.removeInstance, value: { u32: 4 } },
+      ],
+    });
+  });
+
   it("callResultU32 reads u32 returns and rejects other shapes", () => {
     expect(callResultU32({ ret: { u32: 7 } })).toBe(7);
     expect(callResultU32({ ret: { f32: 7 } })).toBeNull();
@@ -174,7 +263,7 @@ describe("call builders", () => {
 });
 
 describe("animationsGraphSource", () => {
-  it("steps the module off the golden dt and lands outputs at the out path", () => {
+  it("steps the module off the golden dt and applies the batch onto its keys", () => {
     const source = animationsGraphSource();
     expect(source.sourceId).toBe(ANIMATIONS_SOURCE_ID);
     const nodes = source.spec.nodes as Array<{
@@ -189,43 +278,63 @@ describe("animationsGraphSource", () => {
     expect(byId.get("step")?.params.param_ids).toEqual([
       ANIMATION_MODULE_PARAM.dtNs,
     ]);
-    expect(byId.get("out")?.params.path).toBe(ANIMATIONS_OUT_PATH);
+    // The path-less output applies each TrackOutput onto the key it names.
+    const apply = byId.get("apply");
+    expect(apply?.type).toBe("output");
+    expect(apply?.params.path).toBeUndefined();
+    expect(apply?.params.key_field).toBe(
+      ANIMATION_MODULE_FIELD.outputDefaultKey,
+    );
+    expect(apply?.params.value_field).toBe(ANIMATION_MODULE_FIELD.outputValue);
+    // The player_states feedback lands at the players path.
+    expect(byId.get("states")?.params.function).toBe(
+      ANIMATION_MODULE_FN.playerStates,
+    );
+    expect(byId.get("states-out")?.params.path).toBe(ANIMATION_PLAYERS_PATH);
   });
 });
 
-describe("decodeTrackOutputs", () => {
-  it("decodes the declared TrackOutput structs", () => {
-    const outputs = decodeTrackOutputs({
+describe("decodePlayerStates", () => {
+  it("decodes the declared PlayerState structs", () => {
+    const states = decodePlayerStates({
       structs: {
-        id: ANIMATION_MODULE_TYPE.trackOutput,
+        id: ANIMATION_MODULE_TYPE.playerState,
         elements: [
           {
             fields: [
+              { id: ANIMATION_MODULE_FIELD.statePlayer, value: { u32: 2 } },
               {
-                id: ANIMATION_MODULE_FIELD.outputTrackId,
-                value: { str: "t0" },
+                id: ANIMATION_MODULE_FIELD.stateState,
+                value: { str: "playing" },
               },
               {
-                id: ANIMATION_MODULE_FIELD.outputDefaultKey,
-                value: { str: "node/x" },
+                id: ANIMATION_MODULE_FIELD.stateTimeNs,
+                value: { u64: 250_000_000 },
               },
               {
-                id: ANIMATION_MODULE_FIELD.outputValue,
-                value: { f32: 0.25 },
+                id: ANIMATION_MODULE_FIELD.stateDurationNs,
+                value: { u64: 1_000_000_000 },
               },
+              { id: ANIMATION_MODULE_FIELD.stateSpeed, value: { f32: 2 } },
             ],
           },
         ],
       },
     });
-    expect(outputs).toEqual([
-      { trackId: "t0", defaultKey: "node/x", value: { f32: 0.25 } },
+    expect(states).toEqual([
+      {
+        player: 2,
+        state: "playing",
+        time: 0.25,
+        duration: 1,
+        speed: 2,
+      },
     ]);
   });
 
   it("decodes unknown shapes to an empty list", () => {
-    expect(decodeTrackOutputs(undefined)).toEqual([]);
-    expect(decodeTrackOutputs({ float: 1 })).toEqual([]);
-    expect(decodeTrackOutputs({ structs: { elements: [{}] } })).toEqual([]);
+    expect(decodePlayerStates(undefined)).toEqual([]);
+    expect(decodePlayerStates({ f32: 1 })).toEqual([]);
+    expect(decodePlayerStates({ structs: {} })).toEqual([]);
   });
 });

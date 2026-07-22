@@ -154,26 +154,24 @@ Sources are namespaced by id (`source::node`) so nodes can't collide;
 
 ### Animations and the device
 
-Playback ticks inside the device. `play`/`pause`/`stop` map to the
-animations source's lifecycle plus the module's player: play loads the clip
-and registers the source, pause drops the source (holding the last pose),
-stop tears the player down and clears the outputs to neutral.
+Playback lives inside the device, end to end. Clips load into the animation
+module with their **final store keys resolved at load** (the rig routing the
+JS pipeline used to apply per tick), the composed animations source steps
+the module off the golden `arora/dt`, and a path-less `output` node applies
+the sampled batch onto those keys — no JS touches the per-tick path.
 
-The 0.1.0 module is ticking-and-loop only. These transport semantics are
-**not implemented by the module and are not faked in JS** — each warns once
-and is reported honestly (tracked for module-side transport, VIZ-61 Stage C):
+Transport rides the module (0.2.0): `play`/`pause` resume and hold the
+player, `stop` resets its playhead (the next tick emits the clip's t=0
+pose; `stopAnimation({ clearOutputs: false })` holds the pose instead),
+`seekAnimation`, `setAnimationLoop(false)` (one-shot), and
+`playAnimation({ speed, weight })` are real player commands.
+`getAnimationState()` reads the module's `player_states` feedback — a live
+playhead, duration, playing, speed — and `playAnimation()`'s promise
+resolves when a non-looping clip reaches its end.
 
-- **seek** — `seekAnimation` is a no-op (no module seek); scrubbing and a
-  live playhead in `vizij-authoring` are unavailable on the device path.
-- **playhead feedback** — `getAnimationState().time` is always `0` (the
-  module emits no time feedback); `duration`, `playing`, `loop` are known.
-- **one-shot** — clips play in Loop mode only; `setAnimationLoop(false)` is
-  not honored.
-- **speed / weight** — `playAnimation({ speed, weight })` are ignored (the
-  module has no post-add control).
-- **keypoint transitions** — the module's keypoint carries no per-keypoint
-  timing, so authored linear/step/cubic transitions are dropped; the engine
-  samples with its default ease.
+Remaining fidelity gap: authored `cubic` keyframes carry no explicit
+handles in the stored form, so they sample the engine's default ease
+(`linear`/`step` timing rides through as explicit bezier handles).
 
 ### Asset reloads vs graph re-registration
 

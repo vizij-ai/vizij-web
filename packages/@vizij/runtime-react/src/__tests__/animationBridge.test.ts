@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   collectAnimationClipOutputPaths,
-  diffAnimationAggregateValues,
   resolveAnimationBridgeOutputPaths,
 } from "../utils/animationBridge";
 
@@ -61,34 +60,5 @@ describe("resolveAnimationBridgeOutputPaths", () => {
         "hugo",
       ),
     ).toEqual(["controls/jaw/open", "rig/hugo/controls/jaw/open"]);
-  });
-
-  it("clears removed aggregate paths instead of converting them to zero writes", () => {
-    expect(
-      diffAnimationAggregateValues(
-        new Map([["rig/hugo/poses/pose_happy.weight", 0.75]]),
-        new Map(),
-      ),
-    ).toEqual([
-      {
-        kind: "clear",
-        path: "rig/hugo/poses/pose_happy.weight",
-      },
-    ]);
-  });
-
-  it("preserves explicit zero-valued aggregates as real writes", () => {
-    expect(
-      diffAnimationAggregateValues(
-        new Map([["rig/hugo/poses/pose_happy.weight", 0.75]]),
-        new Map([["rig/hugo/poses/pose_happy.weight", 0]]),
-      ),
-    ).toEqual([
-      {
-        kind: "set",
-        path: "rig/hugo/poses/pose_happy.weight",
-        value: 0,
-      },
-    ]);
   });
 });

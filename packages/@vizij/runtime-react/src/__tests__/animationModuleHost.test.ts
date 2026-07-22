@@ -89,7 +89,7 @@ describe("AnimationModuleHost", () => {
     expect(device.countOf(ANIMATION_MODULE_FN.addInstance)).toBe(1);
   });
 
-  it("stop voids ids so the next play reloads (module reload = reset)", async () => {
+  it("stop is a transport call: the playhead resets, the clip stays loaded", async () => {
     const device = new FakeDevice();
     const host = new AnimationModuleHost(() => device as never);
     host.setClips([clip("a")]);
@@ -97,10 +97,54 @@ describe("AnimationModuleHost", () => {
     await host.play("a");
     host.stop("a");
     expect(host.hasPlaying()).toBe(false);
+    expect(device.countOf(ANIMATION_MODULE_FN.stop)).toBe(1);
 
+    // Resume: no reload — the player was reset, not voided.
     await host.play("a");
-    expect(device.countOf(ANIMATION_MODULE_FN.loadAnimation)).toBe(2);
-    expect(device.countOf(ANIMATION_MODULE_FN.createPlayer)).toBe(2);
+    expect(device.countOf(ANIMATION_MODULE_FN.loadAnimation)).toBe(1);
+    expect(device.countOf(ANIMATION_MODULE_FN.createPlayer)).toBe(1);
+    expect(device.countOf(ANIMATION_MODULE_FN.play)).toBeGreaterThanOrEqual(2);
+  });
+
+  it("transport calls reach the player and are re-applied on replay", async () => {
+    const device = new FakeDevice();
+    const host = new AnimationModuleHost(() => device as never);
+    host.setClips([clip("a")]);
+    await host.play("a");
+
+    host.seek("a", 0.5);
+    host.setSpeed("a", 2);
+    host.setLoop("a", "once");
+    host.setWeight("a", 0.5);
+    await flush();
+    expect(device.countOf(ANIMATION_MODULE_FN.seek)).toBe(1);
+    expect(device.countOf(ANIMATION_MODULE_FN.setSpeed)).toBe(1);
+    expect(device.countOf(ANIMATION_MODULE_FN.setLoop)).toBe(1);
+    expect(device.countOf(ANIMATION_MODULE_FN.setWeight)).toBe(1);
+
+    // A rebuilt device replays setup AND the non-default transport state.
+    const second = new FakeDevice();
+    host.replayInto(second as never);
+    await flush();
+    expect(second.countOf(ANIMATION_MODULE_FN.loadAnimation)).toBe(1);
+    expect(second.countOf(ANIMATION_MODULE_FN.setSpeed)).toBe(1);
+    expect(second.countOf(ANIMATION_MODULE_FN.setLoop)).toBe(1);
+    expect(second.countOf(ANIMATION_MODULE_FN.setWeight)).toBe(1);
+  });
+
+  it("resolves final store keys at load time through the key resolver", async () => {
+    const device = new FakeDevice();
+    const host = new AnimationModuleHost(
+      () => device as never,
+      (key) => [`rig/quori/${key}`],
+    );
+    host.setClips([clip("a")]);
+    await host.play("a");
+
+    const load = device.calls.find(
+      (c) => c.id === ANIMATION_MODULE_FN.loadAnimation,
+    );
+    expect(JSON.stringify(load)).toContain("rig/quori/node/x");
   });
 
   it("pause keeps the clip loaded for a cheap resume", async () => {
