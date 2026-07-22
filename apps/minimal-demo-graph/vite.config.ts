@@ -5,10 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     watch: {
-      ignored: [
-        "**/node_modules/**",
-        "!**/node_modules/@vizij/node-graph/**",
-      ],
+      ignored: ["**/node_modules/**", "!**/node_modules/@vizij/node-graph/**"],
     },
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",

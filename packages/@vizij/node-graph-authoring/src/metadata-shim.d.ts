@@ -1,9 +1,5 @@
 declare module "@vizij/node-graph/metadata" {
-  import type {
-    Registry,
-    NodeSignature,
-    NodeType,
-  } from "@vizij/node-graph";
+  import type { Registry, NodeSignature, NodeType } from "@vizij/node-graph";
 
   export function getNodeRegistry(): Registry;
   export function findNodeSignature(

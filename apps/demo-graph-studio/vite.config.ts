@@ -40,10 +40,7 @@ export default defineConfig({
       allow: [repoRoot],
     },
     watch: {
-      ignored: [
-        "**/node_modules/**",
-        "!**/node_modules/@vizij/node-graph/**",
-      ],
+      ignored: ["**/node_modules/**", "!**/node_modules/@vizij/node-graph/**"],
     },
   },
   build: {
