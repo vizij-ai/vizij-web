@@ -899,8 +899,8 @@ importers:
         specifier: workspace:*
         version: link:../render
       '@vizij/runtime':
-        specifier: ^1.0.0
-        version: 1.0.1
+        specifier: ^1.0.2
+        version: 1.0.2
       '@vizij/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2682,8 +2682,8 @@ packages:
   '@vizij/node-graph-wasm@0.7.0':
     resolution: {integrity: sha512-h9R+84qLxWn4G9fT2DumgWylg5eTgktMM02k+jlxaNZcKZa62ZaHnJijF+0TnTA+GEQEmKGuDdf+A6JBSh7HAw==}
 
-  '@vizij/runtime@1.0.1':
-    resolution: {integrity: sha512-bWEfE18onKW4WRk0qSPd+AKI4Ev5n0kx0WHU3DWKwGzhsTMnPrRodrVLSzzYWb6zmvxAI2v/GJy8yQx56hq4SA==}
+  '@vizij/runtime@1.0.2':
+    resolution: {integrity: sha512-J/wD043IjAAj4aXQmy0zRCOA1MmBj1MEKNepWYm0T8Xd3C7cfl53AfiDnxSAyqJi/5LD3sE6vbHinu8Al3Gu0w==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
@@ -6931,7 +6931,7 @@ snapshots:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/runtime@1.0.1':
+  '@vizij/runtime@1.0.2':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
