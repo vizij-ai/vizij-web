@@ -10,6 +10,20 @@ cut tickets._
 
 Status: proposal for discussion — nothing here is committed work.
 
+> **Update (2026-07-22, after the arora-9 wave began landing):** main took a
+> second runtime rewrite while this plan was in motion — the device package is
+> now **`@vizij/runtime` 1.0** and a driving provider hands the device to its
+> **own ~60 Hz `run()` loop** (the JS loop only pumps: tweens, routing, staged
+> flush, change drain); recomposition goes through **`device.loadGraph` in
+> place** (VIZ-57), retiring most of the restart-and-carry-the-store dance;
+> animation transport/feedback is now fully device-side; and PR #75's
+> suspension inference landed. Consequences threaded through below: §3.3's
+> step-driver extraction shrinks to pump-loop policy, §3.4's L0 dependency is
+> `@vizij/runtime`, and **R1's hollow-out should be (re)done only after the
+> VIZ-53 wave settles** — a first extraction pass was completed and validated
+> against the pre-wave provider (proving the §3.1 method end-to-end), then
+> parked when the wave superseded the code it had ported.
+
 ---
 
 ## 1. What changed on `main` since the synthesis (July 2026)
@@ -175,27 +189,29 @@ Decisions this table encodes (flagging for review):
   seven-verb set the synthesis named plus the observation trio that now
   exists; everything transport/driver-shaped ships `@experimental`.
 
-### 3.3 Clock ownership — extract the step driver as its own piece
+### 3.3 Clock ownership — extract the pump driver as its own piece
 
-Proposal C put the rAF loop in the L2 adapter. #75/#76 changed the picture:
-the loop now carries real policy (active rAF vs interval fallback, hidden-tab
-behavior, suspension inference with `dt = 0` re-baselining). Both L2 (React)
-and L3 (custom element) need identical policy, and it is still evolving.
+Proposal C put the rAF loop in the L2 adapter. The picture has since changed
+twice: #75 added suspension inference (`dt = 0` re-baselining across host
+suspensions), and the arora-9 wave moved the **engine clock into the device
+itself** — a driving host hands the device to its own `run()` loop, and the
+JS loop that remains is a _pump_ (tweens, animation routing, staged-input
+flush, change drain), not the engine stepper.
 
-**Sketch:** ship `createStepDriver(runtime, opts)` in face-core — owns
-rAF/interval selection, visibility handling, and suspension inference; calls
-`runtime.step(dt)`. The React adapter and the embed each mount one driver in
-their lifecycle hooks. `step(dt)` itself stays pure so tests and headless
-hosts can drive time manually.
-
-This means **PR #75 should land before R1's PR 2**, and its logic moves
-verbatim into the driver.
+**Sketch (revised):** ship `createPumpDriver(runtime, opts)` in face-core —
+owns rAF/interval selection, visibility handling, and the suspension
+inference for the pump; calls the runtime's per-frame pump. Both L2 (React)
+and L3 (custom element) mount one in their lifecycle hooks. Manual stepping
+(`step(dt, { forceRuntime })`) stays available for non-driving/headless
+hosts, so tests can still drive time by hand.
 
 ### 3.4 Dependencies and one type-home decision
 
-`@vizij/face-core` deps: L0 wasm engines, `@vizij/animation-module`,
-`@vizij/value-json`, `@vizij/utils`, `@vizij/node-graph-authoring`
-(`compileIrGraph`). Plus, today, `@vizij/render` — **types only**
+`@vizij/face-core` deps: L0 wasm engines (`@vizij/runtime` — the device
+package, renamed from `@vizij/arora-web-wasm` in the arora-9 wave),
+`@vizij/animation-module`, `@vizij/value-json`, `@vizij/utils`,
+`@vizij/node-graph-authoring` (`compileIrGraph`). Plus, today,
+`@vizij/render` — **types only**
 (`World`, `VizijBundleExtension`, the `VIZIJ_bundle` schema in
 `render/src/types/vizij-bundle.ts`).
 
@@ -319,7 +335,7 @@ Updated dependency picture (R-phases only):
 
 ```text
 R0 (½ sprint, mostly exists)
- └─ R1 face-core (2–3 sprints)  ← coordinate: land #75 first
+ └─ R1 face-core (2–3 sprints)  ← wait for the VIZ-53 arora-9 wave to settle
      ├─ R4 face-embed (2 sprints)          — needs only R1
      ├─ R2 components (2 sprints)          — wants U3 shapes
      │   └─ R3 editors (3–4 sprints, per-editor parallel)
