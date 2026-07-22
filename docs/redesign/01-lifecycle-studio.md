@@ -32,7 +32,7 @@ mechanism, not by collapsing the modes back together.
 **One app, four modes, one persistent Stage.** The lifecycle is the spine of the
 IA. Everything else hangs off it.
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  Vizij Studio   [Quori · Extended]   ● unsaved      ⟲ ↺   ◐   ⚙   Publish │  ← App bar
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -64,15 +64,15 @@ the face never disappears, so the user always sees the consequence of any edit.
 
 **What each mode contains:**
 
-| Mode | Question | Left "Mode panel" | Right "Details" | Bottom drawer |
-|---|---|---|---|---|
-| **① Define** | "What can this face do?" | Face Elements tree (hierarchy), Controls list, Materials, Standard Controls (Control Map) | Element inspector: transform / material / morph targets / control range+default | — |
-| **② Control** | "Make it do this, now." | Controls board (grouped sliders), Live Control / Connections | Selected-control detail (range, links/formulas, standard-control mapping) | — |
-| **③ Animate** | "Make it move / react." | Library: Expressions, Expression Sets, Animations, Programs | Selected-item editor (expression values, clip tracks, program node) | **Timeline** (Animation) or **Graph** (Program) — the one mutually-exclusive heavy surface |
-| **④ Deploy** | "Ship it, run it elsewhere." | Face Package summary, Checkup results, Embed & Connections | Selected issue / embed-target detail | — |
+| Mode          | Question                     | Left "Mode panel"                                                                         | Right "Details"                                                                 | Bottom drawer                                                                              |
+| ------------- | ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **① Define**  | "What can this face do?"     | Face Elements tree (hierarchy), Controls list, Materials, Standard Controls (Control Map) | Element inspector: transform / material / morph targets / control range+default | —                                                                                          |
+| **② Control** | "Make it do this, now."      | Controls board (grouped sliders), Live Control / Connections                              | Selected-control detail (range, links/formulas, standard-control mapping)       | —                                                                                          |
+| **③ Animate** | "Make it move / react."      | Library: Expressions, Expression Sets, Animations, Programs                               | Selected-item editor (expression values, clip tracks, program node)             | **Timeline** (Animation) or **Graph** (Program) — the one mutually-exclusive heavy surface |
+| **④ Deploy**  | "Ship it, run it elsewhere." | Face Package summary, Checkup results, Embed & Connections                                | Selected issue / embed-target detail                                            | —                                                                                          |
 
-**Top-level navigation** is the Lifecycle rail. It is *ordered* (a subtle arrow
-chain) because a new face flows Define→Control→Animate→Deploy, but it is *not*
+**Top-level navigation** is the Lifecycle rail. It is _ordered_ (a subtle arrow
+chain) because a new face flows Define→Control→Animate→Deploy, but it is _not_
 locked — any mode is one click away at any time. A mode you have not "unlocked"
 yet (e.g. Deploy before a face is loaded) is dimmed with a tooltip explaining the
 prerequisite, never hidden.
@@ -89,7 +89,7 @@ prerequisite, never hidden.
   mode against an already-published package and generates snippets.
 
 **Cross-stage tasks — the "borrow" rule.** Because the Stage is always live, any
-mode can *read* the face. For the common case of needing a tool from another
+mode can _read_ the face. For the common case of needing a tool from another
 stage without leaving your flow, a control offers **"Adjust this control"** /
 **"Tweak in Define"**: it opens that stage's single relevant editor in a **focused
 overlay** on top of the current Stage, commits through the same runtime, and
@@ -103,21 +103,21 @@ Refinements to the foundation glossary. The rule: every word names an **intent o
 artifact**, never an implementation. Runtime internals (arora, orchestrator,
 GraphSpec, IR, device, compile) are **never** shown.
 
-| Foundation term | Lifecycle Studio term | Where it lives | Refinement / note |
-|---|---|---|---|
-| Control (rig/binding/driver/animatable) | **Control** | Define, Control | Kept. A single driveable knob (an eye's X, a jaw open). |
-| link / formula (binding/expression) | **Link** (a control follows another) / **Formula** (a control computed from others) | Define | Split the two: a "Link" is a plain follow; a "Formula" carries math. Users grasp "link" instantly; "formula" only appears when math is added. |
-| Standard Controls / Control Map | **Universal Controls** / **Control Map** | Define | "Universal" reads better than "Standard" for the interop promise ("this face speaks the universal control language"). Path shape stays hidden. |
-| Expression / Expression Set / Layering / Resting Face | **Expression** / **Expression Set** / **Blend order** / **Resting Face** | Animate | "Layering" → "Blend order" (what it actually decides). "Neutral" → **Resting Face** everywhere. |
-| Program / Behavior | **Behavior** | Animate | Prefer **Behavior** as the noun ("this face has an idle Behavior"); "Program" only as the verb-y label on its editor tab. The node graph is *one* editor for a Behavior, not the concept. |
-| Animation / Clip / Keyframe | **Animation** / **Keyframe** | Animate | Kept; drop "Clip" from the UI (an Animation *is* the clip). |
-| Face Package / Face File | **Face Package** | Deploy, App bar | The one artifact you Save, Publish, embed. |
-| Checkup / Validation | **Checkup** | Deploy (+ rail badge) | One reviewable step. Rolls up import discrepancy, RobotData audit, bundle audit, pose/graph validation. |
-| Reference / Comparison Face | **Comparison Face** | Define, Control | Kept. |
-| Live Control / Connections | **Connections** | Control, Deploy | "Connect a voice / a robot / a remote operator." Speech is one kind of Connection. |
-| endpoints (WS/ROS2/Studio) | **Connection types** | Deploy | Named plainly: Web link, Robot (ROS 2), Remote Operator. |
-| Save (== export today) | **Save** (working) vs **Publish** (shareable) | App bar / Deploy | Fixes inventory §18: Save writes the working Face Package locally; Publish runs Checkup and produces the deployable/embeddable artifact. Two distinct verbs. |
-| arora / orchestrator / IR / GraphSpec / device / compile | _(hidden)_ | — | Never surfaced. |
+| Foundation term                                          | Lifecycle Studio term                                                               | Where it lives        | Refinement / note                                                                                                                                                                         |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Control (rig/binding/driver/animatable)                  | **Control**                                                                         | Define, Control       | Kept. A single driveable knob (an eye's X, a jaw open).                                                                                                                                   |
+| link / formula (binding/expression)                      | **Link** (a control follows another) / **Formula** (a control computed from others) | Define                | Split the two: a "Link" is a plain follow; a "Formula" carries math. Users grasp "link" instantly; "formula" only appears when math is added.                                             |
+| Standard Controls / Control Map                          | **Universal Controls** / **Control Map**                                            | Define                | "Universal" reads better than "Standard" for the interop promise ("this face speaks the universal control language"). Path shape stays hidden.                                            |
+| Expression / Expression Set / Layering / Resting Face    | **Expression** / **Expression Set** / **Blend order** / **Resting Face**            | Animate               | "Layering" → "Blend order" (what it actually decides). "Neutral" → **Resting Face** everywhere.                                                                                           |
+| Program / Behavior                                       | **Behavior**                                                                        | Animate               | Prefer **Behavior** as the noun ("this face has an idle Behavior"); "Program" only as the verb-y label on its editor tab. The node graph is _one_ editor for a Behavior, not the concept. |
+| Animation / Clip / Keyframe                              | **Animation** / **Keyframe**                                                        | Animate               | Kept; drop "Clip" from the UI (an Animation _is_ the clip).                                                                                                                               |
+| Face Package / Face File                                 | **Face Package**                                                                    | Deploy, App bar       | The one artifact you Save, Publish, embed.                                                                                                                                                |
+| Checkup / Validation                                     | **Checkup**                                                                         | Deploy (+ rail badge) | One reviewable step. Rolls up import discrepancy, RobotData audit, bundle audit, pose/graph validation.                                                                                   |
+| Reference / Comparison Face                              | **Comparison Face**                                                                 | Define, Control       | Kept.                                                                                                                                                                                     |
+| Live Control / Connections                               | **Connections**                                                                     | Control, Deploy       | "Connect a voice / a robot / a remote operator." Speech is one kind of Connection.                                                                                                        |
+| endpoints (WS/ROS2/Studio)                               | **Connection types**                                                                | Deploy                | Named plainly: Web link, Robot (ROS 2), Remote Operator.                                                                                                                                  |
+| Save (== export today)                                   | **Save** (working) vs **Publish** (shareable)                                       | App bar / Deploy      | Fixes inventory §18: Save writes the working Face Package locally; Publish runs Checkup and produces the deployable/embeddable artifact. Two distinct verbs.                              |
+| arora / orchestrator / IR / GraphSpec / device / compile | _(hidden)_                                                                          | —                     | Never surfaced.                                                                                                                                                                           |
 
 ### 2c. Workflows facilitated
 
@@ -215,7 +215,7 @@ First-person journeys, with the **mode-switch visible** at each hinge.
   reveal only when reached. A first-timer can pose and drive a preset face
   (Control) without ever seeing a graph.
 - **Empty states as teachers.** Before a face loads, the Stage shows the existing
-  interactive demo (idle/mouse gaze, emotion, voice rows) so a visitor *sees* what
+  interactive demo (idle/mouse gaze, emotion, voice rows) so a visitor _sees_ what
   a finished face does. Each mode has an empty state that states its job and its
   first action ("No expressions yet — pose the face and Save as Expression").
 - **Keyboard navigation.** Mode switch on `⌘1–⌘4`; the borrow overlay on `Esc` to
@@ -237,27 +237,27 @@ First-person journeys, with the **mode-switch visible** at each hinge.
 
 All 19 inventory areas. Nothing dropped silently.
 
-| # | Inventory area | Lands in | Treatment |
-|---|---|---|---|
-| 1 | App shell, layout & navigation | **All modes** (App bar + Lifecycle rail + Stage) | **Rebuilt.** 4 lifecycle modes replace the 13-panel visibility store, workbench tabs, and 6 edit-focus modes. Resizable regions kept; the mode picks the layout so users don't. |
-| 2 | Import | **Define** (entry: New face) | Model load, presets (Quori/Toasty/Hugo), rig-graph/pose JSON import, Comparison Face load. "Skip checks" removed; folded into guided **Checkup**. |
-| 3 | Export / Save | **Deploy** + App bar | **Split into Save (working) vs Publish (shareable)** — fixes §18. Export toggles, advanced JSON exports live under Deploy → Advanced. |
-| 4 | Keyframe animation editor | **Animate** (Timeline drawer) | Full transport, tracks, keyframes, interpolation, add-track catalog, multiple Animations. Timeline is one of two mutually-exclusive drawers. |
-| 5 | Motion-graph editor ("Program") | **Animate** (Graph drawer), as **Behavior** | Full ReactFlow editor, palette, IO sets, live value inspection, playback. Renamed **Behavior**; graph is its editor. Multiple Behaviors; one can be the starting Behavior. |
-| 6 | Pose rig authoring (Posing) | **Animate** (Expressions) + capture from **Control** | Poses → **Expressions**; pose groups → **Expression Sets**; blend stages → **Blend order**; neutral → **Resting Face**. Capture-from-live starts in Control. |
-| 7 | Inspector (4 modes) | **Details** panel, everywhere | The right panel *is* the inspector; its four modes map by mode — scene object & material & morph in Define, rig-driver in Define/Control, pose in Animate. Chain/breadcrumb kept. Comparison-face scope tabs kept. |
-| 8 | Left-sidebar authoring surfaces | **Mode panel**, split by stage | Hierarchy/Materials/Inputs → Define; Controls board → Control; Expressions/Animations/Behaviors library → Animate. One surface per stage instead of all stacked. |
-| 9 | 3D viewport / runtime & preview | **The Stage** (constant) | Promoted to the persistent center of every mode. Controls overlay, runtime source selector, empty-state demo, Comparison-face split all retained on the Stage. |
-| 10 | Speech & conversational avatar | **Control → Connections** (Voice) | Polly TTS + visemes, Echo/Conversation, Deepgram STT, LLM emotion tags. Reframed as one **Connection** type; config embedded on Publish. |
-| 11 | Standard Feature Spaces (mapping) | **Define → Universal Controls** | Renamed **Universal Controls / Control Map** with a coverage meter. **SFS export gap (§18) fixed** — becomes part of the Publish package. |
-| 12 | Diagnostics, audits & debug | **Deploy → Checkup** (+ rail badge); debug under Advanced | Discrepancy, RobotData audit, bundle audit, graph diagnostics rolled into one **Checkup**. Memory/debug harness lives under an Advanced/dev toggle, off by default. |
-| 13 | Architecture & WASM engines (arora) | **Architecture §5** | Unchanged engine; front end speaks the arora contract only. |
-| 14 | Internal `@vizij/*` dependency map | **Architecture §5** | Reorganized onto L0–L4; vestigial `orchestrator-react` dep tracked for removal. |
-| 15 | Data model / authored-entity schemas | **Architecture §5** | Unchanged schemas; UI maps them to user terms. |
-| 16 | State management | **Architecture §5** | Consolidated behind a mode-aware store + `@vizij/face-core` controller. |
-| 17 | Persistence | **Deploy / App bar** | **Adds a real working Save** (local Face Package) distinct from Publish — fixes §18's "Save==export." Local settings (keys/theme) retained. |
-| 18 | Known gaps (undo/redo, SFS export, Save==export) | **§2d + this matrix** | **All three fixed:** real global undo/redo; SFS/Universal-Controls export in Publish; Save≠Publish. |
-| 19 | Testing & build | **Development plan §6** | Kept (vitest, Playwright, Firebase). New per-package tests as L1–L4 are extracted. |
+| #   | Inventory area                                   | Lands in                                                  | Treatment                                                                                                                                                                                                          |
+| --- | ------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | App shell, layout & navigation                   | **All modes** (App bar + Lifecycle rail + Stage)          | **Rebuilt.** 4 lifecycle modes replace the 13-panel visibility store, workbench tabs, and 6 edit-focus modes. Resizable regions kept; the mode picks the layout so users don't.                                    |
+| 2   | Import                                           | **Define** (entry: New face)                              | Model load, presets (Quori/Toasty/Hugo), rig-graph/pose JSON import, Comparison Face load. "Skip checks" removed; folded into guided **Checkup**.                                                                  |
+| 3   | Export / Save                                    | **Deploy** + App bar                                      | **Split into Save (working) vs Publish (shareable)** — fixes §18. Export toggles, advanced JSON exports live under Deploy → Advanced.                                                                              |
+| 4   | Keyframe animation editor                        | **Animate** (Timeline drawer)                             | Full transport, tracks, keyframes, interpolation, add-track catalog, multiple Animations. Timeline is one of two mutually-exclusive drawers.                                                                       |
+| 5   | Motion-graph editor ("Program")                  | **Animate** (Graph drawer), as **Behavior**               | Full ReactFlow editor, palette, IO sets, live value inspection, playback. Renamed **Behavior**; graph is its editor. Multiple Behaviors; one can be the starting Behavior.                                         |
+| 6   | Pose rig authoring (Posing)                      | **Animate** (Expressions) + capture from **Control**      | Poses → **Expressions**; pose groups → **Expression Sets**; blend stages → **Blend order**; neutral → **Resting Face**. Capture-from-live starts in Control.                                                       |
+| 7   | Inspector (4 modes)                              | **Details** panel, everywhere                             | The right panel _is_ the inspector; its four modes map by mode — scene object & material & morph in Define, rig-driver in Define/Control, pose in Animate. Chain/breadcrumb kept. Comparison-face scope tabs kept. |
+| 8   | Left-sidebar authoring surfaces                  | **Mode panel**, split by stage                            | Hierarchy/Materials/Inputs → Define; Controls board → Control; Expressions/Animations/Behaviors library → Animate. One surface per stage instead of all stacked.                                                   |
+| 9   | 3D viewport / runtime & preview                  | **The Stage** (constant)                                  | Promoted to the persistent center of every mode. Controls overlay, runtime source selector, empty-state demo, Comparison-face split all retained on the Stage.                                                     |
+| 10  | Speech & conversational avatar                   | **Control → Connections** (Voice)                         | Polly TTS + visemes, Echo/Conversation, Deepgram STT, LLM emotion tags. Reframed as one **Connection** type; config embedded on Publish.                                                                           |
+| 11  | Standard Feature Spaces (mapping)                | **Define → Universal Controls**                           | Renamed **Universal Controls / Control Map** with a coverage meter. **SFS export gap (§18) fixed** — becomes part of the Publish package.                                                                          |
+| 12  | Diagnostics, audits & debug                      | **Deploy → Checkup** (+ rail badge); debug under Advanced | Discrepancy, RobotData audit, bundle audit, graph diagnostics rolled into one **Checkup**. Memory/debug harness lives under an Advanced/dev toggle, off by default.                                                |
+| 13  | Architecture & WASM engines (arora)              | **Architecture §5**                                       | Unchanged engine; front end speaks the arora contract only.                                                                                                                                                        |
+| 14  | Internal `@vizij/*` dependency map               | **Architecture §5**                                       | Reorganized onto L0–L4; vestigial `orchestrator-react` dep tracked for removal.                                                                                                                                    |
+| 15  | Data model / authored-entity schemas             | **Architecture §5**                                       | Unchanged schemas; UI maps them to user terms.                                                                                                                                                                     |
+| 16  | State management                                 | **Architecture §5**                                       | Consolidated behind a mode-aware store + `@vizij/face-core` controller.                                                                                                                                            |
+| 17  | Persistence                                      | **Deploy / App bar**                                      | **Adds a real working Save** (local Face Package) distinct from Publish — fixes §18's "Save==export." Local settings (keys/theme) retained.                                                                        |
+| 18  | Known gaps (undo/redo, SFS export, Save==export) | **§2d + this matrix**                                     | **All three fixed:** real global undo/redo; SFS/Universal-Controls export in Publish; Save≠Publish.                                                                                                                |
+| 19  | Testing & build                                  | **Development plan §6**                                   | Kept (vitest, Playwright, Firebase). New per-package tests as L1–L4 are extracted.                                                                                                                                 |
 
 ---
 
@@ -268,8 +268,8 @@ All 19 inventory areas. Nothing dropped silently.
 - **Nothing is dropped.** Every one of the 19 areas has a home (matrix §3). The
   gains are real: three §18 gaps fixed, "skip checks" trap removed, one Checkup
   instead of four audit panels.
-- **Awkward: expression authoring straddles Control and Animate.** You *pose* in
-  Control (sliders on the live face) but *manage* the result in Animate. The
+- **Awkward: expression authoring straddles Control and Animate.** You _pose_ in
+  Control (sliders on the live face) but _manage_ the result in Animate. The
   "Save as Expression jumps you to Animate" handoff is smooth, but a designer who
   thinks of "making a smile" as one act now touches two modes. Mitigated by the
   jump-and-prefill, but it is the seam most likely to confuse.
@@ -287,7 +287,7 @@ All 19 inventory areas. Nothing dropped silently.
 ### 4b. Simplicity — where does this add friction?
 
 - **The mode model is a bet that tasks cluster by stage. They mostly do — but not
-  always.** The honest strain: *iterating* a face is not linear. You author an
+  always.** The honest strain: _iterating_ a face is not linear. You author an
   expression (Animate), notice a control range is wrong (Define), fix it, test
   live (Control), and loop. The **borrow overlay** ("Tweak in Define") is the
   pressure valve, but if a user borrows constantly, the modes start to feel like
@@ -301,7 +301,7 @@ All 19 inventory areas. Nothing dropped silently.
   "Save==export," but two verbs still need a one-line explainer on first use.
 - **Two heavy drawers, one slot.** Timeline and Graph are mutually exclusive at
   the bottom (inherited from today's exclusive-center rule). A user animating
-  *and* wiring a Behavior that reacts to that animation must toggle between them.
+  _and_ wiring a Behavior that reacts to that animation must toggle between them.
   This is a real limit; we accept it to keep the Stage central and the layout
   legible.
 - **Where it is genuinely simpler:** a newcomer with a preset face never leaves
@@ -319,23 +319,23 @@ over the L1 headless controller, over the L0 engines** — exactly the foundatio
 baseline. Each mode is a composition of packaged components; the app owns almost
 no runtime logic.
 
-| Layer | Package | What Lifecycle Studio uses it for |
-|---|---|---|
-| **L0** | `@vizij/arora-web-wasm`, `@vizij/node-graph-wasm` | Unchanged engines. Never touched directly by the app. |
-| **L1** | **`@vizij/face-core`** (new) | Framework-agnostic `FaceRuntime` controller extracted from `VizijRuntimeProvider.tsx`: load package → compose → step → get/set inputs → resolve controls → transport. All four modes read/write the face through this. |
-| **L2** | `@vizij/runtime-react` (exists) + **`@vizij/components`** (new) | Provider/hooks + extracted functional components: Stage frame, controls overlay, transport bar, Controls board, Comparison-face split. The constant Stage is one `@vizij/components` piece reused by every mode. |
-| **L3** | **`<vizij-face>` embed** (new) | The Deploy output. Wraps L1 in a web component + iframe + JS control API (`writeValues`/`readValues`/`listKeys`/`invoke`) mirroring the standalone WS vocabulary. |
-| **L4** | **editor surfaces** (extracted) | One per stage's heavy tool: rigging inspector + Control Map (Define), Expression/pose editor (Animate), Timeline editor (Animate), Behavior/graph editor (Animate), Checkup (Deploy). The app imports these into modes. |
+| Layer  | Package                                                         | What Lifecycle Studio uses it for                                                                                                                                                                                       |
+| ------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **L0** | `@vizij/arora-web-wasm`, `@vizij/node-graph-wasm`               | Unchanged engines. Never touched directly by the app.                                                                                                                                                                   |
+| **L1** | **`@vizij/face-core`** (new)                                    | Framework-agnostic `FaceRuntime` controller extracted from `VizijRuntimeProvider.tsx`: load package → compose → step → get/set inputs → resolve controls → transport. All four modes read/write the face through this.  |
+| **L2** | `@vizij/runtime-react` (exists) + **`@vizij/components`** (new) | Provider/hooks + extracted functional components: Stage frame, controls overlay, transport bar, Controls board, Comparison-face split. The constant Stage is one `@vizij/components` piece reused by every mode.        |
+| **L3** | **`<vizij-face>` embed** (new)                                  | The Deploy output. Wraps L1 in a web component + iframe + JS control API (`writeValues`/`readValues`/`listKeys`/`invoke`) mirroring the standalone WS vocabulary.                                                       |
+| **L4** | **editor surfaces** (extracted)                                 | One per stage's heavy tool: rigging inspector + Control Map (Define), Expression/pose editor (Animate), Timeline editor (Animate), Behavior/graph editor (Animate), Checkup (Deploy). The app imports these into modes. |
 
 **Modes ⇒ components mapping.** A mode is a layout that mounts a subset of L2/L4
 pieces around the constant `<Stage>`:
 
 - **Define** = `<Stage>` + `HierarchyTree` + `ControlInspector` + `MaterialEditor`
-  + `ControlMapEditor` (L4) + Checkup card.
+  - `ControlMapEditor` (L4) + Checkup card.
 - **Control** = `<Stage>` + `ControlsBoard` (L2) + `ConnectionsPanel`
   (Voice/Robot/Operator) + transport.
 - **Animate** = `<Stage>` + `LibraryPanel` + one of `{ExpressionEditor,
-  TimelineEditor, BehaviorEditor}` (L4) in the drawer.
+TimelineEditor, BehaviorEditor}` (L4) in the drawer.
 - **Deploy** = `<Stage>` + `PackageSummary` + `Checkup` (L4) + `EmbedPanel`
   (emits L3 snippets).
 
@@ -349,7 +349,7 @@ Non-negotiable; every mode obeys the foundation's four invariants:
    instances with distinct namespaces — the design mounts a second provider, never
    a second device inside one.
 2. **Unprefixed `params.path` is the cross-graph contract.** The Controls board,
-   Timeline, and Behaviors all read/write the *same* canonical paths (e.g.
+   Timeline, and Behaviors all read/write the _same_ canonical paths (e.g.
    `rig/{faceId}/poses/{poseId}.weight`); a value written by one mode is read by
    another next tick. The UI never invents paths — it resolves them via
    `resolveFaceControls()` / `inputConstraints` / pose-group structure, per the
@@ -377,7 +377,7 @@ run the same way. This is a hard requirement of the migration, not a nicety.
 - **L1/L2 is the reuse core.** Any host (this Studio, `demo-vizij-player`, a
   third-party site) drives a face through the same L1 controller and L2
   components. The Studio adds only L4 editors and the mode shell.
-- **L3 `<vizij-face>` is the headline deliverable** and is produced *by Deploy*.
+- **L3 `<vizij-face>` is the headline deliverable** and is produced _by Deploy_.
   Its JS API mirrors the `apps/vizij-standalone` wire vocabulary
   (`write_values`/`read_values`/`list_keys`/`invoke` + `values_changed`), so the
   same host code drives an embedded face or a robot over WS/ROS 2/Zenoh. Deploy's
@@ -392,14 +392,14 @@ run the same way. This is a hard requirement of the migration, not a nicety.
 
 ### 6a. Phased clean-slate build
 
-| Phase | Milestone | Ships |
-|---|---|---|
-| **P0 — Spine** | App bar + Lifecycle rail + constant Stage, mode routing, real undo/redo, Save-vs-Publish plumbing | A shell that loads a preset face and switches modes with an empty right/left per mode. |
-| **P1 — Control first** | Controls board + transport + runtime source selector on the Stage | A user can open a package and drive a face by hand. (Earliest useful product; also the simplest mode.) |
-| **P2 — Define** | Hierarchy, control inspector, materials/morphs, Link/Formula, Universal Controls + coverage | Rig a new imported model end-to-end; guided Checkup replaces skip-checks. |
-| **P3 — Animate** | Library + Expression editor + Timeline drawer + Behavior/graph drawer (previewing via `setGraphBundle`) | Author expressions, animations, behaviors; capture-from-Control handoff. |
-| **P4 — Connections** | Voice (Polly/Deepgram/LLM), Remote Operator, Robot | Live speech + external drive. |
-| **P5 — Deploy** | Package summary, unified Checkup, Publish, Embed panel emitting L3 snippets | Full lifecycle + the framework-agnostic embed (today's gap). |
+| Phase                  | Milestone                                                                                               | Ships                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **P0 — Spine**         | App bar + Lifecycle rail + constant Stage, mode routing, real undo/redo, Save-vs-Publish plumbing       | A shell that loads a preset face and switches modes with an empty right/left per mode.                 |
+| **P1 — Control first** | Controls board + transport + runtime source selector on the Stage                                       | A user can open a package and drive a face by hand. (Earliest useful product; also the simplest mode.) |
+| **P2 — Define**        | Hierarchy, control inspector, materials/morphs, Link/Formula, Universal Controls + coverage             | Rig a new imported model end-to-end; guided Checkup replaces skip-checks.                              |
+| **P3 — Animate**       | Library + Expression editor + Timeline drawer + Behavior/graph drawer (previewing via `setGraphBundle`) | Author expressions, animations, behaviors; capture-from-Control handoff.                               |
+| **P4 — Connections**   | Voice (Polly/Deepgram/LLM), Remote Operator, Robot                                                      | Live speech + external drive.                                                                          |
+| **P5 — Deploy**        | Package summary, unified Checkup, Publish, Embed panel emitting L3 snippets                             | Full lifecycle + the framework-agnostic embed (today's gap).                                           |
 
 Each phase is shippable: the tool is usable after P1 for driving, after P2 for
 rigging, and complete after P5.

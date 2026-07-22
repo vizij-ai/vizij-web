@@ -24,12 +24,12 @@ If you only read two files: **`00-FOUNDATION.md`** and **`05-SYNTHESIS.md`**.
 
 ## The four proposals
 
-| # | Proposal | One-line thesis |
-|---|---|---|
-| A | [Lifecycle Studio](./01-lifecycle-studio.md) | The whole app is organized as four top-level modes — **Define → Control → Animate → Deploy** — with a persistent live face and a "borrow" overlay for cross-stage tasks. |
-| B | [Role-based Workspaces](./02-role-workspaces.md) | Three role-tuned workspaces — **Rig / Motion / Deploy Studio** — over one shared project and runtime, with first-class hand-offs. |
-| C | [Headless + Component Kit](./03-headless-component-kit.md) | **Invert priorities:** the product is the layered package suite (headless core → React kit → framework-agnostic `<vizij-face>` embed → editor packages); the app is a thin assembly. Deepest on API design. |
-| D | [Progressive-Disclosure Canvas](./04-progressive-canvas.md) | One always-present 3D canvas; a single **contextual inspector** driven by what you select; complexity revealed on demand, with a command palette and Expert Mode for power users. |
+| #   | Proposal                                                    | One-line thesis                                                                                                                                                                                             |
+| --- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | [Lifecycle Studio](./01-lifecycle-studio.md)                | The whole app is organized as four top-level modes — **Define → Control → Animate → Deploy** — with a persistent live face and a "borrow" overlay for cross-stage tasks.                                    |
+| B   | [Role-based Workspaces](./02-role-workspaces.md)            | Three role-tuned workspaces — **Rig / Motion / Deploy Studio** — over one shared project and runtime, with first-class hand-offs.                                                                           |
+| C   | [Headless + Component Kit](./03-headless-component-kit.md)  | **Invert priorities:** the product is the layered package suite (headless core → React kit → framework-agnostic `<vizij-face>` embed → editor packages); the app is a thin assembly. Deepest on API design. |
+| D   | [Progressive-Disclosure Canvas](./04-progressive-canvas.md) | One always-present 3D canvas; a single **contextual inspector** driven by what you select; complexity revealed on demand, with a command palette and Expert Mode for power users.                           |
 
 ## The recommendation (in brief)
 

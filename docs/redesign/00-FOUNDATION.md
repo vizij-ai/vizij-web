@@ -49,11 +49,11 @@ current app's layout and naming carry no weight as precedent.
 Derived from the app/package READMEs and tutorials (no formal persona doc exists
 in-repo). Three de-facto audiences:
 
-| Persona | Who | Goal | Today's touchpoints |
-|---|---|---|---|
-| **Rig Author** (a.k.a. "operator") | Technical artist / roboticist who imports a raw 3D model and wires it up | Turn a mesh into a controllable face with named controls, expressions, and validated output | `vizij-authoring` (Rigging, Posing, Standard Feature Spaces, Inspector, Validation) |
-| **Motion Designer** | Animator / interaction designer authoring how the face moves | Build expressions, keyframe animations, and reactive programs; preview live | `vizij-authoring` (Poses, Animation timeline, Motion-graph, Speech) |
-| **Integrator / Deployer** | Web/app developer or robot-fleet operator embedding and driving a finished face | Drop a face into a site or device and drive it live (speech, gaze, emotion) from a host app, robot stack, or remote operator | `@vizij/runtime-react`, `apps/tutorial-*-face`, `apps/demo-vizij-player`, `apps/vizij-standalone` (WebSocket / ROS 2 / Studio bridges) |
+| Persona                            | Who                                                                             | Goal                                                                                                                         | Today's touchpoints                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rig Author** (a.k.a. "operator") | Technical artist / roboticist who imports a raw 3D model and wires it up        | Turn a mesh into a controllable face with named controls, expressions, and validated output                                  | `vizij-authoring` (Rigging, Posing, Standard Feature Spaces, Inspector, Validation)                                                    |
+| **Motion Designer**                | Animator / interaction designer authoring how the face moves                    | Build expressions, keyframe animations, and reactive programs; preview live                                                  | `vizij-authoring` (Poses, Animation timeline, Motion-graph, Speech)                                                                    |
+| **Integrator / Deployer**          | Web/app developer or robot-fleet operator embedding and driving a finished face | Drop a face into a site or device and drive it live (speech, gaze, emotion) from a host app, robot stack, or remote operator | `@vizij/runtime-react`, `apps/tutorial-*-face`, `apps/demo-vizij-player`, `apps/vizij-standalone` (WebSocket / ROS 2 / Studio bridges) |
 
 These personas are not walls — one person may play all three — but they define
 distinct **jobs to be done**, and the proposals differ mainly in how strongly
@@ -66,12 +66,12 @@ they separate or blend them.
 Every feature in the tool serves one of four stages. This spine is the common
 vocabulary for the proposals; each proposal decides how visibly to surface it.
 
-| Stage | Plain-language question | What happens | Today's features (inventory §) |
-|---|---|---|---|
-| **DEFINE** | "What can this face do?" | Import a model; set up its hierarchy, materials, and named **controls**; map to universal/standard controls; validate | Import (§2), Hierarchy/Scene (§8), Inspector rig/material/morph (§7), Standard Feature Spaces (§11), Validation/audits (§12) |
-| **CONTROL** | "Make it do this, now." | Drive controls live — by hand (sliders), by expression, by speech, or from an external signal | Inspector driver editing (§7), Speech (§10), live runtime source toolbar (§9), standard-input paths, standalone bridges |
-| **ANIMATE** | "Make it move over time / react." | Author **expressions** (poses), **animations** (keyframe clips), and **programs** (reactive behavior) | Poses/pose groups (§6), Animation timeline (§4), Motion-graph programs (§5), Speech visemes (§10) |
-| **DEPLOY** | "Ship it and run it elsewhere." | Export a **face package**; embed it in a site; run it on a device; connect live control | Export/Save (§3), bundle format, standalone runtime + endpoints, `@vizij/runtime-react` |
+| Stage       | Plain-language question           | What happens                                                                                                          | Today's features (inventory §)                                                                                               |
+| ----------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **DEFINE**  | "What can this face do?"          | Import a model; set up its hierarchy, materials, and named **controls**; map to universal/standard controls; validate | Import (§2), Hierarchy/Scene (§8), Inspector rig/material/morph (§7), Standard Feature Spaces (§11), Validation/audits (§12) |
+| **CONTROL** | "Make it do this, now."           | Drive controls live — by hand (sliders), by expression, by speech, or from an external signal                         | Inspector driver editing (§7), Speech (§10), live runtime source toolbar (§9), standard-input paths, standalone bridges      |
+| **ANIMATE** | "Make it move over time / react." | Author **expressions** (poses), **animations** (keyframe clips), and **programs** (reactive behavior)                 | Poses/pose groups (§6), Animation timeline (§4), Motion-graph programs (§5), Speech visemes (§10)                            |
+| **DEPLOY**  | "Ship it and run it elsewhere."   | Export a **face package**; embed it in a site; run it on a device; connect live control                               | Export/Save (§3), bundle format, standalone runtime + endpoints, `@vizij/runtime-react`                                      |
 
 ---
 
@@ -116,19 +116,19 @@ that describe intent. Below is the **starter** set; each proposal may refine it,
 and `05-SYNTHESIS.md` fixes the canonical vocabulary. Internal/runtime terms are
 **hidden** from users entirely.
 
-| Today (internal) | Proposed user-facing term | Notes |
-|---|---|---|
-| rig / binding / driver / animatable / propsrig | **Control** (a face's controls) | A "binding/expression" becomes a **link** or **formula** between controls |
-| standard inputs / Standard Feature Spaces / `namespace·channel·track·attribute` | **Standard Controls** / **Control Map** | Universal control names that make faces interoperable (e.g. `left_eye/pos/x`) |
-| pose / pose group / blend stage / neutral | **Expression** / **Expression Set** / **Layering** / **Resting Face** | An expression = a named look (smile, blink); sets group them; layering = blend order |
-| motiongraph / node-graph program / "procedural animation programming" | **Program** / **Behavior** | The node-graph is only _one_ possible editor for a program. The concept is "logic that makes the face react"; the authoring UI could be a graph, a rule list, or code. Representation stays open. |
-| animation clip / keyframe / track | **Animation** / **Clip** / **Keyframe** | Already clear — keep |
-| bundle / GLB / `VIZIJ_bundle` | **Face Package** (or **Face File**) | The one shareable, round-trippable artifact |
-| arora device / orchestrator / graph spec / IR / compile | _(hidden)_ | Runtime internals; never shown to users |
-| discrepancy wizard / robot-data audit / bundle audit | **Checkup** / **Validation** | "Run a checkup before publishing" |
-| reference face | **Reference Face** / **Comparison Face** | Keep — it's descriptive |
-| endpoints / WS·ROS2·Studio bridges | **Live Control** / **Connections** | How external systems drive the face |
-| import "skip checks" / orientation confirm / discrepancy | **Import** with a guided **Checkup** | Fold the safety prompts into one reviewable step |
+| Today (internal)                                                                | Proposed user-facing term                                             | Notes                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| rig / binding / driver / animatable / propsrig                                  | **Control** (a face's controls)                                       | A "binding/expression" becomes a **link** or **formula** between controls                                                                                                                         |
+| standard inputs / Standard Feature Spaces / `namespace·channel·track·attribute` | **Standard Controls** / **Control Map**                               | Universal control names that make faces interoperable (e.g. `left_eye/pos/x`)                                                                                                                     |
+| pose / pose group / blend stage / neutral                                       | **Expression** / **Expression Set** / **Layering** / **Resting Face** | An expression = a named look (smile, blink); sets group them; layering = blend order                                                                                                              |
+| motiongraph / node-graph program / "procedural animation programming"           | **Program** / **Behavior**                                            | The node-graph is only _one_ possible editor for a program. The concept is "logic that makes the face react"; the authoring UI could be a graph, a rule list, or code. Representation stays open. |
+| animation clip / keyframe / track                                               | **Animation** / **Clip** / **Keyframe**                               | Already clear — keep                                                                                                                                                                              |
+| bundle / GLB / `VIZIJ_bundle`                                                   | **Face Package** (or **Face File**)                                   | The one shareable, round-trippable artifact                                                                                                                                                       |
+| arora device / orchestrator / graph spec / IR / compile                         | _(hidden)_                                                            | Runtime internals; never shown to users                                                                                                                                                           |
+| discrepancy wizard / robot-data audit / bundle audit                            | **Checkup** / **Validation**                                          | "Run a checkup before publishing"                                                                                                                                                                 |
+| reference face                                                                  | **Reference Face** / **Comparison Face**                              | Keep — it's descriptive                                                                                                                                                                           |
+| endpoints / WS·ROS2·Studio bridges                                              | **Live Control** / **Connections**                                    | How external systems drive the face                                                                                                                                                               |
+| import "skip checks" / orientation confirm / discrepancy                        | **Import** with a guided **Checkup**                                  | Fold the safety prompts into one reviewable step                                                                                                                                                  |
 
 ---
 
@@ -140,7 +140,8 @@ and `05-SYNTHESIS.md` fixes the canonical vocabulary. Internal/runtime terms are
 
 The arora boundary is narrow and already clean. It lives in
 `packages/@vizij/runtime-react/src/VizijRuntimeProvider.tsx` + `updatePolicy.ts`
-+ `utils/graph.ts` + `utils/valueConversion.ts`. Its invariants:
+
+- `utils/graph.ts` + `utils/valueConversion.ts`. Its invariants:
 
 1. **One composed graph, one device per face.** All authored sources (rig graph,
    pose graph, program graphs) compose into a single `{nodes, edges}` graph run
@@ -195,7 +196,7 @@ A shared baseline the proposals weight differently (Proposal C makes it the
 centerpiece). Package names are proposals; `05-SYNTHESIS.md` fixes the final
 boundaries.
 
-```
+```text
 ┌─ L4  Authoring / editor components ─────────────────────────────┐
 │     Heavy editing surfaces packaged for reuse:                   │
 │     rigging inspector, expression/pose editor, timeline editor,  │

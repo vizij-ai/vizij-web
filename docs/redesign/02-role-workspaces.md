@@ -34,7 +34,7 @@ axis: the **workspace**. Everything else (panels, tabs, focus modes) becomes an
 _internal_ layout detail owned by a workspace, never a user-facing navigation
 control.
 
-```
+```text
 ┌───────────────────────────────────────────────────────────────────────┐
 │  PROJECT SHELL  (persistent, identical across all workspaces)           │
 │                                                                         │
@@ -87,7 +87,7 @@ A three-item segmented control, top-left of the shell, always visible. Rules:
 Job: turn a raw mesh into a controllable face with named controls, standard-control
 mappings, and a clean Checkup. Layout optimizes for hierarchy + inspector + viewport.
 
-```
+```text
 ┌─ Rig Studio ────────────────────────────────────────────────────────────┐
 │ [Import ▾] [Standard Controls] [Checkup]                    (shell above) │
 ├──────────────┬───────────────────────────────────┬──────────────────────┤
@@ -121,7 +121,7 @@ mappings, and a clean Checkup. Layout optimizes for hierarchy + inspector + view
 Job: author expressions, animations, and programs; preview them live; drive by
 speech. Layout optimizes for a big preview + a mode-swappable authoring surface.
 
-```
+```text
 ┌─ Motion Studio ───────────────────────────────────────────────────────────┐
 │ Author: [ Expressions | Animation | Program | Speech ]     (shell above)    │
 ├──────────────┬─────────────────────────────────────────────────────────────┤
@@ -160,7 +160,7 @@ speech. Layout optimizes for a big preview + a mode-swappable authoring surface.
 Job: validate, publish a Face Package, generate an embed, and connect/monitor
 live control. Layout optimizes for a preview-as-consumer-sees-it + config forms.
 
-```
+```text
 ┌─ Deploy Studio ───────────────────────────────────────────────────────────┐
 │ [Checkup] [Publish Package] [Get Embed] [Live Control]     (shell above)    │
 ├───────────────────────────────────────┬─────────────────────────────────────┤
@@ -191,35 +191,35 @@ live control. Layout optimizes for a preview-as-consumer-sees-it + config forms.
 
 #### Entry points
 
-| Entry | Lands in | Why |
-|---|---|---|
-| Fresh open / no face | Rig Studio empty state → Import or Preset | DEFINE is step one; empty-state demo (§9) previews what a face can do |
-| Open existing Face Package | Last-used workspace for that project | Solo users resume where they left off |
-| "Import model" | Rig Studio | Import is a Rig Author job |
-| "Design how it moves" | Motion Studio | |
-| "Embed / deploy / drive it" | Deploy Studio | |
-| Deep link `?ws=motion` | Named workspace | URL-addressable workspaces (new — today is not URL-routed, §1) |
+| Entry                       | Lands in                                  | Why                                                                   |
+| --------------------------- | ----------------------------------------- | --------------------------------------------------------------------- |
+| Fresh open / no face        | Rig Studio empty state → Import or Preset | DEFINE is step one; empty-state demo (§9) previews what a face can do |
+| Open existing Face Package  | Last-used workspace for that project      | Solo users resume where they left off                                 |
+| "Import model"              | Rig Studio                                | Import is a Rig Author job                                            |
+| "Design how it moves"       | Motion Studio                             |                                                                       |
+| "Embed / deploy / drive it" | Deploy Studio                             |                                                                       |
+| Deep link `?ws=motion`      | Named workspace                           | URL-addressable workspaces (new — today is not URL-routed, §1)        |
 
 ### 2b. User-facing terminology (refinements)
 
 Adopts the foundation glossary (§5) and refines it for a role framing. Internal
 runtime terms stay hidden.
 
-| Foundation term | This proposal | Refinement / rationale |
-|---|---|---|
-| (the app) | **Rig Studio / Motion Studio / Deploy Studio** | Workspaces named for the job, not the feature set |
-| Control | **Control** | Kept |
-| Standard Controls / Control Map | **Control Map** | The Rig Studio surface for cross-face interop mapping |
-| Expression / Expression Set / Layering | **Expression / Expression Set / Layering** | Kept; live in Motion Studio's Library |
-| Program / Behavior | **Program** | The node-graph is one editor for it (§5); representation stays open |
-| Animation / Clip / Keyframe | **Animation / Clip / Keyframe** | Kept |
-| Face Package | **Face Package** | The one artifact that flows between all three workspaces |
-| Checkup / Validation | **Checkup** | One shell-level action; each workspace contributes its own checks |
-| Live Control / Connections | **Live Control** | Deploy Studio panel |
-| Import + guided Checkup | **Import** | Orientation/discrepancy prompts folded into Rig Studio's Checkup |
-| (new) | **Handoff Bar** | The shell strip that shows package readiness + "Send to <role>" |
-| (new) | **Workspace** | The single primary navigation concept |
-| edit-focus mode / workbench tab / panel toggle | _(removed as concepts)_ | Absorbed into workspace layouts |
+| Foundation term                                | This proposal                                  | Refinement / rationale                                              |
+| ---------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
+| (the app)                                      | **Rig Studio / Motion Studio / Deploy Studio** | Workspaces named for the job, not the feature set                   |
+| Control                                        | **Control**                                    | Kept                                                                |
+| Standard Controls / Control Map                | **Control Map**                                | The Rig Studio surface for cross-face interop mapping               |
+| Expression / Expression Set / Layering         | **Expression / Expression Set / Layering**     | Kept; live in Motion Studio's Library                               |
+| Program / Behavior                             | **Program**                                    | The node-graph is one editor for it (§5); representation stays open |
+| Animation / Clip / Keyframe                    | **Animation / Clip / Keyframe**                | Kept                                                                |
+| Face Package                                   | **Face Package**                               | The one artifact that flows between all three workspaces            |
+| Checkup / Validation                           | **Checkup**                                    | One shell-level action; each workspace contributes its own checks   |
+| Live Control / Connections                     | **Live Control**                               | Deploy Studio panel                                                 |
+| Import + guided Checkup                        | **Import**                                     | Orientation/discrepancy prompts folded into Rig Studio's Checkup    |
+| (new)                                          | **Handoff Bar**                                | The shell strip that shows package readiness + "Send to `<role>`"   |
+| (new)                                          | **Workspace**                                  | The single primary navigation concept                               |
+| edit-focus mode / workbench tab / panel toggle | _(removed as concepts)_                        | Absorbed into workspace layouts                                     |
 
 ### 2c. Workflows facilitated
 
@@ -270,8 +270,8 @@ Package** → a `.glb` Face Package downloads. Below it, **Get Embed** generates
 <script src="https://cdn.vizij…/vizij-face.js"></script>
 <vizij-face src="quori-v3.glb" autostart></vizij-face>
 <script>
-  const face = document.querySelector('vizij-face');
-  face.writeValues({ 'standard/semio/left_eye/pos/x': 0.3 });
+  const face = document.querySelector("vizij-face");
+  face.writeValues({ "standard/semio/left_eye/pos/x": 0.3 });
 </script>
 ```
 
@@ -282,7 +282,7 @@ I open **Live Control**, connect the **WebSocket** bridge, and watch
 **Workflow 5 — Solo creator playing all three roles.**
 I'm one person building a face end-to-end. I treat the three workspaces like
 tabs: Rig Studio to wire controls, Motion Studio to make it expressive, Deploy
-Studio to ship. The **Handoff Bar** "Send to <role>" buttons are optional
+Studio to ship. The **Handoff Bar** "Send to `<role>`" buttons are optional
 shortcuts, not gates — I can jump straight to Deploy Studio at any time (it just
 shows a "no rig yet" lock badge if I haven't defined one). No data is ever
 duplicated or re-imported across the switch.
@@ -312,27 +312,27 @@ duplicated or re-imported across the switch.
 
 Every one of the 19 inventory areas, and where it lands. Nothing dropped.
 
-| # | Inventory area | Workspace(s) | Disposition & why |
-|---|---|---|---|
-| 1 | App shell, layout & navigation | **Shell** (all) | Rebuilt: one workspace axis replaces panels/tabs/focus-modes/surfaces. Menu bar → shell actions. Panel-visibility store → per-workspace layout config. Onboarding guides → per-workspace empty states. UI kit reused. |
-| 2 | Import | **Rig Studio** | Primary entry. "Skip checks" and orientation/discrepancy dialogs fold into the guided **Import Checkup**. Reference-face import → Rig Studio comparison tool. Rig/pose-graph JSON imports → advanced import menu (kept). |
-| 3 | Export / Save | **Deploy Studio** (Publish) + **Shell** (Save) | Split: shell **Save** persists the project; Deploy **Publish Package** produces the GLB. Fixes §18 "Save==export." Advanced/legacy JSON exports live under an "Advanced" disclosure. |
-| 4 | Keyframe animation editor | **Motion Studio** (Author: Animation) | Timeline/transport/tracks/clips move here intact. |
-| 5 | Motion-graph editor ("Program") | **Motion Studio** (Author: Program) | Node-graph canvas/palette/IO sets/value chart move here. Renamed **Program** (representation stays open per §5). |
-| 6 | Pose rig authoring (Posing) | **Motion Studio** (Author: Expressions) | Poses → **Expressions**; pose groups → Expression Sets; blend stages → Layering; neutral → Resting Face. Pose remap wizard kept. |
-| 7 | Inspector (4 modes) | **Rig Studio** (scene/driver/material) + **Motion Studio** (pose) | Split by role: the pose-inspection mode follows expressions into Motion Studio; scene/driver/material stay with the Rig Author. Chain/breadcrumb nav kept within each. |
-| 8 | Left-sidebar authoring surfaces | **Rig Studio** (hierarchy/materials/inputs) + **Motion Studio** (Library: poses/anims/programs) | The single Variables panel splits by entity type across the two authoring workspaces. |
-| 9 | 3D viewport / runtime & preview | **All three** (shared runtime) | One `VizijRuntimeProvider` device; each workspace frames it differently (editor view vs. Consumer Preview). Runtime source toolbar → Motion "Drive with." Empty-state demo → Rig Studio. Reference-face runtime → Rig Studio. |
-| 10 | Speech & conversational avatar | **Motion Studio** (Author: Speech) | Authoring lives here; config embeds into the package for Deploy. Live speech also drivable from Deploy's Live Control. |
-| 11 | Standard Feature Spaces (mapping) | **Rig Studio** (Control Map) | A Rig Author responsibility (interop). **SFS export implemented** in Deploy's Checkup/Publish — fixes §18 "coming soon." |
-| 12 | Diagnostics, audits & debug | **Shell Checkup** + per-workspace contributions | Unified: graph diagnostics + robot-data audit + bundle audit + debug consolidate into one **Checkup** with sections. Deep debug/memory harness behind an "advanced" flag. |
-| 13 | Architecture & WASM engines (arora) | **Architecture §5** | Substrate. Preserved exactly; see §5. |
-| 14 | Internal `@vizij/*` dependency map | **Architecture §5** | Substrate; remapped onto L0–L4. |
-| 15 | Data model / authored-entity schemas | **Architecture §5** | Substrate; owned by shared Face Package core. |
-| 16 | State management | **Architecture §5** | Substrate; project state in shared core, view state per workspace. |
-| 17 | Persistence | **Architecture §5** + **Shell Save** | Add a real project save (fixes §18); Face Package remains the durable artifact. |
-| 18 | Known gaps / caveats | **Fixed across shell + Deploy** | Real undo/redo (shell), real Save≠Publish (shell/Deploy), SFS export (Deploy). Stray `temp.txt` dropped in clean-slate. |
-| 19 | Testing & build | **Architecture §6** | Per-package tests; workspace-level E2E; build/deploy unchanged. |
+| #   | Inventory area                       | Workspace(s)                                                                                    | Disposition & why                                                                                                                                                                                                             |
+| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | App shell, layout & navigation       | **Shell** (all)                                                                                 | Rebuilt: one workspace axis replaces panels/tabs/focus-modes/surfaces. Menu bar → shell actions. Panel-visibility store → per-workspace layout config. Onboarding guides → per-workspace empty states. UI kit reused.         |
+| 2   | Import                               | **Rig Studio**                                                                                  | Primary entry. "Skip checks" and orientation/discrepancy dialogs fold into the guided **Import Checkup**. Reference-face import → Rig Studio comparison tool. Rig/pose-graph JSON imports → advanced import menu (kept).      |
+| 3   | Export / Save                        | **Deploy Studio** (Publish) + **Shell** (Save)                                                  | Split: shell **Save** persists the project; Deploy **Publish Package** produces the GLB. Fixes §18 "Save==export." Advanced/legacy JSON exports live under an "Advanced" disclosure.                                          |
+| 4   | Keyframe animation editor            | **Motion Studio** (Author: Animation)                                                           | Timeline/transport/tracks/clips move here intact.                                                                                                                                                                             |
+| 5   | Motion-graph editor ("Program")      | **Motion Studio** (Author: Program)                                                             | Node-graph canvas/palette/IO sets/value chart move here. Renamed **Program** (representation stays open per §5).                                                                                                              |
+| 6   | Pose rig authoring (Posing)          | **Motion Studio** (Author: Expressions)                                                         | Poses → **Expressions**; pose groups → Expression Sets; blend stages → Layering; neutral → Resting Face. Pose remap wizard kept.                                                                                              |
+| 7   | Inspector (4 modes)                  | **Rig Studio** (scene/driver/material) + **Motion Studio** (pose)                               | Split by role: the pose-inspection mode follows expressions into Motion Studio; scene/driver/material stay with the Rig Author. Chain/breadcrumb nav kept within each.                                                        |
+| 8   | Left-sidebar authoring surfaces      | **Rig Studio** (hierarchy/materials/inputs) + **Motion Studio** (Library: poses/anims/programs) | The single Variables panel splits by entity type across the two authoring workspaces.                                                                                                                                         |
+| 9   | 3D viewport / runtime & preview      | **All three** (shared runtime)                                                                  | One `VizijRuntimeProvider` device; each workspace frames it differently (editor view vs. Consumer Preview). Runtime source toolbar → Motion "Drive with." Empty-state demo → Rig Studio. Reference-face runtime → Rig Studio. |
+| 10  | Speech & conversational avatar       | **Motion Studio** (Author: Speech)                                                              | Authoring lives here; config embeds into the package for Deploy. Live speech also drivable from Deploy's Live Control.                                                                                                        |
+| 11  | Standard Feature Spaces (mapping)    | **Rig Studio** (Control Map)                                                                    | A Rig Author responsibility (interop). **SFS export implemented** in Deploy's Checkup/Publish — fixes §18 "coming soon."                                                                                                      |
+| 12  | Diagnostics, audits & debug          | **Shell Checkup** + per-workspace contributions                                                 | Unified: graph diagnostics + robot-data audit + bundle audit + debug consolidate into one **Checkup** with sections. Deep debug/memory harness behind an "advanced" flag.                                                     |
+| 13  | Architecture & WASM engines (arora)  | **Architecture §5**                                                                             | Substrate. Preserved exactly; see §5.                                                                                                                                                                                         |
+| 14  | Internal `@vizij/*` dependency map   | **Architecture §5**                                                                             | Substrate; remapped onto L0–L4.                                                                                                                                                                                               |
+| 15  | Data model / authored-entity schemas | **Architecture §5**                                                                             | Substrate; owned by shared Face Package core.                                                                                                                                                                                 |
+| 16  | State management                     | **Architecture §5**                                                                             | Substrate; project state in shared core, view state per workspace.                                                                                                                                                            |
+| 17  | Persistence                          | **Architecture §5** + **Shell Save**                                                            | Add a real project save (fixes §18); Face Package remains the durable artifact.                                                                                                                                               |
+| 18  | Known gaps / caveats                 | **Fixed across shell + Deploy**                                                                 | Real undo/redo (shell), real Save≠Publish (shell/Deploy), SFS export (Deploy). Stray `temp.txt` dropped in clean-slate.                                                                                                       |
+| 19  | Testing & build                      | **Architecture §6**                                                                             | Per-package tests; workspace-level E2E; build/deploy unchanged.                                                                                                                                                               |
 
 ---
 
@@ -358,7 +358,7 @@ Every one of the 19 inventory areas, and where it lands. Nothing dropped.
   the same live device (foundation §6.1). "Send to Motion" is a view switch, not
   a data transfer, so hand-off cost is essentially zero.
 - **Mitigation 2 — the Handoff Bar.** It makes readiness legible ("Rig ✓,
-  Speech ⚠ unset") so a hand-off is informed, and its "Send to <role>" buttons
+  Speech ⚠ unset") so a hand-off is informed, and its "Send to `<role>`" buttons
   are shortcuts, not gates. Nothing is ever locked _out_; badges only advise.
 - **Residual friction:** a feature that genuinely spans two roles (e.g. the
   Inspector's pose mode vs. driver mode, §7) forces a judgment call about which
@@ -434,7 +434,7 @@ load-bearing until committed programs run in the arora device.
 
 ### Decomposition onto L0–L4
 
-```
+```text
 L4  Editor packages (one per workspace's heavy surfaces)
       @vizij/rig-studio-editors      → hierarchy, control inspector, control map
       @vizij/motion-studio-editors   → expression grid, timeline, program graph, speech

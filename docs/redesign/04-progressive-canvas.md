@@ -35,7 +35,7 @@ takes that latent idea and makes it **the** organizing principle: there is no
 persistent panel taxonomy to learn, only _the face_ and _the thing you last
 touched_.
 
-```
+```text
                  ┌──────────────┐
    click / hover │  3D FACE     │  selection or hover
    on the face → │  (canvas)    │ ─────────────┐
@@ -83,11 +83,11 @@ Level is a per-user preference (persisted), not a mode you must manage per task.
 It gates _default density_, never capability — an expert action is always one
 `⌘K` away regardless of level.
 
-| Level | Who | Canvas interaction | Inspector shows | Hidden until asked |
-|---|---|---|---|---|
-| **L-Novice** (default) | first-timer, integrator poking around | click a region → one grouped slider set ("eyes", "mouth"); drag directly | resolved **Standard Controls** for the clicked region, plus "Try an expression" chips | raw control paths, ranges, formulas, programs, maps |
-| **L-Intermediate** | motion designer, returning user | click a mesh or control → that control | full control (value/min/def/max, rename, lock), expression capture, "add to animation" | node graph internals, IR, audits, SFS mapping editor |
-| **L-Expert** | rig author, power user | click anything; marquee-select; right-click context actions | everything: driver path, formula editor, connections, morph targets, per-keyframe interpolation, control-map cells | nothing — plus Expert Mode reveals docked dense sheets and a persistent object list |
+| Level                  | Who                                   | Canvas interaction                                                       | Inspector shows                                                                                                    | Hidden until asked                                                                  |
+| ---------------------- | ------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| **L-Novice** (default) | first-timer, integrator poking around | click a region → one grouped slider set ("eyes", "mouth"); drag directly | resolved **Standard Controls** for the clicked region, plus "Try an expression" chips                              | raw control paths, ranges, formulas, programs, maps                                 |
+| **L-Intermediate**     | motion designer, returning user       | click a mesh or control → that control                                   | full control (value/min/def/max, rename, lock), expression capture, "add to animation"                             | node graph internals, IR, audits, SFS mapping editor                                |
+| **L-Expert**           | rig author, power user                | click anything; marquee-select; right-click context actions              | everything: driver path, formula editor, connections, morph targets, per-keyframe interpolation, control-map cells | nothing — plus Expert Mode reveals docked dense sheets and a persistent object list |
 
 Switching L-Novice→L-Expert is a single toggle in the status strip (and
 `⌘K → "Expert Mode"`). Crucially, **disclosure is additive**: raising the level
@@ -124,7 +124,7 @@ path by using the slow one.
 
 #### ASCII layout — default (minimal / L-Novice)
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────┐
 │  Vizij   Quori.glb ●            ⌘K search…            [Publish] ◐/◑  │  top bar: file, palette, publish, theme
 ├──────────────────────────────────────────────┬─────────────────────┤
@@ -143,7 +143,7 @@ path by using the slow one.
 
 #### ASCII layout — expanded (Expert Mode, timeline sheet docked)
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────┐
 │  Vizij   Quori.glb ●   ⌘K   [Novice|Inter|▣Expert]   [Publish] ◐/◑   │
 ├───┬────────────────────────────────────────────┬────────────────────┤
@@ -173,24 +173,25 @@ face never disappears; you keyframe while watching it move.
 Adopts the FOUNDATION §5 starter glossary; refinements below reflect the
 canvas-first framing (verbs of _direct manipulation_, not panel names).
 
-| FOUNDATION term | Proposal D refinement | Why |
-|---|---|---|
-| Control | **Control** (kept). Verb: "tweak/drive a control" | Direct-manipulation verb reinforces click-the-face model |
-| Standard Controls / Control Map | **Standard Controls** (per-control) / **Control Map** (the mapping surface) | The map is reached from a control's inspector ("map this to a standard control"), not a separate workbench |
-| Expression / Expression Set | **Expression** / **Expression Set**; capture verb = **"Snapshot as expression"** | Snapshot = capture-from-current-values, the primary novice authoring act |
-| Program / Behavior | **Behavior** (concept) authored in the **Behavior editor** (graph) | "Behavior" is what beginners understand; "graph" is just its editor's shape |
-| Animation / Clip / Keyframe | **Animation** / **Clip** / **Keyframe** (kept) | Already clear |
-| Face Package | **Face Package** (kept). Actions: **Publish** (deploy) vs **Save** (working) | Fixes today's Save==export confusion (§18) |
-| Checkup / Validation | **Checkup** (kept) — surfaced as an inline **health chip** | Non-modal, non-color status in the strip |
-| Live Control / Connections | **Live Control** (kept) — "Connect" from the transport strip | Framed as a driving source, peer to expression/animation |
-| Reference Face | **Comparison Face** | "Compare" is the verb; appears as a second ghosted face on-canvas |
-| _(hidden)_ | orchestrator, IR, GraphSpec, arora device, propsrig, animatable, binding, pipeline stage — **never shown** | Runtime internals; expert path/formula UIs show canonical **paths** only |
+| FOUNDATION term                 | Proposal D refinement                                                                                      | Why                                                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Control                         | **Control** (kept). Verb: "tweak/drive a control"                                                          | Direct-manipulation verb reinforces click-the-face model                                                   |
+| Standard Controls / Control Map | **Standard Controls** (per-control) / **Control Map** (the mapping surface)                                | The map is reached from a control's inspector ("map this to a standard control"), not a separate workbench |
+| Expression / Expression Set     | **Expression** / **Expression Set**; capture verb = **"Snapshot as expression"**                           | Snapshot = capture-from-current-values, the primary novice authoring act                                   |
+| Program / Behavior              | **Behavior** (concept) authored in the **Behavior editor** (graph)                                         | "Behavior" is what beginners understand; "graph" is just its editor's shape                                |
+| Animation / Clip / Keyframe     | **Animation** / **Clip** / **Keyframe** (kept)                                                             | Already clear                                                                                              |
+| Face Package                    | **Face Package** (kept). Actions: **Publish** (deploy) vs **Save** (working)                               | Fixes today's Save==export confusion (§18)                                                                 |
+| Checkup / Validation            | **Checkup** (kept) — surfaced as an inline **health chip**                                                 | Non-modal, non-color status in the strip                                                                   |
+| Live Control / Connections      | **Live Control** (kept) — "Connect" from the transport strip                                               | Framed as a driving source, peer to expression/animation                                                   |
+| Reference Face                  | **Comparison Face**                                                                                        | "Compare" is the verb; appears as a second ghosted face on-canvas                                          |
+| _(hidden)_                      | orchestrator, IR, GraphSpec, arora device, propsrig, animatable, binding, pipeline stage — **never shown** | Runtime internals; expert path/formula UIs show canonical **paths** only                                   |
 
 ---
 
 ### 2c. Workflows facilitated (first-person journeys)
 
 **Rig a model (DEFINE) — "click a mesh, define a control".**
+
 > I drop `newbot.glb` on the canvas. It loads and I confirm orientation inline (a
 > ghost arrow on the face, "is this up?"). I click the jaw mesh — the inspector
 > shows its transform and a button **"Make this a control"**. I click it, name it
@@ -201,6 +202,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
 > I pick `mouth/jaw/open`; the Control Map sheet opens focused on that cell.
 
 **Author expression + animation + program (ANIMATE).**
+
 > With controls in place, I drag sliders until the face smiles, then hit
 > **Snapshot as expression** → _smile_. I do it again for _blink_. To animate, I
 > press `⌘K → New Animation`; the timeline sheet docks. I scrub, tweak controls
@@ -211,6 +213,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
 > pushes it into the composed graph via `setGraphBundle({programs})`.
 
 **Drive live / speech (CONTROL).**
+
 > From the transport strip I open **Source ▾** and pick **Speech**. I paste a
 > Polly key (stored locally), type a sentence, and the face lip-syncs via
 > visemes. Switching **Source ▾ → Live Control**, I get a connection card: a
@@ -219,6 +222,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
 > shows "Live: 42 keys/s".
 
 **Checkup + publish + embed (DEPLOY).**
+
 > The health chip turns amber: "SFS coverage 80%, 2 controls unmapped." I click
 > it → a **Checkup** sheet lists issues, each with a "reveal on face" and a fix
 > action; nothing blocks me but publishing warns. I press **Publish** → I choose
@@ -232,6 +236,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
 ### 2d. Accessibility, discoverability, ease-of-use (the strong suit)
 
 **Ease-of-use / lowest floor.**
+
 - The _only_ thing a newcomer must learn is "click the face." No panel tour, no
   mode vocabulary. The empty-state demo teaches the interaction before any face
   is even loaded.
@@ -239,6 +244,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
   existing controls, so learning is monotonic.
 
 **Discoverability without a menu tour.**
+
 - `⌘K` is the master index — every action and object is findable by typing, and
   each result shows its keybind so the fast path is learned in passing.
 - **Progressive reveal is signposted:** every collapsed depth is a labeled
@@ -248,6 +254,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
   canvas reinforce each other.
 
 **Keyboard.**
+
 - Full keyboard path: `Tab`/`Shift+Tab` cycles canvas-selectable regions (with a
   visible focus ring on the mesh), `Enter` opens its inspector, arrow keys nudge
   the focused slider (with `Shift` for coarse), `⌘K` for anything.
@@ -258,6 +265,7 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
   keyboard-operable for users who can't drag on a canvas.
 
 **Screen-reader.**
+
 - The canvas exposes an **accessible object tree** mirroring the hierarchy:
   each selectable region is an ARIA node named from its control
   (`resolveFaceControls`) with role/value, so a face is navigable without sight.
@@ -267,10 +275,12 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
 - The command palette is a standard combobox pattern (listbox + `aria-activedescendant`).
 
 **Focus order.**
+
 - Deterministic: top bar → canvas → inspector → transport. Opening a sheet traps
   focus within it and returns focus to the triggering control on close.
 
 **Non-color status.**
+
 - The single **health chip** uses shape + text, not just color: `● ready`,
   `▲ 2 warnings`, `✕ blocked`. Live-control state shows a text rate. Dirty state
   is a `●` next to the filename plus the word "unsaved," never color alone.
@@ -283,27 +293,27 @@ canvas-first framing (verbs of _direct manipulation_, not panel names).
 All 19 inventory areas. Nothing dropped. Column "Where in Proposal D" states how
 each surfaces in the canvas/contextual/disclosure model.
 
-| # | Inventory area | Where in Proposal D | Disposition |
-|---|---|---|---|
-| 1 | Shell, layout & navigation (§1) | Collapses 13 panels + 4 nav mechanisms into **canvas + contextual inspector + transport strip + palette**. Edit-focus modes → disclosure levels; workbench tabs → contextual actions on the target | **Merged/renamed** — biggest simplification |
-| 2 | Import (§2) | Drag-onto-canvas or `⌘K → Import`. Orientation + discrepancy folded into an **inline, on-face Checkup** (ghost arrow, reveal-on-face); "skip checks" becomes "review later" | **Merged** into guided load |
-| 3 | Export / Save (§3) | **Publish** (Face Package + embed snippet) is a top-bar action; **Save** is a genuine working-state save (fixes §18). Export toggles live in the Publish sheet | **Renamed + gap fixed** |
-| 4 | Keyframe animation editor (§4) | **Timeline sheet** docked from the transport strip; transport controls _are_ the strip. Authoring is canvas-first: scrub, tweak control on face, double-click lane to key. Dense but summoned | **Kept as docked sheet** (hard case — see Review) |
-| 5 | Motion-graph editor / "Program" (§5) | **Behavior editor** sheet (ReactFlow graph). Reached from a control ("drive this with a behavior") or `⌘K`. Ships a keyboard-first **linearized rule-list alt-view** for a11y/novices | **Kept as sheet + new alt-view** |
-| 6 | Pose rig authoring / Posing (§6) | **Expressions.** Snapshot-from-canvas is the primary act; groups/blend stages/neutral live in an **Expression Set** inspector (intermediate+). Layering pipeline surfaces as an ordered list under "Layering" | **Renamed** (pose→expression) |
-| 7 | Inspector, 4 modes (§7) | This _is_ the contextual inspector — its four modes become selection-driven views. Chain/breadcrumb nav kept as a "related" trail. Formula/connections/morph under expert disclosure | **Core mechanism** |
-| 8 | Left-sidebar authoring surfaces (§8) | No standing left sidebar by default. Hierarchy/variables/materials/inputs are reachable via `⌘K` (as object search) and via Expert Mode's optional **object list** (left rail). Materials edited by clicking a mesh's material | **Merged into palette + canvas selection** |
-| 9 | 3D viewport / runtime & preview (§9) | **The center of everything** — always present, always arora-driven. Overlay controls, source toolbar → transport strip. Empty-state demo = cold-start entry. Comparison Face = second ghosted face on-canvas | **Elevated to primary** |
-| 10 | Speech & conversational avatar (§10) | A **driving Source** in the transport strip (Speech). Config (Polly/Deepgram/LLM keys) in a Speech sheet; PAP input mapping auto-provisioned as today. Emotion tags trigger Expressions | **Kept as a source** |
-| 11 | Standard Feature Spaces / mapping (§11) | **Control Map** sheet, reached per-control ("Map to Standard Control") or globally via `⌘K`. Coverage shown as the health chip + reveal-on-face. **SFS export implemented** (fixes §18) | **Renamed + gap fixed** (hard case) |
-| 12 | Diagnostics, audits & debug (§12) | Unified **Checkup** sheet: rig-graph, RobotData, bundle audits, graph diagnostics in one issue list, each with reveal-on-face + fix. Debug/memory harness behind Expert Mode | **Merged** into Checkup |
-| 13 | Architecture & WASM engines / arora (§13) | Unchanged engine. See §5 (Architecture) — single composed graph, one device per `VizijRuntimeProvider` | **Preserved (substrate)** |
-| 14 | Internal `@vizij/*` dep map (§14) | Repackaged onto L0–L4; see §5. Vestigial `orchestrator-react` tracked | **Substrate / repackage** |
-| 15 | Data model / schemas (§15) | Unchanged authored-entity schemas (poses, clips, programs, bundle). UI labels change, paths do not | **Preserved (substrate)** |
-| 16 | State management (§16) | `selectionStore` becomes the UI's spine (selection→inspector). Zustand/context stores kept; add a real history store (§18) | **Preserved + extended** |
-| 17 | Persistence (§17) | Adds a real **Save** (working document) distinct from Publish; still GLB-backed. Disclosure level + last selection persisted | **Extended (gap fix)** |
-| 18 | Known gaps (§18) | **Real undo/redo** (history store, `⌘Z`), **Save≠Publish**, **SFS export** all fixed by design | **Fixed** |
-| 19 | Testing & build (§19) | Vitest + Playwright retained; new e2e for selection→inspector, palette, disclosure levels, keyboard/a11y flows | **Preserved + extended** |
+| #   | Inventory area                            | Where in Proposal D                                                                                                                                                                                                            | Disposition                                       |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| 1   | Shell, layout & navigation (§1)           | Collapses 13 panels + 4 nav mechanisms into **canvas + contextual inspector + transport strip + palette**. Edit-focus modes → disclosure levels; workbench tabs → contextual actions on the target                             | **Merged/renamed** — biggest simplification       |
+| 2   | Import (§2)                               | Drag-onto-canvas or `⌘K → Import`. Orientation + discrepancy folded into an **inline, on-face Checkup** (ghost arrow, reveal-on-face); "skip checks" becomes "review later"                                                    | **Merged** into guided load                       |
+| 3   | Export / Save (§3)                        | **Publish** (Face Package + embed snippet) is a top-bar action; **Save** is a genuine working-state save (fixes §18). Export toggles live in the Publish sheet                                                                 | **Renamed + gap fixed**                           |
+| 4   | Keyframe animation editor (§4)            | **Timeline sheet** docked from the transport strip; transport controls _are_ the strip. Authoring is canvas-first: scrub, tweak control on face, double-click lane to key. Dense but summoned                                  | **Kept as docked sheet** (hard case — see Review) |
+| 5   | Motion-graph editor / "Program" (§5)      | **Behavior editor** sheet (ReactFlow graph). Reached from a control ("drive this with a behavior") or `⌘K`. Ships a keyboard-first **linearized rule-list alt-view** for a11y/novices                                          | **Kept as sheet + new alt-view**                  |
+| 6   | Pose rig authoring / Posing (§6)          | **Expressions.** Snapshot-from-canvas is the primary act; groups/blend stages/neutral live in an **Expression Set** inspector (intermediate+). Layering pipeline surfaces as an ordered list under "Layering"                  | **Renamed** (pose→expression)                     |
+| 7   | Inspector, 4 modes (§7)                   | This _is_ the contextual inspector — its four modes become selection-driven views. Chain/breadcrumb nav kept as a "related" trail. Formula/connections/morph under expert disclosure                                           | **Core mechanism**                                |
+| 8   | Left-sidebar authoring surfaces (§8)      | No standing left sidebar by default. Hierarchy/variables/materials/inputs are reachable via `⌘K` (as object search) and via Expert Mode's optional **object list** (left rail). Materials edited by clicking a mesh's material | **Merged into palette + canvas selection**        |
+| 9   | 3D viewport / runtime & preview (§9)      | **The center of everything** — always present, always arora-driven. Overlay controls, source toolbar → transport strip. Empty-state demo = cold-start entry. Comparison Face = second ghosted face on-canvas                   | **Elevated to primary**                           |
+| 10  | Speech & conversational avatar (§10)      | A **driving Source** in the transport strip (Speech). Config (Polly/Deepgram/LLM keys) in a Speech sheet; PAP input mapping auto-provisioned as today. Emotion tags trigger Expressions                                        | **Kept as a source**                              |
+| 11  | Standard Feature Spaces / mapping (§11)   | **Control Map** sheet, reached per-control ("Map to Standard Control") or globally via `⌘K`. Coverage shown as the health chip + reveal-on-face. **SFS export implemented** (fixes §18)                                        | **Renamed + gap fixed** (hard case)               |
+| 12  | Diagnostics, audits & debug (§12)         | Unified **Checkup** sheet: rig-graph, RobotData, bundle audits, graph diagnostics in one issue list, each with reveal-on-face + fix. Debug/memory harness behind Expert Mode                                                   | **Merged** into Checkup                           |
+| 13  | Architecture & WASM engines / arora (§13) | Unchanged engine. See §5 (Architecture) — single composed graph, one device per `VizijRuntimeProvider`                                                                                                                         | **Preserved (substrate)**                         |
+| 14  | Internal `@vizij/*` dep map (§14)         | Repackaged onto L0–L4; see §5. Vestigial `orchestrator-react` tracked                                                                                                                                                          | **Substrate / repackage**                         |
+| 15  | Data model / schemas (§15)                | Unchanged authored-entity schemas (poses, clips, programs, bundle). UI labels change, paths do not                                                                                                                             | **Preserved (substrate)**                         |
+| 16  | State management (§16)                    | `selectionStore` becomes the UI's spine (selection→inspector). Zustand/context stores kept; add a real history store (§18)                                                                                                     | **Preserved + extended**                          |
+| 17  | Persistence (§17)                         | Adds a real **Save** (working document) distinct from Publish; still GLB-backed. Disclosure level + last selection persisted                                                                                                   | **Extended (gap fix)**                            |
+| 18  | Known gaps (§18)                          | **Real undo/redo** (history store, `⌘Z`), **Save≠Publish**, **SFS export** all fixed by design                                                                                                                                 | **Fixed**                                         |
+| 19  | Testing & build (§19)                     | Vitest + Playwright retained; new e2e for selection→inspector, palette, disclosure levels, keyboard/a11y flows                                                                                                                 | **Preserved + extended**                          |
 
 ### The hard cases: dense editors in a contextual/disclosure model
 
@@ -333,6 +343,7 @@ resist "show one relevant thing." Proposal D's answer is the **sheet**:
 ## 4. Review — self-critique
 
 **Completeness.**
+
 - All 19 areas land; three gaps (undo/redo, Save≠Publish, SFS export) are fixed
   by design rather than deferred.
 - Risk: the left sidebar's browse-everything surfaces (§8) become
@@ -342,6 +353,7 @@ resist "show one relevant thing." Proposal D's answer is the **sheet**:
   "Controls" list to intermediate.
 
 **Simplicity — does it actually simplify?**
+
 - Yes at the floor: one interaction (click the face) replaces four navigation
   mechanisms. The cognitive model is a single sentence.
 - Honest cost: the model pushes complexity into `⌘K` and sheets. A user who
@@ -350,6 +362,7 @@ resist "show one relevant thing." Proposal D's answer is the **sheet**:
   "show more/map/behavior" affordances so features advertise locally.
 
 **Do dense editors get awkward? (the central worry).**
+
 - Partly, and I won't pretend otherwise. A timeline or node graph is not a
   "contextual inspector" and jamming it into the right rail would be a disaster —
   hence sheets, which are honest about being big. The awkward seam is
@@ -363,6 +376,7 @@ resist "show one relevant thing." Proposal D's answer is the **sheet**:
   contorting it.
 
 **Expert-speed concerns.**
+
 - The chief objection to progressive disclosure is "it slows people who already
   know." Proposal D answers with: (1) `⌘K` reaches any action/object in a few
   keystrokes — often faster than today's panel-hunting; (2) Expert Mode makes
@@ -387,13 +401,13 @@ pieces are a **selection→inspector binding layer** and a **contextual-inspecto
 registry**, both of which live at L4/L2 and depend only on runtime-resolved
 metadata.
 
-| Layer | Contents for Proposal D | New vs. exists |
-|---|---|---|
-| **L0** engines | `@vizij/arora-web-wasm`, `@vizij/node-graph-wasm`, `@vizij/animation-wasm`, `@vizij/orchestrator-wasm` (graph-editor live preview only) | Exists, unchanged |
-| **L1** `@vizij/face-core` | Framework-agnostic `FaceRuntime` controller extracted from `VizijRuntimeProvider.tsx`: load package → compose → step → get/set inputs → `resolveFaceControls` → transport. Powers L3 and non-React hosts | New (shared with all proposals) |
-| **L2** `@vizij/components` | `@vizij/runtime-react` (exists) + extracted: **CanvasFace** (viewport frame from `Viewer.tsx`), **ContextualInspector** shell + section registry, **TransportStrip**, **CommandPalette**, **HealthChip**, **TimelineSheet**, **BehaviorSheet**, **ControlMapSheet**, **ExpressionInspector** | New extractions |
-| **L3** embed | `<vizij-face>` web component wrapping L1 `FaceRuntime`; JS control API (`writeValues`/`readValues`/`listKeys`/`invoke`) mirroring the standalone WS vocabulary. The **Publish** flow emits the embed snippet | New (headline gap) |
-| **L4** `vizij-authoring` app | Thin shell: mounts `VizijRuntimeProvider` + CanvasFace, wires `selectionStore`→ContextualInspector, registers which inspector sections/sheets exist per disclosure level, hosts palette | Rebuilt as assembly |
+| Layer                        | Contents for Proposal D                                                                                                                                                                                                                                                                      | New vs. exists                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| **L0** engines               | `@vizij/arora-web-wasm`, `@vizij/node-graph-wasm`, `@vizij/animation-wasm`, `@vizij/orchestrator-wasm` (graph-editor live preview only)                                                                                                                                                      | Exists, unchanged               |
+| **L1** `@vizij/face-core`    | Framework-agnostic `FaceRuntime` controller extracted from `VizijRuntimeProvider.tsx`: load package → compose → step → get/set inputs → `resolveFaceControls` → transport. Powers L3 and non-React hosts                                                                                     | New (shared with all proposals) |
+| **L2** `@vizij/components`   | `@vizij/runtime-react` (exists) + extracted: **CanvasFace** (viewport frame from `Viewer.tsx`), **ContextualInspector** shell + section registry, **TransportStrip**, **CommandPalette**, **HealthChip**, **TimelineSheet**, **BehaviorSheet**, **ControlMapSheet**, **ExpressionInspector** | New extractions                 |
+| **L3** embed                 | `<vizij-face>` web component wrapping L1 `FaceRuntime`; JS control API (`writeValues`/`readValues`/`listKeys`/`invoke`) mirroring the standalone WS vocabulary. The **Publish** flow emits the embed snippet                                                                                 | New (headline gap)              |
+| **L4** `vizij-authoring` app | Thin shell: mounts `VizijRuntimeProvider` + CanvasFace, wires `selectionStore`→ContextualInspector, registers which inspector sections/sheets exist per disclosure level, hosts palette                                                                                                      | Rebuilt as assembly             |
 
 ### The arora contract — preserved exactly (FOUNDATION §6)
 
@@ -426,7 +440,7 @@ so the rest of the app never sees orchestrator.
 
 This is the architectural heart of Proposal D.
 
-```
+```text
 canvas click / hover / ⌘K result
         │  emits Selection {kind, id/path, meshRef}
         ▼
@@ -451,7 +465,7 @@ canvas click / hover / ⌘K result
 - **Section registry:** each inspector section (ValueSlider, RangeEditor,
   FormulaEditor, ConnectionsEditor, MorphTargets, MaterialEditor, MapCell,
   "Snapshot as expression") declares `(appliesTo: SelectionKind[], minLevel:
-  DisclosureLevel)`. The inspector renders the intersection for the current
+DisclosureLevel)`. The inspector renders the intersection for the current
   target and level. Adding a capability = registering a section, not editing a
   monolithic switch (contrast today's `InspectorContent.tsx`).
 
@@ -467,20 +481,20 @@ vocabulary (FOUNDATION §6) so the same host code drives a web embed or a robot.
 
 ### Component mapping (today → Proposal D)
 
-| Today | Proposal D | L |
-|---|---|---|
-| `components/app/Viewer.tsx`, `RuntimeFaceFrame.tsx` | `CanvasFace` (+ accessible object tree) | L2 |
-| `RuntimeSourceToolbar.tsx`, `RuntimeFaceControlsOverlay.tsx` | `TransportStrip` | L2 |
-| `inspector/InspectorPanel.tsx` + `InspectorContent.tsx` (4-mode switch) | `ContextualInspector` + section registry | L2 |
-| `state/selectionStore.tsx` | Kept — promoted to UI spine | L4 |
-| `animation/TimelineEditor.tsx`, `TrackRow.tsx` | `TimelineSheet` | L2 |
-| `motiongraph/*` (ReactFlow) | `BehaviorSheet` (+ rule-list alt-view) | L2 |
-| `StdFeatureSpaces*` editors | `ControlMapSheet` (+ coverage grid) | L2 |
-| `poseRig/*`, pose inspector | `ExpressionInspector` / `ExpressionSet` sections | L2 |
-| Diagnostics/audit panels (§12) | `Checkup` sheet (unified) + `HealthChip` | L2 |
-| `AppMenuBar.tsx`, workspace/edit-focus stores | `CommandPalette` + disclosure-level pref | L4 |
-| `utils/runtimeBundle.ts` (bundle builder) | Face Package builder → L1/L2 | L1 |
-| `App.tsx` (~4,600 lines) | Thin assembly (~a few hundred lines) | L4 |
+| Today                                                                   | Proposal D                                       | L   |
+| ----------------------------------------------------------------------- | ------------------------------------------------ | --- |
+| `components/app/Viewer.tsx`, `RuntimeFaceFrame.tsx`                     | `CanvasFace` (+ accessible object tree)          | L2  |
+| `RuntimeSourceToolbar.tsx`, `RuntimeFaceControlsOverlay.tsx`            | `TransportStrip`                                 | L2  |
+| `inspector/InspectorPanel.tsx` + `InspectorContent.tsx` (4-mode switch) | `ContextualInspector` + section registry         | L2  |
+| `state/selectionStore.tsx`                                              | Kept — promoted to UI spine                      | L4  |
+| `animation/TimelineEditor.tsx`, `TrackRow.tsx`                          | `TimelineSheet`                                  | L2  |
+| `motiongraph/*` (ReactFlow)                                             | `BehaviorSheet` (+ rule-list alt-view)           | L2  |
+| `StdFeatureSpaces*` editors                                             | `ControlMapSheet` (+ coverage grid)              | L2  |
+| `poseRig/*`, pose inspector                                             | `ExpressionInspector` / `ExpressionSet` sections | L2  |
+| Diagnostics/audit panels (§12)                                          | `Checkup` sheet (unified) + `HealthChip`         | L2  |
+| `AppMenuBar.tsx`, workspace/edit-focus stores                           | `CommandPalette` + disclosure-level pref         | L4  |
+| `utils/runtimeBundle.ts` (bundle builder)                               | Face Package builder → L1/L2                     | L1  |
+| `App.tsx` (~4,600 lines)                                                | Thin assembly (~a few hundred lines)             | L4  |
 
 ---
 
@@ -492,6 +506,7 @@ pieces this proposal builds on — so migration is _evolution of that pair_ plus
 demolition of the surrounding panel machinery.
 
 ### Phase 0 — Extraction groundwork (shared with all proposals)
+
 - Extract L1 `@vizij/face-core` (`FaceRuntime`) from `VizijRuntimeProvider.tsx`.
 - Extract `runtimeBundle.ts` (Face Package builder) and the viewport frame into
   L2. **Reuse:** the runtime provider, `resolveFaceControls`, `inputConstraints`,
@@ -500,6 +515,7 @@ demolition of the surrounding panel machinery.
   distinct from export — fixes §18 gaps independent of layout.
 
 ### Phase 1 — Canvas + contextual inspector skeleton
+
 - Stand up the thin L4 shell: `CanvasFace` centered, `TransportStrip`, and the
   `ContextualInspector` driven by the existing `selectionStore`.
 - Build the **section registry** and port the four current inspector modes into
@@ -510,6 +526,7 @@ demolition of the surrounding panel machinery.
 - Ship L-Novice + L-Intermediate; validate click-the-face → tweak on a preset.
 
 ### Phase 2 — Command palette + disclosure levels + a11y spine
+
 - `CommandPalette` indexing actions + objects; wire "select on face" from
   results. Disclosure-level preference (persisted) gating section `minLevel`.
 - Accessible object tree on the canvas; slider/selection ARIA; keyboard focus
@@ -517,6 +534,7 @@ demolition of the surrounding panel machinery.
 - E2E: selection→inspector, palette navigation, keyboard-only authoring path.
 
 ### Phase 3 — Dense-editor sheets
+
 - `TimelineSheet` (from `TimelineEditor`/`TrackRow` + `animationStore`),
   `BehaviorSheet` (from `motiongraph/*`, keeping its `OrchestratorProvider`
   preview island), `ControlMapSheet` (from `StdFeatureSpaces*`).
@@ -525,24 +543,29 @@ demolition of the surrounding panel machinery.
   **coverage grid** for the map. **Implement SFS export** (fixes §18).
 
 ### Phase 4 — Sources, Checkup, Comparison
+
 - `TransportStrip` **Source ▾**: Expression / Animation / Program / **Speech**
   (reuse `@vizij/speech-react`, dedupe the app's duplicated speech services) /
   **Live Control**. Unify diagnostics/audits into the **Checkup** sheet with
   reveal-on-face. Comparison Face as a second provider/namespace on-canvas.
 
 ### Phase 5 — L3 embed + Publish
+
 - Ship `<vizij-face>` web component over L1 `FaceRuntime`; JS control API
   mirroring the WS vocabulary. **Publish** flow emits Face Package + embed
   snippet. Validate the embed against a `tutorial-*-face` app.
 
 ### Reuse vs. rebuild summary
 
-| Reuse (evolve) | Rebuild (demolish) |
-|---|---|
-| `VizijRuntimeProvider` / runtime contract | `App.tsx` orchestrator monolith |
-| `selectionStore` (→ UI spine) | `workspaceStore` panel-visibility + exclusive-center logic |
-| Inspector content blocks (→ sections) | `AuthoringUiProvider` edit-focus modes + `editFocusPanels.ts` |
-| `TimelineEditor`, `motiongraph/*`, `StdFeatureSpaces*` internals | `AppMenuBar`, workbench tabs/config, `WorkspaceLayout` |
-| `resolveFaceControls`, `inputConstraints`, `poseConfig` metadata | Standing left-sidebar panels (§8) as default surfaces |
-| `runtimeBundle.ts`, render store, speech-react | Duplicated in-app speech services |
+| Reuse (evolve)                                                   | Rebuild (demolish)                                            |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| `VizijRuntimeProvider` / runtime contract                        | `App.tsx` orchestrator monolith                               |
+| `selectionStore` (→ UI spine)                                    | `workspaceStore` panel-visibility + exclusive-center logic    |
+| Inspector content blocks (→ sections)                            | `AuthoringUiProvider` edit-focus modes + `editFocusPanels.ts` |
+| `TimelineEditor`, `motiongraph/*`, `StdFeatureSpaces*` internals | `AppMenuBar`, workbench tabs/config, `WorkspaceLayout`        |
+| `resolveFaceControls`, `inputConstraints`, `poseConfig` metadata | Standing left-sidebar panels (§8) as default surfaces         |
+| `runtimeBundle.ts`, render store, speech-react                   | Duplicated in-app speech services                             |
+
+```text
+
 ```

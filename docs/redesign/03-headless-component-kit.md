@@ -35,7 +35,7 @@ layout is a downstream consequence (§2a.5), not the design driver.
 
 The complete stack (foundation §7):
 
-```
+```text
 ┌ L4  @vizij/editor-*  — editor surfaces packaged for reuse ───────────────┐
 │     @vizij/editor-timeline · @vizij/editor-program ·                     │
 │     @vizij/editor-pose · @vizij/editor-rig-inspector ·                   │
@@ -97,7 +97,7 @@ export interface FaceRuntimeStatus {
   namespace: string;
   faceId?: string;
   rootId?: string | null;
-  outputPaths: string[];        // namespaced output signal paths
+  outputPaths: string[]; // namespaced output signal paths
   stepHz?: number;
   controllers: { graphs: string[]; anims: string[] };
 }
@@ -107,7 +107,7 @@ export interface FaceRuntimeOptions {
   namespace?: string;
   faceId?: string;
   updateTier?: "auto" | "assets" | "graphs";
-  mergeStrategy?: MergeStrategyOptions;   // default { outputs: "add", intermediate: "add" }
+  mergeStrategy?: MergeStrategyOptions; // default { outputs: "add", intermediate: "add" }
   createOptions?: CreateOrchOptions;
   transformOutputWrite?: (w: RuntimeOutputWrite) => RuntimeOutputWrite | null;
 }
@@ -130,7 +130,10 @@ export class FaceRuntime {
   /** Hot-swap authored graphs without reloading the GLB or losing device
    *  store state. Extracted verbatim from setGraphBundle() +
    *  applyRuntimeGraphBundle() + resolveRuntimeUpdatePlan(). */
-  setGraphBundle(bundle: RuntimeGraphBundle, opts?: { tier?: "auto" | "assets" | "graphs" }): void;
+  setGraphBundle(
+    bundle: RuntimeGraphBundle,
+    opts?: { tier?: "auto" | "assets" | "graphs" },
+  ): void;
 
   // ---- the step / drain loop (arora invariant #3) ----------------------
   /** Advance the device by dt (seconds): flush staged inputs, advance
@@ -149,7 +152,10 @@ export class FaceRuntime {
   readValue(path: string): ValueJSON | undefined;
   /** All known input paths + constraints (min/max/default), built from graph
    *  metadata. Extracted from extractInputConstraints()/inputConstraints. */
-  listInputs(): Record<string, { min?: number; max?: number; defaultValue?: number }>;
+  listInputs(): Record<
+    string,
+    { min?: number; max?: number; defaultValue?: number }
+  >;
   /** All output signal paths currently emitted. mirrors list_keys. */
   listOutputs(): string[];
   stagePoseNeutral(force?: boolean): void;
@@ -160,7 +166,11 @@ export class FaceRuntime {
   resolveControls(): ResolvedFaceControls;
 
   // ---- value + transport helpers ---------------------------------------
-  animateValue(path: string, target: ValueJSON, opts?: AnimateValueOptions): Promise<void>;
+  animateValue(
+    path: string,
+    target: ValueJSON,
+    opts?: AnimateValueOptions,
+  ): Promise<void>;
   cancelAnimation(path: string): void;
   playAnimation(id: string, opts?: PlayAnimationOptions): Promise<void>;
   pauseAnimation(id: string): void;
@@ -176,14 +186,20 @@ export class FaceRuntime {
   // ---- input drivers (external live control) ---------------------------
   /** Register a start/stop/dispose driver that pushes inputs each frame.
    *  Extracted from registerInputDriver(). */
-  registerInputDriver(id: string, factory: InputDriverFactory): InputDriverLifecycle;
+  registerInputDriver(
+    id: string,
+    factory: InputDriverFactory,
+  ): InputDriverLifecycle;
 
   // ---- observation (replaces React re-render) --------------------------
   /** Subscribe to status changes (loading/ready/errors/controllers). */
   onStatusChange(cb: (s: FaceRuntimeStatus) => void): () => void;
   /** Subscribe to drained output writes for a set of paths — the headless
    *  equivalent of the frame → setValues effect and useVizijOutputs(). */
-  onValuesChanged(paths: string[] | "*", cb: (values: Record<string, RawValue>) => void): () => void;
+  onValuesChanged(
+    paths: string[] | "*",
+    cb: (values: Record<string, RawValue>) => void,
+  ): () => void;
 
   get status(): FaceRuntimeStatus;
   get assetBundle(): VizijAssetBundle;
@@ -192,12 +208,12 @@ export class FaceRuntime {
 
 **How L1 upholds the arora contract (§6), with no React/DOM:**
 
-| Invariant | How `FaceRuntime` honors it |
-|---|---|
-| **1. One composed graph, one device per face** | `init()`/`compose()` build the single `{nodes, edges}` merged graph via the orchestrator's `registerMergedGraph()` when >1 source exists (exactly as `VizijRuntimeProvider` does at lines 2143–2161). One `FaceRuntime` = one device = one namespace. |
-| **2. Unprefixed `params.path` is the cross-graph contract** | `writeInput()`/`readValue()` take canonical un-namespaced paths and apply `namespaceTypedPath()` / `stripNamespace()` internally (extracted from `setInput`, lines 1712–1766). Node ids get namespaced (`namespaceGraphSpec`, `namespaceControllerId`), paths do not. |
-| **3. `ValueJSON` I/O + step-in-`dt` / drain-changes** | `step(dt)` calls the device step then drains `frame.merged_writes`, converts `ValueJSON → RawValue` via `valueJSONToRaw`, and only forwards changed keys to subscribers (extracted from the `frame` effect, lines 2279–2376). Pull model preserved — no full re-emit per tick. |
-| **4. Hot updates via `setGraphBundle(bundle, {tier})`** | `setGraphBundle()` reuses `applyRuntimeGraphBundle()` + `resolveRuntimeUpdatePlan()` unchanged; `tier: "graphs"` re-registers controllers without reloading the GLB or dropping device store state. |
+| Invariant                                                   | How `FaceRuntime` honors it                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1. One composed graph, one device per face**              | `init()`/`compose()` build the single `{nodes, edges}` merged graph via the orchestrator's `registerMergedGraph()` when >1 source exists (exactly as `VizijRuntimeProvider` does at lines 2143–2161). One `FaceRuntime` = one device = one namespace.                          |
+| **2. Unprefixed `params.path` is the cross-graph contract** | `writeInput()`/`readValue()` take canonical un-namespaced paths and apply `namespaceTypedPath()` / `stripNamespace()` internally (extracted from `setInput`, lines 1712–1766). Node ids get namespaced (`namespaceGraphSpec`, `namespaceControllerId`), paths do not.          |
+| **3. `ValueJSON` I/O + step-in-`dt` / drain-changes**       | `step(dt)` calls the device step then drains `frame.merged_writes`, converts `ValueJSON → RawValue` via `valueJSONToRaw`, and only forwards changed keys to subscribers (extracted from the `frame` effect, lines 2279–2376). Pull model preserved — no full re-emit per tick. |
+| **4. Hot updates via `setGraphBundle(bundle, {tier})`**     | `setGraphBundle()` reuses `applyRuntimeGraphBundle()` + `resolveRuntimeUpdatePlan()` unchanged; `tier: "graphs"` re-registers controllers without reloading the GLB or dropping device store state.                                                                            |
 
 **What moves out of React:** the rAF/`setInterval` loop (lines 3269–3327),
 `useState`/`useRef`, and the memoized `contextValue`. **What stays exactly:** the
@@ -223,18 +239,18 @@ UI-kit**. Each is wired to L1 (via the thin `@vizij/runtime-react` provider that
 now wraps a `FaceRuntime`) and is extracted from a specific place in
 `apps/vizij-authoring`.
 
-| Component | Responsibility | Extracted / assembled from |
-|---|---|---|
-| `<FaceRuntimeProvider>` / `useFaceRuntime()` | React binding over `FaceRuntime`: owns the rAF loop, mirrors `status`, exposes context. **This is today's `VizijRuntimeProvider` shrunk to an adapter.** | `packages/@vizij/runtime-react/src/VizijRuntimeProvider.tsx`, `hooks/useVizijRuntime.ts` |
-| `<FaceViewport>` | Renders the live face; wraps `VizijRuntimeFace` (`Vizij` from `@vizij/render`, props `rootId`/`namespace` owned by runtime). Optional in-viewport play/pause overlay, selection glow, safe-area. | `runtime-react` `VizijRuntimeFace`; `src/components/app/{Viewer,RuntimeFaceFrame,RuntimeFaceControlsOverlay}.tsx` (inventory §9) |
-| `<ControlsPanel>` | Slider/number grid over `runtime.listInputs()` (min/def/max), grouped, searchable. Drives `writeInput`. The reusable form of today's inspector rig-driver editing. | `src/components/inspector/*`, `src/components/panels/{VariablesPanel,inputCatalog}.ts` (§7, §8) |
-| `<StandardControlMapper>` | View/edit the Standard-Control map (`/standard/{ns}/{channel}/{track}/{attr}`), coverage, ranges. | `src/components/app/StdFeatureSpaces*.tsx`, `src/utils/standardInput*.ts` (§11) |
-| `<TransportBar>` | Play/pause/stop/seek/loop/speed over `play/pause/seek/stop{Animation,Program}`. Source-agnostic (clip **or** program). | `src/components/panels/AnimationPanel.tsx`, `RuntimeSourceToolbar.tsx`, `useGraphPlaybackControls.ts` (§4, §9) |
-| `<ExpressionGrid>` | Expression (pose) chooser + weight sliders + blend/layering preview, from `assetBundle.pose.config`. | `src/poseRig/*`, `src/components/panels/VariablesPanel.tsx` pose surfaces (§6) |
-| `<Timeline>` | Keyframe timeline: ruler, playhead, track lanes, draggable keyframes, add-track. | `src/components/animation/{TimelineEditor,TrackRow}.tsx` (§4) → also the core of L4 `@vizij/editor-timeline` |
-| `<ProgramCanvas>` | ReactFlow program graph: palette, typed edges, node inspectors, live value chart. | `src/motiongraph/**` (§5) → core of L4 `@vizij/editor-program` |
-| `<CheckupPanel>` | Validation/audit surface: bundle audit, robot-data audit, graph diagnostics. | `src/components/app/{VizijBundleAuditPanel,RobotDataAuditPanel,GraphDiagnosticsPanel}.tsx` (§12) |
-| `<SpeechPanel>` | TTS/STT/LLM conversational surface bound to speech input paths. Reuses `@vizij/speech-react`. | `src/components/panels/SpeechPanel.tsx` + hooks (§10) |
+| Component                                    | Responsibility                                                                                                                                                                                   | Extracted / assembled from                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `<FaceRuntimeProvider>` / `useFaceRuntime()` | React binding over `FaceRuntime`: owns the rAF loop, mirrors `status`, exposes context. **This is today's `VizijRuntimeProvider` shrunk to an adapter.**                                         | `packages/@vizij/runtime-react/src/VizijRuntimeProvider.tsx`, `hooks/useVizijRuntime.ts`                                         |
+| `<FaceViewport>`                             | Renders the live face; wraps `VizijRuntimeFace` (`Vizij` from `@vizij/render`, props `rootId`/`namespace` owned by runtime). Optional in-viewport play/pause overlay, selection glow, safe-area. | `runtime-react` `VizijRuntimeFace`; `src/components/app/{Viewer,RuntimeFaceFrame,RuntimeFaceControlsOverlay}.tsx` (inventory §9) |
+| `<ControlsPanel>`                            | Slider/number grid over `runtime.listInputs()` (min/def/max), grouped, searchable. Drives `writeInput`. The reusable form of today's inspector rig-driver editing.                               | `src/components/inspector/*`, `src/components/panels/{VariablesPanel,inputCatalog}.ts` (§7, §8)                                  |
+| `<StandardControlMapper>`                    | View/edit the Standard-Control map (`/standard/{ns}/{channel}/{track}/{attr}`), coverage, ranges.                                                                                                | `src/components/app/StdFeatureSpaces*.tsx`, `src/utils/standardInput*.ts` (§11)                                                  |
+| `<TransportBar>`                             | Play/pause/stop/seek/loop/speed over `play/pause/seek/stop{Animation,Program}`. Source-agnostic (clip **or** program).                                                                           | `src/components/panels/AnimationPanel.tsx`, `RuntimeSourceToolbar.tsx`, `useGraphPlaybackControls.ts` (§4, §9)                   |
+| `<ExpressionGrid>`                           | Expression (pose) chooser + weight sliders + blend/layering preview, from `assetBundle.pose.config`.                                                                                             | `src/poseRig/*`, `src/components/panels/VariablesPanel.tsx` pose surfaces (§6)                                                   |
+| `<Timeline>`                                 | Keyframe timeline: ruler, playhead, track lanes, draggable keyframes, add-track.                                                                                                                 | `src/components/animation/{TimelineEditor,TrackRow}.tsx` (§4) → also the core of L4 `@vizij/editor-timeline`                     |
+| `<ProgramCanvas>`                            | ReactFlow program graph: palette, typed edges, node inspectors, live value chart.                                                                                                                | `src/motiongraph/**` (§5) → core of L4 `@vizij/editor-program`                                                                   |
+| `<CheckupPanel>`                             | Validation/audit surface: bundle audit, robot-data audit, graph diagnostics.                                                                                                                     | `src/components/app/{VizijBundleAuditPanel,RobotDataAuditPanel,GraphDiagnosticsPanel}.tsx` (§12)                                 |
+| `<SpeechPanel>`                              | TTS/STT/LLM conversational surface bound to speech input paths. Reuses `@vizij/speech-react`.                                                                                                    | `src/components/panels/SpeechPanel.tsx` + hooks (§10)                                                                            |
 
 L2 ships **headless-by-default**: components accept `className`/`render` props
 and unstyled DOM with data-attributes, so a consumer's design system wins. A
@@ -246,8 +262,12 @@ as-is.
 Minimal L2 usage (a custom controller page on someone else's React site):
 
 ```tsx
-import { FaceRuntimeProvider, FaceViewport, ControlsPanel, TransportBar }
-  from "@vizij/components";
+import {
+  FaceRuntimeProvider,
+  FaceViewport,
+  ControlsPanel,
+  TransportBar,
+} from "@vizij/components";
 
 export function MyFacePage() {
   return (
@@ -275,14 +295,14 @@ the wire to the DOM.
 
 **Custom-element attributes:**
 
-| Attribute | Meaning |
-|---|---|
-| `src` | Face Package URL (GLB with embedded `VIZIJ_bundle`). Required. |
-| `namespace` | Runtime namespace (default derived from element id). Isolates multiple faces on one page. |
-| `autoplay` | If present, play `metadata.activeMotionGraphId` on load — the same behavior the tutorial app implements manually (`tutorial-fullscreen-face/src/FaceApp.tsx` lines 60–85). |
-| `program` | Explicit program id to start instead of the bundle default. |
-| `background` | Background color (matches standalone's per-model background). |
-| `autostart` | Whether the runtime steps automatically (maps to L1's rAF loop). |
+| Attribute    | Meaning                                                                                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src`        | Face Package URL (GLB with embedded `VIZIJ_bundle`). Required.                                                                                                             |
+| `namespace`  | Runtime namespace (default derived from element id). Isolates multiple faces on one page.                                                                                  |
+| `autoplay`   | If present, play `metadata.activeMotionGraphId` on load — the same behavior the tutorial app implements manually (`tutorial-fullscreen-face/src/FaceApp.tsx` lines 60–85). |
+| `program`    | Explicit program id to start instead of the bundle default.                                                                                                                |
+| `background` | Background color (matches standalone's per-model background).                                                                                                              |
+| `autostart`  | Whether the runtime steps automatically (maps to L1's rAF loop).                                                                                                           |
 
 **Imperative JS API** (methods on the element, mirroring the WS verbs):
 
@@ -293,18 +313,31 @@ interface VizijFaceElement extends HTMLElement {
   writeValue(path: string, value: number | ValueJSON): void;
   // read_values / list_keys
   readValues(paths: string[]): Record<string, number>;
-  listKeys(): string[];                       // input + output paths
-  listInputs(): Record<string, { min?: number; max?: number; defaultValue?: number }>;
+  listKeys(): string[]; // input + output paths
+  listInputs(): Record<
+    string,
+    { min?: number; max?: number; defaultValue?: number }
+  >;
   // invoke — the WS "method" verb: transport + pose + neutral as named methods
-  invoke(method:
-    | "playProgram" | "pauseProgram" | "stopProgram"
-    | "playAnimation" | "pauseAnimation" | "seekAnimation"
-    | "stagePoseNeutral" | "setPoseWeight",
-    args?: Record<string, unknown>): unknown;
+  invoke(
+    method:
+      | "playProgram"
+      | "pauseProgram"
+      | "stopProgram"
+      | "playAnimation"
+      | "pauseAnimation"
+      | "seekAnimation"
+      | "stagePoseNeutral"
+      | "setPoseWeight",
+    args?: Record<string, unknown>,
+  ): unknown;
   // values_changed — server-pushed change stream
-  on(event: "valuesChanged", cb: (values: Record<string, number>) => void): () => void;
+  on(
+    event: "valuesChanged",
+    cb: (values: Record<string, number>) => void,
+  ): () => void;
   on(event: "ready" | "error", cb: (detail: unknown) => void): () => void;
-  readonly runtime: FaceRuntime;              // escape hatch to L1
+  readonly runtime: FaceRuntime; // escape hatch to L1
 }
 ```
 
@@ -320,14 +353,19 @@ sync → `listInputs()`.
 <html>
   <body>
     <!-- one script defines the <vizij-face> element -->
-    <script type="module" src="https://cdn.vizij.ai/face-embed@1/vizij-face.js"></script>
+    <script
+      type="module"
+      src="https://cdn.vizij.ai/face-embed@1/vizij-face.js"
+    ></script>
 
-    <vizij-face id="lobby"
-                src="/faces/quori.glb"
-                namespace="lobby"
-                autoplay
-                background="#111"
-                style="width: 480px; height: 480px;"></vizij-face>
+    <vizij-face
+      id="lobby"
+      src="/faces/quori.glb"
+      namespace="lobby"
+      autoplay
+      background="#111"
+      style="width: 480px; height: 480px;"
+    ></vizij-face>
 
     <button onclick="grinAndLook()">React</button>
 
@@ -387,14 +425,14 @@ model and emits a `RuntimeGraphBundle` for L1's `setGraphBundle()` — i.e. ever
 editor's "commit" is a hot graph swap, exactly the tooling flow
 `vizij-authoring` uses today.
 
-| Package | Owns | Authored model (schema, inventory §15) | Extracted from |
-|---|---|---|---|
-| `@vizij/editor-rig-inspector` | DEFINE: controls, transforms, materials, morphs, bindings/links | `bindingAuthoringStore`, `src/rig/*` | `src/components/inspector/*`, `src/components/binding/*` (§7) |
-| `@vizij/editor-pose` | ANIMATE: expressions, expression sets, layering, neutral | `PoseDefinition`, `PoseGroupDefinition`, `PoseRigConfigFile` | `src/poseRig/**`, `src/components/poseRig/*` (§6) |
-| `@vizij/editor-timeline` | ANIMATE: keyframe animations/clips | `AnimationClipIR` | `src/components/animation/**`, `src/state/animationStore.ts` (§4) |
-| `@vizij/editor-program` | ANIMATE: programs/behaviors (node graph) | `useEditorStore` nodes/edges | `src/motiongraph/**` (§5) |
-| `@vizij/editor-control-map` | DEFINE: standard-control mapping | `ManagedStandardInput` | `src/components/app/StdFeatureSpaces*`, `src/referenceFace/*` (§11) |
-| `@vizij/editor-checkup` | Cross-cutting: validation/audits, import discrepancy review | `GraphDiffResult`, `MachineReport` | `src/components/{app/*Audit*,discrepancy/*}` (§2, §12) |
+| Package                       | Owns                                                            | Authored model (schema, inventory §15)                       | Extracted from                                                      |
+| ----------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `@vizij/editor-rig-inspector` | DEFINE: controls, transforms, materials, morphs, bindings/links | `bindingAuthoringStore`, `src/rig/*`                         | `src/components/inspector/*`, `src/components/binding/*` (§7)       |
+| `@vizij/editor-pose`          | ANIMATE: expressions, expression sets, layering, neutral        | `PoseDefinition`, `PoseGroupDefinition`, `PoseRigConfigFile` | `src/poseRig/**`, `src/components/poseRig/*` (§6)                   |
+| `@vizij/editor-timeline`      | ANIMATE: keyframe animations/clips                              | `AnimationClipIR`                                            | `src/components/animation/**`, `src/state/animationStore.ts` (§4)   |
+| `@vizij/editor-program`       | ANIMATE: programs/behaviors (node graph)                        | `useEditorStore` nodes/edges                                 | `src/motiongraph/**` (§5)                                           |
+| `@vizij/editor-control-map`   | DEFINE: standard-control mapping                                | `ManagedStandardInput`                                       | `src/components/app/StdFeatureSpaces*`, `src/referenceFace/*` (§11) |
+| `@vizij/editor-checkup`       | Cross-cutting: validation/audits, import discrepancy review     | `GraphDiffResult`, `MachineReport`                           | `src/components/{app/*Audit*,discrepancy/*}` (§2, §12)              |
 
 **Boundary rule for L4:** an editor package may import L1 (`@vizij/face-core`)
 and L2 (`@vizij/components`) but **never another L4 editor**. Cross-editor
@@ -449,17 +487,17 @@ API vocabulary that is precise and stable.
 
 **End-user facing** (reference app), per foundation §5:
 
-| Internal today | User-facing |
-|---|---|
-| rig / binding / driver / animatable | **Control**, and a **Link**/**Formula** between controls |
-| standard inputs / Standard Feature Spaces | **Standard Controls** / **Control Map** |
-| pose / pose group / blend stage | **Expression** / **Expression Set** / **Layering** / **Resting Face** |
-| motiongraph / node-graph program | **Program** / **Behavior** |
-| animation clip / keyframe | **Animation** / **Clip** / **Keyframe** (kept) |
-| bundle / GLB / `VIZIJ_bundle` | **Face Package** |
-| endpoints / WS·ROS2·Studio bridges | **Live Control** / **Connections** |
-| discrepancy wizard / audits | **Checkup** |
-| arora device / IR / compile | _(hidden)_ |
+| Internal today                            | User-facing                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| rig / binding / driver / animatable       | **Control**, and a **Link**/**Formula** between controls              |
+| standard inputs / Standard Feature Spaces | **Standard Controls** / **Control Map**                               |
+| pose / pose group / blend stage           | **Expression** / **Expression Set** / **Layering** / **Resting Face** |
+| motiongraph / node-graph program          | **Program** / **Behavior**                                            |
+| animation clip / keyframe                 | **Animation** / **Clip** / **Keyframe** (kept)                        |
+| bundle / GLB / `VIZIJ_bundle`             | **Face Package**                                                      |
+| endpoints / WS·ROS2·Studio bridges        | **Live Control** / **Connections**                                    |
+| discrepancy wizard / audits               | **Checkup**                                                           |
+| arora device / IR / compile               | _(hidden)_                                                            |
 
 **Developer-facing** (package/API naming). Distinct discipline: developer names
 must be **honest about mechanism** because the developer needs to reason about
@@ -467,14 +505,14 @@ behavior. So the API keeps `writeInput`/`readValue`/`step`/`setGraphBundle` and
 canonical **paths** — these are the arora contract's real nouns. The mapping
 between the two vocabularies is documented once, in `@vizij/face-core`:
 
-| Concept | End-user term | Package API term |
-|---|---|---|
-| The artifact | Face Package | `VizijAssetBundle` / `.glb` |
-| A single controllable channel | Control | input **path** (`writeInput(path, …)`) |
-| Set of universal names | Standard Controls | `/standard/{ns}/{channel}/{track}/{attr}` paths |
-| A named look | Expression | pose (`PoseDefinition`, `poses/{id}.weight` path) |
-| Reactive logic | Program | `VizijProgramAsset` |
-| External driving | Live Control | `writeValues` / `readValues` / `listKeys` / `invoke` |
+| Concept                       | End-user term     | Package API term                                     |
+| ----------------------------- | ----------------- | ---------------------------------------------------- |
+| The artifact                  | Face Package      | `VizijAssetBundle` / `.glb`                          |
+| A single controllable channel | Control           | input **path** (`writeInput(path, …)`)               |
+| Set of universal names        | Standard Controls | `/standard/{ns}/{channel}/{track}/{attr}` paths      |
+| A named look                  | Expression        | pose (`PoseDefinition`, `poses/{id}.weight` path)    |
+| Reactive logic                | Program           | `VizijProgramAsset`                                  |
+| External driving              | Live Control      | `writeValues` / `readValues` / `listKeys` / `invoke` |
 
 The rule: **user terms describe intent; API terms describe the path/value
 mechanism.** The embed (L3) intentionally uses the API vocabulary
@@ -498,11 +536,13 @@ Because the product is the suite, workflows come in two families.
 #### Developer journeys (the reuse mandate)
 
 1. **Install packages.**
+
    ```bash
    pnpm add @vizij/components   # pulls @vizij/face-core, @vizij/render (peer: react)
    # or, no framework:
    pnpm add @vizij/face-embed
    ```
+
 2. **Embed a face on a plain HTML site** — drop the `<script>` + `<vizij-face src=…>` from §2a.3. Zero build. Iframe fallback handles non-isolated hosts automatically.
 3. **Drive it live from a host app** — `face.writeValues({ … })` on pointer/emotion/speech events; `face.on("valuesChanged", …)` to mirror outputs. Identical verbs to the ROS 2 / WebSocket bridges, so robot-stack code ports directly (`useWebSocketSync` becomes one thin adapter onto the same element API).
 4. **Build a custom editor** — a partner assembles their own tool from `<FaceRuntimeProvider>` + `<FaceViewport>` + `@vizij/editor-timeline` over their own faces, skipping the surfaces they do not want. No monolith to fork.
@@ -548,27 +588,27 @@ since the API _is_ the product:
 All 19 inventory areas mapped to an owning layer/package/component. Nothing
 dropped. "Fix" marks a §18 gap this design repairs.
 
-| # | Inventory area | Owner (layer · package/component) | Notes |
-|---|---|---|---|
-| 1 | Application shell, layout & navigation | **Reference app** (VizijStudio shell) + `@vizij/editor-shared` | IA re-organized around the DEFINE→DEPLOY lifecycle; 13-panel/4-navigation tangle replaced by lifecycle stages. **Fix:** real undo/redo history in the shell (§18). |
-| 2 | Import | **L4** `@vizij/editor-checkup` + **L1** `FaceRuntime.init()` | GLB/glTF load is L1 (`loadGLTFFromBlobWithBundle`); preset library + reference-face + graph/pose JSON import + orientation/discrepancy folded into the guided **Checkup**. |
-| 3 | Export / Save | **L1** Face Package builder (from `src/utils/runtimeBundle.ts`) + **L4** `editor-checkup` gate | One artifact. **Fix:** Save ≠ Export confusion resolved — "Face Package" is the single unit. **Fix:** SFS export ships (was "coming soon"). |
-| 4 | Keyframe animation editor | **L4** `@vizij/editor-timeline` (+ **L2** `<TransportBar>`, `<Timeline>`) | Timeline/tracks/keyframes as reusable components. Transport bridges via L1 clip transport. |
-| 5 | Procedural motion-graph editor (Program) | **L4** `@vizij/editor-program` (+ **L2** `<ProgramCanvas>`) | ReactFlow isolated to this package. Committed programs run in the arora device via `setGraphBundle`. **Fix:** retire the vestigial live-preview `OrchestratorProvider` (§5, foundation §6) by stepping preview through L1. |
-| 6 | Pose rig authoring | **L4** `@vizij/editor-pose` (+ **L2** `<ExpressionGrid>`) | "Expressions/Sets/Layering/Resting Face" terminology. Pose config schema unchanged. |
-| 7 | Inspector (4 modes) | **L4** `@vizij/editor-rig-inspector` | Scene-object / control-driver / expression / material modes; binding/link editor; chain navigation. |
-| 8 | Left-sidebar authoring surfaces | **L2** `<ControlsPanel>` + **Reference app** shell; hierarchy in `editor-rig-inspector` | Hierarchy, variables, materials, inputs become panels the app arranges. |
-| 9 | 3D viewport / runtime & preview | **L2** `<FaceViewport>` (wraps `@vizij/render` + L1) | Runtime-truthful preview everywhere. Empty-state demo becomes an L2/L3 sample. |
-| 10 | Speech & conversational avatar | **L2** `<SpeechPanel>` over `@vizij/speech-react` | De-duplicate: app's copied speech services (§7 extraction candidates) collapse into the package. Speech config round-trips in the Face Package (`VizijSpeechConfig`). |
-| 11 | Standard Feature Spaces (mapping) | **L4** `@vizij/editor-control-map` (+ **L2** `<StandardControlMapper>`) | "Standard Controls / Control Map." **Fix:** export ships. |
-| 12 | Diagnostics, audits & debug | **L4** `@vizij/editor-checkup` (+ **L2** `<CheckupPanel>`) | Bundle/robot-data/graph audits + memory harness unify under Checkup. |
-| 13 | Architecture & WASM engines (arora) | **L0** (unchanged) + **L1** `@vizij/face-core` | arora contract preserved verbatim (§5). COOP/COEP handled by L3 (direct) or the isolated iframe host (fallback). |
-| 14 | Internal `@vizij/*` dependency map | **All layers** — this is the dependency graph (§5) | `@vizij/runtime-react` becomes L1's React adapter; `orchestrator-react` vestigial dep removed (foundation §6). |
-| 15 | Data model / authored-entity schemas | **L1** shared types + per-**L4** editor models | Schemas re-exported from L1 so every layer agrees on one vocabulary. |
-| 16 | State management | **L1** owns runtime state (refs→controller fields); **L4** owns per-editor stores; app owns shell/history | Clear ownership replaces today's two-pattern coexistence. |
-| 17 | Persistence | **Reference app** + **L1** package builder | No project DB (kept); Face Package is the durable artifact. localStorage (theme/speech keys) stays app-level. |
-| 18 | Known gaps / caveats | **Reference app** (undo/redo) + **L1/L4** (Save≠Export, SFS export) | Explicitly repaired — see rows 1, 3, 11. Stale `temp.txt` / doc removed during extraction. |
-| 19 | Testing & build | **Per-package** unit + typecheck + lint; **app** E2E golden paths | Each package gets its own test suite; the reference app's Playwright suite becomes the API acceptance gate (§2a.5). |
+| #   | Inventory area                           | Owner (layer · package/component)                                                                         | Notes                                                                                                                                                                                                                      |
+| --- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Application shell, layout & navigation   | **Reference app** (VizijStudio shell) + `@vizij/editor-shared`                                            | IA re-organized around the DEFINE→DEPLOY lifecycle; 13-panel/4-navigation tangle replaced by lifecycle stages. **Fix:** real undo/redo history in the shell (§18).                                                         |
+| 2   | Import                                   | **L4** `@vizij/editor-checkup` + **L1** `FaceRuntime.init()`                                              | GLB/glTF load is L1 (`loadGLTFFromBlobWithBundle`); preset library + reference-face + graph/pose JSON import + orientation/discrepancy folded into the guided **Checkup**.                                                 |
+| 3   | Export / Save                            | **L1** Face Package builder (from `src/utils/runtimeBundle.ts`) + **L4** `editor-checkup` gate            | One artifact. **Fix:** Save ≠ Export confusion resolved — "Face Package" is the single unit. **Fix:** SFS export ships (was "coming soon").                                                                                |
+| 4   | Keyframe animation editor                | **L4** `@vizij/editor-timeline` (+ **L2** `<TransportBar>`, `<Timeline>`)                                 | Timeline/tracks/keyframes as reusable components. Transport bridges via L1 clip transport.                                                                                                                                 |
+| 5   | Procedural motion-graph editor (Program) | **L4** `@vizij/editor-program` (+ **L2** `<ProgramCanvas>`)                                               | ReactFlow isolated to this package. Committed programs run in the arora device via `setGraphBundle`. **Fix:** retire the vestigial live-preview `OrchestratorProvider` (§5, foundation §6) by stepping preview through L1. |
+| 6   | Pose rig authoring                       | **L4** `@vizij/editor-pose` (+ **L2** `<ExpressionGrid>`)                                                 | "Expressions/Sets/Layering/Resting Face" terminology. Pose config schema unchanged.                                                                                                                                        |
+| 7   | Inspector (4 modes)                      | **L4** `@vizij/editor-rig-inspector`                                                                      | Scene-object / control-driver / expression / material modes; binding/link editor; chain navigation.                                                                                                                        |
+| 8   | Left-sidebar authoring surfaces          | **L2** `<ControlsPanel>` + **Reference app** shell; hierarchy in `editor-rig-inspector`                   | Hierarchy, variables, materials, inputs become panels the app arranges.                                                                                                                                                    |
+| 9   | 3D viewport / runtime & preview          | **L2** `<FaceViewport>` (wraps `@vizij/render` + L1)                                                      | Runtime-truthful preview everywhere. Empty-state demo becomes an L2/L3 sample.                                                                                                                                             |
+| 10  | Speech & conversational avatar           | **L2** `<SpeechPanel>` over `@vizij/speech-react`                                                         | De-duplicate: app's copied speech services (§7 extraction candidates) collapse into the package. Speech config round-trips in the Face Package (`VizijSpeechConfig`).                                                      |
+| 11  | Standard Feature Spaces (mapping)        | **L4** `@vizij/editor-control-map` (+ **L2** `<StandardControlMapper>`)                                   | "Standard Controls / Control Map." **Fix:** export ships.                                                                                                                                                                  |
+| 12  | Diagnostics, audits & debug              | **L4** `@vizij/editor-checkup` (+ **L2** `<CheckupPanel>`)                                                | Bundle/robot-data/graph audits + memory harness unify under Checkup.                                                                                                                                                       |
+| 13  | Architecture & WASM engines (arora)      | **L0** (unchanged) + **L1** `@vizij/face-core`                                                            | arora contract preserved verbatim (§5). COOP/COEP handled by L3 (direct) or the isolated iframe host (fallback).                                                                                                           |
+| 14  | Internal `@vizij/*` dependency map       | **All layers** — this is the dependency graph (§5)                                                        | `@vizij/runtime-react` becomes L1's React adapter; `orchestrator-react` vestigial dep removed (foundation §6).                                                                                                             |
+| 15  | Data model / authored-entity schemas     | **L1** shared types + per-**L4** editor models                                                            | Schemas re-exported from L1 so every layer agrees on one vocabulary.                                                                                                                                                       |
+| 16  | State management                         | **L1** owns runtime state (refs→controller fields); **L4** owns per-editor stores; app owns shell/history | Clear ownership replaces today's two-pattern coexistence.                                                                                                                                                                  |
+| 17  | Persistence                              | **Reference app** + **L1** package builder                                                                | No project DB (kept); Face Package is the durable artifact. localStorage (theme/speech keys) stays app-level.                                                                                                              |
+| 18  | Known gaps / caveats                     | **Reference app** (undo/redo) + **L1/L4** (Save≠Export, SFS export)                                       | Explicitly repaired — see rows 1, 3, 11. Stale `temp.txt` / doc removed during extraction.                                                                                                                                 |
+| 19  | Testing & build                          | **Per-package** unit + typecheck + lint; **app** E2E golden paths                                         | Each package gets its own test suite; the reference app's Playwright suite becomes the API acceptance gate (§2a.5).                                                                                                        |
 
 ---
 
@@ -625,7 +665,7 @@ staff the packaging discipline, Proposal A or D is safer.
 
 ### 5.1 Definitive L0–L4 decomposition
 
-```
+```text
 L0  engines (unchanged, external WASM)
     @vizij/arora-web-wasm · @vizij/node-graph-wasm ·
     @vizij/animation-wasm · @vizij/orchestrator-wasm
@@ -672,26 +712,26 @@ L1 class:
 
 ### 5.3 Extraction map (current file → target package)
 
-| Current location | → Target |
-|---|---|
-| `runtime-react/src/VizijRuntimeProvider.tsx` (composition, step/drain, transport, drivers, `setGraphBundle`) | **L1** `@vizij/face-core` `FaceRuntime` |
-| `runtime-react/src/{updatePolicy,context}.ts`, `utils/{graph,valueConversion,posePaths,poseRuntime,clipPlayback,animationBridge,faceControls}.ts` | **L1** `@vizij/face-core` internals + exports |
-| `runtime-react/src/types.ts` | **L1** shared type vocabulary (re-exported) |
-| `runtime-react/src/{VizijRuntimeProvider(shell),VizijRuntimeFace}.tsx`, `hooks/*` | **L2** `@vizij/runtime-react` (thin adapter) + `@vizij/components` |
-| `apps/vizij-authoring/src/utils/runtimeBundle.ts` (`buildRuntimeBaseBundle`, `buildRuntimeGraphBundle`) | **L1** package-builder helpers |
-| `apps/vizij-authoring/src/components/app/{Viewer,RuntimeFaceFrame,RuntimeFaceControlsOverlay,ReferenceFaceRuntime}.tsx` | **L2** `<FaceViewport>` |
-| `apps/vizij-authoring/src/components/{inspector,binding}/*`, `src/rig/*` | **L4** `@vizij/editor-rig-inspector` |
-| `apps/vizij-authoring/src/poseRig/**`, `components/poseRig/*` | **L4** `@vizij/editor-pose` |
-| `apps/vizij-authoring/src/components/animation/**`, `state/animationStore.ts` | **L4** `@vizij/editor-timeline` |
-| `apps/vizij-authoring/src/motiongraph/**` | **L4** `@vizij/editor-program` |
-| `apps/vizij-authoring/src/components/app/StdFeatureSpaces*`, `utils/standardInput*`, `referenceFace/*` | **L4** `@vizij/editor-control-map` |
-| `apps/vizij-authoring/src/components/{app/*Audit*,discrepancy/*,app/GraphDiagnosticsPanel}.tsx` | **L4** `@vizij/editor-checkup` |
-| `apps/vizij-authoring/src/components/panels/SpeechPanel.tsx` + speech hooks (dedup vs `@vizij/speech-react`) | **L2** `<SpeechPanel>` |
-| `apps/vizij-authoring/src/{App.tsx(shell),layouts,state/workspaceStore}.tsx` | **Reference app** VizijStudio |
+| Current location                                                                                                                                  | → Target                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `runtime-react/src/VizijRuntimeProvider.tsx` (composition, step/drain, transport, drivers, `setGraphBundle`)                                      | **L1** `@vizij/face-core` `FaceRuntime`                            |
+| `runtime-react/src/{updatePolicy,context}.ts`, `utils/{graph,valueConversion,posePaths,poseRuntime,clipPlayback,animationBridge,faceControls}.ts` | **L1** `@vizij/face-core` internals + exports                      |
+| `runtime-react/src/types.ts`                                                                                                                      | **L1** shared type vocabulary (re-exported)                        |
+| `runtime-react/src/{VizijRuntimeProvider(shell),VizijRuntimeFace}.tsx`, `hooks/*`                                                                 | **L2** `@vizij/runtime-react` (thin adapter) + `@vizij/components` |
+| `apps/vizij-authoring/src/utils/runtimeBundle.ts` (`buildRuntimeBaseBundle`, `buildRuntimeGraphBundle`)                                           | **L1** package-builder helpers                                     |
+| `apps/vizij-authoring/src/components/app/{Viewer,RuntimeFaceFrame,RuntimeFaceControlsOverlay,ReferenceFaceRuntime}.tsx`                           | **L2** `<FaceViewport>`                                            |
+| `apps/vizij-authoring/src/components/{inspector,binding}/*`, `src/rig/*`                                                                          | **L4** `@vizij/editor-rig-inspector`                               |
+| `apps/vizij-authoring/src/poseRig/**`, `components/poseRig/*`                                                                                     | **L4** `@vizij/editor-pose`                                        |
+| `apps/vizij-authoring/src/components/animation/**`, `state/animationStore.ts`                                                                     | **L4** `@vizij/editor-timeline`                                    |
+| `apps/vizij-authoring/src/motiongraph/**`                                                                                                         | **L4** `@vizij/editor-program`                                     |
+| `apps/vizij-authoring/src/components/app/StdFeatureSpaces*`, `utils/standardInput*`, `referenceFace/*`                                            | **L4** `@vizij/editor-control-map`                                 |
+| `apps/vizij-authoring/src/components/{app/*Audit*,discrepancy/*,app/GraphDiagnosticsPanel}.tsx`                                                   | **L4** `@vizij/editor-checkup`                                     |
+| `apps/vizij-authoring/src/components/panels/SpeechPanel.tsx` + speech hooks (dedup vs `@vizij/speech-react`)                                      | **L2** `<SpeechPanel>`                                             |
+| `apps/vizij-authoring/src/{App.tsx(shell),layouts,state/workspaceStore}.tsx`                                                                      | **Reference app** VizijStudio                                      |
 
 ### 5.4 Dependency graph
 
-```
+```text
         L0 engines (arora, node-graph, animation, orchestrator wasm)
                               │
                               ▼
