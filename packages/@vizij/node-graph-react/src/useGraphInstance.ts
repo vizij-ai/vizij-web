@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import * as wasm from "@vizij/node-graph-wasm";
+import * as wasm from "@vizij/node-graph";
 import { createGraphStore } from "./utils/createGraphStore";
 import { normalizeSpec } from "./utils/normalizeSpec";
 

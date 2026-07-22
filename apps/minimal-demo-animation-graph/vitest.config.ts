@@ -13,7 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@vizij/node-graph-wasm": resolveFromRoot(
+      "@vizij/node-graph": resolveFromRoot(
         "test-shims",
         "node-graph-wasm.ts",
       ),

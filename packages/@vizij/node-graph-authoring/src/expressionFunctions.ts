@@ -1,5 +1,5 @@
-import { requireNodeSignature } from "@vizij/node-graph-wasm/metadata";
-import type { NodeType } from "@vizij/node-graph-wasm";
+import { requireNodeSignature } from "@vizij/node-graph/metadata";
+import type { NodeType } from "@vizij/node-graph";
 
 type NodeSignature = ReturnType<typeof requireNodeSignature>;
 

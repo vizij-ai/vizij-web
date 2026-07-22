@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import * as wasm from "@vizij/node-graph-wasm";
-import type { Registry } from "@vizij/node-graph-wasm";
+import * as wasm from "@vizij/node-graph";
+import type { Registry } from "@vizij/node-graph";
 import { GraphContext } from "./GraphContext";
 import type {
   GraphRuntimeContextValue,
@@ -82,7 +82,7 @@ export function GraphProvider({
         setReady(true);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error("Failed to init @vizij/node-graph-wasm:", err);
+        console.error("Failed to init @vizij/node-graph:", err);
         if (
           err instanceof TypeError &&
           typeof err.message === "string" &&
@@ -90,7 +90,7 @@ export function GraphProvider({
         ) {
           // eslint-disable-next-line no-console
           console.error(
-            "The Vite dev server could not resolve the wasm shim in pkg/. Exclude @vizij/node-graph-wasm from optimizeDeps and allow the pkg directory in server.fs.allow.",
+            "The Vite dev server could not resolve the wasm shim in pkg/. Exclude @vizij/node-graph from optimizeDeps and allow the pkg directory in server.fs.allow.",
           );
         }
       }
@@ -501,7 +501,7 @@ export function GraphProvider({
       const module = wasmModuleRef.current ?? wasm;
       if (!module || typeof (module as any).getNodeSchemas !== "function") {
         throw new Error(
-          "@vizij/node-graph-wasm does not expose getNodeSchemas(). Update to ^0.4.1 or newer.",
+          "@vizij/node-graph does not expose getNodeSchemas(). Update to ^0.4.1 or newer.",
         );
       }
       return await (module as any).getNodeSchemas();

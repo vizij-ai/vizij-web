@@ -1,6 +1,6 @@
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
 import type {
   PoseCrossGroupChannelOverride,

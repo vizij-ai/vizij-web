@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GraphSpec, NodeSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec, NodeSpec } from "@vizij/node-graph";
 import type {
   AnimatableComponent,
   AnimatableValue,

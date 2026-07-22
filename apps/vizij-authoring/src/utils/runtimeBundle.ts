@@ -1,4 +1,4 @@
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { VizijBundleExtension } from "@vizij/render";
 import type { VizijAssetBundle } from "@vizij/runtime-react";
 import type { PoseRigConfig } from "@vizij/runtime-react";

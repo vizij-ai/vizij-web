@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import type { ChangeEvent, KeyboardEvent, SyntheticEvent } from "react";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import {
   EXPRESSION_FUNCTION_VOCABULARY,
   RESERVED_EXPRESSION_VARIABLES,

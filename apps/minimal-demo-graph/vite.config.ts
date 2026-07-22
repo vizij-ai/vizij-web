@@ -7,7 +7,7 @@ export default defineConfig({
     watch: {
       ignored: [
         "**/node_modules/**",
-        "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/node-graph/**",
       ],
     },
     headers: {
@@ -17,6 +17,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Prevent pre-bundling the wasm ESM shim in dev; let Vite handle it directly
-    exclude: ["@vizij/node-graph-wasm"],
+    exclude: ["@vizij/node-graph"],
   },
 });

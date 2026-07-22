@@ -10,7 +10,7 @@ import {
 } from "vitest";
 import { render, waitFor, cleanup } from "@testing-library/react";
 
-// Mock @vizij/node-graph-wasm with a configurable createGraph
+// Mock @vizij/node-graph with a configurable createGraph
 let mode: "ok" | "fail" = "ok";
 let lastGraph: any = null;
 
@@ -51,7 +51,7 @@ afterEach(() => {
 
 beforeEach(async () => {
   vi.resetModules();
-  vi.doMock("@vizij/node-graph-wasm", () => {
+  vi.doMock("@vizij/node-graph", () => {
     const init = vi.fn(async () => {});
     const normalizeGraphSpec = vi.fn(async (spec: any) => spec);
     const createGraph = vi.fn(async (_spec: any) => {
@@ -128,7 +128,7 @@ describe("GraphProvider readiness", () => {
       expect(Boolean(runtimeRef.graphLoaded)).toBe(true);
     });
 
-    const wasm: any = await import("@vizij/node-graph-wasm");
+    const wasm: any = await import("@vizij/node-graph");
     const g = wasm.__getLastGraph?.();
     expect(g).toBeTruthy();
 
@@ -140,7 +140,7 @@ describe("GraphProvider readiness", () => {
   });
 
   it("waitForGraphReady rejects on load failure", async () => {
-    const wasm: any = await import("@vizij/node-graph-wasm");
+    const wasm: any = await import("@vizij/node-graph");
     wasm.__setMode?.("fail");
 
     const spec = { nodes: [], edges: [] };
@@ -166,7 +166,7 @@ describe("GraphProvider readiness", () => {
 
   it("does not resolve readiness after unmount", async () => {
     let resolveCreate: ((graph: any) => void) | null = null;
-    const wasm: any = await import("@vizij/node-graph-wasm");
+    const wasm: any = await import("@vizij/node-graph");
     wasm.createGraph.mockImplementation(
       () =>
         new Promise((resolve) => {

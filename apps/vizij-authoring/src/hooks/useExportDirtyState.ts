@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type {
   AnimatableComponent,
   AnimatableValue,

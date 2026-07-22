@@ -2,7 +2,7 @@ import { act, useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { createRoot } from "react-dom/client";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
 import {
   createGraphRuntimeStore,

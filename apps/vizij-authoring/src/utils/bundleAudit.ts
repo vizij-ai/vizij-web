@@ -1,6 +1,6 @@
 import type { VizijBundleExtension } from "@vizij/render";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
-import { normalizeGraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
+import { normalizeGraphSpec } from "@vizij/node-graph";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import type { GraphDiffResult } from "../types/discrepancy";
 import { diffGraphSpecs } from "./graphDiff";

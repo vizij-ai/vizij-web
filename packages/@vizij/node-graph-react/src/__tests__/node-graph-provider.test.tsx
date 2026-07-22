@@ -2,7 +2,7 @@ import React from "react";
 import type { FC } from "react";
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import type { EvalResult, GraphSpec } from "@vizij/node-graph-wasm";
+import type { EvalResult, GraphSpec } from "@vizij/node-graph";
 
 type MockGraphInstance = {
   loadGraph: Mock;
@@ -14,7 +14,7 @@ type MockGraphInstance = {
 
 const graphInstances: MockGraphInstance[] = [];
 
-vi.mock("@vizij/node-graph-wasm", () => {
+vi.mock("@vizij/node-graph", () => {
   const evalResult: EvalResult = {
     nodes: {
       const: {

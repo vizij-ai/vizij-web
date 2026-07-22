@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
 import { buildPoseGraphSpecFromIr } from "./graphBuilder";
 import type { PoseDiagnostic, PoseRigConfigFile } from "./types";

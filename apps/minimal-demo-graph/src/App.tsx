@@ -16,7 +16,7 @@ import {
   useGraphOutputs,
   samples as graphSamples,
 } from "@vizij/node-graph-react";
-import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph-wasm";
+import type { GraphSpec, ValueJSON, ShapeJSON } from "@vizij/node-graph";
 import {
   fromAroraValueJSON,
   isNormalizedValue,

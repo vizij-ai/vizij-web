@@ -1,4 +1,4 @@
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import type {
   AnimatableValue,
   RawValue,
@@ -19,7 +19,7 @@ import {
   resolveStandardRigInputId,
 } from "@vizij/utils";
 import { SELF_BINDING_ID } from "@vizij/utils";
-import { nodeRegistryVersion } from "@vizij/node-graph-wasm/metadata";
+import { nodeRegistryVersion } from "@vizij/node-graph/metadata";
 import type { BindingMap } from "./state";
 import {
   ensureBindingStructure,

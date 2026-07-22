@@ -2,7 +2,7 @@
 import type { FC } from "react";
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
-import { init as initNodeGraphWasm } from "@vizij/node-graph-wasm";
+import { init as initNodeGraphWasm } from "@vizij/node-graph";
 import {
   GraphProvider,
   useGraphRuntime,

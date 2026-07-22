@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { loadNodeGraphSpec } from "@vizij/node-graph-wasm";
+import { loadNodeGraphSpec } from "@vizij/node-graph";
 import { useEditorStore } from "./useEditorStore";
 
 let WEIGHTED_BLEND_FIXTURE: unknown;

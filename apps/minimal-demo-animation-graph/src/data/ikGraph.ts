@@ -1,4 +1,4 @@
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { ikPaths, JOINT_IDS, JOINT_SAMPLES } from "./ikAnimation";
 import { sampleUrdf } from "./urdf-samples/sampleUrdf";
 

@@ -33,7 +33,7 @@ export default defineConfig(async () => ({
       ignored: [
         "**/src-tauri/**",
         "**/node_modules/**",
-        "!**/node_modules/@vizij/node-graph-wasm/**",
+        "!**/node_modules/@vizij/node-graph/**",
         "!**/node_modules/@vizij/node-graph-react/**",
         "!**/node_modules/@vizij/node-graph-authoring/**",
         "!**/node_modules/@vizij/render/**",
@@ -51,7 +51,7 @@ export default defineConfig(async () => ({
   },
   optimizeDeps: {
     exclude: [
-      "@vizij/node-graph-wasm",
+      "@vizij/node-graph",
       "@vizij/runtime",
       "@vizij/animation-module",
     ],

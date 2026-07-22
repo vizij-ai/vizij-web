@@ -1,6 +1,6 @@
 /**
  * Shared types for @vizij/node-graph-react
- * These bridge to @vizij/node-graph-wasm type exports and add local runtime types.
+ * These bridge to @vizij/node-graph type exports and add local runtime types.
  */
 import type { ReactNode } from "react";
 import type {
@@ -13,7 +13,7 @@ import type {
   PortSnapshot,
   InitInput,
   Registry,
-} from "@vizij/node-graph-wasm";
+} from "@vizij/node-graph";
 
 /* Playback types */
 export type PlaybackMode = "manual" | "raf" | "interval" | "timecode";

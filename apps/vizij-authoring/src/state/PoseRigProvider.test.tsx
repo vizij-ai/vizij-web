@@ -6,7 +6,7 @@ import { PoseRigProvider } from "./PoseRigProvider";
 
 const mockNormalizeGraphSpec = vi.fn(async (spec: unknown) => spec);
 
-vi.mock("@vizij/node-graph-wasm", () => ({
+vi.mock("@vizij/node-graph", () => ({
   normalizeGraphSpec: (spec: unknown) => mockNormalizeGraphSpec(spec),
 }));
 

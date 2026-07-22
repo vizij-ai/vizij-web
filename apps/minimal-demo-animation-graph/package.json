@@ -22,7 +22,7 @@
     "@vizij/minimal-demo-ui": "workspace:*",
     "@vizij/value-json": "^0.2.0",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph-wasm": "^0.7.0",
+    "@vizij/node-graph": "^0.7.0",
     "@vizij/utils": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

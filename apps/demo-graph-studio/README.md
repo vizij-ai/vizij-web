@@ -1,7 +1,7 @@
 # demo-graph-studio
 
 > **Work-in-progress Vizij node graph editor.**  
-> Provides a developer-facing canvas for building GraphSpecs using `@vizij/node-graph-react` and `@vizij/node-graph-wasm`.
+> Provides a developer-facing canvas for building GraphSpecs using `@vizij/node-graph-react` and `@vizij/node-graph`.
 
 ---
 
@@ -19,7 +19,7 @@
 
 - Built with Vite + React + React Flow.
 - Stores graph state in a Zustand editor store capable of exporting/importing normalised `GraphSpec` JSON.
-- Integrates with the node registry provided by `@vizij/node-graph-wasm` for palette metadata.
+- Integrates with the node registry provided by `@vizij/node-graph` for palette metadata.
 - Still under active development—expect missing polish and advanced tooling.
 
 ---

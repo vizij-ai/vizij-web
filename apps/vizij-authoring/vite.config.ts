@@ -68,7 +68,7 @@ export default defineConfig(({ mode }) => {
           "**/node_modules/**",
           "!**/node_modules/@vizij/animation/**",
           "!**/node_modules/@vizij/animation-react/**",
-          "!**/node_modules/@vizij/node-graph-wasm/**",
+          "!**/node_modules/@vizij/node-graph/**",
           "!**/node_modules/@vizij/node-graph-react/**",
           "!**/node_modules/@vizij/node-graph-authoring/**",
         ],
@@ -81,7 +81,7 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       exclude: [
         "@vizij/animation",
-        "@vizij/node-graph-wasm",
+        "@vizij/node-graph",
         "@vizij/runtime",
         "@vizij/animation-module",
       ],

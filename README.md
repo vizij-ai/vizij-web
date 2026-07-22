@@ -2,7 +2,7 @@
 
 > **TypeScript packages, React integrations, and demo applications that showcase Vizij’s real-time animation platform.**
 
-This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation` and `@vizij/node-graph-wasm` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
+This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation` and `@vizij/node-graph` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
 
 ---
 
@@ -186,7 +186,7 @@ When you need edits from the Rust workspace:
 
    ```bash
    # link a subset
-   pnpm run wasm:link -- --pkgs "node-graph-wasm runtime"
+   pnpm run wasm:link -- --pkgs "node-graph runtime"
    # or link everything
    pnpm run wasm:link -- --pkgs all
 

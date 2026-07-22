@@ -12,6 +12,6 @@ Lightweight node-graph playground that exercises staging behaviour, input editor
 
 ## Integration Tips
 
-- Keep sample graph specs (`src/data`) in sync with `@vizij/node-graph-wasm`.
+- Keep sample graph specs (`src/data`) in sync with `@vizij/node-graph`.
 - Validate UI tweaks with both play and pause modes; the demo intentionally exercises continuous re-staging.
 - Update README tables/sections when adding new panels or input types.

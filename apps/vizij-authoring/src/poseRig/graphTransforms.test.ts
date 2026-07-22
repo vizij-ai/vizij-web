@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 import { remapPoseGraphInputIds } from "./graphTransforms";
 
 function buildRecord(values: Record<string, number>) {

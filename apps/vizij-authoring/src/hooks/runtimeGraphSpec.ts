@@ -1,5 +1,5 @@
 import type { BuildGraphResult } from "@vizij/node-graph-authoring";
-import type { GraphSpec } from "@vizij/node-graph-wasm";
+import type { GraphSpec } from "@vizij/node-graph";
 
 let lastIrCompileWarningSignature: string | null = null;
 
