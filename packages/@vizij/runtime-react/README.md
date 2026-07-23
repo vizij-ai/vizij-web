@@ -159,7 +159,9 @@ whole-spec replace, not an incremental `apply(GraphDiff)`. The Vizij node graph
 rejects diffs and treats every edit as a `load` (see
 [`vizij-arora-behavior/docs/node-graph.md`](https://github.com/vizij-ai/vizij-rs/blob/main/crates/interop/vizij-arora-behavior/docs/node-graph.md)).
 The device, its store, and its loaded module set are untouched across the swap;
-the device is rebuilt only when the **module set** itself changes.
+the device is rebuilt only when the **module set** itself changes. Stateful
+nodes keep their state across the swap too — springs, dampers, and the graph
+clock carry over, so a program starting or stopping does not reset them.
 
 ### Animations and the device
 
