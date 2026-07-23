@@ -365,7 +365,7 @@ export function useWebSocketSync() {
     let flushTimer: number | null = null;
     let cancelled = false;
 
-    // Internal keys stay device-side: arora's golden keys (`arora/…`) and the
+    // Internal keys stay device-side: arora's built-in keys (`arora/…`) and the
     // animation module's per-tick out-blob. Everything else publishes under
     // the canonical store key (leading slash stripped, "//" collapsed,
     // namespace dropped) — raw aliases yield empty Zenoh chunks once the

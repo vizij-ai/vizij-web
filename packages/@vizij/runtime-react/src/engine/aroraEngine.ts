@@ -14,7 +14,7 @@
  * a live device cannot change is its **module set** — modules load at device
  * build — so a recompose that finds the slot's modules changed since boot
  * rebuilds the device, carrying the store across (snapshot minus the
- * runtime-owned `arora/*` golden keys). Boots wait for modules a
+ * runtime-owned `arora/*` built-in keys). Boots wait for modules a
  * `waitForModules` promise announces, so the supported flows never hit that
  * rebuild.
  *
@@ -37,10 +37,10 @@ import {
 export type { RuntimeModule };
 
 /** Store keys owned by the arora runtime itself (frame clock etc.). */
-const GOLDEN_PREFIX = "arora/";
+const BUILT_IN_PREFIX = "arora/";
 
-export function isGoldenPath(path: string): boolean {
-  return path.startsWith(GOLDEN_PREFIX);
+export function isBuiltInPath(path: string): boolean {
+  return path.startsWith(BUILT_IN_PREFIX);
 }
 
 /**
@@ -178,7 +178,7 @@ export class DeviceSlot {
   /**
    * Rebuild the device because its module set changed since boot — the one
    * change a live device cannot take. Carries the store across (snapshot
-   * minus golden keys) and replays module setup via `onDeviceStarted`. The
+   * minus built-in keys) and replays module setup via `onDeviceStarted`. The
    * old device's wrapper is freed; if it was self-paced its loop keeps
    * ticking unreachable — which is why boots wait for announced modules
    * instead of leaning on this path.
@@ -189,7 +189,7 @@ export class DeviceSlot {
   ): Promise<DeviceHandle> {
     const carried: Record<string, ValueJSON> = {};
     for (const [path, value] of Object.entries(old.device.snapshot())) {
-      if (!isGoldenPath(path)) {
+      if (!isBuiltInPath(path)) {
         carried[path] = value;
       }
     }
