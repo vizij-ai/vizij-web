@@ -152,6 +152,15 @@ The device runs **one** graph, composed from several sources
 Sources are namespaced by id (`source::node`) so nodes can't collide;
 **store paths are deliberately shared** — that is the cross-source contract.
 
+**How a change reaches the device.** When the composition changes — a program
+starts or stops, the rig or a source is swapped — the new composed spec is
+installed **in place** through the behavior interpreter's `loadGraph`: a
+whole-spec replace, not an incremental `apply(GraphDiff)`. The Vizij node graph
+rejects diffs and treats every edit as a `load` (see
+[`vizij-arora-behavior/docs/node-graph.md`](https://github.com/vizij-ai/vizij-rs/blob/main/crates/interop/vizij-arora-behavior/docs/node-graph.md)).
+The device, its store, and its loaded module set are untouched across the swap;
+the device is rebuilt only when the **module set** itself changes.
+
 ### Animations and the device
 
 Playback lives inside the device, end to end. Clips load into the animation
