@@ -33,8 +33,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.2",
     "typescript": "^5.5.0",
-    "vite": "^6.3.6",
-    "vitest": "^3.2.4",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7",
     "prettier": "^3.4.2",
     "@testing-library/dom": "^10.4.1"
   }
