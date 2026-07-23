@@ -5,7 +5,7 @@
  * The module's declared ABI (ids from its `module.yaml` and type records,
  * version 0.2.0) is mirrored here as constants:
  * - setup — `load_animation` / `create_player` / `add_instance`;
- * - per tick — `step(dt_ns)` (fed the runtime's golden `arora/dt`),
+ * - per tick — `step(dt_ns)` (fed the runtime's built-in `arora/dt`),
  *   returning `[TrackOutput]`: per-track identity plus the track's authored
  *   default key and sampled value. The device graph applies the batch onto
  *   its keys via a path-less `output` node (`key_field`/`value_field`), so
@@ -454,7 +454,7 @@ export function callResultU32(result: { ret: unknown }): number | null {
 
 /**
  * Store path the animations source writes the module's per-tick
- * `[PlayerState]` feedback to. Not an `arora/` golden key, so it carries
+ * `[PlayerState]` feedback to. Not an `arora/` built-in key, so it carries
  * across device restarts like any other store value.
  */
 export const ANIMATION_PLAYERS_PATH = "vizij/animations/players";
@@ -468,7 +468,7 @@ export const ANIMATIONS_SOURCE_ID = "animations";
 /**
  * The graph source that makes the animation module tick **inside the
  * device**: an `ExternalFunction` node calls the module's `step` every
- * device tick, fed the runtime's golden `arora/dt` (nanoseconds), and a
+ * device tick, fed the runtime's built-in `arora/dt` (nanoseconds), and a
  * path-less `output` node applies the returned `[TrackOutput]` batch onto
  * the store keys each record names (`default_key` — the final rig paths,
  * decided at clip load). A second `ExternalFunction` node writes the

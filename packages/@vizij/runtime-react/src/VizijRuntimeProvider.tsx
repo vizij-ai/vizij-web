@@ -18,7 +18,7 @@ import {
   DeviceSlot,
   RUN_PERIOD_MS,
   ensureWasmInit,
-  isGoldenPath,
+  isBuiltInPath,
 } from "./engine/aroraEngine";
 import { composeGraphSpecs, type GraphSource } from "./utils/composeGraph";
 import type {
@@ -1459,7 +1459,7 @@ function VizijRuntimeProviderInner({
    *   editor publishes its graph as a program so it evaluates on the device.
    * - **animations** — a single source (`animationsGraphSource`) registered
    *   whenever any clip is playing: an `ExternalFunction` node that steps the
-   *   animation module every device tick off the golden `arora/dt`. Clips
+   *   animation module every device tick off the built-in `arora/dt`. Clips
    *   register into the module as data (via the call surface) with their
    *   final store keys resolved at load, the module samples them inside the
    *   device, and the source's path-less `output` node applies the sampled
@@ -2661,7 +2661,7 @@ function VizijRuntimeProviderInner({
       const baseOutputs = baseOutputPathsRef.current;
       entries.forEach(([changedPath, changedValue]) => {
         // Cleared keys don't render; the runtime's clock keys never do.
-        if (changedValue === null || isGoldenPath(changedPath)) {
+        if (changedValue === null || isBuiltInPath(changedPath)) {
           return;
         }
         const path = normalisePath(changedPath);

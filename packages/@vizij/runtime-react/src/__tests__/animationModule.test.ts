@@ -270,7 +270,7 @@ describe("call builders", () => {
 });
 
 describe("animationsGraphSource", () => {
-  it("steps the module off the golden dt and applies the batch onto its keys", () => {
+  it("steps the module off the built-in dt and applies the batch onto its keys", () => {
     const source = animationsGraphSource();
     expect(source.sourceId).toBe(ANIMATIONS_SOURCE_ID);
     const nodes = source.spec.nodes as Array<{
