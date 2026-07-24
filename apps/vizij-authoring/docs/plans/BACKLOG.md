@@ -8,7 +8,7 @@ This backlog is organized by semantic block, then by dependency order inside eac
 
 ## Critical Path (Current)
 
-1. `G7.1` -> `G7.2` -> `G7.3` -> `G7.4` -> `G7.5` (animation/orchestrator unification lane).
+1. `G7.1` -> `G7.2` -> `G7.3` -> `G7.4` -> `G7.5` (animation/runtime unification lane).
 2. `U8.1` -> `U8.2` -> `U8.3` -> `U8.4` (workspace clarity + visual consistency lane).
 3. `V9.1` -> `V9.2` -> `V9.3` (sample GLB + standard-rig finalization lane).
 4. `R6.5` can execute in parallel with `G7.*` once transport contracts are stable.
@@ -901,9 +901,9 @@ Acceptance checks:
 2. Copy sessions emit auditable summary records (operation type, source, destination, unresolved count, final action).
 3. SOP and implementation-plan docs reflect the finalized thresholds and logging behavior.
 
-## Block G — Animation + Orchestrator Unification
+## Block G — Animation + Runtime Unification
 
-Wave sequencing for this block is tracked in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md`.
+This lane is delivered end-to-end; its design contract now lives in the app README (`../../README.md` — "Animation authoring is runtime-truthful too"), which links on to the runtime/transport/interpolation detail in `@vizij/runtime-react`.
 
 ### [x] G7.1 Playback Authority Contract Lock
 
@@ -919,7 +919,7 @@ Dependencies / blockers:
 
 Intent:
 
-- Lock orchestrator-authoritative playback contract for authoring (`stage inputs -> step orchestrator -> apply merged writes`).
+- Lock runtime-authoritative playback contract for authoring (`stage inputs -> step the runtime -> apply merged writes`).
 
 Acceptance checks:
 
@@ -927,7 +927,7 @@ Acceptance checks:
 2. Path normalization and namespacing boundaries are explicitly defined.
 3. Baseline playback observability metrics are captured.
 
-### [x] G7.2 Transport Cutover to Orchestrator
+### [x] G7.2 Transport Cutover to the Runtime
 
 Priority and why this should still be done:
 
@@ -941,11 +941,11 @@ Dependencies / blockers:
 
 Intent:
 
-- Route play/pause/scrub/stop through orchestrator transport and remove local-authority playback path.
+- Route play/pause/scrub/stop through runtime transport and remove local-authority playback path.
 
 Acceptance checks:
 
-1. Timeline preview output is generated through orchestrator frame stepping.
+1. Timeline preview output is generated through runtime frame stepping.
 2. Legacy local playback path is removed from active runtime flow.
 3. Playback controls are wired to runtime behavior (no no-op transport stubs).
 
@@ -963,7 +963,7 @@ Dependencies / blockers:
 
 Intent:
 
-- Add first-class `AnimationClipIR` and compile it into orchestrator-compatible animation source graphs/controllers.
+- Add first-class `AnimationClipIR` and compile it into runtime-compatible animation source graphs/controllers.
 
 Acceptance checks:
 
@@ -998,7 +998,7 @@ Acceptance checks:
 Priority and why this should still be done:
 
 - Level: `P1`
-- Why: Runtime/orchestrator lifecycle should not mount/unmount with panel visibility toggles.
+- Why: Runtime lifecycle should not mount/unmount with panel visibility toggles.
 
 Dependencies / blockers:
 
@@ -1219,12 +1219,12 @@ Acceptance checks:
 2. No direct Polly coupling in authoring UI components.
 3. Adapter-level tests cover request/response normalization.
 
-### [ ] P10.2 Viseme-to-Rig Mapping Through Orchestrator
+### [ ] P10.2 Viseme-to-Rig Mapping Through the Runtime
 
 Priority and why this should still be done:
 
 - Level: `P1`
-- Why: Viseme playback must use the same orchestrator input path as authored animation/pose controls.
+- Why: Viseme playback must use the same runtime input path as authored animation/pose controls.
 
 Dependencies / blockers:
 
@@ -1233,7 +1233,7 @@ Dependencies / blockers:
 
 Intent:
 
-- Map speech viseme events into standard rig/pose channels and stage through orchestrator transport.
+- Map speech viseme events into standard rig/pose channels and stage through runtime transport.
 
 Acceptance checks:
 

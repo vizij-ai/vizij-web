@@ -22,6 +22,17 @@ In practice, authoring uses runtime-react in more advanced ways than the simpler
 
 See [`src/components/app/Viewer.tsx`](./src/components/app/Viewer.tsx) and [`src/components/app/ReferenceFaceRuntime.tsx`](./src/components/app/ReferenceFaceRuntime.tsx).
 
+### Animation authoring is runtime-truthful too
+
+The same principle governs the timeline: authoring stages intent, the runtime is the single playback authority. There is no separate preview stepper.
+
+- **UI stages intent only.** Transport actions (`play`/`pause`/`seek`/`stop`/`loop`/`speed`/`step`) drive the device's clip transport; the panel never runs its own RAF evaluation or writes render state directly. The face you preview is the merged runtime output the device produces — the same output a downstream player sees.
+- **Clips are compiled sources, not a side channel.** Authored clips compile to a deterministic clip IR (stable ids/order, deduped keyframes) and load into the device's animation module as data, so they are sampled _inside_ the device alongside the rig/pose/program graphs — see [`@vizij/runtime-react` › Animations and the device](../../packages/@vizij/runtime-react/README.md#animations-and-the-device). Interpolation (`linear`/`step`/`cubic`) is the runtime's, not a UI approximation.
+- **Export/import round-trips.** Authored clips serialize into the bundle's `animations[]` and re-import into the same authoring state, so what you author, preview, and export cannot drift.
+- **Runtime lifecycle is decoupled from panels.** The timeline runtime is always-mounted; showing or hiding the timeline panel does not mount/unmount the device or reset its state.
+
+Speech-driven playback (viseme channels fed from a synthesis provider such as Amazon Polly) is a planned extension along the same seam — a provider stages viseme events onto standard rig/pose channels; it does not add a second playback authority.
+
 ## Core Workflows
 
 - load a local GLB, URL, bundled GLB, or imported graph payload

@@ -185,11 +185,11 @@ Current status:
 
 - `planned`
 
-## Stage 6 — Animation + Orchestrator Unification (Wave-Based)
+## Stage 6 — Animation + Runtime Unification (Wave-Based)
 
 Objective:
 
-- Eliminate split playback paths and make animation authoring/playback orchestrator-authoritative and exportable.
+- Eliminate split playback paths and make animation authoring/playback runtime-authoritative and exportable.
 
 Backlog scope:
 
@@ -197,11 +197,11 @@ Backlog scope:
 
 Execution model:
 
-- Wave-based phases captured in `plans/ANIMATION_ORCHESTRATOR_INTEGRATION_PLAN.md` (`Wave 0` through `Wave 5`).
+- Delivered as the `G7.*` lane; the design contract now lives in the app README (`../../README.md` — "Animation authoring is runtime-truthful too").
 
 Exit gate:
 
-1. Playback authority is unified under orchestrator (`setInput` + `merged_writes` contract).
+1. Playback authority is unified under the runtime (`setInput` + `merged_writes` contract).
 2. Authored clip IR compiles deterministically and round-trips through export/import.
 3. Timeline preview, runtime playback, and exported behavior remain aligned.
 
@@ -255,7 +255,7 @@ Current status:
 
 Objective:
 
-- Add speech playback + viseme drive through orchestrator in a provider-based architecture.
+- Add speech playback + viseme drive through the runtime in a provider-based architecture.
 
 Backlog scope:
 
@@ -263,7 +263,7 @@ Backlog scope:
 
 Exit gate:
 
-1. Polly adapter drives viseme channels through orchestrator input staging.
+1. Polly adapter drives viseme channels through runtime input staging.
 2. Provider abstraction allows future non-Polly speech backends.
 3. Speech/viseme sync diagnostics and tests are in place.
 
