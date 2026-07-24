@@ -33,6 +33,7 @@ import {
   type ValueJSON,
   type InitInput,
 } from "@vizij/runtime";
+import { graphSpecDiff } from "./graphSpecDiff";
 
 export type { RuntimeModule };
 
@@ -223,7 +224,22 @@ export class DeviceSlot {
       if (old.spec === spec) {
         return old;
       }
-      await old.device.loadGraph(spec);
+      // Patch the running graph with just the delta, so nodes the edit didn't
+      // touch keep their runtime state (VIZ-79). A `null` diff means the two
+      // specs are structurally identical (nothing to do); a failed apply falls
+      // back to a whole-graph load.
+      const edits = graphSpecDiff(old.spec, spec);
+      if (edits) {
+        try {
+          await old.device.applyGraphEdits(edits);
+        } catch (err) {
+          console.warn(
+            "[vizij-runtime] applyGraphEdits failed; reloading the whole graph",
+            err,
+          );
+          await old.device.loadGraph(spec);
+        }
+      }
       old.spec = spec;
       return old;
     });
