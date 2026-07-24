@@ -153,15 +153,19 @@ Sources are namespaced by id (`source::node`) so nodes can't collide;
 **store paths are deliberately shared** — that is the cross-source contract.
 
 **How a change reaches the device.** When the composition changes — a program
-starts or stops, the rig or a source is swapped — the new composed spec is
-installed **in place** through the behavior interpreter's `loadGraph`: a
-whole-spec replace, not an incremental `apply(GraphDiff)`. The Vizij node graph
-rejects diffs and treats every edit as a `load` (see
+starts or stops, the rig or a source is swapped — the runtime diffs the old and
+new composed specs and **patches the running graph in place** through the
+behavior interpreter's `apply(GraphDiff)`: only the nodes and edges the change
+touched are re-installed (VIZ-79). A structurally empty diff is a no-op; if a
+patch ever fails the runtime falls back to a whole-spec `loadGraph`. The Vizij
+node graph is a full behavior interpreter — it accepts both an incremental
+`apply(GraphDiff)` and a whole `load` (see
 [`vizij-arora-behavior/docs/node-graph.md`](https://github.com/vizij-ai/vizij-rs/blob/main/crates/interop/vizij-arora-behavior/docs/node-graph.md)).
-The device, its store, and its loaded module set are untouched across the swap;
-the device is rebuilt only when the **module set** itself changes. Stateful
-nodes keep their state across the swap too — springs, dampers, and the graph
-clock carry over, so a program starting or stopping does not reset them.
+The device, its store, and its loaded module set are untouched across the
+change; the device is rebuilt only when the **module set** itself changes.
+Stateful nodes keep their state too — springs, dampers, and the graph clock
+carry over, and a node the edit didn't touch keeps its integration state, so a
+program starting or stopping (or an unrelated edit) does not reset it.
 
 ### Animations and the device
 
