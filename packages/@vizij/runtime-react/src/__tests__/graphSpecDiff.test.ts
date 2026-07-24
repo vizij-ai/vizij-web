@@ -6,7 +6,11 @@ const constant = (id: string, value: number) => ({
   type: "constant",
   params: { value: { f32: value } },
 });
-const output = (id: string, path: string) => ({ id, type: "output", params: { path } });
+const output = (id: string, path: string) => ({
+  id,
+  type: "output",
+  params: { path },
+});
 const edge = (from: string, to: string, input: string, selector?: unknown) => ({
   from: { node_id: from, output: "out" },
   to: { node_id: to, input },
@@ -20,8 +24,14 @@ describe("graphSpecDiff", () => {
   });
 
   it("is order-insensitive for node keys", () => {
-    const a = { nodes: [{ id: "a", type: "constant", params: { value: { f32: 1 } } }], edges: [] };
-    const b = { nodes: [{ params: { value: { f32: 1 } }, type: "constant", id: "a" }], edges: [] };
+    const a = {
+      nodes: [{ id: "a", type: "constant", params: { value: { f32: 1 } } }],
+      edges: [],
+    };
+    const b = {
+      nodes: [{ params: { value: { f32: 1 } }, type: "constant", id: "a" }],
+      edges: [],
+    };
     expect(graphSpecDiff(a, b)).toBeNull();
   });
 
@@ -55,10 +65,15 @@ describe("graphSpecDiff", () => {
       edges: [edge("a", "out", "in")],
     };
     const diff = graphSpecDiff(prev, next)!;
-    expect(new Set(diff.upsert_nodes.map((n) => n.id))).toEqual(new Set(["a", "out"]));
+    expect(new Set(diff.upsert_nodes.map((n) => n.id))).toEqual(
+      new Set(["a", "out"]),
+    );
     // The upserted nodes are removed then re-added, so the edge must ride along.
     expect(diff.upsert_edges).toHaveLength(1);
-    expect(diff.upsert_edges[0].to).toMatchObject({ node_id: "out", input: "in" });
+    expect(diff.upsert_edges[0].to).toMatchObject({
+      node_id: "out",
+      input: "in",
+    });
   });
 
   it("removing an edge whose endpoints survive reflects it via the upsert, not remove_edges", () => {
@@ -70,7 +85,9 @@ describe("graphSpecDiff", () => {
     const diff = graphSpecDiff(prev, next)!;
     // The edge change upserts its endpoints; `out` (removed+re-added) carries
     // only its surviving incident edges (none) — no explicit unwiring needed.
-    expect(new Set(diff.upsert_nodes.map((n) => n.id))).toEqual(new Set(["a", "out"]));
+    expect(new Set(diff.upsert_nodes.map((n) => n.id))).toEqual(
+      new Set(["a", "out"]),
+    );
     expect(diff.upsert_edges).toEqual([]);
     expect(diff.remove_edges).toEqual([]);
   });
@@ -83,7 +100,13 @@ describe("graphSpecDiff", () => {
     };
     const next = {
       nodes: [constant("a", 1), output("out", "x/y")],
-      edges: [edge("a", "out", "in", [{ field: "layers" }, { index: 1 }, { field: "gain" }])],
+      edges: [
+        edge("a", "out", "in", [
+          { field: "layers" },
+          { index: 1 },
+          { field: "gain" },
+        ]),
+      ],
     };
     const diff = graphSpecDiff(prev, next)!;
     expect(diff.upsert_edges).toHaveLength(1);

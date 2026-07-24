@@ -93,7 +93,10 @@ function edgeKey(edge: EdgeRecord): string {
  * identical (nothing to apply). Nodes/edges without a usable id are skipped
  * (the caller falls back to a whole-graph load if it needs those).
  */
-export function graphSpecDiff(prev: SpecLike, next: SpecLike): GraphSpecDiff | null {
+export function graphSpecDiff(
+  prev: SpecLike,
+  next: SpecLike,
+): GraphSpecDiff | null {
   const prevNodes = new Map<string, NodeRecord>();
   for (const node of asRecords<NodeRecord>(prev.nodes)) {
     const id = nodeId(node);
@@ -134,7 +137,10 @@ export function graphSpecDiff(prev: SpecLike, next: SpecLike): GraphSpecDiff | n
   const incidentToUpsert = (edge: EdgeRecord): boolean => {
     const from = endpointId(edge.from);
     const to = endpointId(edge.to);
-    return (from !== undefined && upsertIds.has(from)) || (to !== undefined && upsertIds.has(to));
+    return (
+      (from !== undefined && upsertIds.has(from)) ||
+      (to !== undefined && upsertIds.has(to))
+    );
   };
 
   const upsert_nodes = [...upsertIds].map((id) => nextNodes.get(id)!);
