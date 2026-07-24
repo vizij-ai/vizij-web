@@ -16,9 +16,13 @@ interface SpecNode {
   params?: Record<string, unknown>;
 }
 
+/** A field/index traversal read from the source value before delivery (VIZ-79). */
+type SelectorSegment = { field: string } | { index: number };
+
 interface SpecEdge {
   from: { node_id: string; output?: string };
   to: { node_id: string; input: string };
+  selector?: SelectorSegment[];
 }
 
 /* ── Result ────────────────────────────────────────────────────────── */
@@ -166,6 +170,12 @@ export function specToEditorState(
       target: se.to.node_id,
       sourceHandle: sourceHandle ?? undefined,
       targetHandle,
+      // Preserve an edge selector (a field/index read of the source value)
+      // across import → edit → export, so editing a graph that has one no
+      // longer drops it (VIZ-79).
+      ...(se.selector && se.selector.length > 0
+        ? { data: { selector: se.selector } }
+        : {}),
     });
   }
 
