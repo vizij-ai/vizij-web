@@ -18,9 +18,13 @@ type SpecNode = {
   params?: Record<string, unknown>;
 };
 
+/** A field/index traversal read from the source value before delivery (VIZ-79). */
+type SelectorSegment = { field: string } | { index: number };
+
 type SpecEdge = {
   from: { node_id: string; output?: string };
   to: { node_id: string; input: string };
+  selector?: SelectorSegment[];
 };
 
 export interface BuiltGraphSpec {
@@ -216,7 +220,7 @@ function buildGraphSpecInternal(
       from.output = resolvedSourceHandle;
     }
 
-    specEdges.push({
+    const specEdge: SpecEdge = {
       from,
       to: {
         node_id: edge.target,
@@ -225,7 +229,14 @@ function buildGraphSpecInternal(
           edge.targetHandle,
         ),
       },
-    });
+    };
+    // Emit an edge selector the editor preserved on `edge.data` (VIZ-79).
+    const selector = (edge.data as { selector?: SelectorSegment[] } | undefined)
+      ?.selector;
+    if (Array.isArray(selector) && selector.length > 0) {
+      specEdge.selector = selector;
+    }
+    specEdges.push(specEdge);
   }
 
   // 5. Synthesize implicit Constant nodes for unconnected input ports
