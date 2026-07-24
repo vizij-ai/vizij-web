@@ -16,7 +16,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 8. Import Migration Plan integration remains tracked as Block `F5.*` in `plans/BACKLOG.md` with dependency-ordered execution and quality-gate linkage (`QL0.*`, `QL2.*`).
 9. Pose Group + Stage Inspector sprint has started with commit-sized `S0`-`S7` execution tracking in `plans/POSE_GROUP_STAGE_INSPECTOR_SPRINT_PLAN.md` (scope: scoped neutral authoring + stage inspector + composition-output analysis).
 10. Reference-face reliability tranche `R6.1`-`R6.4` is complete (path-first staging, legacy pose-control bridge compatibility, export guardrails, and reset normalization); `R6.5` remains open for perf thresholds + session audit logging.
-11. Animation/orchestrator unification lane (`G7.*`) is implemented end-to-end on the authoring/runtime path (runtime-authoritative transport, deterministic IR/compiler, interpolation, and export/import round-trip).
+11. Animation/runtime unification lane (`G7.*`) is implemented end-to-end on the authoring/runtime path (runtime-authoritative transport, deterministic IR/compiler, interpolation, and export/import round-trip).
 12. Workspace clarity lane (`U8.*`) is planned, including motion graph sidebar migration and graph-first workspace reclaim.
 13. Sample asset standardization lane (`V9.*`) is planned for Quori/Toasty + Vizij standard-rig coverage.
 14. Speech/viseme extension lane (`P10.*`, Amazon Polly) is captured as the top post-core backlog lane.
@@ -74,7 +74,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 | V9.2  | planned | P0       | Define and validate Vizij standard-rig coverage for sample assets.                                                                                                      |
 | V9.3  | planned | P1       | Add sample fixture matrix + CI gates for sample import/playback/export contracts.                                                                                       |
 | P10.1 | planned | P1       | Add speech provider abstraction and Amazon Polly adapter.                                                                                                               |
-| P10.2 | planned | P1       | Map viseme events to rig channels through orchestrator input staging.                                                                                                   |
+| P10.2 | planned | P1       | Map viseme events to rig channels through runtime input staging.                                                                                                        |
 | P10.3 | planned | P2       | Add speech/viseme timing diagnostics and quality gates.                                                                                                                 |
 
 ## Import Migration Integration Board
@@ -121,7 +121,7 @@ Status legend: `done`, `in_progress`, `planned`, `blocked`, `deferred`
 4. Risk: Reference-face workflow now passes functional correctness checks, but dual-face perf gates and session-level audit summaries are not yet formalized.
    - Mitigation: close `R6.5` with reproducible threshold docs and copy-session summary emission before declaring final workflow signoff.
 5. Risk: Animation playback remains split until `G7.2` cutover lands, increasing drift risk between preview and exported behavior.
-   - Mitigation: prioritize `G7.1`/`G7.2` first, gate with orchestrator-authority contract tests and round-trip checks.
+   - Mitigation: prioritize `G7.1`/`G7.2` first, gate with runtime-authority contract tests and round-trip checks.
 6. Risk: Workspace layout migration could regress reference-face and graph editing ergonomics.
    - Mitigation: execute `U8.*` with explicit mode contracts and targeted UX regression tests.
 

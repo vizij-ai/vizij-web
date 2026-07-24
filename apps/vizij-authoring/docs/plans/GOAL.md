@@ -10,16 +10,16 @@ Make `vizij-authoring` the authoritative, runtime-truthful authoring surface for
 ## North Star Outcomes
 
 1. Authored rig + pose state compiles into deterministic runtime-valid graphs.
-2. Authored animation playback runs through the same orchestrator/runtime path used for final output.
+2. Authored animation playback runs through the same runtime path used for final output.
 3. Workspace layout and panel semantics stay clear and consistent for dense authoring sessions.
 4. Import/export flows are deterministic and migration-safe across legacy and current assets.
 5. Canonical sample assets (Quori, Toasty) and Vizij standard-rig mappings are validated.
 6. The development branch stays continuously green (`typecheck`, `lint`, `test`).
-7. Speech/viseme integration is designed as a clean extension path (provider-based, orchestrator-integrated).
+7. Speech/viseme integration is designed as a clean extension path (provider-based, runtime-integrated).
 
 ## Current Program Objective
 
-Hold engineering baseline health while executing wave-based animation/orchestrator integration and workspace clarity priorities.
+Hold engineering baseline health while executing wave-based animation/runtime integration and workspace clarity priorities.
 
 Required gate:
 

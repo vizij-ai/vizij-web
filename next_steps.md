@@ -809,9 +809,9 @@ Reference-face pose playback must not rely on:
 
 Required behavior:
 
-1. Load reference GLB into runtime correctly (full rig/orchestrator setup).
+1. Load reference GLB into runtime correctly (full rig/runtime setup).
 2. Stage canonical pose weight inputs for pose play/reset (`/poses/<poseId>.weight`).
-3. Let runtime graph/orchestration produce motion.
+3. Let the runtime graph produce motion.
 4. Keep driver + pose + reset interactions reliable on reference face.
 
 ### Goal state
