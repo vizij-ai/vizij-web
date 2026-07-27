@@ -2,6 +2,12 @@
 
 `vizij-standalone` is the desktop runtime app. It wraps `@vizij/runtime-react` in a Tauri shell, loads one face bundle at a time, exposes the runtime over local control surfaces, and optionally layers speech behavior on top when the loaded bundle includes `speechConfig`.
 
+## Status: maintenance-only wrapper
+
+The runtime going forward is the native [`vizij`](https://github.com/vizij-ai/vizij-rs/tree/main/crates/vizij) app: it renders the same faces over a natively-hosted arora and composes its bridges — the open local bridge, plus `--ros2` and `--studio` — directly onto the one device. So the store-mirror this Tauri shell maintains between `@vizij/runtime-react` and its Rust side dissolves there: bridges attach to _the_ device instead of mirroring its store ([VIZ-74](https://linear.app/semio-ai/issue/VIZ-74), [VIZ-84](https://linear.app/semio-ai/issue/VIZ-84)).
+
+`vizij-standalone` stays only as an installable desktop wrapper while native packaging (deb/RPM/Android, per the ros-viz-rs recipes) catches up. It gets no further feature investment — fixes only.
+
 ## Current Runtime Flow
 
 At runtime the app:
