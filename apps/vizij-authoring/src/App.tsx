@@ -94,7 +94,10 @@ import {
   buildGlbExportDirtySnapshot,
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
-import { useStandardProfiles } from "./hooks/useStandardProfiles";
+import {
+  embeddedProfileId,
+  useStandardProfiles,
+} from "./hooks/useStandardProfiles";
 import { carriedBundleGraphs } from "./hooks/useVizijExport";
 import {
   getMemoryInvestigationFlags,
@@ -813,6 +816,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     bundleProceduralSnapshotOverrides,
     setBundleProceduralSnapshotOverrides,
   ] = useState<Record<string, ProceduralProgramSnapshot>>({});
+  // The standard profile whose graph currently owns the motiongraph editor
+  // (VIZ-93 edit session), `null` outside a session. While set, the
+  // procedural target machinery must neither hydrate over the profile's
+  // content nor snapshot it into a program — see the guards in
+  // `saveProceduralTarget` and `loadSelectedProceduralTarget`.
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const editingProfileIdRef = useRef<string | null>(null);
+  editingProfileIdRef.current = editingProfileId;
   const [hiddenBundleAnimationTargetIds, setHiddenBundleAnimationTargetIds] =
     useState<Record<string, true>>({});
   const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
@@ -1442,6 +1453,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const saveProceduralTarget = useCallback(
     (targetId: string) => {
+      // A profile edit session owns the editor: its content must never be
+      // snapshotted into a program target.
+      if (editingProfileIdRef.current) {
+        return;
+      }
       const programId = parseAuthoredProceduralTargetValue(targetId);
       if (!programId && !targetId.startsWith(BUNDLE_PROCEDURAL_TARGET_PREFIX)) {
         return;
@@ -2028,6 +2044,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const loadSelectedProceduralTarget = useCallback(
     (targetId: string | null) => {
+      // A profile edit session owns the editor: target changes neither
+      // hydrate over its content nor clear it (apply/discard does).
+      if (editingProfileIdRef.current) {
+        return;
+      }
       if (!targetId) {
         const editorStore = useEditorStore.getState();
         editorStore.clear();
@@ -3952,10 +3973,64 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     toggleProfile: toggleStandardProfile,
     exportProfileJson: exportStandardProfileJson,
     importProfileJson: importStandardProfileJson,
+    replaceProfileSpec: replaceStandardProfileSpec,
   } = useStandardProfiles({
     bundle: loader.bundle,
     updateBundle: loader.updateBundle,
   });
+  const handleEditStandardProfileGraph = useCallback(
+    (profileId: string) => {
+      const entry = (loader.bundle?.graphs ?? []).find(
+        (graph) => embeddedProfileId(graph) === profileId,
+      );
+      if (!entry?.spec) {
+        console.error(`no embedded profile ${profileId} to edit`);
+        return;
+      }
+      // Park the current program's edits exactly like a target switch, then
+      // let the profile session own the editor.
+      if (selectedProceduralTargetId) {
+        saveProceduralTarget(selectedProceduralTargetId);
+      }
+      setSelectedProceduralTargetId(null);
+      const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+      hydrateProceduralEditorState({
+        nodes: parsed.nodes,
+        edges: parsed.edges,
+        enabledOutputs: Array.from(parsed.enabledOutputs),
+        enabledInputs: Array.from(parsed.enabledInputs),
+        customInputPaths: [...parsed.customInputPaths],
+      });
+      setEditingProfileId(profileId);
+      setWorkspacePanelVisibility("motiongraph", true);
+    },
+    [
+      loader.bundle,
+      saveProceduralTarget,
+      selectedProceduralTargetId,
+      setWorkspacePanelVisibility,
+    ],
+  );
+  const applyStandardProfileEdits = useCallback(() => {
+    if (!editingProfileId) {
+      return;
+    }
+    const spec = buildProceduralExportSpec(snapshotProceduralEditorState());
+    replaceStandardProfileSpec(
+      editingProfileId,
+      spec as Record<string, unknown>,
+    );
+    setEditingProfileId(null);
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, [editingProfileId, replaceStandardProfileSpec]);
+  const discardStandardProfileEdits = useCallback(() => {
+    setEditingProfileId(null);
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, []);
   // The profile whose "Replace from JSON..." picker is open — consumed when
   // the hidden input below delivers the chosen file.
   const replaceProfileIdRef = useRef<string | null>(null);
@@ -3990,6 +4065,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }}
       onExportStandardProfileJson={exportStandardProfileJson}
       onReplaceStandardProfileJson={handleReplaceStandardProfileJson}
+      onEditStandardProfileGraph={handleEditStandardProfileGraph}
       onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
       canSave={canExport}
@@ -4401,33 +4477,70 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             }
           />
           <ResizablePanel defaultSize={42} minSize={20}>
-            <MotionGraphPanel
-              onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
-              playbackState={selectedProgramPanelPlaybackState}
-              onPlayTransport={
-                resolvedSelectedProceduralTargetId
-                  ? handlePlayProgramRuntime
-                  : undefined
-              }
-              onPauseTransport={
-                selectedProgramCanPauseOrStop
-                  ? handlePauseProgramRuntime
-                  : undefined
-              }
-              onStopTransport={
-                selectedProgramCanPauseOrStop
-                  ? handleStopProgramRuntime
-                  : undefined
-              }
-              playbackAvailable={Boolean(
-                resolvedSelectedProceduralTargetId &&
-                  selectedProgramRuntimeSnapshot,
-              )}
-              statusMessage={programPanelStatusMessage}
-              splitVertical={motionGraphSplitVertical}
-              onToggleSplit={() => setMotionGraphSplitVertical((prev) => !prev)}
-              onClosePanel={handleHideMotionGraphPanel}
-            />
+            <div className="flex h-full flex-col">
+              {editingProfileId ? (
+                <div
+                  className="flex items-center gap-2 border-b border-border-default bg-bg-secondary px-3 py-1.5 text-xs text-text-secondary"
+                  data-testid="profile-editor-banner"
+                >
+                  <span className="flex-1">
+                    Editing the{" "}
+                    <span className="font-semibold text-text-primary">
+                      {editingProfileId}
+                    </span>{" "}
+                    standard profile — applied to the embedded copy, not a
+                    program.
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded bg-accent-primary px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                    data-testid="profile-editor-apply"
+                    onClick={applyStandardProfileEdits}
+                  >
+                    Apply to Profile
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-border-default px-2 py-1 text-xs hover:bg-bg-hover"
+                    data-testid="profile-editor-discard"
+                    onClick={discardStandardProfileEdits}
+                  >
+                    Discard
+                  </button>
+                </div>
+              ) : null}
+              <div className="min-h-0 flex-1">
+                <MotionGraphPanel
+                  onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
+                  playbackState={selectedProgramPanelPlaybackState}
+                  onPlayTransport={
+                    resolvedSelectedProceduralTargetId
+                      ? handlePlayProgramRuntime
+                      : undefined
+                  }
+                  onPauseTransport={
+                    selectedProgramCanPauseOrStop
+                      ? handlePauseProgramRuntime
+                      : undefined
+                  }
+                  onStopTransport={
+                    selectedProgramCanPauseOrStop
+                      ? handleStopProgramRuntime
+                      : undefined
+                  }
+                  playbackAvailable={Boolean(
+                    resolvedSelectedProceduralTargetId &&
+                      selectedProgramRuntimeSnapshot,
+                  )}
+                  statusMessage={programPanelStatusMessage}
+                  splitVertical={motionGraphSplitVertical}
+                  onToggleSplit={() =>
+                    setMotionGraphSplitVertical((prev) => !prev)
+                  }
+                  onClosePanel={handleHideMotionGraphPanel}
+                />
+              </div>
+            </div>
           </ResizablePanel>
         </>
       ) : null}
@@ -4518,7 +4631,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
-              enableMotionGraphPruning
+              enableMotionGraphPruning={!editingProfileId}
               onSelectMotionGraphNode={
                 handleSelectMotionGraphNodeWithInspectorSync
               }

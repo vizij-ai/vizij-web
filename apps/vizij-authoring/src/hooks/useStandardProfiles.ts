@@ -246,5 +246,9 @@ export function useStandardProfiles({
     toggleProfile,
     exportProfileJson,
     importProfileJson,
+    /** Replace an embedded profile's spec in place (e.g. from the graph
+     * editor's apply-back). The spec is stored as given — already
+     * rig-prefixed, like the embedded copy it replaces. */
+    replaceProfileSpec: embedSpec,
   } as const;
 }

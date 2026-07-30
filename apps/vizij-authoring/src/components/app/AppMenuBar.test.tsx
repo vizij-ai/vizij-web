@@ -27,6 +27,7 @@ function renderMenuBar() {
       onToggleStandardProfile={vi.fn()}
       onExportStandardProfileJson={vi.fn()}
       onReplaceStandardProfileJson={vi.fn()}
+      onEditStandardProfileGraph={vi.fn()}
       canSave
       saveDirty={false}
       showSelectionGlow={false}
