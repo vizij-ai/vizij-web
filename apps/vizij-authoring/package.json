@@ -33,6 +33,7 @@
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/node-graph": "^0.7.0",
     "@vizij/render": "workspace:*",
+    "@vizij/runtime": "^2.2.0",
     "@vizij/runtime-react": "workspace:*",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.2.0",

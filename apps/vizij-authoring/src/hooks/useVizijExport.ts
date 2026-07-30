@@ -3,6 +3,7 @@ import {
   exportScene,
   type VizijBundleAnimationEntry,
   type VizijBundleExtension,
+  type VizijBundleGraphEntry,
   type VizijPoseRigConfig,
   type VizijSpeechConfig,
   type VizijData,
@@ -1361,6 +1362,23 @@ function clonePoseIrForBundle(
   return cloned;
 }
 
+/** The graph kinds the export builder authors from editor state. */
+const AUTHORED_GRAPH_KINDS = new Set(["rig", "pose-driver", "motiongraph"]);
+
+/**
+ * The loaded bundle's graph entries the export builder does not author —
+ * embedded standard profiles, foreign kinds. Export carries them forward
+ * verbatim (re-exporting a face must not drop what it carried), and the
+ * dirty-state snapshot watches them.
+ */
+export function carriedBundleGraphs(
+  bundle: VizijBundleExtension | null | undefined,
+): VizijBundleGraphEntry[] {
+  return (bundle?.graphs ?? []).filter(
+    (graph) => !AUTHORED_GRAPH_KINDS.has(graph.kind),
+  );
+}
+
 function mergeMotionGraphsIntoBundle(
   bundle: VizijBundleExtension,
   motionGraphs: MotionGraphExportEntry[],
@@ -1554,6 +1572,13 @@ function buildVizijBundle(
       >,
       metadata: { exportedAt: exportTimestamp, faceId: exportFaceId },
     });
+  }
+
+  // Carry forward what this builder does not author (embedded standard
+  // profiles, foreign kinds): re-exporting a face must not drop what it
+  // carried.
+  for (const carried of carriedBundleGraphs(loadedBundle)) {
+    graphs.push(cloneSerializable(carried) as BundleGraphWithIr);
   }
 
   const poseConfigForBundle =

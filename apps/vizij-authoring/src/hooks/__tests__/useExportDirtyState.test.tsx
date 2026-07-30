@@ -74,6 +74,7 @@ function createSnapshotOptions(
     crossGroupBlendMode: "additive",
     authoredAnimationClips: [],
     authoredMotionGraphs: [],
+    carriedGraphs: [],
     ...overrides,
   };
 }
