@@ -236,14 +236,7 @@ Publishing uses the shared workflow in [`.github/workflows/publish-npm.yml`](../
    pnpm --filter "@vizij/node-graph-react" exec npm pack --dry-run
    ```
 
-3. Push a tag matching `npm-node-graph-react-vX.Y.Z`:
-
-   ```bash
-   git tag npm-node-graph-react-v0.3.0
-   git push origin npm-node-graph-react-v0.3.0
-   ```
-
-The action will build, test, and publish the package with provenance metadata.
+3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
 
 ---
 

@@ -1,92 +1,55 @@
 name: publish-npm
 
+# Publish any publishable @vizij/* package whose version is not yet on npm.
+# The decision is per package against the registry (see
+# scripts/publish-unpublished.mjs), so a version bump merged to main publishes
+# itself and re-runs are idempotent (already-published versions are skipped).
+#
+# The workflow file name is load-bearing: each package's npm trusted publisher
+# is configured against `publish-npm.yml`. Renaming this file breaks OIDC
+# publishing until every trusted publisher is reconfigured.
+
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "npm-pub-*"
+    branches: [main]
+    paths:
+      - "packages/**"
+      - ".github/workflows/publish-npm.yml"
+      - "scripts/publish-unpublished.mjs"
+      - "scripts/prepare-publish-manifests.mjs"
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+  id-token: write # OIDC — trusted publishing + provenance, no NPM_TOKEN
 
-env:
-  RELEASE_COMMIT_MESSAGE: "chore(release): version packages"
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
         with:
-          fetch-depth: 0
+          version: 9.12.2
 
-      - name: Determine release branch
-        id: branch
-        run: |
-          set -euo pipefail
-          branches=$(git branch -r --contains "$GITHUB_SHA" | sed -E 's/^[[:space:]]+//' | grep -v 'origin/HEAD' || true)
-          if [ -z "$branches" ]; then
-            echo "Unable to detect a remote branch containing $GITHUB_SHA" >&2
-            exit 1
-          fi
-          release_branch=$(echo "$branches" | head -n 1 | sed 's|origin/||')
-          echo "Detected release branch: $release_branch"
-          echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
-          echo "RELEASE_BRANCH=$release_branch" >> "$GITHUB_ENV"
-
-      - name: Checkout release branch
-        run: |
-          git checkout -B "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
 
-      - name: Enable pnpm
-        run: corepack enable pnpm
+      # Trusted publishing needs npm >= 11.5.1; node 24 ships a recent npm but
+      # pin the latest to be safe.
+      - run: npm install -g npm@latest
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
-      - name: Configure git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Run Changesets version
-        id: version
-        run: |
-          pnpm ci:version
-          if git status --porcelain | grep -q .
-          then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Commit release artifacts
-        if: steps.version.outputs.has_changes == 'true'
-        run: |
-          git add -A
-          git commit -m "$RELEASE_COMMIT_MESSAGE"
-
-      - name: Publish npm packages
-        if: steps.version.outputs.has_changes == 'true'
-        run: |
-          pnpm run verify:packages
-          pnpm ci:publish
-
-      - name: Push release commit and tags
-        if: steps.version.outputs.has_changes == 'true'
+      - name: Publish unpublished @vizij packages
         env:
-          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
-        run: |
-          git push origin HEAD:"$RELEASE_BRANCH"
-          git push origin --follow-tags
-
-      - name: No release needed
-        if: steps.version.outputs.has_changes != 'true'
-        run: echo "No unpublished packages detected; skipping publish."
+          NPM_CONFIG_PROVENANCE: "true"
+        run: node scripts/publish-unpublished.mjs

@@ -46,6 +46,7 @@
     "publish:packages": "pnpm exec changeset publish",
     "ci:version": "pnpm run version:packages",
     "ci:publish": "node ./scripts/ci-publish.mjs",
+    "publish:unpublished": "node ./scripts/publish-unpublished.mjs",
     "release:ci": "pnpm run verify:packages && pnpm run ci:publish",
     "release": "pnpm install --frozen-lockfile && pnpm run release:ci",
     "postinstall": "node ./scripts/wasm-links.mjs relink",

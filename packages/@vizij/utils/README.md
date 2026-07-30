@@ -105,7 +105,7 @@ Releases flow through [`.github/workflows/publish-npm.yml`](../../../.github/wor
    pnpm --filter "@vizij/utils" exec npm pack --dry-run
    ```
 
-3. Push a tag with the `npm-utils-vX.Y.Z` pattern (for example, `npm-utils-v0.3.0`). The workflow publishes and records provenance automatically.
+3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
 
 ---
 

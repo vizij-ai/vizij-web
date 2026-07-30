@@ -227,14 +227,7 @@ This package is published via the repository-wide workflow at [`.github/workflow
    pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
    ```
 
-3. Tag the commit using the `npm-animation-react-vX.Y.Z` pattern and push the tag:
-
-   ```bash
-   git tag npm-animation-react-v0.3.0
-   git push origin npm-animation-react-v0.3.0
-   ```
-
-The workflow builds with the latest linked dependencies, runs tests, and publishes with provenance metadata if the job succeeds.
+3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
 
 ---
 

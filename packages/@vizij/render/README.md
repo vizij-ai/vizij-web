@@ -152,7 +152,7 @@ Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../../.githu
    pnpm --filter "@vizij/render" exec npm pack --dry-run
    ```
 
-3. Tag the release as `npm-render-vX.Y.Z` and push the tag. The workflow will publish with provenance metadata.
+3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
 
 ---
 
