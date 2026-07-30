@@ -74,3 +74,32 @@ test("prefers root-level parser extension over node and scene extensions", () =>
   assert.ok(bundle, "bundle should be found");
   assert.equal(bundle.metadata?.source, "root");
 });
+
+test("applyVizijBundle strips stale descendant bundles for the export window", async () => {
+  const { applyVizijBundle } = await import("../src/functions/vizij-bundle.ts");
+  const root = new Group();
+  const carrier = new Group();
+  root.add(carrier);
+  const staleBundle = { version: 1, graphs: [{ id: "old", kind: "rig" }] };
+  carrier.userData.gltfExtensions = {
+    VIZIJ_bundle: staleBundle,
+    OTHER_ext: { keep: true },
+  };
+  const freshBundle = {
+    version: 1,
+    graphs: [{ id: "standard::ros4hri", kind: "standard-profile" }],
+  };
+
+  const detach = applyVizijBundle(root, freshBundle);
+  // While attached: the root carries the fresh bundle, the descendant's stale
+  // copy is gone (it would shadow the fresh one for first-match readers), and
+  // its unrelated extensions survive.
+  assert.equal(root.userData.gltfExtensions.VIZIJ_bundle, freshBundle);
+  assert.equal(carrier.userData.gltfExtensions.VIZIJ_bundle, undefined);
+  assert.equal(carrier.userData.gltfExtensions.OTHER_ext.keep, true);
+
+  detach();
+  // Detached: the descendant's original extensions are restored intact.
+  assert.equal(carrier.userData.gltfExtensions.VIZIJ_bundle, staleBundle);
+  assert.equal(root.userData?.gltfExtensions, undefined);
+});
