@@ -128,6 +128,11 @@ export function applyVizijBundle(
       : {};
   const originalExtensions = userData.gltfExtensions;
   let applied = false;
+  // A face loaded from a GLB still carries its load-time bundle in some
+  // descendant's userData; exported as-is it would ride along and shadow the
+  // fresh bundle for every reader (first match wins). Strip those copies for
+  // the export window and restore them on detach.
+  const staleCarriers: { node: Object3D; extensions: unknown }[] = [];
 
   if (bundle) {
     userData.gltfExtensions = {
@@ -135,6 +140,23 @@ export function applyVizijBundle(
       VIZIJ_bundle: bundle,
     };
     (object as any).userData = userData;
+    object.traverse((node) => {
+      if (node === object) {
+        return;
+      }
+      const extensions = (node.userData as Record<string, unknown> | undefined)
+        ?.gltfExtensions as Record<string, unknown> | undefined;
+      if (!extensions || !(BUNDLE_KEYS[0] in extensions)) {
+        return;
+      }
+      staleCarriers.push({ node, extensions });
+      const { [BUNDLE_KEYS[0]]: _stale, ...rest } = extensions;
+      if (Object.keys(rest).length > 0) {
+        node.userData.gltfExtensions = rest;
+      } else {
+        delete node.userData.gltfExtensions;
+      }
+    });
     applied = true;
   }
 
@@ -152,6 +174,10 @@ export function applyVizijBundle(
         delete (object as any).userData;
       }
     }
+    for (const { node, extensions } of staleCarriers) {
+      node.userData.gltfExtensions = extensions;
+    }
+    staleCarriers.length = 0;
     applied = false;
   };
 }
