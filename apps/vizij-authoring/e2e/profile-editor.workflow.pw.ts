@@ -76,9 +76,7 @@ test("embedded profile edits in the graph editor apply to the bundle @workflow",
   // false), so the deterministic edit is severing a mapping edge — the one
   // into the "sad" output.
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
-  await page
-    .getByTestId("rf__edge-e-v-o2-out-input")
-    .click({ force: true });
+  await page.getByTestId("rf__edge-e-v-o2-out-input").click({ force: true });
   await page.keyboard.press("Backspace");
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 
