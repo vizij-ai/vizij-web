@@ -42,6 +42,8 @@ interface AppMenuBarProps {
   onExportStandardProfileJson: (profileId: string) => void;
   /** Replace an embedded profile from a canonical JSON file. */
   onReplaceStandardProfileJson: (profileId: string) => void;
+  /** Open an embedded profile's graph in the editor (apply-back session). */
+  onEditStandardProfileGraph: (profileId: string) => void;
   canSave: boolean;
   saveDirty: boolean;
   showSelectionGlow: boolean;
@@ -66,6 +68,7 @@ export function AppMenuBar({
   onToggleStandardProfile,
   onExportStandardProfileJson,
   onReplaceStandardProfileJson,
+  onEditStandardProfileGraph,
   canSave,
   saveDirty,
   showSelectionGlow,
@@ -210,6 +213,12 @@ export function AppMenuBar({
                   testId={`app-menu-file-standard-profile-replace-${profile.id}`}
                 >
                   Replace {profile.title} from JSON...
+                </MenuItem>
+                <MenuItem
+                  onSelect={() => onEditStandardProfileGraph(profile.id)}
+                  testId={`app-menu-file-standard-profile-edit-${profile.id}`}
+                >
+                  Edit {profile.title} in Graph Editor...
                 </MenuItem>
               </React.Fragment>
             ))}
