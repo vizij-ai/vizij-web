@@ -93,7 +93,11 @@ Extend `GraphSpec` with a named function table. This is the contract; the evalua
           },
           // ...
         ],
-        "returns": { "x": { "node_id": "x" }, "y": { "node_id": "y" } },
+        // `output` is optional and defaults to the inner node's default port.
+        "returns": {
+          "x": { "node_id": "x" },
+          "y": { "node_id": "y", "output": "out" },
+        },
       },
     },
   },
@@ -114,7 +118,7 @@ Extend `GraphSpec` with a named function table. This is the contract; the evalua
 Design commitments:
 
 - **One new `NodeType` variant: `Call`.** The enum stays closed; it gains exactly one variant, and that variant is the extension point. This is the whole trick.
-- Inner references to `$in.<port>` bind to the call site's inputs. `returns` maps declared output ports to inner nodes (optionally inner ports, once the companion doc lands).
+- Inner references to `$in.<port>` bind to the call site's inputs. `returns` maps each declared output port to an inner **port ref** — `{ node_id, output? }`, where an absent `output` means the inner node's default port. This does **not** depend on the companion doc: `output_key` already exists in the wire format today, and without it a function wrapping a `split` could not expose `part2`, which is exactly the many-to-many case this feature is for.
 - `functions` is a sibling of `nodes`, not nested inside a node, so a definition can be reused by many call sites and serialized once.
 - Function definitions may reference other functions. Recursion is rejected at load (section 4.5).
 
@@ -122,7 +126,7 @@ Design commitments:
 
 Two options were considered.
 
-**Option A — inline expansion at load.** `load_graph` expands every `call` node into a copy of the function body with namespaced ids (`p1/cos`, `p1/x`), rewriting `$in.*` references to the call site's actual sources and rewriting consumers of `p1.<port>` to the mapped inner node. The runtime, `topo_order`, `eval_node`, and the wasm surface are untouched.
+**Option A — inline expansion at load.** `load_graph` expands every `call` node into a copy of the function body with namespaced ids (`p1/cos`, `p1/x`), rewriting `$in.*` references to the call site's actual sources and rewriting each consumer of `p1` to the port ref that `returns` designates. Note that the rewrite target is a `(node_id, output_key)` **pair**, not a node: a consumer reading `{ node_id: "p1", output_key: "y" }` where `returns.y` is `{ node_id: "s", output: "part2" }` becomes `{ node_id: "p1/s", output_key: "part2" }`. Consumers that name no `output_key` resolve against the function's sole non-optional declared output, mirroring the defaulting rule in companion doc section 5.3. The runtime, `topo_order`, `eval_node`, and the wasm surface are untouched.
 
 **Option B — nested runtime.** `Call` evaluates a child `GraphRuntime` recursively.
 
@@ -170,9 +174,10 @@ Proposed contract change:
 1. `call` referencing an unknown function name.
 2. Recursive or mutually recursive function references (cycle-detect over the function reference graph before expansion — otherwise inlining does not terminate).
 3. `$in.<port>` referencing an undeclared input port.
-4. `returns` omitting a declared output port, or naming an unknown inner node.
-5. Author-supplied node ids containing `/`.
-6. Expansion exceeding a configured node-count ceiling — a nested function used ten times inside another used ten times is 100 instances, and the failure mode without a ceiling is a hang, not an error.
+4. `returns` omitting a declared output port, naming an unknown inner node, or naming an `output` that the inner node's signature does not declare.
+5. A `returns` port ref whose resolved inner port type contradicts the declared output `ty`.
+6. Author-supplied node ids containing `/`.
+7. Expansion exceeding a configured node-count ceiling — a nested function used ten times inside another used ten times is 100 instances, and the failure mode without a ceiling is a hang, not an error.
 
 ### 4.6 Authoring surface
 
@@ -187,6 +192,26 @@ This constrains genuine many-to-many solvers with partial feedback, which is a p
 **Decision for v1: keep node-granular scheduling and reject those graphs with a clear cycle error.** Port-level topology is a substantially larger change (edge-granular dependency graph, partial node evaluation, revised `eval_node` contract) and it should not ride along with this one. If a concrete use case demands it, it gets its own document.
 
 Flag it early to users, because "why can't I wire this back in" is otherwise an opaque failure.
+
+### 4.8 Integration with the multi-output ports plan
+
+The end state both documents serve is one sentence: an author defines a many-in / many-out block and calls it from an expression, naming the port they want.
+
+```text
+polar_to_cart(radius, angle).x
+```
+
+The companion doc delivers the `.x`. This doc delivers the `polar_to_cart`. Four joins belong to neither document alone and are specified here because this is the dependent one.
+
+**Join 1 — materializing a `call` from an expression.** `emitScalarFunctionNode` maps positional arguments to declared input ports in signature order. A `call` needs the same treatment against `spec.functions[name].inputs`. Two rules to fix now: arity mismatch is an error (user-defined functions have no optional-input concept in v1), and user-defined functions have **no params**, only inputs — so the literal-param machinery in `buildParamAssignments` must not be wired in speculatively. Adding params later is additive; unwinding a speculative implementation is not.
+
+**Join 2 — two dedup layers, and they compose in one order only.** The companion doc memoizes call sites within an expression context (§5.5, TypeScript, compile time). This doc expands each surviving `call` inline (Rust, load time). A memoized `f(x).a + f(x).b` yields one `call` node, which yields one inlined body — correct, but only because the memo runs first. Do not add a second dedup pass at load. Two independent dedup mechanisms over the same identity are a source of id churn, and id churn is precisely what section 4.3 forbids.
+
+**Join 3 — the default-port rule is implemented twice, in two languages.** Companion doc §5.3 resolves a bare reference to the sole non-optional output. Section 4.2 above applies the same rule when rewriting a consumer that names no `output_key`. If the two implementations disagree, a graph authored through expressions and the same graph authored as raw JSON diverge — silently, and only for nodes with multiple outputs. Write the rule once in prose, cite it from both call sites, and cover it with the authored-vs-inline parity test in section 7.
+
+**Join 4 — diagnostics cross a boundary the author never sees.** A type error inside an inlined body reports against `p1/cos`, an id that appears in no document the author wrote. Load-time errors must render provenance: `function "polar_to_cart", node "cos" (called from "p1")`. This is the most likely place for the feature to feel bad in practice, and it is cheap if expansion carries provenance from the start. Retrofitting it means threading it back through every validation path in section 4.5.
+
+Sequencing note: none of these require the companion doc to have landed first. They require the two to agree on join 3.
 
 ## 5) Alternatives Considered
 
@@ -220,14 +245,14 @@ Items 1-2 can land immediately and independently. 10 is deliberately unspecified
 - **Expansion**: a two-instance function produces disjoint namespaced ids and identical topology per instance.
 - **State isolation**: two instances of a function containing a `spring` converge independently from different initial conditions.
 - **State persistence**: recompiling an unchanged graph preserves spring state (guards the 4.3 stability rule — this is the regression that would otherwise ship silently).
-- **Validation**: each of the six rejections in 4.5 has a test asserting the message, not just the failure.
+- **Validation**: each of the seven rejections in 4.5 has a test asserting the message, not just the failure.
 - **Cycle**: a feedback wiring that is port-acyclic but node-cyclic is rejected with the 4.7 error, not a hang or a wrong result.
 - **Metadata**: `getGraphSignatures` resolves `call` ports; the global registry is unchanged for built-ins.
 - **Parity**: a graph authored as a function and the same graph authored inline produce identical writes over 600 frames.
 
 ## 8) Risks and Open Questions
 
-1. **Node-count blowup.** Nested reuse multiplies instances, and both the topo loop and the per-frame JSON payload scale with node count. Items 1-2 are prerequisites, not nice-to-haves. Enforce the ceiling from 4.5(6).
+1. **Node-count blowup.** Nested reuse multiplies instances, and both the topo loop and the per-frame JSON payload scale with node count. Items 1-2 are prerequisites, not nice-to-haves. Enforce the ceiling from 4.5(7).
 2. **Transition-state identity.** Highest-severity correctness risk. See 4.3 and its dedicated test.
 3. **Metadata contract change.** Touches every consumer of `@vizij/node-graph/metadata`. Additive if `getGraphSignatures` is a new export and the global registry keeps working for built-ins — hold that line.
 4. **Cross-repo sequencing.** Items 3-7 must ship in a published `@vizij/node-graph` before 8-9 can land. Coordinate with the release flow in `scripts/` and the `wasm:link` local-dev path.

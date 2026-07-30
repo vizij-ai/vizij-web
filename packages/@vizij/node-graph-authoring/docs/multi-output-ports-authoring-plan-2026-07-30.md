@@ -222,7 +222,7 @@ Steps 1 and 2 are independent and can land in either order. 3-5 are sequential. 
 
 ## 10) Out of Scope
 
-- User-defined node types (companion doc).
+- User-defined node types (companion doc; its section 4.8 specifies how the two compose, including the one rule — default-port resolution — that both plans implement and must keep in agreement).
 - Cross-slot common-subexpression elimination.
 - Multi-path sinks.
 - Port-level topological scheduling (see companion doc section 4.7).

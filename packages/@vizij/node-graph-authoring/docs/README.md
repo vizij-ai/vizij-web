@@ -8,6 +8,7 @@ Design documents for the authoring-time graph compiler. Cross-repo architecture 
    - Lets authored expressions read more than one output port from a node. Confined to vizij-web. Independent and ready to schedule.
 2. `subgraph-function-node-design-2026-07-30.md`
    - Lets authors define reusable many-in / many-out blocks via a `call` node and a graph-local function table. Lands mostly in `vizij-rs`.
+   - Its section 4.8 specifies how the two plans compose — the end state is `polar_to_cart(radius, angle).x`, where doc 1 delivers the `.x` and doc 2 delivers the function. There is deliberately no third integration document; the joins live with the dependent plan.
 
 ## Background: the graph is already many-to-many
 
