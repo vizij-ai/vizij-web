@@ -38,6 +38,10 @@ interface AppMenuBarProps {
   embeddedProfileIds: string[];
   /** Import (`enabled`) or remove a standard profile in the open GLB. */
   onToggleStandardProfile: (profileId: string, enabled: boolean) => void;
+  /** Download an embedded profile as canonical (unprefixed) JSON. */
+  onExportStandardProfileJson: (profileId: string) => void;
+  /** Replace an embedded profile from a canonical JSON file. */
+  onReplaceStandardProfileJson: (profileId: string) => void;
   canSave: boolean;
   saveDirty: boolean;
   showSelectionGlow: boolean;
@@ -60,6 +64,8 @@ export function AppMenuBar({
   standardProfiles,
   embeddedProfileIds,
   onToggleStandardProfile,
+  onExportStandardProfileJson,
+  onReplaceStandardProfileJson,
   canSave,
   saveDirty,
   showSelectionGlow,
@@ -188,6 +194,25 @@ export function AppMenuBar({
               </MenuCheckboxItem>
             ))
           )}
+          {standardProfiles
+            .filter((profile) => embeddedProfileIds.includes(profile.id))
+            .map((profile) => (
+              <React.Fragment key={profile.id}>
+                <MenuSeparator />
+                <MenuItem
+                  onSelect={() => onExportStandardProfileJson(profile.id)}
+                  testId={`app-menu-file-standard-profile-export-${profile.id}`}
+                >
+                  Export {profile.title} as JSON...
+                </MenuItem>
+                <MenuItem
+                  onSelect={() => onReplaceStandardProfileJson(profile.id)}
+                  testId={`app-menu-file-standard-profile-replace-${profile.id}`}
+                >
+                  Replace {profile.title} from JSON...
+                </MenuItem>
+              </React.Fragment>
+            ))}
         </MenuSubmenu>
         <MenuItem onSelect={onExport} testId="app-menu-file-export">
           Export...

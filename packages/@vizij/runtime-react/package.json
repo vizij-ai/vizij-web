@@ -41,7 +41,7 @@
     "@vizij/animation-module": "^0.2.0",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/render": "workspace:*",
-    "@vizij/runtime": "^2.2.0",
+    "@vizij/runtime": "^2.3.0",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.2.0"
   },

@@ -3950,10 +3950,32 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     profiles: availableStandardProfiles,
     embeddedProfileIds,
     toggleProfile: toggleStandardProfile,
+    exportProfileJson: exportStandardProfileJson,
+    importProfileJson: importStandardProfileJson,
   } = useStandardProfiles({
     bundle: loader.bundle,
     updateBundle: loader.updateBundle,
   });
+  // The profile whose "Replace from JSON..." picker is open — consumed when
+  // the hidden input below delivers the chosen file.
+  const replaceProfileIdRef = useRef<string | null>(null);
+  const profileJsonInputRef = useRef<HTMLInputElement>(null);
+  const handleReplaceStandardProfileJson = useCallback((profileId: string) => {
+    replaceProfileIdRef.current = profileId;
+    profileJsonInputRef.current?.click();
+  }, []);
+  const handleProfileJsonFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      const profileId = replaceProfileIdRef.current;
+      replaceProfileIdRef.current = null;
+      event.target.value = "";
+      if (file && profileId) {
+        void importStandardProfileJson(profileId, file);
+      }
+    },
+    [importStandardProfileJson],
+  );
 
   const menuBar = (
     <AppMenuBar
@@ -3966,6 +3988,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onToggleStandardProfile={(profileId, enabled) => {
         void toggleStandardProfile(profileId, enabled);
       }}
+      onExportStandardProfileJson={exportStandardProfileJson}
+      onReplaceStandardProfileJson={handleReplaceStandardProfileJson}
       onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
       canSave={canExport}
@@ -4645,6 +4669,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         accept=".glb,.gltf"
         data-testid="app-import-file-input"
         onChange={(e) => void handleFileChange(e)}
+      />
+      {/* Hidden file input for "Replace <profile> from JSON..." */}
+      <input
+        type="file"
+        ref={profileJsonInputRef}
+        className="hidden"
+        accept=".json"
+        data-testid="app-profile-json-input"
+        onChange={handleProfileJsonFileChange}
       />
     </ReferenceFaceProvider>
   );
