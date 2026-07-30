@@ -2,4 +2,4 @@
 "@vizij/runtime-react": patch
 ---
 
-Require `@vizij/runtime` ^2.2.0 — the release that ships the standard-profile registry (`standardProfiles()` / `standardProfile(id, rigPrefix)`) — so one runtime version serves both the preview provider and the authoring app's profile picker.
+Require `@vizij/runtime` ^2.3.0 — the releases that ship the standard-profile registry (`standardProfiles()` / `standardProfile(id, rigPrefix)`) and `composeFace()` — so one runtime version serves the preview provider, the authoring app's profile picker, and the deploy-and-verify test loop.
