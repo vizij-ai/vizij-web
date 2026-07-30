@@ -81,10 +81,12 @@ Newcomers almost always arrive with a **DCC / game-engine** model:
 - **"Where did my work go?"** — no autosave, no project file, and until PR #100 a
   re-export could carry a _stale_ embedded bundle that shadowed every edit since load.
   The mental model "my edits live somewhere durable" was simply false.
-- **"Rig" is overloaded** to the point of being unusable in a sentence: _rig graph_,
-  _rig inputs_, _rig kind_, _pose rig_, _propsrig_, _RigControllerProvider_,
-  `rig/{faceId}/...` paths. VIZ-80 ("Define Vizij Rig Components") is an
-  acknowledgement that this noun needs splitting.
+- **"Rig" is overloaded** to the point of being unusable in a sentence — **eight
+  distinct senses** at five different levels of abstraction: _rig graph_, _rig inputs_,
+  _rig kind_, _pose rig_, _RigControllerProvider_, the `rig/{faceId}/` path prefix, the
+  "Rigging" activity label, and `propsrig` (a _separate_ legacy path prefix). Full
+  breakdown with file references: [`06-GLOSSARY.md`](./06-GLOSSARY.md) Part 5. VIZ-80
+  ("Define Vizij Rig Components") is an acknowledgement that this noun needs splitting.
 
 ### 1.4 Workshop prompt
 
@@ -370,7 +372,7 @@ Consolidating everything above into what the workshop should actually decide:
 
 | #     | Divergence                                     | Symptom                                                                                       | Owner-ish       |
 | ----- | ---------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------- |
-| **1** | **"Rig" means six things**                     | Nobody can describe the object model in a sentence                                            | VIZ-80          |
+| **1** | **"Rig" means eight things**                   | Nobody can describe the object model in a sentence — see `06` Part 5                          | VIZ-80          |
 | **2** | **Path collisions have no defined precedence** | "It depends on composition order"                                                             | VIZ-76, VIZ-58  |
 | **3** | **Save ≠ durable**                             | Lost work; stale-bundle shadowing (fixed in #100, but the model is still "export or lose it") | PR #65 Track 1  |
 | **4** | **"Runtime-truthful" now has three asterisks** | Preview omits profiles; dual store; speech in transition                                      | PR #100, VIZ-94 |

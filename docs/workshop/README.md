@@ -83,13 +83,13 @@ sentence) and §9 (the one diagram), then [`00`](./00-STATUS.md) §5 (three numb
 
 ## The five divergences to resolve
 
-| #   | Divergence                                 | Symptom                                                              |
-| --- | ------------------------------------------ | -------------------------------------------------------------------- |
-| 1   | "Rig" means six different things           | Nobody can state the object model in a sentence (VIZ-80)             |
-| 2   | Path collisions have no defined precedence | "It depends on composition order" (VIZ-76, VIZ-58)                   |
-| 3   | Save ≠ durable                             | Lost work; until PR #100, silent stale-bundle shadowing on re-export |
-| 4   | "Runtime-truthful" now has three asterisks | Preview omits embedded profiles; dual store; speech mid-migration    |
-| 5   | Four independent notions of "where am I"   | 13 panels × 6 focus modes × 4 workbench tabs × 6 surfaces            |
+| #   | Divergence                                 | Symptom                                                                                              |
+| --- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| 1   | "Rig" means eight different things         | Nobody can state the object model in a sentence (VIZ-80). Breakdown: [`06`](./06-GLOSSARY.md) Part 5 |
+| 2   | Path collisions have no defined precedence | "It depends on composition order" (VIZ-76, VIZ-58)                                                   |
+| 3   | Save ≠ durable                             | Lost work; until PR #100, silent stale-bundle shadowing on re-export                                 |
+| 4   | "Runtime-truthful" now has three asterisks | Preview omits embedded profiles; dual store; speech mid-migration                                    |
+| 5   | Four independent notions of "where am I"   | 13 panels × 6 focus modes × 4 workbench tabs × 6 surfaces                                            |
 
 ---
 
