@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { expect, test } from "@playwright/test";
 import type { Download, Page } from "@playwright/test";
 import {
   bootAuthoring,
