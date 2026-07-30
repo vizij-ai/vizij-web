@@ -15,4 +15,4 @@
   pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
   ```
 
-- Tag releases as `npm-animation-react-vX.Y.Z`. The `.github/workflows/publish-npm.yml` job will publish once the tag pushes successfully.
+- Releases are automated: bump the package `version` and merge to `main`; `.github/workflows/publish-npm.yml` publishes any `@vizij/*` version not yet on npm. No release tags.

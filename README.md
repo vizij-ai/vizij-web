@@ -263,49 +263,34 @@ If the check fails, run `./scripts/install-git-hooks.sh` to fix it.
 
 ## Publishing & Versioning
 
-Publishing is coordinated through Changesets and a tag-triggered GitHub Actions workflow.
+npm packages publish **automatically from CI**: whenever a publishable
+`@vizij/*` package's version in the repo is not yet on npm, CI publishes it.
 
-- Primary workflow: [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml)
-- Trigger: push an annotated tag matching `npm-pub-*` (or run the workflow manually via `workflow_dispatch`).
+- Workflow: [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml) — runs on every push to `main` that touches `packages/**`, and on manual `workflow_dispatch`.
+- It runs [`scripts/publish-unpublished.mjs`](scripts/publish-unpublished.mjs), which decides per package against the registry: a version already on npm is **skipped**, a version that is absent is **published**, and a package that does not exist on npm at all is reported as needing a one-time **bootstrap** (see below). Already-published versions are skipped, so re-runs are safe and one package failing does not block the rest.
 
-This workflow versions packages (via `changeset version`), commits the release artifacts back to the branch that contains the tagged commit, runs package-only verification, and then publishes only the changed `@vizij/*` packages to npm.
+Authentication is **npm trusted publishing** (OIDC) — no `NPM_TOKEN`. Each package has a trusted publisher configured on npm against this repository and the `publish-npm.yml` workflow, and publishes are signed with provenance. **Do not rename `publish-npm.yml`**: the trusted-publisher configs reference it by name, and renaming breaks OIDC publishing until every one is reconfigured.
 
-Legacy workflow (kept as a break-glass option): [`.github/workflows/release-tag_legacy.yml`](.github/workflows/release-tag_legacy.yml). It is now `workflow_dispatch` only.
+### Releasing a change
+
+1. In your PR, bump the version of each package you changed — with Changesets (`pnpm changeset` to record intent, `pnpm version:packages` to apply the bumps and changelogs) or by editing the `version` field for a one-off.
+2. Merge to `main`. CI publishes every bumped version that isn't on npm yet. That is the whole flow.
+
+Versioning is decoupled from publishing: CI publishes whatever versions land on `main`, however they were bumped. You can also run the publisher manually via `workflow_dispatch`, or locally with `pnpm publish:unpublished` (`--dry-run` to preview).
+
+### First publish of a new package
+
+Trusted publishing **cannot create a brand-new package name** over OIDC — the first publish 404s. For a new `@vizij/*` package, once:
+
+1. Publish it manually from an npm-authenticated machine: `cd packages/@vizij/<name> && pnpm build && npm publish --access public`.
+2. Add a trusted publisher for it on npm (npmjs.com → the package → Settings → Trusted Publisher): repository `vizij-ai/vizij-web`, workflow `publish-npm.yml`.
+
+From then on CI publishes its new versions like any other package. The publisher lists any package still in this state at the end of its run.
 
 ### Prerequisites
 
-- Internal package dependencies must use the workspace protocol (see `packages/**/package.json` and `.npmrc`).
-- `NPM_TOKEN` in repo secrets with publish rights for the `@vizij/*` scope.
-- Each publishable package has `"private": false` and a `publishConfig.access` entry.
-
-### How a release flows
-
-1. **Capture changes**
-   - Run `pnpm changeset` for every feature PR that requires a release.
-   - Merge the feature branch into `main`. The changeset files stay unversioned until the release cut.
-2. **Tag a release commit**
-   - From a clean local checkout of the branch you want to release (usually `main`):
-
-     ```bash
-     git tag -a "npm-pub-$(date -u '+%Y%m%d-%H%M%S')" -m "Trigger npm publish"
-     git push origin --follow-tags
-     ```
-
-   - CI will determine the branch containing the tag commit and check it out.
-
-3. **CI versions and publishes**
-   - The `publish-npm` workflow installs dependencies, runs `pnpm ci:version` (Changesets versioning), commits the generated changes, runs `pnpm run verify:packages` (build + lint + tests scoped to `@vizij/*` packages), and finally executes `pnpm ci:publish`.
-   - `pnpm ci:publish` runs `scripts/ci-publish.mjs`, which temporarily rewrites `workspace:*` dependency ranges to real versions during the publish step and restores manifests afterward.
-   - Only packages with pending changesets are published.
-
-### Tips & recovery
-
-- Need a semantic tag instead of the timestamp? Use any `npm-pub-*` string that fits your conventions.
-- If CI fails before the publish step, fix the issue on the release branch and push a new `npm-pub-*` tag.
-- The legacy local-tag script is now `scripts/release-tag_legacy.sh` and is intended only for emergency use.
-- If a publish succeeds but you spot a problem, deprecate the broken version on npm and release a follow-up changeset as normal—no manual republishing required.
-
-The workflow logs the npm publish output for each changed package. After a successful run, your `main` branch already contains the release commit, so downstream work starts from the latest version state.
+- Internal package dependencies use the workspace protocol (`workspace:*`); the publisher materialises them to real versions at publish time and restores the manifests afterward.
+- Each publishable package sets `"private": false` (or omits `private`) and a `publishConfig.access` entry. Private packages and apps are skipped automatically.
 
 ---
 
