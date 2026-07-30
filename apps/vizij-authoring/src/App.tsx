@@ -94,6 +94,8 @@ import {
   buildGlbExportDirtySnapshot,
   useExportDirtyState,
 } from "./hooks/useExportDirtyState";
+import { useStandardProfiles } from "./hooks/useStandardProfiles";
+import { carriedBundleGraphs } from "./hooks/useVizijExport";
 import {
   getMemoryInvestigationFlags,
   updateMemoryDebugState,
@@ -3070,6 +3072,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         crossGroupBlendMode: poseRig.crossGroupBlendMode,
         authoredAnimationClips: authoredAnimationClipsForExport,
         authoredMotionGraphs: authoredProceduralProgramsForExport,
+        carriedGraphs: carriedBundleGraphs(loader.bundle),
       }),
     [
       animatableComponents,
@@ -3077,6 +3080,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       authoredAnimationClipsForExport,
       authoredProceduralProgramsForExport,
       bindings,
+      loader.bundle,
       faceId,
       featureLabelOverrides,
       includeImportedAnimations,
@@ -3942,12 +3946,26 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     fileInputRef.current?.click();
   }, []);
 
+  const {
+    profiles: availableStandardProfiles,
+    embeddedProfileIds,
+    toggleProfile: toggleStandardProfile,
+  } = useStandardProfiles({
+    bundle: loader.bundle,
+    updateBundle: loader.updateBundle,
+  });
+
   const menuBar = (
     <AppMenuBar
       onNew={handleNewClick}
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
+      standardProfiles={availableStandardProfiles}
+      embeddedProfileIds={embeddedProfileIds}
+      onToggleStandardProfile={(profileId, enabled) => {
+        void toggleStandardProfile(profileId, enabled);
+      }}
       onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
       canSave={canExport}
@@ -4625,6 +4643,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         ref={fileInputRef}
         className="hidden"
         accept=".glb,.gltf"
+        data-testid="app-import-file-input"
         onChange={(e) => void handleFileChange(e)}
       />
     </ReferenceFaceProvider>

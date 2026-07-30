@@ -32,6 +32,12 @@ interface AppMenuBarProps {
   onImportReferenceFace: () => void;
   onSave: () => void;
   onExport: () => void;
+  /** The shipped standard profiles a face may opt into (empty = none). */
+  standardProfiles: { id: string; title: string }[];
+  /** Profile ids the open GLB embeds (checked state of the toggles). */
+  embeddedProfileIds: string[];
+  /** Import (`enabled`) or remove a standard profile in the open GLB. */
+  onToggleStandardProfile: (profileId: string, enabled: boolean) => void;
   canSave: boolean;
   saveDirty: boolean;
   showSelectionGlow: boolean;
@@ -51,6 +57,9 @@ export function AppMenuBar({
   onImportReferenceFace,
   onSave,
   onExport,
+  standardProfiles,
+  embeddedProfileIds,
+  onToggleStandardProfile,
   canSave,
   saveDirty,
   showSelectionGlow,
@@ -159,6 +168,27 @@ export function AppMenuBar({
         >
           Import Reference Face...
         </MenuItem>
+        <MenuSubmenu
+          label="Standard Profiles"
+          testId="app-menu-file-standard-profiles"
+        >
+          {standardProfiles.length === 0 ? (
+            <MenuLabel>None available</MenuLabel>
+          ) : (
+            standardProfiles.map((profile) => (
+              <MenuCheckboxItem
+                key={profile.id}
+                checked={embeddedProfileIds.includes(profile.id)}
+                onCheckedChange={(checked) =>
+                  onToggleStandardProfile(profile.id, checked)
+                }
+                testId={`app-menu-file-standard-profile-${profile.id}`}
+              >
+                {profile.title}
+              </MenuCheckboxItem>
+            ))
+          )}
+        </MenuSubmenu>
         <MenuItem onSelect={onExport} testId="app-menu-file-export">
           Export...
         </MenuItem>

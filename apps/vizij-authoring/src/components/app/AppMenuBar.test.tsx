@@ -22,6 +22,9 @@ function renderMenuBar() {
       onImportReferenceFace={vi.fn()}
       onSave={vi.fn()}
       onExport={vi.fn()}
+      standardProfiles={[]}
+      embeddedProfileIds={[]}
+      onToggleStandardProfile={vi.fn()}
       canSave
       saveDirty={false}
       showSelectionGlow={false}

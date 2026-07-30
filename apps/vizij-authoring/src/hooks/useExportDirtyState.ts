@@ -36,6 +36,12 @@ export interface GlbExportDirtySnapshotOptions {
   crossGroupBlendMode: "average" | "additive";
   authoredAnimationClips: AnimationClipIR[];
   authoredMotionGraphs: AuthoredMotionGraphDirtyEntry[];
+  /**
+   * The loaded bundle's carried (non-authored) graph entries — embedded
+   * standard profiles, foreign kinds. Toggling a profile changes the export,
+   * so it must flip the dirty state.
+   */
+  carriedGraphs: { id?: string; kind: string; spec: unknown }[];
 }
 
 export function buildGlbExportDirtySnapshot(
@@ -73,6 +79,7 @@ export function buildGlbExportDirtySnapshot(
     },
     authoredAnimationClips: options.authoredAnimationClips,
     authoredMotionGraphs: options.authoredMotionGraphs,
+    carriedGraphs: options.carriedGraphs,
   };
 }
 
