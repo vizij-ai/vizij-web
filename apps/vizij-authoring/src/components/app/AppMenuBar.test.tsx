@@ -28,6 +28,12 @@ function renderMenuBar() {
       onExportStandardProfileJson={vi.fn()}
       onReplaceStandardProfileJson={vi.fn()}
       onEditStandardProfileGraph={vi.fn()}
+      skills={[]}
+      embeddedSkillIds={[]}
+      onToggleSkill={vi.fn()}
+      onExportSkillJson={vi.fn()}
+      onReplaceSkillJson={vi.fn()}
+      onEditSkillGraph={vi.fn()}
       canSave
       saveDirty={false}
       showSelectionGlow={false}

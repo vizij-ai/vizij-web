@@ -489,8 +489,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^2.3.0
-        version: 2.3.0
+        specifier: ^2.4.0
+        version: 2.4.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -640,6 +640,9 @@ importers:
       '@vizij/render':
         specifier: workspace:*
         version: link:../../packages/@vizij/render
+      '@vizij/runtime':
+        specifier: ^2.4.0
+        version: 2.4.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -910,8 +913,8 @@ importers:
         specifier: workspace:*
         version: link:../render
       '@vizij/runtime':
-        specifier: ^2.3.0
-        version: 2.3.0
+        specifier: ^2.4.0
+        version: 2.4.0
       '@vizij/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2728,8 +2731,8 @@ packages:
   '@vizij/node-graph@0.7.0':
     resolution: {integrity: sha512-8EtlkEQyLlaEjMeQPJK4XmjB+Y/n4FsZ7U2Z2h7j1/Fob03F00kqVQU+O8ncHjODSwpzeMsJ1D/rulMupiydUA==}
 
-  '@vizij/runtime@2.3.0':
-    resolution: {integrity: sha512-WBZ+M4Rp7MY175nDIK5bbfeikX0RINycpmDbPkgsFnYy7IwN7iff9fDeklUH8XX8Pvx+pCs37LdymSPJOk+RMg==}
+  '@vizij/runtime@2.4.0':
+    resolution: {integrity: sha512-+BA6bxpvjOvHueZyRgHo6Z8f+9fbK2xuVgPiwXaE+fZQVE02Qf8gKkpWWQpUrWXphVK5JlwRtbdOLigVz8RClw==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
@@ -7009,7 +7012,7 @@ snapshots:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/runtime@2.3.0':
+  '@vizij/runtime@2.4.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5

@@ -21,6 +21,7 @@
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/node-graph": "^0.7.0",
     "@vizij/render": "workspace:*",
+    "@vizij/runtime": "^2.4.0",
     "@vizij/runtime-react": "workspace:*",
     "@vizij/speech-react": "workspace:*",
     "@vizij/utils": "workspace:*",

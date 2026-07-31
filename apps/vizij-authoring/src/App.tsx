@@ -98,6 +98,7 @@ import {
   embeddedProfileId,
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
+import { embeddedSkillId, useSkills } from "./hooks/useSkills";
 import { carriedBundleGraphs } from "./hooks/useVizijExport";
 import {
   getMemoryInvestigationFlags,
@@ -824,6 +825,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const editingProfileIdRef = useRef<string | null>(null);
   editingProfileIdRef.current = editingProfileId;
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
+  const editingSkillIdRef = useRef<string | null>(null);
+  editingSkillIdRef.current = editingSkillId;
   const [hiddenBundleAnimationTargetIds, setHiddenBundleAnimationTargetIds] =
     useState<Record<string, true>>({});
   const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
@@ -1453,9 +1457,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const saveProceduralTarget = useCallback(
     (targetId: string) => {
-      // A profile edit session owns the editor: its content must never be
-      // snapshotted into a program target.
-      if (editingProfileIdRef.current) {
+      // A profile or skill edit session owns the editor: its content must
+      // never be snapshotted into a program target.
+      if (editingProfileIdRef.current || editingSkillIdRef.current) {
         return;
       }
       const programId = parseAuthoredProceduralTargetValue(targetId);
@@ -2044,9 +2048,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const loadSelectedProceduralTarget = useCallback(
     (targetId: string | null) => {
-      // A profile edit session owns the editor: target changes neither
-      // hydrate over its content nor clear it (apply/discard does).
-      if (editingProfileIdRef.current) {
+      // A profile or skill edit session owns the editor: target changes
+      // neither hydrate over its content nor clear it (apply/discard does).
+      if (editingProfileIdRef.current || editingSkillIdRef.current) {
         return;
       }
       if (!targetId) {
@@ -4052,6 +4056,88 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [importStandardProfileJson],
   );
 
+  const {
+    skills: availableSkills,
+    embeddedSkillIds,
+    toggleSkill,
+    exportSkillJson,
+    importSkillJson,
+    replaceSkillSpec,
+  } = useSkills({
+    bundle: loader.bundle,
+    updateBundle: loader.updateBundle,
+  });
+  const handleEditSkillGraph = useCallback(
+    (skillId: string) => {
+      const entry = (loader.bundle?.graphs ?? []).find(
+        (graph) => embeddedSkillId(graph) === skillId,
+      );
+      if (!entry?.spec) {
+        console.error(`no embedded skill ${skillId} to edit`);
+        return;
+      }
+      // Park the current program's edits exactly like a target switch, then
+      // let the skill session own the editor.
+      if (selectedProceduralTargetId) {
+        saveProceduralTarget(selectedProceduralTargetId);
+      }
+      setSelectedProceduralTargetId(null);
+      const parsed = specToEditorState(entry.spec as Record<string, unknown>);
+      hydrateProceduralEditorState({
+        nodes: parsed.nodes,
+        edges: parsed.edges,
+        enabledOutputs: Array.from(parsed.enabledOutputs),
+        enabledInputs: Array.from(parsed.enabledInputs),
+        customInputPaths: [...parsed.customInputPaths],
+      });
+      setEditingSkillId(skillId);
+      setWorkspacePanelVisibility("motiongraph", true);
+    },
+    [
+      loader.bundle,
+      saveProceduralTarget,
+      selectedProceduralTargetId,
+      setWorkspacePanelVisibility,
+    ],
+  );
+  const applySkillEdits = useCallback(() => {
+    if (!editingSkillId) {
+      return;
+    }
+    const spec = buildProceduralExportSpec(snapshotProceduralEditorState());
+    replaceSkillSpec(editingSkillId, spec as Record<string, unknown>);
+    setEditingSkillId(null);
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, [editingSkillId, replaceSkillSpec]);
+  const discardSkillEdits = useCallback(() => {
+    setEditingSkillId(null);
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, []);
+  // The skill whose "Replace from JSON..." picker is open — consumed when
+  // the hidden input below delivers the chosen file.
+  const replaceSkillIdRef = useRef<string | null>(null);
+  const skillJsonInputRef = useRef<HTMLInputElement>(null);
+  const handleReplaceSkillJson = useCallback((skillId: string) => {
+    replaceSkillIdRef.current = skillId;
+    skillJsonInputRef.current?.click();
+  }, []);
+  const handleSkillJsonFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      const skillId = replaceSkillIdRef.current;
+      replaceSkillIdRef.current = null;
+      event.target.value = "";
+      if (file && skillId) {
+        void importSkillJson(skillId, file);
+      }
+    },
+    [importSkillJson],
+  );
+
   const menuBar = (
     <AppMenuBar
       onNew={handleNewClick}
@@ -4066,6 +4152,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onExportStandardProfileJson={exportStandardProfileJson}
       onReplaceStandardProfileJson={handleReplaceStandardProfileJson}
       onEditStandardProfileGraph={handleEditStandardProfileGraph}
+      skills={availableSkills}
+      embeddedSkillIds={embeddedSkillIds}
+      onToggleSkill={(skillId, enabled) => {
+        void toggleSkill(skillId, enabled);
+      }}
+      onExportSkillJson={exportSkillJson}
+      onReplaceSkillJson={handleReplaceSkillJson}
+      onEditSkillGraph={handleEditSkillGraph}
       onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
       canSave={canExport}
@@ -4509,6 +4603,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   </button>
                 </div>
               ) : null}
+              {editingSkillId ? (
+                <div
+                  className="flex items-center gap-2 border-b border-border-default bg-bg-secondary px-3 py-1.5 text-xs text-text-secondary"
+                  data-testid="skill-editor-banner"
+                >
+                  <span className="flex-1">
+                    Editing the{" "}
+                    <span className="font-semibold text-text-primary">
+                      {editingSkillId}
+                    </span>{" "}
+                    skill fragment — applied to the embedded copy, not a
+                    program.
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded bg-accent-primary px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                    data-testid="skill-editor-apply"
+                    onClick={applySkillEdits}
+                  >
+                    Apply to Skill
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-border-default px-2 py-1 text-xs hover:bg-bg-hover"
+                    data-testid="skill-editor-discard"
+                    onClick={discardSkillEdits}
+                  >
+                    Discard
+                  </button>
+                </div>
+              ) : null}
               <div className="min-h-0 flex-1">
                 <MotionGraphPanel
                   onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
@@ -4631,7 +4756,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
-              enableMotionGraphPruning={!editingProfileId}
+              enableMotionGraphPruning={!editingProfileId && !editingSkillId}
               onSelectMotionGraphNode={
                 handleSelectMotionGraphNodeWithInspectorSync
               }
@@ -4791,6 +4916,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         accept=".json"
         data-testid="app-profile-json-input"
         onChange={handleProfileJsonFileChange}
+      />
+      {/* Hidden file input for "Replace <skill> from JSON..." */}
+      <input
+        type="file"
+        ref={skillJsonInputRef}
+        className="hidden"
+        accept=".json"
+        data-testid="app-skill-json-input"
+        onChange={handleSkillJsonFileChange}
       />
     </ReferenceFaceProvider>
   );
