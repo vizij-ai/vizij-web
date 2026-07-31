@@ -38,6 +38,8 @@ use log::{debug, info, warn};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 
+use crate::skills::SharedSkillHost;
+
 /// Drive a set of bridge endpoints against a shared store until `cancel` fires
 /// (or every endpoint disconnects).
 ///
@@ -48,6 +50,7 @@ use tokio_util::sync::CancellationToken;
 pub async fn run_pump(
     store: SimpleDataStore,
     app: AppHandle,
+    skills: SharedSkillHost,
     mut bridges: Vec<Box<dyn Bridge>>,
     cancel: CancellationToken,
 ) {
@@ -87,7 +90,7 @@ pub async fn run_pump(
             }
             maybe_event = inbound.next() => {
                 match maybe_event {
-                    Some(event) => handle_inbound(&store, &app, event),
+                    Some(event) => handle_inbound(&store, &app, &skills, event),
                     // Every endpoint's inbound stream ended: all disconnected.
                     None => break,
                 }
@@ -105,7 +108,12 @@ pub async fn run_pump(
 /// enumerates the live keys. Note the webview mirror (the `publish_values`
 /// command) writes to the store WITHOUT going through here, so its own values
 /// are never echoed back to it as `update-values`.
-pub fn handle_inbound(store: &SimpleDataStore, app: &AppHandle, event: Inbound) {
+pub fn handle_inbound(
+    store: &SimpleDataStore,
+    app: &AppHandle,
+    skills: &SharedSkillHost,
+    event: Inbound,
+) {
     match event {
         Inbound::Command(cmd) => {
             let result = match &cmd.op {
@@ -145,13 +153,35 @@ pub fn handle_inbound(store: &SimpleDataStore, app: &AppHandle, event: Inbound) 
                         mutated: Vec::new(),
                     })
                 }
-                // Methods live on the WS registry, not the store, and this host
-                // runs no engine, so there is nothing to enumerate/dispatch here.
-                BridgeOp::ListMethods { .. } => Ok(CallResult {
-                    ret: Value::ArrayValue(Vec::new()),
-                    mutated: Vec::new(),
-                }),
-                BridgeOp::Call(_) => Err("calls are not supported by this host".to_string()),
+                // The skill plane: the described methods and the interpreter
+                // module's SPAWN/HALT, served by the graph interpreter
+                // ([`crate::skills`]). This is what a ROS 2 bridge's ROS4HRI
+                // profile binds `/skill/look_at` through. (The WS-registry app
+                // methods — reset, speak, transport — are a separate surface.)
+                #[allow(deprecated)] // ListMethods stays answered for old callers.
+                BridgeOp::ListMethods { prefix } => match skills.lock() {
+                    Ok(host) => Ok(CallResult {
+                        ret: Value::ArrayValue(
+                            host.method_names(prefix.as_deref())
+                                .into_iter()
+                                .map(Value::String)
+                                .collect(),
+                        ),
+                        mutated: Vec::new(),
+                    }),
+                    Err(_) => Err("the skill host is unavailable".to_string()),
+                },
+                BridgeOp::DescribeMethods { prefix } => match skills.lock() {
+                    Ok(host) => Ok(CallResult {
+                        ret: host.signatures(prefix.as_deref()),
+                        mutated: Vec::new(),
+                    }),
+                    Err(_) => Err("the skill host is unavailable".to_string()),
+                },
+                BridgeOp::Call(call) => match skills.lock() {
+                    Ok(mut host) => host.dispatch(call),
+                    Err(_) => Err("the skill host is unavailable".to_string()),
+                },
             };
             cmd.reply(result);
         }

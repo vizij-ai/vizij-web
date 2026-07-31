@@ -16,6 +16,7 @@ use arora_simple_data_store::SimpleDataStore;
 use arora_types::data::{DataStore, Key, StateChange};
 
 mod host;
+mod skills;
 
 /// Application state.
 ///
@@ -27,6 +28,9 @@ mod host;
 struct AppState {
     /// The one shared blackboard every bridge reads/writes. Clones share storage.
     store: SimpleDataStore,
+    /// The graph interpreter serving the device's skills (`/skill/look_at`),
+    /// ticked for the whole process and dispatched to by every pump.
+    skills: skills::SharedSkillHost,
     /// The WebSocket server (`arora-bridge-ws`), created once for the process. Its
     /// registry (advertised keys + methods) is updated live; the serve loop is
     /// started/stopped under `cancel_token`.
@@ -568,6 +572,7 @@ fn transport_stop(app: &AppHandle, args: &HashMap<String, Value>) -> InvokeResul
 /// auto-allow access server per bridge, then [`host::run_pump`] itself.
 fn spawn_bridge_pump(app: &AppHandle, bridges: Vec<Box<dyn Bridge>>, cancel: CancellationToken) {
     let store = app.state::<AppState>().store.clone();
+    let skills = app.state::<AppState>().skills.clone();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         for bridge in &bridges {
@@ -577,7 +582,7 @@ fn spawn_bridge_pump(app: &AppHandle, bridges: Vec<Box<dyn Bridge>>, cancel: Can
                 cancel.child_token(),
             ));
         }
-        host::run_pump(store, app, bridges, cancel).await;
+        host::run_pump(store, app, skills, bridges, cancel).await;
     });
 }
 
@@ -682,7 +687,11 @@ async fn respawn_ros2(app: &AppHandle) {
     let config = {
         let state = app.state::<AppState>();
         let keys = state.keys.lock().unwrap();
-        let mut config = Ros2BridgeConfig::new(state.ros2_namespace.clone(), state.ros2_domain_id);
+        // The ROS4HRI exposure preset: the typed face topics and the
+        // `/skill/look_at` action binding, resolved against this host's
+        // described methods at bridge startup.
+        let mut config = Ros2BridgeConfig::new(state.ros2_namespace.clone(), state.ros2_domain_id)
+            .with_profile(arora_bridge_ros2::ExposureProfile::ros4hri());
         for key in keys.iter() {
             // Only input keys accept inbound commands (become subscribed topics);
             // outputs are published on demand from `try_send`.
@@ -899,7 +908,9 @@ async fn run_studio_pump(
     let on_error = move |message: String| {
         let _ = error_app.emit(STUDIO_BRIDGE_ERROR_EVENT, message);
     };
-    let on_inbound = move |store: &SimpleDataStore, event| host::handle_inbound(store, &app, event);
+    let skills = app.state::<AppState>().skills.clone();
+    let on_inbound =
+        move |store: &SimpleDataStore, event| host::handle_inbound(store, &app, &skills, event);
     run_studio_pump_core(
         store,
         bridge,
@@ -1530,8 +1541,27 @@ pub fn run() {
                 )
             };
 
+            // The skill plane: the graph interpreter serving /skill/look_at,
+            // ticked against the shared store for the whole process.
+            let skills: skills::SharedSkillHost =
+                std::sync::Arc::new(StdMutex::new(skills::SkillHost::new()));
+            {
+                let skills = skills.clone();
+                let store = store.clone();
+                std::thread::Builder::new()
+                    .name("skill-tick".into())
+                    .spawn(move || loop {
+                        if let Ok(mut host) = skills.lock() {
+                            host.tick(&store);
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(30));
+                    })
+                    .expect("failed to spawn the skill tick thread");
+            }
+
             app.manage(AppState {
                 store: store.clone(),
+                skills,
                 ws_server,
                 cancel_token: StdMutex::new(None),
                 #[cfg(feature = "ros2")]
