@@ -1,188 +1,76 @@
-//! The device's skill plane: a Vizij graph interpreter serving `look_at`.
+//! The device's skill plane: the pieces the arora run composes to serve
+//! `look_at`.
 //!
-//! The standalone's host runs no `arora` engine, so this module carries the
-//! two engine seams a bridge needs to serve a skill as a ROS 2 action:
-//!
-//! - **DescribeMethods** — the described `look_at` signature
-//!   ([`vizij_arora_behavior::gaze`]), answered on the value plane as
-//!   `Vec<MethodSignature>`, which `arora-bridge-ros2`'s ROS4HRI exposure
-//!   profile binds to `/skill/look_at`.
-//! - **The interpreter module** — SPAWN/HALT calls (the well-known
-//!   [`arora_behavior::interpreter_module`] ABI) dispatched into a
-//!   [`ProcessingGraph`] holding the shipped look_at fragment. A spawned run
-//!   grafts the fragment; [`tick`](SkillHost::tick) advances it against the
-//!   shared store, where its gaze intent lands on the `standard/ros4hri/*`
-//!   keys — mirrored to the webview and served over every attached bridge.
-//!
-//! The behavior stays data (the `skills/look_at.json` asset), exactly as on
-//! the native app; only the hosting differs.
+//! The arora runtime owns everything operational — the step loop, the
+//! built-in keys, bridge pumping, `DescribeMethods`, and the interpreter
+//! module's SPAWN/HALT — so this module only *builds*: the gaze host module
+//! (the described `look_at` contract, from [`vizij_arora_behavior::gaze`])
+//! and the graph interpreter holding the shipped look_at fragment. The
+//! behavior stays data (the `skills/look_at.json` asset), exactly as on the
+//! native app.
 
-use std::sync::{Arc, Mutex as StdMutex};
-use std::time::Instant;
-
-use arora_behavior::{interpreter_module, BehaviorContext, BehaviorInterpreter};
-use arora_bridge::MethodSignature;
-use arora_simple_data_store::SimpleDataStore;
-use std::rc::Rc;
-
-use arora_types::call::{Call, CallBridge, CallError, CallResult, Callable, CallableId};
-use arora_types::data::{DataStore, StateChange};
-use arora_types::value::Value;
-use vizij_arora_behavior::{gaze, ProcessingGraph};
+use arora::{HostModule, ModuleBuilder};
+use arora_types::call::CallResult;
+use vizij_arora_behavior::{gaze, task, ProcessingGraph};
 use vizij_arora_host::skills::LOOK_AT_FUNCTION;
 use vizij_graph_core::types::GraphSpec;
 
-/// The interpreter and its clock, shared between the tick loop and the pumps.
-pub type SharedSkillHost = Arc<StdMutex<SkillHost>>;
-
-/// The graph interpreter hosting the device's skills.
-pub struct SkillHost {
-    graph: ProcessingGraph,
-    last_tick: Option<Instant>,
+/// The graph interpreter the device runs: an empty graph with the shipped
+/// look_at fragment registered — runs exist only while goals are live.
+pub fn interpreter() -> ProcessingGraph {
+    let mut graph =
+        ProcessingGraph::from_spec(GraphSpec::default()).expect("an empty graph spec encodes");
+    graph.set_task_fragment(gaze::look_at_id(), gaze::look_at_fragment());
+    graph
 }
 
-impl SkillHost {
-    /// An interpreter over an empty graph with the shipped look_at fragment
-    /// registered: runs exist only while goals are live.
-    pub fn new() -> Self {
-        let mut graph =
-            ProcessingGraph::from_spec(GraphSpec::default()).expect("an empty graph spec encodes");
-        graph.set_task_fragment(gaze::look_at_id(), gaze::look_at_fragment());
-        Self {
-            graph,
-            last_tick: None,
-        }
-    }
-
-    /// The described methods this device serves — what a bridge's
-    /// `DescribeMethods` learns and the ROS4HRI profile binds against.
-    pub fn signatures(&self, prefix: Option<&str>) -> Value {
-        let all = [MethodSignature {
-            module_id: gaze::module_id(),
-            id: gaze::look_at_id(),
-            name: LOOK_AT_FUNCTION.to_string(),
-            function: gaze::look_at_signature(),
-        }];
-        let matching: Vec<&MethodSignature> = all
-            .iter()
-            .filter(|s| prefix.is_none_or(|p| s.name.starts_with(p)))
-            .collect();
-        arora_types::value_serde::to_value(&matching)
-            .expect("method signatures encode on the value plane")
-    }
-
-    /// The served method names — the deprecated `ListMethods` answer.
-    pub fn method_names(&self, prefix: Option<&str>) -> Vec<String> {
-        [LOOK_AT_FUNCTION]
-            .iter()
-            .filter(|n| prefix.is_none_or(|p| n.starts_with(p)))
-            .map(|n| n.to_string())
-            .collect()
-    }
-
-    /// Dispatch a bridge's `Call`: the interpreter module's SPAWN/HALT (how a
-    /// bridge starts and cancels a task run). Anything else is refused — the
-    /// skill functions themselves are graph content, not callables.
-    pub fn dispatch(&mut self, call: &Call) -> Result<CallResult, String> {
-        if call.module_id != Some(interpreter_module::ID) {
-            return Err(format!(
-                "calls are served only for the interpreter module (got {:?})",
-                call.module_id
-            ));
-        }
-        if call.id == interpreter_module::SPAWN {
-            let (inner, policy) = interpreter_module::decode_spawn(call)?;
-            if inner.id != gaze::look_at_id() {
-                return Err(format!("no task-run function {}", inner.id));
-            }
-            let handle = self.graph.spawn(inner, policy).map_err(|e| e.message)?;
-            return Ok(CallResult {
-                ret: interpreter_module::encode_spawn_result(&handle),
-                mutated: Vec::new(),
-            });
-        }
-        if call.id == interpreter_module::HALT {
-            let task = interpreter_module::decode_halt(call)?;
-            self.graph.halt(task).map_err(|e| e.message)?;
-            return Ok(CallResult {
-                ret: Value::Unit,
-                mutated: Vec::new(),
-            });
-        }
-        Err(format!("unsupported interpreter call {}", call.id))
-    }
-
-    /// Advance the interpreter one step against the store: publish the
-    /// built-in `dt` (nanoseconds since the previous tick) the graph's
-    /// time-driven nodes read, then tick. Errors are transient by the
-    /// interpreter contract; they are logged and the next tick retries.
-    pub fn tick(&mut self, store: &SimpleDataStore) {
-        let now = Instant::now();
-        let dt = self
-            .last_tick
-            .map(|last| now.duration_since(last).as_nanos() as u64)
-            .unwrap_or(0);
-        self.last_tick = Some(now);
-        if let Err(e) = store.write(StateChange::set(
-            arora_behavior::built_in::DT,
-            Value::U64(dt),
-        )) {
-            log::warn!("skills: dt write failed: {e}");
-        }
-        let mut calls = NoModules;
-        let mut ctx = BehaviorContext {
-            store,
-            call_bridge: &mut calls,
-        };
-        if let Err(e) = self.graph.tick(&mut ctx) {
-            log::warn!("skills: tick failed: {}", e.message);
-        }
-    }
-}
-
-/// The tick context's call bridge: this host loads no modules, and the
-/// shipped fragments are pure graph content, so a call is a misconfiguration.
-struct NoModules;
-
-impl CallBridge for NoModules {
-    fn arora_call(&mut self, call: Call) -> Result<CallResult, CallError> {
-        Err(CallError::Generic {
-            message: format!("this host serves no module calls (function {})", call.id),
-        })
-    }
-
-    fn arora_register_callable(&mut self, _callable: Rc<dyn Callable>) -> CallableId {
-        CallableId { id: 0 }
-    }
-
-    fn arora_unregister_callable(&mut self, _callable_id: &CallableId) {}
-
-    fn arora_call_indirect(&mut self, _callable_id: &CallableId) -> Result<Value, CallError> {
-        Err(CallError::Generic {
-            message: "this host serves no indirect calls".to_string(),
-        })
-    }
+/// The gaze module: the look_at contract, described so bridges discover it
+/// (and the ROS4HRI exposure profile binds `/skill/look_at` to it). The
+/// closure is only reached when the device did not register the fragment —
+/// it fails the run rather than pretending to gaze.
+pub fn gaze_module() -> HostModule {
+    ModuleBuilder::new(gaze::module_id())
+        .described_function(
+            gaze::look_at_id(),
+            LOOK_AT_FUNCTION,
+            gaze::look_at_signature(),
+            |_call| {
+                log::warn!("look_at invoked as a module call: no task fragment is registered");
+                Ok(CallResult {
+                    ret: task::failure(),
+                    mutated: Vec::new(),
+                })
+            },
+        )
+        .build()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arora_behavior::RunPolicy;
-    use arora_types::data::Key;
-    use arora_types::value::StructureField;
-    use vizij_arora_behavior::task;
+    use std::time::Duration;
+
+    use arora_behavior::{interpreter_module, RunPolicy};
+    use arora_simple_data_store::SimpleDataStore;
+    use arora_types::call::Call;
+    use arora_types::data::{DataStore, Key};
+    use arora_types::value::{StructureField, Value};
     use vizij_arora_host::ros4hri;
 
-    /// A look_at goal spawned over the interpreter-module wire (the bridge's
-    /// path) grafts the shipped fragment: ticks write the gaze target, the
-    /// status runs, and the handle's stop call ends the run.
+    /// The standalone's composition end to end: an arora over the SHARED
+    /// store serves a look_at goal — spawn through the engine, the fragment
+    /// grafts, steps write the gaze surface into the store the webview and
+    /// bridges observe, and the handle's stop call ends the run.
     #[test]
-    fn the_skill_host_serves_a_look_at_run() {
+    fn the_arora_serves_a_look_at_run_on_the_shared_store() {
         let store = SimpleDataStore::new();
-        let mut host = SkillHost::new();
+        let mut arora = arora::Arora::builder()
+            .with_data_store(Box::new(store.clone()))
+            .with_host_module(gaze_module())
+            .with_behavior_interpreter(Box::new(interpreter()))
+            .build()
+            .expect("the device composes");
 
-        // The routed spawn call the bound action would build: policy "" =
-        // track, target in the face frame.
         let parameters = gaze::look_at_parameters();
         let arg = |name: &str, value: Value| StructureField {
             id: *parameters
@@ -192,7 +80,7 @@ mod tests {
                 .0,
             value: Box::new(value),
         };
-        let inner = Call {
+        let look_at = Call {
             module_id: Some(gaze::module_id()),
             id: gaze::look_at_id(),
             args: vec![
@@ -201,41 +89,34 @@ mod tests {
                 arg("frame", Value::String("face".to_string())),
             ],
         };
-        let spawn = interpreter_module::encode_spawn(&inner, RunPolicy::Concurrent);
-        let result = host.dispatch(&spawn).expect("the spawn is served");
-        let handle = interpreter_module::decode_spawn_result(&result.ret)
-            .expect("the reply is the run's handle");
+        let spawned = arora
+            .call(interpreter_module::encode_spawn(
+                &look_at,
+                RunPolicy::Concurrent,
+            ))
+            .expect("SPAWN dispatches through the engine");
+        let handle =
+            interpreter_module::decode_spawn_result(&spawned.ret).expect("a TaskHandle comes back");
 
-        for _ in 0..5 {
-            host.tick(&store);
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
+        let read = |key: &Key| {
+            store
+                .read(std::slice::from_ref(key))
+                .into_iter()
+                .next()
+                .flatten()
+        };
+        arora.step(Duration::from_millis(16)).expect("step");
+        assert_eq!(
+            read(&Key::from(ros4hri::GAZE_TARGET_KEY)),
+            Some(Value::ArrayF32(vec![1.0, 0.3, 0.1])),
+            "the run's gaze intent lands on the shared store"
+        );
+        assert_eq!(read(&handle.status), Some(task::running()));
 
-        // The fragment steers the gaze surface and reports Running.
-        let gaze_target = store
-            .read(&[Key::from(ros4hri::GAZE_TARGET_KEY)])
-            .into_iter()
-            .next()
-            .flatten()
-            .expect("the run writes the gaze target");
-        assert_eq!(gaze_target, Value::ArrayF32(vec![1.0, 0.3, 0.1]));
-        let status = store
-            .read(&[handle.status.clone()])
-            .into_iter()
-            .next()
-            .flatten()
-            .expect("the run reports its status");
-        assert_eq!(status, task::running());
-
-        // The handle's stop call (what a cancel dispatches) ends the run.
-        host.dispatch(&handle.stop).expect("the halt is served");
-        host.tick(&store);
-        let status = store
-            .read(&[handle.status])
-            .into_iter()
-            .next()
-            .flatten()
-            .expect("the status key outlives the run");
-        assert_ne!(status, task::running());
+        arora
+            .call(handle.stop.clone())
+            .expect("the halt dispatches through the engine");
+        arora.step(Duration::from_millis(16)).expect("step");
+        assert_ne!(read(&handle.status), Some(task::running()));
     }
 }

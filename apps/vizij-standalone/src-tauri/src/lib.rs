@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 
+#[cfg(feature = "studio-bridge")]
 use arora_bridge::Bridge;
 use arora_bridge_ws::bridge::WsBridge;
 use arora_bridge_ws::{
@@ -15,6 +16,7 @@ use arora_bridge_ws::{
 use arora_simple_data_store::SimpleDataStore;
 use arora_types::data::{DataStore, Key, StateChange};
 
+#[cfg(feature = "studio-bridge")]
 mod host;
 mod skills;
 
@@ -28,9 +30,6 @@ mod skills;
 struct AppState {
     /// The one shared blackboard every bridge reads/writes. Clones share storage.
     store: SimpleDataStore,
-    /// The graph interpreter serving the device's skills (`/skill/look_at`),
-    /// ticked for the whole process and dispatched to by every pump.
-    skills: skills::SharedSkillHost,
     /// The WebSocket server (`arora-bridge-ws`), created once for the process. Its
     /// registry (advertised keys + methods) is updated live; the serve loop is
     /// started/stopped under `cancel_token`.
@@ -38,10 +37,6 @@ struct AppState {
     /// Governs the WS serve loop and the WS bridge pump (the start/stop lifecycle).
     /// `Some` iff the host is running.
     cancel_token: StdMutex<Option<CancellationToken>>,
-    /// Governs the ROS 2 bridge pump. Replaced whenever the input-key catalog
-    /// changes (a ROS 2 topic is typed and its inputs are declared up front).
-    #[cfg(feature = "ros2")]
-    ros2_token: StdMutex<Option<CancellationToken>>,
     #[cfg(feature = "ros2")]
     ros2_domain_id: u16,
     #[cfg(feature = "ros2")]
@@ -568,24 +563,6 @@ fn transport_stop(app: &AppHandle, args: &HashMap<String, Value>) -> InvokeResul
 // Bridge host lifecycle
 // =============================================================================
 
-/// Spawn a pump for one set of bridge endpoints against the shared store: an
-/// auto-allow access server per bridge, then [`host::run_pump`] itself.
-fn spawn_bridge_pump(app: &AppHandle, bridges: Vec<Box<dyn Bridge>>, cancel: CancellationToken) {
-    let store = app.state::<AppState>().store.clone();
-    let skills = app.state::<AppState>().skills.clone();
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        for bridge in &bridges {
-            let requests = bridge.access_requests().await;
-            tauri::async_runtime::spawn(host::serve_access_auto_allow(
-                requests,
-                cancel.child_token(),
-            ));
-        }
-        host::run_pump(store, app, skills, bridges, cancel).await;
-    });
-}
-
 /// Start the bridge host: register the WS methods, bind + serve the WS server,
 /// and spawn the WS pump (plus the ROS 2 pump). Idempotent — returns `Ok` if the
 /// host is already running. The Studio bridge is independent (its own thread) and
@@ -635,12 +612,72 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
         });
     }
 
-    // WS pump — owns the WS bridge's inbound stream; ends when the server stops.
-    spawn_bridge_pump(app, vec![Box::new(ws_bridge)], cancel.child_token());
-
-    // ROS 2 pump — built from the current key catalog.
-    #[cfg(feature = "ros2")]
-    respawn_ros2(app).await;
+    // The device: ONE arora run owns the interpreter (the look_at fragment),
+    // the gaze module, the built-in keys, and every bridge pump — the engine
+    // seams this host used to hand-roll. Built inside its own thread (an
+    // `Arora` is single-owner and not `Send`), stopped through the host's
+    // cancel token.
+    {
+        let store = app.state::<AppState>().store.clone();
+        #[cfg(feature = "ros2")]
+        let ros2_parts = {
+            let state = app.state::<AppState>();
+            let keys = state.keys.lock().unwrap().clone();
+            (state.ros2_namespace.clone(), state.ros2_domain_id, keys)
+        };
+        let device_cancel = cancel.child_token();
+        std::thread::Builder::new()
+            .name("arora-device".into())
+            .spawn(move || {
+                let rt = match tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(rt) => rt,
+                    Err(e) => return log::error!("device runtime: {e}"),
+                };
+                rt.block_on(async move {
+                    #[cfg_attr(not(feature = "ros2"), allow(unused_mut))]
+                    let mut builder = arora::Arora::builder()
+                        .with_data_store(Box::new(store))
+                        .with_host_module(skills::gaze_module())
+                        .with_behavior_interpreter(Box::new(skills::interpreter()))
+                        .with_bridge(Box::new(ws_bridge));
+                    #[cfg(feature = "ros2")]
+                    {
+                        use arora_bridge_ros2::{ExposureProfile, Ros2Bridge, Ros2BridgeConfig};
+                        let (namespace, domain_id, keys) = ros2_parts;
+                        // The ROS4HRI exposure preset: the typed face topics
+                        // and the /skill/look_at action binding, resolved
+                        // against this device's described methods at startup.
+                        let mut config = Ros2BridgeConfig::new(namespace, domain_id)
+                            .with_profile(ExposureProfile::ros4hri());
+                        for key in &keys {
+                            // Only input keys accept inbound commands (become
+                            // subscribed topics); outputs publish on demand.
+                            if key.kind.as_deref() == Some("input") {
+                                let value_type = key.value_type.clone().unwrap_or(Type::F64);
+                                config = config.with_input(key.path.clone(), value_type);
+                            }
+                        }
+                        builder = builder.with_bridge(Box::new(Ros2Bridge::new(config).await));
+                    }
+                    let mut arora = match builder.build() {
+                        Ok(arora) => arora,
+                        Err(e) => return log::error!("device build failed: {e:?}"),
+                    };
+                    tokio::select! {
+                        result = arora.run(arora::Arora::DEFAULT_STEP_PERIOD) => {
+                            if let Err(e) = result {
+                                log::error!("device run ended: {e}");
+                            }
+                        }
+                        _ = device_cancel.cancelled() => {}
+                    }
+                });
+            })
+            .map_err(|e| format!("failed to spawn the device thread: {e}"))?;
+    }
 
     if emit_started {
         app.emit("ws:started", port).map_err(|e| e.to_string())?;
@@ -653,10 +690,6 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
 /// Stop the bridge host: cancel the WS serve loop + all pumps.
 async fn stop_host(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
-    #[cfg(feature = "ros2")]
-    if let Some(token) = state.ros2_token.lock().unwrap().take() {
-        token.cancel();
-    }
     let token = state.cancel_token.lock().unwrap().take();
     if let Some(token) = token {
         token.cancel();
@@ -665,49 +698,6 @@ async fn stop_host(app: &AppHandle) -> Result<(), String> {
     } else {
         Err("Connection servers are not running".to_string())
     }
-}
-
-/// (Re)build the ROS 2 pump from the current key catalog. ROS 2 topics are typed
-/// and their inputs declared up front, so a changed catalog means a rebuilt
-/// bridge (no hot-reload). No-op when the host is not running.
-#[cfg(feature = "ros2")]
-async fn respawn_ros2(app: &AppHandle) {
-    use arora_bridge_ros2::{Ros2Bridge, Ros2BridgeConfig};
-
-    let parent = app.state::<AppState>().cancel_token.lock().unwrap().clone();
-    let Some(parent) = parent else {
-        return; // host not running
-    };
-
-    // Cancel the previous ROS 2 pump before building the next.
-    if let Some(old) = app.state::<AppState>().ros2_token.lock().unwrap().take() {
-        old.cancel();
-    }
-
-    let config = {
-        let state = app.state::<AppState>();
-        let keys = state.keys.lock().unwrap();
-        // The ROS4HRI exposure preset: the typed face topics and the
-        // `/skill/look_at` action binding, resolved against this host's
-        // described methods at bridge startup.
-        let mut config = Ros2BridgeConfig::new(state.ros2_namespace.clone(), state.ros2_domain_id)
-            .with_profile(arora_bridge_ros2::ExposureProfile::ros4hri());
-        for key in keys.iter() {
-            // Only input keys accept inbound commands (become subscribed topics);
-            // outputs are published on demand from `try_send`.
-            if key.kind.as_deref() == Some("input") {
-                let value_type = key.value_type.clone().unwrap_or(Type::F64);
-                config = config.with_input(key.path.clone(), value_type);
-            }
-        }
-        config
-    };
-
-    let bridge = Ros2Bridge::new(config).await;
-    let cancel = parent.child_token();
-    *app.state::<AppState>().ros2_token.lock().unwrap() = Some(cancel.clone());
-    spawn_bridge_pump(app, vec![Box::new(bridge)], cancel);
-    info!("ROS2 bridge (re)built");
 }
 
 // =============================================================================
@@ -908,9 +898,7 @@ async fn run_studio_pump(
     let on_error = move |message: String| {
         let _ = error_app.emit(STUDIO_BRIDGE_ERROR_EVENT, message);
     };
-    let skills = app.state::<AppState>().skills.clone();
-    let on_inbound =
-        move |store: &SimpleDataStore, event| host::handle_inbound(store, &app, &skills, event);
+    let on_inbound = move |store: &SimpleDataStore, event| host::handle_inbound(store, event);
     run_studio_pump_core(
         store,
         bridge,
@@ -1196,10 +1184,20 @@ async fn set_slots(app_handle: AppHandle, slots: Vec<KeyInfo>) -> Result<(), Str
 
     *app_handle.state::<AppState>().keys.lock().unwrap() = slots;
 
-    // ROS 2 inputs are declared up front, so rebuild that pump with the new
-    // catalog. The WS bridge is untouched, so connected WS clients stay up.
+    // ROS 2 inputs are declared up front, at device build. With the host
+    // running, a changed catalog rebuilds the whole run (bridges are fixed at
+    // build) — a brief blip on model load, ros2 builds only.
     #[cfg(feature = "ros2")]
-    respawn_ros2(&app_handle).await;
+    if app_handle
+        .state::<AppState>()
+        .cancel_token
+        .lock()
+        .unwrap()
+        .is_some()
+    {
+        let _ = stop_host(&app_handle).await;
+        start_host(&app_handle, false).await?;
+    }
 
     info!("Key catalog updated: {} key(s) advertised", count);
     Ok(())
@@ -1541,31 +1539,41 @@ pub fn run() {
                 )
             };
 
-            // The skill plane: the graph interpreter serving /skill/look_at,
-            // ticked against the shared store for the whole process.
-            let skills: skills::SharedSkillHost =
-                std::sync::Arc::new(StdMutex::new(skills::SkillHost::new()));
+            // Mirror the store to the webview: every writer's set-changes
+            // reach the renderer — bridge updates and the skill runs' gaze
+            // intent alike. The engine's built-in keys (arora/*) stay out,
+            // they tick at run rate. The webview's own publish_values writes
+            // echo back through here; the webview applies values
+            // idempotently, so the echo is redundant, not harmful.
             {
-                let skills = skills.clone();
-                let store = store.clone();
+                let subscription = store.subscribe();
+                let app_handle = app.handle().clone();
                 std::thread::Builder::new()
-                    .name("skill-tick".into())
-                    .spawn(move || loop {
-                        if let Ok(mut host) = skills.lock() {
-                            host.tick(&store);
+                    .name("store-mirror".into())
+                    .spawn(move || {
+                        while let Some(change) = subscription.recv() {
+                            let mut values: HashMap<String, arora_types::value::Value> =
+                                HashMap::new();
+                            for (key, value) in &change.set {
+                                if key.path.starts_with(arora_behavior::built_in::PREFIX) {
+                                    continue;
+                                }
+                                if let Some(value) = value {
+                                    values.insert(key.path.clone(), value.clone());
+                                }
+                            }
+                            if !values.is_empty() {
+                                let _ = app_handle.emit("update-values", &values);
+                            }
                         }
-                        std::thread::sleep(std::time::Duration::from_millis(30));
                     })
-                    .expect("failed to spawn the skill tick thread");
+                    .expect("failed to spawn the store mirror thread");
             }
 
             app.manage(AppState {
                 store: store.clone(),
-                skills,
                 ws_server,
                 cancel_token: StdMutex::new(None),
-                #[cfg(feature = "ros2")]
-                ros2_token: StdMutex::new(None),
                 #[cfg(feature = "ros2")]
                 ros2_domain_id: cli.ros2_domain_id,
                 #[cfg(feature = "ros2")]
