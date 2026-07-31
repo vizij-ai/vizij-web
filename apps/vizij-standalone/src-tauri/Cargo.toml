@@ -13,13 +13,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
-# Multi-bridge host on plain stable: one `SimpleDataStore` blackboard with
-# several `arora_bridge::Bridge` endpoints attached (WebSocket + optional ROS 2
-# + optional Studio), plus a hand-rolled pump. These published crates depend
-# only on `arora-types`/`arora-bridge` — NOT the `arora` engine — so the whole
-# standalone stays on the stable toolchain. (Depending on `arora`/`arora-engine`
-# would drag in their `artifact = "cdylib"` dev-bindeps, which need a nightly
-# `-Z bindeps` toolchain even to resolve.)
+# The device host on plain stable: one `SimpleDataStore` blackboard, ONE
+# `arora` run (its portable slice) owning the interpreter, the modules, and
+# the WS/ROS 2 bridge pumps, plus the opt-in Studio bridge on its own thread
+# (it re-registers live as owners change). The published arora carries no
+# artifact bindeps, so stable is enough.
 arora-bridge = "4.1"
 arora-bridge-ws = "4"
 # The dual-backend ROS 2 bridge: DDS (default) or the rmw_zenoh-compatible Zenoh
@@ -28,9 +26,12 @@ arora-bridge-ws = "4"
 arora-bridge-ros2 = { version = "5", optional = true, default-features = false }
 arora-simple-data-store = "2"
 arora-types = "2"
-# The behavior-interpreter seam (trait, interpreter-module ABI, built-in keys):
-# the host runs a `ProcessingGraph` against the shared store, so the device
-# SERVES its skills — still no `arora` engine, still plain stable.
+# The device engine, in its portable slice (no `native` feature: no wasmtime,
+# no TUI — the same wasmtime-free core the browser runtime builds on, so the
+# Android targets stay buildable). ONE arora run owns the interpreter, the
+# modules, the built-in keys, and every bridge pump.
+arora = { version = "9.11.1", default-features = false }
+# The behavior-interpreter seam (trait, interpreter-module ABI, built-in keys).
 arora-behavior = "8"
 # Vizij's graph interpreter and the gaze skill's contract + shipped fragment.
 vizij-arora-behavior = "1"
