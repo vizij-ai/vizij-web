@@ -20,13 +20,22 @@ tauri-build = { version = "2.5.6", features = [] }
 # standalone stays on the stable toolchain. (Depending on `arora`/`arora-engine`
 # would drag in their `artifact = "cdylib"` dev-bindeps, which need a nightly
 # `-Z bindeps` toolchain even to resolve.)
-arora-bridge = "4"
+arora-bridge = "4.1"
 arora-bridge-ws = "4"
 # The dual-backend ROS 2 bridge: DDS (default) or the rmw_zenoh-compatible Zenoh
-# backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features.
-arora-bridge-ros2 = { version = "3.1", optional = true, default-features = false }
+# backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features. 5 adds
+# the skill plane the ROS4HRI exposure profile binds `/skill/look_at` through.
+arora-bridge-ros2 = { version = "5", optional = true, default-features = false }
 arora-simple-data-store = "2"
 arora-types = "2"
+# The behavior-interpreter seam (trait, interpreter-module ABI, built-in keys):
+# the host runs a `ProcessingGraph` against the shared store, so the device
+# SERVES its skills — still no `arora` engine, still plain stable.
+arora-behavior = "8"
+# Vizij's graph interpreter and the gaze skill's contract + shipped fragment.
+vizij-arora-behavior = "1"
+vizij-arora-host = "1"
+vizij-graph-core = "1"
 # Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client — the
 # same `ZenohDeviceClient` arora uses for its Studio connection, which implements
 # arora's `Bridge`. A plain crates.io crate (no artifact bindeps).

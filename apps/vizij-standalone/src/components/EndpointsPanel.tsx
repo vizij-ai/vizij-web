@@ -148,8 +148,8 @@ export function EndpointsPanel({ className }: { className?: string }) {
               </div>
               <div className="text-neutral-500">{skill.description}</div>
               <div className="text-neutral-500">
-                served as the <code>/skill/{skill.id}</code> action where the
-                device&apos;s bridge exposes the skill plane
+                served by this device as the <code>/skill/{skill.id}</code>{" "}
+                action when built with ROS 2
               </div>
             </div>
           ))}
