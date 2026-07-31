@@ -1,10 +1,19 @@
 name: android
 
+# The debug APK + emulator smoke run ON DEMAND (workflow_dispatch): the
+# package is asked for, not rebuilt per PR — the PR gate is the test jobs in
+# ci.yml. Pushes to main keep driving the release path (version detect +
+# release APK).
 on:
-  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      abi:
+        description: "Debug APK ABI (a device ABI, or universal — x86_64/universal also run the emulator smoke)"
+        type: choice
+        default: aarch64
+        options: [aarch64, armv7, x86_64, universal]
 
 concurrency:
   group: android-${{ github.ref }}
@@ -15,11 +24,11 @@ env:
   ANDROID_DIR: apps/vizij-standalone/src-tauri/gen/android
 
 jobs:
-  # PRs (and manual runs): build an installable, auto-signed DEBUG APK and run
-  # the instrumented launch smoke test on an emulator.
+  # On demand: build an installable, auto-signed DEBUG APK and run the
+  # instrumented launch smoke test on an emulator.
   debug-apk:
     name: Debug APK + emulator smoke test
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +76,10 @@ jobs:
         # `arora-studio-bridge-client` crate bakes in the public Firebase config
         # and the production bridge endpoint, so nothing is injected here.
         working-directory: ${{ env.APP_DIR }}
-        run: pnpm exec tauri android build --debug --apk -- --no-default-features --features studio-bridge
+        run: >-
+          pnpm exec tauri android build --debug --apk
+          ${{ inputs.abi != 'universal' && format('--target {0}', inputs.abi) || '' }}
+          -- --no-default-features --features studio-bridge
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -77,13 +89,17 @@ jobs:
           if-no-files-found: error
 
       # --- Emulator smoke test ---
+      # Everything below runs the emulator smoke — only for an APK the
+      # x86_64 emulator can install.
       - name: Enable KVM
+        if: inputs.abi == 'universal' || inputs.abi == 'x86_64'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
       - name: AVD cache
+        if: inputs.abi == 'universal' || inputs.abi == 'x86_64'
         uses: actions/cache@v4
         id: avd-cache
         with:
@@ -93,7 +109,7 @@ jobs:
           key: avd-api34-x86_64
 
       - name: Create AVD snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
+        if: (inputs.abi == 'universal' || inputs.abi == 'x86_64') && steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -123,6 +139,7 @@ jobs:
       #   `tauri android build`/`dev` process); the prior "Build debug APK" step
       #   already produced the .so, so the test reuses them.
       - name: Run instrumented smoke test
+        if: inputs.abi == 'universal' || inputs.abi == 'x86_64'
         id: smoke-1
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
@@ -152,7 +169,7 @@ jobs:
           script: bash .github/scripts/run-android-smoke.sh
 
       - name: Assert smoke test passed
-        if: always()
+        if: always() && (inputs.abi == 'universal' || inputs.abi == 'x86_64')
         run: |
           if [ "${{ steps.smoke-1.outcome }}" = "success" ] || [ "${{ steps.smoke-2.outcome }}" = "success" ]; then
             echo "Emulator smoke test passed (attempt-1=${{ steps.smoke-1.outcome }}, attempt-2=${{ steps.smoke-2.outcome }})."
