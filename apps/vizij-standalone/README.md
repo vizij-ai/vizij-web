@@ -340,7 +340,7 @@ It uses the **same provider** as the JS path — the Vizij TTS cloud function (`
 
 Two pieces are deliberately outside the module:
 
-- **Viseme → face.** The module only *produces* the current viseme code. Mapping it to the face's poses — the vocabulary, the destination key, and the crossfade dynamics — is the action/graph layer's job. _Placeholder: the binding and the standard viseme profile land with the actions work._
+- **Viseme → face.** The module only _produces_ the current viseme code. Mapping it to the face's poses — the vocabulary, the destination key, and the crossfade dynamics — is the action/graph layer's job. _Placeholder: the binding and the standard viseme profile land with the actions work._
 - **Face requirements (GLB) and authoring.** What a face bundle must carry for visemes, and how to author or adapt it, belongs with the face standard rather than the module. _Placeholder: links to the ROS4HRI face docs to be added once the action-level dispatch is settled._
 
 ## Development
