@@ -73,12 +73,13 @@ windows = { version = "0.58", features = ["Win32_System_Console"] }
 
 [features]
 default = []
-# ROS 2 data-topic bridge (`arora-bridge-ros2`). Opt-in — build with
-# `--features ros2` (or `pnpm tauri ... -- --features ros2`) for robot/ROS
-# deployments; the default standalone build has no ROS 2 stack. Data topics only:
-# the device's keys are exposed under `/{ns}/keys/{path}`; there is no ROS 2
-# method/service surface (that parity is tracked in ARORA-62). reset/speak/mute/
-# transport stay on the WebSocket + Studio bridges.
+# ROS 2 bridge (`arora-bridge-ros2`). Opt-in — build with `--features ros2`
+# (or `pnpm tauri ... -- --features ros2`) for robot/ROS deployments; the
+# default standalone build has no ROS 2 stack. Attached with the ROS4HRI
+# exposure preset: the typed face topics, the /skill/look_at action (and the
+# described task-run methods as actions), and every key as a data topic under
+# `/{ns}/keys/{path}`. The reset/speak/mute/transport app methods stay on the
+# WebSocket + Studio bridges (WS-registry methods, not device methods).
 # `ros2` defaults to the DDS backend (`ros2-dds`); `ros2-zenoh` selects the
 # rmw_zenoh-compatible Zenoh backend instead. Exactly one backend is active
 # (arora-bridge-ros2 forwards to ros2-client's mutually-exclusive `dds`/`zenoh`).
