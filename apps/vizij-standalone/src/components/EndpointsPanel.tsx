@@ -2,13 +2,16 @@
 // (and browser control panel), the optional ROS 2 data-topic bridge, and the
 // optional Semio Studio bridge. It reads the snapshot from the Rust side
 // (`get_endpoints`) and re-polls periodically so the WS running state and the
-// Studio owners (which the owner prompt can change live) stay current.
+// Studio owners (which the owner prompt can change live) stay current. Below
+// the endpoints it lists the runtime's skills — the spawnable behaviors the
+// face ships, from the same registry the authoring app's Skills menu offers.
 //
 // `ros2`/`studio` are present only when the app was built with those features;
 // when absent, their sections simply don't render.
 
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { skills as runtimeSkills, type Skill } from "@vizij/runtime";
 
 interface WsEndpoint {
   url: string;
@@ -37,6 +40,21 @@ interface EndpointsInfo {
 
 export function EndpointsPanel({ className }: { className?: string }) {
   const [info, setInfo] = useState<EndpointsInfo | null>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    runtimeSkills()
+      .then((list) => {
+        if (mounted) setSkills(list);
+      })
+      .catch(() => {
+        // Registry unavailable (wasm not loaded) — leave the section empty.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -114,6 +132,27 @@ export function EndpointsPanel({ className }: { className?: string }) {
               </span>
             )}
           </p>
+        </div>
+      )}
+
+      {skills.length > 0 && (
+        <div className="mt-2" data-testid="endpoints-skills">
+          <span className="font-medium text-neutral-300">Skills</span>
+          {skills.map((skill) => (
+            <div key={skill.id} className="mt-1">
+              <div className="text-neutral-200">
+                {skill.title}{" "}
+                <code className="text-neutral-400">
+                  ({skill.parameters.join(", ")})
+                </code>
+              </div>
+              <div className="text-neutral-500">{skill.description}</div>
+              <div className="text-neutral-500">
+                served as the <code>/skill/{skill.id}</code> action where the
+                device&apos;s bridge exposes the skill plane
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -44,6 +44,18 @@ interface AppMenuBarProps {
   onReplaceStandardProfileJson: (profileId: string) => void;
   /** Open an embedded profile's graph in the editor (apply-back session). */
   onEditStandardProfileGraph: (profileId: string) => void;
+  /** The shipped skills a face may pin an override of (empty = none). */
+  skills: { id: string; title: string }[];
+  /** Skill ids the open GLB embeds (checked state of the toggles). */
+  embeddedSkillIds: string[];
+  /** Embed (`enabled`) or remove a skill fragment in the open GLB. */
+  onToggleSkill: (skillId: string, enabled: boolean) => void;
+  /** Download an embedded skill fragment as canonical JSON. */
+  onExportSkillJson: (skillId: string) => void;
+  /** Replace an embedded skill fragment from a canonical JSON file. */
+  onReplaceSkillJson: (skillId: string) => void;
+  /** Open an embedded skill's fragment in the editor (apply-back session). */
+  onEditSkillGraph: (skillId: string) => void;
   canSave: boolean;
   saveDirty: boolean;
   showSelectionGlow: boolean;
@@ -69,6 +81,12 @@ export function AppMenuBar({
   onExportStandardProfileJson,
   onReplaceStandardProfileJson,
   onEditStandardProfileGraph,
+  skills,
+  embeddedSkillIds,
+  onToggleSkill,
+  onExportSkillJson,
+  onReplaceSkillJson,
+  onEditSkillGraph,
   canSave,
   saveDirty,
   showSelectionGlow,
@@ -219,6 +237,47 @@ export function AppMenuBar({
                   testId={`app-menu-file-standard-profile-edit-${profile.id}`}
                 >
                   Edit {profile.title} in Graph Editor...
+                </MenuItem>
+              </React.Fragment>
+            ))}
+        </MenuSubmenu>
+        <MenuSubmenu label="Skills" testId="app-menu-file-skills">
+          {skills.length === 0 ? (
+            <MenuLabel>None available</MenuLabel>
+          ) : (
+            skills.map((skill) => (
+              <MenuCheckboxItem
+                key={skill.id}
+                checked={embeddedSkillIds.includes(skill.id)}
+                onCheckedChange={(checked) => onToggleSkill(skill.id, checked)}
+                testId={`app-menu-file-skill-${skill.id}`}
+              >
+                {skill.title}
+              </MenuCheckboxItem>
+            ))
+          )}
+          {skills
+            .filter((skill) => embeddedSkillIds.includes(skill.id))
+            .map((skill) => (
+              <React.Fragment key={skill.id}>
+                <MenuSeparator />
+                <MenuItem
+                  onSelect={() => onExportSkillJson(skill.id)}
+                  testId={`app-menu-file-skill-export-${skill.id}`}
+                >
+                  Export {skill.title} as JSON...
+                </MenuItem>
+                <MenuItem
+                  onSelect={() => onReplaceSkillJson(skill.id)}
+                  testId={`app-menu-file-skill-replace-${skill.id}`}
+                >
+                  Replace {skill.title} from JSON...
+                </MenuItem>
+                <MenuItem
+                  onSelect={() => onEditSkillGraph(skill.id)}
+                  testId={`app-menu-file-skill-edit-${skill.id}`}
+                >
+                  Edit {skill.title} in Graph Editor...
                 </MenuItem>
               </React.Fragment>
             ))}
