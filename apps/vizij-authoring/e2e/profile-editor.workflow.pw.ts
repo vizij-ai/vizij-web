@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { bootAuthoring, loadMainPreset } from "./helpers";
+import { bootAuthoring, expectDownload, loadMainPreset } from "./helpers";
 import {
   closeMenus,
   downloadedGlbGraphs,
@@ -98,4 +98,28 @@ test("embedded profile edits in the graph editor apply to the bundle @workflow",
   expect(outputPaths).toContain(
     `rig/${"quori_latest"}/standard/vizij/expression/happy`,
   );
+
+  // And the edited copy re-exports as canonical JSON: the editor edit rides
+  // the same bundle entry the JSON export reads, unprefixed on the way out.
+  await openStandardProfilesSubmenu(page);
+  const jsonDownload = await expectDownload(page, async () => {
+    await page
+      .getByTestId("app-menu-file-standard-profile-export-ros4hri")
+      .click();
+  });
+  await closeMenus(page);
+  const reExported = JSON.parse(
+    await readFile((await jsonDownload.path())!, "utf8"),
+  ) as {
+    nodes: { type?: string; params?: { path?: string } }[];
+    edges: unknown[];
+  };
+  expect(reExported.edges.length).toBe(1);
+  const reExportedOutputs = reExported.nodes
+    .filter((node) => node.type === "output")
+    .map((node) => node.params?.path);
+  expect(reExportedOutputs).toContain("standard/vizij/expression/happy");
+  for (const path of reExportedOutputs) {
+    expect(path?.startsWith("rig/"), `unprefixed, got ${path}`).toBeFalsy();
+  }
 });
