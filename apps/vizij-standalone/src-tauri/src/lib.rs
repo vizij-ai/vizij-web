@@ -643,6 +643,7 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
                     let mut builder = arora::Arora::builder()
                         .with_data_store(Box::new(store))
                         .with_host_module(skills::gaze_module())
+                        .with_host_module(vizij_arora_tts::host_module())
                         .with_behavior_interpreter(Box::new(skills::interpreter(&rig_prefix)))
                         .with_bridge(Box::new(ws_bridge));
                     #[cfg(feature = "ros2")]
