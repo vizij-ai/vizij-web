@@ -108,8 +108,9 @@ naming is gone.)
 
 For protocol details, inspect:
 
-- [`src-tauri/src/host.rs`](./src-tauri/src/host.rs) — the multi-bridge pump
-- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs) — the Tauri commands + method surface
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs) — the device run, the Tauri commands + WS method surface
+- [`src-tauri/src/skills.rs`](./src-tauri/src/skills.rs) — what the run composes (the ROS4HRI profile, the gaze contract)
+- [`src-tauri/src/host.rs`](./src-tauri/src/host.rs) — the Studio pump's plumbing
 
 For quick manual testing (the built-in control panel speaks this vocabulary too):
 
@@ -125,18 +126,23 @@ The server binds loopback by default; expose it only on trusted networks.
 
 ## ROS2 Control Surface
 
-When built with the default `ros2` feature, the host also attaches an
-`arora-bridge-ros2` bridge sharing the same store.
+When built with the `ros2` feature, the device's arora run attaches an
+`arora-bridge-ros2` bridge (5.x) with the **ROS4HRI exposure preset** —
+the standalone joins the ROS graph as a ROS4HRI face renderer:
 
-Current behavior:
-
-- keys are exposed as ROS 2 topics under `/{namespace}/keys/...` — the device
-  **publishes** each changed key to its topic and **subscribes** to the input
-  keys (the input topics are declared up front from the key catalog, so the
-  ROS 2 bridge is rebuilt when the catalog changes)
-- **data topics only** — there is **no** ROS 2 method/service surface. The
-  `reset` / `speak` / `mute` / `transport` methods stay on the WebSocket (and
-  Studio) bridge. Restoring ROS 2 method parity is tracked in **ARORA-62**.
+- **typed face topics** — `/robot_face/{expression,look_at,tts}` and
+  `/expressive_face/{look_at,speech}` land on the profile's
+  `standard/ros4hri/*` keys; the ROS4HRI profile graph runs **in the device**
+  and turns them into the face's standard controls (the webview only renders)
+- **actions** — `/skill/look_at` (`interaction_skills/LookAt`: track / glance /
+  reset, priorities, standard error codes) and the device's described task-run
+  methods (e.g. `say`) under `/{namespace}/actions/...`
+- **data topics** — every key under `/{namespace}/keys/...`: the device
+  publishes each changed key and subscribes to the input keys (declared up
+  front from the key catalog; a changed catalog rebuilds the run)
+- the `reset` / `speak` / `mute` / `transport` app methods stay on the
+  WebSocket (and Studio) bridge — they are WS-registry methods, not device
+  methods
 - the namespace defaults to `vizij`; the DDS domain defaults to `0`
 
 Relevant files:
@@ -517,7 +523,7 @@ WebSocket/manual panel checks:
 - call `reset` from the panel or `wscat`
 - if a bundle contains transport items, verify the Transport tab can list, play, pause, and stop them
 
-ROS2 data-topic check (data topics only — no method services; see ARORA-62):
+ROS2 check (topics and the served actions):
 
 ```bash
 # with the app running (default `ros2` feature), from src-tauri/:
