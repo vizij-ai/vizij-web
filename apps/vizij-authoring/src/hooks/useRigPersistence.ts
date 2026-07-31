@@ -32,7 +32,12 @@ import {
   type FeatureFlagState,
 } from "./useFeatureLabels";
 
-const RIG_STATE_SCHEMA_VERSION = 4;
+// The compatibility generation of a saved rig state. A restore is refused
+// across generations (see the load gate below), so bump this whenever the
+// persisted shape OR the meaning of what it stores changes — including
+// bundle-side migrations that re-encode the values a save would re-apply
+// (v5: the assets' embedded values moved to arora serde).
+const RIG_STATE_SCHEMA_VERSION = 5;
 
 interface UseRigPersistenceOptions {
   faceId: string | null;
@@ -308,7 +313,19 @@ export function useRigPersistence({
       return;
     }
 
-    const persisted = loadRigState(faceId);
+    let persisted = loadRigState(faceId);
+    if (persisted && persisted.schemaVersion !== RIG_STATE_SCHEMA_VERSION) {
+      // A save from another generation re-applies bindings and value
+      // encodings the current bundle no longer speaks, corrupting the face
+      // on every load. Start from the asset and forget the stale save.
+      // eslint-disable-next-line no-console -- the drop must be visible
+      console.warn(
+        `[vizij-authoring] discarding the saved authoring state for ${faceId}: ` +
+          `schema v${persisted.schemaVersion ?? 0} (current v${RIG_STATE_SCHEMA_VERSION})`,
+      );
+      deleteRigState(faceId);
+      persisted = null;
+    }
     skipPersistRef.current = true;
     if (persisted) {
       const { autoEntries, legacyCustomInputs, idMismatches } =
