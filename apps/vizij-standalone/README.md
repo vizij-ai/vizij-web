@@ -330,6 +330,19 @@ Practical interpretation:
 
 If speech looks half-configured, check both the Tauri CLI flags and the browser-side env/localStorage state before debugging the runtime layer itself.
 
+### Arora-native TTS (the `polly` module)
+
+The speech pipeline above runs in JavaScript (`@vizij/speech-react`): it fetches audio + visemes in the webview and writes face pose weights directly. [`polly`](https://github.com/semio-ai/arora-sdk/tree/main/modules/polly) is the **arora-native** counterpart — the same text-to-speech, exposed as a behavior the runtime can call (`say(text, voice)`), so speech is part of the graph instead of a side system.
+
+It uses the **same provider** as the JS path — the Vizij TTS cloud function (`{API_URL}/tts/get-audio` + `/tts/get-visemes`, AWS Polly behind it) — and reads the same `API_URL` (default the demo cloud function) plus a `voice` (default `Ruth`), so it needs no extra configuration and no credentials. Each tick it emits the current viseme (the AWS Polly viseme code at the audio playhead) as an output.
+
+**Status — not yet wired into the standalone.** `polly` is a host-side (native) module: it runs in a native Arora engine, not the wasm engine the webview hosts today. Turning it on here means running a native Arora in the Tauri backend and hosting the module there (the chosen path); that plumbing is the remaining step, tracked in [VIZ-94](https://linear.app/semio-ai/issue/VIZ-94) / [arora-sdk#215](https://github.com/semio-ai/arora-sdk/pull/215).
+
+Two pieces are deliberately outside the module:
+
+- **Viseme → face.** The module only *produces* the current viseme code. Mapping it to the face's poses — the vocabulary, the destination key, and the crossfade dynamics — is the action/graph layer's job. _Placeholder: the binding and the standard viseme profile land with the actions work._
+- **Face requirements (GLB) and authoring.** What a face bundle must carry for visemes, and how to author or adapt it, belongs with the face standard rather than the module. _Placeholder: links to the ROS4HRI face docs to be added once the action-level dispatch is settled._
+
 ## Development
 
 ### Windows prerequisites
