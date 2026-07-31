@@ -65,7 +65,5 @@ test("a saved rig state from another schema generation is discarded, not applied
     warnings.some((w) => w.includes("discarding the saved authoring state")),
     "the discard is reported on the console",
   ).toBeTruthy();
-  await expect
-    .poll(outputsOf, { timeout: 30_000 })
-    .toBe(baselineOutputs);
+  await expect.poll(outputsOf, { timeout: 30_000 }).toBe(baselineOutputs);
 });
