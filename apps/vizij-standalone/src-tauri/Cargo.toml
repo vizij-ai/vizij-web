@@ -36,7 +36,6 @@ arora-behavior = "8"
 # Vizij's graph interpreter and the gaze skill's contract + shipped fragment.
 vizij-arora-behavior = "1"
 vizij-arora-host = "1"
-vizij-graph-core = "1"
 # Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client — the
 # same `ZenohDeviceClient` arora uses for its Studio connection, which implements
 # arora's `Bridge`. A plain crates.io crate (no artifact bindeps).

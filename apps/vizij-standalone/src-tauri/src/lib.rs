@@ -619,11 +619,13 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
     // cancel token.
     {
         let store = app.state::<AppState>().store.clone();
+        let catalog = app.state::<AppState>().keys.lock().unwrap().clone();
+        // The face the webview advertised namespaces the profile's outputs.
+        let rig_prefix = skills::rig_prefix_of(catalog.iter().map(|key| key.path.clone()));
         #[cfg(feature = "ros2")]
         let ros2_parts = {
             let state = app.state::<AppState>();
-            let keys = state.keys.lock().unwrap().clone();
-            (state.ros2_namespace.clone(), state.ros2_domain_id, keys)
+            (state.ros2_namespace.clone(), state.ros2_domain_id)
         };
         let device_cancel = cancel.child_token();
         std::thread::Builder::new()
@@ -641,18 +643,19 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
                     let mut builder = arora::Arora::builder()
                         .with_data_store(Box::new(store))
                         .with_host_module(skills::gaze_module())
-                        .with_behavior_interpreter(Box::new(skills::interpreter()))
+                        .with_behavior_interpreter(Box::new(skills::interpreter(&rig_prefix)))
                         .with_bridge(Box::new(ws_bridge));
                     #[cfg(feature = "ros2")]
                     {
                         use arora_bridge_ros2::{ExposureProfile, Ros2Bridge, Ros2BridgeConfig};
-                        let (namespace, domain_id, keys) = ros2_parts;
+                        let (namespace, domain_id) = ros2_parts;
+                        let keys = &catalog;
                         // The ROS4HRI exposure preset: the typed face topics
                         // and the /skill/look_at action binding, resolved
                         // against this device's described methods at startup.
                         let mut config = Ros2BridgeConfig::new(namespace, domain_id)
                             .with_profile(ExposureProfile::ros4hri());
-                        for key in &keys {
+                        for key in keys {
                             // Only input keys accept inbound commands (become
                             // subscribed topics); outputs publish on demand.
                             if key.kind.as_deref() == Some("input") {
@@ -1184,10 +1187,9 @@ async fn set_slots(app_handle: AppHandle, slots: Vec<KeyInfo>) -> Result<(), Str
 
     *app_handle.state::<AppState>().keys.lock().unwrap() = slots;
 
-    // ROS 2 inputs are declared up front, at device build. With the host
-    // running, a changed catalog rebuilds the whole run (bridges are fixed at
-    // build) — a brief blip on model load, ros2 builds only.
-    #[cfg(feature = "ros2")]
+    // The catalog is read at device build — the profile's rig prefix and (under
+    // ros2) the typed input topics. With the host running, a changed catalog
+    // rebuilds the run — a brief blip on model load.
     if app_handle
         .state::<AppState>()
         .cancel_token

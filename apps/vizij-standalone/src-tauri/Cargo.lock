@@ -8192,7 +8192,6 @@ dependencies = [
  "tokio-util",
  "vizij-arora-behavior",
  "vizij-arora-host",
- "vizij-graph-core",
  "windows 0.58.0",
 ]
 
