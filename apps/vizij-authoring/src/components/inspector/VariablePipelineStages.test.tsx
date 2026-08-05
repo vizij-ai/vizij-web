@@ -343,21 +343,33 @@ describe("VariablePipelineStages", () => {
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
-    const parentFields = Array.from(
-      parentStage.querySelectorAll(
-        'input[aria-roledescription="Number field"]',
-      ),
+    // `aria-roledescription="Number field"` was a Base UI attribute; NumberField
+    // now sits on @semio/ui, whose input does not emit it. Selecting the text
+    // inputs directly keeps this test on the behaviour it exists to guard —
+    // scale/offset commit on blur, not before.
+    const parentFields = within(parentStage).getAllByRole(
+      "textbox",
     ) as HTMLInputElement[];
     const parentScaleField = parentFields[0];
     const parentOffsetField = parentFields[1];
     expect(parentScaleField).toBeTruthy();
     expect(parentOffsetField).toBeTruthy();
 
+    // KNOWN FAILING — accepted while we assess semio's NumberField (see the
+    // component docblock). semio only consults its internal text buffer while
+    // focused (unfocused it renders `formatDisplayValue(value, 2)`) and enters
+    // that state on click rather than focus, so the field is driven click →
+    // change → blur here. It still does not report the edit, and the exact
+    // condition `useNumeric` needs is not yet established. The behaviour being
+    // guarded — scale/offset commit on blur and NOT before — is real and worth
+    // keeping asserted rather than deleting.
+    fireEvent.click(parentScaleField!);
     fireEvent.change(parentScaleField!, { target: { value: "1.5" } });
     expect(parentScaleChange).not.toHaveBeenCalled();
     fireEvent.blur(parentScaleField!);
     expect(parentScaleChange).toHaveBeenCalledWith(1.5);
 
+    fireEvent.click(parentOffsetField!);
     fireEvent.change(parentOffsetField!, { target: { value: "3.4" } });
     expect(parentOffsetChange).toHaveBeenCalledTimes(0);
     fireEvent.blur(parentOffsetField!);
@@ -368,7 +380,7 @@ describe("VariablePipelineStages", () => {
       within(childStage).getByRole("button", { name: /mouth child/i }),
     );
     const childFields = Array.from(
-      childStage.querySelectorAll('input[aria-roledescription="Number field"]'),
+      within(childStage).getAllByRole("textbox"),
     ) as HTMLInputElement[];
     const childScaleField = childFields[0];
     const childOffsetField = childFields[1];
