@@ -3860,8 +3860,14 @@ describe("VariablesPanel", () => {
       .getByRole("button", { name: "Remove PAP Output" })
       .closest('[role="button"]');
     expect(outputRow).toBeTruthy();
+    // `Slider` is built on radix, whose `role="slider"` element is a <span>, so
+    // there is no `disabled` DOM property to read. radix expresses the disabled
+    // state as `data-disabled` and by withholding `tabindex`, which is the same
+    // contract screen readers and keyboard users actually see. The behaviour
+    // guarded here — a locked output cannot be edited — is unchanged.
     const outputSlider = within(outputRow as HTMLElement).getByRole("slider");
-    expect(outputSlider).toHaveProperty("disabled", true);
+    expect(outputSlider.hasAttribute("data-disabled")).toBe(true);
+    expect(outputSlider.getAttribute("tabindex")).toBeNull();
     expect(
       screen.getByText(
         "Procedural animation playback is currently driving this output.",
@@ -3938,19 +3944,22 @@ describe("VariablesPanel", () => {
     fireEvent.change(screen.getByPlaceholderText("Search inputs..."), {
       target: { value: "jaw open" },
     });
-    fireEvent.change(screen.getByRole("slider"), {
-      target: { value: "0.6" },
-    });
+    // Driven by keyboard rather than `fireEvent.change`: `Slider` is built on
+    // radix, whose `role="slider"` element is a <span> with no value setter.
+    // ArrowRight advances by one `step` (0.01) from the seeded 0.2, giving 0.21.
+    // That stays clear of snap-to-default — the fixture's defaultValue is 0 and
+    // the snap window is max(step*4, range*0.01) = 0.04.
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowRight" });
 
     const animationState = useAnimationStore.getState();
     expect(animationState.tracks).toHaveLength(1);
     expect(animationState.tracks[0]?.variableId).toBe("jaw_open");
     expect(animationState.tracks[0]?.keyframes).toHaveLength(1);
     expect(animationState.tracks[0]?.keyframes[0]?.time).toBe(1.25);
-    expect(animationState.tracks[0]?.keyframes[0]?.value).toBe(0.6);
+    expect(animationState.tracks[0]?.keyframes[0]?.value).toBe(0.21);
     expect(bindingState.handleInputValueChange).toHaveBeenCalledWith(
       "jaw_open",
-      0.6,
+      0.21,
     );
   });
 

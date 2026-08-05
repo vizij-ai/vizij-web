@@ -62,3 +62,51 @@ if (typeof window !== "undefined" && !("PointerEvent" in window)) {
     value: PointerEventShim,
   });
 }
+
+/**
+ * jsdom does not implement `ResizeObserver`.
+ *
+ * `radix-ui`'s Slider measures its thumb with `@radix-ui/react-use-size`, which
+ * constructs a `ResizeObserver` in a layout effect. Without this shim every test
+ * that renders a `Slider` throws `ResizeObserver is not defined` during commit —
+ * which takes down the whole test file, not just the slider assertion.
+ *
+ * A no-op is sufficient: the observer only feeds thumb-size state used to keep
+ * the thumb inside the track's bounds, which has no bearing on assertions.
+ */
+if (typeof globalThis !== "undefined" && !("ResizeObserver" in globalThis)) {
+  class ResizeObserverShim {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    configurable: true,
+    writable: true,
+    value: ResizeObserverShim,
+  });
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      writable: true,
+      value: ResizeObserverShim,
+    });
+  }
+}
+
+/**
+ * jsdom does not implement pointer capture on elements.
+ *
+ * `radix-ui`'s Slider calls `setPointerCapture` unconditionally in its
+ * `onPointerDown`. No current test drives a slider by pointer, but any that does
+ * would throw, so these are stubbed to keep the failure mode "assertion" rather
+ * than "TypeError".
+ */
+if (typeof Element !== "undefined" && !Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = function setPointerCapture() {};
+  Element.prototype.releasePointerCapture = function releasePointerCapture() {};
+  Element.prototype.hasPointerCapture = function hasPointerCapture() {
+    return false;
+  };
+}
