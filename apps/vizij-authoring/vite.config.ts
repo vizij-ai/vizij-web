@@ -105,6 +105,19 @@ export default defineConfig(({ mode }) => {
       pool: "threads",
       environment: "jsdom",
       setupFiles: ["./src/test/setupVitest.ts"],
+      server: {
+        deps: {
+          // `@semio/ui`'s ESM bundle does `import { clamp } from "lodash"` — a
+          // named import from a CommonJS module. Vite's dev/build pipeline
+          // applies CJS interop, but Vitest externalises node_modules by
+          // default and Node's ESM loader cannot resolve named exports off a
+          // CJS module, so any test importing a semio component dies at
+          // collection with "Named export 'clamp' not found".
+          //
+          // Inlining routes the package through Vite's transform instead.
+          inline: ["@semio/ui"],
+        },
+      },
     },
   };
 });

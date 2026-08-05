@@ -272,11 +272,15 @@ describe("VariablePipelineStages", () => {
       "pipeline-stage-direct-input",
       /direct input/i,
     );
+    // These three handlers are declared `(enabled: boolean) => void`. They
+    // previously also received a second argument only because `Switch` was
+    // built on Base UI, whose `onCheckedChange` emitted `(checked, event)`, and
+    // `VariablePipelineStages` passes the handler through directly. Radix —
+    // which `@semio/ui`'s Switch uses — emits `(checked)` only. Asserting on
+    // the event coupled these tests to that leaked implementation detail; the
+    // contract being guarded is the boolean.
     fireEvent.click(within(directStage).getByRole("switch"));
-    expect(props.onDirectInputEnabledChange).toHaveBeenCalledWith(
-      false,
-      expect.anything(),
-    );
+    expect(props.onDirectInputEnabledChange).toHaveBeenCalledWith(false);
 
     const overrideStage = openStage(
       view,
@@ -284,17 +288,11 @@ describe("VariablePipelineStages", () => {
       /override/i,
     );
     fireEvent.click(within(overrideStage).getByRole("switch"));
-    expect(props.onOverrideEnabledChange).toHaveBeenCalledWith(
-      true,
-      expect.anything(),
-    );
+    expect(props.onOverrideEnabledChange).toHaveBeenCalledWith(true);
 
     const clampStage = openStage(view, "pipeline-stage-clamp", /clamp/i);
     fireEvent.click(within(clampStage).getByRole("switch"));
-    expect(props.onClampEnabledChange).toHaveBeenCalledWith(
-      false,
-      expect.anything(),
-    );
+    expect(props.onClampEnabledChange).toHaveBeenCalledWith(false);
   });
 
   it("applies advanced parent formulas from collapsed editor", () => {
