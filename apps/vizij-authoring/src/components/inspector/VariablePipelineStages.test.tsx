@@ -347,22 +347,19 @@ describe("VariablePipelineStages", () => {
     // now sits on @semio/ui, whose input does not emit it. Selecting the text
     // inputs directly keeps this test on the behaviour it exists to guard —
     // scale/offset commit on blur, not before.
-    const parentFields = within(parentStage).getAllByRole(
-      "textbox",
+    // `inputmode="decimal"` is NumberField's own marker. Selecting by role
+    // "textbox" also matches the parent expression <textarea> in this stage, and
+    // `aria-roledescription="Number field"` was a Base UI attribute that no longer
+    // exists.
+    const parentFields = Array.from(
+      parentStage.querySelectorAll('input[inputmode="decimal"]'),
     ) as HTMLInputElement[];
     const parentScaleField = parentFields[0];
     const parentOffsetField = parentFields[1];
     expect(parentScaleField).toBeTruthy();
     expect(parentOffsetField).toBeTruthy();
 
-    // KNOWN FAILING — accepted while we assess semio's NumberField (see the
-    // component docblock). semio only consults its internal text buffer while
-    // focused (unfocused it renders `formatDisplayValue(value, 2)`) and enters
-    // that state on click rather than focus, so the field is driven click →
-    // change → blur here. It still does not report the edit, and the exact
-    // condition `useNumeric` needs is not yet established. The behaviour being
-    // guarded — scale/offset commit on blur and NOT before — is real and worth
-    // keeping asserted rather than deleting.
+    // Guards commit-on-blur, and NOT before.
     fireEvent.click(parentScaleField!);
     fireEvent.change(parentScaleField!, { target: { value: "1.5" } });
     expect(parentScaleChange).not.toHaveBeenCalled();
@@ -380,7 +377,7 @@ describe("VariablePipelineStages", () => {
       within(childStage).getByRole("button", { name: /mouth child/i }),
     );
     const childFields = Array.from(
-      within(childStage).getAllByRole("textbox"),
+      childStage.querySelectorAll('input[inputmode="decimal"]'),
     ) as HTMLInputElement[];
     const childScaleField = childFields[0];
     const childOffsetField = childFields[1];
