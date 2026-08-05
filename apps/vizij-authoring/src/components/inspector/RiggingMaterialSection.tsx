@@ -2,7 +2,7 @@ import React, { useRef } from "react";
 import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
-import { Popover as BasePopover } from "@base-ui/react";
+import { Popover as RadixPopover } from "radix-ui";
 import type {
   SceneObjectNode,
   SceneObjectFeature,
@@ -773,8 +773,8 @@ export function RiggingColorRow({
 
     return (
       <div className="flex gap-1 flex-1 items-center min-w-0">
-        <BasePopover.Root>
-          <BasePopover.Trigger
+        <RadixPopover.Root>
+          <RadixPopover.Trigger
             className={cn(
               "w-6 h-5 rounded-sm border border-border-default shadow-sm",
               canEditAny
@@ -785,24 +785,22 @@ export function RiggingColorRow({
             disabled={!canEditAny}
             title="Pick Color"
           />
-          <BasePopover.Portal>
-            <BasePopover.Positioner
+          <RadixPopover.Portal>
+            <RadixPopover.Content
               side="bottom"
               align="start"
               sideOffset={5}
-              className="z-[100]"
+              className="z-[100] flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl"
             >
-              <BasePopover.Popup className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl">
-                <HexColorPicker color={hexColor} onChange={handleColorChange} />
-                <div className="flex gap-1">
-                  <div className="text-[10px] bg-bg-input px-1 py-0.5 rounded text-text-muted font-mono select-all uppercase">
-                    {hexColor}
-                  </div>
+              <HexColorPicker color={hexColor} onChange={handleColorChange} />
+              <div className="flex gap-1">
+                <div className="text-[10px] bg-bg-input px-1 py-0.5 rounded text-text-muted font-mono select-all uppercase">
+                  {hexColor}
                 </div>
-              </BasePopover.Popup>
-            </BasePopover.Positioner>
-          </BasePopover.Portal>
-        </BasePopover.Root>
+              </div>
+            </RadixPopover.Content>
+          </RadixPopover.Portal>
+        </RadixPopover.Root>
 
         <div className="flex gap-1.5 flex-1 min-w-0">
           {components.map((c, i) => {
