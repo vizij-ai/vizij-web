@@ -6,9 +6,9 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "NODE_ENV=development pnpm --filter vizij-authoring dev --port 5173 --strictPort"
+        "NODE_ENV=development pnpm --filter vizij-authoring dev --port 5175 --strictPort"
       ],
-      "port": 5173
+      "port": 5175
     }
   ]
 }
