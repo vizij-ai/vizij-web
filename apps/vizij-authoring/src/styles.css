@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
-/* Base configuration is handled by tailwind.config.ts now */
+/* Tailwind v4 CSS-first config. There is no tailwind.config.*; the theme is the
+   `@theme` block below, seeded by the raw custom properties declared above it. */
+
+/* Dark mode is driven by the `.dark` class on <html> (set by the FOUC script in
+   index.html and by state/themeStore.ts), not by prefers-color-scheme. Tailwind v4
+   needs this registered explicitly for `dark:` utilities to key off the class. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   color-scheme: light dark;
@@ -47,12 +53,12 @@
   /* zinc-300 */
 
   /* Brand Accent - Vizij Blue */
-  --color-accent: #2563eb;
+  --accent: #2563eb;
   /* blue-600 */
-  --color-accent-fg: #ffffff;
-  --color-accent-hover: #1d4ed8;
+  --accent-fg: #ffffff;
+  --accent-hover: #1d4ed8;
   /* blue-700 */
-  --color-accent-subtle: rgba(37, 99, 235, 0.1);
+  --accent-subtle: rgba(37, 99, 235, 0.1);
   /* blue-600 alpha */
 
   /* Depth and Materiality */
@@ -70,20 +76,20 @@
   --accent-gradient: linear-gradient(135deg, #2563eb, #4f46e5);
 
   /* Functional Colors (Light) */
-  --color-warning: #f59e0b;
+  --warning: #f59e0b;
   /* amber-500 */
-  --color-warning-fg: #ffffff;
-  --color-warning-subtle: rgba(245, 158, 11, 0.1);
+  --warning-fg: #ffffff;
+  --warning-subtle: rgba(245, 158, 11, 0.1);
 
-  --color-danger: #ef4444;
+  --danger: #ef4444;
   /* red-500 */
-  --color-danger-fg: #ffffff;
-  --color-danger-subtle: rgba(239, 68, 68, 0.1);
+  --danger-fg: #ffffff;
+  --danger-subtle: rgba(239, 68, 68, 0.1);
 
-  --color-success: #10b981;
+  --success: #10b981;
   /* emerald-500 */
-  --color-success-fg: #ffffff;
-  --color-success-subtle: rgba(16, 185, 129, 0.1);
+  --success-fg: #ffffff;
+  --success-subtle: rgba(16, 185, 129, 0.1);
 }
 
 /* Dark Theme Overrides */
@@ -125,12 +131,12 @@
   /* zinc-700 */
 
   /* Dark Mode Accent */
-  --color-accent: #3b82f6;
+  --accent: #3b82f6;
   /* blue-500 - brighter for dark mode */
-  --color-accent-fg: #ffffff;
-  --color-accent-hover: #60a5fa;
+  --accent-fg: #ffffff;
+  --accent-hover: #60a5fa;
   /* blue-400 */
-  --color-accent-subtle: rgba(59, 130, 246, 0.15);
+  --accent-subtle: rgba(59, 130, 246, 0.15);
   /* blue-500 alpha */
 
   /* Dark Mode Depth */
@@ -147,17 +153,17 @@
   --accent-gradient: linear-gradient(135deg, #3b82f6, #6366f1);
 
   /* Functional Colors (Dark) */
-  --color-warning: #fbbf24;
+  --warning: #fbbf24;
   /* amber-400 */
-  --color-warning-subtle: rgba(251, 191, 36, 0.15);
+  --warning-subtle: rgba(251, 191, 36, 0.15);
 
-  --color-danger: #f87171;
+  --danger: #f87171;
   /* red-400 */
-  --color-danger-subtle: rgba(248, 113, 113, 0.15);
+  --danger-subtle: rgba(248, 113, 113, 0.15);
 
-  --color-success: #34d399;
+  --success: #34d399;
   /* emerald-400 */
-  --color-success-subtle: rgba(52, 211, 153, 0.15);
+  --success-subtle: rgba(52, 211, 153, 0.15);
 }
 
 @theme {
@@ -173,8 +179,6 @@
 
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-text-dim: var(--text-dim);
 
@@ -182,20 +186,22 @@
   --color-border-subtle: var(--border-subtle);
   --color-border-hover: var(--border-hover);
 
-  --color-accent: var(--color-accent);
-  --color-accent-fg: var(--color-accent-fg);
-  --color-accent-hover: var(--color-accent-hover);
-  --color-accent-subtle: var(--color-accent-subtle);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
 
-  --color-warning: var(--color-warning);
-  --color-warning-fg: var(--color-warning-fg);
-  --color-warning-subtle: var(--color-warning-subtle);
+  --color-warning: var(--warning);
+  --color-warning-fg: var(--warning-fg);
+  --color-warning-subtle: var(--warning-subtle);
 
-  --color-danger: var(--color-danger);
-  --color-danger-fg: var(--color-danger-fg);
-  --color-danger-subtle: var(--color-danger-subtle);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-subtle: var(--danger-subtle);
 
-  --color-success-subtle: var(--color-success-subtle);
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-success-subtle: var(--success-subtle);
 
   --color-bg-glass: var(--bg-glass);
   --color-bg-glass-hover: var(--bg-glass-hover);
@@ -245,6 +251,84 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   @semio/ui palette rebrand
+   ---------------------------------------------------------------------------
+   Semio components style themselves from `.responsive` + `variant-*` classes
+   that read the eight semantic ramps below, plus a separate set of layout
+   surface tokens. We adopt semio's STRUCTURE (variant/size cascade, spacing,
+   radius) but keep Vizij's PALETTE, so `Variant.Primary` is Vizij blue rather
+   than Semio sky.
+
+   Declared UNLAYERED on purpose. Verified against the published
+   `dist/semio-ui.css`: every semio token lives inside `@layer theme{:root,:host{…}}`,
+   and an unlayered declaration beats any layered one regardless of import
+   order. Using `@theme` here instead would put us in the same layer and make
+   the winner depend on source order.
+
+   Only the ramp steps semio's components actually reference are overridden
+   (`-400`/`-500`/`-600` for accents, plus the full default ramp), rather than
+   all 11 steps of all 8 ramps.
+   -------------------------------------------------------------------------- */
+:root {
+  /* primary -> Vizij accent blue (was sky) */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary-950: #172554;
+  --color-primary: var(--color-primary-500);
+
+  /* error -> Vizij danger red */
+  --color-error-400: #f87171;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error: var(--color-error-500);
+
+  /* warning -> Vizij amber */
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+
+  /* success -> Vizij emerald (semio defaults to green) */
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+
+  /* default -> the app's zinc scale (semio defaults to neutral) */
+  --color-default-50: var(--color-zinc-50);
+  --color-default-100: var(--color-zinc-100);
+  --color-default-200: var(--color-zinc-200);
+  --color-default-300: var(--color-zinc-300);
+  --color-default-400: var(--color-zinc-400);
+  --color-default-500: var(--color-zinc-500);
+  --color-default-600: var(--color-zinc-600);
+  --color-default-700: var(--color-zinc-700);
+  --color-default-800: var(--color-zinc-800);
+  --color-default-900: var(--color-zinc-900);
+  --color-default-950: var(--color-zinc-950);
+  --color-default: var(--color-default-500);
+
+  /* Layout surface tokens. These are NOT part of the eight ramps — semio's
+     `.card` / `.card-transparent` read them directly, so rebranding the ramps
+     alone would leave card surfaces neutral-grey. Both light and dark values
+     are always defined; semio's classes pick between them with `dark:`. */
+  --color-layout-light-base: #ffffff;
+  --color-layout-dark-base: #09090b;
+  --color-layout-light-inset: #ffffff;
+  --color-layout-dark-inset: #18181b;
+  --color-layout-light-deep-inset: #fdfdfd;
+  --color-layout-dark-deep-inset: #121214;
+  --color-layout-light-separator: #e4e4e7;
+  --color-layout-dark-separator: #27272a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -272,4 +356,208 @@ body {
   width: var(--inspector-numeric-min-width);
   min-width: var(--inspector-numeric-min-width);
   max-width: 100%;
+}
+
+/* Thin, token-coloured scrollbar for panel scroll containers. Applied at ~19
+   call sites (and asserted in HierarchyPanel.test.tsx) but previously undefined. */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--border-hover);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
+/* Card surface + content classes. The __* classes are emitted directly by
+   feature panels (PoseRigPanels, ExportPanel, the audit/summary panels) as
+   content-level structure inside a <Card>, so they are standalone and do not
+   require an .asset-card ancestor. Previously undefined, i.e. unstyled. */
+.asset-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+}
+
+.asset-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.asset-card__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.asset-card__description {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.asset-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.asset-card__body--compact {
+  gap: 0.375rem;
+}
+
+.asset-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.asset-card__section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.asset-card__hint {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.asset-card__hint--muted {
+  color: var(--text-muted);
+}
+
+.asset-card__form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.asset-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.asset-card__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.375rem;
+  border-radius: 9999px;
+  background-color: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Enter/exit animation utilities. The app uses `tailwindcss-animate`'s class
+   names at 19 call sites, but that plugin is not installed (and has no Tailwind
+   v4 equivalent here), so all of these were inert. Reimplemented with the same
+   composable contract: `animate-in`/`animate-out` own the animation, and the
+   `fade-*`/`zoom-*`/`slide-*` classes set the custom properties it reads.
+   Note: bare `zoom-in`/`zoom-out` use 0.95 rather than the plugin's 0, which
+   would pop from nothing — these animations have never actually run. */
+@keyframes tw-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(
+        var(--tw-enter-translate-x, 0),
+        var(--tw-enter-translate-y, 0),
+        0
+      )
+      scale3d(
+        var(--tw-enter-scale, 1),
+        var(--tw-enter-scale, 1),
+        var(--tw-enter-scale, 1)
+      );
+  }
+}
+
+@keyframes tw-exit {
+  to {
+    opacity: var(--tw-exit-opacity, 1);
+    transform: translate3d(
+        var(--tw-exit-translate-x, 0),
+        var(--tw-exit-translate-y, 0),
+        0
+      )
+      scale3d(
+        var(--tw-exit-scale, 1),
+        var(--tw-exit-scale, 1),
+        var(--tw-exit-scale, 1)
+      );
+  }
+}
+
+.animate-in {
+  animation-name: tw-enter;
+  animation-duration: 0.15s;
+  animation-fill-mode: both;
+}
+
+.animate-out {
+  animation-name: tw-exit;
+  animation-duration: 0.15s;
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  --tw-enter-opacity: 0;
+}
+
+.fade-out {
+  --tw-exit-opacity: 0;
+}
+
+.zoom-in {
+  --tw-enter-scale: 0.95;
+}
+
+.zoom-out {
+  --tw-exit-scale: 0.95;
+}
+
+.slide-in-from-top-1 {
+  --tw-enter-translate-y: -0.25rem;
+}
+
+.slide-in-from-top-2 {
+  --tw-enter-translate-y: -0.5rem;
+}
+
+.slide-in-from-bottom-2 {
+  --tw-enter-translate-y: 0.5rem;
+}
+
+.slide-out-to-top-1 {
+  --tw-exit-translate-y: -0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-out {
+    animation: none;
+  }
 }

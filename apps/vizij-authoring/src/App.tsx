@@ -4587,7 +4587,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   </span>
                   <button
                     type="button"
-                    className="rounded bg-accent-primary px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                    className="rounded bg-accent px-2 py-1 text-xs font-medium text-white hover:opacity-90"
                     data-testid="profile-editor-apply"
                     onClick={applyStandardProfileEdits}
                   >
@@ -4618,7 +4618,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   </span>
                   <button
                     type="button"
-                    className="rounded bg-accent-primary px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                    className="rounded bg-accent px-2 py-1 text-xs font-medium text-white hover:opacity-90"
                     data-testid="skill-editor-apply"
                     onClick={applySkillEdits}
                   >

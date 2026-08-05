@@ -1352,7 +1352,7 @@ export function InspectorPanel({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-[10px] text-color-danger"
+                        className="h-6 px-2 text-[10px] text-danger"
                         onClick={() => {
                           removeAnimationTrack(selectedAnimationTrack.id);
                         }}
@@ -1446,7 +1446,7 @@ export function InspectorPanel({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-[10px] text-color-danger"
+                        className="h-6 px-2 text-[10px] text-danger"
                         onClick={() =>
                           removeAnimationKeyframe(
                             selectedAnimationTrack.id,

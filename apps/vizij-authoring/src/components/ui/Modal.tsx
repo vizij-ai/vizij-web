@@ -63,7 +63,7 @@ export function Modal({
             )}
           >
             <header className="flex justify-between items-center px-6 py-4 bg-bg-panel/50 border-b border-border-default/50">
-              <BaseDialog.Title className="m-0 text-lg font-bold text-text-primary uppercase tracking-widest font-heading">
+              <BaseDialog.Title className="m-0 text-lg font-bold text-text-primary uppercase tracking-widest">
                 {title}
               </BaseDialog.Title>
               <BaseDialog.Close

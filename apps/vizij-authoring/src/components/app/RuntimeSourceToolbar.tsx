@@ -64,11 +64,11 @@ const modeMeta: Record<
 > = {
   animation: {
     label: "Animation Mode",
-    badgeClassName: "bg-color-accent-subtle text-color-accent",
+    badgeClassName: "bg-accent-subtle text-accent",
   },
   "procedural-animation-programming": {
     label: "PAP Mode",
-    badgeClassName: "bg-color-warning-subtle text-color-warning",
+    badgeClassName: "bg-warning-subtle text-warning",
   },
   "reference-face": {
     label: "Reference Face Mode",
@@ -342,9 +342,9 @@ export function RuntimeSourceToolbar({
 
   const playbackStatusTone =
     playbackState === "playing"
-      ? "bg-color-success-subtle text-color-success"
+      ? "bg-success-subtle text-success"
       : playbackState === "paused"
-        ? "bg-color-warning-subtle text-color-warning"
+        ? "bg-warning-subtle text-warning"
         : "bg-bg-secondary text-text-secondary";
 
   const targetMetadataCard =
@@ -382,7 +382,7 @@ export function RuntimeSourceToolbar({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[10px] gap-1 text-color-danger"
+                className="h-7 px-2 text-[10px] gap-1 text-danger"
                 onClick={() => onDeleteTarget?.()}
                 title={deleteTargetLabel ?? "Delete target"}
               >
@@ -410,7 +410,7 @@ export function RuntimeSourceToolbar({
           <span
             className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
               isLive
-                ? "bg-color-success-subtle text-color-success"
+                ? "bg-success-subtle text-success"
                 : "bg-bg-secondary text-text-secondary"
             }`}
           >
@@ -467,7 +467,7 @@ export function RuntimeSourceToolbar({
               <span
                 className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                   isLive
-                    ? "bg-color-success-subtle text-color-success"
+                    ? "bg-success-subtle text-success"
                     : "bg-bg-secondary text-text-secondary"
                 }`}
               >
@@ -507,7 +507,7 @@ export function RuntimeSourceToolbar({
             <span
               className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                 isLive
-                  ? "bg-color-success-subtle text-color-success"
+                  ? "bg-success-subtle text-success"
                   : "bg-bg-secondary text-text-secondary"
               }`}
             >

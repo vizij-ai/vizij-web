@@ -17,7 +17,6 @@ export * from "./Checkbox";
 export * from "./TextArea";
 export * from "./RowSlider";
 export * from "./Select";
-export * from "./StudioPanel";
 export * from "./Switch";
 export * from "./Tabs";
 export * from "./Tooltip";

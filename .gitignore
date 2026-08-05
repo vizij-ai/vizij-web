@@ -26,3 +26,9 @@
 
 # Tauri auto-generated capability/ACL schemas (regenerated on build)
 **/src-tauri/gen/schemas/
+
+# Playwright run output (traces/videos/diffs). Committed baselines live in
+# e2e/*.pw.ts-snapshots/ and are deliberately NOT ignored.
+**/test-results/
+**/playwright-report/
+**/.playwright/

@@ -157,5 +157,29 @@ Direct+pose effective-channel contract:
 ## Out of Scope (Current MVP Scope)
 
 1. Dedicated visual editor workflows for per-channel override/priority policy authoring (beyond config/IR import-export parity).
-2. Full visual rebrand unrelated to authoring correctness/workflows.
+2. Full visual rebrand unrelated to authoring correctness/workflows — **except** the bounded visual
+   change that follows from adopting `@semio/ui` as the component substrate (see "Component substrate"
+   below). Speculative restyling outside that adoption remains out of scope.
 3. Runtime architecture redesign outside authoring contract needs.
+
+## Component Substrate
+
+Generic UI building blocks come from **`@semio/ui`**. `src/components/ui/` holds the app's _variants_ —
+components that compose `@semio/ui` exports and add an app contract — plus the few things `@semio/ui`
+has no counterpart for. No file in `src/components/ui/` should re-implement a generic primitive.
+
+Adopting `@semio/ui` means adopting its structural conventions: its `Variant`/`Size` cascade drives
+spacing, height, radius, and state styling. **Vizij keeps its own palette** — `@semio/ui`'s color ramps
+are re-declared to the Vizij accent in `src/styles.css`, so `Variant.Primary` is Vizij blue rather than
+Semio's default. Expect bounded shifts in control heights, padding, and corner radius as a consequence;
+these are accepted, not regressions.
+
+The behavior contracts in this document are **not** negotiable against the substrate. In particular a
+`@semio/ui`-based variant must still honor:
+
+- Numeric fields display exactly four digits after the decimal.
+- Clicking or typing in a numeric field must not initiate slider drag behavior.
+- Slider and numeric field remain synchronized in both rows.
+
+Where `@semio/ui` cannot express one of these, the app variant carries it — see
+`src/components/ui/NumberField.tsx` and `sliderDefaultBehavior.ts`.

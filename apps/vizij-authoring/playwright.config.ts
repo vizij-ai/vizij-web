@@ -34,6 +34,13 @@ export default defineConfig({
       name: "workflow",
       grep: /@workflow/,
     },
+    {
+      // Visual regression baselines for the UI primitive layer. Kept out of the
+      // smoke/workflow gates so a deliberate restyle cannot block a functional
+      // check, and so snapshots are only compared on an explicit run.
+      name: "visual",
+      grep: /@visual/,
+    },
   ],
   webServer: {
     command:

@@ -28,7 +28,20 @@ export default defineConfig(({ mode }) => {
       "process.env.NODE_ENV": JSON.stringify(nodeEnv),
     },
     resolve: {
-      dedupe: ["react", "react-dom", "three"],
+      // `@base-ui/react` now has two consumers (this app and `@semio/ui`), and
+      // it keeps a module-level portal/dismissal stack — two copies means
+      // clicks inside one library's popup read as "outside" to the other. It is
+      // deduped here because it is a declared dependency and so resolvable from
+      // this root.
+      //
+      // `@react-three/fiber` is deliberately NOT deduped: it is a dependency of
+      // `@semio/ui` and a peer of `@vizij/render`, but is not declared by this
+      // app, so it does not exist in `apps/vizij-authoring/node_modules`.
+      // Listing it here makes Vite resolve it from this root and the build fails
+      // with "Rollup failed to resolve import @react-three/fiber". It needs no
+      // dedupe anyway — pnpm resolves exactly one instance (9.5.0), verified via
+      // `ls node_modules/.pnpm/@react-three+fiber@*`.
+      dedupe: ["react", "react-dom", "three", "@base-ui/react"],
       alias: {
         "@vizij/node-graph-authoring": path.resolve(
           workspaceRoot,

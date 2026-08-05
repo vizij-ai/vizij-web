@@ -8051,7 +8051,7 @@ export function VariablesPanel({
                             : current,
                         );
                       }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs text-text-muted">
@@ -8069,7 +8069,7 @@ export function VariablesPanel({
                             : current,
                         );
                       }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                     />
                   </label>
                 </div>
@@ -8137,7 +8137,7 @@ export function VariablesPanel({
                           }),
                         );
                       }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                     />
                     {isFiniteNumber(destinationValue) ? (
                       <Button
@@ -8384,7 +8384,7 @@ export function VariablesPanel({
                                           }),
                                         );
                                       }}
-                                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
+                                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary disabled:opacity-40"
                                     />
                                   </div>
                                   {isFiniteNumber(destinationValue) ? (
@@ -8520,7 +8520,7 @@ export function VariablesPanel({
                         : current,
                     );
                   }}
-                  className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                  className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                 />
               </label>
               {poseCopyUniqueExistingPoseMatch ? (
@@ -8681,7 +8681,7 @@ export function VariablesPanel({
                               },
                             }));
                           }}
-                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                          className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                         />
                         {isFiniteNumber(existingPoseValue) ? (
                           <Button

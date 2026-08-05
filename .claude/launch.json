@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vizij-authoring",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "NODE_ENV=development pnpm --filter vizij-authoring dev --port 5173 --strictPort"
+      ],
+      "port": 5173
+    }
+  ]
+}

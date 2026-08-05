@@ -30,6 +30,16 @@ export type PanelProps<TTag extends keyof JSX.IntrinsicElements = "section"> =
 /**
  * Standard panel wrapper that applies the shared sidebar panel styling and
  * handles a consistent header layout (title + description + badge/actions).
+ *
+ * Built on `@semio/ui`'s `.card-transparent`, which is the closest analogue to
+ * this app's panel treatment: a translucent surface
+ * (`--color-layout-{light,dark}-deep-inset` at 80%, rebranded to Vizij in
+ * styles.css), `backdrop-blur-lg`, and a token-driven `outline` rather than a
+ * border. `.responsive` must be on the same element — it seeds
+ * `--card-border-color`, which the outline colour reads.
+ *
+ * `rounded-xl` overrides semio's `rounded-md` to keep the app's shape language;
+ * utilities beat `@layer components` so no specificity fight is involved.
  */
 export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
   as,
@@ -62,7 +72,8 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
   return (
     <section
       className={cn(
-        "flex flex-col gap-3 p-3 bg-bg-panel/50 backdrop-blur-md border border-border-default/50 rounded-xl text-text-primary shadow-premium",
+        "responsive card-transparent rounded-xl",
+        "flex flex-col gap-3 p-3 text-text-primary",
         className,
       )}
       {...rest}
