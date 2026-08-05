@@ -1,4 +1,8 @@
-import { Collapsible as BaseCollapsible } from "@base-ui/react";
+import {
+  CollapsibleRoot,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@semio/ui";
 import { ChevronRight } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { cn } from "../../utils/cn";
@@ -16,6 +20,23 @@ interface InstructionCalloutProps {
   icon?: ReactNode;
 }
 
+/**
+ * Collapsible "how to use this" callout.
+ *
+ * Built on the raw Collapsible primitives `@semio/ui` re-exports (Radix) rather
+ * than reusing `CollapsibleGroup`: this component is optionally controlled
+ * (`isOpen`/`onToggle`), supports an `external` trigger mode that renders the
+ * body with no trigger at all, takes an `icon` slot, and puts a caller-supplied
+ * `contentId` on the panel — none of which `CollapsibleGroup` exposes.
+ *
+ * Every `data-[state=…]` / `group-data-[state=…]` selector below was inert under
+ * Base UI (which emits `data-open`/`data-closed`/`data-panel-open`). Radix emits
+ * `data-state`, so the open-state background, the accent icon and chevron
+ * rotation, the label colour swap, and the panel enter/exit animations all
+ * render now. The `group` marker is deliberately on both the root and the
+ * trigger: `group-data-[state=closed]:group-hover:` needs two nested group
+ * ancestors — root for the state, trigger for the hover.
+ */
 export function InstructionCallout({
   label,
   summary,
@@ -79,7 +100,7 @@ export function InstructionCallout({
   }
 
   return (
-    <BaseCollapsible.Root
+    <CollapsibleRoot
       defaultOpen={defaultOpen}
       open={isControlled ? isOpen : undefined}
       onOpenChange={handleOpenChange}
@@ -88,7 +109,10 @@ export function InstructionCallout({
         "data-[state=open]:bg-bg-panel data-[state=open]:border-border-default",
       )}
     >
-      <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-bg-secondary/50 group">
+      <CollapsibleTrigger
+        aria-controls={resolvedContentId}
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-bg-secondary/50 group"
+      >
         <div className="flex items-center gap-3">
           {icon && (
             <div
@@ -123,14 +147,14 @@ export function InstructionCallout({
             "group-data-[state=open]:rotate-90 group-data-[state=open]:text-accent",
           )}
         />
-      </BaseCollapsible.Trigger>
+      </CollapsibleTrigger>
 
-      <BaseCollapsible.Panel
+      <CollapsibleContent
         id={resolvedContentId}
-        className="data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200 px-4 pb-4 pt-1 text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none border-t border-border-default/50 mt-1"
+        className="data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200 px-4 pb-4 pt-1 text-[11px] text-text-secondary leading-relaxed space-y-2 max-w-none border-t border-border-default/50 mt-1"
       >
         {children}
-      </BaseCollapsible.Panel>
-    </BaseCollapsible.Root>
+      </CollapsibleContent>
+    </CollapsibleRoot>
   );
 }

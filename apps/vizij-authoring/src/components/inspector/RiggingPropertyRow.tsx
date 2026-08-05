@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronRight, RotateCcw } from "lucide-react";
-import { Button as BaseButton } from "@base-ui/react";
+import { Button } from "../ui/Button";
 import { cn } from "../../utils/cn";
 
 export interface RiggingPropertyRowProps {
@@ -294,7 +294,9 @@ export function RiggingPropertyRow({
           {renderMainInput()}
 
           {hasDifferentDefault && onResetToDefault && (
-            <BaseButton
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -303,16 +305,14 @@ export function RiggingPropertyRow({
               onMouseDown={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               className={cn(
-                "ml-1 p-1 rounded cursor-pointer transition-colors",
-                hasDifferentDefault
-                  ? "text-accent hover:text-accent-hover hover:bg-accent/10"
-                  : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
+                // Undo `size="icon"`'s 36px box — this sits in a 32px row.
+                "ml-1 h-auto w-auto p-1 rounded transition-colors",
+                "text-accent hover:text-accent-hover hover:bg-accent/10",
               )}
               title="Reset to default"
-              disabled={!hasDifferentDefault}
             >
               <RotateCcw size={10} />
-            </BaseButton>
+            </Button>
           )}
           {renderRowAction && (
             <div
