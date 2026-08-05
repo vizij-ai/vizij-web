@@ -20,8 +20,14 @@ const SIZES: Record<NonNullable<ButtonProps["size"]>, Size> = {
 /**
  * semio Variant per app variant. This only drives semio's own accent derivation
  * (focus ring, `--accent-color`); the visible surface comes from the app classes
- * below, which win because they are utilities while semio's `variant-*` classes
- * live in `@layer components`.
+ * below.
+ *
+ * Those app classes beat semio's `variant-*` classes because those live in
+ * `@layer components`. But semio ALSO emits plain utilities — `text-white
+ * dark:text-black` among them — and against those the layer argument does not
+ * apply: equal specificity, same layer, so source order decides. semio composes
+ * with `clsx`, not `twMerge`, so both classes survive onto the element and the app
+ * cannot dedupe from outside. Hence the `!` on every text colour below.
  */
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, Variant> = {
   primary: Variant.Primary,
@@ -58,9 +64,16 @@ const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, Variant> = {
  * scale does not line up with this app's `h-7`/`h-9`/`h-11`. `size` is still
  * forwarded so semio's internal icon sizing stays proportional.
  *
- * `variant="subtle"` keeps `bg-white/5 … hover:text-white`, which is dark-only
- * and washes out in light mode. Left as-is deliberately: fixing it changes every
- * subtle button and does not belong in a substrate swap.
+ * Every text colour carries Tailwind v4's `!` important suffix. Without it semio's
+ * `text-white dark:text-black` wins and EVERY variant renders white text in light
+ * mode — secondary white-on-`#f4f4f5`, ghost and subtle effectively invisible.
+ * Dark mode looked correct throughout, which is why the first revision shipped
+ * with it. Verified by reading `getComputedStyle(button).color` in light mode, not
+ * by a test: nothing in the suite asserts colour.
+ *
+ * `variant="subtle"` still uses `bg-white/5`, a dark-only background that washes
+ * out on light surfaces. Its text colour is now tokenised, but the background is
+ * left alone — changing it alters every subtle button and belongs in a restyle.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -85,15 +98,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
           {
             // Variants
-            "bg-accent-gradient text-accent-fg shadow-premium hover:shadow-accent-glow hover:scale-[1.02] active:scale-[0.98]":
+            "bg-accent-gradient text-accent-fg! shadow-premium hover:shadow-accent-glow hover:scale-[1.02] active:scale-[0.98]":
               variant === "primary",
-            "bg-bg-secondary text-text-primary border border-border-default hover:bg-bg-secondary-hover shadow-sm active:scale-[0.98]":
+            "bg-bg-secondary text-text-primary! border border-border-default hover:bg-bg-secondary-hover shadow-sm active:scale-[0.98]":
               variant === "secondary",
-            "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white active:scale-[0.98]":
+            "bg-white/5 text-text-secondary! hover:bg-white/10 hover:text-text-primary! active:scale-[0.98]":
               variant === "subtle",
-            "bg-danger text-danger-fg shadow-sm hover:bg-danger/90 active:scale-[0.98]":
+            "bg-danger text-danger-fg! shadow-sm hover:bg-danger/90 active:scale-[0.98]":
               variant === "danger",
-            "bg-transparent hover:bg-bg-hover text-text-muted hover:text-text-primary active:scale-[0.98]":
+            "bg-transparent hover:bg-bg-hover text-text-muted! hover:text-text-primary! active:scale-[0.98]":
               variant === "ghost",
 
             // Sizes

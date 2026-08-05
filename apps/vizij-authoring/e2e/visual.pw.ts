@@ -166,6 +166,20 @@ for (const theme of THEMES) {
       await expect(
         page.getByTestId("control-authoring-panel-poses"),
       ).toBeVisible();
+
+      // Exactly one panel may be visible. `Tabs` passes `forceMount` to keep
+      // panel-local state across switches, and radix then computes
+      // `present = forceMount || isSelected` before setting `hidden={!present}` —
+      // so with forceMount NO panel gets `hidden` and every one renders at once.
+      // That regression shipped once and neither the tab-bar screenshot (scoped to
+      // the tablist) nor any unit test caught it.
+      // `:visible`, not `:not([hidden])` — the fix hides inactive panels with a
+      // `display:none` utility rather than the `hidden` attribute, since radix
+      // owns that attribute and forceMount stops it being set.
+      await expect(authoring.locator('[role="tabpanel"]:visible')).toHaveCount(
+        1,
+      );
+
       await settle(page);
 
       await shoot(tabBar, `control-authoring-tabs-${theme}.png`);

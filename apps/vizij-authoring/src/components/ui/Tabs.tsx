@@ -53,6 +53,12 @@ export interface TabsProps {
  * that state — `VariablesPanel` is 8.7k lines and mounted twice. Dropping
  * `forceMount` would be a real perf win but is a behaviour change, so it belongs
  * in its own commit rather than smuggled into a substrate swap.
+ *
+ * **`forceMount` MUST be paired with `data-[state=inactive]:hidden`.** Radix
+ * computes `present = forceMount || isSelected` and then sets `hidden={!present}`,
+ * so with `forceMount` every panel is `present`, none receive `hidden`, and every
+ * panel renders at once. An earlier revision shipped `forceMount` without the
+ * hide and did exactly that. Do not remove one without the other.
  */
 export function Tabs({
   items,
@@ -151,7 +157,17 @@ export function Tabs({
             value={item.id}
             forceMount
             data-testid={item.panelTestId}
-            className={cn("focus:outline-none", fillPanels && "h-full min-h-0")}
+            className={cn(
+              "focus:outline-none",
+              // REQUIRED alongside `forceMount`. Radix computes
+              // `present = forceMount || isSelected` and then sets
+              // `hidden={!present}`, so with forceMount every panel is `present`
+              // and NONE get `hidden` — all panels render at once. Radix marks
+              // inactive ones `data-state="inactive"`, so hiding has to be done
+              // here.
+              "data-[state=inactive]:hidden",
+              fillPanels && "h-full min-h-0",
+            )}
           >
             {renderPanel(item.id)}
           </RadixTabs.Content>
