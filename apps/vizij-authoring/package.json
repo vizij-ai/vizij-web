@@ -30,6 +30,7 @@
     "@deepgram/sdk": "^5.0.0",
     "@eslint/plugin-kit": "0.4.0",
     "@semio/ui": "0.1.4",
+    "@tabler/icons-react": "^3.46.0",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/node-graph": "^0.7.0",

@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Checkbox as SemioCheckbox, Size } from "@semio/ui";
+import { Checkbox as SemioCheckbox, Size, Variant } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
 export interface CheckboxProps {
@@ -45,6 +45,9 @@ export function Checkbox({
         onCheckedChange={onChange}
         disabled={disabled}
         size={Size.Sm}
+        // Accent fill when checked, matching Switch. semio's default variant
+        // would render the checked state in zinc.
+        variant={Variant.Primary}
       />
       {label && (
         <label

@@ -473,6 +473,9 @@ importers:
       '@semio/ui':
         specifier: 0.1.4
         version: 0.1.4(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
+      '@tabler/icons-react':
+        specifier: ^3.46.0
+        version: 3.46.0(react@19.2.3)
       '@vizij/node-graph':
         specifier: ^0.7.0
         version: 0.7.0

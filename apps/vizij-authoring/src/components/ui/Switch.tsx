@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Switch as SemioSwitch, Size } from "@semio/ui";
+import { Switch as SemioSwitch, Size, Variant } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
 export interface SwitchProps
@@ -56,6 +56,11 @@ export function Switch({
         onCheckedChange={(next) => onChange?.(next)}
         disabled={disabled}
         size={SIZES[size]}
+        // semio defaults to Variant.Default, which renders a checked switch in
+        // zinc. This app has always shown the accent when on, so the variant is
+        // explicit — and `--color-primary-*` is remapped to the Vizij accent in
+        // styles.css, so Primary is Vizij blue rather than Semio sky.
+        variant={Variant.Primary}
       />
       {(label || hint) && (
         <div
