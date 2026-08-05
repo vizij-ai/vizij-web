@@ -208,7 +208,13 @@
   --shadow-premium: var(--shadow-premium);
   --shadow-inner: var(--shadow-inner);
   --color-accent-glow: var(--glow-accent);
-  --background-accent-gradient: var(--accent-gradient);
+  /* Must be the `--background-image-*` namespace: Tailwind v4 has no
+     `--background-*` namespace, so `--background-accent-gradient` generated no
+     `bg-accent-gradient` utility at all. That left `Button variant="primary"`
+     (Button.tsx:25) and TreeRow's selection bar (TreeRow.tsx:72) with no
+     background in EITHER theme — invisible against dark surfaces, and white
+     `--accent-fg` label on a white surface in light mode. */
+  --background-image-accent-gradient: var(--accent-gradient);
 
   /* Animation Utilities */
   --animate-hover-lift: hover-lift 0.2s ease-out forwards;
