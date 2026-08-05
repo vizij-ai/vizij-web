@@ -4181,7 +4181,11 @@ describe("VariablesPanel", () => {
 
     expect(screen.getByTestId("control-authoring-tab-animations")).toBeTruthy();
     expect(screen.getByTestId("control-authoring-tab-programs")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("control-authoring-tab-animations"));
+    // `Tabs` is built on radix, whose Trigger activates on mousedown (and on
+    // focus, and on Enter/Space) — not on a bare `click`. A real browser click
+    // fires mousedown first, so the Playwright suite exercises the same path;
+    // `fireEvent.click` alone does not, so it would never select the tab.
+    fireEvent.mouseDown(screen.getByTestId("control-authoring-tab-animations"));
     expect(screen.getByRole("button", { name: "New Animation" })).toBeTruthy();
     expect(
       screen.getAllByRole("button", { name: "Copy" }).length,
@@ -4282,7 +4286,10 @@ describe("VariablesPanel", () => {
     expect(onStopAnimationTarget).toHaveBeenCalledWith("animation:live");
     expect(onDeleteAnimationTarget).toHaveBeenCalledWith("animation:wave");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Programs (2)" }));
+    // mouseDown, not click — radix's Tabs.Trigger activates on mousedown. The
+    // accessible name is still asserted here, which is the contract the
+    // Playwright suite depends on (/^Programs \(\d+\)$/, anchored both ends).
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Programs (2)" }));
 
     expect(screen.getByPlaceholderText("Search programs...")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "New Program" }));

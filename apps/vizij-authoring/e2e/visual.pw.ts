@@ -147,6 +147,19 @@ for (const theme of THEMES) {
         authoring.getByTestId("control-authoring-tab-drivers"),
       ).toBeVisible();
 
+      // The accessible name must be EXACTLY "<Surface> (<n>)" — the workflow
+      // specs match it with both ends anchored (`/^Animations \(\d+\)$/`), so any
+      // extra text inside the tab (a badge, a description) silently breaks them.
+      // Asserted here because those workflow specs are in a tier that is
+      // currently unstable headless, leaving this contract otherwise unguarded.
+      for (const surface of ["Drivers", "Poses", "Animations", "Programs"]) {
+        await expect(
+          authoring.getByRole("tab", {
+            name: new RegExp(`^${surface} \\(\\d+\\)$`),
+          }),
+        ).toBeVisible();
+      }
+
       // Select a mid-list tab rather than the default first one, so the crop
       // contains selected and unselected tabs on either side of the selection.
       await authoring.getByTestId("control-authoring-tab-poses").click();
