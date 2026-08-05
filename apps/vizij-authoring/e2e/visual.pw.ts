@@ -30,9 +30,7 @@ import {
  * `demo-voice-select-*`, and `select-popup-*` baselines were added later and so
  * record the post-`@semio/ui` state. They cover `Tabs` and `MenuBar` (both
  * queued for a rebuild) and the already-migrated `Select`; they therefore lock
- * in current behaviour rather than pre-migration behaviour — including the
- * primary `Button` in `demo-voice-select-light`, whose `bg-accent-gradient`
- * class generates nothing, leaving white label on white surface.
+ * in current behaviour rather than pre-migration behaviour.
  */
 
 type Theme = "dark" | "light";
