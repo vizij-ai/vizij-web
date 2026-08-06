@@ -134,18 +134,27 @@ export const LongLabelsStillAlign: Story = {
 };
 
 /**
- * **The second defect, from `VariablePipelineStages`' stage sections.** Poses,
- * Direct Input and Override are sibling collapsibles in one panel column, all
- * slider-plus-number, all declaring `90px` for the number. But Direct Input also
- * has a Reset button, and written as an inline template its trailing `auto` column
- * shifts that 90px number left by the button width plus one gap — so it does not
- * line up with Override's number directly below it.
+ * Three label-less rows in **one** grid, with the actions cell empty on two of them:
+ * the numbers align because subgrid ties every row to this grid's tracks, including
+ * the content-sized `auto` actions track.
  *
- * `columns="control-value-actions"` gives all three the same tracks, with the
- * actions cell simply empty on two of them. `control-value*` has no label track,
- * because these rows are label-less by design: the property name is the enclosing
- * collapsible's title. Reserving a label track would shrink their sliders by ~80px
- * to align them with labelled rows they never sit beside.
+ * **Read the scope carefully — this does not generalise across grids.** It was
+ * written to demonstrate a fix for `VariablePipelineStages`' stage sections (Poses /
+ * Direct Input / Override, where only Direct Input has a Reset button), and that
+ * claim was wrong. Those three stages live in three *separate* collapsibles and so
+ * three *separate* `PropertyGrid` instances. Subgrid ties a row to its own parent
+ * grid's tracks and nothing more, so three grids resolve their `auto` actions track
+ * independently: measured in `Editor Tools/VariablePipelineStages → StageSliders`,
+ * Direct Input's number sits 97.14px left of Override's — exactly the width of the
+ * Reset button its actions cell contains, and which Override's empty cell collapses
+ * away.
+ *
+ * The rule that actually holds: **within one grid, every track aligns. Across
+ * separate grids, only tracks with a definite width align** — `--editor-col-label`
+ * and `--editor-col-value` do, `minmax(0,1fr)` and `auto` cannot. A trailing actions
+ * column would need a definite width token to cross a grid boundary, and that is a
+ * design decision about the inspector's proportions rather than a bug fix, because
+ * reserving it costs the label-less stages ~97px of slider.
  */
 export const LabelLessRowsAlign: Story = {
   render: () => (

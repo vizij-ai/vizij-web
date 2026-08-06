@@ -448,12 +448,57 @@ inspector's proportions is now one token, not eighteen call sites.
 Visible deltas, all deliberate: the parent-link card's label goes 58px → 72px and
 its number 72px → 88px; the stage sliders' number goes 90px → 88px.
 
+#### Correction: the stage sliders never aligned
+
+Phase 2 claimed the stage sliders were fixed and cited "all three numbers at
+left=238, width 88". **That measurement was taken in a Storybook story, not in the
+panel**, and it does not transfer. Measured in the real component
+(`Editor Tools/VariablePipelineStages → StageSliders`):
+
+| stage        | resolved template        | number offset       |
+| ------------ | ------------------------ | ------------------- |
+| Direct Input | `139.86px 88px 102.14px` | **164.86**          |
+| Override     | `237px 88px 5px`         | **262**             |
+| Poses        | `203px 88px 5px`         | 245 (also indented) |
+
+Direct Input and Override sit in identically sized, identically placed grids, so
+they are directly comparable — and their numbers are **97.14px apart**, exactly the
+width of the Reset button in Direct Input's actions cell.
+
+**Why the story misled.** `LabelLessRowsAlign` puts all three rows in _one_ grid,
+where it genuinely works. The panel has **three separate `PropertyGrid` instances**,
+one per collapsible. Subgrid ties a row to its own parent grid's tracks and nothing
+further, so three grids resolve their content-sized `auto` actions track
+independently: Override's empty actions cell collapses to ~5px and its `1fr` control
+swallows the 97px that Direct Input's Reset occupies.
+
+**The rule that actually holds** — and the one §2 should have stated:
+
+> Within one grid, every track aligns, `auto` included. Across separate grids, only
+> tracks with a **definite** width align. `--editor-col-label` and
+> `--editor-col-value` do. `minmax(0,1fr)` and `auto` cannot.
+
+That is why the parent-link card and the two `InspectorSection`s _do_ align — every
+track they depend on is a fixed token — and why the stage sliders do not.
+
+**Fixing it is a design decision, not a bug fix**, which is why it is not done here.
+Three options:
+
+1. **`--editor-col-actions` with a definite width.** Consistent with the label and
+   value tokens, and the smallest change. Costs the two label-less stages ~97px of
+   slider in a 346px panel — 28% — to reserve a track they never use.
+2. **Move `Reset` out of the row.** It is arguably a stage-level affordance, not a
+   row action; then all three stages use `control-value` and align at 262 with no
+   slider lost. Cleanest result, largest change to the panel.
+3. **Accept it.** The three stages are in separate collapsibles and rarely open at
+   once, so the misalignment may not be worth 97px of slider.
+
 #### What was migrated, and what was not
 
 | Sites                                                                | Verdict                                                                                                                                                                                                                  |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Parent-link card — Scale / Offset / Value (`VariablePipelineStages`) | Migrated. Numbers were at opposite ends of one card; now one column.                                                                                                                                                     |
-| Stage sliders — Poses / Direct Input / Override                      | Migrated to `control-value-actions`, so Direct Input's Reset no longer knocks its number out of line. Measured: all three at left=238, width 88.                                                                         |
+| Stage sliders — Poses / Direct Input / Override                      | Migrated to `control-value-actions`, but **they still do not align — that claim was wrong.** See the correction below.                                                                                                   |
 | Child-link card (`VariablePipelineStages`)                           | **Deleted, not migrated.** It was a hand-inlined copy of `LinkControlEditor`, which already takes `context="child"`. −46 lines and two templates for free.                                                               |
 | `InspectorPanel` Interp / time-field / Value                         | Migrated.                                                                                                                                                                                                                |
 | `InspectorContent:418` — `[104px_minmax(0,1fr)_94px_138px]`          | **Deferred.** The only responsive one (`grid-cols-1` below `sm:`), and its column 2 is a `relative` positioning context for three absolutely-positioned slider overlays. Worth its own change with its own verification. |
