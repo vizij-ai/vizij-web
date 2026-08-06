@@ -79,9 +79,9 @@ import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
 import { VariablePipelineStages } from "./VariablePipelineStages";
 import {
   RiggingMaterialSection,
-  RiggingScalarRow,
   RiggingColorRow,
 } from "./RiggingMaterialSection";
+import { RiggingScalarRow } from "./RiggingScalarRow";
 import {
   collectDirectDownstreamRigInputs,
   collectDirectRigDependents,
