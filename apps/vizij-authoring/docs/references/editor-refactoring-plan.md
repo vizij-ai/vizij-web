@@ -294,12 +294,38 @@ R4 (the duplicated `TreeRow`s) and eventually routing its panels through
 Each step is independently mergeable and must keep `validate` + the visual suite
 green. Steps within a phase are order-independent.
 
-### Phase 1 — prove the pattern (low risk, high signal)
+### Phase 1 — prove the pattern (low risk, high signal) — **done**
 
-1. R1 merge `RiggingScalarRow`s
-2. R2 extract `ControlRow`
-3. Adopt `InspectorSection` for the 10 `VariablesPanel` section cards
-4. Extract `BulkSelectCheckbox` and `MergeValueField`
+1. ~~R1 merge `RiggingScalarRow`s~~ — done. They had diverged; material semantics
+   kept, morph gains constraint clamping and blocked-binding handling.
+2. ~~R2 extract `ControlRow`~~ — done, as `editor/molecules/ControlRow`.
+3. ~~Adopt `InspectorSection` for the section cards~~ — done for **five**, not ten
+   (see the correction below).
+4. ~~Extract `BulkSelectCheckbox`~~ — done, as `editor/atoms/RowCheckbox`, at five
+   sites. `MergeValueField` is **deferred**; see below.
+
+Plus a guardrail the plan asked for: the eslint import boundary, which required
+making `ui/ThemeToggle` controlled first — it held the only `ui/` → `src/state/`
+import in the app.
+
+#### Two corrections from doing it
+
+**There are nine bordered sections, not ten, and they are two species.** Five are
+inspector sections (`p-2`, uppercase muted label, mono count) and converted
+cleanly. The other four are **modal form groups**: `p-3`, `space-y-*` instead of
+`gap`, and a `text-xs font-semibold text-text-primary` header. The plan's claim
+that they "differ only in padding and border opacity" was wrong — the header
+typography differs too, so converting them is a design decision, not a refactor.
+
+**`MergeValueField` is not a mechanical extraction.** Its three sites
+(`VariablesPanel.tsx` ~8012, ~8267, ~8559) each drive a _different_ draft-state
+setter, over different field arrays, with different value sources. A shared
+component needs a common draft shape designed first — which is the same design
+work the four modal form groups above need.
+
+So those two belong together as one follow-up: **a `ModalFormGroup` + `MergeValueField`
+pair**, covering the four `p-3` sections and the three merge fields. That is a
+Phase 2-sized piece of design, not a Phase 1 cleanup.
 
 ### Phase 2 — the grid
 

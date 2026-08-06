@@ -62,6 +62,7 @@ import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
 import { ControlRow } from "../editor/molecules/ControlRow";
 import { InspectorSection } from "../editor/molecules/InspectorSection";
+import { RowCheckbox } from "../editor/atoms/RowCheckbox";
 import { ensureLinkedSlotActiveInExpression } from "../../utils/bindingExpressions";
 import type {
   PoseBlendMode,
@@ -2197,13 +2198,19 @@ function TreeRowWrapper({
     : null;
   const bulkReferenceRigSelectionId =
     referenceRigInputId ?? sharedRigReferenceInputId;
-  const isBulkSelected =
+  // `Boolean(...)` because both `has` calls are optional-chained and yield
+  // `undefined` when the selection set is absent. That used to reach a native
+  // `<input checked>`, where `undefined` silently makes the input UNCONTROLLED —
+  // so it would toggle itself on click regardless of state. `RowCheckbox` takes a
+  // definite boolean, which forced the latent case into the open.
+  const isBulkSelected = Boolean(
     (referencePoseId
       ? selectedReferencePoseIds?.has(referencePoseId)
       : false) ||
-    (bulkReferenceRigSelectionId
-      ? selectedReferenceRigIds?.has(bulkReferenceRigSelectionId)
-      : false);
+      (bulkReferenceRigSelectionId
+        ? selectedReferenceRigIds?.has(bulkReferenceRigSelectionId)
+        : false),
+  );
 
   // Check selection
   const isSelected =
@@ -2464,23 +2471,19 @@ function TreeRowWrapper({
           {node.type === "pose" && !isReferencePoseNode && (
             <>
               {referencePoseId ? (
-                <label
-                  className="flex items-center gap-1 text-[9px] text-cyan-200"
-                  onClick={(event) => event.stopPropagation()}
+                <RowCheckbox
+                  checked={isBulkSelected}
+                  onChange={() => {
+                    if (!referencePoseId) {
+                      return;
+                    }
+                    onToggleReferencePoseSelection?.(referencePoseId);
+                  }}
                   title="Select pose for bulk copy"
+                  className="text-cyan-200"
                 >
-                  <input
-                    type="checkbox"
-                    checked={isBulkSelected}
-                    onChange={() => {
-                      if (!referencePoseId) {
-                        return;
-                      }
-                      onToggleReferencePoseSelection?.(referencePoseId);
-                    }}
-                  />
                   Bulk
-                </label>
+                </RowCheckbox>
               ) : null}
               <Button
                 variant="ghost"
@@ -2548,23 +2551,19 @@ function TreeRowWrapper({
           )}
           {node.type === "pose" && isReferencePoseNode && (
             <>
-              <label
-                className="flex items-center gap-1 text-[9px] text-cyan-200"
-                onClick={(event) => event.stopPropagation()}
+              <RowCheckbox
+                checked={referencePoseId ? isBulkSelected : false}
+                onChange={() => {
+                  if (!referencePoseId) {
+                    return;
+                  }
+                  onToggleReferencePoseSelection?.(referencePoseId);
+                }}
                 title="Select pose for bulk copy"
+                className="text-cyan-200"
               >
-                <input
-                  type="checkbox"
-                  checked={referencePoseId ? isBulkSelected : false}
-                  onChange={() => {
-                    if (!referencePoseId) {
-                      return;
-                    }
-                    onToggleReferencePoseSelection?.(referencePoseId);
-                  }}
-                />
                 Bulk
-              </label>
+              </RowCheckbox>
               <Button
                 variant="ghost"
                 size="sm"
@@ -2652,27 +2651,23 @@ function TreeRowWrapper({
               <>
                 {(node.data as RigNodeData | undefined)?.source !==
                   undefined && (
-                  <label
-                    className="flex items-center gap-1 text-[9px] text-cyan-200"
-                    onClick={(event) => event.stopPropagation()}
-                    title="Select driver for bulk copy"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={
-                        bulkReferenceRigSelectionId ? isBulkSelected : false
+                  <RowCheckbox
+                    checked={
+                      bulkReferenceRigSelectionId ? isBulkSelected : false
+                    }
+                    onChange={() => {
+                      if (!bulkReferenceRigSelectionId) {
+                        return;
                       }
-                      onChange={() => {
-                        if (!bulkReferenceRigSelectionId) {
-                          return;
-                        }
-                        onToggleReferenceRigSelection?.(
-                          bulkReferenceRigSelectionId,
-                        );
-                      }}
-                    />
+                      onToggleReferenceRigSelection?.(
+                        bulkReferenceRigSelectionId,
+                      );
+                    }}
+                    title="Select driver for bulk copy"
+                    className="text-cyan-200"
+                  >
                     Bulk
-                  </label>
+                  </RowCheckbox>
                 )}
                 <Button
                   variant="ghost"
@@ -2722,43 +2717,35 @@ function TreeRowWrapper({
             )}
           {node.type === "folder" &&
             folderReferenceRigSelectionIds.length > 0 && (
-              <label
-                className="flex items-center gap-1 text-[9px] text-cyan-200"
-                onClick={(event) => event.stopPropagation()}
+              <RowCheckbox
+                checked={folderAllReferenceRigSelected}
+                onChange={() => {
+                  onSetReferenceRigSelection?.(
+                    folderReferenceRigSelectionIds,
+                    !folderAllReferenceRigSelected,
+                  );
+                }}
                 title="Select all reference/shared drivers in this folder for bulk copy"
+                className="text-cyan-200"
               >
-                <input
-                  type="checkbox"
-                  checked={folderAllReferenceRigSelected}
-                  onChange={() => {
-                    onSetReferenceRigSelection?.(
-                      folderReferenceRigSelectionIds,
-                      !folderAllReferenceRigSelected,
-                    );
-                  }}
-                />
                 Bulk Drv
-              </label>
+              </RowCheckbox>
             )}
           {node.type === "folder" &&
             folderReferencePoseSelectionIds.length > 0 && (
-              <label
-                className="flex items-center gap-1 text-[9px] text-cyan-200"
-                onClick={(event) => event.stopPropagation()}
+              <RowCheckbox
+                checked={folderAllReferencePoseSelected}
+                onChange={() => {
+                  onSetReferencePoseSelection?.(
+                    folderReferencePoseSelectionIds,
+                    !folderAllReferencePoseSelected,
+                  );
+                }}
                 title="Select all reference poses in this folder for bulk copy"
+                className="text-cyan-200"
               >
-                <input
-                  type="checkbox"
-                  checked={folderAllReferencePoseSelected}
-                  onChange={() => {
-                    onSetReferencePoseSelection?.(
-                      folderReferencePoseSelectionIds,
-                      !folderAllReferencePoseSelected,
-                    );
-                  }}
-                />
                 Bulk Pose
-              </label>
+              </RowCheckbox>
             )}
 
           {canDeleteFolderDrivers ? (
