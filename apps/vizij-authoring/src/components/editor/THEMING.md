@@ -56,12 +56,18 @@ to a consumer and will be read as a bug.
 
 ### Lines and accent
 
-| Token                    | Fallback            | Used for                                |
-| ------------------------ | ------------------- | --------------------------------------- |
-| `--editor-border`        | `--border-default`  | Dividers, outlines, section rules       |
-| `--editor-border-strong` | `--border-hover`    | Hover and focus borders                 |
-| `--editor-accent`        | `--color-accent`    | Selection, active state, scrub feedback |
-| `--editor-accent-fg`     | `--color-accent-fg` | Text on an accent surface               |
+| Token                     | Fallback            | Used for                                      |
+| ------------------------- | ------------------- | --------------------------------------------- |
+| `--editor-border`         | `--border-default`  | Dividers, outlines, section rules             |
+| `--editor-border-strong`  | `--border-hover`    | Hover and focus borders                       |
+| `--editor-accent`         | `--color-accent`    | Selection, active state, scrub feedback       |
+| `--editor-accent-fg`      | `--color-accent-fg` | Text on an accent surface                     |
+| `--editor-control-accent` | `#67e8f9` (literal) | Glyph marking a row as a live numeric control |
+
+`--editor-control-accent` is the one token with a **literal** fallback rather than
+an app token. It was `text-cyan-300` hardcoded in `ControlRow`, and there is no
+app token for it — inventing one for a single use would have been worse. The
+literal preserves the exact colour; override it to match your own palette.
 
 ### Status
 
@@ -79,6 +85,10 @@ Keep them clearly different in hue, not just in lightness.
 Hover tints are derived from whichever of the two is showing
 (`color-mix(… 20%, transparent)`) rather than being tokens of their own, so there
 is nothing extra to override.
+
+`--editor-locked` also colours `ControlRow`'s "driven from elsewhere" note, which
+used to be a hardcoded `text-amber-300`. Lock state now reads as one colour across
+the layer rather than two near-identical ambers.
 
 ### Metrics
 

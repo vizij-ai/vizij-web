@@ -46,7 +46,6 @@ import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
-import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
 import {
@@ -61,6 +60,7 @@ import {
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
+import { ControlRow } from "../editor/molecules/ControlRow";
 import { ensureLinkedSlotActiveInExpression } from "../../utils/bindingExpressions";
 import type {
   PoseBlendMode,
@@ -2306,7 +2306,7 @@ function TreeRowWrapper({
       canSetPoseTarget &&
       Boolean(poseTargetContext?.targetedInputIds.has(inputData.inputId));
     return (
-      <FlatInputControlRow
+      <ControlRow
         row={inputData}
         depth={depth}
         selected={rowIsSelected}
@@ -2814,109 +2814,6 @@ function TreeRowWrapper({
         </div>
       )}
     </TreeRow>
-  );
-}
-
-interface FlatInputControlRowProps {
-  row: InputCatalogRow;
-  selected: boolean;
-  locked: boolean;
-  depth?: number;
-  selectable?: boolean;
-  lockedMessage?: string;
-  onSelect: () => void;
-  onValueChange: (inputId: string, value: number) => void;
-  actions?: ReactNode;
-}
-
-function FlatInputControlRow({
-  row,
-  selected,
-  locked,
-  depth = 0,
-  selectable = true,
-  lockedMessage,
-  onSelect,
-  onValueChange,
-  actions,
-}: FlatInputControlRowProps) {
-  const value =
-    typeof row.value === "number" && Number.isFinite(row.value) ? row.value : 0;
-  const paddingLeft = Math.max(0, depth) * 14;
-
-  return (
-    <div
-      role="button"
-      tabIndex={selectable ? 0 : -1}
-      style={{ marginLeft: `${paddingLeft}px` }}
-      title={row.label}
-      className={cn(
-        "rounded border px-2 py-1.5 flex flex-col gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        selected
-          ? "border-accent/60 bg-accent/10"
-          : "border-border-default/50 bg-bg-panel/35",
-        selectable ? "hover:border-border-default/70 hover:bg-bg-panel/45" : "",
-      )}
-      aria-disabled={!selectable}
-      onClick={() => {
-        if (!selectable) {
-          return;
-        }
-        onSelect();
-      }}
-      onKeyDown={(event) => {
-        if (!selectable) {
-          return;
-        }
-        if (event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-        event.preventDefault();
-        onSelect();
-      }}
-    >
-      <div className="flex items-center gap-1.5 min-w-0">
-        <Sliders size={12} className="text-cyan-300 shrink-0" />
-        <span className="text-xs text-text-primary truncate">{row.label}</span>
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          {actions}
-        </div>
-      </div>
-      {row.editable ? (
-        <div
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <Slider
-            value={value}
-            defaultValue={row.defaultValue}
-            min={row.min}
-            max={row.max}
-            step={0.01}
-            disabled={locked}
-            onChange={(nextValue) => {
-              const normalizedValue = Array.isArray(nextValue)
-                ? nextValue[0]
-                : nextValue;
-              if (!Number.isFinite(normalizedValue)) {
-                return;
-              }
-              onValueChange(row.inputId, normalizedValue);
-            }}
-          />
-        </div>
-      ) : (
-        <p className="text-[10px] text-text-muted">
-          Derived control (read-only)
-        </p>
-      )}
-      {locked ? (
-        <p className="text-[10px] text-amber-300">
-          {lockedMessage ??
-            "Animation playback is currently driving this input."}
-        </p>
-      ) : null}
-    </div>
   );
 }
 
@@ -6671,7 +6568,7 @@ export function VariablesPanel({
                                   motionGraphEligibleOutputPaths.has(path) &&
                                   !enabledMotionGraphOutputs.has(path);
                                 return (
-                                  <FlatInputControlRow
+                                  <ControlRow
                                     key={`pap-available:${row.inputId}:${row.path}`}
                                     row={row}
                                     selected={
@@ -6775,7 +6672,7 @@ export function VariablesPanel({
                                   ? poseById.get(poseId)
                                   : undefined;
                                 return (
-                                  <FlatInputControlRow
+                                  <ControlRow
                                     key={`animation-available:${row.inputId}`}
                                     row={row}
                                     selected={
@@ -7593,7 +7490,7 @@ export function VariablesPanel({
                               ) : (
                                 <div className="flex flex-col gap-1.5">
                                   {visibleMotionGraphInputRows.map((row) => (
-                                    <FlatInputControlRow
+                                    <ControlRow
                                       key={`pap-active-input:${row.inputId}`}
                                       row={row}
                                       selected={
@@ -7654,7 +7551,7 @@ export function VariablesPanel({
                                     const graphLocked =
                                       proceduralOutputPlaybackLocked;
                                     return (
-                                      <FlatInputControlRow
+                                      <ControlRow
                                         key={`pap-active-output:${row.inputId}:${row.path}`}
                                         row={row}
                                         selected={
@@ -7752,7 +7649,7 @@ export function VariablesPanel({
                                       ? poseById.get(poseId)
                                       : undefined;
                                     return (
-                                      <FlatInputControlRow
+                                      <ControlRow
                                         key={`animation-active:${row.inputId}`}
                                         row={row}
                                         selected={
