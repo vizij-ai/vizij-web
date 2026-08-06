@@ -70,7 +70,7 @@ import {
 } from "../../poseRig/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { PropertyRow } from "../editor/molecules/PropertyRow";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
 import { RiggingTransformSection } from "./RiggingTransformSection";
@@ -2420,7 +2420,7 @@ export function InspectorContent({
           </div>
         ) : null}
         <div className="flex flex-col gap-3 p-2">
-          <RiggingPropertyRow
+          <PropertyRow
             label="Reference Weight"
             onScrub={(_, totalDelta) =>
               setReferencePoseWeightValue(
@@ -3007,7 +3007,7 @@ export function InspectorContent({
             ) : null}
           </div>
         ) : null}
-        <RiggingPropertyRow
+        <PropertyRow
           label="Set Pose Percentage:"
           onScrub={(_, totalDelta) => {
             // Blend based on delta (assuming 100px = 100% blend)

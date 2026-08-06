@@ -12,9 +12,9 @@ import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
 import { ChannelLockStrip } from "../editor/atoms/ChannelLockStrip";
 import {
   CommitOnBlurNumberInput,
-  RiggingPropertyRow,
+  PropertyRow,
   ScrubbableLabel,
-} from "./RiggingPropertyRow";
+} from "../editor/molecules/PropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 import { useInspectorTargetLock } from "./useInspectorTargetLock";
@@ -695,7 +695,7 @@ export function RiggingColorRow({
   );
 
   return (
-    <RiggingPropertyRow
+    <PropertyRow
       label={label}
       hasDifferentDefault={hasDifferentDefault}
       onResetToDefault={handleReset}

@@ -8,9 +8,9 @@ import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
 import { cn } from "../../utils/cn";
 import {
   CommitOnBlurNumberInput,
-  RiggingPropertyRow,
+  PropertyRow,
   ScrubbableLabel,
-} from "./RiggingPropertyRow";
+} from "../editor/molecules/PropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 import { useInspectorTargetLock } from "./useInspectorTargetLock";
@@ -42,7 +42,7 @@ import { useInspectorTargetLock } from "./useInspectorTargetLock";
  *
  * This is a **store-bound** component (it calls `useInspectorTargetLock`), so it
  * stays in the feature layer rather than moving to `editor/`. Its reusable parts
- * are already extracted: `RiggingPropertyRow` for the chassis, `ChannelLockButton`
+ * are already extracted: `PropertyRow` for the chassis, `ChannelLockButton`
  * for the lock, `useRowLock` for the lock aggregation.
  */
 /**
@@ -323,7 +323,7 @@ export function RiggingScalarRow({
   };
 
   return (
-    <RiggingPropertyRow
+    <PropertyRow
       label={label}
       hasDifferentDefault={hasDifferentDefault}
       onResetToDefault={handleReset}

@@ -229,21 +229,73 @@ component, so behaviour stays byte-identical.
 which becomes a generic parameter. 130 lines out of the 8,753-line file, and the
 first real proof that draining that file is possible.
 
-### R3. Promote the `RiggingPropertyRow` chassis → `editor/molecules/PropertyRow`
+### R3. Promote the `RiggingPropertyRow` chassis → `editor/molecules/PropertyRow` — **done**
 
-Move the shell plus `ScrubbableLabel`, `CommitOnBlurNumberInput` and `useScrub`.
-Four feature files consume them today. This retires the "parallel numeric stack"
-the port left behind — not by deleting it, but by giving it a home and a story.
+Moved with `ScrubbableLabel`, `CommitOnBlurNumberInput`, `useScrub` and its test.
+Renamed: nothing about the chassis is rigging-specific. Four feature files updated.
 
-Tokenise while moving: the scrub interaction should read `--editor-accent`, and
-the `hasDifferentDefault` dot should read a new `--editor-modified` token.
+It turned out to be a move-plus-tokenise, not a rewrite — it already imported only
+react, lucide, `ui/Button` and `cn`, with no app state at all. The proof that it is
+now portable is that it passes the `editor/` eslint boundary, which forbids app
+state and feature imports.
 
-### R4. Deduplicate the two motiongraph `TreeRow`s
+Tokenised: 14 spots, including three hardcoded colours the plan had not listed —
+`text-zinc-500` on the icon slot, and `bg-black/20` / `border-white/5` on the
+expanded sub-panel. Those last two became `--editor-row-expanded-bg` /
+`--editor-row-expanded-border` with **literal** fallbacks, because neither maps onto
+an app token: they are a darkening overlay and a lightening hairline. They are also
+the clearest case in the layer of a default that assumes a dark canvas, so a
+light-themed consumer must override them — the `OverriddenTokens` story is built to
+show exactly that.
 
-`motiongraph/components/InputSetsPanel.tsx:81` and `OutputSetsPanel.tsx:91`.
-Identical apart from a remove button and sky-vs-emerald. The consolidation plan
-flags a **real bug** in the divergence, so this is a fix, not just tidying. Merge
-the pair first; adopting `ui/TreeRow` is a separate follow-up.
+No `--editor-modified` token was needed: the `hasDifferentDefault` dot is the
+selection accent, so it reads `--editor-accent`.
+
+**One dead-styling finding.** The reset button passed
+`text-accent hover:text-accent-hover` to a `ui/Button` whose ghost variant emits
+`text-text-secondary!`. An `!important` declaration wins, so the icon has always
+rendered secondary, never accent — while the `hover:bg-accent/10` beside it _did_
+apply, which is why it looks half-intentional. The dead classes are removed rather
+than forced with a second `!`, per THEMING.md's "style button surfaces from tokens
+and leave their text colour to the variant". Appearance unchanged; the code no
+longer claims otherwise. Same defect class as STUDIO-116.
+
+### R4. Deduplicate the two motiongraph `TreeRow`s — **done**
+
+Merged into `motiongraph/components/SetTreeRow.tsx`, with the accent as a prop.
+
+**Three corrections to what this section used to claim.**
+
+It said the consolidation plan "flags a real bug in the divergence". It does not —
+the bug §3.7 names (untokenised colours, so the rows are dark-on-dark in light mode)
+is **shared by both panels**, not contained in the divergence. This section misread
+its own source.
+
+It said the two were "identical apart from a remove button and sky-vs-emerald".
+There was a third difference neither document mentioned — the row wrapper — and that
+is where a genuine divergence bug lived: `InputSetsPanel`'s row button is `flex-1`
+with no `min-w-0`, so `min-width` stayed `auto`, the label's `truncate` was inert,
+and the un-shrinkable button pushed the remove `×` **124px outside a 200px panel** —
+you could not delete an input without scrolling sideways. `OutputSetsPanel` was
+immune only because it has no `×` to push out. Measured before and after.
+
+A second, smaller defect: `OutputSetsPanel`'s row was a bare `<button>`, which is
+`inline-block`, so every row took 1px of line-box leading — 25px pitch against
+`InputSetsPanel`'s 24px, leaving hairline stripes between the row fills. One DOM
+shape fixes both.
+
+**It stays in the feature layer, not `editor/`.** It reads no store, so the
+layout-or-store rule would allow promotion — but every colour in it is a raw
+`neutral-*`/`sky-*`/`emerald-*` utility, which violates the layer's "tokens only"
+rule, and the thing that rule exists to prevent is precisely this component's
+light-mode unreadability. Promoting it as-is would export that bug to every
+consumer. The `accent` prop is itself a hardcoded-palette API; a portable version
+would read `--editor-accent` scoped per panel and have no accent enum at all. That
+is a redesign with a visible result, so it wants its own reviewable commit.
+
+**Both bugs are latent: neither panel is mounted anywhere in the app.** The only
+references to `InputSetsPanel`/`OutputSetsPanel` outside their own files are these
+plan docs. Worth deciding whether to delete them rather than carry them.
 
 ### R5. Give `ListRow` a `selected` state, adopt in `AuthoringTargetList`
 

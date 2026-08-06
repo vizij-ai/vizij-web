@@ -17,9 +17,9 @@ import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
 import { ChannelLockStrip } from "../editor/atoms/ChannelLockStrip";
 import {
   CommitOnBlurNumberInput,
-  RiggingPropertyRow,
+  PropertyRow,
   ScrubbableLabel,
-} from "./RiggingPropertyRow";
+} from "../editor/molecules/PropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
 import { useInspectorTargetLock } from "./useInspectorTargetLock";
@@ -587,7 +587,7 @@ function RiggingVectorRow({
   );
 
   return (
-    <RiggingPropertyRow
+    <PropertyRow
       label={displayLabel}
       hasDifferentDefault={hasDifferentDefault}
       onResetToDefault={handleReset}
