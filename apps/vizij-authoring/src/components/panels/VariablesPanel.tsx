@@ -61,6 +61,8 @@ import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
 import { ControlRow } from "../editor/molecules/ControlRow";
+import { MergeValueField } from "../editor/molecules/MergeValueField";
+import { ModalFormGroup } from "../editor/molecules/ModalFormGroup";
 import { InspectorSection } from "../editor/molecules/InspectorSection";
 import { RowCheckbox } from "../editor/atoms/RowCheckbox";
 import { ensureLinkedSlotActiveInExpression } from "../../utils/bindingExpressions";
@@ -7805,10 +7807,7 @@ export function VariablesPanel({
                 </div>
               )}
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
-              <div className="text-xs font-semibold text-text-primary">
-                Destination
-              </div>
+            <ModalFormGroup title={"Destination"} spacing="loose">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -7913,12 +7912,9 @@ export function VariablesPanel({
                   </label>
                 </div>
               )}
-            </section>
+            </ModalFormGroup>
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
-              <div className="text-xs font-semibold text-text-primary">
-                Value Merge
-              </div>
+            <ModalFormGroup title={"Value Merge"} spacing="tight">
               {(
                 [
                   {
@@ -7956,58 +7952,44 @@ export function VariablesPanel({
                       : existingDestinationInput.defaultValue
                   : null;
                 return (
-                  <div
+                  <MergeValueField
                     key={field.key}
-                    className="grid grid-cols-1 gap-2 md:grid-cols-[96px_minmax(0,1fr)_auto] md:items-center"
-                  >
-                    <div className="text-xs text-text-muted">
-                      {field.label} ({field.sourceValue.toFixed(3)})
-                    </div>
-                    <input
-                      value={draft.customValue}
-                      onChange={(event) => {
-                        setVariableCopyBlockingMessages([]);
-                        setVariableCopyValueMergeDraft(
-                          field.key,
-                          (current) => ({
-                            ...current,
-                            mode: "custom",
-                            customValue: event.target.value,
-                          }),
-                        );
-                      }}
-                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
-                    />
-                    {isFiniteNumber(destinationValue) ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-[10px]"
-                        onClick={() => {
-                          setVariableCopyBlockingMessages([]);
-                          setVariableCopyValueMergeDraft(
-                            field.key,
-                            (current) => ({
-                              ...current,
-                              mode: "custom",
-                              customValue:
-                                toDecisionCustomValue(destinationValue),
-                            }),
-                          );
-                        }}
-                      >
-                        Use current {field.label.toLowerCase()} (
-                        {destinationValue.toFixed(3)})
-                      </Button>
-                    ) : (
-                      <span className="text-[10px] text-text-muted">
-                        No current main face value
+                    label={
+                      <span className="text-xs text-text-muted">
+                        {field.label} ({field.sourceValue.toFixed(3)})
                       </span>
-                    )}
-                  </div>
+                    }
+                    value={draft.customValue}
+                    onValueChange={(next) => {
+                      setVariableCopyBlockingMessages([]);
+                      setVariableCopyValueMergeDraft(field.key, (current) => ({
+                        ...current,
+                        mode: "custom",
+                        customValue: next,
+                      }));
+                    }}
+                    currentValue={
+                      isFiniteNumber(destinationValue) ? destinationValue : null
+                    }
+                    onUseCurrent={() => {
+                      // `MergeValueField` only renders the button when
+                      // `currentValue` is finite, but the narrowing that used to
+                      // come from the surrounding ternary is gone, so re-establish
+                      // it here rather than asserting.
+                      if (!isFiniteNumber(destinationValue)) return;
+                      setVariableCopyBlockingMessages([]);
+                      setVariableCopyValueMergeDraft(field.key, (current) => ({
+                        ...current,
+                        mode: "custom",
+                        customValue: toDecisionCustomValue(destinationValue),
+                      }));
+                    }}
+                    useCurrentLabel={`Use current ${field.label.toLowerCase()}`}
+                    emptyLabel="No current main face value"
+                  />
                 );
               })}
-            </section>
+            </ModalFormGroup>
 
             {(
               [
@@ -8028,13 +8010,11 @@ export function VariablesPanel({
                   ? variableCopyModal.parentRowDrafts
                   : variableCopyModal.childRowDrafts;
               return (
-                <section
+                <ModalFormGroup
                   key={relationship}
-                  className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2"
+                  title={label}
+                  spacing="tight"
                 >
-                  <div className="text-xs font-semibold text-text-primary">
-                    {label}
-                  </div>
                   {rows.length === 0 ? (
                     <div className="text-xs text-text-muted">No mappings.</div>
                   ) : (
@@ -8197,69 +8177,59 @@ export function VariablesPanel({
                                   ? (resolvedLinkValues?.scale ?? null)
                                   : (resolvedLinkValues?.offset ?? null);
                               return (
-                                <div
+                                <MergeValueField
                                   key={key}
-                                  className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]"
-                                >
-                                  <div className="flex flex-col gap-1">
+                                  label={
                                     <span className="text-[10px] uppercase tracking-wide text-text-muted">
                                       {mergeLabel} ({sourceValue.toFixed(3)})
                                     </span>
-                                    <input
-                                      value={decision.customValue}
-                                      disabled={!draft.apply}
-                                      onChange={(event) => {
-                                        setVariableCopyBlockingMessages([]);
-                                        setVariableCopyLinkRowDraft(
-                                          relationship,
-                                          row.rowId,
-                                          (current) => ({
-                                            ...current,
-                                            [key]: {
-                                              ...current[key],
-                                              mode: "custom",
-                                              customValue: event.target.value,
-                                            },
-                                          }),
-                                        );
-                                      }}
-                                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary disabled:opacity-40"
-                                    />
-                                  </div>
-                                  {isFiniteNumber(destinationValue) ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={!draft.apply}
-                                      className="h-8 px-2 text-[10px]"
-                                      onClick={() => {
-                                        setVariableCopyBlockingMessages([]);
-                                        setVariableCopyLinkRowDraft(
-                                          relationship,
-                                          row.rowId,
-                                          (current) => ({
-                                            ...current,
-                                            [key]: {
-                                              ...current[key],
-                                              mode: "custom",
-                                              customValue:
-                                                toDecisionCustomValue(
-                                                  destinationValue,
-                                                ),
-                                            },
-                                          }),
-                                        );
-                                      }}
-                                    >
-                                      Use current {mergeLabel.toLowerCase()} (
-                                      {destinationValue.toFixed(3)})
-                                    </Button>
-                                  ) : (
-                                    <span className="self-center text-[10px] text-text-muted">
-                                      No current value
-                                    </span>
-                                  )}
-                                </div>
+                                  }
+                                  labelPlacement="above"
+                                  value={decision.customValue}
+                                  disabled={!draft.apply}
+                                  onValueChange={(next) => {
+                                    setVariableCopyBlockingMessages([]);
+                                    setVariableCopyLinkRowDraft(
+                                      relationship,
+                                      row.rowId,
+                                      (current) => ({
+                                        ...current,
+                                        [key]: {
+                                          ...current[key],
+                                          mode: "custom",
+                                          customValue: next,
+                                        },
+                                      }),
+                                    );
+                                  }}
+                                  currentValue={
+                                    isFiniteNumber(destinationValue)
+                                      ? destinationValue
+                                      : null
+                                  }
+                                  onUseCurrent={() => {
+                                    if (!isFiniteNumber(destinationValue))
+                                      return;
+                                    setVariableCopyBlockingMessages([]);
+                                    setVariableCopyLinkRowDraft(
+                                      relationship,
+                                      row.rowId,
+                                      (current) => ({
+                                        ...current,
+                                        [key]: {
+                                          ...current[key],
+                                          mode: "custom",
+                                          customValue:
+                                            toDecisionCustomValue(
+                                              destinationValue,
+                                            ),
+                                        },
+                                      }),
+                                    );
+                                  }}
+                                  useCurrentLabel={`Use current ${mergeLabel.toLowerCase()}`}
+                                  emptyLabel="No current value"
+                                />
                               );
                             })}
                           </div>
@@ -8272,7 +8242,7 @@ export function VariablesPanel({
                       );
                     })
                   )}
-                </section>
+                </ModalFormGroup>
               );
             })}
 
@@ -8331,10 +8301,7 @@ export function VariablesPanel({
                 </div>
               )}
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
-              <div className="text-xs font-semibold text-text-primary">
-                Destination Pose
-              </div>
+            <ModalFormGroup title={"Destination Pose"} spacing="loose">
               <label className="flex flex-col gap-1 text-xs text-text-muted">
                 Name
                 <input
@@ -8396,12 +8363,9 @@ export function VariablesPanel({
                   disabled until the destination name resolves to a single pose.
                 </div>
               ) : null}
-            </section>
+            </ModalFormGroup>
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
-              <div className="text-xs font-semibold text-text-primary">
-                Target mappings
-              </div>
+            <ModalFormGroup title={"Target mappings"} spacing="tight">
               {poseCopyModal.proposal.targetRows.length === 0 ? (
                 <div className="text-xs text-text-muted">
                   No targets available.
@@ -8506,52 +8470,40 @@ export function VariablesPanel({
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-                        <input
-                          value={draft.value.customValue}
-                          onChange={(event) => {
-                            setPoseCopyBlockingMessages([]);
-                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
-                              ...current,
-                              value: {
-                                ...current.value,
-                                mode: "custom",
-                                customValue: event.target.value,
-                              },
-                            }));
-                          }}
-                          className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
-                        />
-                        {isFiniteNumber(existingPoseValue) ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-[10px]"
-                            onClick={() => {
-                              setPoseCopyBlockingMessages([]);
-                              setPoseCopyTargetRowDraft(
-                                row.rowId,
-                                (current) => ({
-                                  ...current,
-                                  value: {
-                                    ...current.value,
-                                    mode: "custom",
-                                    customValue:
-                                      toDecisionCustomValue(existingPoseValue),
-                                  },
-                                }),
-                              );
-                            }}
-                          >
-                            Use current pose value (
-                            {existingPoseValue.toFixed(3)})
-                          </Button>
-                        ) : (
-                          <span className="self-center text-[10px] text-text-muted">
-                            No current pose value
-                          </span>
-                        )}
-                      </div>
+                      <MergeValueField
+                        value={draft.value.customValue}
+                        onValueChange={(next) => {
+                          setPoseCopyBlockingMessages([]);
+                          setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                            ...current,
+                            value: {
+                              ...current.value,
+                              mode: "custom",
+                              customValue: next,
+                            },
+                          }));
+                        }}
+                        currentValue={
+                          isFiniteNumber(existingPoseValue)
+                            ? existingPoseValue
+                            : null
+                        }
+                        onUseCurrent={() => {
+                          if (!isFiniteNumber(existingPoseValue)) return;
+                          setPoseCopyBlockingMessages([]);
+                          setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                            ...current,
+                            value: {
+                              ...current.value,
+                              mode: "custom",
+                              customValue:
+                                toDecisionCustomValue(existingPoseValue),
+                            },
+                          }));
+                        }}
+                        useCurrentLabel="Use current pose value"
+                        emptyLabel="No current pose value"
+                      />
 
                       {row.rationale.length > 0 && (
                         <div className="text-[11px] text-text-muted">
@@ -8562,7 +8514,7 @@ export function VariablesPanel({
                   );
                 })
               )}
-            </section>
+            </ModalFormGroup>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button

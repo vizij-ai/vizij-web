@@ -37,15 +37,16 @@ to a consumer and will be read as a bug.
 
 ### Surfaces
 
-| Token                          | Fallback                  | Used for                                   |
-| ------------------------------ | ------------------------- | ------------------------------------------ |
-| `--editor-row-bg`              | `--bg-hover`              | Row and list-item resting surface          |
-| `--editor-row-bg-hover`        | `--bg-active`             | Row hover                                  |
-| `--editor-row-bg-selected`     | `--color-accent-subtle`   | Selected row                               |
-| `--editor-panel-bg`            | `--bg-panel`              | Panel and section surface                  |
-| `--editor-section-bg`          | `--bg-secondary`          | Nested section surface                     |
-| `--editor-row-expanded-bg`     | `rgb(0 0 0 / 0.2)`        | `PropertyRow`'s expanded sub-panel surface |
-| `--editor-row-expanded-border` | `rgb(255 255 255 / 0.05)` | The hairline above that sub-panel          |
+| Token                          | Fallback                  | Used for                                      |
+| ------------------------------ | ------------------------- | --------------------------------------------- |
+| `--editor-row-bg`              | `--bg-hover`              | Row and list-item resting surface             |
+| `--editor-row-bg-hover`        | `--bg-active`             | Row hover                                     |
+| `--editor-row-bg-selected`     | `--color-accent-subtle`   | Selected row                                  |
+| `--editor-panel-bg`            | `--bg-panel`              | Panel and section surface                     |
+| `--editor-section-bg`          | `--bg-secondary`          | Nested section surface                        |
+| `--editor-input-bg`            | `--bg-input`              | Text/number input surface (`MergeValueField`) |
+| `--editor-row-expanded-bg`     | `rgb(0 0 0 / 0.2)`        | `PropertyRow`'s expanded sub-panel surface    |
+| `--editor-row-expanded-border` | `rgb(255 255 255 / 0.05)` | The hairline above that sub-panel             |
 
 ### Text
 
