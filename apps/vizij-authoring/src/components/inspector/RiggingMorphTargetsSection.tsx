@@ -1,5 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
-import { Lock, LockOpen } from "lucide-react";
+import React, { useMemo, useRef } from "react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { cn } from "../../utils/cn";
@@ -8,6 +7,7 @@ import {
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
 import {
   CommitOnBlurNumberInput,
   RiggingPropertyRow,
@@ -15,6 +15,7 @@ import {
 } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
+import { useInspectorTargetLock } from "./useInspectorTargetLock";
 
 interface RiggingMorphTargetsSectionProps {
   node: SceneObjectNode;
@@ -38,13 +39,6 @@ export function RiggingMorphTargetsSection({
   const handleUpdateStandardInput = useBindingAuthoring(
     (state) => state.handleUpdateStandardInput,
   );
-  const lockedInspectorTargetIds = useBindingAuthoring(
-    (state) => state.lockedInspectorTargetIds,
-  );
-  const handleSetInspectorTargetLocked = useBindingAuthoring(
-    (state) => state.handleSetInspectorTargetLocked,
-  );
-
   const {
     updateAnimatableDescriptor,
     setAnimatableValue,
@@ -91,31 +85,9 @@ export function RiggingMorphTargetsSection({
     return Array.from(targetIds);
   }, [morphFeatures]);
 
-  const lockedMorphTargetCount = useMemo(
-    () =>
-      lockableMorphTargetIds.reduce(
-        (count, targetId) =>
-          lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
-        0,
-      ),
-    [lockableMorphTargetIds, lockedInspectorTargetIds],
-  );
-  const hasLockableMorphTargets = lockableMorphTargetIds.length > 0;
-  const areAllMorphTargetsLocked =
-    hasLockableMorphTargets &&
-    lockedMorphTargetCount === lockableMorphTargetIds.length;
-
-  const applyMorphTargetLockState = useCallback(
-    (locked: boolean) => {
-      if (lockableMorphTargetIds.length === 0) {
-        return;
-      }
-      lockableMorphTargetIds.forEach((targetId) => {
-        handleSetInspectorTargetLocked(targetId, locked);
-      });
-    },
-    [handleSetInspectorTargetLocked, lockableMorphTargetIds],
-  );
+  // Same aggregation the individual rows use, one level up: "are all of this
+  // section's morph targets locked?"
+  const morphLock = useInspectorTargetLock(lockableMorphTargetIds);
 
   if (morphFeatures.length === 0) {
     return null;
@@ -128,30 +100,20 @@ export function RiggingMorphTargetsSection({
           Morph Targets
         </div>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className={cn(
-              "rounded p-0.5 transition-colors",
-              "text-rose-300 hover:text-rose-200 hover:bg-rose-500/15",
-            )}
+          <ChannelLockButton
+            locked
+            className="p-0.5"
             title="Lock All Morph Targets"
-            disabled={!hasLockableMorphTargets || areAllMorphTargetsLocked}
-            onClick={() => applyMorphTargetLockState(true)}
-          >
-            <Lock size={10} />
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "rounded p-0.5 transition-colors",
-              "text-sky-300 hover:text-sky-200 hover:bg-sky-500/15",
-            )}
+            disabled={!morphLock.canToggle || morphLock.isLocked}
+            onToggle={() => morphLock.setLocked(true)}
+          />
+          <ChannelLockButton
+            locked={false}
+            className="p-0.5"
             title="Unlock All Morph Targets"
-            disabled={!hasLockableMorphTargets || lockedMorphTargetCount === 0}
-            onClick={() => applyMorphTargetLockState(false)}
-          >
-            <LockOpen size={10} />
-          </button>
+            disabled={!morphLock.canToggle || morphLock.lockedCount === 0}
+            onToggle={() => morphLock.setLocked(false)}
+          />
         </div>
       </div>
 
@@ -229,14 +191,11 @@ function RiggingScalarRow({
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const lockedInspectorTargetIds = useBindingAuthoring(
-    (state) => state.lockedInspectorTargetIds,
-  );
-  const handleSetInspectorTargetLocked = useBindingAuthoring(
-    (state) => state.handleSetInspectorTargetLocked,
-  );
 
   const component = feature.components[0];
+  // Called before the early return below so the hook order stays stable for
+  // features that expose no components.
+  const rowLock = useInspectorTargetLock(component?.targetId);
   if (!component) return null;
 
   const targetId = component.targetId;
@@ -269,9 +228,7 @@ function RiggingScalarRow({
     inputValues,
     staticValue: component.staticValue ?? 0,
   });
-  const isChannelLocked = Boolean(
-    targetId && lockedInspectorTargetIds.has(targetId),
-  );
+  const isChannelLocked = rowLock.isLocked;
 
   const minVal = hasInputMetadata
     ? standardInput!.range.min
@@ -292,13 +249,6 @@ function RiggingScalarRow({
 
   const handleReset = () => {
     if (isBound && inputId) onValueChange(inputId, defaultValue as number);
-  };
-
-  const toggleRowLock = () => {
-    if (!targetId) {
-      return;
-    }
-    handleSetInspectorTargetLocked(targetId, !isChannelLocked);
   };
 
   const renderInput = (type: "current" | "default" | "min" | "max") => {
@@ -471,20 +421,12 @@ function RiggingScalarRow({
       renderMinInput={() => renderInput("min")}
       renderMaxInput={() => renderInput("max")}
       renderRowAction={() => (
-        <button
-          type="button"
-          className={cn(
-            "p-1 rounded transition-colors",
-            isChannelLocked
-              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
-              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
-          )}
+        <ChannelLockButton
+          locked={isChannelLocked}
           title={isChannelLocked ? `Unlock ${label}` : `Lock ${label}`}
-          disabled={!targetId}
-          onClick={toggleRowLock}
-        >
-          {isChannelLocked ? <Lock size={10} /> : <LockOpen size={10} />}
-        </button>
+          disabled={!rowLock.canToggle}
+          onToggle={rowLock.toggle}
+        />
       )}
     />
   );

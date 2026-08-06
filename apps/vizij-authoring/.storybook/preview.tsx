@@ -93,7 +93,7 @@ const preview: Preview = {
     },
     options: {
       storySort: {
-        order: ["UI", "Common"],
+        order: ["UI", "Editor", "Common"],
       },
     },
   },

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pause, Play, Plus, Square, Trash2, X } from "lucide-react";
+import { Pause, Play, Plus, Square, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Input } from "../ui/Input";
-import { Panel } from "../ui/Panel";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import type { RuntimeAuthoringSource } from "../../state/AuthoringUiProvider";
 
 export type RuntimeSourceToolbarMode =
@@ -438,23 +438,10 @@ export function RuntimeSourceToolbar({
 
   if (layout === "panel") {
     return (
-      <Panel
+      <WorkbenchPanel
         title="Runtime Source"
         description="Choose which authored system is driving live runtime inputs and manage the active runtime target."
-        className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-        actions={
-          onClosePanel ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-text-secondary hover:text-text-primary"
-              onClick={onClosePanel}
-              title="Hide panel"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          ) : null
-        }
+        onClose={onClosePanel}
       >
         <div className="h-full min-h-0 p-3 space-y-3 bg-bg-panel/70 backdrop-blur-sm">
           <div className="space-y-1">
@@ -487,7 +474,7 @@ export function RuntimeSourceToolbar({
 
           {targetMetadataCard}
         </div>
-      </Panel>
+      </WorkbenchPanel>
     );
   }
 

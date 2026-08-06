@@ -48,6 +48,11 @@ export function Checkbox({
         // indicator a definite size makes semio's own intent resolve correctly.
         // Styled from here because semio's Checkbox accepts no className.
         "[&_[role=checkbox]>span]:size-full",
+        // semio's Checkbox sets no cursor, so it inherits the default arrow and
+        // does not read as clickable. It accepts no className, so this is styled
+        // from here alongside the indicator fix above.
+        "[&_[role=checkbox]]:cursor-pointer",
+        "[&_[role=checkbox]:disabled]:cursor-not-allowed",
         className,
       )}
     >

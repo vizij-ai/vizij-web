@@ -6,7 +6,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { Popover as RadixPopover } from "radix-ui";
-import { Box, Folder, Lock, Plus, Search, Unlock, X } from "lucide-react";
+import { Box, Folder, Lock, Plus, Search, Unlock } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
@@ -17,7 +17,8 @@ import {
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { EmptyState } from "../ui/EmptyState";
-import { Panel, Button, Select, PanelSearch, TreeRow } from "../ui";
+import { Button, Select, PanelSearch, TreeRow } from "../ui";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
 
@@ -573,23 +574,10 @@ export function HierarchyPanel({
       : `${selectedCount} elements`;
 
   return (
-    <Panel
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+    <WorkbenchPanel
       title="Face Elements"
       description="Select objects via the tree or viewport to drive the inspector."
-      actions={
-        onClosePanel ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-text-secondary hover:text-text-primary"
-            onClick={onClosePanel}
-            title="Hide panel"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null
-      }
+      onClose={onClosePanel}
     >
       <div className="flex flex-col h-full gap-1 p-1">
         {allowEditActions && selectedCount > 0 && (
@@ -836,6 +824,6 @@ export function HierarchyPanel({
           </div>
         </div>
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }

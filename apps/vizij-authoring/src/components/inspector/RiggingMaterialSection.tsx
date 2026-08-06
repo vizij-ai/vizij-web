@@ -1,5 +1,4 @@
 import React, { useRef } from "react";
-import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
 import { Popover as RadixPopover } from "radix-ui";
@@ -12,6 +11,8 @@ import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { Select, Button } from "../ui";
 import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
+import { ChannelLockStrip } from "../editor/atoms/ChannelLockStrip";
 import {
   CommitOnBlurNumberInput,
   RiggingPropertyRow,
@@ -19,6 +20,7 @@ import {
 } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
+import { useInspectorTargetLock } from "./useInspectorTargetLock";
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -250,14 +252,11 @@ export function RiggingScalarRow({
   node,
 }: RiggingScalarRowProps) {
   const scrubValuesRef = useRef<Record<string, number>>({});
-  const lockedInspectorTargetIds = useBindingAuthoring(
-    (state) => state.lockedInspectorTargetIds,
-  );
-  const handleSetInspectorTargetLocked = useBindingAuthoring(
-    (state) => state.handleSetInspectorTargetLocked,
-  );
 
   const component = feature.components[0];
+  // Called before the early return below so the hook order stays stable for
+  // features that expose no components.
+  const rowLock = useInspectorTargetLock(component?.targetId);
   if (!component) return null;
 
   const targetId = component.targetId;
@@ -289,9 +288,7 @@ export function RiggingScalarRow({
     inputValues,
     staticValue: component.staticValue ?? 0,
   });
-  const isChannelLocked = Boolean(
-    targetId && lockedInspectorTargetIds.has(targetId),
-  );
+  const isChannelLocked = rowLock.isLocked;
 
   // Undefined means the constraint is unbounded — don't clamp edits to it.
   const minVal: number | undefined = isBound
@@ -313,13 +310,6 @@ export function RiggingScalarRow({
 
   const handleReset = () => {
     if (isBound && inputId) onValueChange(inputId, defaultValue as number);
-  };
-
-  const toggleRowLock = () => {
-    if (!targetId) {
-      return;
-    }
-    handleSetInspectorTargetLocked(targetId, !isChannelLocked);
   };
 
   const renderInput = (type: "current" | "default" | "min" | "max") => {
@@ -496,20 +486,12 @@ export function RiggingScalarRow({
       renderMinInput={() => renderInput("min")}
       renderMaxInput={() => renderInput("max")}
       renderRowAction={() => (
-        <button
-          type="button"
-          className={cn(
-            "p-1 rounded transition-colors",
-            isChannelLocked
-              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
-              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
-          )}
+        <ChannelLockButton
+          locked={isChannelLocked}
           title={isChannelLocked ? `Unlock ${label}` : `Lock ${label}`}
-          disabled={!targetId}
-          onClick={toggleRowLock}
-        >
-          {isChannelLocked ? <Lock size={10} /> : <LockOpen size={10} />}
-        </button>
+          disabled={!rowLock.canToggle}
+          onToggle={rowLock.toggle}
+        />
       )}
     />
   );
@@ -614,6 +596,12 @@ export function RiggingColorRow({
     (c): c is NonNullable<typeof c> => c !== null,
   );
 
+  // Before the early return: hook order must not depend on how many channels
+  // resolved.
+  const rowLock = useInspectorTargetLock(
+    components.map((component) => component.targetId),
+  );
+
   if (components.length === 0) return null;
 
   const hasDifferentDefault = components.some(
@@ -630,26 +618,7 @@ export function RiggingColorRow({
     });
   };
 
-  const lockableTargetIds = components
-    .map((component) => component.targetId)
-    .filter((targetId): targetId is string => Boolean(targetId));
-  const lockedTargetCount = lockableTargetIds.reduce(
-    (count, targetId) =>
-      lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
-    0,
-  );
-  const areAllLockableTargetsLocked =
-    lockableTargetIds.length > 0 &&
-    lockedTargetCount === lockableTargetIds.length;
-  const toggleRowLock = () => {
-    if (lockableTargetIds.length === 0) {
-      return;
-    }
-    const nextLocked = !areAllLockableTargetsLocked;
-    lockableTargetIds.forEach((targetId) => {
-      handleSetInspectorTargetLocked(targetId, nextLocked);
-    });
-  };
+  const areAllLockableTargetsLocked = rowLock.isLocked;
 
   const rgbToHex = (r: number, g: number, b: number) => {
     const toHex = (c: number) => {
@@ -1003,38 +972,18 @@ export function RiggingColorRow({
   };
 
   const renderAnimatableRow = () => (
-    <div className="flex gap-1.5 flex-1">
-      {components.map((component, index) => (
-        <button
-          key={index}
-          type="button"
-          title={`Toggle ${component.label} channel lock`}
-          className={cn(
-            "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            component.isLocked
-              ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
-              : "bg-accent/10 text-accent hover:bg-accent/20",
-          )}
-          disabled={!component.targetId}
-          onClick={() => {
-            if (!component.targetId) {
-              return;
-            }
-            handleSetInspectorTargetLocked(
-              component.targetId,
-              !component.isLocked,
-            );
-          }}
-        >
-          {component.isLocked ? (
-            <Lock size={10} className="shrink-0" />
-          ) : (
-            <LockOpen size={10} className="shrink-0" />
-          )}
-          <span>{component.label.substring(0, 1)}</span>
-        </button>
-      ))}
-    </div>
+    <ChannelLockStrip
+      channels={components.map((component) => ({
+        id: component.targetId ?? null,
+        // `label` here is already `R`/`G`/`B` in practice; the truncation is
+        // kept so a component that somehow carries a longer label still fits
+        // the pill, exactly as before.
+        shortLabel: component.label.substring(0, 1),
+        locked: component.isLocked,
+        title: `Toggle ${component.label} channel lock`,
+      }))}
+      onToggle={handleSetInspectorTargetLocked}
+    />
   );
 
   return (
@@ -1048,28 +997,16 @@ export function RiggingColorRow({
       renderMaxInput={() => renderInputs("max")}
       renderAnimatableRow={renderAnimatableRow}
       renderRowAction={() => (
-        <button
-          type="button"
-          className={cn(
-            "p-1 rounded transition-colors",
-            areAllLockableTargetsLocked
-              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
-              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
-          )}
+        <ChannelLockButton
+          locked={areAllLockableTargetsLocked}
           title={
             areAllLockableTargetsLocked
               ? "Unlock color channels"
               : "Lock color channels"
           }
-          disabled={lockableTargetIds.length === 0}
-          onClick={toggleRowLock}
-        >
-          {areAllLockableTargetsLocked ? (
-            <Lock size={10} />
-          ) : (
-            <LockOpen size={10} />
-          )}
-        </button>
+          disabled={!rowLock.canToggle}
+          onToggle={rowLock.toggle}
+        />
       )}
     />
   );

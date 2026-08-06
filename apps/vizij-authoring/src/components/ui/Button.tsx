@@ -71,9 +71,13 @@ const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, Variant> = {
  * with it. Verified by reading `getComputedStyle(button).color` in light mode, not
  * by a test: nothing in the suite asserts colour.
  *
- * `variant="subtle"` still uses `bg-white/5`, a dark-only background that washes
- * out on light surfaces. Its text colour is now tokenised, but the background is
- * left alone — changing it alters every subtle button and belongs in a restyle.
+ * `subtle` and `ghost` were both still broken on light surfaces after that first
+ * fix, because it only addressed text COLOUR. Measured against a white canvas:
+ * `subtle`'s `bg-white/5` computed to transparent-white-on-white, so the button had
+ * no visible surface at all; and `ghost`'s `text-text-muted` is zinc-400 in light
+ * mode, roughly 2.3:1 against white and below WCAG. `subtle` now uses the
+ * `--bg-hover` token for a quiet but present fill, and `ghost` uses
+ * `--text-secondary` (zinc-600 light / zinc-400 dark), which reads in both themes.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -102,11 +106,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               variant === "primary",
             "bg-bg-secondary text-text-primary! border border-border-default hover:bg-bg-secondary-hover shadow-sm active:scale-[0.98]":
               variant === "secondary",
-            "bg-white/5 text-text-secondary! hover:bg-white/10 hover:text-text-primary! active:scale-[0.98]":
+            "bg-bg-hover text-text-secondary! hover:bg-bg-active hover:text-text-primary! active:scale-[0.98]":
               variant === "subtle",
             "bg-danger text-danger-fg! shadow-sm hover:bg-danger/90 active:scale-[0.98]":
               variant === "danger",
-            "bg-transparent hover:bg-bg-hover text-text-muted! hover:text-text-primary! active:scale-[0.98]":
+            "bg-transparent hover:bg-bg-hover text-text-secondary! hover:text-text-primary! active:scale-[0.98]":
               variant === "ghost",
 
             // Sizes

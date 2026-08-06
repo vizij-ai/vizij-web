@@ -1,7 +1,8 @@
 import type { KeyboardEvent, ReactNode } from "react";
 import { useMemo } from "react";
-import { Activity, RotateCcw, Trash2, X } from "lucide-react";
-import { Panel } from "../ui/Panel";
+import { Activity, RotateCcw, Trash2 } from "lucide-react";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
+import { InspectorSection } from "../editor/molecules/InspectorSection";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Slider } from "../ui/Slider";
@@ -227,36 +228,6 @@ function commitInspectorNameChange(
     return;
   }
   onCommit(trimmed);
-}
-
-function InspectorSection({
-  title,
-  count,
-  emptyMessage,
-  children,
-}: {
-  title: string;
-  count?: number;
-  emptyMessage?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-text-muted">
-          {title}
-        </span>
-        {typeof count === "number" ? (
-          <span className="text-[10px] text-text-muted font-mono">{count}</span>
-        ) : null}
-      </div>
-      {count === 0 && emptyMessage ? (
-        <p className="text-[10px] text-text-muted">{emptyMessage}</p>
-      ) : (
-        children
-      )}
-    </div>
-  );
 }
 
 function InspectorEntryButton({
@@ -1062,32 +1033,19 @@ export function InspectorPanel({
             : "View and edit selected object properties.";
 
   return (
-    <Panel
+    <WorkbenchPanel
       data-testid="inspector-panel"
       title={panelTitle}
       description={panelDescription}
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-      actions={
-        onClosePanel ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-text-secondary hover:text-text-primary"
-            onClick={onClosePanel}
-            title="Hide panel"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null
-      }
+      onClose={onClosePanel}
     >
       <div className="flex flex-col h-full min-h-0">
         {!showDedicatedInspector && (
           <div className="flex-1 min-h-0 overflow-y-auto">
             {showProgramTargetInspector && selectedProgramTarget ? (
               <div className="flex flex-col gap-2 p-2">
-                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
+                <InspectorSection
+                  title={
                     <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-wider text-text-muted">
                         Name
@@ -1098,11 +1056,9 @@ export function InspectorPanel({
                           : "Imported program"}
                       </div>
                     </div>
-                    <div className="text-[10px] font-mono text-text-muted">
-                      {selectedProgramTarget.nodeCount} nodes ·{" "}
-                      {selectedProgramTarget.edgeCount} edges
-                    </div>
-                  </div>
+                  }
+                  meta={`${selectedProgramTarget.nodeCount} nodes · ${selectedProgramTarget.edgeCount} edges`}
+                >
                   <Input
                     key={selectedProgramTarget.targetId}
                     size="sm"
@@ -1125,7 +1081,7 @@ export function InspectorPanel({
                     <div>Inputs: {selectedProgramTarget.inputCount}</div>
                     <div>Outputs: {selectedProgramTarget.outputCount}</div>
                   </div>
-                </div>
+                </InspectorSection>
 
                 <InspectorSection
                   title="I/O Nodes"
@@ -1222,8 +1178,8 @@ export function InspectorPanel({
               <MgNodeInspector />
             ) : showAnimationTargetInspector && selectedAnimationTarget ? (
               <div className="flex flex-col gap-2 p-2">
-                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
+                <InspectorSection
+                  title={
                     <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-wider text-text-muted">
                         Name
@@ -1234,11 +1190,9 @@ export function InspectorPanel({
                           : "Imported clip"}
                       </div>
                     </div>
-                    <div className="text-[10px] font-mono text-text-muted">
-                      {selectedAnimationTarget.trackCount} tracks ·{" "}
-                      {selectedAnimationTarget.duration.toFixed(2)}s
-                    </div>
-                  </div>
+                  }
+                  meta={`${selectedAnimationTarget.trackCount} tracks · ${selectedAnimationTarget.duration.toFixed(2)}s`}
+                >
                   <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2">
                     <div className="flex min-w-0 flex-col gap-1">
                       <div className="text-[10px] uppercase tracking-wider text-text-muted">
@@ -1288,7 +1242,7 @@ export function InspectorPanel({
                       />
                     </label>
                   </div>
-                </div>
+                </InspectorSection>
 
                 <InspectorSection
                   title="Tracks"
@@ -1327,8 +1281,8 @@ export function InspectorPanel({
               </div>
             ) : showAnimationInspector && selectedAnimationTrack ? (
               <div className="flex flex-col gap-2 p-2">
-                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
+                <InspectorSection
+                  title={
                     <div className="min-w-0">
                       <div className="text-[11px] font-semibold text-text-primary truncate">
                         {selectedAnimationTrack.label}
@@ -1337,6 +1291,8 @@ export function InspectorPanel({
                         {selectedAnimationTrack.channel}
                       </div>
                     </div>
+                  }
+                  action={
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
@@ -1361,7 +1317,8 @@ export function InspectorPanel({
                         Track
                       </Button>
                     </div>
-                  </div>
+                  }
+                >
                   <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
                     <span className="text-[10px] uppercase tracking-wide text-text-muted">
                       Interp
@@ -1384,65 +1341,53 @@ export function InspectorPanel({
                   <div className="text-[10px] text-text-muted font-mono">
                     Keyframes: {selectedAnimationTrack.keyframes.length}
                   </div>
-                </div>
-                <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                      Keyframes
-                    </span>
-                    <span className="text-[10px] text-text-muted font-mono">
-                      {selectedAnimationTrackKeyframes.length}
-                    </span>
+                </InspectorSection>
+                <InspectorSection
+                  title="Keyframes"
+                  count={selectedAnimationTrackKeyframes.length}
+                  emptyMessage="No keyframes yet for this track."
+                >
+                  <div className="flex flex-col gap-1.5">
+                    {selectedAnimationTrackKeyframes.map((keyframe) => {
+                      const isActive =
+                        selectedAnimationKeyframeId === keyframe.id;
+                      return (
+                        <button
+                          key={keyframe.id}
+                          type="button"
+                          className={cn(
+                            "w-full rounded border px-2 py-1.5 text-left text-[10px] font-mono transition-colors",
+                            isActive
+                              ? "border-accent/70 bg-accent/15 text-text-primary"
+                              : "border-border-default/50 bg-bg-input/35 text-text-secondary hover:bg-bg-hover/70 hover:text-text-primary",
+                          )}
+                          onClick={() => selectAnimationKeyframe(keyframe.id)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span>
+                              t=
+                              {formatKeyframeTime(
+                                keyframe.time,
+                                animationTimeDisplayMode,
+                              )}
+                            </span>
+                            <span>v={keyframe.value.toFixed(4)}</span>
+                          </div>
+                          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-text-muted">
+                            {keyframe.interpolation
+                              ? `Interp: ${keyframe.interpolation}`
+                              : `Track: ${selectedAnimationTrack.interpolation}`}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                  {selectedAnimationTrackKeyframes.length === 0 ? (
-                    <p className="text-[10px] text-text-muted">
-                      No keyframes yet for this track.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-1.5">
-                      {selectedAnimationTrackKeyframes.map((keyframe) => {
-                        const isActive =
-                          selectedAnimationKeyframeId === keyframe.id;
-                        return (
-                          <button
-                            key={keyframe.id}
-                            type="button"
-                            className={cn(
-                              "w-full rounded border px-2 py-1.5 text-left text-[10px] font-mono transition-colors",
-                              isActive
-                                ? "border-accent/70 bg-accent/15 text-text-primary"
-                                : "border-border-default/50 bg-bg-input/35 text-text-secondary hover:bg-bg-hover/70 hover:text-text-primary",
-                            )}
-                            onClick={() => selectAnimationKeyframe(keyframe.id)}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span>
-                                t=
-                                {formatKeyframeTime(
-                                  keyframe.time,
-                                  animationTimeDisplayMode,
-                                )}
-                              </span>
-                              <span>v={keyframe.value.toFixed(4)}</span>
-                            </div>
-                            <div className="mt-0.5 text-[9px] uppercase tracking-wider text-text-muted">
-                              {keyframe.interpolation
-                                ? `Interp: ${keyframe.interpolation}`
-                                : `Track: ${selectedAnimationTrack.interpolation}`}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                </InspectorSection>
 
                 {selectedAnimationKeyframe ? (
-                  <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                        Keyframe
-                      </span>
+                  <InspectorSection
+                    title="Keyframe"
+                    action={
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1457,7 +1402,8 @@ export function InspectorPanel({
                         <Trash2 className="mr-1 h-3 w-3" />
                         Key
                       </Button>
-                    </div>
+                    }
+                  >
                     <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
                       <span className="text-[10px] uppercase tracking-wide text-text-muted">
                         {selectedAnimationTimeFieldLabel}
@@ -1547,7 +1493,7 @@ export function InspectorPanel({
                         />
                       </div>
                     </div>
-                  </div>
+                  </InspectorSection>
                 ) : (
                   <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 text-[10px] text-text-muted">
                     Select a keyframe in the timeline to inspect timing and
@@ -1652,15 +1598,11 @@ export function InspectorPanel({
               </div>
             </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 shrink-0">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Pose Weights
-                </span>
-                <span className="text-[10px] text-text-muted font-mono">
-                  {activePoseGroupPoses.length} poses
-                </span>
-              </div>
+            <InspectorSection
+              title="Pose Weights"
+              meta={`${activePoseGroupPoses.length} poses`}
+              className="shrink-0"
+            >
               {activePoseGroupPoses.length > 0 ? (
                 <div className="flex flex-col gap-1.5">
                   {activePoseGroupPoses.map((pose) => {
@@ -1749,13 +1691,11 @@ export function InspectorPanel({
                   className="py-3"
                 />
               )}
-            </div>
+            </InspectorSection>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Neutral Source
-                </span>
+            <InspectorSection
+              title="Neutral Source"
+              action={
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1769,7 +1709,8 @@ export function InspectorPanel({
                 >
                   Reset
                 </Button>
-              </div>
+              }
+            >
               <div className="flex flex-wrap gap-1">
                 <Button
                   variant={
@@ -1941,17 +1882,12 @@ export function InspectorPanel({
                   {groupCompositionPreview?.neutral.detail ?? "Global neutral"}
                 </span>
               </div>
-            </div>
+            </InspectorSection>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Composition Outputs
-                </span>
-                <span className="text-[10px] text-text-muted font-mono">
-                  {groupCompositionPreview?.channels.length ?? 0} channels
-                </span>
-              </div>
+            <InspectorSection
+              title="Composition Outputs"
+              meta={`${groupCompositionPreview?.channels.length ?? 0} channels`}
+            >
               {groupCompositionPreview &&
               groupCompositionPreview.channels.length > 0 ? (
                 <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
@@ -2004,7 +1940,7 @@ export function InspectorPanel({
                   No composed group channels at current live pose weights.
                 </div>
               )}
-            </div>
+            </InspectorSection>
           </div>
         )}
         {showBlendStageInspector && selectedBlendStage && (
@@ -2029,15 +1965,10 @@ export function InspectorPanel({
               </Button>
             </div>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Stage Settings
-                </span>
-                <span className="text-[10px] text-text-muted font-mono">
-                  {selectedStageDefinition?.id ?? selectedBlendStage.id}
-                </span>
-              </div>
+            <InspectorSection
+              title="Stage Settings"
+              meta={selectedStageDefinition?.id ?? selectedBlendStage.id}
+            >
               <div className="flex items-center gap-1">
                 <span className="text-[10px] text-text-muted">Mode</span>
                 <Button
@@ -2175,13 +2106,11 @@ export function InspectorPanel({
                   )}
                 </div>
               </div>
-            </div>
+            </InspectorSection>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Neutral Source
-                </span>
+            <InspectorSection
+              title="Neutral Source"
+              action={
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2195,7 +2124,8 @@ export function InspectorPanel({
                 >
                   Reset
                 </Button>
-              </div>
+              }
+            >
               <div className="flex flex-wrap gap-1">
                 <Button
                   variant={
@@ -2367,17 +2297,13 @@ export function InspectorPanel({
                   {stageCompositionPreview?.neutral.detail ?? "Global neutral"}
                 </span>
               </div>
-            </div>
+            </InspectorSection>
 
-            <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 flex flex-col gap-2 min-h-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                  Composition Outputs
-                </span>
-                <span className="text-[10px] text-text-muted font-mono">
-                  {stageCompositionPreview?.channels.length ?? 0} channels
-                </span>
-              </div>
+            <InspectorSection
+              title="Composition Outputs"
+              meta={`${stageCompositionPreview?.channels.length ?? 0} channels`}
+              className="min-h-0 flex-1"
+            >
               {stageCompositionPreview &&
               stageCompositionPreview.channels.length > 0 ? (
                 <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-1.5">
@@ -2425,10 +2351,10 @@ export function InspectorPanel({
                   No composed stage channels at current live pose weights.
                 </div>
               )}
-            </div>
+            </InspectorSection>
           </div>
         )}
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }

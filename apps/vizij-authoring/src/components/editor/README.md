@@ -10,14 +10,14 @@ reach into this app.
 
 ## The three layers
 
-| Layer | Directory | Answers | Example |
-|---|---|---|---|
-| Primitive | `components/ui/` | *What does a control look like?* | `Button`, `Input`, `Select` |
-| **Functional** | **`components/editor/`** | *How does editing behave?* | `PropertyRow`, `ChannelLockButton` |
-| Feature | `components/{inspector,panels,…}/` | *What does THIS app edit?* | `RiggingMaterialSection` |
+| Layer          | Directory                          | Answers                          | Example                            |
+| -------------- | ---------------------------------- | -------------------------------- | ---------------------------------- |
+| Primitive      | `components/ui/`                   | _What does a control look like?_ | `Button`, `Input`, `Select`        |
+| **Functional** | **`components/editor/`**           | _How does editing behave?_       | `PropertyRow`, `ChannelLockButton` |
+| Feature        | `components/{inspector,panels,…}/` | _What does THIS app edit?_       | `RiggingMaterialSection`           |
 
 `ui/` is presentation with no domain opinion. `editor/` is interaction pattern with
-no *app* opinion — it knows what a "property with a lock and a scrubbable value"
+no _app_ opinion — it knows what a "property with a lock and a scrubbable value"
 is, but nothing about rigs, poses or faces. Feature components bind `editor/`
 components to this app's data.
 

@@ -25,7 +25,8 @@
     "perf:inputs-baseline": "VIZIJ_CAPTURE_PERF=1 vitest --run src/components/panels/VariablesPanel.perf.test.tsx --reporter=verbose",
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo storybook-static",
     "reset": "rm -rf node_modules",
-    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
+    "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
+    "graph:components": "node scripts/component-graph.mjs layers > docs/references/component-graph-layers.d2 && node scripts/component-graph.mjs detail > docs/references/component-graph-detail.d2"
   },
   "dependencies": {
     "@deepgram/sdk": "^5.0.0",

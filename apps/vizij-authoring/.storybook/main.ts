@@ -3,7 +3,8 @@ import type { StorybookConfig } from "@storybook/react-vite";
 
 /**
  * Storybook for the design-system layer of `vizij-authoring`
- * (`src/components/ui/**` plus the shared patterns in `src/components/common/**`).
+ * (`src/components/ui/**`, the shared patterns in `src/components/common/**`, and
+ * the portable editor patterns in `src/components/editor/**`).
  *
  * Stories are deliberately COLOCATED with their components rather than kept in a
  * central `stories/` directory: `src/components/ui/` is intended to be extracted
@@ -18,6 +19,8 @@ const config: StorybookConfig = {
     "../src/components/ui/**/*.stories.@(ts|tsx)",
     "../src/components/common/**/*.mdx",
     "../src/components/common/**/*.stories.@(ts|tsx)",
+    "../src/components/editor/**/*.mdx",
+    "../src/components/editor/**/*.stories.@(ts|tsx)",
   ],
   addons: ["@storybook/addon-docs"],
   // `Logo.tsx` hardcodes `src="/assets/icon.svg"`, an app-absolute public path,

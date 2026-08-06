@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useCallback } from "react";
-import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { cn } from "../../utils/cn";
 import type {
@@ -14,6 +13,8 @@ import {
   isRotationPropertyKey,
   toRotationDisplayValue,
 } from "../../utils/rotationDisplay";
+import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
+import { ChannelLockStrip } from "../editor/atoms/ChannelLockStrip";
 import {
   CommitOnBlurNumberInput,
   RiggingPropertyRow,
@@ -21,6 +22,7 @@ import {
 } from "./RiggingPropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
+import { useInspectorTargetLock } from "./useInspectorTargetLock";
 
 interface RiggingTransformSectionProps {
   node: SceneObjectNode;
@@ -315,6 +317,12 @@ function RiggingVectorRow({
     lockedInspectorTargetIds,
   ]);
 
+  // Before the early return: hook order must not depend on how many channels
+  // resolved.
+  const rowLock = useInspectorTargetLock(
+    components.map((component) => component.targetId),
+  );
+
   if (components.length === 0) return null;
 
   // Only show reset if ANY component is bound and differs
@@ -332,26 +340,7 @@ function RiggingVectorRow({
     });
   };
 
-  const lockableTargetIds = components
-    .map((component) => component.targetId)
-    .filter((targetId): targetId is string => Boolean(targetId));
-  const lockedTargetCount = lockableTargetIds.reduce(
-    (count, targetId) =>
-      lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
-    0,
-  );
-  const areAllLockableTargetsLocked =
-    lockableTargetIds.length > 0 &&
-    lockedTargetCount === lockableTargetIds.length;
-  const toggleRowLock = () => {
-    if (lockableTargetIds.length === 0) {
-      return;
-    }
-    const nextLocked = !areAllLockableTargetsLocked;
-    lockableTargetIds.forEach((targetId) => {
-      handleSetInspectorTargetLocked(targetId, nextLocked);
-    });
-  };
+  const areAllLockableTargetsLocked = rowLock.isLocked;
 
   const renderInputs = (type: "current" | "default" | "min" | "max") => {
     return (
@@ -586,38 +575,15 @@ function RiggingVectorRow({
   };
 
   const renderAnimatableRow = () => (
-    <div className="flex gap-1.5 flex-1">
-      {components.map((component, index) => (
-        <button
-          key={index}
-          type="button"
-          title={`Toggle ${component.componentLabel} channel lock`}
-          className={cn(
-            "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            component.isLocked
-              ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
-              : "bg-accent/10 text-accent hover:bg-accent/20",
-          )}
-          disabled={!component.targetId}
-          onClick={() => {
-            if (!component.targetId) {
-              return;
-            }
-            handleSetInspectorTargetLocked(
-              component.targetId,
-              !component.isLocked,
-            );
-          }}
-        >
-          {component.isLocked ? (
-            <Lock size={10} className="shrink-0" />
-          ) : (
-            <LockOpen size={10} className="shrink-0" />
-          )}
-          <span>{component.componentLabel}</span>
-        </button>
-      ))}
-    </div>
+    <ChannelLockStrip
+      channels={components.map((component) => ({
+        id: component.targetId ?? null,
+        shortLabel: component.componentLabel,
+        locked: component.isLocked,
+        title: `Toggle ${component.componentLabel} channel lock`,
+      }))}
+      onToggle={handleSetInspectorTargetLocked}
+    />
   );
 
   return (
@@ -631,28 +597,16 @@ function RiggingVectorRow({
       renderMaxInput={() => renderInputs("max")}
       renderAnimatableRow={renderAnimatableRow}
       renderRowAction={() => (
-        <button
-          type="button"
-          className={cn(
-            "p-1 rounded transition-colors",
-            areAllLockableTargetsLocked
-              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
-              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
-          )}
+        <ChannelLockButton
+          locked={areAllLockableTargetsLocked}
           title={
             areAllLockableTargetsLocked
               ? `Unlock ${displayLabel} channels`
               : `Lock ${displayLabel} channels`
           }
-          disabled={lockableTargetIds.length === 0}
-          onClick={toggleRowLock}
-        >
-          {areAllLockableTargetsLocked ? (
-            <Lock size={10} />
-          ) : (
-            <LockOpen size={10} />
-          )}
-        </button>
+          disabled={!rowLock.canToggle}
+          onToggle={rowLock.toggle}
+        />
       )}
     />
   );

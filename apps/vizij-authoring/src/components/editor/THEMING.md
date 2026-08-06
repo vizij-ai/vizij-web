@@ -37,45 +37,78 @@ to a consumer and will be read as a bug.
 
 ### Surfaces
 
-| Token | Fallback | Used for |
-|---|---|---|
-| `--editor-row-bg` | `--bg-hover` | Row and list-item resting surface |
-| `--editor-row-bg-hover` | `--bg-active` | Row hover |
-| `--editor-row-bg-selected` | `--color-accent-subtle` | Selected row |
-| `--editor-panel-bg` | `--bg-panel` | Panel and section surface |
-| `--editor-section-bg` | `--bg-secondary` | Nested section surface |
+| Token                      | Fallback                | Used for                          |
+| -------------------------- | ----------------------- | --------------------------------- |
+| `--editor-row-bg`          | `--bg-hover`            | Row and list-item resting surface |
+| `--editor-row-bg-hover`    | `--bg-active`           | Row hover                         |
+| `--editor-row-bg-selected` | `--color-accent-subtle` | Selected row                      |
+| `--editor-panel-bg`        | `--bg-panel`            | Panel and section surface         |
+| `--editor-section-bg`      | `--bg-secondary`        | Nested section surface            |
 
 ### Text
 
-| Token | Fallback | Used for |
-|---|---|---|
-| `--editor-label-fg` | `--text-secondary` | Property and field labels |
-| `--editor-value-fg` | `--text-primary` | Editable values |
-| `--editor-muted-fg` | `--text-muted` | Hints, counts, secondary metadata |
+| Token               | Fallback           | Used for                                            |
+| ------------------- | ------------------ | --------------------------------------------------- |
+| `--editor-label-fg` | `--text-secondary` | Property and field labels                           |
+| `--editor-value-fg` | `--text-primary`   | Editable values                                     |
+| `--editor-muted-fg` | `--text-muted`     | Hints, counts, secondary metadata                   |
+| `--editor-panel-fg` | `--text-primary`   | Panel body text and panel titles (`WorkbenchPanel`) |
 
 ### Lines and accent
 
-| Token | Fallback | Used for |
-|---|---|---|
-| `--editor-border` | `--border-default` | Dividers, outlines, section rules |
-| `--editor-border-strong` | `--border-hover` | Hover and focus borders |
-| `--editor-accent` | `--color-accent` | Selection, active state, scrub feedback |
-| `--editor-accent-fg` | `--color-accent-fg` | Text on an accent surface |
+| Token                    | Fallback            | Used for                                |
+| ------------------------ | ------------------- | --------------------------------------- |
+| `--editor-border`        | `--border-default`  | Dividers, outlines, section rules       |
+| `--editor-border-strong` | `--border-hover`    | Hover and focus borders                 |
+| `--editor-accent`        | `--color-accent`    | Selection, active state, scrub feedback |
+| `--editor-accent-fg`     | `--color-accent-fg` | Text on an accent surface               |
 
 ### Status
 
-| Token | Fallback | Used for |
-|---|---|---|
-| `--editor-locked` | `--color-warning` | Locked / driven-elsewhere state |
-| `--editor-danger` | `--color-danger` | Destructive affordances |
+| Token               | Fallback          | Used for                                          |
+| ------------------- | ----------------- | ------------------------------------------------- |
+| `--editor-locked`   | `--color-warning` | Locked / driven-elsewhere state                   |
+| `--editor-unlocked` | `--color-accent`  | Unlocked / editable state — the partner to locked |
+| `--editor-danger`   | `--color-danger`  | Destructive affordances                           |
+
+`--editor-locked` and `--editor-unlocked` are a **pair**, and overriding one
+without the other is the main way to make lock state unreadable: they are the
+only thing distinguishing the two states of `ChannelLockButton` beyond the icon.
+Keep them clearly different in hue, not just in lightness.
+
+Hover tints are derived from whichever of the two is showing
+(`color-mix(… 20%, transparent)`) rather than being tokens of their own, so there
+is nothing extra to override.
 
 ### Metrics
 
-| Token | Fallback | Used for |
-|---|---|---|
-| `--editor-row-min-height` | `32px` | Row hit target. Replaces this app's `.inspector-row-hit-target`, which does not exist outside it. |
-| `--editor-numeric-width` | `88px` | Numeric control column. Replaces `.inspector-numeric-control`. |
+| Token                              | Fallback  | Used for                                                                                          |
+| ---------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
+| `--editor-row-min-height`          | `32px`    | Row hit target. Replaces this app's `.inspector-row-hit-target`, which does not exist outside it. |
+| `--editor-numeric-width`           | `88px`    | Numeric control column. Replaces `.inspector-numeric-control`.                                    |
+| `--editor-panel-gap`               | `0.75rem` | Vertical rhythm between a panel's header and its body                                             |
+| `--editor-panel-header-min-height` | `24px`    | Panel header height floor, so a header with no actions still reserves its row                     |
 
-Those last two matter for portability: both were app-global classes, so any
-component depending on them silently lost its sizing outside this app. As tokens
-they travel with the component and stay overridable.
+`--editor-row-min-height` and `--editor-numeric-width` matter for portability:
+both were app-global classes, so any component depending on them silently lost
+its sizing outside this app. As tokens they travel with the component and stay
+overridable.
+
+## Deliberate non-tokens
+
+`WorkbenchPanel` paints **no background**. A workbench panel is transparent over
+whatever surface its dock provides, which is why it does not read
+`--editor-panel-bg` — setting that token will not give these panels a surface.
+Style the dock, not the panel.
+
+Note also that **every `ui/Button` variant emits its text colour with Tailwind's
+important modifier** (`text-text-secondary!` and friends), which beats an
+`--editor-*` colour class at equal specificity. So an `editor/` component that
+tries to style a `ui/Button`'s text from a token will find the token inert _inside
+this app_ — though it still applies in a consuming app bringing its own button.
+
+The `!` is not gratuitous: `@semio/ui`'s Button emits `text-white dark:text-black`
+as plain utilities, and without the important modifier that wins and renders every
+button white-on-white in light mode. It is a `ui/Button` constraint, not a
+theming-contract one. Style button _surfaces_ from tokens and leave their text
+colour to the variant.
