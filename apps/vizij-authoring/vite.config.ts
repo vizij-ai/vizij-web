@@ -28,20 +28,19 @@ export default defineConfig(({ mode }) => {
       "process.env.NODE_ENV": JSON.stringify(nodeEnv),
     },
     resolve: {
-      // `@base-ui/react` now has two consumers (this app and `@semio/ui`), and
-      // it keeps a module-level portal/dismissal stack — two copies means
-      // clicks inside one library's popup read as "outside" to the other. It is
-      // deduped here because it is a declared dependency and so resolvable from
-      // this root.
+      // Only packages this app DECLARES may be listed here. `resolve.dedupe`
+      // makes Vite resolve a package from this root, so listing an undeclared one
+      // — which under pnpm's strict layout is absent from
+      // `apps/vizij-authoring/node_modules` — fails the build outright with
+      // "Rollup failed to resolve import <pkg>".
       //
-      // `@react-three/fiber` is deliberately NOT deduped: it is a dependency of
-      // `@semio/ui` and a peer of `@vizij/render`, but is not declared by this
-      // app, so it does not exist in `apps/vizij-authoring/node_modules`.
-      // Listing it here makes Vite resolve it from this root and the build fails
-      // with "Rollup failed to resolve import @react-three/fiber". It needs no
-      // dedupe anyway — pnpm resolves exactly one instance (9.5.0), verified via
-      // `ls node_modules/.pnpm/@react-three+fiber@*`.
-      dedupe: ["react", "react-dom", "three", "@base-ui/react"],
+      // That is why `@react-three/fiber` is NOT here (a dependency of `@semio/ui`
+      // and a peer of `@vizij/render`, declared by neither), and why
+      // `@base-ui/react` was removed alongside the dependency itself: the app no
+      // longer imports it, and it now exists solely as an internal dependency of
+      // `@semio/ui`. Neither needs deduping — pnpm resolves exactly one instance
+      // of each.
+      dedupe: ["react", "react-dom", "three"],
       alias: {
         "@vizij/node-graph-authoring": path.resolve(
           workspaceRoot,
