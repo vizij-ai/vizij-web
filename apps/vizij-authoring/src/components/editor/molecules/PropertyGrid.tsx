@@ -16,14 +16,38 @@ export type PropertyColumns =
 
 type Slot = "label" | "control" | "value" | "actions";
 
+/**
+ * 72px is the widest label width any migrated site used, so no existing label
+ * truncates. (`InspectorContent`'s 104px "Control Target" row is not migrated —
+ * see the plan.)
+ */
 const LABEL = "var(--editor-col-label, 72px)";
-const VALUE = "var(--editor-col-value, 90px)";
+/**
+ * Chains off `--editor-numeric-width` rather than inventing a second number:
+ * that token already sizes every *flex* numeric column in the inspector, so a
+ * grid value cell and a flex numeric cell are now the same width by construction.
+ * Overriding `--editor-numeric-width` moves both together, which is what you
+ * almost always want; `--editor-col-value` exists to decouple them if you don't.
+ */
+const VALUE = "var(--editor-col-value, var(--editor-numeric-width, 88px))";
 /** Stretchy middle for a slider, select or free-text field. */
 const CONTROL = "minmax(0, 1fr)";
 
+/**
+ * `control-value*` has **no label track**, for a group of rows that are all
+ * label-less by design — the stage sliders in `VariablePipelineStages`, where the
+ * property name is the enclosing collapsible's title rather than a cell.
+ *
+ * Reserving an empty label track for those would shrink their sliders by ~80px to
+ * line them up with labelled rows they never sit beside. Reserved tracks are for
+ * rows that must align with *each other*; a group that shares one shape should
+ * share a template that fits it.
+ */
 const COLUMN_TEMPLATES: Record<string, string> = {
   property: `${LABEL} ${CONTROL} ${VALUE}`,
   "property-actions": `${LABEL} ${CONTROL} ${VALUE} auto`,
+  "control-value": `${CONTROL} ${VALUE}`,
+  "control-value-actions": `${CONTROL} ${VALUE} auto`,
   "label-value": `${LABEL} ${VALUE}`,
   "label-value-actions": `${LABEL} ${VALUE} auto`,
 };
@@ -36,6 +60,8 @@ const COLUMN_TEMPLATES: Record<string, string> = {
 const TEMPLATE_SLOTS: Record<string, Slot[]> = {
   property: ["label", "control", "value"],
   "property-actions": ["label", "control", "value", "actions"],
+  "control-value": ["control", "value"],
+  "control-value-actions": ["control", "value", "actions"],
   "label-value": ["label", "value"],
   "label-value-actions": ["label", "value", "actions"],
 };
@@ -44,9 +70,16 @@ const PropertyGridContext = createContext<Slot[] | null>(null);
 
 export interface PropertyGridProps {
   /**
-   * A named template — `"property"` (default), `"property-actions"`,
-   * `"label-value"`, `"label-value-actions"` — or a raw
-   * `grid-template-columns` value.
+   * A named template, or a raw `grid-template-columns` value.
+   *
+   * | Name | Tracks |
+   * | --- | --- |
+   * | `property` (default) | label · control · value |
+   * | `property-actions` | label · control · value · actions |
+   * | `control-value` | control · value — for rows that are all label-less |
+   * | `control-value-actions` | control · value · actions |
+   * | `label-value` | label · value |
+   * | `label-value-actions` | label · value · actions |
    *
    * Named templates size their label and value tracks from
    * `--editor-col-label` / `--editor-col-value`, which is what makes two separate

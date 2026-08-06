@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Activity, RotateCcw, Trash2 } from "lucide-react";
 import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { InspectorSection } from "../editor/molecules/InspectorSection";
+import { PropertyGrid } from "../editor/molecules/PropertyGrid";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Slider } from "../ui/Slider";
@@ -1327,25 +1328,27 @@ export function InspectorPanel({
                     </div>
                   }
                 >
-                  <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                      Interp
-                    </span>
-                    <select
-                      className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                      value={selectedAnimationTrack.interpolation}
-                      onChange={(event) =>
-                        setAnimationTrackInterpolation(
-                          selectedAnimationTrack.id,
-                          event.target.value as "linear" | "step" | "cubic",
-                        )
+                  <PropertyGrid>
+                    <PropertyGrid.Row
+                      label="Interp"
+                      control={
+                        <select
+                          className="h-7 w-full rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                          value={selectedAnimationTrack.interpolation}
+                          onChange={(event) =>
+                            setAnimationTrackInterpolation(
+                              selectedAnimationTrack.id,
+                              event.target.value as "linear" | "step" | "cubic",
+                            )
+                          }
+                        >
+                          <option value="linear">Linear</option>
+                          <option value="step">Step</option>
+                          <option value="cubic">Cubic</option>
+                        </select>
                       }
-                    >
-                      <option value="linear">Linear</option>
-                      <option value="step">Step</option>
-                      <option value="cubic">Cubic</option>
-                    </select>
-                  </div>
+                    />
+                  </PropertyGrid>
                   <div className="text-[10px] text-text-muted font-mono">
                     Keyframes: {selectedAnimationTrack.keyframes.length}
                   </div>
@@ -1412,95 +1415,97 @@ export function InspectorPanel({
                       </Button>
                     }
                   >
-                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                        {selectedAnimationTimeFieldLabel}
-                      </span>
-                      <input
-                        type="number"
-                        step={selectedAnimationTimeFieldStep}
-                        className="h-7 rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                        value={selectedAnimationKeyframeTimeFieldValue}
-                        onChange={(event) => {
-                          const nextValue = Number.parseFloat(
-                            event.target.value,
-                          );
-                          if (!Number.isFinite(nextValue)) {
-                            return;
-                          }
-                          const nextTimeSeconds =
-                            animationTimeDisplayMode === "frames"
-                              ? framesToSeconds(Math.round(nextValue))
-                              : nextValue;
-                          updateAnimationKeyframe(
-                            selectedAnimationTrack.id,
-                            selectedAnimationKeyframe.id,
-                            {
-                              time: nextTimeSeconds,
-                            },
-                          );
-                        }}
+                    <PropertyGrid>
+                      <PropertyGrid.Row
+                        label={selectedAnimationTimeFieldLabel}
+                        value={
+                          <input
+                            type="number"
+                            step={selectedAnimationTimeFieldStep}
+                            className="h-7 w-full rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                            value={selectedAnimationKeyframeTimeFieldValue}
+                            onChange={(event) => {
+                              const nextValue = Number.parseFloat(
+                                event.target.value,
+                              );
+                              if (!Number.isFinite(nextValue)) {
+                                return;
+                              }
+                              const nextTimeSeconds =
+                                animationTimeDisplayMode === "frames"
+                                  ? framesToSeconds(Math.round(nextValue))
+                                  : nextValue;
+                              updateAnimationKeyframe(
+                                selectedAnimationTrack.id,
+                                selectedAnimationKeyframe.id,
+                                {
+                                  time: nextTimeSeconds,
+                                },
+                              );
+                            }}
+                          />
+                        }
                       />
-                    </div>
-                    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wide text-text-muted">
-                        Value
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Slider
-                          value={selectedAnimationKeyframe.value}
-                          min={selectedAnimationValueRange.min}
-                          max={selectedAnimationValueRange.max}
-                          step={selectedAnimationValueStep}
-                          fillMode="value"
-                          onChange={(nextValue) => {
-                            const numericValue =
-                              typeof nextValue === "number"
-                                ? nextValue
-                                : nextValue[0];
-                            if (!Number.isFinite(numericValue)) {
-                              return;
-                            }
-                            updateAnimationKeyframe(
-                              selectedAnimationTrack.id,
-                              selectedAnimationKeyframe.id,
-                              {
-                                value: clampToInputRange(
-                                  selectedAnimationInput,
-                                  numericValue,
-                                ),
-                              },
-                            );
-                          }}
-                        />
-                        <input
-                          type="number"
-                          step={selectedAnimationValueStep}
-                          min={selectedAnimationValueRange.min}
-                          max={selectedAnimationValueRange.max}
-                          className="h-7 w-[88px] rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
-                          value={selectedAnimationKeyframe.value}
-                          onChange={(event) => {
-                            const nextValue = Number.parseFloat(
-                              event.target.value,
-                            );
-                            if (!Number.isFinite(nextValue)) {
-                              return;
-                            }
-                            updateAnimationKeyframe(
-                              selectedAnimationTrack.id,
-                              selectedAnimationKeyframe.id,
-                              {
-                                value: clampToInputRange(
-                                  selectedAnimationInput,
-                                  nextValue,
-                                ),
-                              },
-                            );
-                          }}
-                        />
-                      </div>
-                    </div>
+                      <PropertyGrid.Row
+                        label="Value"
+                        control={
+                          <Slider
+                            value={selectedAnimationKeyframe.value}
+                            min={selectedAnimationValueRange.min}
+                            max={selectedAnimationValueRange.max}
+                            step={selectedAnimationValueStep}
+                            fillMode="value"
+                            onChange={(nextValue) => {
+                              const numericValue =
+                                typeof nextValue === "number"
+                                  ? nextValue
+                                  : nextValue[0];
+                              if (!Number.isFinite(numericValue)) {
+                                return;
+                              }
+                              updateAnimationKeyframe(
+                                selectedAnimationTrack.id,
+                                selectedAnimationKeyframe.id,
+                                {
+                                  value: clampToInputRange(
+                                    selectedAnimationInput,
+                                    numericValue,
+                                  ),
+                                },
+                              );
+                            }}
+                          />
+                        }
+                        value={
+                          <input
+                            type="number"
+                            step={selectedAnimationValueStep}
+                            min={selectedAnimationValueRange.min}
+                            max={selectedAnimationValueRange.max}
+                            className="h-7 w-full rounded border border-border-default/70 bg-bg-input/80 px-2 text-[10px] text-text-primary font-mono"
+                            value={selectedAnimationKeyframe.value}
+                            onChange={(event) => {
+                              const nextValue = Number.parseFloat(
+                                event.target.value,
+                              );
+                              if (!Number.isFinite(nextValue)) {
+                                return;
+                              }
+                              updateAnimationKeyframe(
+                                selectedAnimationTrack.id,
+                                selectedAnimationKeyframe.id,
+                                {
+                                  value: clampToInputRange(
+                                    selectedAnimationInput,
+                                    nextValue,
+                                  ),
+                                },
+                              );
+                            }}
+                          />
+                        }
+                      />
+                    </PropertyGrid>
                   </InspectorSection>
                 ) : (
                   <div className="rounded border border-border-default/60 bg-bg-panel/35 px-2 py-2 text-[10px] text-text-muted">

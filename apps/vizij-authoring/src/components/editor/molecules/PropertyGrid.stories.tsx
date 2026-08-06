@@ -133,6 +133,43 @@ export const LongLabelsStillAlign: Story = {
   ),
 };
 
+/**
+ * **The second defect, from `VariablePipelineStages`' stage sections.** Poses,
+ * Direct Input and Override are sibling collapsibles in one panel column, all
+ * slider-plus-number, all declaring `90px` for the number. But Direct Input also
+ * has a Reset button, and written as an inline template its trailing `auto` column
+ * shifts that 90px number left by the button width plus one gap — so it does not
+ * line up with Override's number directly below it.
+ *
+ * `columns="control-value-actions"` gives all three the same tracks, with the
+ * actions cell simply empty on two of them. `control-value*` has no label track,
+ * because these rows are label-less by design: the property name is the enclosing
+ * collapsible's title. Reserving a label track would shrink their sliders by ~80px
+ * to align them with labelled rows they never sit beside.
+ */
+export const LabelLessRowsAlign: Story = {
+  render: () => (
+    <div className="flex w-[360px] flex-col gap-2">
+      <PropertyGrid columns="control-value-actions">
+        <PropertyGrid.Row
+          control={<FakeSlider />}
+          value={<NumberBox value="0.5000" />}
+        />
+        <PropertyGrid.Row
+          title="Driven by an upstream stage"
+          control={<FakeSlider />}
+          value={<NumberBox value="0.2500" />}
+          actions={<Pill>Reset (0)</Pill>}
+        />
+        <PropertyGrid.Row
+          control={<FakeSlider />}
+          value={<NumberBox value="0.7500" />}
+        />
+      </PropertyGrid>
+    </div>
+  ),
+};
+
 /** `columns="property-actions"` adds a content-sized trailing track. */
 export const WithActions: Story = {
   render: () => (

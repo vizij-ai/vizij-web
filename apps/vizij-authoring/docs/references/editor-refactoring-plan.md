@@ -375,13 +375,38 @@ So those two belong together as one follow-up: **a `ModalFormGroup` + `MergeValu
 pair**, covering the four `p-3` sections and the three merge fields. That is a
 Phase 2-sized piece of design, not a Phase 1 cleanup.
 
-### Phase 2 — the grid
+### Phase 2 — the grid — **done**
 
-1. Prototype `PropertyGrid` on **one** section (`VariablePipelineStages`, which
-   holds 8 of the 11 templates) and settle the `display: contents`
-   hover/selection question before spreading it
-2. Migrate the remaining templates; delete `.inspector-row-hit-target` and
-   `.inspector-numeric-control` from app CSS in favour of tokens
+1. ~~Prototype `PropertyGrid` and settle the `display: contents` question~~ —
+   done, and it went the other way: **`subgrid`**, measured against
+   `display: contents` in a spike. See §2.
+2. ~~Migrate the remaining templates~~ — done for every **property row**; see the
+   scope table below for what was deliberately left.
+3. ~~Delete `.inspector-row-hit-target` / `.inspector-numeric-control`~~ — done,
+   replaced by `--editor-row-min-height` / `--editor-numeric-width`.
+
+#### Canonical column widths
+
+`--editor-col-label: 72px` — the widest label width any migrated site used, so no
+existing label truncates. `--editor-col-value` **chains off
+`--editor-numeric-width` (88px)** rather than carrying its own number, so a grid
+value cell and a flex numeric cell are the same width by construction. Changing the
+inspector's proportions is now one token, not eighteen call sites.
+
+Visible deltas, all deliberate: the parent-link card's label goes 58px → 72px and
+its number 72px → 88px; the stage sliders' number goes 90px → 88px.
+
+#### What was migrated, and what was not
+
+| Sites                                                                | Verdict                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Parent-link card — Scale / Offset / Value (`VariablePipelineStages`) | Migrated. Numbers were at opposite ends of one card; now one column.                                                                                                                                                     |
+| Stage sliders — Poses / Direct Input / Override                      | Migrated to `control-value-actions`, so Direct Input's Reset no longer knocks its number out of line. Measured: all three at left=238, width 88.                                                                         |
+| Child-link card (`VariablePipelineStages`)                           | **Deleted, not migrated.** It was a hand-inlined copy of `LinkControlEditor`, which already takes `context="child"`. −46 lines and two templates for free.                                                               |
+| `InspectorPanel` Interp / time-field / Value                         | Migrated.                                                                                                                                                                                                                |
+| `InspectorContent:418` — `[104px_minmax(0,1fr)_94px_138px]`          | **Deferred.** The only responsive one (`grid-cols-1` below `sm:`), and its column 2 is a `relative` positioning context for three absolutely-positioned slider overlays. Worth its own change with its own verification. |
+| `InspectorPanel:1196`, `InspectorContent:4876`, 3 × `VariablesPanel` | **Out of scope by classification** — modal form rows and a commit toolbar, not property rows. They belong to the deferred `ModalFormGroup` work.                                                                         |
+| `VizijBundleSummaryPanel:38` — `<dl>`                                | **Needs no migration.** Already one grid with no row wrappers; it is the existence proof, not a defect.                                                                                                                  |
 
 ### Phase 3 — the chassis
 

@@ -92,14 +92,14 @@ the layer rather than two near-identical ambers.
 
 ### Metrics
 
-| Token                              | Fallback  | Used for                                                                                                                           |
-| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `--editor-row-min-height`          | `32px`    | Row hit target. Replaced `.inspector-row-hit-target`, now deleted.                                                                 |
-| `--editor-numeric-width`           | `88px`    | Numeric column: `flex-basis`, `width`, `min-width` (`max-width` stays `100%`). Replaced `.inspector-numeric-control`, now deleted. |
-| `--editor-panel-gap`               | `0.75rem` | Vertical rhythm between a panel's header and its body                                                                              |
-| `--editor-panel-header-min-height` | `24px`    | Panel header height floor, so a header with no actions still reserves its row                                                      |
-| `--editor-col-label`               | `72px`    | `PropertyGrid`'s label column                                                                                                      |
-| `--editor-col-value`               | `90px`    | `PropertyGrid`'s value column                                                                                                      |
+| Token                              | Fallback                 | Used for                                                                                                                           |
+| ---------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--editor-row-min-height`          | `32px`                   | Row hit target. Replaced `.inspector-row-hit-target`, now deleted.                                                                 |
+| `--editor-numeric-width`           | `88px`                   | Numeric column: `flex-basis`, `width`, `min-width` (`max-width` stays `100%`). Replaced `.inspector-numeric-control`, now deleted. |
+| `--editor-panel-gap`               | `0.75rem`                | Vertical rhythm between a panel's header and its body                                                                              |
+| `--editor-panel-header-min-height` | `24px`                   | Panel header height floor, so a header with no actions still reserves its row                                                      |
+| `--editor-col-label`               | `72px`                   | `PropertyGrid`'s label column                                                                                                      |
+| `--editor-col-value`               | `--editor-numeric-width` | `PropertyGrid`'s value column                                                                                                      |
 
 `--editor-row-min-height` and `--editor-numeric-width` matter for portability:
 both **were** app-global classes in `styles.css`, so any component depending on
@@ -116,6 +116,11 @@ never in effect, and those columns have always rendered at 88px. And
 `RowSlider`'s numeric wrapper carries `transition-all`, so overriding
 `--editor-numeric-width` animates rather than snapping; a test asserting the
 override has to wait for the transition.
+
+`--editor-col-value` **chains off `--editor-numeric-width`** rather than carrying a
+number of its own, so a grid value cell and a flex numeric cell are the same width
+by construction. Override `--editor-numeric-width` to move both together — usually
+what you want; `--editor-col-value` exists to decouple them when it isn't.
 
 `--editor-col-label` and `--editor-col-value` are what make **two separate
 `PropertyGrid`s line up with each other**. Setting them once at a panel root
