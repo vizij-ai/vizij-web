@@ -1,7 +1,5 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-// NOT imported from "./index": `ThemeToggle` is absent from the `ui/index.ts`
-// barrel, so an external consumer could only reach it by deep path. It is also
-// the clearest extraction blocker in the layer — see the docs block below.
 import { ThemeToggle } from "./ThemeToggle";
 
 const meta = {
@@ -11,20 +9,48 @@ const meta = {
     docs: {
       description: {
         component:
-          "Icon button that flips the app between light and dark. **Extraction blocker:** it imports `src/state/themeStore` directly (a zustand store that also writes `.dark` onto `document.documentElement` and persists to `localStorage`), so it cannot leave the app without either shipping that store or growing a `theme`/`onToggle` prop pair. It is also absent from `ui/index.ts`.\n\nBecause it drives the same store the Storybook theme toolbar drives, clicking it changes the toolbar's effective theme — the two are the same source of truth, and that is exactly the coupling being documented.",
+          "Icon button that reports a request to flip between light and dark. **Controlled**: it renders the `theme` it is given and calls `onToggle`; it neither reads nor writes the theme.\n\nIt previously imported `src/state/themeStore` directly — the only `ui/` → `src/state/` import in the app — which meant this primitive could not render outside a zustand store and could not leave the app. The binding now lives at its single call site (`app/AppMenuBar.tsx`), and an eslint boundary keeps `ui/` out of `src/state/`.\n\nThese stories drive local state, so clicking a toggle here changes the button's icon but not Storybook's canvas theme; use the toolbar for that.",
       },
     },
   },
-  args: {},
+  args: {
+    theme: "dark",
+    onToggle: () => {},
+  },
 } satisfies Meta<typeof ThemeToggle>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Dark: Story = { args: { theme: "dark" } };
 
-export const OnLightCanvas: Story = {
+export const Light: Story = {
+  args: { theme: "light" },
   globals: { theme: "light" },
+};
+
+/**
+ * Wired to local state, so the icon and title actually flip on click. Declared as
+ * a named component rather than inline in `render` because `rules-of-hooks` only
+ * recognises capitalised functions as components.
+ */
+function ControlledThemeToggle() {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  return (
+    <div className="flex items-center gap-3">
+      <ThemeToggle
+        theme={theme}
+        onToggle={() => setTheme(theme === "dark" ? "light" : "dark")}
+      />
+      <span className="text-xs text-text-secondary">
+        reported theme: <code>{theme}</code>
+      </span>
+    </div>
+  );
+}
+
+export const Interactive: Story = {
+  render: () => <ControlledThemeToggle />,
 };
 
 /** As it appears in the app: an icon button in a menubar-style row. */

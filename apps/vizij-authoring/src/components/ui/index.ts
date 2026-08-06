@@ -15,6 +15,7 @@ export * from "./Panel";
 export * from "./PanelSearch";
 export * from "./Checkbox";
 export * from "./TextArea";
+export * from "./ThemeToggle";
 export * from "./RowSlider";
 export * from "./Select";
 export * from "./Switch";
