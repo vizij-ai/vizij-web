@@ -21,9 +21,11 @@ const SIZES: Record<"sm" | "md", Size> = {
  * sites depend on them:
  *
  * 1. **`className` lands on the wrapper, not the input.** Callers pass sizing
- *    and surface classes expecting to style the outer box — see
- *    `RowSlider.tsx:115` (`inspector-numeric-control ... h-6 p-0`). semio's
- *    `wrapperClassName` is the same seam, so this maps across cleanly.
+ *    and surface classes expecting to style the outer box — see `RowSlider`'s
+ *    numeric field (`w-[var(--editor-numeric-width,88px)] ... h-6 p-0`). semio's
+ *    `wrapperClassName` is the same seam, so this maps across cleanly. Note the
+ *    `cn("w-full", className)` below is tailwind-merge, so a caller's own width
+ *    class wins over `w-full` rather than fighting it in the cascade.
  * 2. **Native `onChange(event)`.** semio reports `(value, event)`; every caller
  *    reads `event.target.value`.
  *

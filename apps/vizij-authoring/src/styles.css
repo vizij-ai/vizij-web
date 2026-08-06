@@ -10,8 +10,6 @@
 
 :root {
   color-scheme: light dark;
-  --inspector-row-hit-min-height: 32px;
-  --inspector-numeric-min-width: 88px;
 
   /* Zinc Theme Palette */
   --color-zinc-50: #fafafa;
@@ -351,17 +349,6 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.inspector-row-hit-target {
-  min-height: var(--inspector-row-hit-min-height);
-}
-
-.inspector-numeric-control {
-  flex: 0 0 var(--inspector-numeric-min-width);
-  width: var(--inspector-numeric-min-width);
-  min-width: var(--inspector-numeric-min-width);
-  max-width: 100%;
 }
 
 /* Thin, token-coloured scrollbar for panel scroll containers. Applied at ~19

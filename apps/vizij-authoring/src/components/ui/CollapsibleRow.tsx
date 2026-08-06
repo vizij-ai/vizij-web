@@ -77,7 +77,7 @@ export function CollapsibleRow({
         )}
         data-row-id={id}
       >
-        <div className="flex items-center gap-2 flex-wrap inspector-row-hit-target">
+        <div className="flex items-center gap-2 flex-wrap min-h-[var(--editor-row-min-height,32px)]">
           <CollapsibleTrigger
             disabled={!hasExpandableContent || disabled}
             className={cn(

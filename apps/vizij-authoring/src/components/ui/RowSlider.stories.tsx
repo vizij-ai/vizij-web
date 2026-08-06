@@ -29,7 +29,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Inline slider + numeric field used inside inspector rows. Uses a **native `<input type="range">`**, not the `Slider` component, so its thumb and track are hardcoded `blue-500`/`zinc-800` rather than tokens. Depends on two app-global classes from `src/styles.css`: `.inspector-row-hit-target` (min-height) and `.inspector-numeric-control` (the fixed 88px numeric column). It also stops mouse/click/key propagation, which is what lets it sit inside a Collapsible trigger row.',
+          'Inline slider + numeric field used inside inspector rows. Uses a **native `<input type="range">`**, not the `Slider` component, so its thumb and track are hardcoded `blue-500`/`zinc-800` rather than tokens. Sizing travels with the component as custom properties rather than app-global CSS: `--editor-row-min-height` (fallback `32px`) for the row hit target and `--editor-numeric-width` (fallback `88px`) for the numeric column. It also stops mouse/click/key propagation, which is what lets it sit inside a Collapsible trigger row.',
       },
     },
   },

@@ -37,9 +37,8 @@ does not belong here.
 1. **No app imports.** Nothing from `src/state/`, `src/scene/`, `src/poseRig/`,
    `src/rig/`, or any feature directory. If a component needs data, it takes props.
    No zustand, no context owned by this app.
-2. **No app-global CSS.** `.inspector-row-hit-target`, `.inspector-numeric-control`,
-   `.asset-card__*` and `.custom-scrollbar` are defined in this app's `styles.css`
-   and will not exist in a consuming app. Anything needed must be inlined here or
+2. **No app-global CSS.** `.asset-card__*` and `.custom-scrollbar` are defined in
+   this app's `styles.css` and will not exist in a consuming app. Anything needed must be inlined here or
    exposed as a prop.
 3. **Tokens only — never hardcoded colour.** No `zinc-*`, `slate-*`, `blue-500`,
    `bg-white/5`. Those are the reason several components in this codebase were

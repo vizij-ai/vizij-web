@@ -33,7 +33,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Inspector row: title/subtitle, an optional inline value slider, an actions well, and optional expandable content. The trigger is disabled unless `expandedContent` is supplied. Depends on the app-global `.inspector-row-hit-target` class (min-height) from `src/styles.css`.",
+          "Inspector row: title/subtitle, an optional inline value slider, an actions well, and optional expandable content. The trigger is disabled unless `expandedContent` is supplied. The row's hit-target height comes from the `--editor-row-min-height` custom property (fallback `32px`), so it survives outside this app.",
       },
     },
   },

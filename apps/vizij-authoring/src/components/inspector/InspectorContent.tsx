@@ -191,6 +191,14 @@ const POSE_VALUE_PRECISION_FORMAT = {
   maximumFractionDigits: 4,
 } as const;
 
+/**
+ * The fixed numeric column beside an inspector slider. Reads
+ * `--editor-numeric-width` (see `editor/THEMING.md`) so the sizing travels with
+ * the markup instead of coming from an app-global class.
+ */
+const NUMERIC_CONTROL_CLASS =
+  "flex-[0_0_var(--editor-numeric-width,88px)] w-[var(--editor-numeric-width,88px)] min-w-[var(--editor-numeric-width,88px)] max-w-full";
+
 function extractComponentIdFromInputSourceId(
   sourceId: string | null | undefined,
 ): string | null {
@@ -415,7 +423,7 @@ function PoseVariableExpandedControls({
   );
 
   return (
-    <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
+    <div className="grid grid-cols-1 gap-2 min-h-[var(--editor-row-min-height,32px)] sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
       <span
         className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
         title={poseSemanticTooltips.target}
@@ -453,7 +461,7 @@ function PoseVariableExpandedControls({
         />
       </div>
       <div
-        className="inspector-numeric-control min-w-0"
+        className={NUMERIC_CONTROL_CLASS}
         onMouseDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -2421,7 +2429,7 @@ export function InspectorContent({
               )
             }
             renderMainInput={() => (
-              <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
+              <div className="flex flex-wrap items-center gap-2 flex-1 group/row min-h-[var(--editor-row-min-height,32px)]">
                 <Slider
                   min={0}
                   max={1}
@@ -2440,7 +2448,7 @@ export function InspectorContent({
                     )
                   }
                 />
-                <div className="inspector-numeric-control flex-shrink-0">
+                <div className={NUMERIC_CONTROL_CLASS}>
                   <NumberField
                     value={referencePoseWeightValue}
                     min={0}
@@ -3011,7 +3019,7 @@ export function InspectorContent({
           }}
           renderMainInput={() => (
             <div
-              className="flex flex-1 flex-col gap-1.5 group/row inspector-row-hit-target"
+              className="flex flex-1 flex-col gap-1.5 group/row min-h-[var(--editor-row-min-height,32px)]"
               title={poseSemanticTooltips.contribution}
             >
               <div className="flex items-center gap-2">
@@ -3037,7 +3045,7 @@ export function InspectorContent({
                 />
               </div>
               <div className="pl-8">
-                <div className="inspector-numeric-control w-[84px] flex-shrink-0">
+                <div className={NUMERIC_CONTROL_CLASS}>
                   <Input
                     size="sm"
                     type="text"

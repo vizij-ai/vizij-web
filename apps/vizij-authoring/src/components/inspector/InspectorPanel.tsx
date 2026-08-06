@@ -108,6 +108,14 @@ export interface ProgramInspectorSelection {
   outputs: readonly ProgramInspectorIoSelection[];
 }
 
+/**
+ * The fixed numeric column beside an inspector slider. Reads
+ * `--editor-numeric-width` (see `editor/THEMING.md`) so the sizing travels with
+ * the markup instead of coming from an app-global class.
+ */
+const NUMERIC_CONTROL_CLASS =
+  "flex-[0_0_var(--editor-numeric-width,88px)] w-[var(--editor-numeric-width,88px)] min-w-[var(--editor-numeric-width,88px)] max-w-full";
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -1618,7 +1626,7 @@ export function InspectorPanel({
                         key={pose.id}
                         className="rounded border border-border-default/50 bg-bg-panel/25 px-2 py-1.5"
                       >
-                        <div className="flex flex-wrap items-center gap-2 inspector-row-hit-target">
+                        <div className="flex flex-wrap items-center gap-2 min-h-[var(--editor-row-min-height,32px)]">
                           <div className="min-w-0 w-[120px] shrink-0">
                             <div className="text-[11px] text-text-primary truncate">
                               {pose.name}
@@ -1642,7 +1650,7 @@ export function InspectorPanel({
                               )
                             }
                           />
-                          <div className="inspector-numeric-control w-[72px] shrink-0">
+                          <div className={NUMERIC_CONTROL_CLASS}>
                             <NumberField
                               size="sm"
                               value={weight}
@@ -1852,7 +1860,7 @@ export function InspectorPanel({
                                 )
                               }
                             />
-                            <div className="inspector-numeric-control w-[88px]">
+                            <div className={NUMERIC_CONTROL_CLASS}>
                               <NumberField
                                 size="sm"
                                 min={input.range.min}
@@ -2267,7 +2275,7 @@ export function InspectorPanel({
                                 )
                               }
                             />
-                            <div className="inspector-numeric-control w-[88px]">
+                            <div className={NUMERIC_CONTROL_CLASS}>
                               <NumberField
                                 size="sm"
                                 min={input.range.min}
