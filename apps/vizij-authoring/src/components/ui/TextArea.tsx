@@ -21,9 +21,13 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
     <SemioTextArea
       ref={ref}
       bg
+      // semio defaults to `outline="interact"`, which only draws the border on
+      // hover or focus — at rest the field has no visible bounds and reads as
+      // plain text on the panel surface. Matches `Input`, which needed the same.
+      outline="always"
       onChange={(_value, event) => onChange?.(event)}
       className={cn(
-        "min-h-[60px] w-full resize-none font-mono text-sm",
+        "min-h-[60px] w-full resize-none rounded-lg font-mono text-sm",
         className,
       )}
       {...props}

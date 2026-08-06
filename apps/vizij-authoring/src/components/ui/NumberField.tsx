@@ -214,7 +214,7 @@ export function NumberField({
       disabled={disabled}
       onPointerDown={(event) => event.preventDefault()}
       onClick={() => applyStep(direction)}
-      className="flex flex-1 items-center justify-center text-text-muted hover:bg-bg-hover hover:text-text-primary active:bg-bg-active disabled:pointer-events-none"
+      className="flex flex-1 cursor-pointer items-center justify-center text-text-muted hover:bg-bg-hover hover:text-text-primary active:bg-bg-active disabled:cursor-not-allowed disabled:pointer-events-none"
     >
       {direction === 1 ? (
         <IconChevronUp size={size === "sm" ? 8 : 10} />
@@ -248,7 +248,7 @@ export function NumberField({
         wrapperClassName="w-full"
         className={cn(
           "rounded-md pr-5 tabular-nums",
-          allowScrub && "cursor-ew-resize",
+          allowScrub ? "cursor-ew-resize!" : "cursor-text!",
           size === "sm" ? "text-xs" : "text-sm",
         )}
       />

@@ -1,6 +1,29 @@
 import * as React from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 
+/**
+ * Panel boundaries are drawn by the divider, and only by the divider.
+ *
+ * Previously three things stacked at every seam: the section wrapper's own
+ * `border-r`, this separator, and the rounded outline `ui/Panel` used to carry.
+ * Adjacent panels' borders collided into doubled lines. `ui/Panel` is now flat —
+ * six call sites were already passing `border-none bg-transparent shadow-none` to
+ * cancel that outline — and the section borders are gone, so the divider is the
+ * single boundary.
+ *
+ * It is also the resize handle, so it is styled to say so: it thickens and picks
+ * up the accent on hover and while dragging. The visible line stays 1px, but the
+ * element is 4px (`w-1`/`h-1`) to keep a comfortable grab target.
+ */
+// `:active` rather than a data-attribute: react-resizable-panels v4 emits only
+// `data-group`, `data-panel`, `data-separator` and `data-testid` — it exposes no
+// dragging state, so `data-[dragging]:` would have been an inert selector.
+// `:active` holds for the duration of a pointer-captured drag.
+const DIVIDER_BASE =
+  "bg-border-default transition-colors hover:bg-accent active:bg-accent";
+const COLUMN_DIVIDER = `w-1 cursor-col-resize ${DIVIDER_BASE}`;
+const ROW_DIVIDER = `h-1 cursor-row-resize ${DIVIDER_BASE}`;
+
 // We'll pass the store logic from App.tsx via props or composition
 // For this layout, we'll keep it flexible
 
@@ -124,7 +147,7 @@ export function WorkspaceLayout({
                             >
                               <div
                                 data-testid={`workspace-section-${section.id}`}
-                                className="h-full min-h-0 border-r border-border-default bg-bg-panel/50 backdrop-blur-sm overflow-hidden overflow-x-hidden animate-slide-in flex flex-col"
+                                className="h-full min-h-0 bg-bg-panel/50 backdrop-blur-sm overflow-hidden overflow-x-hidden animate-slide-in flex flex-col"
                               >
                                 <div className="h-full min-h-0 flex flex-col">
                                   {section.panel}
@@ -132,7 +155,7 @@ export function WorkspaceLayout({
                               </div>
                             </Panel>
                             {index + 1 < extendedLeftSections.length ? (
-                              <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                              <Separator className={ROW_DIVIDER} />
                             ) : null}
                           </React.Fragment>
                         );
@@ -141,7 +164,7 @@ export function WorkspaceLayout({
                   )}
                 </Group>
               </Panel>
-              <Separator className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
+              <Separator className={COLUMN_DIVIDER} />
             </>
           )}
 
@@ -172,7 +195,7 @@ export function WorkspaceLayout({
 
               {bottomVisible && (
                 <>
-                  <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                  <Separator className={ROW_DIVIDER} />
                   {/* Bottom Timeline */}
                   <Panel
                     defaultSize={30}
@@ -192,7 +215,7 @@ export function WorkspaceLayout({
           {/* Right Sidebar */}
           {rightSidebarVisible && (
             <>
-              <Separator className="w-1 bg-border-default hover:bg-border-hover transition-colors" />
+              <Separator className={COLUMN_DIVIDER} />
               <Panel
                 key={rightSidebarResetKey}
                 defaultSize={rightSidebarDefaultSize}
@@ -214,7 +237,7 @@ export function WorkspaceLayout({
                   )}
 
                   {rightTopVisible && rightBottomVisible && (
-                    <Separator className="h-1 bg-border-default hover:bg-border-hover transition-colors" />
+                    <Separator className={ROW_DIVIDER} />
                   )}
 
                   {rightBottomVisible && (

@@ -71,11 +71,7 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
 
   return (
     <section
-      className={cn(
-        "responsive card-transparent rounded-xl",
-        "flex flex-col gap-3 p-3 text-text-primary",
-        className,
-      )}
+      className={cn("flex flex-col gap-3 p-3 text-text-primary", className)}
       {...rest}
     >
       {hasHeader && (

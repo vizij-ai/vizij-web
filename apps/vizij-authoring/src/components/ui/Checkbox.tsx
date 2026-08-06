@@ -38,7 +38,19 @@ export function Checkbox({
   id,
 }: CheckboxProps) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-2",
+        // semio sizes its check glyph `h-4/5 w-4/5`, but the parent it measures
+        // against — RadixCheckbox.Indicator — is a `grid` span with no definite
+        // size, so it shrink-wraps to the icon and the percentage collapses. The
+        // result is a 12px tick floating in a 28px box (~43%, not 80%). Giving the
+        // indicator a definite size makes semio's own intent resolve correctly.
+        // Styled from here because semio's Checkbox accepts no className.
+        "[&_[role=checkbox]>span]:size-full",
+        className,
+      )}
+    >
       <SemioCheckbox
         id={id}
         checked={checked}
