@@ -92,17 +92,37 @@ the layer rather than two near-identical ambers.
 
 ### Metrics
 
-| Token                              | Fallback  | Used for                                                                                          |
-| ---------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
-| `--editor-row-min-height`          | `32px`    | Row hit target. Replaces this app's `.inspector-row-hit-target`, which does not exist outside it. |
-| `--editor-numeric-width`           | `88px`    | Numeric control column. Replaces `.inspector-numeric-control`.                                    |
-| `--editor-panel-gap`               | `0.75rem` | Vertical rhythm between a panel's header and its body                                             |
-| `--editor-panel-header-min-height` | `24px`    | Panel header height floor, so a header with no actions still reserves its row                     |
+| Token                              | Fallback  | Used for                                                                                                                           |
+| ---------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--editor-row-min-height`          | `32px`    | Row hit target. Replaced `.inspector-row-hit-target`, now deleted.                                                                 |
+| `--editor-numeric-width`           | `88px`    | Numeric column: `flex-basis`, `width`, `min-width` (`max-width` stays `100%`). Replaced `.inspector-numeric-control`, now deleted. |
+| `--editor-panel-gap`               | `0.75rem` | Vertical rhythm between a panel's header and its body                                                                              |
+| `--editor-panel-header-min-height` | `24px`    | Panel header height floor, so a header with no actions still reserves its row                                                      |
+| `--editor-col-label`               | `72px`    | `PropertyGrid`'s label column                                                                                                      |
+| `--editor-col-value`               | `90px`    | `PropertyGrid`'s value column                                                                                                      |
 
 `--editor-row-min-height` and `--editor-numeric-width` matter for portability:
-both were app-global classes, so any component depending on them silently lost
-its sizing outside this app. As tokens they travel with the component and stay
-overridable.
+both **were** app-global classes in `styles.css`, so any component depending on
+them silently lost its sizing outside this app. Those classes are now deleted and
+the tokens are read directly by `ui/RowSlider`, `ui/CollapsibleRow`,
+`inspector/InspectorContent` and `inspector/InspectorPanel` — so these two tokens
+are the first whose consumers are **not** in `editor/`. The contract is wider than
+this file's title suggests.
+
+Two gotchas found while making the switch. The old `.inspector-numeric-control` was
+declared **unlayered**, so it beat every Tailwind utility regardless of
+specificity — five call sites carried `w-[72px]`/`w-[84px]`/`w-[88px]` that were
+never in effect, and those columns have always rendered at 88px. And
+`RowSlider`'s numeric wrapper carries `transition-all`, so overriding
+`--editor-numeric-width` animates rather than snapping; a test asserting the
+override has to wait for the transition.
+
+`--editor-col-label` and `--editor-col-value` are what make **two separate
+`PropertyGrid`s line up with each other**. Setting them once at a panel root
+re-proportions every property row underneath it, which eleven inline
+`grid-cols-[…]` templates made impossible. Set them on a common ancestor, not on
+individual grids — two grids with different values will not align, which is the
+whole failure mode being fixed.
 
 ## Deliberate non-tokens
 

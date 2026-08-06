@@ -3,6 +3,7 @@ import { ArrowRight, Plus, Trash2 } from "lucide-react";
 import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
+import { PropertyGrid } from "../editor/molecules/PropertyGrid";
 import { Switch } from "../ui/Switch";
 import type { RotationDisplayMode } from "../../state/AuthoringUiProvider";
 import {
@@ -318,30 +319,36 @@ function LinkControlEditor({
           ) : null}
         </div>
       </div>
-      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Scale</span>
-        <NumberField
-          size="sm"
-          value={linkControl.scale}
-          step={0.01}
-          commitMode="blur"
-          allowScrub={false}
-          onChange={(value) => linkControl.onScaleChange?.(value)}
-          disabled={!linkControl.enabled}
+      <PropertyGrid>
+        <PropertyGrid.Row
+          label="Scale"
+          value={
+            <NumberField
+              size="sm"
+              value={linkControl.scale}
+              step={0.01}
+              commitMode="blur"
+              allowScrub={false}
+              onChange={(value) => linkControl.onScaleChange?.(value)}
+              disabled={!linkControl.enabled}
+            />
+          }
         />
-      </div>
-      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Offset</span>
-        <NumberField
-          size="sm"
-          value={linkControl.offset}
-          step={0.01}
-          commitMode="blur"
-          allowScrub={false}
-          onChange={(value) => linkControl.onOffsetChange?.(value)}
-          disabled={!linkControl.enabled}
+        <PropertyGrid.Row
+          label="Offset"
+          value={
+            <NumberField
+              size="sm"
+              value={linkControl.offset}
+              step={0.01}
+              commitMode="blur"
+              allowScrub={false}
+              onChange={(value) => linkControl.onOffsetChange?.(value)}
+              disabled={!linkControl.enabled}
+            />
+          }
         />
-      </div>
+      </PropertyGrid>
     </div>
   );
 }
@@ -377,46 +384,56 @@ function ParentDirectControlEditor({
   return (
     <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1">
       <div className="text-[10px] text-text-secondary">Parent direct input</div>
-      <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Value</span>
-        <Slider
-          min={displayMin}
-          max={displayMax}
-          step={displayStep}
-          value={displayValue}
-          defaultValue={
-            typeof directControl.defaultValue === "number"
-              ? toDisplayValue(
-                  directControl.defaultValue,
-                  directControl.path,
-                  rotationDisplayMode,
+      <PropertyGrid>
+        <PropertyGrid.Row
+          label="Value"
+          control={
+            <Slider
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              value={displayValue}
+              defaultValue={
+                typeof directControl.defaultValue === "number"
+                  ? toDisplayValue(
+                      directControl.defaultValue,
+                      directControl.path,
+                      rotationDisplayMode,
+                    )
+                  : undefined
+              }
+              onChange={(value) =>
+                directControl.onValueChange?.(
+                  fromDisplayValue(
+                    value as number,
+                    directControl.path,
+                    rotationDisplayMode,
+                  ),
                 )
-              : undefined
+              }
+            />
           }
-          onChange={(value) =>
-            directControl.onValueChange?.(
-              fromDisplayValue(
-                value as number,
-                directControl.path,
-                rotationDisplayMode,
-              ),
-            )
-          }
-        />
-        <NumberField
-          size="sm"
-          value={displayValue}
-          min={displayMin}
-          max={displayMax}
-          step={displayStep}
-          allowScrub={false}
-          onChange={(value) =>
-            directControl.onValueChange?.(
-              fromDisplayValue(value, directControl.path, rotationDisplayMode),
-            )
+          value={
+            <NumberField
+              size="sm"
+              value={displayValue}
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              allowScrub={false}
+              onChange={(value) =>
+                directControl.onValueChange?.(
+                  fromDisplayValue(
+                    value,
+                    directControl.path,
+                    rotationDisplayMode,
+                  ),
+                )
+              }
+            />
           }
         />
-      </div>
+      </PropertyGrid>
     </div>
   );
 }

@@ -117,7 +117,8 @@ its own grid template inline**. Actual counts:
 | `grid-cols-[104px_minmax(0,1fr)_94px_138px]` | 1           |
 | `grid-cols-[auto_1fr]`                       | 1           |
 
-Eleven distinct templates, concentrated in `VariablePipelineStages.tsx` (8) and
+**18 occurrences of 11 distinct templates**, concentrated in
+`VariablePipelineStages.tsx` (8) and
 `InspectorPanel.tsx` (4). The label column is 58px, 72px, 96px or 104px depending
 on which row you are looking at, and the numeric column is 72px, 90px, 94px or
 120px. Nothing enforces agreement, so adjacent sections visibly misalign and any
@@ -152,11 +153,58 @@ a consuming application one place to re-proportion the inspector. It also
 subsumes the two hand-rolled `<table>` elements in `FeatureList.tsx:424,463`,
 which are tables only because there was no grid to use.
 
-**Sizing note:** use `display: contents` on the row rather than nesting grids.
-Nested grids cannot align across siblings, which is the entire problem. The
-tradeoff is that a row cannot then carry its own background — so hover and
-selection styling must go on the cells (`[&>*]:group-hover:bg-…`) or on a
-full-width pseudo-element. Worth prototyping on one section before committing.
+**Correction — there are three semantic column sets, not two, and they do not
+split along the widths.** An audit of all 18 occurrences found the widths actively
+misleading: `72px` is the _numeric_ column in `VariablePipelineStages` and the
+_label_ column in `InspectorPanel`, and `minmax(0,1fr)` variously holds a slider, a
+text input, or a stacked label+field group. The four label widths simply track the
+longest label string in each block — 58px for `Scale`/`Offset`, 72px for `Interp`,
+96px for `Min (0.000)`, 104px for `Control Target` — which is exactly the failure a
+shared token fixes. The real split is:
+
+| Set                      | Count    | Shape                                                                                   |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------- |
+| Property row             | 12 of 18 | `label? \| control? \| value \| actions?` — the `PropertyGrid` target                   |
+| Modal form row           | 4 of 18  | `label+source \| input \| apply-button-or-fallback-text`, labels stacked _above_ fields |
+| Field + commit toolbar   | 1 of 18  | `input \| Apply \| Reset`                                                               |
+| Read-only key/value list | 1 of 18  | `VizijBundleSummaryPanel`'s `<dl>` — already one grid, needs no migration               |
+
+The modal form rows belong to the deferred `ModalFormGroup` work, not here.
+
+**None of the 18 grid rows carries its own background, border, hover or selected
+state** — every card surface lives on an ancestor. So the hover/selection question
+is not blocking for Phase 2. It becomes real only at `RiggingPropertyRow`, which is
+a flex chassis that _does_ carry `bg-bg-panel/30`, hover and an expanded state —
+i.e. R3 in Phase 3.
+
+**Settled by measurement: use `subgrid`, not `display: contents`.** The row gets
+`grid-template-columns: subgrid` and `grid-column: 1 / -1`, which inherits the
+parent's tracks. Both approaches align cells identically — verified, same x
+positions to the pixel — but `display: contents` deletes the row box, so:
+
+- a selected row has to be painted cell by cell, leaving the column gaps bare; it
+  renders as stripes rather than one bar, and rounded ends need
+  `:first-child`/`:last-child` hacks;
+- row-level `min-height` stops applying (in use at `InspectorContent:418` via
+  `.inspector-row-hit-target`);
+- `space-y-*` on a parent stops applying (in use at `VariablesPanel`'s modal
+  sections);
+- a row `title` tooltip stops working (in use at `VariablePipelineStages:1010`).
+
+Subgrid keeps a real box, so all four just work. Cost: Chrome 117+ / Safari 16+ /
+Firefox 71+, and this app declares no browserslist — so `PropertyGridRow` declares
+the explicit template first and overrides it with `subgrid` under `@supports`.
+Because the named templates size label and value from fixed tokens, the fallback
+aligns identically; only a content-sized track can drift.
+
+**Reserved empty tracks are the actual mechanism.** The audit's key finding: rows
+that should align use different templates because one lacks a label and another
+lacks a slider. `[58px_72px]` puts its number in column 2 flush left;
+`[58px_minmax(0,1fr)_72px]` puts it in column 3 flush right — same card, numbers at
+opposite ends. So a row renders one cell per slot _including empty ones_, and the
+row API is slot props (`label`, `control`, `value`, `actions`) rather than
+positional children — positional children reproduce the original bug the moment a
+row omits a cell.
 
 ---
 
