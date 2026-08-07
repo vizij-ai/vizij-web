@@ -15,6 +15,13 @@ export interface CollapsibleGroupProps {
   children: ReactNode;
   className?: string;
   actions?: ReactNode;
+  /**
+   * Glyph before the title, tinted to the accent while open.
+   *
+   * Added so `InstructionCallout` could stop being a second implementation of
+   * this component — it was the only thing it needed that this did not have.
+   */
+  icon?: ReactNode;
 }
 
 /**
@@ -44,6 +51,7 @@ export function CollapsibleGroup({
   children,
   className = "",
   actions,
+  icon,
 }: CollapsibleGroupProps) {
   return (
     <CollapsibleRoot
@@ -65,6 +73,11 @@ export function CollapsibleGroup({
             <IconChevronDown className="w-3 h-3 text-accent hidden group-data-[state=open]:block" />
             <IconChevronRight className="w-3 h-3 text-text-muted group-data-[state=open]:hidden" />
           </div>
+          {icon && (
+            <div className="mt-0.5 shrink-0 text-text-muted transition-colors group-data-[state=open]:text-accent">
+              {icon}
+            </div>
+          )}
           <div className="flex flex-col gap-0.5 min-w-0 text-left">
             <h3
               className={cn(
