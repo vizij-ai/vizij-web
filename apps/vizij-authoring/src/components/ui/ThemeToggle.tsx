@@ -1,4 +1,4 @@
-import { Moon, Sun } from "lucide-react";
+import { IconMoon, IconSun } from "@tabler/icons-react";
 import { cn } from "../../utils/cn";
 
 export interface ThemeToggleProps {
@@ -30,9 +30,9 @@ export function ThemeToggle({ theme, onToggle, className }: ThemeToggleProps) {
       title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
     >
       {theme === "dark" ? (
-        <Moon className="w-4 h-4" />
+        <IconMoon className="w-4 h-4" />
       ) : (
-        <Sun className="w-4 h-4" />
+        <IconSun className="w-4 h-4" />
       )}
     </button>
   );

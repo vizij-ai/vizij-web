@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search } from "lucide-react";
+import { IconCheck, IconChevronDown, IconSearch } from "@tabler/icons-react";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "../../utils/cn";
 
@@ -193,7 +193,7 @@ export function Combobox({
           autoComplete="off"
         />
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <Search className="h-4 w-4 text-text-muted" aria-hidden="true" />
+          <IconSearch className="h-4 w-4 text-text-muted" aria-hidden="true" />
         </div>
         <button
           type="button"
@@ -209,7 +209,7 @@ export function Combobox({
           }}
           className="absolute inset-y-0 right-0 flex items-center pr-2 cursor-pointer focus:outline-none"
         >
-          <ChevronDown
+          <IconChevronDown
             className={cn(
               "h-4 w-4 text-text-muted transition-transform duration-200",
               isOpen && "rotate-180",
@@ -259,10 +259,10 @@ export function Combobox({
                     </div>
                     {isSelected && (
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-accent">
-                        <Check
+                        <IconCheck
                           className="h-4 w-4"
                           aria-hidden="true"
-                          strokeWidth={3}
+                          stroke={3}
                         />
                       </span>
                     )}

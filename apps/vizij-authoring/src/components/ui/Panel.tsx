@@ -5,7 +5,7 @@ import type {
   ElementType,
 } from "react";
 import type { JSX } from "react/jsx-runtime";
-import { Info } from "lucide-react";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { cn } from "../../utils/cn";
 import { Badge } from "./Badge";
 import { Tooltip } from "./Tooltip";
@@ -84,7 +84,7 @@ export function Panel<TTag extends keyof JSX.IntrinsicElements = "section">({
             ) : null}
             {description ? (
               <Tooltip content={description} side="right">
-                <Info className="w-3.5 h-3.5 text-text-secondary hover:text-accent transition-colors cursor-help" />
+                <IconInfoCircle className="w-3.5 h-3.5 text-text-secondary hover:text-accent transition-colors cursor-help" />
               </Tooltip>
             ) : null}
           </div>

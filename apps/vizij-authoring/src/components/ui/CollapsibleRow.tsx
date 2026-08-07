@@ -4,7 +4,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@semio/ui";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
 import { cn } from "../../utils/cn";
 import { RowSlider } from "./RowSlider";
 
@@ -91,8 +91,8 @@ export function CollapsibleRow({
               {/* pointer-events-none on content to prevent interfering with button click if complex? No, standard button is fine. */}
               {hasExpandableContent && (
                 <div className="w-3 h-3 mt-1 flex items-center justify-center shrink-0">
-                  <ChevronRight className="w-3 h-3 text-text-secondary group-data-[state=open]:hidden" />
-                  <ChevronDown className="w-3 h-3 text-accent hidden group-data-[state=open]:block" />
+                  <IconChevronRight className="w-3 h-3 text-text-secondary group-data-[state=open]:hidden" />
+                  <IconChevronDown className="w-3 h-3 text-accent hidden group-data-[state=open]:block" />
                 </div>
               )}
               <div className="flex flex-col gap-0.5 min-w-0 text-left">
