@@ -18,8 +18,8 @@ title: "vizij-authoring — portable component imports (ui/ · editor/ · common
 
 external_g: "third-party substrate" {
   class: group
-  semio_ui: "@semio/ui" { class: neutral }
   lucide: "lucide-react" { class: neutral }
+  semio_ui: "@semio/ui" { class: neutral }
   tabler: "@tabler/icons-react" { class: neutral }
   radix_ui: "radix-ui" { class: neutral }
 }
@@ -34,7 +34,7 @@ ui_g: "ui/ — app primitives on @semio/ui" {
   ui__Modal: "Modal\n←7" { class: highlight }
   ui__Card: "Card\n←6" { class: highlight }
   ui__FieldRow: "FieldRow\n←2" { class: highlight }
-  ui__ListRow: "ListRow\n←2" { class: highlight }
+  ui__ListRow: "ListRow\n←3" { class: highlight }
   ui__Chip: "Chip\n←11" { class: highlight }
   ui__Tabs: "Tabs\n←4" { class: highlight }
   ui__Select: "Select\n←9" { class: highlight }
@@ -44,13 +44,14 @@ ui_g: "ui/ — app primitives on @semio/ui" {
   ui__CollapsibleRow: "CollapsibleRow\n←3" { class: highlight }
   ui__Checkbox: "Checkbox\n←1" { class: highlight }
   ui__CollapsibleGroup: "CollapsibleGroup\n←3" { class: highlight }
-  ui__Slider: "Slider\n←3" { class: highlight }
+  ui__Slider: "Slider\n←4" { class: highlight }
+  ui__TreeRow: "TreeRow\n←5" { class: highlight }
   ui__Badge: "Badge\n←2" { class: highlight }
   ui__Tooltip: "Tooltip\n←1" { class: highlight }
-  ui__NumberField: "NumberField\n←3" { class: highlight }
+  ui__NumberField: "NumberField\n←4" { class: highlight }
   ui__EmptyState: "EmptyState\n←5" { class: highlight }
   ui__PanelSearch: "PanelSearch\n←4" { class: highlight }
-  ui__TreeRow: "TreeRow\n←4" { class: highlight }
+  ui__TreeRoot: "TreeRoot\n←1" { class: highlight }
   ui__Logo: "Logo" { class: highlight }
   ui__sliderDefaultBehavior: "sliderDefaultBehavior" { class: highlight }
 }
@@ -67,9 +68,13 @@ editor_hooks_g: "editor/hooks" {
 editor_molecules_g: "editor/molecules" {
   class: group
   editor_molecules__WorkbenchPanel: "WorkbenchPanel\n←6" { class: primary }
-  editor_molecules__ControlRow: "ControlRow\n←1" { class: primary }
+  editor_molecules__ControlRow: "ControlRow\n←2" { class: primary }
+  editor_molecules__GroupedInputTree: "GroupedInputTree\n←1" { class: primary }
   editor_molecules__InspectorSection: "InspectorSection\n←2" { class: primary }
+  editor_molecules__MergeValueField: "MergeValueField\n←1" { class: primary }
+  editor_molecules__ModalFormGroup: "ModalFormGroup\n←1" { class: primary }
   editor_molecules__PropertyGrid: "PropertyGrid\n←2" { class: primary }
+  editor_molecules__PropertyRow: "PropertyRow\n←4" { class: primary }
 }
 common_g: "common/" {
   class: group
@@ -80,13 +85,18 @@ common_g: "common/" {
 legend: "←N = number of feature-code files importing this component.\nDashed = reached through the ui/ barrel." { near: bottom-left; shape: text; style: { font-size: 20; font-color: "#555555" } }
 
 
-common_g.common__InstructionCallout -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-common_g.common__InstructionCallout -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+common_g.common__InstructionCallout -> ui_g.ui__CollapsibleGroup: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 common_g.common__SidebarSection -> ui_g.ui__CollapsibleGroup: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_atoms_g.editor_atoms__ChannelLockButton -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_atoms_g.editor_atoms__ChannelLockStrip -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_molecules_g.editor_molecules__ControlRow -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_molecules_g.editor_molecules__ControlRow -> ui_g.ui__Slider: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules_g.editor_molecules__GroupedInputTree -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules_g.editor_molecules__GroupedInputTree -> ui_g.ui__TreeRow: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules_g.editor_molecules__GroupedInputTree -> editor_molecules_g.editor_molecules__ControlRow: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules_g.editor_molecules__MergeValueField -> ui_g.ui__Button: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules_g.editor_molecules__PropertyRow -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules_g.editor_molecules__PropertyRow -> ui_g.ui__Button: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_molecules_g.editor_molecules__WorkbenchPanel -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_molecules_g.editor_molecules__WorkbenchPanel -> ui_g.ui__Badge: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_molecules_g.editor_molecules__WorkbenchPanel -> ui_g.ui__Button: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
@@ -96,9 +106,9 @@ ui_g.ui__Checkbox -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stro
 ui_g.ui__CollapsibleGroup -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__CollapsibleGroup -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__CollapsibleRow -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-ui_g.ui__CollapsibleRow -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui_g.ui__CollapsibleRow -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__CollapsibleRow -> ui_g.ui__RowSlider: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-ui_g.ui__Combobox -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui_g.ui__Combobox -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__Input -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__MenuBar -> external_g.radix_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__MenuBar -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
@@ -108,7 +118,7 @@ ui_g.ui__Modal -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-wi
 ui_g.ui__Modal -> ui_g.ui__Button: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__NumberField -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__NumberField -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-ui_g.ui__Panel -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui_g.ui__Panel -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__Panel -> ui_g.ui__Badge: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__Panel -> ui_g.ui__Tooltip: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__PanelSearch -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
@@ -121,5 +131,6 @@ ui_g.ui__Slider -> ui_g.ui__sliderDefaultBehavior: "1" { style: { stroke: "#5555
 ui_g.ui__Switch -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__Tabs -> external_g.radix_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__TextArea -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-ui_g.ui__ThemeToggle -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui_g.ui__ThemeToggle -> external_g.tabler: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui_g.ui__Tooltip -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui_g.ui__TreeRow -> ui_g.ui__TreeRoot: "1" { style: { stroke: "#555555"; stroke-width: 2 } }

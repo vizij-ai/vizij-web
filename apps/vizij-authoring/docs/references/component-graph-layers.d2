@@ -18,8 +18,8 @@ title: "vizij-authoring — component import layers" { near: top-center; shape: 
 external_g: "third-party substrate" {
   class: group
   lucide: "lucide-react" { class: neutral }
-  semio_ui: "@semio/ui" { class: neutral }
   radix_ui: "radix-ui" { class: neutral }
+  semio_ui: "@semio/ui" { class: neutral }
   tabler: "@tabler/icons-react" { class: neutral }
 }
 
@@ -38,28 +38,28 @@ inspector: "inspector/" { class: secondary }
 panels: "panels/" { class: secondary }
 
 app -> ui: "29" { style: { stroke: "#555555"; stroke-width: 2 } }
-inspector -> ui: "23" { style: { stroke: "#555555"; stroke-width: 2 } }
-panels -> ui: "21" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> ui: "25" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> ui: "24" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> editor_molecules: "10" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui -> external_g.semio_ui: "10" { style: { stroke: "#555555"; stroke-width: 2 } }
-inspector -> external_g.lucide: "8" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> poseRig: "9" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui -> external_g.tabler: "9" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> editor_molecules: "8" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> external_g.lucide: "8" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules -> ui: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> external_g.lucide: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
 inspector -> poseRig: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
-panels -> external_g.lucide: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
-panels -> poseRig: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
 app -> poseRig: "6" { style: { stroke: "#555555"; stroke-width: 2 } }
 inspector -> editor_atoms: "6" { style: { stroke: "#555555"; stroke-width: 2 } }
-panels -> editor_molecules: "6" { style: { stroke: "#555555"; stroke-width: 2 } }
 app -> external_g.lucide: "5" { style: { stroke: "#555555"; stroke-width: 2 } }
-ui -> external_g.tabler: "5" { style: { stroke: "#555555"; stroke-width: 2 } }
-editor_molecules -> ui: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
-inspector -> editor_molecules: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
-ui -> external_g.lucide: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules -> external_g.lucide: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
 ui -> external_g.radix_ui: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
 app -> common: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
 discrepancy -> ui: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
 panels -> app: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
 poseRig -> ui: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
+common -> ui: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
 editor_atoms -> external_g.lucide: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
-editor_molecules -> external_g.lucide: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
 panels -> inspector: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
 panels -> scene_composer: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
 scene_composer -> ui: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
@@ -67,9 +67,6 @@ app -> discrepancy: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 app -> editor_molecules: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 app -> scene_composer: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 binding -> ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-common -> external_g.semio_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-common -> external_g.lucide: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
-common -> ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 inspector -> binding: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 inspector -> external_g.radix_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
 inspector -> editor_hooks: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
