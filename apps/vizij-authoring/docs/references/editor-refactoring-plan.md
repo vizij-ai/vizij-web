@@ -17,25 +17,37 @@ The `@semio/ui` port is done: `@base-ui/react` is gone, 27 `ui/` primitives sit 
 semio or radix, all have stories, and the visual suite is green in both themes.
 What the port deliberately did **not** touch is the thing that now matters most:
 
-| File                             | Lines      |
-| -------------------------------- | ---------- |
-| `panels/VariablesPanel.tsx`      | 8,753      |
-| `inspector/InspectorContent.tsx` | 5,547      |
-| `inspector/InspectorPanel.tsx`   | 2,360      |
-| **total**                        | **16,660** |
+| File                             | At plan time | Now        | Δ          |
+| -------------------------------- | ------------ | ---------- | ---------- |
+| `panels/VariablesPanel.tsx`      | 8,753        | 7,524      | −1,229     |
+| `inspector/InspectorContent.tsx` | 5,547        | 5,426      | −121       |
+| `inspector/InspectorPanel.tsx`   | 2,360        | 2,373      | +13        |
+| **total**                        | **16,660**   | **15,323** | **−1,337** |
 
 Roughly 40% of all component call sites live in three files. Never editing them
 was correct for a 602-call-site substrate swap — it is what made the migration
 one-file-at-a-time — but it is a bad steady state, and every proposal below is
 ultimately about draining those three files into named, testable, reusable parts.
 
-The `editor/` layer exists and works, but is only five files:
+`InspectorPanel` going **up** is worth naming rather than hiding: adopting
+`PropertyGrid` and `PropertyRow` costs a few lines at each call site even as it
+removes duplicated templates elsewhere. The drain is real but it is not uniform,
+and any file can move the wrong way for a stretch.
+
+The `editor/` layer has grown from five files to twelve:
 
 ```text
 editor/atoms/ChannelLockButton.tsx
 editor/atoms/ChannelLockStrip.tsx
+editor/atoms/RowCheckbox.tsx
 editor/hooks/useRowLock.ts
+editor/molecules/ControlRow.tsx
+editor/molecules/GroupedInputTree.tsx
 editor/molecules/InspectorSection.tsx
+editor/molecules/MergeValueField.tsx
+editor/molecules/ModalFormGroup.tsx
+editor/molecules/PropertyGrid.tsx
+editor/molecules/PropertyRow.tsx
 editor/molecules/WorkbenchPanel.tsx
 ```
 
