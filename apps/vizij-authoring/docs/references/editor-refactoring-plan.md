@@ -352,11 +352,61 @@ is already clear enough to build incrementally without a design phase.
 
 ### 5.2 Hierarchy / tree navigator
 
-`ui/TreeRow` is the best-shaped primitive we have (27 references, zero domain
-logic). What is missing above it is a **tree controller**: selection model,
-multi-select, expand/collapse state, keyboard navigation, and filtering. Today
-each consumer re-implements these — `TreeRowWrapper` (665 lines), the two
-motiongraph panels, `HierarchyPanel`.
+> **Corrected 2026-08-06 — the tree-controller item below was wrong, and the
+> survey that refuted it is the reason this section now says something else.**
+> The original claim was that four consumers re-implement selection, multi-select,
+> expansion and keyboard nav. Measured, it resolves to:
+>
+> - **Expansion is already extracted.** `scene-composer/useHierarchyTreeState.ts`
+>   (166 lines, its own test file) has three callers: `HierarchyPanel.tsx:285`,
+>   `SceneHierarchyPanel.tsx:39`, `StdFeatureSpacesChannelsPanel.tsx:304`/`:311`.
+> - **The two holdouts differ in kind, not in detail.** The hook stores the
+>   _collapsed_ set and defaults to expanded (`useHierarchyTreeState.ts:144`);
+>   `VariablesPanel` stores the _expanded_ set and defaults to collapsed
+>   (`:2384`). Adopting the hook there flips the default state of every folder —
+>   a visible behaviour change. Its keys are also accreted path strings
+>   (`` `${parent.id}/${key}` ``, `:884`), which the hook's stale-id prune would
+>   drop on every tree rebuild.
+> - **The motiongraph panels have no tree state at all.** `SetTreeRow.tsx:6`
+>   documents it: children are always visible, there is no collapse, and `:22`
+>   records the deliberate decision not to build on `ui/TreeRow`.
+> - **Multi-select has exactly one implementation** (`HierarchyPanel.tsx:310`,
+>   cmd/ctrl only). It is a projection of `state/selectionStore`'s cross-panel
+>   `selectionStack`, so pulling it into `editor/` would import the store into a
+>   layer whose entire purpose is not to know about it. Shift-click range-select
+>   does not exist anywhere, and no consumer flattens a tree to visible order, so
+>   there is not even a definition of "range" to unify.
+> - **Keyboard nav has zero implementations.** So this was never _unify_; it is
+>   _add_.
+>
+> The one real duplicate is `VariableSelector.tsx:1074-1088`, a hand-rolled copy
+> of the hook's prune loop — ~15 lines, fixed by calling the existing hook, not
+> by writing a controller.
+>
+> **What replaces it: R7 below.** Zero keyboard access to any tree is a real
+> defect, and it belongs in `ui/TreeRow` where all six render sites inherit the
+> fix, not in a hook two of them would call.
+
+#### R7 — keyboard navigation and ARIA for the tree primitive
+
+`ui/TreeRow.tsx` renders a bare `<div onClick>` with no `role`, no `tabIndex`,
+no key handler; the expander `<button>` is the only focusable thing in a row.
+The whole hierarchy is unreachable without a mouse.
+
+The split that makes this work without touching consumer state:
+
+- **Navigation is positional, so the container owns it.** A new `ui/TreeRoot`
+  carries `role="tree"` and resolves Up/Down/Home/End by querying
+  `[role="treeitem"]` in DOM order at keypress time. Collapsed subtrees are
+  unmounted, so the query _is_ the visible order — no registry, no ids, no
+  flattener, and nothing for a consumer to keep in sync.
+- **Activation is per-row, so the row owns it.** Left/Right/Enter/Space need
+  `onToggle`/`onSelect`, which only `TreeRow` holds.
+
+`role="treeitem"` goes on the outer wrapper, not the visual row, because a
+treeitem's `role="group"` must be its descendant and the children container is
+today a _sibling_ of the row. The focus ring is re-targeted onto the row with a
+named Tailwind group so the outline does not draw around the whole subtree.
 
 Deliberate constraint: **do not adopt `@semio/ui`'s `TreeGrid`.** It renders
 every row with no windowing, and `VariablesPanel` has thousands of rows plus a

@@ -17,6 +17,7 @@ import {
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { EmptyState } from "../ui/EmptyState";
+import { TreeRoot } from "../ui/TreeRoot";
 import { Button, Select, PanelSearch, TreeRow } from "../ui";
 import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
@@ -783,7 +784,13 @@ export function HierarchyPanel({
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 custom-scrollbar">
-          <div className="flex min-h-full flex-col pb-6 pr-1">
+          <TreeRoot
+            aria-label="Scene hierarchy"
+            // Selection here is the shared `selectionStack`, which cmd/ctrl-click
+            // adds to — so the tree really is multi-selectable and says so.
+            multiselectable
+            className="flex min-h-full flex-col pb-6 pr-1"
+          >
             {referenceFaceFile ? (
               <>
                 {renderMainFaceRoot()}
@@ -821,7 +828,7 @@ export function HierarchyPanel({
                 {rootNodes.map((node) => renderSubtree(node, 0))}
               </>
             )}
-          </div>
+          </TreeRoot>
         </div>
       </div>
     </WorkbenchPanel>

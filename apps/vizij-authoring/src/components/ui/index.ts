@@ -21,4 +21,5 @@ export * from "./Select";
 export * from "./Switch";
 export * from "./Tabs";
 export * from "./Tooltip";
+export * from "./TreeRoot";
 export * from "./TreeRow";
