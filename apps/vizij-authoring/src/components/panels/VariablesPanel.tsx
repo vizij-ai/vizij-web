@@ -61,6 +61,7 @@ import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
 import { ControlRow } from "../editor/molecules/ControlRow";
+import { GroupedInputTree } from "../editor/molecules/GroupedInputTree";
 import { MergeValueField } from "../editor/molecules/MergeValueField";
 import { ModalFormGroup } from "../editor/molecules/ModalFormGroup";
 import { InspectorSection } from "../editor/molecules/InspectorSection";
@@ -6519,208 +6520,135 @@ export function VariablesPanel({
               const renderProceduralAvailableGroups = (
                 groups: GroupedInputRowsByFolder[],
                 depth = 0,
-              ): ReactNode =>
-                groups.map((group) => {
-                  const folderExpanded =
-                    filteredSearch.length > 0 ||
-                    availablePapExpandedIds.has(group.id);
-                  const hasChildren =
-                    group.children.length > 0 || group.rows.length > 0;
-                  return (
-                    <TreeRow
-                      key={`pap-available-folder:${group.id}`}
-                      depth={depth}
-                      label={group.label}
-                      hasChildren={hasChildren}
-                      isExpanded={folderExpanded}
-                      onToggle={() => toggleAvailablePapFolder(group.id)}
-                      icon={<Folder size={12} className="text-text-muted" />}
-                    >
-                      {folderExpanded ? (
-                        <>
-                          {group.children.length > 0
-                            ? renderProceduralAvailableGroups(
-                                group.children,
-                                depth + 1,
-                              )
-                            : null}
-                          {group.rows.length > 0 ? (
-                            <div className="flex flex-col gap-1.5 pt-1">
-                              {group.rows.map((row) => {
-                                const path = buildRigInputPath(
-                                  runtimeFaceSegment,
-                                  row.path,
-                                );
-                                const canAddInput =
-                                  motionGraphEligibleInputPaths.has(path) &&
-                                  !enabledMotionGraphInputs.has(path);
-                                const canAddOutput =
-                                  motionGraphEligibleOutputPaths.has(path) &&
-                                  !enabledMotionGraphOutputs.has(path);
-                                return (
-                                  <ControlRow
-                                    key={`pap-available:${row.inputId}:${row.path}`}
-                                    row={row}
-                                    selected={
-                                      activeSelection?.type === "input" &&
-                                      activeSelection.id === row.inputId
-                                    }
-                                    depth={depth + 1}
-                                    locked={isInputCatalogRowLocked(row)}
-                                    onSelect={() =>
-                                      handleSelectInputCatalogRow(row)
-                                    }
-                                    onValueChange={handlePanelInputValueChange}
-                                    actions={
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          data-testid="pap-add-input"
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleEnableMotionGraphInputRow(
-                                              row,
-                                            );
-                                          }}
-                                          disabled={!canAddInput}
-                                          title="Add PAP Input"
-                                          aria-label="Add PAP Input"
-                                        >
-                                          <Plus size={11} />
-                                          In
-                                        </Button>
-                                        <Button
-                                          data-testid="pap-add-output"
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleEnableMotionGraphOutputRow(
-                                              row,
-                                            );
-                                          }}
-                                          disabled={!canAddOutput}
-                                          title="Add PAP Output"
-                                          aria-label="Add PAP Output"
-                                        >
-                                          <Plus size={11} />
-                                          Out
-                                        </Button>
-                                      </div>
-                                    }
-                                  />
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </TreeRow>
-                  );
-                });
+              ): ReactNode => (
+                <GroupedInputTree
+                  groups={groups}
+                  depth={depth}
+                  keyPrefix="pap-available"
+                  isFolderExpanded={(id) =>
+                    filteredSearch.length > 0 || availablePapExpandedIds.has(id)
+                  }
+                  onToggleFolder={toggleAvailablePapFolder}
+                  isRowSelected={(row) =>
+                    activeSelection?.type === "input" &&
+                    activeSelection.id === row.inputId
+                  }
+                  isRowLocked={isInputCatalogRowLocked}
+                  onSelectRow={handleSelectInputCatalogRow}
+                  onValueChange={handlePanelInputValueChange}
+                  rowKey={(row) => `${row.inputId}:${row.path}`}
+                  renderRowActions={(row) => {
+                    const path = buildRigInputPath(
+                      runtimeFaceSegment,
+                      row.path,
+                    );
+                    const canAddInput =
+                      motionGraphEligibleInputPaths.has(path) &&
+                      !enabledMotionGraphInputs.has(path);
+                    const canAddOutput =
+                      motionGraphEligibleOutputPaths.has(path) &&
+                      !enabledMotionGraphOutputs.has(path);
+                    return (
+                      <>
+                        <Button
+                          data-testid="pap-add-input"
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleEnableMotionGraphInputRow(row);
+                          }}
+                          disabled={!canAddInput}
+                          title="Add PAP Input"
+                          aria-label="Add PAP Input"
+                        >
+                          <Plus size={11} />
+                          In
+                        </Button>
+                        <Button
+                          data-testid="pap-add-output"
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleEnableMotionGraphOutputRow(row);
+                          }}
+                          disabled={!canAddOutput}
+                          title="Add PAP Output"
+                          aria-label="Add PAP Output"
+                        >
+                          <Plus size={11} />
+                          Out
+                        </Button>
+                      </>
+                    );
+                  }}
+                />
+              );
               const renderAnimationAvailableGroups = (
                 groups: GroupedInputRowsByFolder[],
                 depth = 0,
-              ): ReactNode =>
-                groups.map((group) => {
-                  const folderExpanded =
+              ): ReactNode => (
+                <GroupedInputTree
+                  groups={groups}
+                  depth={depth}
+                  keyPrefix="animation-available"
+                  isFolderExpanded={(id) =>
                     filteredSearch.length > 0 ||
-                    availableAnimationExpandedIds.has(group.id);
-                  const hasChildren =
-                    group.children.length > 0 || group.rows.length > 0;
-                  return (
-                    <TreeRow
-                      key={`animation-available-folder:${group.id}`}
-                      depth={depth}
-                      label={group.label}
-                      hasChildren={hasChildren}
-                      isExpanded={folderExpanded}
-                      onToggle={() => toggleAvailableAnimationFolder(group.id)}
-                      icon={<Folder size={12} className="text-text-muted" />}
-                    >
-                      {folderExpanded ? (
-                        <>
-                          {group.children.length > 0
-                            ? renderAnimationAvailableGroups(
-                                group.children,
-                                depth + 1,
-                              )
-                            : null}
-                          {group.rows.length > 0 ? (
-                            <div className="flex flex-col gap-1.5 pt-1">
-                              {group.rows.map((row) => {
-                                const trackInput = standardInputsById.get(
-                                  row.inputId,
-                                );
-                                const poseId = parsePoseWeightInputSourceId(
-                                  trackInput?.sourceId,
-                                );
-                                const pose = poseId
-                                  ? poseById.get(poseId)
-                                  : undefined;
-                                return (
-                                  <ControlRow
-                                    key={`animation-available:${row.inputId}`}
-                                    row={row}
-                                    selected={
-                                      activeSelection?.type === "input" &&
-                                      activeSelection.id === row.inputId
-                                    }
-                                    depth={depth + 1}
-                                    locked={isInputCatalogRowLocked(row)}
-                                    onSelect={() =>
-                                      handleSelectInputCatalogRow(row)
-                                    }
-                                    onValueChange={handlePanelInputValueChange}
-                                    actions={
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 text-emerald-100"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleAddAnimationTrack(row);
-                                          }}
-                                          title="Add Animation Track"
-                                          aria-label="Add Animation Track"
-                                        >
-                                          <Plus size={11} />
-                                        </Button>
-                                        {pose ? (
-                                          <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            className="h-6 px-2 text-[10px] gap-1 text-violet-100"
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              keyPoseChannelsAtCurrentTime(
-                                                pose,
-                                              );
-                                            }}
-                                            title="Add pose channels as animation tracks at current time"
-                                            aria-label="Add Pose Targets"
-                                          >
-                                            <Zap size={11} />
-                                            Targets
-                                          </Button>
-                                        ) : null}
-                                      </div>
-                                    }
-                                  />
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </TreeRow>
-                  );
-                });
-
+                    availableAnimationExpandedIds.has(id)
+                  }
+                  onToggleFolder={toggleAvailableAnimationFolder}
+                  isRowSelected={(row) =>
+                    activeSelection?.type === "input" &&
+                    activeSelection.id === row.inputId
+                  }
+                  isRowLocked={isInputCatalogRowLocked}
+                  onSelectRow={handleSelectInputCatalogRow}
+                  onValueChange={handlePanelInputValueChange}
+                  renderRowActions={(row) => {
+                    const trackInput = standardInputsById.get(row.inputId);
+                    const poseId = parsePoseWeightInputSourceId(
+                      trackInput?.sourceId,
+                    );
+                    const pose = poseId ? poseById.get(poseId) : undefined;
+                    return (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-emerald-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAddAnimationTrack(row);
+                          }}
+                          title="Add Animation Track"
+                          aria-label="Add Animation Track"
+                        >
+                          <Plus size={11} />
+                        </Button>
+                        {pose ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              keyPoseChannelsAtCurrentTime(pose);
+                            }}
+                            title="Add pose channels as animation tracks at current time"
+                            aria-label="Add Pose Targets"
+                          >
+                            <Zap size={11} />
+                            Targets
+                          </Button>
+                        ) : null}
+                      </>
+                    );
+                  }}
+                />
+              );
               return (
                 <div className="flex flex-col h-full min-h-0 gap-1 p-2">
                   {isInputs ? (

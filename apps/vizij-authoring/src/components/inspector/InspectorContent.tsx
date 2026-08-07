@@ -71,6 +71,7 @@ import {
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { PropertyRow } from "../editor/molecules/PropertyRow";
+import { BothFacesField } from "./BothFacesField";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
 import { RiggingTransformSection } from "./RiggingTransformSection";
@@ -2155,60 +2156,20 @@ export function InspectorContent({
         {renderAuthoringStatus()}
         {renderRigScopeTabs(showScopeTabs)}
         {showScopeTabs && onSharedCombinedValueChange ? (
-          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-              Both Faces Value
-            </span>
-            <div className="flex items-center gap-2">
-              <Slider
-                value={displaySharedCombinedValue}
-                min={displayMin}
-                max={displayMax}
-                step={step}
-                defaultValue={toDisplayValue(input.defaultValue, input.path)}
-                fillMode="value"
-                className="flex-1"
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(
-                    clampToRange(
-                      fromDisplayValue(
-                        typeof nextValue === "number"
-                          ? nextValue
-                          : (nextValue[0] ?? 0),
-                        input.path,
-                      ),
-                      min,
-                      max,
-                    ),
-                  )
-                }
-              />
-              <NumberField
-                value={displaySharedCombinedValue}
-                min={displayMin}
-                max={displayMax}
-                step={step}
-                size="sm"
-                className="w-[108px]"
-                allowScrub={false}
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(
-                    clampToRange(
-                      fromDisplayValue(nextValue, input.path),
-                      min,
-                      max,
-                    ),
-                  )
-                }
-              />
-            </div>
-            {!rigValuesMatch ? (
-              <span className="text-[10px] text-amber-100">
-                Faces are currently controlled individually. Set this slider to
-                re-sync both.
-              </span>
-            ) : null}
-          </div>
+          <BothFacesField
+            label="Both Faces Value"
+            value={displaySharedCombinedValue}
+            min={displayMin}
+            max={displayMax}
+            step={step}
+            defaultValue={toDisplayValue(input.defaultValue, input.path)}
+            onChange={(nextValue) =>
+              onSharedCombinedValueChange(
+                clampToRange(fromDisplayValue(nextValue, input.path), min, max),
+              )
+            }
+            desynced={!rigValuesMatch}
+          />
         ) : null}
 
         <div className="flex flex-col gap-3 p-2">
@@ -2376,48 +2337,18 @@ export function InspectorContent({
         {renderAuthoringStatus()}
         {renderPoseScopeTabs(showScopeTabs)}
         {showScopeTabs && onSharedCombinedValueChange ? (
-          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-              Both Faces Weight
-            </span>
-            <div className="flex items-center gap-2">
-              <Slider
-                min={0}
-                max={1}
-                step={0.01}
-                value={sharedCombinedValue}
-                fillMode="value"
-                className="flex-1"
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(
-                    clamp01(
-                      typeof nextValue === "number"
-                        ? nextValue
-                        : (nextValue[0] ?? 0),
-                    ),
-                  )
-                }
-              />
-              <NumberField
-                value={sharedCombinedValue}
-                min={0}
-                max={1}
-                step={0.01}
-                size="sm"
-                className="w-[92px]"
-                allowScrub={false}
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(clamp01(nextValue))
-                }
-              />
-            </div>
-            {!poseWeightsMatch ? (
-              <span className="text-[10px] text-amber-100">
-                Faces are currently controlled individually. Set this slider to
-                re-sync both.
-              </span>
-            ) : null}
-          </div>
+          <BothFacesField
+            label="Both Faces Weight"
+            value={sharedCombinedValue}
+            min={0}
+            max={1}
+            step={0.01}
+            numberFieldClassName="w-[92px]"
+            onChange={(nextValue) =>
+              onSharedCombinedValueChange(clamp01(nextValue))
+            }
+            desynced={!poseWeightsMatch}
+          />
         ) : null}
         <div className="flex flex-col gap-3 p-2">
           <PropertyRow
@@ -2966,46 +2897,16 @@ export function InspectorContent({
         {renderAuthoringStatus()}
         {renderPoseScopeTabs(showReferencePoseTab)}
         {showReferencePoseTab ? (
-          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-              Both Faces Weight
-            </span>
-            <div className="flex items-center gap-2">
-              <Slider
-                min={0}
-                max={1}
-                step={0.01}
-                value={sharedPoseCombinedValue}
-                fillMode="value"
-                className="flex-1"
-                onChange={(nextValue) =>
-                  handleSharedPoseWeightChange(
-                    typeof nextValue === "number"
-                      ? nextValue
-                      : (nextValue[0] ?? 0),
-                  )
-                }
-              />
-              <NumberField
-                value={sharedPoseCombinedValue}
-                min={0}
-                max={1}
-                step={0.01}
-                size="sm"
-                className="w-[92px]"
-                allowScrub={false}
-                onChange={(nextValue) =>
-                  handleSharedPoseWeightChange(nextValue)
-                }
-              />
-            </div>
-            {!poseWeightsMatch ? (
-              <span className="text-[10px] text-amber-100">
-                Faces are currently controlled individually. Set this slider to
-                re-sync both.
-              </span>
-            ) : null}
-          </div>
+          <BothFacesField
+            label="Both Faces Weight"
+            value={sharedPoseCombinedValue}
+            min={0}
+            max={1}
+            step={0.01}
+            numberFieldClassName="w-[92px]"
+            onChange={handleSharedPoseWeightChange}
+            desynced={!poseWeightsMatch}
+          />
         ) : null}
         <PropertyRow
           label="Set Pose Percentage:"
@@ -4811,53 +4712,23 @@ export function InspectorContent({
           {renderAuthoringStatus()}
           {renderRigScopeTabs(showReferenceRigTab)}
           {showReferenceRigTab ? (
-            <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-              <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-                Both Faces Value
-              </span>
-              <div className="flex items-center gap-2">
-                <Slider
-                  value={rigDisplaySharedCombinedValue}
-                  min={rigDisplayMin}
-                  max={rigDisplayMax}
-                  step={rigDisplayStep}
-                  defaultValue={rigDisplayDefault}
-                  fillMode="value"
-                  className="flex-1"
-                  onChange={(nextValue) =>
-                    handleSharedRigValueChange(
-                      fromDisplayValue(
-                        typeof nextValue === "number"
-                          ? nextValue
-                          : (nextValue[0] ?? 0),
-                        input.path,
-                      ),
-                    )
-                  }
-                />
-                <NumberField
-                  value={rigDisplaySharedCombinedValue}
-                  min={rigDisplayMin}
-                  max={rigDisplayMax}
-                  step={rigDisplayStep}
-                  size="sm"
-                  className="w-[108px]"
-                  allowScrub={false}
-                  onChange={(nextValue) =>
-                    handleSharedRigValueChange(
-                      fromDisplayValue(nextValue, input.path),
-                    )
-                  }
-                />
-              </div>
-              {referenceSharedValue !== null &&
-              Math.abs(value - referenceSharedValue) > SYNC_VALUE_EPSILON ? (
-                <span className="text-[10px] text-amber-100">
-                  Faces are currently controlled individually. Set this slider
-                  to re-sync both.
-                </span>
-              ) : null}
-            </div>
+            <BothFacesField
+              label="Both Faces Value"
+              value={rigDisplaySharedCombinedValue}
+              min={rigDisplayMin}
+              max={rigDisplayMax}
+              step={rigDisplayStep}
+              defaultValue={rigDisplayDefault}
+              onChange={(nextValue) =>
+                handleSharedRigValueChange(
+                  fromDisplayValue(nextValue, input.path),
+                )
+              }
+              desynced={
+                referenceSharedValue !== null &&
+                Math.abs(value - referenceSharedValue) > SYNC_VALUE_EPSILON
+              }
+            />
           ) : null}
           <CollapsibleGroup
             title="Driver Metadata"
