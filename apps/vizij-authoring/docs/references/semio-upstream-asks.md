@@ -61,8 +61,13 @@ change there would silently invert text colours app-wide rather than fail loudly
 Before bumping:
 
 ```bash
-pnpm --filter vizij-authoring test:e2e:visual
+pnpm --filter vizij-authoring validate
+pnpm --filter vizij-authoring storybook   # and look at it
 ```
 
-12 tests, 6 surfaces × light/dark. It is the only thing that checks colour —
-no unit test asserts it.
+**This gate is currently weaker than it should be.** It used to be a 12-shot
+visual regression run (6 surfaces × light/dark), which was the only automated
+check on colour. That suite was removed in favour of doing visual regression in
+Storybook, and the Storybook side does not exist yet — there is no test-runner
+and no snapshot tooling installed. Until it does, a `@semio/ui` bump has **no
+automated colour check at all** and has to be eyeballed.

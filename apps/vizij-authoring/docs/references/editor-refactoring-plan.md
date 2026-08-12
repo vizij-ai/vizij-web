@@ -14,7 +14,7 @@ check for anything proposed below.
 ## 0. Where we are
 
 The `@semio/ui` port is done: `@base-ui/react` is gone, 27 `ui/` primitives sit on
-semio or radix, all have stories, and the visual suite is green in both themes.
+semio or radix, and all have stories.
 What the port deliberately did **not** touch is the thing that now matters most:
 
 | File                             | At plan time | Now        | Δ          |
@@ -453,8 +453,11 @@ R4 (the duplicated `TreeRow`s) and eventually routing its panels through
 
 ## 6. Sequencing
 
-Each step is independently mergeable and must keep `validate` + the visual suite
-green. Steps within a phase are order-independent.
+Each step is independently mergeable and must keep `validate` green. Steps within
+a phase are order-independent.
+
+The visual regression suite that used to be part of this gate was removed; visual
+checking is Storybook's job now, and that tooling is not in place yet.
 
 ### Phase 1 — prove the pattern (low risk, high signal) — **done**
 
