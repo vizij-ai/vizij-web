@@ -184,15 +184,17 @@ export function Combobox({
           <span className="text-text-muted italic">Nothing found.</span>
         }
         portalContainer={resolvedContainer}
-        // Width, because semio's own sizing needs a viewport taller than most.
-        // The popup is `w-[calc(var(--available-width)-4px)]`, with the
-        // anchor-matched width behind semio's `desktop:` variant — which is
+        // Width, because semio's own sizing needs a viewport taller than most
+        // laptops. The popup is `w-[calc(var(--available-width)-4px)]` with the
+        // anchor-matched width behind semio's `desktop:` variant, and that
+        // variant is
         //   @media (width >= --breakpoint-md) and (height >= --breakpoint-md)
-        // so it demands **height** >= 768px as well as width. Any shorter
-        // viewport — a laptop with browser chrome, a split window, the Storybook
-        // frame — silently falls back to the full available width: measured
-        // 658px against a 462px input inside a 512px modal. `--anchor-width` is
-        // correct regardless, so this uses it directly. Filed upstream.
+        // so it demands **height** >= 768px as well as width. Measured at
+        // 1280x600 — wide enough to pass, short enough to fail — semio's own
+        // rule renders a 1266px popup for a 462px input inside a 512px modal.
+        // Because the failing clause is height, widening the window does not
+        // help, which is the first thing anyone tries. `--anchor-width` is
+        // correct regardless, so this uses it directly. STUDIO-143.
         popupClassName="custom-scrollbar w-[var(--anchor-width)]!"
         renderItem={(option, state) => {
           const isSelected = option.value === value;
