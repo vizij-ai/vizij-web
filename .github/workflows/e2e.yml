@@ -78,8 +78,23 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm --filter vizij-authoring exec playwright install-deps chromium
 
+      # `--workers=1`, because the first CI run failed on contention rather than
+      # on anything the tests were asserting. `fullyParallel: false` still let
+      # Playwright pick 2 workers, and on a 2-core runner two browsers driving a
+      # WASM 3D runtime starve each other: locators resolved to the right
+      # elements and then timed out "waiting for element to be visible, enabled
+      # and stable" — one after 45 retries.
+      #
+      # `memory-investigation` is excluded because it is not a gate. It took
+      # 20.2 min, then 20.4 min on retry — 40 of the job's 45-minute budget for a
+      # single test that already has its own scripts (`test:e2e:memory:preview`
+      # and `:dev`) for the times someone actually wants to run it.
       - name: Run ${{ matrix.project }}
-        run: pnpm --filter vizij-authoring exec playwright test --project=${{ matrix.project }}
+        run: >
+          pnpm --filter vizij-authoring exec playwright test
+          --project=${{ matrix.project }}
+          --workers=1
+          --grep-invert "memory investigation"
 
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
