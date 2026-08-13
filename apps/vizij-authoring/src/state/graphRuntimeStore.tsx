@@ -66,6 +66,15 @@ export interface GraphRuntimeState {
   runtimeViewRootId: string | null;
   runtimeViewGraphCount: number;
   runtimeViewOutputCount: number;
+  /**
+   * Measures the rendered face geometry in the runtime view and returns its
+   * 2D bounding box, or null when nothing is mounted. Registered by the
+   * viewer's runtime bridge while a face is loaded.
+   */
+  measureFaceGeometryBounds?: () => {
+    center: { x: number; y: number };
+    size: { x: number; y: number };
+  } | null;
 }
 
 type GraphRuntimeStoreUpdate =
@@ -121,6 +130,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   runtimeViewRootId: null,
   runtimeViewGraphCount: 0,
   runtimeViewOutputCount: 0,
+  measureFaceGeometryBounds: undefined,
 };
 
 export function createGraphRuntimeStore(

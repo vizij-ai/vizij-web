@@ -56,6 +56,7 @@ function createSnapshotOptions(
       },
     ],
     featureLabelOverrides: {},
+    rootBounds: null,
     standardInputs: [INPUT],
     bindings: {
       [ANIMATABLE.id]: {
@@ -138,6 +139,20 @@ describe("buildGlbExportDirtySnapshot", () => {
           ...ANIMATABLE,
           default: 0.4,
         },
+      },
+    });
+
+    expect(first).not.toEqual(second);
+  });
+
+  it("tracks face bounds changes even when bundle export is disabled", () => {
+    const base = createSnapshotOptions({ includeVizijBundle: false });
+    const first = buildGlbExportDirtySnapshot(base);
+    const second = buildGlbExportDirtySnapshot({
+      ...base,
+      rootBounds: {
+        center: { x: 0, y: 0.5 },
+        size: { x: 6, y: 4 },
       },
     });
 

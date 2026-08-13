@@ -3,7 +3,7 @@ import type * as THREE from "three";
 import type { Group, Mesh } from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import type { RawValue, AnimatableValue } from "@vizij/utils";
+import type { RawValue, RawVector2, AnimatableValue } from "@vizij/utils";
 import type { World, Selection, RenderableFeature } from "./types";
 
 export interface VizijData {
@@ -64,6 +64,10 @@ export interface VizijActions {
   setOrigin: (
     id: string,
     origin: { translation?: THREE.Vector3; rotation?: THREE.Vector3 },
+  ) => void;
+  setRootBounds: (
+    id: string,
+    rootBounds: { center: RawVector2; size: RawVector2 } | undefined,
   ) => void;
   setAxis: (id: string, axis: THREE.Vector3) => void;
   setTags: (id: string, tags: string[]) => void;
