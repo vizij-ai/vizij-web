@@ -13,6 +13,10 @@
 name: e2e
 
 on:
+  # Runnable against any ref, which is how you get a baseline. These tests had
+  # never run in CI before this workflow existed, so "did we break it?" has no
+  # answer without being able to run the same job against main.
+  workflow_dispatch:
   pull_request:
     paths:
       - "apps/vizij-authoring/**"
