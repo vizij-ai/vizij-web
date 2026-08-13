@@ -1,5 +1,14 @@
 # @vizij/node-graph-authoring
 
+## 0.2.1
+
+### Patch Changes
+
+- b48bd8c: Track the `@vizij/node-graph-wasm` → `@vizij/node-graph` dependency rename (same
+  package, bare-domain npm name; no API change).
+- Updated dependencies [1eaa5bf]
+  - @vizij/utils@0.2.0
+
 ## 0.2.0
 
 ### Minor Changes

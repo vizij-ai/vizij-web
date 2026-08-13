@@ -1,7 +1,7 @@
 {
   "name": "@vizij/runtime-react",
   "description": "Runtime provider that drives Vizij renderer assets with an arora device engine for React apps.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

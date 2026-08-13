@@ -1,5 +1,12 @@
 # @vizij/animation-react
 
+## 0.2.1
+
+### Patch Changes
+
+- 2171e3d: Track the `@vizij/animation-wasm` → `@vizij/animation` dependency rename (same
+  package, bare-domain npm name; no API change).
+
 ## 0.2.0
 
 ### Minor Changes

@@ -282,7 +282,16 @@ Versioning is decoupled from publishing: CI publishes whatever versions land on 
 
 Trusted publishing **cannot create a brand-new package name** over OIDC — the first publish 404s. For a new `@vizij/*` package, once:
 
-1. Publish it manually from an npm-authenticated machine: `cd packages/@vizij/<name> && pnpm build && npm publish --access public`.
+1. Materialise the `workspace:` ranges first — this is the step CI normally does for you, and skipping it publishes literal `workspace:*` ranges to the registry, which makes the package uninstallable (`EUNSUPPORTEDPROTOCOL`). `@vizij/speech-react@0.1.1` shipped that way. From the repo root, on an npm-authenticated machine:
+
+   ```bash
+   node scripts/prepare-publish-manifests.mjs apply
+   (cd packages/@vizij/<name> && pnpm build && npm publish --access public)
+   node scripts/prepare-publish-manifests.mjs restore
+   ```
+
+   Run the `restore` even if the publish fails, so the `workspace:` ranges come back. Confirm the result with `npm view @vizij/<name> dependencies` — no `workspace:` should appear.
+
 2. Add a trusted publisher for it on npm (npmjs.com → the package → Settings → Trusted Publisher): repository `vizij-ai/vizij-web`, workflow `publish-npm.yml`.
 
 From then on CI publishes its new versions like any other package. The publisher lists any package still in this state at the end of its run.
