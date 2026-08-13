@@ -1,7 +1,7 @@
 {
   "name": "@vizij/speech-react",
   "description": "Shared STT/LLM/TTS speech pipeline hooks for Vizij React apps.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "sideEffects": false,
   "type": "module",
   "main": "dist/index.cjs",

@@ -1,5 +1,13 @@
 # @vizij/render
 
+## 0.1.2
+
+### Patch Changes
+
+- f63fde7: `applyVizijBundle` strips stale `VIZIJ_bundle` copies from descendant nodes for the export window (restoring them on detach). A face loaded from a GLB kept its load-time bundle in the cloned scene's `userData`, so every re-export carried two bundles — and first-match readers (the authoring app itself, the native runtime) saw the stale one, shadowing any edit made since load.
+- Updated dependencies [1eaa5bf]
+  - @vizij/utils@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
