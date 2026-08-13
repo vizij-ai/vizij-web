@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@vizij/node-graph": "^0.7.0",
-    "@vizij/utils": "workspace:*"
+    "@vizij/utils": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

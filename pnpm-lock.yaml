@@ -769,7 +769,7 @@ importers:
         specifier: ^0.7.0
         version: 0.7.0
       '@vizij/utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../utils
     devDependencies:
       '@types/node':
@@ -831,7 +831,7 @@ importers:
   packages/@vizij/render:
     dependencies:
       '@vizij/utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../utils
       clsx:
         specifier: ^2.1.1
@@ -907,16 +907,16 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       '@vizij/node-graph-authoring':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../node-graph-authoring
       '@vizij/render':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../render
       '@vizij/runtime':
         specifier: ^2.4.0
         version: 2.4.0
       '@vizij/utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../utils
       '@vizij/value-json':
         specifier: ^0.2.0
@@ -953,10 +953,10 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@vizij/render':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../render
       '@vizij/runtime-react':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime-react
     devDependencies:
       '@types/react':

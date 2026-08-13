@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@deepgram/sdk": "^5.0.0",
-    "@vizij/render": "workspace:*",
-    "@vizij/runtime-react": "workspace:*"
+    "@vizij/render": "workspace:^",
+    "@vizij/runtime-react": "workspace:^"
   },
   "peerDependencies": {
     "react": ">=18"

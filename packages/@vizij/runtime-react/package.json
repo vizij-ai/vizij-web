@@ -39,10 +39,10 @@
   },
   "dependencies": {
     "@vizij/animation-module": "^0.2.0",
-    "@vizij/node-graph-authoring": "workspace:*",
-    "@vizij/render": "workspace:*",
+    "@vizij/node-graph-authoring": "workspace:^",
+    "@vizij/render": "workspace:^",
     "@vizij/runtime": "^2.4.0",
-    "@vizij/utils": "workspace:*",
+    "@vizij/utils": "workspace:^",
     "@vizij/value-json": "^0.2.0"
   },
   "peerDependencies": {
