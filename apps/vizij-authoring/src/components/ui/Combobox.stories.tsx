@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { Combobox } from "./index";
+import { Button, Combobox, Modal } from "./index";
 import type { ComboboxOption, ComboboxProps } from "./index";
 
 const OPTIONS: ComboboxOption[] = [
@@ -132,3 +132,48 @@ export const ControlledQuery: Story = {
     </div>
   ),
 };
+
+/**
+ * The case that drove the rewrite, and the one worth clicking.
+ *
+ * The old combobox rendered its popup as `absolute z-50` **inside** the trigger,
+ * so a modal's `max-h-[80vh] overflow-y-auto` body clipped it — the list was cut
+ * off at the modal's edge. Two of the three real call sites are copy modals in
+ * `VariablesPanel`, so this was the common case, not an edge one.
+ *
+ * Portalling alone does not fix it: semio's popup positioner is hardcoded to
+ * `z-50` and `ui/Modal` sits at `z-[4100]`, so a body-portalled popup opens
+ * *behind* the modal. The component resolves its own `portalContainer` by
+ * looking for the nearest `[role="dialog"]`, which puts the popup inside the
+ * modal's stacking context and outside its scrolling body at once.
+ *
+ * Open the list and scroll the modal: the popup should sit above the modal and
+ * extend past the body's edge rather than being cut off.
+ */
+export const InsideAModal: Story = {
+  render: (args) => <ComboboxInModal {...args} />,
+};
+
+function ComboboxInModal(args: ComboboxProps) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Open modal</Button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Copy Variable"
+        maxWidth="lg"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-xs text-text-muted">
+            The list below has to escape this scrolling body and paint above the
+            modal.
+          </p>
+          <ControlledCombobox {...args} label="Destination input" />
+          <div className="h-64 rounded-lg border border-border-default/50 bg-bg-panel/30" />
+        </div>
+      </Modal>
+    </>
+  );
+}
