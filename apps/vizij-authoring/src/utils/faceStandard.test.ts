@@ -1,56 +1,88 @@
 import { describe, expect, it } from "vitest";
-import {
-  EXPRESSION_NAMES,
-  VISEME_SHAPES,
-  buildEmptyAdaptationSpec,
-  expressionPath,
-  visemePath,
-} from "./faceStandard";
+import type { VizijBundleProfile } from "@vizij/render";
+import { buildEmptyAdaptationSpec } from "./faceStandard";
 
 const PREFIX = "rig/quori_latest/";
 
-describe("the face standard vocabulary", () => {
-  // These counts are the standard's contract, not an implementation detail:
-  // `vizij-bundle validate` reports coverage as a fraction of exactly these.
-  it("carries the standard's 25 expressions and 15 visemes, each unique", () => {
-    expect(EXPRESSION_NAMES).toHaveLength(25);
-    expect(new Set(EXPRESSION_NAMES).size).toBe(25);
-    expect(VISEME_SHAPES).toHaveLength(15);
-    expect(new Set(VISEME_SHAPES).size).toBe(15);
-    // `sil` is the rest shape the standard names explicitly.
-    expect(VISEME_SHAPES).toContain("sil");
-  });
-
-  it("builds control paths under the standard's namespace", () => {
-    expect(expressionPath("happy")).toBe("standard/vizij/expression/happy");
-    expect(visemePath("aa")).toBe("standard/vizij/viseme/aa");
-  });
-});
+/** A profile as `@vizij/runtime` serves it, already rig-prefixed. */
+function profileOf(
+  paths: string[],
+  defaults: Record<string, unknown> = {},
+): VizijBundleProfile {
+  return {
+    id: "vizij-face",
+    version: "v1",
+    keys: paths.map((path) => ({
+      path: `${PREFIX}${path}`,
+      kind: "input",
+      value_type: "f32",
+      default_value: defaults[path],
+    })),
+  };
+}
 
 describe("the empty adaptation", () => {
-  it("declares every control as a rig-prefixed input and wires nothing", () => {
-    const spec = buildEmptyAdaptationSpec(PREFIX);
+  it("declares one input per profile path, wired to nothing", () => {
+    const spec = buildEmptyAdaptationSpec(
+      profileOf([
+        "standard/vizij/expression/happy",
+        "standard/vizij/viseme/aa",
+        "standard/vizij/face/jaw_open",
+      ]),
+    );
 
-    expect(spec.nodes).toHaveLength(40);
+    expect(spec.nodes).toHaveLength(3);
     expect(spec.edges).toStrictEqual([]);
     expect(spec.nodes.every((node) => node.type === "input")).toBe(true);
-
-    const paths = spec.nodes.map((node) => node.params?.path);
-    expect(paths).toContain(`${PREFIX}standard/vizij/expression/happy`);
-    expect(paths).toContain(`${PREFIX}standard/vizij/viseme/aa`);
-    // Node ids must be unique or the graph cannot round-trip through the editor.
-    expect(new Set(spec.nodes.map((node) => node.id)).size).toBe(40);
+    expect(spec.nodes.map((node) => node.params?.path)).toStrictEqual([
+      `${PREFIX}standard/vizij/expression/happy`,
+      `${PREFIX}standard/vizij/viseme/aa`,
+      `${PREFIX}standard/vizij/face/jaw_open`,
+    ]);
   });
 
-  it("rests every control at zero, so an unwired face holds its neutral", () => {
-    const spec = buildEmptyAdaptationSpec(PREFIX);
-    expect(spec.nodes.every((node) => node.params?.value === 0)).toBe(true);
-  });
-
-  it("omits the prefix for a face with no id, matching the runtime", () => {
-    const spec = buildEmptyAdaptationSpec("");
-    expect(spec.nodes[0]?.params?.path).toBe(
-      "standard/vizij/expression/neutral",
+  // Node ids must be unique or the spec cannot round-trip through the editor,
+  // and two namespaces can carry the same leaf name.
+  it("gives every path a unique node id, even across namespaces", () => {
+    const spec = buildEmptyAdaptationSpec(
+      profileOf([
+        "standard/vizij/expression/neutral",
+        "standard/vizij/viseme/neutral",
+      ]),
     );
+    expect(new Set(spec.nodes.map((n) => n.id)).size).toBe(2);
+  });
+
+  it("rests each control at the profile's declared default", () => {
+    const spec = buildEmptyAdaptationSpec(
+      profileOf(
+        ["standard/vizij/left_eye/pos/x", "standard/vizij/viseme/sil"],
+        {
+          "standard/vizij/viseme/sil": { f32: 1 },
+        },
+      ),
+    );
+    const value = (suffix: string) =>
+      spec.nodes.find((n) => n.params?.path?.endsWith(suffix))?.params?.value;
+    expect(value("viseme/sil")).toBe(1);
+    // No declared default means rest at zero, so an unwired face holds neutral.
+    expect(value("left_eye/pos/x")).toBe(0);
+  });
+
+  it("ignores a duplicated path rather than emitting a colliding node", () => {
+    const spec = buildEmptyAdaptationSpec(
+      profileOf([
+        "standard/vizij/expression/happy",
+        "standard/vizij/expression/happy",
+      ]),
+    );
+    expect(spec.nodes).toHaveLength(1);
+  });
+
+  it("is empty for a profile that defines nothing", () => {
+    expect(buildEmptyAdaptationSpec(profileOf([]))).toStrictEqual({
+      nodes: [],
+      edges: [],
+    });
   });
 });
