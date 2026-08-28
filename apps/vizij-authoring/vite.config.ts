@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import react from "@vitejs/plugin-react-swc";
@@ -11,6 +12,39 @@ const workspaceRoot = path.resolve(__dirname, "..", "..");
 const require = createRequire(import.meta.url);
 const threeEntry = require.resolve("three");
 const threePath = path.resolve(path.dirname(threeEntry), "..");
+/**
+ * Where the linked `@vizij/*` wasm packages actually live on disk.
+ *
+ * `pnpm run wasm:link` symlinks them at a sibling vizij-rs checkout, and the
+ * dev server has to be allowed to serve the `.wasm` behind that symlink or it
+ * answers 403 and the runtime fails to init. The relative allow-entry below
+ * covers a normal clone (`vizij-web/` and `vizij-rs/` side by side) but not a
+ * git worktree, which sits three directories deeper — so resolve the real
+ * paths instead of assuming a layout.
+ */
+const linkedVizijDirs = (() => {
+  const scopeDir = path.resolve(workspaceRoot, "node_modules/@vizij");
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(scopeDir);
+  } catch {
+    return [];
+  }
+  const roots = new Set<string>();
+  for (const entry of entries) {
+    try {
+      const real = fs.realpathSync(path.join(scopeDir, entry));
+      // Only somewhere outside the workspace needs allow-listing.
+      if (!real.startsWith(workspaceRoot)) {
+        roots.add(path.dirname(path.dirname(real)));
+      }
+    } catch {
+      // A broken link is the linker's problem, not the dev server's.
+    }
+  }
+  return [...roots];
+})();
+
 const reactPath = path.resolve(__dirname, "node_modules/react");
 const reactDomPath = path.resolve(__dirname, "node_modules/react-dom");
 export default defineConfig(({ mode }) => {
@@ -61,7 +95,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       fs: {
-        allow: ["../../../"],
+        allow: ["../../../", ...linkedVizijDirs],
       },
       watch: {
         ignored: [
