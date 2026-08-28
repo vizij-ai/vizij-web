@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { profile, profiles, type ProfileSummary } from "@vizij/runtime";
 import type { VizijBundleExtension, VizijBundleProfile } from "@vizij/render";
 import { downloadJsonFile } from "../utils/fileIO";
 
@@ -65,13 +66,35 @@ function addressToFace(
  * Declaring one writes it into the bundle, so the vocabulary travels with the
  * asset exactly like any other authored input.
  *
- * Profiles arrive as **files**, not from a registry. Vizij ships its own — get
- * one with `vizij-bundle export-profile <id> -o <file>.json` — but so can
- * anyone else, and the app treats them the same. That keeps the import list to
- * things the author chose rather than a menu of options whose effect is not
- * obvious.
+ * Profiles arrive two ways, and the app treats them identically once declared:
+ * from the shipped registry, or from a JSON file (`vizij-bundle export-profile
+ * <id> -o <file>.json` writes one, but so can anyone). Both land in
+ * `bundle.profiles`.
+ *
+ * The registry is compiled into `@vizij/runtime`'s wasm, so it grows by adding
+ * an entry there and publishing — it is not fetched at runtime. `available` is
+ * a plain list either way, so a remote registry would slot in behind it without
+ * the callers changing.
  */
 export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
+  const [available, setAvailable] = useState<ProfileSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    profiles()
+      .then((list) => {
+        if (!cancelled) {
+          setAvailable(list);
+        }
+      })
+      .catch((error) => {
+        console.error("profile registry unavailable", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // The face's keys live under `rig/<faceId>/`, and an imported profile is
   // addressed to them.
   const rigPrefix = useMemo(() => {
@@ -100,6 +123,24 @@ export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
       });
     },
     [updateBundle],
+  );
+
+  /**
+   * Declare a profile from the shipped registry, addressed to this face.
+   * Resolves to `null` for an unknown id.
+   */
+  const importProfile = useCallback(
+    async (id: string): Promise<VizijBundleProfile | null> => {
+      const fetched = await profile(id, rigPrefix);
+      if (!fetched) {
+        console.error(`profile ${id} unavailable`);
+        return null;
+      }
+      const entry = fetched as unknown as VizijBundleProfile;
+      declare(entry);
+      return entry;
+    },
+    [declare, rigPrefix],
   );
 
   /**
@@ -162,9 +203,12 @@ export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
   );
 
   return {
+    /** The profiles the registry offers, for the import picker. */
+    available,
     /** The profiles this face declares. */
     declared,
     declaredIds,
+    importProfile,
     importProfileJson,
     exportProfileJson,
     removeProfile,
