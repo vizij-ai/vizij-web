@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import type { VizijBundleExtension } from "@vizij/render";
+import type { VizijBundleExtension, VizijBundleProfile } from "@vizij/render";
 import {
   STANDARD_ADAPTATION_KIND,
   adaptationGraphId,
@@ -43,6 +43,17 @@ function renderAgainst(initial: VizijBundleExtension | null) {
   };
 }
 
+/** A three-key profile, standing in for one the runtime would serve. */
+const PROFILE: VizijBundleProfile = {
+  id: "vizij-face",
+  version: "v1",
+  keys: [
+    { path: "rig/quori_latest/standard/vizij/expression/happy" },
+    { path: "rig/quori_latest/standard/vizij/expression/sad" },
+    { path: "rig/quori_latest/standard/vizij/viseme/aa" },
+  ],
+};
+
 describe("useStandardAdaptation", () => {
   it("names the graph after the face, matching the native bundler", () => {
     expect(adaptationGraphId("quori_latest")).toBe(
@@ -50,10 +61,10 @@ describe("useStandardAdaptation", () => {
     );
   });
 
-  it("adds an adaptation declaring every control, wired to nothing", () => {
+  it("adds an adaptation declaring every profile path, wired to nothing", () => {
     const harness = renderAgainst(bundleWith());
     act(() => {
-      harness.view.result.current.toggleAdaptation(true);
+      harness.view.result.current.toggleAdaptation(true, PROFILE);
     });
 
     const graphs = harness.bundle()?.graphs ?? [];
@@ -63,7 +74,7 @@ describe("useStandardAdaptation", () => {
     expect(entry.id).toBe("quori_latest_standard_adaptation");
 
     const spec = entry.spec as { nodes: unknown[]; edges: unknown[] };
-    expect(spec.nodes).toHaveLength(40);
+    expect(spec.nodes).toHaveLength(PROFILE.keys.length);
     expect(spec.edges).toStrictEqual([]);
   });
 
@@ -75,12 +86,14 @@ describe("useStandardAdaptation", () => {
     };
     const harness = renderAgainst(bundleWith([existing]));
     act(() => {
-      harness.view.result.current.toggleAdaptation(true);
+      harness.view.result.current.toggleAdaptation(true, PROFILE);
     });
 
     const graphs = harness.bundle()?.graphs ?? [];
     expect(graphs).toHaveLength(1);
-    expect((graphs[0]!.spec as { nodes: unknown[] }).nodes).toHaveLength(40);
+    expect((graphs[0]!.spec as { nodes: unknown[] }).nodes).toHaveLength(
+      PROFILE.keys.length,
+    );
   });
 
   it("removes the adaptation and leaves the face's other graphs alone", () => {
@@ -119,6 +132,16 @@ describe("useStandardAdaptation", () => {
   it("refuses to embed when the bundle declares no face id", () => {
     const harness = renderAgainst(bundleWith([], {}));
     expect(harness.view.result.current.graphId).toBeNull();
+    act(() => {
+      harness.view.result.current.toggleAdaptation(true, PROFILE);
+    });
+    expect(harness.bundle()?.graphs ?? []).toHaveLength(0);
+  });
+
+  // An adaptation maps *some* profile onto the face; without one there is
+  // nothing to declare, so the toggle refuses rather than writing an empty graph.
+  it("refuses to embed without a profile to map from", () => {
+    const harness = renderAgainst(bundleWith());
     act(() => {
       harness.view.result.current.toggleAdaptation(true);
     });

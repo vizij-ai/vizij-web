@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import type {
   VizijBundleExtension,
   VizijBundleGraphEntry,
+  VizijBundleProfile,
 } from "@vizij/render";
 import { downloadJsonFile } from "../utils/fileIO";
 import { buildEmptyAdaptationSpec } from "../utils/faceStandard";
@@ -63,11 +64,6 @@ export function useStandardAdaptation({
     return typeof value === "string" && value ? value : null;
   }, [bundle]);
 
-  // The adaptation reads the face's namespaced standard controls, so its input
-  // paths take the bundle's rig prefix — the same prefix the deployed runtime
-  // gives the profile that writes them.
-  const rigPrefix = useMemo(() => (faceId ? `rig/${faceId}/` : ""), [faceId]);
-
   const graphId = useMemo(
     () => (faceId ? adaptationGraphId(faceId) : null),
     [faceId],
@@ -110,11 +106,16 @@ export function useStandardAdaptation({
   );
 
   /**
-   * Add the adaptation (every standard control declared, nothing wired — the
-   * author binds them in the graph editor) or remove it.
+   * Add an adaptation for `profile` (every path it defines declared as an
+   * input, nothing wired — the author binds them in the graph editor), or
+   * remove the adaptation entirely.
+   *
+   * The profile is passed in rather than assumed: an adaptation maps *some*
+   * profile onto this face, and which one is the author's choice. The profile
+   * arrives already addressed to the face, so no prefixing happens here.
    */
   const toggleAdaptation = useCallback(
-    (enabled: boolean) => {
+    (enabled: boolean, profile?: VizijBundleProfile) => {
       if (!enabled) {
         updateBundle((prev) => {
           if (!prev?.graphs) {
@@ -127,14 +128,15 @@ export function useStandardAdaptation({
         });
         return;
       }
+      if (!profile) {
+        console.error("an adaptation needs a profile to map from");
+        return;
+      }
       embedSpec(
-        buildEmptyAdaptationSpec(rigPrefix) as unknown as Record<
-          string,
-          unknown
-        >,
+        buildEmptyAdaptationSpec(profile) as unknown as Record<string, unknown>,
       );
     },
-    [embedSpec, rigPrefix, updateBundle],
+    [embedSpec, updateBundle],
   );
 
   /**
