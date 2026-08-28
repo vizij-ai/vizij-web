@@ -20,6 +20,38 @@ export interface VizijBundleGraphMetadata {
   [key: string]: unknown;
 }
 
+/**
+ * One path in a profile, with its type and constraints — arora's `KeyInfo`
+ * shape, so a profile round-trips through the descriptor the runtime already
+ * speaks.
+ */
+export interface VizijProfileKey {
+  path: string;
+  kind?: string;
+  value_type?: string;
+  min?: number;
+  max?: number;
+  default_value?: unknown;
+  /** Standard metadata: the FACS action unit, ARKit blendshape, and tier. */
+  meta?: { au?: number; arkit?: string; tier?: string };
+}
+
+/**
+ * A profile the face declares it speaks: a set of paths and their types — the
+ * vocabulary its graphs are authored against.
+ *
+ * A profile is names and types, not a graph, so it sits beside `graphs` rather
+ * than inside it. Declaring it on the asset is what lets a reader know which
+ * vocabulary to hold the face to.
+ */
+export interface VizijBundleProfile {
+  id: string;
+  version: string;
+  title?: string;
+  description?: string;
+  keys: VizijProfileKey[];
+}
+
 export interface VizijBundleGraphEntry {
   id: VizijGraphId;
   kind: VizijBundleGraphKind;
@@ -126,6 +158,8 @@ export interface VizijBundleExtension {
   version: VizijBundleVersion;
   exportedAt?: string;
   graphs?: VizijBundleGraphEntry[];
+  /** The profiles this face declares it speaks (see {@link VizijBundleProfile}). */
+  profiles?: VizijBundleProfile[];
   poses?: VizijBundlePoseSection | null;
   animations?: VizijBundleAnimationEntry[];
   /**

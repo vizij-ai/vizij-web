@@ -98,6 +98,7 @@ import {
   embeddedProfileId,
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
+import { FACE_PROFILE_ID, useProfiles } from "./hooks/useProfiles";
 import { useStandardAdaptation } from "./hooks/useStandardAdaptation";
 import { embeddedSkillId, useSkills } from "./hooks/useSkills";
 import { carriedBundleGraphs } from "./hooks/useVizijExport";
@@ -4083,6 +4084,65 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     bundle: loader.bundle,
     updateBundle: loader.updateBundle,
   });
+  const {
+    available: availableProfiles,
+    declared: declaredProfiles,
+    declaredIds: declaredProfileIds,
+    importProfile,
+    importProfileJson,
+    exportProfileJson: exportDeclaredProfileJson,
+    removeProfile,
+  } = useProfiles({
+    bundle: loader.bundle,
+    updateBundle: loader.updateBundle,
+  });
+  /**
+   * The adaptation maps the Vizij face profile onto this face, so enabling it
+   * needs that profile. Use the one the face already declares; otherwise import
+   * it, which declares it on the GLB — the vocabulary travels with the asset
+   * rather than being implied by the graph built from it.
+   */
+  const handleToggleStandardAdaptation = useCallback(
+    async (enabled: boolean) => {
+      if (!enabled) {
+        toggleStandardAdaptation(false);
+        return;
+      }
+      const profile =
+        declaredProfiles.find((entry) => entry.id === FACE_PROFILE_ID) ??
+        (await importProfile(FACE_PROFILE_ID));
+      if (!profile) {
+        console.error(`cannot adapt without the ${FACE_PROFILE_ID} profile`);
+        return;
+      }
+      toggleStandardAdaptation(true, profile);
+    },
+    [declaredProfiles, importProfile, toggleStandardAdaptation],
+  );
+  const handleToggleProfile = useCallback(
+    (id: string, enabled: boolean) => {
+      if (enabled) {
+        void importProfile(id);
+      } else {
+        removeProfile(id);
+      }
+    },
+    [importProfile, removeProfile],
+  );
+  const profileImportInputRef = useRef<HTMLInputElement>(null);
+  const handleImportProfileJson = useCallback(() => {
+    profileImportInputRef.current?.click();
+  }, []);
+  const handleProfileImportFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) {
+        void importProfileJson(file);
+      }
+    },
+    [importProfileJson],
+  );
   /**
    * Open the face's standard adaptation in the motiongraph editor. Its
    * `standard/vizij/*` input nodes arrive as the editor's inputs, so binding a
@@ -4247,7 +4307,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onReplaceStandardProfileJson={handleReplaceStandardProfileJson}
       onEditStandardProfileGraph={handleEditStandardProfileGraph}
       standardAdaptationEmbedded={standardAdaptationEmbedded}
-      onToggleStandardAdaptation={toggleStandardAdaptation}
+      onToggleStandardAdaptation={handleToggleStandardAdaptation}
+      profiles={availableProfiles}
+      declaredProfileIds={declaredProfileIds}
+      onToggleProfile={handleToggleProfile}
+      onImportProfileJson={handleImportProfileJson}
+      onExportProfileJson={exportDeclaredProfileJson}
       onExportStandardAdaptationJson={exportStandardAdaptationJson}
       onReplaceStandardAdaptationJson={handleReplaceStandardAdaptationJson}
       onEditStandardAdaptationGraph={handleEditStandardAdaptationGraph}
@@ -5057,6 +5122,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         accept=".json"
         data-testid="app-skill-json-input"
         onChange={handleSkillJsonFileChange}
+      />
+      {/* Hidden file input for "Import Profile from JSON..." */}
+      <input
+        type="file"
+        ref={profileImportInputRef}
+        className="hidden"
+        accept=".json"
+        data-testid="app-profile-import-input"
+        onChange={handleProfileImportFileChange}
       />
       {/* Hidden file input for "Replace Adaptation from JSON..." */}
       <input

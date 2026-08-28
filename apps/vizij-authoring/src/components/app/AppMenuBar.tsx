@@ -44,6 +44,16 @@ interface AppMenuBarProps {
   onReplaceStandardProfileJson: (profileId: string) => void;
   /** Open an embedded profile's graph in the editor (apply-back session). */
   onEditStandardProfileGraph: (profileId: string) => void;
+  /** The profiles the registry ships — a profile is a set of paths and types. */
+  profiles: { id: string; version: string; title: string; keys: number }[];
+  /** Profile ids the open GLB declares (checked state of the toggles). */
+  declaredProfileIds: string[];
+  /** Declare (`enabled`) or drop a profile on the open GLB. */
+  onToggleProfile: (id: string, enabled: boolean) => void;
+  /** Declare a profile from a JSON file. */
+  onImportProfileJson: () => void;
+  /** Download a declared profile as JSON. */
+  onExportProfileJson: (id: string) => void;
   /** Whether the open GLB carries a standard adaptation. */
   standardAdaptationEmbedded: boolean;
   /** Add (`enabled`) or remove the standard adaptation in the open GLB. */
@@ -91,6 +101,11 @@ export function AppMenuBar({
   onExportStandardProfileJson,
   onReplaceStandardProfileJson,
   onEditStandardProfileGraph,
+  profiles,
+  declaredProfileIds,
+  onToggleProfile,
+  onImportProfileJson,
+  onExportProfileJson,
   standardAdaptationEmbedded,
   onToggleStandardAdaptation,
   onExportStandardAdaptationJson,
@@ -254,6 +269,42 @@ export function AppMenuBar({
                   Edit {profile.title} in Graph Editor...
                 </MenuItem>
               </React.Fragment>
+            ))}
+        </MenuSubmenu>
+        <MenuSubmenu label="Profiles" testId="app-menu-file-profiles">
+          {profiles.length === 0 ? (
+            <MenuLabel>None available</MenuLabel>
+          ) : (
+            profiles.map((profile) => (
+              <MenuCheckboxItem
+                key={profile.id}
+                checked={declaredProfileIds.includes(profile.id)}
+                onCheckedChange={(checked) =>
+                  onToggleProfile(profile.id, checked)
+                }
+                testId={`app-menu-file-profile-${profile.id}`}
+              >
+                {profile.title} ({profile.keys})
+              </MenuCheckboxItem>
+            ))
+          )}
+          <MenuSeparator />
+          <MenuItem
+            onSelect={onImportProfileJson}
+            testId="app-menu-file-profile-import"
+          >
+            Import Profile from JSON...
+          </MenuItem>
+          {profiles
+            .filter((profile) => declaredProfileIds.includes(profile.id))
+            .map((profile) => (
+              <MenuItem
+                key={profile.id}
+                onSelect={() => onExportProfileJson(profile.id)}
+                testId={`app-menu-file-profile-export-${profile.id}`}
+              >
+                Export {profile.title} as JSON...
+              </MenuItem>
             ))}
         </MenuSubmenu>
         <MenuSubmenu

@@ -28,6 +28,11 @@ function renderMenuBar() {
       onExportStandardProfileJson={vi.fn()}
       onReplaceStandardProfileJson={vi.fn()}
       onEditStandardProfileGraph={vi.fn()}
+      profiles={[]}
+      declaredProfileIds={[]}
+      onToggleProfile={vi.fn()}
+      onImportProfileJson={vi.fn()}
+      onExportProfileJson={vi.fn()}
       standardAdaptationEmbedded={false}
       onToggleStandardAdaptation={vi.fn()}
       onExportStandardAdaptationJson={vi.fn()}
