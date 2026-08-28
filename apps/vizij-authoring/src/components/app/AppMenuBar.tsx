@@ -44,6 +44,16 @@ interface AppMenuBarProps {
   onReplaceStandardProfileJson: (profileId: string) => void;
   /** Open an embedded profile's graph in the editor (apply-back session). */
   onEditStandardProfileGraph: (profileId: string) => void;
+  /** Whether the open GLB carries a standard adaptation. */
+  standardAdaptationEmbedded: boolean;
+  /** Add (`enabled`) or remove the standard adaptation in the open GLB. */
+  onToggleStandardAdaptation: (enabled: boolean) => void;
+  /** Download the embedded adaptation as JSON, verbatim. */
+  onExportStandardAdaptationJson: () => void;
+  /** Replace the embedded adaptation from a JSON file. */
+  onReplaceStandardAdaptationJson: () => void;
+  /** Open the embedded adaptation in the editor (apply-back session). */
+  onEditStandardAdaptationGraph: () => void;
   /** The shipped skills a face may pin an override of (empty = none). */
   skills: { id: string; title: string }[];
   /** Skill ids the open GLB embeds (checked state of the toggles). */
@@ -81,6 +91,11 @@ export function AppMenuBar({
   onExportStandardProfileJson,
   onReplaceStandardProfileJson,
   onEditStandardProfileGraph,
+  standardAdaptationEmbedded,
+  onToggleStandardAdaptation,
+  onExportStandardAdaptationJson,
+  onReplaceStandardAdaptationJson,
+  onEditStandardAdaptationGraph,
   skills,
   embeddedSkillIds,
   onToggleSkill,
@@ -240,6 +255,41 @@ export function AppMenuBar({
                 </MenuItem>
               </React.Fragment>
             ))}
+        </MenuSubmenu>
+        <MenuSubmenu
+          label="Standard Adaptation"
+          testId="app-menu-file-standard-adaptation"
+        >
+          <MenuCheckboxItem
+            checked={standardAdaptationEmbedded}
+            onCheckedChange={onToggleStandardAdaptation}
+            testId="app-menu-file-standard-adaptation-toggle"
+          >
+            Drive this face from the standard
+          </MenuCheckboxItem>
+          {standardAdaptationEmbedded ? (
+            <>
+              <MenuSeparator />
+              <MenuItem
+                onSelect={onEditStandardAdaptationGraph}
+                testId="app-menu-file-standard-adaptation-edit"
+              >
+                Bind Controls to Poses...
+              </MenuItem>
+              <MenuItem
+                onSelect={onExportStandardAdaptationJson}
+                testId="app-menu-file-standard-adaptation-export"
+              >
+                Export Adaptation as JSON...
+              </MenuItem>
+              <MenuItem
+                onSelect={onReplaceStandardAdaptationJson}
+                testId="app-menu-file-standard-adaptation-replace"
+              >
+                Replace Adaptation from JSON...
+              </MenuItem>
+            </>
+          ) : null}
         </MenuSubmenu>
         <MenuSubmenu label="Skills" testId="app-menu-file-skills">
           {skills.length === 0 ? (

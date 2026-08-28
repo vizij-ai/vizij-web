@@ -98,6 +98,7 @@ import {
   embeddedProfileId,
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
+import { useStandardAdaptation } from "./hooks/useStandardAdaptation";
 import { embeddedSkillId, useSkills } from "./hooks/useSkills";
 import { carriedBundleGraphs } from "./hooks/useVizijExport";
 import {
@@ -828,6 +829,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
   const editingSkillIdRef = useRef<string | null>(null);
   editingSkillIdRef.current = editingSkillId;
+  // True while the face's standard adaptation owns the motiongraph editor —
+  // the same edit session the profile and skill sessions run, with the same
+  // guards (the adaptation is one per face, so a boolean is its whole identity).
+  const [editingAdaptation, setEditingAdaptation] = useState(false);
+  const editingAdaptationRef = useRef(false);
+  editingAdaptationRef.current = editingAdaptation;
   const [hiddenBundleAnimationTargetIds, setHiddenBundleAnimationTargetIds] =
     useState<Record<string, true>>({});
   const [hiddenBundleProceduralTargetIds, setHiddenBundleProceduralTargetIds] =
@@ -1457,9 +1464,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const saveProceduralTarget = useCallback(
     (targetId: string) => {
-      // A profile or skill edit session owns the editor: its content must
-      // never be snapshotted into a program target.
-      if (editingProfileIdRef.current || editingSkillIdRef.current) {
+      // A profile, skill, or adaptation edit session owns the editor: its
+      // content must never be snapshotted into a program target.
+      if (
+        editingProfileIdRef.current ||
+        editingSkillIdRef.current ||
+        editingAdaptationRef.current
+      ) {
         return;
       }
       const programId = parseAuthoredProceduralTargetValue(targetId);
@@ -2048,9 +2059,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const loadSelectedProceduralTarget = useCallback(
     (targetId: string | null) => {
-      // A profile or skill edit session owns the editor: target changes
-      // neither hydrate over its content nor clear it (apply/discard does).
-      if (editingProfileIdRef.current || editingSkillIdRef.current) {
+      // A profile, skill, or adaptation edit session owns the editor: target
+      // changes neither hydrate over its content nor clear it (apply/discard
+      // does).
+      if (
+        editingProfileIdRef.current ||
+        editingSkillIdRef.current ||
+        editingAdaptationRef.current
+      ) {
         return;
       }
       if (!targetId) {
@@ -4057,6 +4073,84 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
 
   const {
+    embedded: standardAdaptationEmbedded,
+    entry: standardAdaptationEntry,
+    toggleAdaptation: toggleStandardAdaptation,
+    exportAdaptationJson: exportStandardAdaptationJson,
+    importAdaptationJson: importStandardAdaptationJson,
+    replaceAdaptationSpec: replaceStandardAdaptationSpec,
+  } = useStandardAdaptation({
+    bundle: loader.bundle,
+    updateBundle: loader.updateBundle,
+  });
+  /**
+   * Open the face's standard adaptation in the motiongraph editor. Its
+   * `standard/vizij/*` input nodes arrive as the editor's inputs, so binding a
+   * control to a pose is an ordinary edge — which is the whole authoring story
+   * for the adaptation.
+   */
+  const handleEditStandardAdaptationGraph = useCallback(() => {
+    if (!standardAdaptationEntry?.spec) {
+      console.error("no embedded adaptation to edit");
+      return;
+    }
+    // Park the current program's edits exactly like a target switch, then let
+    // the adaptation session own the editor.
+    if (selectedProceduralTargetId) {
+      saveProceduralTarget(selectedProceduralTargetId);
+    }
+    setSelectedProceduralTargetId(null);
+    const parsed = specToEditorState(
+      standardAdaptationEntry.spec as Record<string, unknown>,
+    );
+    hydrateProceduralEditorState({
+      nodes: parsed.nodes,
+      edges: parsed.edges,
+      enabledOutputs: Array.from(parsed.enabledOutputs),
+      enabledInputs: Array.from(parsed.enabledInputs),
+      customInputPaths: [...parsed.customInputPaths],
+    });
+    setEditingAdaptation(true);
+    setWorkspacePanelVisibility("motiongraph", true);
+  }, [
+    standardAdaptationEntry,
+    saveProceduralTarget,
+    selectedProceduralTargetId,
+    setWorkspacePanelVisibility,
+  ]);
+  const applyStandardAdaptationEdits = useCallback(() => {
+    if (!editingAdaptation) {
+      return;
+    }
+    const spec = buildProceduralExportSpec(snapshotProceduralEditorState());
+    replaceStandardAdaptationSpec(spec as Record<string, unknown>);
+    setEditingAdaptation(false);
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, [editingAdaptation, replaceStandardAdaptationSpec]);
+  const discardStandardAdaptationEdits = useCallback(() => {
+    setEditingAdaptation(false);
+    const editorStore = useEditorStore.getState();
+    editorStore.clear();
+    editorStore.setSelected(null);
+  }, []);
+  const adaptationJsonInputRef = useRef<HTMLInputElement>(null);
+  const handleReplaceStandardAdaptationJson = useCallback(() => {
+    adaptationJsonInputRef.current?.click();
+  }, []);
+  const handleAdaptationJsonFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) {
+        void importStandardAdaptationJson(file);
+      }
+    },
+    [importStandardAdaptationJson],
+  );
+
+  const {
     skills: availableSkills,
     embeddedSkillIds,
     toggleSkill,
@@ -4152,6 +4246,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onExportStandardProfileJson={exportStandardProfileJson}
       onReplaceStandardProfileJson={handleReplaceStandardProfileJson}
       onEditStandardProfileGraph={handleEditStandardProfileGraph}
+      standardAdaptationEmbedded={standardAdaptationEmbedded}
+      onToggleStandardAdaptation={toggleStandardAdaptation}
+      onExportStandardAdaptationJson={exportStandardAdaptationJson}
+      onReplaceStandardAdaptationJson={handleReplaceStandardAdaptationJson}
+      onEditStandardAdaptationGraph={handleEditStandardAdaptationGraph}
       skills={availableSkills}
       embeddedSkillIds={embeddedSkillIds}
       onToggleSkill={(skillId, enabled) => {
@@ -4634,6 +4733,37 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   </button>
                 </div>
               ) : null}
+              {editingAdaptation ? (
+                <div
+                  className="flex items-center gap-2 border-b border-border-default bg-bg-secondary px-3 py-1.5 text-xs text-text-secondary"
+                  data-testid="adaptation-editor-banner"
+                >
+                  <span className="flex-1">
+                    Binding the{" "}
+                    <span className="font-semibold text-text-primary">
+                      standard adaptation
+                    </span>{" "}
+                    — connect each standard control to the poses it should
+                    drive. Unwired controls drive nothing.
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded bg-accent-primary px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                    data-testid="adaptation-editor-apply"
+                    onClick={applyStandardAdaptationEdits}
+                  >
+                    Apply to Adaptation
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-border-default px-2 py-1 text-xs hover:bg-bg-hover"
+                    data-testid="adaptation-editor-discard"
+                    onClick={discardStandardAdaptationEdits}
+                  >
+                    Discard
+                  </button>
+                </div>
+              ) : null}
               <div className="min-h-0 flex-1">
                 <MotionGraphPanel
                   onSelectNode={handleSelectMotionGraphNodeWithInspectorSync}
@@ -4756,7 +4886,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
               animationActive={effectiveAnimationPanelVisible}
               centerAuthoringMode={centerAuthoringMode}
               runtimeFaceId={faceId}
-              enableMotionGraphPruning={!editingProfileId && !editingSkillId}
+              enableMotionGraphPruning={
+                !editingProfileId && !editingSkillId && !editingAdaptation
+              }
               onSelectMotionGraphNode={
                 handleSelectMotionGraphNodeWithInspectorSync
               }
@@ -4925,6 +5057,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         accept=".json"
         data-testid="app-skill-json-input"
         onChange={handleSkillJsonFileChange}
+      />
+      {/* Hidden file input for "Replace Adaptation from JSON..." */}
+      <input
+        type="file"
+        ref={adaptationJsonInputRef}
+        className="hidden"
+        accept=".json"
+        data-testid="app-adaptation-json-input"
+        onChange={handleAdaptationJsonFileChange}
       />
     </ReferenceFaceProvider>
   );
