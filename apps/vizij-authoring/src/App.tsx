@@ -8,7 +8,7 @@ import {
 } from "react-resizable-panels";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
-import type { ToneMappingMode } from "@vizij/render";
+import type { ToneMappingMode, VizijBundleProfile } from "@vizij/render";
 import { normalizeToneMappingMode } from "@vizij/render";
 import {
   normalizeStandardRigInputPath,
@@ -121,6 +121,7 @@ import {
   embeddedProfileId,
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
+import { useProfileInputs } from "./hooks/useProfileInputs";
 import { useProfiles } from "./hooks/useProfiles";
 import { ProfileImportDialog } from "./components/app/ProfileImportDialog";
 import { useStandardAdaptation } from "./hooks/useStandardAdaptation";
@@ -4471,6 +4472,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [declaredProfiles, toggleStandardAdaptation],
   );
+  const declareProfileInputs = useProfileInputs();
+  /**
+   * Declaring a profile records it on the face *and* creates a standard input
+   * per path, so its controls appear in Input Controls unconnected and ready to
+   * bind — visible because they are inputs, not because a panel was taught
+   * about profiles.
+   */
+  const handleProfileDeclared = useCallback(
+    (profile: VizijBundleProfile | null) => {
+      if (!profile) {
+        return;
+      }
+      const { added, existing } = declareProfileInputs(profile);
+      console.log(
+        `profile ${profile.id}: ${added} input(s) added, ${existing} already present`,
+      );
+    },
+    [declareProfileInputs],
+  );
   const [profileImportOpen, setProfileImportOpen] = useState(false);
   const profileImportInputRef = useRef<HTMLInputElement>(null);
   const handleImportProfileJson = useCallback(() => {
@@ -4481,10 +4501,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const file = event.target.files?.[0];
       event.target.value = "";
       if (file) {
-        void importProfileJson(file);
+        void importProfileJson(file).then(handleProfileDeclared);
       }
     },
-    [importProfileJson],
+    [handleProfileDeclared, importProfileJson],
   );
   /**
    * Open the face's standard adaptation in the motiongraph editor. Its
@@ -5485,7 +5505,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         onClose={() => setProfileImportOpen(false)}
         available={availableProfiles}
         declaredIds={declaredProfileIds}
-        onImport={(id) => void importProfile(id)}
+        onImport={(id) => void importProfile(id).then(handleProfileDeclared)}
         onImportFile={handleImportProfileJson}
       />
       {/* Hidden file input for "Import Profile from JSON..." */}
