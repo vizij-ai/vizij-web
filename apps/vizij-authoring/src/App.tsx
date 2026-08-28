@@ -99,6 +99,7 @@ import {
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
 import { useProfiles } from "./hooks/useProfiles";
+import { ProfileImportDialog } from "./components/app/ProfileImportDialog";
 import { useStandardAdaptation } from "./hooks/useStandardAdaptation";
 import { embeddedSkillId, useSkills } from "./hooks/useSkills";
 import { carriedBundleGraphs } from "./hooks/useVizijExport";
@@ -4085,7 +4086,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     updateBundle: loader.updateBundle,
   });
   const {
+    available: availableProfiles,
     declared: declaredProfiles,
+    declaredIds: declaredProfileIds,
+    importProfile,
     importProfileJson,
     exportProfileJson: exportDeclaredProfileJson,
     removeProfile,
@@ -4116,6 +4120,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [declaredProfiles, toggleStandardAdaptation],
   );
+  const [profileImportOpen, setProfileImportOpen] = useState(false);
   const profileImportInputRef = useRef<HTMLInputElement>(null);
   const handleImportProfileJson = useCallback(() => {
     profileImportInputRef.current?.click();
@@ -4296,7 +4301,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       standardAdaptationEmbedded={standardAdaptationEmbedded}
       onToggleStandardAdaptation={handleToggleStandardAdaptation}
       declaredProfiles={declaredProfiles}
-      onImportProfileJson={handleImportProfileJson}
+      onOpenProfileImport={() => setProfileImportOpen(true)}
       onExportProfileJson={exportDeclaredProfileJson}
       onRemoveProfile={removeProfile}
       onExportStandardAdaptationJson={exportStandardAdaptationJson}
@@ -5108,6 +5113,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         accept=".json"
         data-testid="app-skill-json-input"
         onChange={handleSkillJsonFileChange}
+      />
+      <ProfileImportDialog
+        open={profileImportOpen}
+        onClose={() => setProfileImportOpen(false)}
+        available={availableProfiles}
+        declaredIds={declaredProfileIds}
+        onImport={(id) => void importProfile(id)}
+        onImportFile={handleImportProfileJson}
       />
       {/* Hidden file input for "Import Profile from JSON..." */}
       <input
