@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useProfiles } from "./useProfiles";
+
+// The registry is the runtime's, not this app's — stub it so the hook's own
+// behaviour is under test. `vi.mock` is hoisted above the imports.
+const { profilesMock, profileMock } = vi.hoisted(() => ({
+  profilesMock: vi.fn(),
+  profileMock: vi.fn(),
+}));
+vi.mock("@vizij/runtime", () => ({
+  profiles: profilesMock,
+  profile: profileMock,
+}));
 
 const PORTABLE_KEYS = [
   { path: "standard/vizij/expression/happy" },
@@ -41,7 +52,65 @@ const portable = (id = "vizij-face") => ({
   keys: PORTABLE_KEYS,
 });
 
+beforeEach(() => {
+  profilesMock.mockReset().mockResolvedValue([
+    {
+      id: "vizij-face",
+      version: "v1",
+      title: "Vizij face",
+      description: "",
+      keys: 81,
+    },
+  ]);
+  // The registry applies the rig prefix itself, so its paths arrive addressed.
+  profileMock
+    .mockReset()
+    .mockImplementation(async (id: string, rigPrefix: string) =>
+      id === "vizij-face"
+        ? {
+            id,
+            version: "v1",
+            keys: PORTABLE_KEYS.map((k) => ({ path: `${rigPrefix}${k.path}` })),
+          }
+        : null,
+    );
+});
+
 describe("useProfiles", () => {
+  describe("the registry", () => {
+    it("lists what the runtime offers", async () => {
+      const harness = renderAgainst(bundleWith());
+      await waitFor(() =>
+        expect(harness.view.result.current.available).toHaveLength(1),
+      );
+      expect(harness.view.result.current.available[0]!.id).toBe("vizij-face");
+    });
+
+    it("declares a registry profile, asked for with this face's prefix", async () => {
+      const harness = renderAgainst(bundleWith());
+      await act(async () => {
+        await harness.view.result.current.importProfile("vizij-face");
+      });
+      expect(profileMock).toHaveBeenCalledWith(
+        "vizij-face",
+        "rig/quori_latest/",
+      );
+      expect((harness.bundle()?.profiles ?? [])[0]!.keys[0]!.path).toBe(
+        "rig/quori_latest/standard/vizij/expression/happy",
+      );
+    });
+
+    it("declares nothing for an unknown id", async () => {
+      const harness = renderAgainst(bundleWith());
+      let result: unknown;
+      await act(async () => {
+        result = await harness.view.result.current.importProfile("nope");
+      });
+      expect(result).toBeNull();
+      expect(harness.bundle()?.profiles ?? []).toHaveLength(0);
+    });
+  });
+
   it("declares an imported profile on the bundle", async () => {
     const harness = renderAgainst(bundleWith());
     await act(async () => {

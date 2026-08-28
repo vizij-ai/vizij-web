@@ -50,8 +50,8 @@ interface AppMenuBarProps {
   onEditStandardProfileGraph: (profileId: string) => void;
   /** Profiles the open GLB declares — a profile is a set of paths and types. */
   declaredProfiles: { id: string; title?: string; keys: unknown[] }[];
-  /** Declare a profile from a JSON file. */
-  onImportProfileJson: () => void;
+  /** Open the profile import dialog. */
+  onOpenProfileImport: () => void;
   /** Download a declared profile as JSON. */
   onExportProfileJson: (id: string) => void;
   /** Drop a declared profile from the open GLB. */
@@ -107,7 +107,7 @@ export function AppMenuBar({
   onReplaceStandardProfileJson,
   onEditStandardProfileGraph,
   declaredProfiles,
-  onImportProfileJson,
+  onOpenProfileImport,
   onExportProfileJson,
   onRemoveProfile,
   standardAdaptationEmbedded,
@@ -289,10 +289,10 @@ export function AppMenuBar({
         </MenuSubmenu>
         <MenuSubmenu label="Profiles" testId="app-menu-file-profiles">
           <MenuItem
-            onSelect={onImportProfileJson}
+            onSelect={onOpenProfileImport}
             testId="app-menu-file-profile-import"
           >
-            Import Profile from JSON...
+            Import Profile...
           </MenuItem>
           {declaredProfiles.length > 0 ? <MenuSeparator /> : null}
           {declaredProfiles.map((profile) => (
