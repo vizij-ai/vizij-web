@@ -44,16 +44,14 @@ interface AppMenuBarProps {
   onReplaceStandardProfileJson: (profileId: string) => void;
   /** Open an embedded profile's graph in the editor (apply-back session). */
   onEditStandardProfileGraph: (profileId: string) => void;
-  /** The profiles the registry ships — a profile is a set of paths and types. */
-  profiles: { id: string; version: string; title: string; keys: number }[];
-  /** Profile ids the open GLB declares (checked state of the toggles). */
-  declaredProfileIds: string[];
-  /** Declare (`enabled`) or drop a profile on the open GLB. */
-  onToggleProfile: (id: string, enabled: boolean) => void;
+  /** Profiles the open GLB declares — a profile is a set of paths and types. */
+  declaredProfiles: { id: string; title?: string; keys: unknown[] }[];
   /** Declare a profile from a JSON file. */
   onImportProfileJson: () => void;
   /** Download a declared profile as JSON. */
   onExportProfileJson: (id: string) => void;
+  /** Drop a declared profile from the open GLB. */
+  onRemoveProfile: (id: string) => void;
   /** Whether the open GLB carries a standard adaptation. */
   standardAdaptationEmbedded: boolean;
   /** Add (`enabled`) or remove the standard adaptation in the open GLB. */
@@ -101,11 +99,10 @@ export function AppMenuBar({
   onExportStandardProfileJson,
   onReplaceStandardProfileJson,
   onEditStandardProfileGraph,
-  profiles,
-  declaredProfileIds,
-  onToggleProfile,
+  declaredProfiles,
   onImportProfileJson,
   onExportProfileJson,
+  onRemoveProfile,
   standardAdaptationEmbedded,
   onToggleStandardAdaptation,
   onExportStandardAdaptationJson,
@@ -272,40 +269,33 @@ export function AppMenuBar({
             ))}
         </MenuSubmenu>
         <MenuSubmenu label="Profiles" testId="app-menu-file-profiles">
-          {profiles.length === 0 ? (
-            <MenuLabel>None available</MenuLabel>
-          ) : (
-            profiles.map((profile) => (
-              <MenuCheckboxItem
-                key={profile.id}
-                checked={declaredProfileIds.includes(profile.id)}
-                onCheckedChange={(checked) =>
-                  onToggleProfile(profile.id, checked)
-                }
-                testId={`app-menu-file-profile-${profile.id}`}
-              >
-                {profile.title} ({profile.keys})
-              </MenuCheckboxItem>
-            ))
-          )}
-          <MenuSeparator />
           <MenuItem
             onSelect={onImportProfileJson}
             testId="app-menu-file-profile-import"
           >
             Import Profile from JSON...
           </MenuItem>
-          {profiles
-            .filter((profile) => declaredProfileIds.includes(profile.id))
-            .map((profile) => (
+          {declaredProfiles.length > 0 ? <MenuSeparator /> : null}
+          {declaredProfiles.map((profile) => (
+            <MenuSubmenu
+              key={profile.id}
+              label={`${profile.title ?? profile.id} (${profile.keys.length})`}
+              testId={`app-menu-file-profile-${profile.id}`}
+            >
               <MenuItem
-                key={profile.id}
                 onSelect={() => onExportProfileJson(profile.id)}
                 testId={`app-menu-file-profile-export-${profile.id}`}
               >
-                Export {profile.title} as JSON...
+                Export as JSON...
               </MenuItem>
-            ))}
+              <MenuItem
+                onSelect={() => onRemoveProfile(profile.id)}
+                testId={`app-menu-file-profile-remove-${profile.id}`}
+              >
+                Remove from Face
+              </MenuItem>
+            </MenuSubmenu>
+          ))}
         </MenuSubmenu>
         <MenuSubmenu
           label="Standard Adaptation"

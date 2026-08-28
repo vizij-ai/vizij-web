@@ -4,7 +4,7 @@ import { buildEmptyAdaptationSpec } from "./faceStandard";
 
 const PREFIX = "rig/quori_latest/";
 
-/** A profile as `@vizij/runtime` serves it, already rig-prefixed. */
+/** A profile as it is declared on a face, already rig-prefixed. */
 function profileOf(
   paths: string[],
   defaults: Record<string, unknown> = {},

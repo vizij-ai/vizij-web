@@ -3,9 +3,8 @@
  *
  * A *profile* is a set of paths and their types; an *adaptation* is the mapping
  * that carries a profile's values onto this face's own pose weights. The
- * profile comes from `@vizij/runtime` — the same assets the native bundler
- * embeds — so the vocabulary is never copied into this app. What lives here is
- * only the shape of the graph built from it.
+ * profile is a file the author imported, so the vocabulary is never copied into
+ * this app. What lives here is only the shape of the graph built from it.
  */
 
 import type { VizijBundleProfile } from "@vizij/render";

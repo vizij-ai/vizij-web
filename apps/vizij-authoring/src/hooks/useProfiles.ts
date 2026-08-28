@@ -1,14 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { profile, profiles, type ProfileSummary } from "@vizij/runtime";
+import { useCallback, useMemo } from "react";
 import type { VizijBundleExtension, VizijBundleProfile } from "@vizij/render";
 import { downloadJsonFile } from "../utils/fileIO";
-
-/**
- * The registry id of the Vizij face standard — the profile a face adaptation
- * maps from. Named here so the app has one place that knows it, rather than
- * the string appearing wherever an adaptation is created.
- */
-export const FACE_PROFILE_ID = "vizij-face";
 
 interface UseProfilesOptions {
   /** The open document's bundle — `null` while no face is loaded. */
@@ -39,39 +31,49 @@ function isProfile(value: unknown): value is VizijBundleProfile {
 }
 
 /**
+ * Address a profile to one face.
+ *
+ * A profile file is portable — `vizij-bundle export-profile` writes the paths
+ * unprefixed, because the vocabulary is the same for every face. The store is
+ * not: a face's keys live under `rig/<faceId>/`. So an imported path picks up
+ * this face's prefix unless it already carries one, which leaves a file that
+ * was exported from a face alone.
+ */
+function addressToFace(
+  profile: VizijBundleProfile,
+  rigPrefix: string,
+): VizijBundleProfile {
+  if (!rigPrefix) {
+    return profile;
+  }
+  return {
+    ...profile,
+    keys: profile.keys.map((key) =>
+      key.path.startsWith("rig/")
+        ? key
+        : { ...key, path: `${rigPrefix}${key.path}` },
+    ),
+  };
+}
+
+/**
  * The profiles a face declares it speaks — the vocabularies its graphs are
  * authored against.
  *
  * A *profile* is a set of paths and their types; a *mapping* is the graph that
  * carries one profile's values onto another's. This hook owns the first.
- * Importing one writes it into the bundle, so the vocabulary travels with the
- * asset exactly like any other authored input, and returns it so the caller can
- * put its paths in front of the author.
+ * Declaring one writes it into the bundle, so the vocabulary travels with the
+ * asset exactly like any other authored input.
  *
- * The registry comes from `@vizij/runtime`, which serves the same assets the
- * native bundler embeds — no second copy of the vocabulary lives here.
+ * Profiles arrive as **files**, not from a registry. Vizij ships its own — get
+ * one with `vizij-bundle export-profile <id> -o <file>.json` — but so can
+ * anyone else, and the app treats them the same. That keeps the import list to
+ * things the author chose rather than a menu of options whose effect is not
+ * obvious.
  */
 export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
-  const [available, setAvailable] = useState<ProfileSummary[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    profiles()
-      .then((list) => {
-        if (!cancelled) {
-          setAvailable(list);
-        }
-      })
-      .catch((error) => {
-        console.error("profile registry unavailable", error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // A profile's paths address this face's store, so they take the bundle's rig
-  // prefix — the same prefix the runtime gives the controls a mapping writes.
+  // The face's keys live under `rig/<faceId>/`, and an imported profile is
+  // addressed to them.
   const rigPrefix = useMemo(() => {
     const faceId = bundle?.metadata?.faceId;
     return typeof faceId === "string" && faceId ? `rig/${faceId}/` : "";
@@ -101,18 +103,25 @@ export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
   );
 
   /**
-   * Import a shipped profile: fetch it with this face's rig prefix applied,
-   * declare it on the bundle, and hand it back so its paths can be offered to
-   * the author. Resolves to `null` for an unknown id.
+   * Declare a profile from a JSON file, addressed to this face. Resolves to the
+   * declared profile, or `null` when the file is not one.
    */
-  const importProfile = useCallback(
-    async (id: string): Promise<VizijBundleProfile | null> => {
-      const fetched = await profile(id, rigPrefix);
-      if (!fetched) {
-        console.error(`profile ${id} unavailable`);
+  const importProfileJson = useCallback(
+    async (file: File): Promise<VizijBundleProfile | null> => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch (error) {
+        console.error(`profile JSON ${file.name} does not parse`, error);
         return null;
       }
-      const entry = fetched as unknown as VizijBundleProfile;
+      if (!isProfile(parsed)) {
+        console.error(
+          `${file.name} is not a profile — expected { id, version, keys: [{ path }] }`,
+        );
+        return null;
+      }
+      const entry = addressToFace(parsed, rigPrefix);
       declare(entry);
       return entry;
     },
@@ -132,34 +141,7 @@ export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
     [updateBundle],
   );
 
-  /**
-   * Declare a profile from a JSON file — a vocabulary that is not in the
-   * shipped registry (a lab's own, or one pinned to a version). Stored
-   * verbatim: a profile is face-specific once its paths carry a rig prefix, so
-   * there is no canonical form to restore.
-   */
-  const importProfileJson = useCallback(
-    async (file: File): Promise<VizijBundleProfile | null> => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(await file.text());
-      } catch (error) {
-        console.error(`profile JSON ${file.name} does not parse`, error);
-        return null;
-      }
-      if (!isProfile(parsed)) {
-        console.error(
-          `profile JSON ${file.name} is not a profile ({ id, version, keys })`,
-        );
-        return null;
-      }
-      declare(parsed);
-      return parsed;
-    },
-    [declare],
-  );
-
-  /** Download a declared profile, verbatim. */
+  /** Download a declared profile, verbatim — paths included, so it round-trips. */
   const exportProfileJson = useCallback(
     (id: string) => {
       const entry = declared.find((p) => p.id === id);
@@ -180,12 +162,9 @@ export function useProfiles({ bundle, updateBundle }: UseProfilesOptions) {
   );
 
   return {
-    /** The profiles the registry ships, for the import picker. */
-    available,
     /** The profiles this face declares. */
     declared,
     declaredIds,
-    importProfile,
     importProfileJson,
     exportProfileJson,
     removeProfile,

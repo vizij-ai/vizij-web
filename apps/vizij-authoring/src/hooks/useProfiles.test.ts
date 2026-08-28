@@ -1,23 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import type { VizijBundleExtension } from "@vizij/render";
 import { useProfiles } from "./useProfiles";
 
-// The registry is the runtime's, not this app's — stub it so the hook's own
-// behaviour is under test rather than the wasm's. `vi.mock` is hoisted above
-// the imports, so the stub is in place before `useProfiles` resolves it.
-const { profilesMock, profileMock } = vi.hoisted(() => ({
-  profilesMock: vi.fn(),
-  profileMock: vi.fn(),
-}));
-vi.mock("@vizij/runtime", () => ({
-  profiles: profilesMock,
-  profile: profileMock,
-}));
-
-const KEYS = [
-  { path: "rig/quori_latest/standard/vizij/expression/happy" },
-  { path: "rig/quori_latest/standard/vizij/viseme/aa" },
+const PORTABLE_KEYS = [
+  { path: "standard/vizij/expression/happy" },
+  { path: "standard/vizij/viseme/aa" },
 ];
 
 function bundleWith(
@@ -43,53 +31,68 @@ function renderAgainst(initial: VizijBundleExtension | null) {
   return { view, bundle: () => current };
 }
 
-beforeEach(() => {
-  profilesMock
-    .mockReset()
-    .mockResolvedValue([
-      {
-        id: "vizij-face",
-        version: "v1",
-        title: "Vizij face",
-        description: "",
-        keys: 81,
-      },
-    ]);
-  profileMock
-    .mockReset()
-    .mockImplementation(async (id: string) =>
-      id === "vizij-face" ? { id, version: "v1", keys: KEYS } : null,
-    );
+const asFile = (body: unknown, name = "p.json") =>
+  ({ name, text: async () => JSON.stringify(body) }) as File;
+
+const portable = (id = "vizij-face") => ({
+  id,
+  version: "v1",
+  title: "Vizij face",
+  keys: PORTABLE_KEYS,
 });
 
 describe("useProfiles", () => {
-  it("lists the registry the runtime serves", async () => {
-    const harness = renderAgainst(bundleWith());
-    await waitFor(() =>
-      expect(harness.view.result.current.available).toHaveLength(1),
-    );
-    expect(harness.view.result.current.available[0]!.id).toBe("vizij-face");
-  });
-
-  // A profile's paths address one face's store, so the import asks for it with
-  // the open face's rig prefix.
-  it("fetches the profile with this face's rig prefix", async () => {
+  it("declares an imported profile on the bundle", async () => {
     const harness = renderAgainst(bundleWith());
     await act(async () => {
-      await harness.view.result.current.importProfile("vizij-face");
-    });
-    expect(profileMock).toHaveBeenCalledWith("vizij-face", "rig/quori_latest/");
-  });
-
-  it("declares the imported profile on the bundle", async () => {
-    const harness = renderAgainst(bundleWith());
-    await act(async () => {
-      await harness.view.result.current.importProfile("vizij-face");
+      await harness.view.result.current.importProfileJson(asFile(portable()));
     });
     const declared = harness.bundle()?.profiles ?? [];
     expect(declared).toHaveLength(1);
     expect(declared[0]!.id).toBe("vizij-face");
-    expect(declared[0]!.keys).toHaveLength(2);
+  });
+
+  // A profile file is portable — the paths are unprefixed — but the store is
+  // not, so importing addresses them to the open face.
+  it("addresses portable paths to the open face", async () => {
+    const harness = renderAgainst(bundleWith());
+    await act(async () => {
+      await harness.view.result.current.importProfileJson(asFile(portable()));
+    });
+    expect(
+      (harness.bundle()?.profiles ?? [])[0]!.keys.map((k) => k.path),
+    ).toStrictEqual([
+      "rig/quori_latest/standard/vizij/expression/happy",
+      "rig/quori_latest/standard/vizij/viseme/aa",
+    ]);
+  });
+
+  // A file exported from a face already carries a prefix; re-importing it must
+  // not stack a second one.
+  it("leaves an already-addressed path alone", async () => {
+    const harness = renderAgainst(bundleWith());
+    await act(async () => {
+      await harness.view.result.current.importProfileJson(
+        asFile({
+          id: "vizij-face",
+          version: "v1",
+          keys: [{ path: "rig/other_face/standard/vizij/expression/happy" }],
+        }),
+      );
+    });
+    expect((harness.bundle()?.profiles ?? [])[0]!.keys[0]!.path).toBe(
+      "rig/other_face/standard/vizij/expression/happy",
+    );
+  });
+
+  it("imports portable paths verbatim when the face has no id", async () => {
+    const harness = renderAgainst(bundleWith(undefined, {}));
+    await act(async () => {
+      await harness.view.result.current.importProfileJson(asFile(portable()));
+    });
+    expect((harness.bundle()?.profiles ?? [])[0]!.keys[0]!.path).toBe(
+      "standard/vizij/expression/happy",
+    );
   });
 
   it("replaces rather than duplicates when re-imported", async () => {
@@ -97,27 +100,17 @@ describe("useProfiles", () => {
       bundleWith([{ id: "vizij-face", version: "v0", keys: [] }]),
     );
     await act(async () => {
-      await harness.view.result.current.importProfile("vizij-face");
+      await harness.view.result.current.importProfileJson(asFile(portable()));
     });
     const declared = harness.bundle()?.profiles ?? [];
     expect(declared).toHaveLength(1);
     expect(declared[0]!.version).toBe("v1");
   });
 
-  it("resolves null and declares nothing for an unknown id", async () => {
-    const harness = renderAgainst(bundleWith());
-    let result: unknown;
-    await act(async () => {
-      result = await harness.view.result.current.importProfile("nope");
-    });
-    expect(result).toBeNull();
-    expect(harness.bundle()?.profiles ?? []).toHaveLength(0);
-  });
-
-  it("removes a declared profile and leaves the others", async () => {
+  it("removes a declared profile and leaves the others", () => {
     const harness = renderAgainst(
       bundleWith([
-        { id: "vizij-face", version: "v1", keys: KEYS },
+        { id: "vizij-face", version: "v1", keys: PORTABLE_KEYS },
         { id: "ros4hri", version: "v1", keys: [] },
       ]),
     );
@@ -131,57 +124,39 @@ describe("useProfiles", () => {
 
   it("reports the paths a declared profile defines", () => {
     const harness = renderAgainst(
-      bundleWith([{ id: "vizij-face", version: "v1", keys: KEYS }]),
+      bundleWith([{ id: "vizij-face", version: "v1", keys: PORTABLE_KEYS }]),
     );
     expect(
       harness.view.result.current.profilePaths("vizij-face"),
-    ).toStrictEqual(KEYS.map((k) => k.path));
+    ).toStrictEqual(PORTABLE_KEYS.map((k) => k.path));
     expect(harness.view.result.current.profilePaths("absent")).toStrictEqual(
       [],
     );
   });
 
-  // A face with no id has no rig prefix; the profile is then the portable form.
-  it("asks for the unprefixed profile when the bundle declares no face id", async () => {
-    const harness = renderAgainst(bundleWith(undefined, {}));
-    await act(async () => {
-      await harness.view.result.current.importProfile("vizij-face");
-    });
-    expect(profileMock).toHaveBeenCalledWith("vizij-face", "");
+  describe("refuses a file that is not a profile", () => {
+    const refuses = async (body: unknown) => {
+      const harness = renderAgainst(bundleWith());
+      await act(async () => {
+        await harness.view.result.current.importProfileJson(asFile(body));
+      });
+      expect(harness.bundle()?.profiles ?? []).toHaveLength(0);
+    };
+
+    it("a graph spec", () => refuses({ nodes: [], edges: [] }));
+    it("keys that are not paths", () =>
+      refuses({ id: "lab", version: "v2", keys: [{ name: "oops" }] }));
+    it("a missing version", () => refuses({ id: "lab", keys: PORTABLE_KEYS }));
   });
 
-  describe("importing from a file", () => {
-    const asFile = (body: unknown) =>
-      ({ name: "p.json", text: async () => JSON.stringify(body) }) as File;
-
-    it("declares a well-formed profile", async () => {
-      const harness = renderAgainst(bundleWith());
-      await act(async () => {
-        await harness.view.result.current.importProfileJson(
-          asFile({ id: "lab", version: "v2", keys: KEYS }),
-        );
-      });
-      expect((harness.bundle()?.profiles ?? [])[0]?.id).toBe("lab");
+  it("refuses JSON that does not parse", async () => {
+    const harness = renderAgainst(bundleWith());
+    await act(async () => {
+      await harness.view.result.current.importProfileJson({
+        name: "bad.json",
+        text: async () => "{not json",
+      } as File);
     });
-
-    it("refuses JSON that is not a profile", async () => {
-      const harness = renderAgainst(bundleWith());
-      await act(async () => {
-        await harness.view.result.current.importProfileJson(
-          asFile({ nodes: [], edges: [] }),
-        );
-      });
-      expect(harness.bundle()?.profiles ?? []).toHaveLength(0);
-    });
-
-    it("refuses a profile whose keys are not paths", async () => {
-      const harness = renderAgainst(bundleWith());
-      await act(async () => {
-        await harness.view.result.current.importProfileJson(
-          asFile({ id: "lab", version: "v2", keys: [{ name: "oops" }] }),
-        );
-      });
-      expect(harness.bundle()?.profiles ?? []).toHaveLength(0);
-    });
+    expect(harness.bundle()?.profiles ?? []).toHaveLength(0);
   });
 });

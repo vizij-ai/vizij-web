@@ -98,7 +98,7 @@ import {
   embeddedProfileId,
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
-import { FACE_PROFILE_ID, useProfiles } from "./hooks/useProfiles";
+import { useProfiles } from "./hooks/useProfiles";
 import { useStandardAdaptation } from "./hooks/useStandardAdaptation";
 import { embeddedSkillId, useSkills } from "./hooks/useSkills";
 import { carriedBundleGraphs } from "./hooks/useVizijExport";
@@ -4085,10 +4085,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     updateBundle: loader.updateBundle,
   });
   const {
-    available: availableProfiles,
     declared: declaredProfiles,
-    declaredIds: declaredProfileIds,
-    importProfile,
     importProfileJson,
     exportProfileJson: exportDeclaredProfileJson,
     removeProfile,
@@ -4097,37 +4094,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     updateBundle: loader.updateBundle,
   });
   /**
-   * The adaptation maps the Vizij face profile onto this face, so enabling it
-   * needs that profile. Use the one the face already declares; otherwise import
-   * it, which declares it on the GLB — the vocabulary travels with the asset
-   * rather than being implied by the graph built from it.
+   * The adaptation maps a profile onto this face's poses, so it needs one the
+   * face declares. There is no registry to fall back on — a profile arrives as
+   * a file the author chose — so with none declared the action refuses and says
+   * so rather than inventing a vocabulary.
    */
   const handleToggleStandardAdaptation = useCallback(
-    async (enabled: boolean) => {
+    (enabled: boolean) => {
       if (!enabled) {
         toggleStandardAdaptation(false);
         return;
       }
-      const profile =
-        declaredProfiles.find((entry) => entry.id === FACE_PROFILE_ID) ??
-        (await importProfile(FACE_PROFILE_ID));
+      const profile = declaredProfiles[0];
       if (!profile) {
-        console.error(`cannot adapt without the ${FACE_PROFILE_ID} profile`);
+        console.error(
+          "import a profile first (File → Profiles → Import Profile from JSON...)",
+        );
         return;
       }
       toggleStandardAdaptation(true, profile);
     },
-    [declaredProfiles, importProfile, toggleStandardAdaptation],
-  );
-  const handleToggleProfile = useCallback(
-    (id: string, enabled: boolean) => {
-      if (enabled) {
-        void importProfile(id);
-      } else {
-        removeProfile(id);
-      }
-    },
-    [importProfile, removeProfile],
+    [declaredProfiles, toggleStandardAdaptation],
   );
   const profileImportInputRef = useRef<HTMLInputElement>(null);
   const handleImportProfileJson = useCallback(() => {
@@ -4308,11 +4295,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onEditStandardProfileGraph={handleEditStandardProfileGraph}
       standardAdaptationEmbedded={standardAdaptationEmbedded}
       onToggleStandardAdaptation={handleToggleStandardAdaptation}
-      profiles={availableProfiles}
-      declaredProfileIds={declaredProfileIds}
-      onToggleProfile={handleToggleProfile}
+      declaredProfiles={declaredProfiles}
       onImportProfileJson={handleImportProfileJson}
       onExportProfileJson={exportDeclaredProfileJson}
+      onRemoveProfile={removeProfile}
       onExportStandardAdaptationJson={exportStandardAdaptationJson}
       onReplaceStandardAdaptationJson={handleReplaceStandardAdaptationJson}
       onEditStandardAdaptationGraph={handleEditStandardAdaptationGraph}
