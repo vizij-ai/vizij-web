@@ -99,6 +99,7 @@ import {
   embeddedProfileId,
   useStandardProfiles,
 } from "./hooks/useStandardProfiles";
+import { DeclaredProfilesProvider } from "./state/DeclaredProfilesContext";
 import { useProfileInputs } from "./hooks/useProfileInputs";
 import { useProfiles } from "./hooks/useProfiles";
 import { ProfileImportDialog } from "./components/app/ProfileImportDialog";
@@ -4881,286 +4882,292 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   return (
     <ReferenceFaceProvider value={referenceFaceContextValue}>
-      <SharedVariableSyncProvider value={sharedVariableSync}>
-        {memoryInvestigation.enabled ? (
-          <MemoryDebugBridge loader={loader} />
-        ) : null}
-        <WorkspaceLayout
-          menuBar={menuBar}
-          // Left
-          leftTopVisible={effectiveHierarchyPanelVisible}
-          leftTopPanel={
-            <HierarchyPanel
-              showSelectionGlow={showSelectionGlow}
-              onToggleSelectionGlow={setShowSelectionGlow}
-              onSelectObject={handleSelectObjectWithInspectorSync}
-              referenceFaceFile={referenceFaceContextValue.file}
-              onClosePanel={handleHideHierarchyPanel}
-            />
-          }
-          leftBottomPanel={
-            <VariablesPanel
-              selectedRigId={selectedRigId}
-              selectedPoseId={selectedPoseId}
-              selectedSceneId={selectedSceneId}
-              onSelectRig={handleSelectRigWithInspectorSync}
-              onSelectPose={handleSelectPoseWithInspectorSync}
-              onSelectScene={handleSelectObjectWithInspectorSync}
-              availableSurfaces={authoringSurfaces}
-              activeSurfaceOverride={activeAuthoringSurface}
-              onActiveSurfaceChange={(surface) => {
-                if (surface === "inputs") {
-                  return;
+      <DeclaredProfilesProvider profiles={declaredProfiles}>
+        <SharedVariableSyncProvider value={sharedVariableSync}>
+          {memoryInvestigation.enabled ? (
+            <MemoryDebugBridge loader={loader} />
+          ) : null}
+          <WorkspaceLayout
+            menuBar={menuBar}
+            // Left
+            leftTopVisible={effectiveHierarchyPanelVisible}
+            leftTopPanel={
+              <HierarchyPanel
+                showSelectionGlow={showSelectionGlow}
+                onToggleSelectionGlow={setShowSelectionGlow}
+                onSelectObject={handleSelectObjectWithInspectorSync}
+                referenceFaceFile={referenceFaceContextValue.file}
+                onClosePanel={handleHideHierarchyPanel}
+              />
+            }
+            leftBottomPanel={
+              <VariablesPanel
+                selectedRigId={selectedRigId}
+                selectedPoseId={selectedPoseId}
+                selectedSceneId={selectedSceneId}
+                onSelectRig={handleSelectRigWithInspectorSync}
+                onSelectPose={handleSelectPoseWithInspectorSync}
+                onSelectScene={handleSelectObjectWithInspectorSync}
+                availableSurfaces={authoringSurfaces}
+                activeSurfaceOverride={activeAuthoringSurface}
+                onActiveSurfaceChange={(surface) => {
+                  if (surface === "inputs") {
+                    return;
+                  }
+                  setActiveAuthoringSurface(surface);
+                }}
+                selectedPoseGroup={selectedPoseGroup}
+                onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
+                selectedBlendStage={selectedBlendStage}
+                onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
+                animationTargets={authoringAnimationTargets}
+                onSelectAnimationTarget={handleInspectAnimationTarget}
+                onCreateAnimationTarget={handleCreateAndInspectAnimationTarget}
+                onDuplicateAnimationTarget={handleDuplicateAnimationTarget}
+                onDeleteAnimationTarget={deleteAnimationTargetById}
+                onPlayAnimationTarget={handlePlayAnimationTarget}
+                onPauseAnimationTarget={handlePauseAnimationTarget}
+                onStopAnimationTarget={handleStopAnimationTarget}
+                programTargets={authoringProgramTargets}
+                onSelectProgramTarget={handleInspectProgramTarget}
+                onCreateProgramTarget={handleCreateAndInspectProgramTarget}
+                onDuplicateProgramTarget={handleDuplicateProgramTarget}
+                onDeleteProgramTarget={deleteProceduralTargetById}
+                onPlayProgramTarget={handlePlayProgramTarget}
+                onPauseProgramTarget={handlePauseProgramTarget}
+                onStopProgramTarget={handleStopProgramTarget}
+                panelTitle="Authoring"
+                panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
+                onClosePanel={handleHideControlAuthoringPanel}
+                animationActive={effectiveAnimationPanelVisible}
+                centerAuthoringMode={centerAuthoringMode}
+                runtimeFaceId={faceId}
+                enableMotionGraphPruning={false}
+              />
+            }
+            leftBottomVisible2={false}
+            leftBottomVisible3={false}
+            leftBottomPanel3={null}
+            leftMiddleVisible={effectiveInputControlsPanelVisible}
+            leftMiddlePanel={
+              <VariablesPanel
+                selectedRigId={selectedRigId}
+                selectedPoseId={selectedPoseId}
+                selectedSceneId={selectedSceneId}
+                onSelectRig={handleSelectRigWithInspectorSync}
+                onSelectPose={handleSelectPoseWithInspectorSync}
+                onSelectScene={handleSelectObjectWithInspectorSync}
+                availableSurfaces={inputControlSurfaces}
+                panelTitle="Input Controls"
+                panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
+                onClosePanel={handleHideInputControlsPanel}
+                motionGraphActive={effectiveMotionGraphPanelVisible}
+                animationActive={effectiveAnimationPanelVisible}
+                centerAuthoringMode={centerAuthoringMode}
+                runtimeFaceId={faceId}
+                enableMotionGraphPruning={
+                  !editingProfileId && !editingSkillId && !editingAdaptation
                 }
-                setActiveAuthoringSurface(surface);
-              }}
-              selectedPoseGroup={selectedPoseGroup}
-              onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
-              selectedBlendStage={selectedBlendStage}
-              onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-              animationTargets={authoringAnimationTargets}
-              onSelectAnimationTarget={handleInspectAnimationTarget}
-              onCreateAnimationTarget={handleCreateAndInspectAnimationTarget}
-              onDuplicateAnimationTarget={handleDuplicateAnimationTarget}
-              onDeleteAnimationTarget={deleteAnimationTargetById}
-              onPlayAnimationTarget={handlePlayAnimationTarget}
-              onPauseAnimationTarget={handlePauseAnimationTarget}
-              onStopAnimationTarget={handleStopAnimationTarget}
-              programTargets={authoringProgramTargets}
-              onSelectProgramTarget={handleInspectProgramTarget}
-              onCreateProgramTarget={handleCreateAndInspectProgramTarget}
-              onDuplicateProgramTarget={handleDuplicateProgramTarget}
-              onDeleteProgramTarget={deleteProceduralTargetById}
-              onPlayProgramTarget={handlePlayProgramTarget}
-              onPauseProgramTarget={handlePauseProgramTarget}
-              onStopProgramTarget={handleStopProgramTarget}
-              panelTitle="Authoring"
-              panelDescription="Author and organize drivers, poses, pose groups, animations, and programs."
-              onClosePanel={handleHideControlAuthoringPanel}
-              animationActive={effectiveAnimationPanelVisible}
-              centerAuthoringMode={centerAuthoringMode}
-              runtimeFaceId={faceId}
-              enableMotionGraphPruning={false}
-            />
-          }
-          leftBottomVisible2={false}
-          leftBottomVisible3={false}
-          leftBottomPanel3={null}
-          leftMiddleVisible={effectiveInputControlsPanelVisible}
-          leftMiddlePanel={
-            <VariablesPanel
-              selectedRigId={selectedRigId}
-              selectedPoseId={selectedPoseId}
-              selectedSceneId={selectedSceneId}
-              onSelectRig={handleSelectRigWithInspectorSync}
-              onSelectPose={handleSelectPoseWithInspectorSync}
-              onSelectScene={handleSelectObjectWithInspectorSync}
-              availableSurfaces={inputControlSurfaces}
-              panelTitle="Input Controls"
-              panelDescription="Preview and adjust live rig and pose-weight inputs plus procedural animation I/O."
-              onClosePanel={handleHideInputControlsPanel}
-              motionGraphActive={effectiveMotionGraphPanelVisible}
-              animationActive={effectiveAnimationPanelVisible}
-              centerAuthoringMode={centerAuthoringMode}
-              runtimeFaceId={faceId}
-              enableMotionGraphPruning={
-                !editingProfileId && !editingSkillId && !editingAdaptation
-              }
-              onSelectMotionGraphNode={
-                handleSelectMotionGraphNodeWithInspectorSync
-              }
-            />
-          }
-          leftBottomVisible={effectiveControlAuthoringPanelVisible}
-          viewport={viewportContent}
-          bottomVisible={effectiveAnimationPanelVisible}
-          bottomPanel={
-            <AnimationPanel
-              onClosePanel={handleHideAnimationPanel}
-              onInspectTrack={handleInspectAnimationTrackFromTimeline}
-              playbackState={selectedAnimationPanelPlaybackState}
-              onPlayTransport={
-                resolvedSelectedAnimationTargetId
-                  ? handlePlayAnimationRuntime
-                  : undefined
-              }
-              onPauseTransport={
-                selectedAnimationCanPauseOrStop
-                  ? handlePauseAnimationRuntime
-                  : undefined
-              }
-              onStopTransport={
-                selectedAnimationCanPauseOrStop
-                  ? handleStopAnimationRuntime
-                  : undefined
-              }
-              statusMessage={animationPanelStatusMessage}
-            />
-          }
-          centerPanelDefaultSize={centerPanelDefaultSize}
-          // Right
-          rightTopVisible={false}
-          rightTopPanel={null}
-          rightBottomVisible={
-            (effectiveMotionGraphPanelVisible &&
-              effectiveMotionGraphPalettePanelVisible) ||
-            effectiveInspectorPanelVisible ||
-            effectiveSpeechPanelVisible ||
-            effectiveDebugPanelVisible
-          }
-          rightSidebarDefaultSize={rightSidebarDefaultSize}
-          rightSidebarResetKey={rightSidebarResetKey}
-          rightBottomPanel={
-            <div className="flex h-full min-h-0 flex-col">
-              {effectiveMotionGraphPanelVisible &&
-              effectiveMotionGraphPalettePanelVisible ? (
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <MotionGraphPalettePanel
-                    onClosePanel={handleHideMotionGraphPalettePanel}
-                  />
-                </div>
-              ) : null}
-              {effectiveMotionGraphPanelVisible &&
-              effectiveMotionGraphPalettePanelVisible &&
-              (effectiveInspectorPanelVisible ||
-                effectiveSpeechPanelVisible ||
-                effectiveDebugPanelVisible) ? (
-                <div className="border-t border-border-default/70" />
-              ) : null}
-              {effectiveInspectorPanelVisible ? (
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <InspectorPanel
-                    activeInspectorTarget={activeInspectorTarget}
-                    selectedPoseGroup={selectedPoseGroup}
-                    onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
-                    selectedBlendStage={selectedBlendStage}
-                    onSelectBlendStage={handleSelectBlendStageWithInspectorSync}
-                    selectedAnimationTarget={selectedAnimationInspectorTarget}
-                    onRenameAnimationTarget={handleRenameAnimationTarget}
-                    onUpdateAnimationTargetDuration={
-                      handleUpdateAnimationTargetDuration
-                    }
-                    onInspectAnimationTrack={
-                      handleInspectAnimationTrackFromInspector
-                    }
-                    onInspectAnimationInput={
-                      handleInspectInputFromAuthoringInspector
-                    }
-                    selectedProgramTarget={selectedProgramInspectorTarget}
-                    onRenameProgramTarget={handleRenameProgramTarget}
-                    onInspectProgramNode={handleInspectProgramNodeFromInspector}
-                    onInspectProgramInput={
-                      handleInspectInputFromAuthoringInspector
-                    }
-                    hasReferenceFaceFile={Boolean(
-                      referenceFaceContextValue.file,
-                    )}
-                    onClosePanel={handleHideInspectorPanel}
-                  />
-                </div>
-              ) : null}
-              {effectiveSpeechPanelVisible ? (
-                <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
-                  <SpeechPanel onClosePanel={handleHideSpeechPanel} />
-                </div>
-              ) : null}
-              {effectiveDebugPanelVisible ? (
-                <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
-                  <DebugPanel
-                    rootId={loader.rootId}
-                    loadedBundle={loader.bundle}
-                    updateBundle={loader.updateBundle}
-                    isLoading={loader.isLoading}
-                    onClosePanel={handleHideDebugPanel}
-                  />
-                </div>
-              ) : null}
-            </div>
-          }
+                onSelectMotionGraphNode={
+                  handleSelectMotionGraphNodeWithInspectorSync
+                }
+              />
+            }
+            leftBottomVisible={effectiveControlAuthoringPanelVisible}
+            viewport={viewportContent}
+            bottomVisible={effectiveAnimationPanelVisible}
+            bottomPanel={
+              <AnimationPanel
+                onClosePanel={handleHideAnimationPanel}
+                onInspectTrack={handleInspectAnimationTrackFromTimeline}
+                playbackState={selectedAnimationPanelPlaybackState}
+                onPlayTransport={
+                  resolvedSelectedAnimationTargetId
+                    ? handlePlayAnimationRuntime
+                    : undefined
+                }
+                onPauseTransport={
+                  selectedAnimationCanPauseOrStop
+                    ? handlePauseAnimationRuntime
+                    : undefined
+                }
+                onStopTransport={
+                  selectedAnimationCanPauseOrStop
+                    ? handleStopAnimationRuntime
+                    : undefined
+                }
+                statusMessage={animationPanelStatusMessage}
+              />
+            }
+            centerPanelDefaultSize={centerPanelDefaultSize}
+            // Right
+            rightTopVisible={false}
+            rightTopPanel={null}
+            rightBottomVisible={
+              (effectiveMotionGraphPanelVisible &&
+                effectiveMotionGraphPalettePanelVisible) ||
+              effectiveInspectorPanelVisible ||
+              effectiveSpeechPanelVisible ||
+              effectiveDebugPanelVisible
+            }
+            rightSidebarDefaultSize={rightSidebarDefaultSize}
+            rightSidebarResetKey={rightSidebarResetKey}
+            rightBottomPanel={
+              <div className="flex h-full min-h-0 flex-col">
+                {effectiveMotionGraphPanelVisible &&
+                effectiveMotionGraphPalettePanelVisible ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <MotionGraphPalettePanel
+                      onClosePanel={handleHideMotionGraphPalettePanel}
+                    />
+                  </div>
+                ) : null}
+                {effectiveMotionGraphPanelVisible &&
+                effectiveMotionGraphPalettePanelVisible &&
+                (effectiveInspectorPanelVisible ||
+                  effectiveSpeechPanelVisible ||
+                  effectiveDebugPanelVisible) ? (
+                  <div className="border-t border-border-default/70" />
+                ) : null}
+                {effectiveInspectorPanelVisible ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <InspectorPanel
+                      activeInspectorTarget={activeInspectorTarget}
+                      selectedPoseGroup={selectedPoseGroup}
+                      onSelectPoseGroup={handleSelectPoseGroupWithInspectorSync}
+                      selectedBlendStage={selectedBlendStage}
+                      onSelectBlendStage={
+                        handleSelectBlendStageWithInspectorSync
+                      }
+                      selectedAnimationTarget={selectedAnimationInspectorTarget}
+                      onRenameAnimationTarget={handleRenameAnimationTarget}
+                      onUpdateAnimationTargetDuration={
+                        handleUpdateAnimationTargetDuration
+                      }
+                      onInspectAnimationTrack={
+                        handleInspectAnimationTrackFromInspector
+                      }
+                      onInspectAnimationInput={
+                        handleInspectInputFromAuthoringInspector
+                      }
+                      selectedProgramTarget={selectedProgramInspectorTarget}
+                      onRenameProgramTarget={handleRenameProgramTarget}
+                      onInspectProgramNode={
+                        handleInspectProgramNodeFromInspector
+                      }
+                      onInspectProgramInput={
+                        handleInspectInputFromAuthoringInspector
+                      }
+                      hasReferenceFaceFile={Boolean(
+                        referenceFaceContextValue.file,
+                      )}
+                      onClosePanel={handleHideInspectorPanel}
+                    />
+                  </div>
+                ) : null}
+                {effectiveSpeechPanelVisible ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
+                    <SpeechPanel onClosePanel={handleHideSpeechPanel} />
+                  </div>
+                ) : null}
+                {effectiveDebugPanelVisible ? (
+                  <div className="flex-1 min-h-0 overflow-y-auto border-t border-border-default/70">
+                    <DebugPanel
+                      rootId={loader.rootId}
+                      loadedBundle={loader.bundle}
+                      updateBundle={loader.updateBundle}
+                      isLoading={loader.isLoading}
+                      onClosePanel={handleHideDebugPanel}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            }
+          />
+        </SharedVariableSyncProvider>
+
+        <AppWizards
+          showExportDialog={showExportDialog}
+          onCloseExportDialog={() => setShowExportDialog(false)}
+          rootId={rootId}
+          exportSceneRoot={exportSceneRoot}
+          runtimeExportBodies={runtimeExportBodies}
+          sourceName={sourceName}
+          loadedBundle={loadedBundle}
+          authoredAnimationClips={authoredAnimationClipsForExport}
+          authoredProceduralPrograms={authoredProceduralProgramsForExport}
+          activeMotionGraphId={activeMotionGraphIdForExport}
+          canExport={canExport}
+          handleImportPoseGraphFile={handleImportPoseGraphFile}
+          poseGraphRemap={poseGraphRemap}
+          handlePoseGraphRemapApply={handlePoseGraphRemapApply}
+          handlePoseGraphRemapCancel={handlePoseGraphRemapCancel}
+          onExportGlbComplete={markGlbExportSaved}
+          registerGlbExportHandler={handleRegisterGlbExportHandler}
         />
-      </SharedVariableSyncProvider>
 
-      <AppWizards
-        showExportDialog={showExportDialog}
-        onCloseExportDialog={() => setShowExportDialog(false)}
-        rootId={rootId}
-        exportSceneRoot={exportSceneRoot}
-        runtimeExportBodies={runtimeExportBodies}
-        sourceName={sourceName}
-        loadedBundle={loadedBundle}
-        authoredAnimationClips={authoredAnimationClipsForExport}
-        authoredProceduralPrograms={authoredProceduralProgramsForExport}
-        activeMotionGraphId={activeMotionGraphIdForExport}
-        canExport={canExport}
-        handleImportPoseGraphFile={handleImportPoseGraphFile}
-        poseGraphRemap={poseGraphRemap}
-        handlePoseGraphRemapApply={handlePoseGraphRemapApply}
-        handlePoseGraphRemapCancel={handlePoseGraphRemapCancel}
-        onExportGlbComplete={markGlbExportSaved}
-        registerGlbExportHandler={handleRegisterGlbExportHandler}
-      />
+        <OrientationConfirmationDialog
+          open={showOrientationDialog}
+          onClose={handleOrientationDialogClose}
+          axisDegrees={orientationAxisDegrees}
+          axisAvailability={orientationAxisAvailability}
+          onRotateAxis={handleRotateSceneOrientation}
+        />
 
-      <OrientationConfirmationDialog
-        open={showOrientationDialog}
-        onClose={handleOrientationDialogClose}
-        axisDegrees={orientationAxisDegrees}
-        axisAvailability={orientationAxisAvailability}
-        onRotateAxis={handleRotateSceneOrientation}
-      />
-
-      {/* Hidden File Input for Import */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        accept=".glb,.gltf"
-        data-testid="app-import-file-input"
-        onChange={(e) => void handleFileChange(e)}
-      />
-      {/* Hidden file input for "Replace <profile> from JSON..." */}
-      <input
-        type="file"
-        ref={profileJsonInputRef}
-        className="hidden"
-        accept=".json"
-        data-testid="app-profile-json-input"
-        onChange={handleProfileJsonFileChange}
-      />
-      {/* Hidden file input for "Replace <skill> from JSON..." */}
-      <input
-        type="file"
-        ref={skillJsonInputRef}
-        className="hidden"
-        accept=".json"
-        data-testid="app-skill-json-input"
-        onChange={handleSkillJsonFileChange}
-      />
-      <ProfileImportDialog
-        open={profileImportOpen}
-        onClose={() => setProfileImportOpen(false)}
-        available={availableProfiles}
-        declaredIds={declaredProfileIds}
-        onImport={(id) => void importProfile(id).then(handleProfileDeclared)}
-        onImportFile={handleImportProfileJson}
-      />
-      {/* Hidden file input for "Import Profile from JSON..." */}
-      <input
-        type="file"
-        ref={profileImportInputRef}
-        className="hidden"
-        accept=".json"
-        data-testid="app-profile-import-input"
-        onChange={handleProfileImportFileChange}
-      />
-      {/* Hidden file input for "Replace Adaptation from JSON..." */}
-      <input
-        type="file"
-        ref={adaptationJsonInputRef}
-        className="hidden"
-        accept=".json"
-        data-testid="app-adaptation-json-input"
-        onChange={handleAdaptationJsonFileChange}
-      />
+        {/* Hidden File Input for Import */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept=".glb,.gltf"
+          data-testid="app-import-file-input"
+          onChange={(e) => void handleFileChange(e)}
+        />
+        {/* Hidden file input for "Replace <profile> from JSON..." */}
+        <input
+          type="file"
+          ref={profileJsonInputRef}
+          className="hidden"
+          accept=".json"
+          data-testid="app-profile-json-input"
+          onChange={handleProfileJsonFileChange}
+        />
+        {/* Hidden file input for "Replace <skill> from JSON..." */}
+        <input
+          type="file"
+          ref={skillJsonInputRef}
+          className="hidden"
+          accept=".json"
+          data-testid="app-skill-json-input"
+          onChange={handleSkillJsonFileChange}
+        />
+        <ProfileImportDialog
+          open={profileImportOpen}
+          onClose={() => setProfileImportOpen(false)}
+          available={availableProfiles}
+          declaredIds={declaredProfileIds}
+          onImport={(id) => void importProfile(id).then(handleProfileDeclared)}
+          onImportFile={handleImportProfileJson}
+        />
+        {/* Hidden file input for "Import Profile from JSON..." */}
+        <input
+          type="file"
+          ref={profileImportInputRef}
+          className="hidden"
+          accept=".json"
+          data-testid="app-profile-import-input"
+          onChange={handleProfileImportFileChange}
+        />
+        {/* Hidden file input for "Replace Adaptation from JSON..." */}
+        <input
+          type="file"
+          ref={adaptationJsonInputRef}
+          className="hidden"
+          accept=".json"
+          data-testid="app-adaptation-json-input"
+          onChange={handleAdaptationJsonFileChange}
+        />
+      </DeclaredProfilesProvider>
     </ReferenceFaceProvider>
   );
 }
