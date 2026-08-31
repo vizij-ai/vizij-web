@@ -34,9 +34,13 @@ struct AppState {
     /// registry (advertised keys + methods) is updated live; the serve loop is
     /// started/stopped under `cancel_token`.
     ws_server: Arc<AroraWSServer>,
-    /// Governs the WS serve loop and the WS bridge pump (the start/stop lifecycle).
+    /// Governs the WS serve loop and the device run (the start/stop lifecycle).
     /// `Some` iff the host is running.
     cancel_token: StdMutex<Option<CancellationToken>>,
+    /// The device thread of the running host, joined on stop so the arora —
+    /// with its WS bridge and ROS 2 participant — is fully gone before a
+    /// rebuild binds and joins the graph again.
+    device_thread: StdMutex<Option<std::thread::JoinHandle<()>>>,
     #[cfg(feature = "ros2")]
     ros2_domain_id: u16,
     #[cfg(feature = "ros2")]
@@ -591,11 +595,23 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
     // before the serve loop, which snapshots those handlers once at startup.
     let ws_bridge = WsBridge::new(ws_server.clone()).await;
 
-    let listener = match ws_server.bind().await {
-        Ok(listener) => listener,
-        Err(e) => {
-            *app.state::<AppState>().cancel_token.lock().unwrap() = None;
-            return Err(e);
+    // The previous serve loop releases the port on its next poll after a stop;
+    // a rebuild that follows a stop immediately retries the bind briefly.
+    let listener = {
+        let mut attempt = 0;
+        loop {
+            match ws_server.bind().await {
+                Ok(listener) => break listener,
+                Err(e) if attempt < 20 => {
+                    attempt += 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    log::debug!("WS bind retry {attempt}: {e}");
+                }
+                Err(e) => {
+                    *app.state::<AppState>().cancel_token.lock().unwrap() = None;
+                    return Err(e);
+                }
+            }
         }
     };
 
@@ -628,7 +644,7 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
             (state.ros2_namespace.clone(), state.ros2_domain_id)
         };
         let device_cancel = cancel.child_token();
-        std::thread::Builder::new()
+        let device_thread = std::thread::Builder::new()
             .name("arora-device".into())
             .spawn(move || {
                 let rt = match tokio::runtime::Builder::new_multi_thread()
@@ -656,13 +672,31 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
                         // against this device's described methods at startup.
                         let mut config = Ros2BridgeConfig::new(namespace, domain_id)
                             .with_profile(ExposureProfile::ros4hri());
+                        let mut declared = 0usize;
                         for key in keys {
                             // Only input keys accept inbound commands (become
                             // subscribed topics); outputs publish on demand.
                             if key.kind.as_deref() == Some("input") {
                                 let value_type = key.value_type.clone().unwrap_or(Type::F64);
                                 config = config.with_input(key.path.clone(), value_type);
+                                declared += 1;
                             }
+                        }
+                        // The webview advertises its keys as f64: the input
+                        // topics subscribe std_msgs/Float64 (`ros2 topic info -v`
+                        // shows each topic's type).
+                        if declared == 0 {
+                            log::warn!(
+                                "ROS 2: no input topics yet — the webview has not advertised \
+                                 its key catalog; the run rebuilds once it does"
+                            );
+                        } else {
+                            log::info!(
+                                "ROS 2: {declared} input keys subscribed under /{}/keys/<path> \
+                                 (f64 keys as std_msgs/Float64), plus the ROS4HRI typed topics \
+                                 and the /skill/look_at action",
+                                config.namespace
+                            );
                         }
                         builder = builder.with_bridge(Box::new(Ros2Bridge::new(config).await));
                     }
@@ -681,6 +715,7 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
                 });
             })
             .map_err(|e| format!("failed to spawn the device thread: {e}"))?;
+        *app.state::<AppState>().device_thread.lock().unwrap() = Some(device_thread);
     }
 
     if emit_started {
@@ -693,15 +728,23 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
 
 /// Stop the bridge host: cancel the WS serve loop + all pumps.
 async fn stop_host(app: &AppHandle) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let token = state.cancel_token.lock().unwrap().take();
-    if let Some(token) = token {
-        token.cancel();
-        info!("Bridge host stop requested");
-        Ok(())
-    } else {
-        Err("Connection servers are not running".to_string())
+    let (token, device_thread) = {
+        let state = app.state::<AppState>();
+        let token = state.cancel_token.lock().unwrap().take();
+        let device_thread = state.device_thread.lock().unwrap().take();
+        (token, device_thread)
+    };
+    let Some(token) = token else {
+        return Err("Connection servers are not running".to_string());
+    };
+    token.cancel();
+    info!("Bridge host stop requested");
+    // Wait for the device to be gone — its arora, WS bridge, and ROS 2
+    // participant drop with the thread — so a rebuild starts from nothing.
+    if let Some(handle) = device_thread {
+        let _ = tokio::task::spawn_blocking(move || handle.join()).await;
     }
+    Ok(())
 }
 
 // =============================================================================
@@ -1577,6 +1620,7 @@ pub fn run() {
                 store: store.clone(),
                 ws_server,
                 cancel_token: StdMutex::new(None),
+                device_thread: StdMutex::new(None),
                 #[cfg(feature = "ros2")]
                 ros2_domain_id: cli.ros2_domain_id,
                 #[cfg(feature = "ros2")]
