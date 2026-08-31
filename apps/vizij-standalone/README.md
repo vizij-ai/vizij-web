@@ -138,12 +138,38 @@ the standalone joins the ROS graph as a ROS4HRI face renderer:
   reset, priorities, standard error codes) and the device's described task-run
   methods (e.g. `say`) under `/{namespace}/actions/...`
 - **data topics** — every key under `/{namespace}/keys/...`: the device
-  publishes each changed key and subscribes to the input keys (declared up
-  front from the key catalog; a changed catalog rebuilds the run)
+  publishes each changed key and subscribes to the **input** keys the webview
+  advertised (declared up front from the key catalog; a changed catalog
+  rebuilds the run). Advertised keys are `f64`, so their input topics are
+  `std_msgs/msg/Float64` — `ros2 topic info -v <topic>` shows each topic's
+  type and the bridge's subscription; a publisher of another type
+  (e.g. `Float32`) never matches
 - the `reset` / `speak` / `mute` / `transport` app methods stay on the
   WebSocket (and Studio) bridge — they are WS-registry methods, not device
   methods
 - the namespace defaults to `vizij`; the DDS domain defaults to `0`
+- a `ros2-zenoh` build reaches the rmw_zenoh router through the Zenoh session
+  config, e.g. `ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/localhost:7447"]'`
+
+### Which keys a remote write actually moves
+
+A key's value is what its **last writer in the step** left there, so pick
+keys nobody else owns:
+
+- keys the device's **ROS4HRI profile** writes every step — the
+  `standard/vizij/*` expressions, gaze, lids, visemes, muscle tier — cannot be
+  driven directly; drive them through the ROS4HRI topics
+  (`/robot_face/expression`, `/robot_face/look_at`, …) that feed the profile;
+- keys the face's **autoplaying program** writes every frame (on the reference
+  Quori face: the `standard/vizij/mouth|*_eye*|*_brow*|*_eyelid*` controls)
+  are the program's outputs; drive its **inputs** instead
+  (`standard/vmotion/idle/*`, `speech/speaking`, `speech/user_speaking`,
+  `speech/thinking`) — `vizij-bundle unpack face.glb` lists every graph's
+  output paths;
+- `propsrig/*` are the rig's computed actuation values, not inputs.
+
+A key nobody drives — a face input control the program leaves alone — takes
+a remote write and holds it.
 
 Relevant files:
 
@@ -523,7 +549,7 @@ WebSocket/manual panel checks:
 - call `reset` from the panel or `wscat`
 - if a bundle contains transport items, verify the Transport tab can list, play, pause, and stop them
 
-ROS2 check (topics and the served actions):
+ROS2 check (topics and the served actions; note the `Float64`):
 
 ```bash
 # with the app running (default `ros2` feature), from src-tauri/:
