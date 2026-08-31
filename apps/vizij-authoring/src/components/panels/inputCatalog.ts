@@ -34,6 +34,15 @@ export interface InputCatalogRow {
   provenance?: string;
   editable: boolean;
   selectable: boolean;
+  /**
+   * Whether anything downstream derives from this input.
+   *
+   * `false` means the control exists but drives nothing — the state a profile's
+   * controls arrive in, and the state a rig input is left in when its binding is
+   * removed. Undefined for rows where the question does not apply (a derived
+   * pose output is downstream by construction).
+   */
+  driven?: boolean;
 }
 
 export interface InputCatalogTreeNode {
@@ -155,6 +164,9 @@ function buildManagedInputRows(
           : undefined,
         editable: true,
         selectable: true,
+        // `derivedChildren` is every input that names this one as its source,
+        // so an empty list is precisely "nothing reads this".
+        driven: (entry.input.derivedChildren?.length ?? 0) > 0,
       } satisfies InputCatalogRow;
     });
 }

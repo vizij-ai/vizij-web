@@ -19,6 +19,7 @@ import {
   Trash2,
   Search,
   Sliders,
+  Unplug,
   Users,
   X,
   Camera,
@@ -2878,6 +2879,18 @@ function FlatInputControlRow({
       <div className="flex items-center gap-1.5 min-w-0">
         <Sliders size={12} className="text-cyan-300 shrink-0" />
         <span className="text-xs text-text-primary truncate">{row.label}</span>
+        {row.driven === false ? (
+          // The control exists but nothing downstream reads it — the state a
+          // profile's controls arrive in, and where a rig input lands when its
+          // binding is removed. Worth marking: moving the slider does nothing.
+          <Unplug
+            size={11}
+            className="text-amber-300 shrink-0"
+            aria-label="Not connected"
+          >
+            <title>Not connected — nothing reads this input yet</title>
+          </Unplug>
+        ) : null}
         <div className="ml-auto flex items-center gap-1 shrink-0">
           {actions}
         </div>
