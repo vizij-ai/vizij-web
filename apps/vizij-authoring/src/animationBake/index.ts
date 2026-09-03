@@ -7,3 +7,4 @@ export * from "./decimateClip";
 export * from "./graphEvaluatorDevice";
 export * from "./bakeAuthoredClips";
 export * from "./bakeGraphSources";
+export * from "./bakeHazards";

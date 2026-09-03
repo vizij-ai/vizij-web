@@ -12,6 +12,11 @@ import {
   type DecimateReport,
 } from "./decimateClip";
 import {
+  describeBakeHazards,
+  detectBakeHazards,
+  type BakeHazard,
+} from "./bakeHazards";
+import {
   createDeviceGraphEvaluator,
   measurePropagationTicks,
 } from "./graphEvaluatorDevice";
@@ -61,6 +66,12 @@ export interface BakeAuthoredClipsReport {
    * the bundle keeps them losslessly while the baked GLB cannot.
    */
   droppedChannels: BakeSkippedChannel[];
+  /**
+   * Nodes that make the bake approximate rather than exact — rate-dependent
+   * or clock-driven. Reported so the preflight can say so, since the result
+   * still looks like a clean bake.
+   */
+  hazards: BakeHazard[];
 }
 
 export interface BakeAuthoredClipsResult {
@@ -107,6 +118,7 @@ export async function bakeAuthoredClips(options: {
         propagationTicks: 0,
         outcomes: [],
         droppedChannels: [],
+        hazards: [],
       },
     };
   }
@@ -188,6 +200,7 @@ export async function bakeAuthoredClips(options: {
       propagationTicks,
       outcomes,
       droppedChannels: [...dropped.values()],
+      hazards: detectBakeHazards(options.spec),
     },
   };
 }
@@ -213,6 +226,7 @@ export function summarizeBakeReport(report: BakeAuthoredClipsReport): string[] {
       lines.push(`  dropped track ${issue.trackName} (${issue.reason})`);
     }
   }
+  lines.push(...describeBakeHazards(report.hazards, report.fps));
   if (report.droppedChannels.length > 0) {
     lines.push("Channels with no glTF equivalent:");
     for (const entry of report.droppedChannels) {
