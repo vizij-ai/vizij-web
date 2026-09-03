@@ -1,0 +1,28 @@
+/*
+ * Styles for the `@semio/animation` adoption spike only — see
+ * docs/plans/TIMELINE_ADOPTION_PLAN_2026-09-03.md.
+ *
+ * Kept out of the app's global stylesheet on purpose: their `theme.css` is an
+ * `@theme` block defining `--color-primary` and friends, which would override
+ * our own tokens app-wide if imported globally. The spike must not change how
+ * the rest of the app looks.
+ *
+ * Both entries work around a packaging bug rather than using the intended
+ * entry points, which do not resolve for consumers:
+ *
+ * - `@semio/animation/styles.css` and `/theme.css` map to a `src` directory
+ *   that is not shipped in the published tarball;
+ * - `@semio/animation/dist/theme.css` exists on disk but is absent from the
+ *   package's `exports` map, so a bare specifier is rejected ("Missing
+ *   ./dist/theme.css specifier").
+ *
+ * So the theme is imported by relative path, which bypasses `exports`, and
+ * their compiled component class names are scanned out of `dist` so Tailwind
+ * emits the utilities they use. Verified working: their `grid w-full` computes
+ * as `display: grid`.
+ *
+ * Adoption needs this fixed upstream, or a committed pnpm patch.
+ */
+@source "../../../../node_modules/@semio/animation/dist";
+@source "../../../../node_modules/@semio/ui/dist";
+@import "../../../../node_modules/@semio/animation/dist/theme.css";
