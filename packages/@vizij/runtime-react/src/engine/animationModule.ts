@@ -538,7 +538,10 @@ function fieldNumber(value: AroraValueJSON | undefined): number | null {
   if (!value || typeof value !== "object") {
     return null;
   }
-  for (const key of ["u64", "u32", "f32", "f64"]) {
+  // `u64`/`u32`/`f32` are the module ABI's encodings; `float` is the store's
+  // `ValueJSON` encoding, which is what a read-back through the value store
+  // produces. Both reach this decoder depending on the route the feedback took.
+  for (const key of ["u64", "u32", "f32", "f64", "float"]) {
     if (key in value) {
       const parsed = Number((value as Record<string, unknown>)[key]);
       return Number.isFinite(parsed) ? parsed : null;
@@ -547,49 +550,135 @@ function fieldNumber(value: AroraValueJSON | undefined): number | null {
   return null;
 }
 
+function fieldText(value: AroraValueJSON | undefined): string {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+  const record = value as Record<string, unknown>;
+  // `str` is the module ABI encoding; `text` is the store's.
+  for (const key of ["str", "text"]) {
+    if (typeof record[key] === "string") {
+      return record[key] as string;
+    }
+  }
+  return "";
+}
+
+/**
+ * Reads one PlayerState from a field map, whatever route it arrived by.
+ * Returns null when the entry carries no player id, which is the only
+ * genuinely unusable case.
+ */
+function playerStateFromFields(
+  byId: Map<string, AroraValueJSON>,
+): AnimationPlayerState | null {
+  const player = fieldNumber(byId.get(ANIMATION_MODULE_FIELD.statePlayer));
+  if (player === null) {
+    return null;
+  }
+  return {
+    player,
+    state: fieldText(byId.get(ANIMATION_MODULE_FIELD.stateState)),
+    time:
+      (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateTimeNs)) ?? 0) / 1e9,
+    duration:
+      (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateDurationNs)) ?? 0) /
+      1e9,
+    speed: fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateSpeed)) ?? 1,
+  };
+}
+
+/**
+ * Field map for one element in the module ABI encoding
+ * (`{ fields: [{ id, value }] }`).
+ */
+function fieldsToMap(fields: unknown): Map<string, AroraValueJSON> | null {
+  if (!Array.isArray(fields)) {
+    return null;
+  }
+  const byId = new Map<string, AroraValueJSON>();
+  for (const entry of fields) {
+    const id = (entry as { id?: unknown })?.id;
+    const value = (entry as { value?: unknown })?.value;
+    if (typeof id === "string" && value && typeof value === "object") {
+      byId.set(id, value as AroraValueJSON);
+    }
+  }
+  return byId;
+}
+
+/**
+ * Field map for one element in the store's `ValueJSON` encoding
+ * (`{ record: { <fieldId>: value } }`).
+ */
+function recordToMap(element: unknown): Map<string, AroraValueJSON> | null {
+  if (!element || typeof element !== "object") {
+    return null;
+  }
+  const record = (element as { record?: unknown }).record;
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return null;
+  }
+  const byId = new Map<string, AroraValueJSON>();
+  for (const [id, value] of Object.entries(record as Record<string, unknown>)) {
+    if (value && typeof value === "object") {
+      byId.set(id, value as AroraValueJSON);
+    }
+  }
+  return byId;
+}
+
 /**
  * Decode the `[PlayerState]` value the animations source writes to
  * `ANIMATION_PLAYERS_PATH` (a `structs` of the declared PlayerState type).
  * Tolerant: unknown shapes decode to an empty list.
  */
 export function decodePlayerStates(raw: unknown): AnimationPlayerState[] {
-  if (!raw || typeof raw !== "object" || !("structs" in raw)) {
+  if (!raw || typeof raw !== "object") {
     return [];
   }
-  const structs = (raw as { structs?: { elements?: unknown } }).structs;
-  const elements = Array.isArray(structs?.elements) ? structs.elements : [];
+
+  // Two encodings reach here. The module ABI form
+  // (`{ structs: { elements: [{ fields: [...] }] } }`) is what an
+  // ExternalFunction returns directly. The store form
+  // (`{ list | array: [{ record: {...} }] }`) is what a read-back from the
+  // value store produces, because the feedback is written through an `output`
+  // node. Supporting only the first silently yields no player states, which
+  // reads downstream as a playhead parked at 0.
+  const container = raw as Record<string, unknown>;
   const states: AnimationPlayerState[] = [];
-  for (const element of elements) {
-    const fields = (element as { fields?: unknown })?.fields;
-    if (!Array.isArray(fields)) {
-      continue;
-    }
-    const byId = new Map<string, AroraValueJSON>();
-    for (const entry of fields) {
-      const id = (entry as { id?: unknown })?.id;
-      const value = (entry as { value?: unknown })?.value;
-      if (typeof id === "string" && value && typeof value === "object") {
-        byId.set(id, value as AroraValueJSON);
+
+  const structs = container.structs as { elements?: unknown } | undefined;
+  if (structs && Array.isArray(structs.elements)) {
+    for (const element of structs.elements) {
+      const byId = fieldsToMap((element as { fields?: unknown })?.fields);
+      const state = byId ? playerStateFromFields(byId) : null;
+      if (state) {
+        states.push(state);
       }
     }
-    const player = fieldNumber(byId.get(ANIMATION_MODULE_FIELD.statePlayer));
-    if (player === null) {
-      continue;
+    return states;
+  }
+
+  const elements = Array.isArray(container.list)
+    ? container.list
+    : Array.isArray(container.array)
+      ? container.array
+      : null;
+  if (!elements) {
+    return states;
+  }
+  for (const element of elements) {
+    const byId =
+      recordToMap(element) ??
+      fieldsToMap(
+        (element as { struct?: { fields?: unknown } })?.struct?.fields ??
+          (element as { fields?: unknown })?.fields,
+      );
+    const state = byId ? playerStateFromFields(byId) : null;
+    if (state) {
+      states.push(state);
     }
-    const stateValue = byId.get(ANIMATION_MODULE_FIELD.stateState);
-    states.push({
-      player,
-      state:
-        stateValue && "str" in stateValue
-          ? String((stateValue as { str: unknown }).str)
-          : "",
-      time:
-        (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateTimeNs)) ?? 0) / 1e9,
-      duration:
-        (fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateDurationNs)) ?? 0) /
-        1e9,
-      speed: fieldNumber(byId.get(ANIMATION_MODULE_FIELD.stateSpeed)) ?? 1,
-    });
   }
   return states;
 }

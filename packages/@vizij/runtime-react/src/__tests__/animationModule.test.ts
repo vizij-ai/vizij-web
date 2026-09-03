@@ -301,6 +301,90 @@ describe("animationsGraphSource", () => {
   });
 });
 
+describe("decodePlayerStates (store ValueJSON encoding)", () => {
+  // The feedback reaches the host through an `output` node, so a read-back
+  // from the value store arrives in the store's `ValueJSON` vocabulary rather
+  // than the module ABI's `structs` form. Decoding only the latter yields no
+  // player states, which downstream reads as a playhead parked at 0.
+  const storeElement = (
+    player: number,
+    state: string,
+    timeNs: number,
+    durationNs: number,
+    speed: number,
+  ) => ({
+    record: {
+      [ANIMATION_MODULE_FIELD.statePlayer]: { float: player },
+      [ANIMATION_MODULE_FIELD.stateState]: { text: state },
+      [ANIMATION_MODULE_FIELD.stateTimeNs]: { float: timeNs },
+      [ANIMATION_MODULE_FIELD.stateDurationNs]: { float: durationNs },
+      [ANIMATION_MODULE_FIELD.stateSpeed]: { float: speed },
+    },
+  });
+
+  it("decodes a list of records", () => {
+    const states = decodePlayerStates({
+      list: [storeElement(3, "playing", 500_000_000, 2_000_000_000, 1.5)],
+    });
+    expect(states).toEqual([
+      { player: 3, state: "playing", time: 0.5, duration: 2, speed: 1.5 },
+    ]);
+  });
+
+  it("decodes an array of records", () => {
+    const states = decodePlayerStates({
+      array: [storeElement(1, "paused", 250_000_000, 1_000_000_000, 1)],
+    });
+    expect(states).toHaveLength(1);
+    expect(states[0]).toMatchObject({ player: 1, state: "paused", time: 0.25 });
+  });
+
+  it("decodes several players and preserves order", () => {
+    const states = decodePlayerStates({
+      list: [
+        storeElement(0, "playing", 0, 1_000_000_000, 1),
+        storeElement(7, "stopped", 1_000_000_000, 1_000_000_000, 2),
+      ],
+    });
+    expect(states.map((entry) => entry.player)).toEqual([0, 7]);
+    expect(states[1]).toMatchObject({ state: "stopped", time: 1, speed: 2 });
+  });
+
+  it("skips entries without a player id rather than inventing one", () => {
+    const states = decodePlayerStates({
+      list: [
+        {
+          record: { [ANIMATION_MODULE_FIELD.stateState]: { text: "playing" } },
+        },
+        storeElement(4, "playing", 0, 0, 1),
+      ],
+    });
+    expect(states.map((entry) => entry.player)).toEqual([4]);
+  });
+
+  it("defaults missing optional fields instead of producing NaN", () => {
+    const states = decodePlayerStates({
+      list: [
+        { record: { [ANIMATION_MODULE_FIELD.statePlayer]: { float: 2 } } },
+      ],
+    });
+    expect(states[0]).toEqual({
+      player: 2,
+      state: "",
+      time: 0,
+      duration: 0,
+      speed: 1,
+    });
+  });
+
+  it("returns an empty list for shapes it does not recognise", () => {
+    expect(decodePlayerStates({ float: 1 })).toEqual([]);
+    expect(decodePlayerStates({ list: [{ float: 1 }] })).toEqual([]);
+    expect(decodePlayerStates(null)).toEqual([]);
+    expect(decodePlayerStates("nope")).toEqual([]);
+  });
+});
+
 describe("decodePlayerStates", () => {
   it("decodes the declared PlayerState structs", () => {
     const states = decodePlayerStates({
