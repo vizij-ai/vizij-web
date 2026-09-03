@@ -442,6 +442,7 @@ export function AnimationPanel({
         <TimelineEditor
           onSeek={handleSeek}
           onPause={handleTimelinePause}
+          onResume={handlePlay}
           timeDisplayMode={timeDisplayMode}
           onInspectTrack={onInspectTrack}
         />
