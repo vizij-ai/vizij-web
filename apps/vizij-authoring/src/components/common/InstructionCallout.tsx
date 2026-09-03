@@ -1,136 +1,62 @@
-import { Collapsible as BaseCollapsible } from "@base-ui/react";
-import { ChevronRight } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
-import { cn } from "../../utils/cn";
+import type { ReactNode } from "react";
+import { CollapsibleGroup } from "../ui/CollapsibleGroup";
 
-interface InstructionCalloutProps {
+export interface InstructionCalloutProps {
   label: string;
   summary?: string;
   children: ReactNode;
   defaultOpen?: boolean;
-  size?: "default" | "compact";
-  isOpen?: boolean;
-  trigger?: "self" | "external";
-  contentId?: string;
-  onToggle?: (nextOpen: boolean) => void;
   icon?: ReactNode;
 }
 
+/**
+ * Collapsible "how to use this" callout.
+ *
+ * This was a 160-line second implementation of `CollapsibleGroup` — its own
+ * `CollapsibleRoot`/`Trigger`/`Content`, its own chevron, its own copy of the
+ * enter/exit animation string. Its docblock justified the fork with four
+ * capabilities `CollapsibleGroup` lacks: optional controlled state
+ * (`isOpen`/`onToggle`), a `trigger="external"` mode, a caller-supplied
+ * `contentId`, and an `icon` slot.
+ *
+ * Three of the four had **no consumers**. `trigger`, `isOpen`, `onToggle` and
+ * `contentId` were exercised only by the stories written to document them; all
+ * five real call sites (`DebugPanel` ×4, `ExportDialog` ×1) pass nothing but
+ * `label`, `summary`, `icon` and children. So rather than widen
+ * `CollapsibleGroup` to absorb them, they are deleted.
+ *
+ * `size` was worse than unused — it was read at exactly one place, inside the
+ * `trigger="external"` branch, choosing `p-3` over `p-4`. Every real call site
+ * passed `size="compact"` and none of them ever got anything for it.
+ *
+ * That leaves `icon`, which was real, so it moved to `CollapsibleGroup` where
+ * both components can use it. This file is now a rename with a content wrapper —
+ * the same shape `SidebarSection` already had, and the reason the callouts now
+ * look like every other collapsible section in the app instead of almost like
+ * them.
+ *
+ * The one thing genuinely lost: `trigger="external"` rendered a `<section>` with
+ * no trigger at all — a static accent-tinted box, not a collapsible. If that
+ * affordance is ever wanted it should come back as its own component rather than
+ * as a mode of this one, because nothing about it collapses.
+ */
 export function InstructionCallout({
   label,
   summary,
   children,
   defaultOpen = false,
-  size = "default",
-  isOpen,
-  trigger = "self",
-  contentId,
-  onToggle,
   icon,
 }: InstructionCalloutProps) {
-  const generatedId = useId();
-  const resolvedContentId = contentId ?? generatedId;
-  const isControlled = typeof isOpen === "boolean";
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const open = isControlled ? isOpen : internalOpen;
-  const isExternalTrigger = trigger === "external";
-
-  const handleOpenChange = (next: boolean) => {
-    if (isControlled) {
-      onToggle?.(next);
-      return;
-    }
-    setInternalOpen(next);
-    onToggle?.(next);
-  };
-
-  // If externally triggered, we just render the content based on open state
-  if (isExternalTrigger) {
-    return (
-      <section
-        className={cn(
-          "flex flex-col gap-2 rounded-xl border border-accent/20 bg-accent-subtle mb-4",
-          size === "compact" ? "p-3" : "p-4",
-          !open && "hidden",
-        )}
-        data-open={open ? "true" : undefined}
-      >
-        <div className="flex flex-col items-start gap-1">
-          <div className="flex items-center gap-2">
-            {icon && <span className="text-accent">{icon}</span>}
-            <span className="text-xs font-bold text-accent uppercase tracking-wide">
-              {label}
-            </span>
-          </div>
-          {summary ? (
-            <span className="text-[11px] text-accent/60 leading-tight">
-              {summary}
-            </span>
-          ) : null}
-        </div>
-        <div
-          id={resolvedContentId}
-          className="mt-2 text-text-primary text-xs leading-relaxed"
-        >
-          {children}
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <BaseCollapsible.Root
-      defaultOpen={defaultOpen}
-      open={isControlled ? isOpen : undefined}
-      onOpenChange={handleOpenChange}
-      className={cn(
-        "rounded-xl border border-border-default bg-bg-panel/50 overflow-hidden mb-4 transition-all duration-200 group",
-        "data-[state=open]:bg-bg-panel data-[state=open]:border-border-default",
-      )}
+    <CollapsibleGroup
+      title={label}
+      subtitle={summary}
+      defaultCollapsed={!defaultOpen}
+      icon={icon}
     >
-      <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-bg-secondary/50 group">
-        <div className="flex items-center gap-3">
-          {icon && (
-            <div
-              className={cn(
-                "text-text-muted transition-colors",
-                "group-data-[state=open]:text-accent",
-              )}
-            >
-              {icon}
-            </div>
-          )}
-          <div className="flex flex-col gap-0.5">
-            <span
-              className={cn(
-                "text-[11px] font-bold uppercase tracking-wider transition-colors",
-                "group-data-[state=open]:text-text-primary",
-                "group-data-[state=closed]:text-text-muted group-data-[state=closed]:group-hover:text-text-secondary",
-              )}
-            >
-              {label}
-            </span>
-            {summary ? (
-              <span className="text-[10px] text-text-muted font-medium">
-                {summary}
-              </span>
-            ) : null}
-          </div>
-        </div>
-        <ChevronRight
-          className={cn(
-            "h-3.5 w-3.5 text-text-muted transition-transform duration-200",
-            "group-data-[state=open]:rotate-90 group-data-[state=open]:text-accent",
-          )}
-        />
-      </BaseCollapsible.Trigger>
-
-      <BaseCollapsible.Panel
-        id={resolvedContentId}
-        className="data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200 px-4 pb-4 pt-1 text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none border-t border-border-default/50 mt-1"
-      >
+      <div className="text-[11px] text-text-secondary leading-relaxed space-y-2 max-w-none">
         {children}
-      </BaseCollapsible.Panel>
-    </BaseCollapsible.Root>
+      </div>
+    </CollapsibleGroup>
   );
 }

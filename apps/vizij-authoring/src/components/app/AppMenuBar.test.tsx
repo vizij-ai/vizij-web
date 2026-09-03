@@ -13,6 +13,24 @@ import {
 import { useThemeStore } from "../../state/themeStore";
 import { AppMenuBar } from "./AppMenuBar";
 
+/**
+ * Open a top-level menu.
+ *
+ * `MenuBar` is built on radix's Menubar, whose `Trigger` opens on `pointerdown`
+ * (and on Enter/Space/ArrowDown) rather than on a bare `click`. A real browser
+ * click fires pointerdown first, so the Playwright suite drives the same path
+ * unchanged; `fireEvent.click` on its own would never open the menu.
+ *
+ * Only top-level triggers need this. Items and submenu triggers do respond to
+ * `click`, so those call sites are left as they are.
+ */
+function openMenu(testId: string) {
+  fireEvent.pointerDown(screen.getByTestId(testId), {
+    button: 0,
+    ctrlKey: false,
+  });
+}
+
 function renderMenuBar() {
   return render(
     <AppMenuBar
@@ -68,7 +86,7 @@ describe("AppMenuBar", () => {
   it("shows the updated panel labels in the View menu", async () => {
     renderMenuBar();
 
-    fireEvent.click(screen.getByTestId("app-menu-view"));
+    openMenu("app-menu-view");
 
     expect(await screen.findByText("Face Elements")).toBeTruthy();
     expect(screen.getByText("Authoring")).toBeTruthy();
@@ -87,7 +105,7 @@ describe("AppMenuBar", () => {
   it("shows all authoring surfaces in the Authoring flyout", async () => {
     renderMenuBar();
 
-    fireEvent.click(screen.getByTestId("app-menu-view"));
+    openMenu("app-menu-view");
 
     const controlAuthoringTrigger = await screen.findByRole("menuitem", {
       name: "Authoring",
@@ -106,11 +124,11 @@ describe("AppMenuBar", () => {
   it("moves rotation, highlight, and theme toggles into Settings", async () => {
     renderMenuBar();
 
-    fireEvent.click(screen.getByTestId("app-menu-view"));
+    openMenu("app-menu-view");
     expect(screen.queryByText("Show Rotation in Degrees")).toBeNull();
     expect(screen.queryByText("Highlight Selected")).toBeNull();
 
-    fireEvent.click(screen.getByTestId("app-menu-settings"));
+    openMenu("app-menu-settings");
 
     expect(await screen.findByText("Show Rotation in Degrees")).toBeTruthy();
     expect(screen.getByText("Highlight Selected")).toBeTruthy();
@@ -120,7 +138,7 @@ describe("AppMenuBar", () => {
   it("treats Program as a center-panel mode and reveals the Node Palette", async () => {
     renderMenuBar();
 
-    fireEvent.click(screen.getByTestId("app-menu-view"));
+    openMenu("app-menu-view");
     fireEvent.click(await screen.findByText("Program"));
 
     const panels = useWorkspaceStore.getState().panels;

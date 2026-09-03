@@ -1,9 +1,18 @@
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType, ReactNode } from "react";
 import { cn } from "../../utils/cn";
 
-interface EmptyStateProps {
-  icon?: LucideIcon;
+/**
+ * Structural icon type rather than `LucideIcon`, so any icon library whose
+ * components accept `size`/`className` is assignable — lucide-react today,
+ * @tabler/icons-react (what @semio/ui ships) without a signature change.
+ */
+export type EmptyStateIcon = ComponentType<{
+  size?: number | string;
+  className?: string;
+}>;
+
+export interface EmptyStateProps {
+  icon?: EmptyStateIcon;
   iconSize?: number;
   title: string;
   description?: string;

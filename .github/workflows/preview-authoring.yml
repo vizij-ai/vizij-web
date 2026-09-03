@@ -1,0 +1,88 @@
+# Deploys a Firebase Hosting preview channel for vizij-authoring and lets the
+# action post the URL as a PR comment. Everything it needs already exists in
+# apps/vizij-authoring/{firebase.json,.firebaserc} — project `semio-vizij`,
+# site `vizij-workspace`, SPA rewrites, and the COOP/COEP headers the WASM
+# runtime requires. Preview channels inherit that same config, so a preview
+# behaves like production rather than being a subtly different build.
+
+name: preview (vizij-authoring)
+
+on:
+  pull_request:
+    paths:
+      - "apps/vizij-authoring/**"
+      # The app consumes five workspace packages. A fix in @vizij/render changes
+      # what the app does and is exactly the sort of thing worth eyeballing in a
+      # preview, so filtering on the app folder alone would skip the previews you
+      # most want. This branch is the proof: it edits
+      # packages/@vizij/render/public/styles.css and pnpm-lock.yaml.
+      - "packages/@vizij/render/**"
+      - "packages/@vizij/utils/**"
+      - "packages/@vizij/runtime-react/**"
+      - "packages/@vizij/node-graph-react/**"
+      - "packages/@vizij/node-graph-authoring/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/preview-authoring.yml"
+
+concurrency:
+  # One live preview per PR. A new push replaces the old channel rather than
+  # racing it.
+  group: preview-authoring-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Fork PRs get no secrets, so the deploy would fail on a missing service
+    # account rather than do anything dangerous. Skipped explicitly so the
+    # failure is not mistaken for a broken build.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write # the action posts the preview URL as a comment
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only the workspace packages. firebase.json already carries
+      #   "predeploy": ["pnpm --filter vizij-authoring build"]
+      # and `hosting:channel:deploy` runs predeploy hooks, so building the app
+      # here too would just build it twice.
+      - run: pnpm run build:packages
+
+      # A missing service account is a setup gap, not a build failure. Reported
+      # as a skip with an actionable message rather than a red X on every PR
+      # until someone provisions the secret.
+      - name: Check for the deploy credential
+        id: cred
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ }}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ secret, so no preview was deployed. Add a Firebase service-account JSON with the Hosting Admin role as a repository secret to enable PR previews."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.cred.outputs.present == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ }}
+          projectId: semio-vizij
+          target: vizij-workspace
+          channelId: pr-${{ github.event.number }}
+          # Long enough to outlive a slow review. Channels auto-delete, so this
+          # is the whole cleanup story.
+          expires: 30d
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks

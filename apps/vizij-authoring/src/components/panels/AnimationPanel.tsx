@@ -7,10 +7,9 @@ import {
   Square,
   StepForward,
   Trash2,
-  X,
 } from "lucide-react";
 import type { ManagedStandardInput } from "../../types/standardInputs";
-import { Panel } from "../ui/Panel";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { TimelineEditor } from "../animation/TimelineEditor";
@@ -285,28 +284,17 @@ export function AnimationPanel({
       >
         <Settings2 className="h-3.5 w-3.5" />
       </Button>
-      {onClosePanel ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          data-testid="animation-panel-hide"
-          className="h-6 w-6 text-text-secondary hover:text-text-primary"
-          onClick={onClosePanel}
-          title="Hide panel"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      ) : null}
     </div>
   );
 
   return (
-    <Panel
+    <WorkbenchPanel
       data-testid="animation-panel"
       title="Animation"
       description="Author and preview animation clips through runtime transport."
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
       actions={actions}
+      onClose={onClosePanel}
+      closeTestId="animation-panel-hide"
       badge={formatPlaybackClock(currentTime, timeDisplayMode)}
     >
       <div className="flex h-full flex-col gap-2 p-1">
@@ -473,6 +461,6 @@ export function AnimationPanel({
           </div>
         </Modal>
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }

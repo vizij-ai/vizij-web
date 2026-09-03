@@ -1,12 +1,5 @@
-import {
-  ArrowLeftRight,
-  ArrowUpDown,
-  Pause,
-  Play,
-  Square,
-  X,
-} from "lucide-react";
-import { Panel } from "../components/ui/Panel";
+import { ArrowLeftRight, ArrowUpDown, Pause, Play, Square } from "lucide-react";
+import { WorkbenchPanel } from "../components/editor/molecules/WorkbenchPanel";
 import { Button } from "../components/ui/Button";
 import { useGraphRuntime } from "../state/RigControllerProvider";
 import EditorCanvas from "./components/EditorCanvas";
@@ -127,27 +120,20 @@ export function MotionGraphPanel({
           {splitVertical ? "Horizontal Split" : "Vertical Split"}
         </Button>
       ) : null}
-      {onClosePanel ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          data-testid="motiongraph-panel-hide"
-          className="h-8 w-8 text-text-secondary hover:text-text-primary"
-          onClick={onClosePanel}
-          title="Hide panel"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      ) : null}
     </div>
   );
   return (
-    <Panel
+    <WorkbenchPanel
       data-testid="motiongraph-panel-shell"
       title="Program"
       description="Author procedural animation programs in the workspace canvas."
-      className="h-full min-h-0 border-none bg-transparent shadow-none p-0"
+      fill="full"
       actions={actions}
+      onClose={onClosePanel}
+      closeTestId="motiongraph-panel-hide"
+      // The header's other controls are `size="sm"` (h-7/h-9), so the standard
+      // h-6 close button would read as an afterthought beside them.
+      closeClassName="h-8 w-8"
     >
       {statusMessage ? (
         <p className="px-1 pb-2 text-[11px] text-text-secondary">
@@ -160,7 +146,7 @@ export function MotionGraphPanel({
       >
         <EditorCanvas onSelectNode={onSelectNode} />
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }
 
@@ -170,23 +156,10 @@ export function MotionGraphPalettePanel({
   onClosePanel?: () => void;
 }) {
   return (
-    <Panel
+    <WorkbenchPanel
       title="Node Palette"
       description="Drag graph nodes into the active program."
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-      actions={
-        onClosePanel ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-text-secondary hover:text-text-primary"
-            onClick={onClosePanel}
-            title="Hide panel"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null
-      }
+      onClose={onClosePanel}
     >
       <div
         data-testid="motiongraph-palette-panel"
@@ -194,6 +167,6 @@ export function MotionGraphPalettePanel({
       >
         <NodePalette />
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }

@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vizij-authoring",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "NODE_ENV=development pnpm --filter vizij-authoring dev --port 5175 --strictPort"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "vizij-authoring-storybook",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "pnpm --filter vizij-authoring run storybook"],
+      "port": 6006
+    }
+  ]
+}

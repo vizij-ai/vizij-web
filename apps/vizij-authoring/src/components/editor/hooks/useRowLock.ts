@@ -1,0 +1,115 @@
+import { useCallback, useMemo } from "react";
+
+/**
+ * How a host application stores lock state.
+ *
+ * `useRowLock` owns the *aggregation* (is this whole row locked? what does
+ * toggling it mean when only some of its channels are locked?) and knows nothing
+ * about where locks live. A host passes two accessors; anything from a zustand
+ * store to a plain `Set` in local state satisfies this.
+ */
+export interface RowLockSource {
+  /** Is this single target currently locked? */
+  isTargetLocked: (targetId: string) => boolean;
+  /** Lock or unlock a single target. Called once per lockable target. */
+  setTargetLocked: (targetId: string, locked: boolean) => void;
+}
+
+export interface RowLockState {
+  /**
+   * The subset of the requested targets that can actually be locked —
+   * `null`/`undefined`/empty entries are dropped. A row whose channels are not
+   * yet bound to anything has an empty list and cannot be toggled.
+   */
+  lockableTargetIds: string[];
+  /** How many of `lockableTargetIds` are currently locked. */
+  lockedCount: number;
+  /**
+   * True when there is at least one lockable target and *all* of them are
+   * locked. This is the state a single row-level lock affordance renders.
+   */
+  isLocked: boolean;
+  /** Some but not all targets are locked — the indeterminate state. */
+  isPartiallyLocked: boolean;
+  /** False when there is nothing to lock; drives `disabled` on the control. */
+  canToggle: boolean;
+  /** Lock everything if not already fully locked, otherwise unlock everything. */
+  toggle: () => void;
+  /** Force every lockable target to `locked`. Used by Lock-All/Unlock-All. */
+  setLocked: (locked: boolean) => void;
+}
+
+/**
+ * Aggregate lock state for a row that owns one or more lockable channels.
+ *
+ * Editor rows come in two shapes and this hook covers both without branching at
+ * the call site:
+ *
+ * - **single channel** (a scalar property) — pass one id. `isLocked` is just
+ *   "that id is locked".
+ * - **multi channel** (a vector or colour property) — pass every component's
+ *   id. `isLocked` means *all* of them are locked, which is the semantics a
+ *   single row-level padlock needs; `isPartiallyLocked` exposes the mixed case
+ *   for hosts that want to render it.
+ *
+ * `toggle()` is all-or-nothing on purpose: it drives the row's own padlock, not
+ * the per-channel pills. For those, iterate the channels and call
+ * `setTargetLocked` directly (see `ChannelLockStrip`).
+ */
+export function useRowLock(
+  targetIds: ReadonlyArray<string | null | undefined>,
+  { isTargetLocked, setTargetLocked }: RowLockSource,
+): RowLockState {
+  const lockableTargetIds = useMemo(
+    () =>
+      targetIds.filter((targetId): targetId is string => {
+        return typeof targetId === "string" && targetId.trim().length > 0;
+      }),
+    // `targetIds` is almost always a fresh array literal, so memoising on the
+    // array identity would never hit. Memoise on the contents instead; these
+    // lists are 1–3 entries in practice.
+    //
+    // NUL is the separator because a target id may contain any printable
+    // character, and any printable delimiter lets two different lists collapse
+    // onto one key (`["a b", "c"]` and `["a", "b c"]` are both `"a b c"` under a
+    // space). Written as the escape, not a literal control byte — a raw NUL makes
+    // git classify the file as binary, costing diffs and blame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [targetIds.join("\u0000")],
+  );
+
+  const lockedCount = lockableTargetIds.reduce(
+    (count, targetId) => (isTargetLocked(targetId) ? count + 1 : count),
+    0,
+  );
+
+  const canToggle = lockableTargetIds.length > 0;
+  const isLocked = canToggle && lockedCount === lockableTargetIds.length;
+  const isPartiallyLocked = lockedCount > 0 && !isLocked;
+
+  const setLocked = useCallback(
+    (locked: boolean) => {
+      if (lockableTargetIds.length === 0) {
+        return;
+      }
+      lockableTargetIds.forEach((targetId) => {
+        setTargetLocked(targetId, locked);
+      });
+    },
+    [lockableTargetIds, setTargetLocked],
+  );
+
+  const toggle = useCallback(() => {
+    setLocked(!isLocked);
+  }, [isLocked, setLocked]);
+
+  return {
+    lockableTargetIds,
+    lockedCount,
+    isLocked,
+    isPartiallyLocked,
+    canToggle,
+    toggle,
+    setLocked,
+  };
+}

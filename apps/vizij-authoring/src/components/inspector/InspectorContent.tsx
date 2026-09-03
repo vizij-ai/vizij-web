@@ -70,7 +70,8 @@ import {
 } from "../../poseRig/utils";
 import { EmptyState } from "../ui/EmptyState";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
-import { RiggingPropertyRow } from "./RiggingPropertyRow";
+import { PropertyRow } from "../editor/molecules/PropertyRow";
+import { BothFacesField } from "./BothFacesField";
 import { VariableSelector, type VariableSelection } from "./VariableSelector";
 import { InspectorHeader } from "./InspectorHeader";
 import { RiggingTransformSection } from "./RiggingTransformSection";
@@ -79,9 +80,9 @@ import { RiggingMorphTargetsSection } from "./RiggingMorphTargetsSection";
 import { VariablePipelineStages } from "./VariablePipelineStages";
 import {
   RiggingMaterialSection,
-  RiggingScalarRow,
   RiggingColorRow,
 } from "./RiggingMaterialSection";
+import { RiggingScalarRow } from "./RiggingScalarRow";
 import {
   collectDirectDownstreamRigInputs,
   collectDirectRigDependents,
@@ -190,6 +191,14 @@ const POSE_VALUE_PRECISION_FORMAT = {
   minimumFractionDigits: 4,
   maximumFractionDigits: 4,
 } as const;
+
+/**
+ * The fixed numeric column beside an inspector slider. Reads
+ * `--editor-numeric-width` (see `editor/THEMING.md`) so the sizing travels with
+ * the markup instead of coming from an app-global class.
+ */
+const NUMERIC_CONTROL_CLASS =
+  "flex-[0_0_var(--editor-numeric-width,88px)] w-[var(--editor-numeric-width,88px)] min-w-[var(--editor-numeric-width,88px)] max-w-full";
 
 function extractComponentIdFromInputSourceId(
   sourceId: string | null | undefined,
@@ -415,7 +424,7 @@ function PoseVariableExpandedControls({
   );
 
   return (
-    <div className="grid grid-cols-1 gap-2 inspector-row-hit-target sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
+    <div className="grid grid-cols-1 gap-2 min-h-[var(--editor-row-min-height,32px)] sm:grid-cols-[104px_minmax(0,1fr)_94px_138px] sm:items-center">
       <span
         className="text-[9px] uppercase tracking-wide font-bold text-text-muted whitespace-nowrap"
         title={poseSemanticTooltips.target}
@@ -453,7 +462,7 @@ function PoseVariableExpandedControls({
         />
       </div>
       <div
-        className="inspector-numeric-control min-w-0"
+        className={NUMERIC_CONTROL_CLASS}
         onMouseDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -2147,60 +2156,20 @@ export function InspectorContent({
         {renderAuthoringStatus()}
         {renderRigScopeTabs(showScopeTabs)}
         {showScopeTabs && onSharedCombinedValueChange ? (
-          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-              Both Faces Value
-            </span>
-            <div className="flex items-center gap-2">
-              <Slider
-                value={displaySharedCombinedValue}
-                min={displayMin}
-                max={displayMax}
-                step={step}
-                defaultValue={toDisplayValue(input.defaultValue, input.path)}
-                fillMode="value"
-                className="flex-1"
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(
-                    clampToRange(
-                      fromDisplayValue(
-                        typeof nextValue === "number"
-                          ? nextValue
-                          : (nextValue[0] ?? 0),
-                        input.path,
-                      ),
-                      min,
-                      max,
-                    ),
-                  )
-                }
-              />
-              <NumberField
-                value={displaySharedCombinedValue}
-                min={displayMin}
-                max={displayMax}
-                step={step}
-                size="sm"
-                className="w-[108px]"
-                allowScrub={false}
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(
-                    clampToRange(
-                      fromDisplayValue(nextValue, input.path),
-                      min,
-                      max,
-                    ),
-                  )
-                }
-              />
-            </div>
-            {!rigValuesMatch ? (
-              <span className="text-[10px] text-amber-100">
-                Faces are currently controlled individually. Set this slider to
-                re-sync both.
-              </span>
-            ) : null}
-          </div>
+          <BothFacesField
+            label="Both Faces Value"
+            value={displaySharedCombinedValue}
+            min={displayMin}
+            max={displayMax}
+            step={step}
+            defaultValue={toDisplayValue(input.defaultValue, input.path)}
+            onChange={(nextValue) =>
+              onSharedCombinedValueChange(
+                clampToRange(fromDisplayValue(nextValue, input.path), min, max),
+              )
+            }
+            desynced={!rigValuesMatch}
+          />
         ) : null}
 
         <div className="flex flex-col gap-3 p-2">
@@ -2368,51 +2337,21 @@ export function InspectorContent({
         {renderAuthoringStatus()}
         {renderPoseScopeTabs(showScopeTabs)}
         {showScopeTabs && onSharedCombinedValueChange ? (
-          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-              Both Faces Weight
-            </span>
-            <div className="flex items-center gap-2">
-              <Slider
-                min={0}
-                max={1}
-                step={0.01}
-                value={sharedCombinedValue}
-                fillMode="value"
-                className="flex-1"
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(
-                    clamp01(
-                      typeof nextValue === "number"
-                        ? nextValue
-                        : (nextValue[0] ?? 0),
-                    ),
-                  )
-                }
-              />
-              <NumberField
-                value={sharedCombinedValue}
-                min={0}
-                max={1}
-                step={0.01}
-                size="sm"
-                className="w-[92px]"
-                allowScrub={false}
-                onChange={(nextValue) =>
-                  onSharedCombinedValueChange(clamp01(nextValue))
-                }
-              />
-            </div>
-            {!poseWeightsMatch ? (
-              <span className="text-[10px] text-amber-100">
-                Faces are currently controlled individually. Set this slider to
-                re-sync both.
-              </span>
-            ) : null}
-          </div>
+          <BothFacesField
+            label="Both Faces Weight"
+            value={sharedCombinedValue}
+            min={0}
+            max={1}
+            step={0.01}
+            numberFieldClassName="w-[92px]"
+            onChange={(nextValue) =>
+              onSharedCombinedValueChange(clamp01(nextValue))
+            }
+            desynced={!poseWeightsMatch}
+          />
         ) : null}
         <div className="flex flex-col gap-3 p-2">
-          <RiggingPropertyRow
+          <PropertyRow
             label="Reference Weight"
             onScrub={(_, totalDelta) =>
               setReferencePoseWeightValue(
@@ -2421,7 +2360,7 @@ export function InspectorContent({
               )
             }
             renderMainInput={() => (
-              <div className="flex flex-wrap items-center gap-2 flex-1 group/row inspector-row-hit-target">
+              <div className="flex flex-wrap items-center gap-2 flex-1 group/row min-h-[var(--editor-row-min-height,32px)]">
                 <Slider
                   min={0}
                   max={1}
@@ -2440,7 +2379,7 @@ export function InspectorContent({
                     )
                   }
                 />
-                <div className="inspector-numeric-control flex-shrink-0">
+                <div className={NUMERIC_CONTROL_CLASS}>
                   <NumberField
                     value={referencePoseWeightValue}
                     min={0}
@@ -2958,48 +2897,18 @@ export function InspectorContent({
         {renderAuthoringStatus()}
         {renderPoseScopeTabs(showReferencePoseTab)}
         {showReferencePoseTab ? (
-          <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-            <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-              Both Faces Weight
-            </span>
-            <div className="flex items-center gap-2">
-              <Slider
-                min={0}
-                max={1}
-                step={0.01}
-                value={sharedPoseCombinedValue}
-                fillMode="value"
-                className="flex-1"
-                onChange={(nextValue) =>
-                  handleSharedPoseWeightChange(
-                    typeof nextValue === "number"
-                      ? nextValue
-                      : (nextValue[0] ?? 0),
-                  )
-                }
-              />
-              <NumberField
-                value={sharedPoseCombinedValue}
-                min={0}
-                max={1}
-                step={0.01}
-                size="sm"
-                className="w-[92px]"
-                allowScrub={false}
-                onChange={(nextValue) =>
-                  handleSharedPoseWeightChange(nextValue)
-                }
-              />
-            </div>
-            {!poseWeightsMatch ? (
-              <span className="text-[10px] text-amber-100">
-                Faces are currently controlled individually. Set this slider to
-                re-sync both.
-              </span>
-            ) : null}
-          </div>
+          <BothFacesField
+            label="Both Faces Weight"
+            value={sharedPoseCombinedValue}
+            min={0}
+            max={1}
+            step={0.01}
+            numberFieldClassName="w-[92px]"
+            onChange={handleSharedPoseWeightChange}
+            desynced={!poseWeightsMatch}
+          />
         ) : null}
-        <RiggingPropertyRow
+        <PropertyRow
           label="Set Pose Percentage:"
           onScrub={(_, totalDelta) => {
             // Blend based on delta (assuming 100px = 100% blend)
@@ -3011,7 +2920,7 @@ export function InspectorContent({
           }}
           renderMainInput={() => (
             <div
-              className="flex flex-1 flex-col gap-1.5 group/row inspector-row-hit-target"
+              className="flex flex-1 flex-col gap-1.5 group/row min-h-[var(--editor-row-min-height,32px)]"
               title={poseSemanticTooltips.contribution}
             >
               <div className="flex items-center gap-2">
@@ -3037,7 +2946,7 @@ export function InspectorContent({
                 />
               </div>
               <div className="pl-8">
-                <div className="inspector-numeric-control w-[84px] flex-shrink-0">
+                <div className={NUMERIC_CONTROL_CLASS}>
                   <Input
                     size="sm"
                     type="text"
@@ -4803,53 +4712,23 @@ export function InspectorContent({
           {renderAuthoringStatus()}
           {renderRigScopeTabs(showReferenceRigTab)}
           {showReferenceRigTab ? (
-            <div className="mx-1 mb-2 flex flex-col gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2">
-              <span className="text-[10px] uppercase tracking-wider text-cyan-100">
-                Both Faces Value
-              </span>
-              <div className="flex items-center gap-2">
-                <Slider
-                  value={rigDisplaySharedCombinedValue}
-                  min={rigDisplayMin}
-                  max={rigDisplayMax}
-                  step={rigDisplayStep}
-                  defaultValue={rigDisplayDefault}
-                  fillMode="value"
-                  className="flex-1"
-                  onChange={(nextValue) =>
-                    handleSharedRigValueChange(
-                      fromDisplayValue(
-                        typeof nextValue === "number"
-                          ? nextValue
-                          : (nextValue[0] ?? 0),
-                        input.path,
-                      ),
-                    )
-                  }
-                />
-                <NumberField
-                  value={rigDisplaySharedCombinedValue}
-                  min={rigDisplayMin}
-                  max={rigDisplayMax}
-                  step={rigDisplayStep}
-                  size="sm"
-                  className="w-[108px]"
-                  allowScrub={false}
-                  onChange={(nextValue) =>
-                    handleSharedRigValueChange(
-                      fromDisplayValue(nextValue, input.path),
-                    )
-                  }
-                />
-              </div>
-              {referenceSharedValue !== null &&
-              Math.abs(value - referenceSharedValue) > SYNC_VALUE_EPSILON ? (
-                <span className="text-[10px] text-amber-100">
-                  Faces are currently controlled individually. Set this slider
-                  to re-sync both.
-                </span>
-              ) : null}
-            </div>
+            <BothFacesField
+              label="Both Faces Value"
+              value={rigDisplaySharedCombinedValue}
+              min={rigDisplayMin}
+              max={rigDisplayMax}
+              step={rigDisplayStep}
+              defaultValue={rigDisplayDefault}
+              onChange={(nextValue) =>
+                handleSharedRigValueChange(
+                  fromDisplayValue(nextValue, input.path),
+                )
+              }
+              desynced={
+                referenceSharedValue !== null &&
+                Math.abs(value - referenceSharedValue) > SYNC_VALUE_EPSILON
+              }
+            />
           ) : null}
           <CollapsibleGroup
             title="Driver Metadata"

@@ -1,7 +1,8 @@
 import { useMemo, useState, useCallback } from "react";
 import { Palette, Box, Plus } from "lucide-react";
 import { useSceneComposer } from "../../scene/useSceneComposer";
-import { Panel, PanelSearch, TreeRow, Button } from "../ui";
+import { PanelSearch, TreeRow, Button } from "../ui";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 
 export function MaterialsPanel() {
@@ -42,8 +43,7 @@ export function MaterialsPanel() {
   }, [materials, search]);
 
   return (
-    <Panel
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+    <WorkbenchPanel
       title="Materials"
       description="Manage shared materials and surface properties."
     >
@@ -112,6 +112,6 @@ export function MaterialsPanel() {
           </div>
         </div>
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }

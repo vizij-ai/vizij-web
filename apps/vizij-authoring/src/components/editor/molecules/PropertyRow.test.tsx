@@ -1,9 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  CommitOnBlurNumberInput,
-  RiggingPropertyRow,
-} from "./RiggingPropertyRow";
+import { CommitOnBlurNumberInput, PropertyRow } from "./PropertyRow";
 
 afterEach(() => {
   cleanup();
@@ -57,13 +54,13 @@ describe("CommitOnBlurNumberInput", () => {
   });
 });
 
-describe("RiggingPropertyRow", () => {
+describe("PropertyRow", () => {
   it("toggles expanded sections from the row but not from number fields or row actions", () => {
     const handleCommit = vi.fn();
     const handleLockClick = vi.fn();
 
     render(
-      <RiggingPropertyRow
+      <PropertyRow
         label="Position"
         renderMainInput={() => (
           <CommitOnBlurNumberInput

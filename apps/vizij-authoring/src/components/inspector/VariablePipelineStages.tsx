@@ -3,6 +3,7 @@ import { ArrowRight, Plus, Trash2 } from "lucide-react";
 import { Button, CollapsibleGroup, CollapsibleRow, TextArea } from "../ui";
 import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
+import { PropertyGrid } from "../editor/molecules/PropertyGrid";
 import { Switch } from "../ui/Switch";
 import type { RotationDisplayMode } from "../../state/AuthoringUiProvider";
 import {
@@ -318,30 +319,36 @@ function LinkControlEditor({
           ) : null}
         </div>
       </div>
-      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Scale</span>
-        <NumberField
-          size="sm"
-          value={linkControl.scale}
-          step={0.01}
-          commitMode="blur"
-          allowScrub={false}
-          onChange={(value) => linkControl.onScaleChange?.(value)}
-          disabled={!linkControl.enabled}
+      <PropertyGrid>
+        <PropertyGrid.Row
+          label="Scale"
+          value={
+            <NumberField
+              size="sm"
+              value={linkControl.scale}
+              step={0.01}
+              commitMode="blur"
+              allowScrub={false}
+              onChange={(value) => linkControl.onScaleChange?.(value)}
+              disabled={!linkControl.enabled}
+            />
+          }
         />
-      </div>
-      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Offset</span>
-        <NumberField
-          size="sm"
-          value={linkControl.offset}
-          step={0.01}
-          commitMode="blur"
-          allowScrub={false}
-          onChange={(value) => linkControl.onOffsetChange?.(value)}
-          disabled={!linkControl.enabled}
+        <PropertyGrid.Row
+          label="Offset"
+          value={
+            <NumberField
+              size="sm"
+              value={linkControl.offset}
+              step={0.01}
+              commitMode="blur"
+              allowScrub={false}
+              onChange={(value) => linkControl.onOffsetChange?.(value)}
+              disabled={!linkControl.enabled}
+            />
+          }
         />
-      </div>
+      </PropertyGrid>
     </div>
   );
 }
@@ -377,46 +384,56 @@ function ParentDirectControlEditor({
   return (
     <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1">
       <div className="text-[10px] text-text-secondary">Parent direct input</div>
-      <div className="grid grid-cols-[58px_minmax(0,1fr)_72px] items-center gap-2">
-        <span className="text-[10px] text-text-secondary">Value</span>
-        <Slider
-          min={displayMin}
-          max={displayMax}
-          step={displayStep}
-          value={displayValue}
-          defaultValue={
-            typeof directControl.defaultValue === "number"
-              ? toDisplayValue(
-                  directControl.defaultValue,
-                  directControl.path,
-                  rotationDisplayMode,
+      <PropertyGrid>
+        <PropertyGrid.Row
+          label="Value"
+          control={
+            <Slider
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              value={displayValue}
+              defaultValue={
+                typeof directControl.defaultValue === "number"
+                  ? toDisplayValue(
+                      directControl.defaultValue,
+                      directControl.path,
+                      rotationDisplayMode,
+                    )
+                  : undefined
+              }
+              onChange={(value) =>
+                directControl.onValueChange?.(
+                  fromDisplayValue(
+                    value as number,
+                    directControl.path,
+                    rotationDisplayMode,
+                  ),
                 )
-              : undefined
+              }
+            />
           }
-          onChange={(value) =>
-            directControl.onValueChange?.(
-              fromDisplayValue(
-                value as number,
-                directControl.path,
-                rotationDisplayMode,
-              ),
-            )
-          }
-        />
-        <NumberField
-          size="sm"
-          value={displayValue}
-          min={displayMin}
-          max={displayMax}
-          step={displayStep}
-          allowScrub={false}
-          onChange={(value) =>
-            directControl.onValueChange?.(
-              fromDisplayValue(value, directControl.path, rotationDisplayMode),
-            )
+          value={
+            <NumberField
+              size="sm"
+              value={displayValue}
+              min={displayMin}
+              max={displayMax}
+              step={displayStep}
+              allowScrub={false}
+              onChange={(value) =>
+                directControl.onValueChange?.(
+                  fromDisplayValue(
+                    value,
+                    directControl.path,
+                    rotationDisplayMode,
+                  ),
+                )
+              }
+            />
           }
         />
-      </div>
+      </PropertyGrid>
     </div>
   );
 }
@@ -942,26 +959,32 @@ export function VariablePipelineStages({
                   ) : undefined
                 }
                 expandedContent={
-                  <div className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-2">
-                    <Slider
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={pose.weight}
-                      onChange={(value) =>
-                        pose.onWeightChange?.(value as number)
+                  <PropertyGrid columns="control-value-actions">
+                    <PropertyGrid.Row
+                      control={
+                        <Slider
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={pose.weight}
+                          onChange={(value) =>
+                            pose.onWeightChange?.(value as number)
+                          }
+                        />
+                      }
+                      value={
+                        <NumberField
+                          size="sm"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={pose.weight}
+                          allowScrub={false}
+                          onChange={pose.onWeightChange}
+                        />
                       }
                     />
-                    <NumberField
-                      size="sm"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={pose.weight}
-                      allowScrub={false}
-                      onChange={pose.onWeightChange}
-                    />
-                  </div>
+                  </PropertyGrid>
                 }
               />
             ))}
@@ -1006,55 +1029,61 @@ export function VariablePipelineStages({
         <code className="text-[10px] text-text-muted break-all">
           Path: {directInputPath}
         </code>
-        <div
-          className="grid grid-cols-[minmax(0,1fr)_90px_auto] items-center gap-2"
-          title={directControlReason ?? undefined}
-        >
-          <Slider
-            min={currentDisplayMin}
-            max={currentDisplayMax}
-            step={currentDisplayStep}
-            value={currentDisplayValue}
-            defaultValue={currentDisplayDefault}
-            onChange={(value) =>
-              onDirectValueChange(
-                fromDisplayValue(
-                  value as number,
-                  rotationDisplayPath,
-                  rotationDisplayMode,
-                ),
-              )
+        <PropertyGrid columns="control-value-actions">
+          <PropertyGrid.Row
+            title={directControlReason ?? undefined}
+            control={
+              <Slider
+                min={currentDisplayMin}
+                max={currentDisplayMax}
+                step={currentDisplayStep}
+                value={currentDisplayValue}
+                defaultValue={currentDisplayDefault}
+                onChange={(value) =>
+                  onDirectValueChange(
+                    fromDisplayValue(
+                      value as number,
+                      rotationDisplayPath,
+                      rotationDisplayMode,
+                    ),
+                  )
+                }
+                disabled={!directInputEnabled || directControlDisabled}
+              />
             }
-            disabled={!directInputEnabled || directControlDisabled}
-          />
-          <NumberField
-            size="sm"
-            value={currentDisplayValue}
-            min={currentDisplayMin}
-            max={currentDisplayMax}
-            step={currentDisplayStep}
-            allowScrub={false}
-            onChange={(value) =>
-              onDirectValueChange(
-                fromDisplayValue(
-                  value,
-                  rotationDisplayPath,
-                  rotationDisplayMode,
-                ),
-              )
+            value={
+              <NumberField
+                size="sm"
+                value={currentDisplayValue}
+                min={currentDisplayMin}
+                max={currentDisplayMax}
+                step={currentDisplayStep}
+                allowScrub={false}
+                onChange={(value) =>
+                  onDirectValueChange(
+                    fromDisplayValue(
+                      value,
+                      rotationDisplayPath,
+                      rotationDisplayMode,
+                    ),
+                  )
+                }
+                disabled={!directInputEnabled || directControlDisabled}
+              />
             }
-            disabled={!directInputEnabled || directControlDisabled}
+            actions={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px]"
+                onClick={onDirectReset}
+                disabled={!directInputEnabled || directControlDisabled}
+              >
+                Reset ({currentDisplayDefault.toFixed(2)})
+              </Button>
+            }
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-[10px]"
-            onClick={onDirectReset}
-            disabled={!directInputEnabled || directControlDisabled}
-          >
-            Reset ({currentDisplayDefault.toFixed(2)})
-          </Button>
-        </div>
+        </PropertyGrid>
         {directControlReason ? (
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] text-amber-300/90">
@@ -1097,40 +1126,46 @@ export function VariablePipelineStages({
           </span>
         </div>
         {overrideEnabled ? (
-          <div className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-2">
-            <Slider
-              min={overrideDisplayMin}
-              max={overrideDisplayMax}
-              step={overrideDisplayStep}
-              value={overrideDisplayValue}
-              onChange={(value) =>
-                onOverrideValueChange(
-                  fromDisplayValue(
-                    value as number,
-                    rotationDisplayPath,
-                    rotationDisplayMode,
-                  ),
-                )
+          <PropertyGrid columns="control-value-actions">
+            <PropertyGrid.Row
+              control={
+                <Slider
+                  min={overrideDisplayMin}
+                  max={overrideDisplayMax}
+                  step={overrideDisplayStep}
+                  value={overrideDisplayValue}
+                  onChange={(value) =>
+                    onOverrideValueChange(
+                      fromDisplayValue(
+                        value as number,
+                        rotationDisplayPath,
+                        rotationDisplayMode,
+                      ),
+                    )
+                  }
+                />
+              }
+              value={
+                <NumberField
+                  size="sm"
+                  value={overrideDisplayValue}
+                  min={overrideDisplayMin}
+                  max={overrideDisplayMax}
+                  step={overrideDisplayStep}
+                  allowScrub={false}
+                  onChange={(value) =>
+                    onOverrideValueChange(
+                      fromDisplayValue(
+                        value,
+                        rotationDisplayPath,
+                        rotationDisplayMode,
+                      ),
+                    )
+                  }
+                />
               }
             />
-            <NumberField
-              size="sm"
-              value={overrideDisplayValue}
-              min={overrideDisplayMin}
-              max={overrideDisplayMax}
-              step={overrideDisplayStep}
-              allowScrub={false}
-              onChange={(value) =>
-                onOverrideValueChange(
-                  fromDisplayValue(
-                    value,
-                    rotationDisplayPath,
-                    rotationDisplayMode,
-                  ),
-                )
-              }
-            />
-          </div>
+          </PropertyGrid>
         ) : (
           <span className="text-[10px] text-text-muted">
             Enable override to set a fixed output value.
@@ -1333,52 +1368,10 @@ export function VariablePipelineStages({
                 }
                 expandedContent={
                   child.linkControl ? (
-                    <div className="rounded-md bg-bg-panel/15 px-2 py-1.5 flex flex-col gap-1.5">
-                      <Switch
-                        checked={child.linkControl.enabled}
-                        onChange={(enabled) =>
-                          child.linkControl?.onEnabledChange?.(enabled)
-                        }
-                        label={
-                          child.linkControl.enabled
-                            ? "Link Enabled"
-                            : "Link Disabled"
-                        }
-                        size="sm"
-                      />
-                      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-                        <span className="text-[10px] text-text-secondary">
-                          Scale
-                        </span>
-                        <NumberField
-                          size="sm"
-                          value={child.linkControl.scale}
-                          step={0.01}
-                          commitMode="blur"
-                          allowScrub={false}
-                          onChange={(value) =>
-                            child.linkControl?.onScaleChange?.(value)
-                          }
-                          disabled={!child.linkControl.enabled}
-                        />
-                      </div>
-                      <div className="grid grid-cols-[58px_72px] items-center gap-2">
-                        <span className="text-[10px] text-text-secondary">
-                          Offset
-                        </span>
-                        <NumberField
-                          size="sm"
-                          value={child.linkControl.offset}
-                          step={0.01}
-                          commitMode="blur"
-                          allowScrub={false}
-                          onChange={(value) =>
-                            child.linkControl?.onOffsetChange?.(value)
-                          }
-                          disabled={!child.linkControl.enabled}
-                        />
-                      </div>
-                    </div>
+                    <LinkControlEditor
+                      linkControl={child.linkControl}
+                      context="child"
+                    />
                   ) : (
                     <span className="text-[10px] text-text-muted">
                       No child link controls available.

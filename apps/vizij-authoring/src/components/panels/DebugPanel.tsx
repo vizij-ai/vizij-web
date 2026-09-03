@@ -12,9 +12,8 @@ import {
   FileCheck,
   Stethoscope,
   Wrench,
-  X,
 } from "lucide-react";
-import { Panel } from "../ui/Panel";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import {
   useGraphRuntime,
   useBindingAuthoring,
@@ -337,23 +336,10 @@ export function DebugPanel({
   };
 
   return (
-    <Panel
+    <WorkbenchPanel
       title="Debug"
       description="Monitor status, playback, and rig health."
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-      actions={
-        onClosePanel ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-text-secondary hover:text-text-primary"
-            onClick={onClosePanel}
-            title="Hide panel"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null
-      }
+      onClose={onClosePanel}
       badge={
         graphStatus === "ready" ? (
           <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">
@@ -571,7 +557,6 @@ export function DebugPanel({
                     <InstructionCallout
                       label="RobotData Audit"
                       summary="Catch node drift after edits or merges"
-                      size="compact"
                       icon={<Bug className="w-4 h-4 text-amber-500" />}
                     >
                       <ul className="list-disc pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
@@ -603,7 +588,6 @@ export function DebugPanel({
                     <InstructionCallout
                       label="Bundle Graphs"
                       summary="Keep GraphSpecs + IR aligned"
-                      size="compact"
                       icon={<FileCheck className="w-4 h-4 text-accent" />}
                     >
                       <ol className="list-decimal pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
@@ -632,7 +616,6 @@ export function DebugPanel({
                     <InstructionCallout
                       label="Graph Diagnostics"
                       summary="Capture machine reports + IR snapshots"
-                      size="compact"
                       icon={<Stethoscope className="w-4 h-4 text-green-500" />}
                     >
                       <ol className="list-decimal pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
@@ -700,7 +683,6 @@ export function DebugPanel({
                     <InstructionCallout
                       label="Rig Maintenance"
                       summary="Clear overrides and cache"
-                      size="compact"
                       icon={<Wrench className="w-4 h-4 text-text-muted" />}
                     >
                       <ul className="list-disc pl-4 space-y-1 text-text-secondary text-[11px] leading-relaxed">
@@ -739,7 +721,7 @@ export function DebugPanel({
           }}
         />
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }
 

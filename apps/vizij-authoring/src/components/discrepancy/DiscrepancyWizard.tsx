@@ -645,7 +645,7 @@ export function DiscrepancyWizard({
                 </div>
               )}
               {filteredDiffs.length === 0 ? (
-                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
+                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-default border-dashed">
                   <p className="text-xs text-text-muted italic">
                     No differences for this category.
                   </p>
@@ -864,7 +864,7 @@ export function DiscrepancyWizard({
               </div>
 
               {state.missingAutoInputs.length === 0 ? (
-                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-dashed border-dashed">
+                <div className="h-48 flex items-center justify-center bg-bg-secondary/50 rounded-2xl border border-border-default border-dashed">
                   <p className="text-xs text-text-muted italic">
                     No missing inputs detected.
                   </p>

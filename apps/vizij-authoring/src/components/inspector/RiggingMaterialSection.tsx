@@ -1,24 +1,27 @@
 import React, { useRef } from "react";
-import { Lock, LockOpen } from "lucide-react";
 import type { StandardRigInput, AnimatableValue } from "@vizij/utils";
 import { HexColorPicker } from "react-colorful";
-import { Popover as BasePopover } from "@base-ui/react";
-import type {
-  SceneObjectNode,
-  SceneObjectFeature,
-} from "../../scene/sceneGraph";
+import { Popover as RadixPopover } from "radix-ui";
+import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useUnifiedSelection } from "../../hooks/useUnifiedSelection";
 import { Select, Button } from "../ui";
 import { cn } from "../../utils/cn";
 import { useSceneComposer } from "../../scene/useSceneComposer";
+import { ChannelLockButton } from "../editor/atoms/ChannelLockButton";
+import { ChannelLockStrip } from "../editor/atoms/ChannelLockStrip";
 import {
   CommitOnBlurNumberInput,
-  RiggingPropertyRow,
+  PropertyRow,
   ScrubbableLabel,
-} from "./RiggingPropertyRow";
+} from "../editor/molecules/PropertyRow";
 import { resolveEffectiveControllableBindingStandardInput } from "./bindingSlotResolution";
 import { resolveFaceInspectorCurrentValue } from "./faceInspectorSemantics";
+import { useInspectorTargetLock } from "./useInspectorTargetLock";
+import {
+  RiggingScalarRow,
+  type RiggingScalarRowProps,
+} from "./RiggingScalarRow";
 
 interface RiggingMaterialSectionProps {
   node: SceneObjectNode;
@@ -202,319 +205,6 @@ export function RiggingMaterialSection({ node }: RiggingMaterialSectionProps) {
   );
 }
 
-interface RiggingScalarRowProps {
-  label: string;
-  feature: SceneObjectFeature;
-  bindings: any;
-  standardInputs: StandardRigInput[];
-  standardInputsById: Map<string, StandardRigInput>;
-  inputBindings: Record<
-    string,
-    { inputId?: string | null; slots?: Array<{ inputId?: string | null }> }
-  >;
-  inputValues: Record<string, number>;
-  onValueChange: (id: string, value: number) => void;
-  onDefaultChange: (id: string, value: number) => void;
-  onConstraintChange: (
-    id: string,
-    updater: (curr: AnimatableValue) => AnimatableValue,
-  ) => void;
-  onStaticValueChange?: (
-    targetId: string,
-    value: number,
-    channel?: string,
-  ) => void;
-  onUpdateStandardInput: (id: string, updates: any) => void;
-  setStaticFeatureValue?: (
-    nodeId: string,
-    featureId: string,
-    value: any,
-  ) => void;
-  node?: SceneObjectNode;
-}
-
-export function RiggingScalarRow({
-  label,
-  feature,
-  bindings,
-  standardInputs,
-  standardInputsById,
-  inputBindings,
-  inputValues,
-  onValueChange,
-  onDefaultChange,
-  onStaticValueChange,
-  onConstraintChange,
-  onUpdateStandardInput,
-  setStaticFeatureValue,
-  node,
-}: RiggingScalarRowProps) {
-  const scrubValuesRef = useRef<Record<string, number>>({});
-  const lockedInspectorTargetIds = useBindingAuthoring(
-    (state) => state.lockedInspectorTargetIds,
-  );
-  const handleSetInspectorTargetLocked = useBindingAuthoring(
-    (state) => state.handleSetInspectorTargetLocked,
-  );
-
-  const component = feature.components[0];
-  if (!component) return null;
-
-  const targetId = component.targetId;
-  let inputId: string | null = null;
-  let standardInput: StandardRigInput | null = null;
-  let unresolvedInputId: string | null = null;
-  let blockedReason: string | null = null;
-
-  if (targetId) {
-    const binding = bindings[targetId];
-    const resolved = resolveEffectiveControllableBindingStandardInput(
-      binding,
-      standardInputsById,
-      standardInputs,
-      inputBindings,
-    );
-    inputId = resolved.inputId;
-    standardInput = resolved.input;
-    unresolvedInputId = resolved.unresolvedInputId;
-    blockedReason = resolved.blockedReason;
-  }
-
-  const isBound = !!(inputId && standardInput) && !blockedReason;
-  const authority = resolveFaceInspectorCurrentValue({
-    inputId,
-    standardInput,
-    unresolvedInputId,
-    blockedReason,
-    inputValues,
-    staticValue: component.staticValue ?? 0,
-  });
-  const isChannelLocked = Boolean(
-    targetId && lockedInspectorTargetIds.has(targetId),
-  );
-
-  // Undefined means the constraint is unbounded — don't clamp edits to it.
-  const minVal: number | undefined = isBound
-    ? standardInput!.range.min
-    : (feature.descriptor?.constraints as any)?.min;
-  const maxVal: number | undefined = isBound
-    ? standardInput!.range.max
-    : (feature.descriptor?.constraints as any)?.max;
-
-  const currentValue = authority.currentValue;
-
-  const defaultValue = isBound
-    ? (standardInput!.defaultValue ?? 0)
-    : (component.staticValue ?? 0);
-
-  const hasDifferentDefault =
-    isBound &&
-    Math.abs((currentValue as number) - (defaultValue as number)) > 0.0001;
-
-  const handleReset = () => {
-    if (isBound && inputId) onValueChange(inputId, defaultValue as number);
-  };
-
-  const toggleRowLock = () => {
-    if (!targetId) {
-      return;
-    }
-    handleSetInspectorTargetLocked(targetId, !isChannelLocked);
-  };
-
-  const renderInput = (type: "current" | "default" | "min" | "max") => {
-    let val: number | undefined;
-    let canEdit = true;
-
-    if (type === "current") {
-      val = currentValue as number;
-      canEdit = !isChannelLocked && (isBound || !!onStaticValueChange);
-    } else if (type === "default") {
-      val = defaultValue as number;
-      canEdit = !isChannelLocked && isBound;
-    } else if (type === "min") {
-      val = minVal;
-      canEdit = !isChannelLocked && Boolean(inputId || feature.animatableId);
-    } else if (type === "max") {
-      val = maxVal;
-      canEdit = !isChannelLocked && Boolean(inputId || feature.animatableId);
-    }
-
-    return (
-      <div
-        title={
-          type === "current"
-            ? `Current Source: ${authority.sourceLabel}`
-            : undefined
-        }
-        className={cn(
-          "flex items-center bg-bg-input/50 rounded-sm border border-transparent relative flex-1 min-w-0 h-5 group/row",
-          canEdit ? "focus-within:border-accent/50" : "opacity-70",
-        )}
-      >
-        <ScrubbableLabel
-          label={label}
-          onScrub={
-            canEdit
-              ? (_delta, totalDelta) => {
-                  const step = 0.01;
-                  if (type === "current") {
-                    if (isBound && inputId) {
-                      const startVal = scrubValuesRef.current[inputId] ?? 0;
-                      onValueChange(inputId, startVal + totalDelta * step);
-                    } else if (onStaticValueChange) {
-                      const startValueToUse =
-                        scrubValuesRef.current["current"] ?? 0;
-                      const newVal = startValueToUse + totalDelta * step;
-                      if (feature.animated && feature.animatableId) {
-                        onStaticValueChange(feature.animatableId, newVal);
-                      } else if (setStaticFeatureValue && node) {
-                        setStaticFeatureValue(node.id, feature.id, newVal);
-                      }
-                    }
-                  } else if (type === "default" && inputId) {
-                    const startVal = scrubValuesRef.current[inputId] ?? 0;
-                    const nextVal = startVal + totalDelta * step;
-                    onDefaultChange(inputId, nextVal);
-                    if (
-                      onStaticValueChange &&
-                      (targetId || feature.animatableId)
-                    ) {
-                      onStaticValueChange(
-                        targetId ?? feature.animatableId!,
-                        nextVal,
-                      );
-                    }
-                  } else if (
-                    (type === "min" || type === "max") &&
-                    (inputId || feature.animatableId)
-                  ) {
-                    const startVal = scrubValuesRef.current[type] ?? 0;
-                    const nextVal = startVal + totalDelta * step;
-                    if (inputId) {
-                      onUpdateStandardInput(inputId, {
-                        range: { [type]: nextVal },
-                      });
-                    }
-                    if (feature.animatableId) {
-                      onConstraintChange?.(
-                        feature.animatableId,
-                        (curr: AnimatableValue) => {
-                          const nextConstraints = {
-                            ...(curr.constraints || {}),
-                          } as any;
-                          nextConstraints[type === "min" ? "min" : "max"] =
-                            nextVal;
-                          return {
-                            ...curr,
-                            constraints: nextConstraints,
-                          } as AnimatableValue;
-                        },
-                      );
-                    }
-                  }
-                }
-              : undefined
-          }
-          onScrubStart={() => {
-            if (type === "current") {
-              if (isBound && inputId)
-                scrubValuesRef.current[inputId] = (currentValue as number) ?? 0;
-              else
-                scrubValuesRef.current["current"] =
-                  (currentValue as number) ?? 0;
-            } else if (type === "default" && inputId) {
-              scrubValuesRef.current[inputId] = (defaultValue as number) ?? 0;
-            } else if (
-              (type === "min" || type === "max") &&
-              (inputId || feature.animatableId)
-            ) {
-              scrubValuesRef.current[type] =
-                (type === "min" ? minVal : maxVal) ?? 0;
-            }
-          }}
-          className="text-[9px] font-bold px-1 select-none transition-colors text-text-muted"
-        />
-        <CommitOnBlurNumberInput
-          value={typeof val === "number" ? val : 0}
-          step={0.01}
-          min={type === "current" || type === "default" ? minVal : undefined}
-          max={type === "current" || type === "default" ? maxVal : undefined}
-          disabled={!canEdit}
-          className="pl-1"
-          onCommit={(num) => {
-            if (type === "current") {
-              if (isBound && inputId) onValueChange(inputId, num);
-              else if (onStaticValueChange) {
-                if (feature.animated && feature.animatableId) {
-                  onStaticValueChange(feature.animatableId, num);
-                } else if (setStaticFeatureValue && node) {
-                  setStaticFeatureValue(node.id, feature.id, num);
-                }
-              }
-            } else if (type === "default" && inputId) {
-              onDefaultChange(inputId, num);
-              if (onStaticValueChange && (targetId || feature.animatableId)) {
-                onStaticValueChange(targetId ?? feature.animatableId!, num);
-              }
-            } else if (
-              (type === "min" || type === "max") &&
-              (inputId || feature.animatableId)
-            ) {
-              if (inputId) {
-                onUpdateStandardInput(inputId, { range: { [type]: num } });
-              }
-              if (feature.animatableId) {
-                onConstraintChange?.(
-                  feature.animatableId,
-                  (curr: AnimatableValue) => {
-                    const nextConstraints = {
-                      ...(curr.constraints || {}),
-                    } as any;
-                    nextConstraints[type === "min" ? "min" : "max"] = num;
-                    return {
-                      ...curr,
-                      constraints: nextConstraints,
-                    } as AnimatableValue;
-                  },
-                );
-              }
-            }
-          }}
-        />
-      </div>
-    );
-  };
-
-  return (
-    <RiggingPropertyRow
-      label={label}
-      hasDifferentDefault={hasDifferentDefault}
-      onResetToDefault={handleReset}
-      renderMainInput={() => renderInput("current")}
-      renderDefaultInput={() => renderInput("default")}
-      renderMinInput={() => renderInput("min")}
-      renderMaxInput={() => renderInput("max")}
-      renderRowAction={() => (
-        <button
-          type="button"
-          className={cn(
-            "p-1 rounded transition-colors",
-            isChannelLocked
-              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
-              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
-          )}
-          title={isChannelLocked ? `Unlock ${label}` : `Lock ${label}`}
-          disabled={!targetId}
-          onClick={toggleRowLock}
-        >
-          {isChannelLocked ? <Lock size={10} /> : <LockOpen size={10} />}
-        </button>
-      )}
-    />
-  );
-}
-
 export function RiggingColorRow({
   label,
   feature,
@@ -614,6 +304,12 @@ export function RiggingColorRow({
     (c): c is NonNullable<typeof c> => c !== null,
   );
 
+  // Before the early return: hook order must not depend on how many channels
+  // resolved.
+  const rowLock = useInspectorTargetLock(
+    components.map((component) => component.targetId),
+  );
+
   if (components.length === 0) return null;
 
   const hasDifferentDefault = components.some(
@@ -630,26 +326,7 @@ export function RiggingColorRow({
     });
   };
 
-  const lockableTargetIds = components
-    .map((component) => component.targetId)
-    .filter((targetId): targetId is string => Boolean(targetId));
-  const lockedTargetCount = lockableTargetIds.reduce(
-    (count, targetId) =>
-      lockedInspectorTargetIds.has(targetId) ? count + 1 : count,
-    0,
-  );
-  const areAllLockableTargetsLocked =
-    lockableTargetIds.length > 0 &&
-    lockedTargetCount === lockableTargetIds.length;
-  const toggleRowLock = () => {
-    if (lockableTargetIds.length === 0) {
-      return;
-    }
-    const nextLocked = !areAllLockableTargetsLocked;
-    lockableTargetIds.forEach((targetId) => {
-      handleSetInspectorTargetLocked(targetId, nextLocked);
-    });
-  };
+  const areAllLockableTargetsLocked = rowLock.isLocked;
 
   const rgbToHex = (r: number, g: number, b: number) => {
     const toHex = (c: number) => {
@@ -773,8 +450,8 @@ export function RiggingColorRow({
 
     return (
       <div className="flex gap-1 flex-1 items-center min-w-0">
-        <BasePopover.Root>
-          <BasePopover.Trigger
+        <RadixPopover.Root>
+          <RadixPopover.Trigger
             className={cn(
               "w-6 h-5 rounded-sm border border-border-default shadow-sm",
               canEditAny
@@ -785,24 +462,22 @@ export function RiggingColorRow({
             disabled={!canEditAny}
             title="Pick Color"
           />
-          <BasePopover.Portal>
-            <BasePopover.Positioner
+          <RadixPopover.Portal>
+            <RadixPopover.Content
               side="bottom"
               align="start"
               sideOffset={5}
-              className="z-[100]"
+              className="z-[100] flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl"
             >
-              <BasePopover.Popup className="flex flex-col gap-2 p-2 bg-bg-panel border border-border-default rounded-lg shadow-xl">
-                <HexColorPicker color={hexColor} onChange={handleColorChange} />
-                <div className="flex gap-1">
-                  <div className="text-[10px] bg-bg-input px-1 py-0.5 rounded text-text-muted font-mono select-all uppercase">
-                    {hexColor}
-                  </div>
+              <HexColorPicker color={hexColor} onChange={handleColorChange} />
+              <div className="flex gap-1">
+                <div className="text-[10px] bg-bg-input px-1 py-0.5 rounded text-text-muted font-mono select-all uppercase">
+                  {hexColor}
                 </div>
-              </BasePopover.Popup>
-            </BasePopover.Positioner>
-          </BasePopover.Portal>
-        </BasePopover.Root>
+              </div>
+            </RadixPopover.Content>
+          </RadixPopover.Portal>
+        </RadixPopover.Root>
 
         <div className="flex gap-1.5 flex-1 min-w-0">
           {components.map((c, i) => {
@@ -1005,42 +680,22 @@ export function RiggingColorRow({
   };
 
   const renderAnimatableRow = () => (
-    <div className="flex gap-1.5 flex-1">
-      {components.map((component, index) => (
-        <button
-          key={index}
-          type="button"
-          title={`Toggle ${component.label} channel lock`}
-          className={cn(
-            "flex items-center justify-center gap-1.5 flex-1 h-5 rounded-sm border border-transparent transition-colors text-[10px] font-bold uppercase tracking-wider",
-            component.isLocked
-              ? "bg-bg-input/50 text-text-muted hover:bg-bg-input/70"
-              : "bg-accent/10 text-accent hover:bg-accent/20",
-          )}
-          disabled={!component.targetId}
-          onClick={() => {
-            if (!component.targetId) {
-              return;
-            }
-            handleSetInspectorTargetLocked(
-              component.targetId,
-              !component.isLocked,
-            );
-          }}
-        >
-          {component.isLocked ? (
-            <Lock size={10} className="shrink-0" />
-          ) : (
-            <LockOpen size={10} className="shrink-0" />
-          )}
-          <span>{component.label.substring(0, 1)}</span>
-        </button>
-      ))}
-    </div>
+    <ChannelLockStrip
+      channels={components.map((component) => ({
+        id: component.targetId ?? null,
+        // `label` here is already `R`/`G`/`B` in practice; the truncation is
+        // kept so a component that somehow carries a longer label still fits
+        // the pill, exactly as before.
+        shortLabel: component.label.substring(0, 1),
+        locked: component.isLocked,
+        title: `Toggle ${component.label} channel lock`,
+      }))}
+      onToggle={handleSetInspectorTargetLocked}
+    />
   );
 
   return (
-    <RiggingPropertyRow
+    <PropertyRow
       label={label}
       hasDifferentDefault={hasDifferentDefault}
       onResetToDefault={handleReset}
@@ -1050,28 +705,16 @@ export function RiggingColorRow({
       renderMaxInput={() => renderInputs("max")}
       renderAnimatableRow={renderAnimatableRow}
       renderRowAction={() => (
-        <button
-          type="button"
-          className={cn(
-            "p-1 rounded transition-colors",
-            areAllLockableTargetsLocked
-              ? "text-rose-300 hover:text-rose-200 hover:bg-rose-500/20"
-              : "text-sky-300 hover:text-sky-200 hover:bg-sky-500/20",
-          )}
+        <ChannelLockButton
+          locked={areAllLockableTargetsLocked}
           title={
             areAllLockableTargetsLocked
               ? "Unlock color channels"
               : "Lock color channels"
           }
-          disabled={lockableTargetIds.length === 0}
-          onClick={toggleRowLock}
-        >
-          {areAllLockableTargetsLocked ? (
-            <Lock size={10} />
-          ) : (
-            <LockOpen size={10} />
-          )}
-        </button>
+          disabled={!rowLock.canToggle}
+          onToggle={rowLock.toggle}
+        />
       )}
     />
   );

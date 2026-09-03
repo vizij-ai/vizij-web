@@ -136,6 +136,9 @@ export function AppMenuBar({
   );
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
+  // `ui/ThemeToggle` is controlled — it used to read the store itself, which was
+  // the only ui/ -> state/ import in the app. The binding lives here now.
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
   const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
@@ -558,7 +561,7 @@ export function AppMenuBar({
       </Button>
 
       <div className="flex-1" />
-      <ThemeToggle className="mr-2" />
+      <ThemeToggle theme={theme} onToggle={toggleTheme} className="mr-2" />
     </MenuBar>
   );
 }

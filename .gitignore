@@ -26,3 +26,8 @@
 
 # Tauri auto-generated capability/ACL schemas (regenerated on build)
 **/src-tauri/gen/schemas/
+
+# Playwright run output (traces/videos/diffs).
+**/test-results/
+**/playwright-report/
+**/.playwright/

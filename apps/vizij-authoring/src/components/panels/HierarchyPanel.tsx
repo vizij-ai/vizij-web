@@ -5,8 +5,8 @@ import {
   useCallback,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { Popover as BasePopover } from "@base-ui/react";
-import { Box, Folder, Lock, Plus, Search, Unlock, X } from "lucide-react";
+import { Popover as RadixPopover } from "radix-ui";
+import { Box, Folder, Lock, Plus, Search, Unlock } from "lucide-react";
 import type { JSX } from "react/jsx-runtime";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useSceneComposer } from "../../scene/useSceneComposer";
@@ -17,7 +17,9 @@ import {
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { cn } from "../../utils/cn";
 import { EmptyState } from "../ui/EmptyState";
-import { Panel, Button, Select, PanelSearch, TreeRow } from "../ui";
+import { TreeRoot } from "../ui/TreeRoot";
+import { Button, Select, PanelSearch, TreeRow } from "../ui";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { useHierarchyTreeState } from "../scene-composer/useHierarchyTreeState";
 import { filterHierarchyNodes } from "../scene-composer/hierarchyFilters";
 
@@ -573,23 +575,10 @@ export function HierarchyPanel({
       : `${selectedCount} elements`;
 
   return (
-    <Panel
-      className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
+    <WorkbenchPanel
       title="Face Elements"
       description="Select objects via the tree or viewport to drive the inspector."
-      actions={
-        onClosePanel ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-text-secondary hover:text-text-primary"
-            onClick={onClosePanel}
-            title="Hide panel"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null
-      }
+      onClose={onClosePanel}
     >
       <div className="flex flex-col h-full gap-1 p-1">
         {allowEditActions && selectedCount > 0 && (
@@ -642,8 +631,8 @@ export function HierarchyPanel({
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             </Button>
-            <BasePopover.Root open={isMoveOpen} onOpenChange={setIsMoveOpen}>
-              <BasePopover.Trigger
+            <RadixPopover.Root open={isMoveOpen} onOpenChange={setIsMoveOpen}>
+              <RadixPopover.Trigger
                 className={cn(
                   "h-6 w-6 p-0 flex items-center justify-center rounded text-text-muted hover:text-accent hover:bg-accent/20 data-[state=open]:text-accent data-[state=open]:bg-accent/20 transition-colors",
                 )}
@@ -666,62 +655,61 @@ export function HierarchyPanel({
                   <path d="M2 12h20" />
                   <path d="M12 2v20" />
                 </svg>
-              </BasePopover.Trigger>
-              <BasePopover.Portal>
-                <BasePopover.Positioner
+              </RadixPopover.Trigger>
+              <RadixPopover.Portal>
+                <RadixPopover.Content
                   side="right"
                   align="start"
                   sideOffset={5}
+                  className="w-64 p-3 bg-bg-panel border border-border-default rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
                 >
-                  <BasePopover.Popup className="w-64 p-3 bg-bg-panel border border-border-default rounded-xl shadow-2xl shadow-black/50 z-[100] flex flex-col gap-3 transition duration-200 ease-out data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-medium text-text-muted">
-                        Move{" "}
-                        <span className="text-accent truncate inline-block max-w-[120px] align-bottom">
-                          {moveTargetLabel}
-                        </span>{" "}
-                        to under:
-                      </span>
-                      <Select
-                        size="sm"
-                        className="w-full text-xs"
-                        value={reparentTarget}
-                        onChange={setReparentTarget}
-                        options={[
-                          { value: "", label: "Scene Root" },
-                          ...parentOptions.map((node) => ({
-                            value: node.id,
-                            label: node.name || node.id,
-                          })),
-                        ]}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => setIsMoveOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        className="h-7 text-xs px-4"
-                        onClick={() => {
-                          handleReparentSelection();
-                          setIsMoveOpen(false);
-                        }}
-                        disabled={selectedTopLevelIds.length === 0}
-                      >
-                        Move
-                      </Button>
-                    </div>
-                  </BasePopover.Popup>
-                </BasePopover.Positioner>
-              </BasePopover.Portal>
-            </BasePopover.Root>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-medium text-text-muted">
+                      Move{" "}
+                      <span className="text-accent truncate inline-block max-w-[120px] align-bottom">
+                        {moveTargetLabel}
+                      </span>{" "}
+                      to under:
+                    </span>
+                    <Select
+                      size="sm"
+                      className="w-full text-xs"
+                      value={reparentTarget}
+                      onChange={setReparentTarget}
+                      options={[
+                        { value: "", label: "Scene Root" },
+                        ...parentOptions.map((node) => ({
+                          value: node.id,
+                          label: node.name || node.id,
+                        })),
+                      ]}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setIsMoveOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="h-7 text-xs px-4"
+                      onClick={() => {
+                        handleReparentSelection();
+                        setIsMoveOpen(false);
+                      }}
+                      disabled={selectedTopLevelIds.length === 0}
+                    >
+                      Move
+                    </Button>
+                  </div>
+                </RadixPopover.Content>
+              </RadixPopover.Portal>
+            </RadixPopover.Root>
             <Button
               variant="ghost"
               size="sm"
@@ -796,7 +784,13 @@ export function HierarchyPanel({
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2 custom-scrollbar">
-          <div className="flex min-h-full flex-col pb-6 pr-1">
+          <TreeRoot
+            aria-label="Scene hierarchy"
+            // Selection here is the shared `selectionStack`, which cmd/ctrl-click
+            // adds to — so the tree really is multi-selectable and says so.
+            multiselectable
+            className="flex min-h-full flex-col pb-6 pr-1"
+          >
             {referenceFaceFile ? (
               <>
                 {renderMainFaceRoot()}
@@ -834,9 +828,9 @@ export function HierarchyPanel({
                 {rootNodes.map((node) => renderSubtree(node, 0))}
               </>
             )}
-          </div>
+          </TreeRoot>
         </div>
       </div>
-    </Panel>
+    </WorkbenchPanel>
   );
 }

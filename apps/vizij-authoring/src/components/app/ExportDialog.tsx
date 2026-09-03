@@ -296,7 +296,6 @@ export function ExportDialog({
           <InstructionCallout
             label="Export best practices"
             summary="Name files clearly and trim payloads as needed"
-            size="compact"
           >
             <ul className="list-disc pl-4 text-[11px] text-text-muted space-y-1 font-medium">
               <li>

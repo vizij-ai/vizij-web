@@ -13,7 +13,7 @@ import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { Input } from "../ui/Input";
-import { cn } from "../../utils/cn";
+import { ListRow } from "../ui/ListRow";
 
 export type AuthoringTargetSource = "authored" | "imported";
 export type AuthoringTargetRuntimeState = "playing" | "paused" | "stopped";
@@ -189,21 +189,14 @@ export function AuthoringTargetList({
               const runtimeState = item.runtimeState ?? "stopped";
               const isRuntimeActive = runtimeState !== "stopped";
               return (
-                <div
+                <ListRow
                   key={item.id}
-                  className={cn(
-                    "group flex w-full scroll-mt-24 flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors",
-                    item.selected
-                      ? "border-accent/60 bg-accent/10"
-                      : "border-border-default/70 bg-bg-panel/60 hover:border-border-hover hover:bg-bg-hover",
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="flex w-full min-w-0 flex-1 cursor-pointer flex-col items-start justify-center text-left"
-                    onClick={() => onSelect(item.id)}
-                  >
-                    <div className="flex items-center gap-2">
+                  selected={item.selected ?? false}
+                  onSelect={() => onSelect(item.id)}
+                  className="w-full scroll-mt-24 rounded-lg px-3 py-2.5"
+                  bodyClassName="mt-0"
+                  title={
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate text-sm font-semibold text-text-primary">
                         {item.label}
                       </span>
@@ -219,12 +212,15 @@ export function AuthoringTargetList({
                         <Badge tone="muted">{item.runtimeTimeLabel}</Badge>
                       ) : null}
                     </div>
-                    {item.meta ? (
-                      <p className="truncate pt-1 font-mono text-[10px] text-text-secondary">
+                  }
+                  description={
+                    item.meta ? (
+                      <span className="block truncate font-mono text-[10px] text-text-secondary">
                         {item.meta}
-                      </p>
-                    ) : null}
-                  </button>
+                      </span>
+                    ) : null
+                  }
+                >
                   <div className="flex w-full flex-wrap items-center gap-1">
                     {onPlay && !isRuntimeActive ? (
                       <Button
@@ -306,7 +302,7 @@ export function AuthoringTargetList({
                       </Button>
                     ) : null}
                   </div>
-                </div>
+                </ListRow>
               );
             })}
           </div>

@@ -28,6 +28,18 @@ export default defineConfig(({ mode }) => {
       "process.env.NODE_ENV": JSON.stringify(nodeEnv),
     },
     resolve: {
+      // Only packages this app DECLARES may be listed here. `resolve.dedupe`
+      // makes Vite resolve a package from this root, so listing an undeclared one
+      // — which under pnpm's strict layout is absent from
+      // `apps/vizij-authoring/node_modules` — fails the build outright with
+      // "Rollup failed to resolve import <pkg>".
+      //
+      // That is why `@react-three/fiber` is NOT here (a dependency of `@semio/ui`
+      // and a peer of `@vizij/render`, declared by neither), and why
+      // `@base-ui/react` was removed alongside the dependency itself: the app no
+      // longer imports it, and it now exists solely as an internal dependency of
+      // `@semio/ui`. Neither needs deduping — pnpm resolves exactly one instance
+      // of each.
       dedupe: ["react", "react-dom", "three"],
       alias: {
         "@vizij/node-graph-authoring": path.resolve(
@@ -92,6 +104,19 @@ export default defineConfig(({ mode }) => {
       pool: "threads",
       environment: "jsdom",
       setupFiles: ["./src/test/setupVitest.ts"],
+      server: {
+        deps: {
+          // `@semio/ui`'s ESM bundle does `import { clamp } from "lodash"` — a
+          // named import from a CommonJS module. Vite's dev/build pipeline
+          // applies CJS interop, but Vitest externalises node_modules by
+          // default and Node's ESM loader cannot resolve named exports off a
+          // CJS module, so any test importing a semio component dies at
+          // collection with "Named export 'clamp' not found".
+          //
+          // Inlining routes the package through Vite's transform instead.
+          inline: ["@semio/ui"],
+        },
+      },
     },
   };
 });
