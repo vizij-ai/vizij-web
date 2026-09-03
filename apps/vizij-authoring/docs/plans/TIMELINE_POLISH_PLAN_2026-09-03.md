@@ -46,6 +46,53 @@ Phase C treats these as correctness bugs, not ergonomics.
 
 ---
 
+## Phase A0 — stop losing authored clips (found 2026-09-03)
+
+Reported as "my animation didn't even save when I clicked away", while
+debugging an export that turned out to be fine — there was simply nothing to
+export.
+
+Authored clip edits live in `useAnimationStore` and are committed into
+`authoredAnimationTargets` by a single effect (`App.tsx:1647`) that fires
+whenever `animationTracks` or `animationDuration` changes:
+
+```ts
+useEffect(() => {
+  if (!selectedAnimationTargetId || pendingAnimationTargetSwitchId) return;
+  saveAnimationTarget(selectedAnimationTargetId);
+}, [animationDuration, animationTracks, ...]);
+```
+
+So edits _are_ autosaved. The hazard is the inverse: the effect cannot tell an
+edit from a reset. There are five `useAnimationStore.getState().reset()` call
+sites (`App.tsx:1105, 2052, 2072, 2205, 2589`), and `loadSelectedAnimationTarget`
+resets whenever the requested target is not found in its closure over
+`authoredAnimationTargets`. Any reset that leaves a target selected makes the
+next effect run **persist an empty clip over that target's saved work**.
+
+`handleCreateAnimationTarget` (`App.tsx:2220`) shows the same seam from the
+other side: it appends a target and selects it without loading or resetting, so
+the store still holds the previous clip's tracks when the autosave fires
+against the new target id.
+
+The underlying problem is that nothing records _which target the store was
+hydrated from_, so "the store is empty because the user cleared it" and "the
+store is empty because we reset it" are indistinguishable at the point of
+writing.
+
+**Fix direction.** Carry a hydration marker — the target id the store was last
+loaded for — and persist only when it matches the selected target. That turns
+the invariant into something checkable, and extracting the decision into a pure
+`shouldPersistAnimationEdit(...)` gives it a unit-testable seam, which this
+area currently has none of.
+
+Reproduce first, then fix: a test that drives reset-while-selected and asserts
+the saved clip is untouched must fail before the change.
+
+Sequenced ahead of everything else here. Losing authored work outranks every
+ergonomic item below, and polish on a surface that silently discards edits is
+not worth building.
+
 ## Phase A — the scrubber (the explicit ask)
 
 | #   | Change                                                                                                                                                                                                                  | Rubric   |
@@ -143,7 +190,7 @@ a 900px panel, with no way to magnify. This is the hard cap on precision.
 
 ## Sequencing
 
-A → B → C → D → E, with two deliberate deviations from "most visible first":
+A0 → A → B → C → D → E, with two deliberate deviations from "most visible first":
 
 - **B before C** because the shortcut/focus guard (B6) is much cheaper to add
   alongside the first shortcuts than retrofit.
