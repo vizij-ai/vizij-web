@@ -3,12 +3,14 @@ import {
   Pause,
   Play,
   Plus,
-  Settings2,
   Square,
+  StepBack,
   StepForward,
   Trash2,
   X,
 } from "lucide-react";
+import { ANIMATION_STEP_SECONDS } from "../../hooks/animationStepMath";
+import { ANIMATION_TIMELINE_FPS } from "../../utils/animationTimeDisplay";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
@@ -148,6 +150,12 @@ export function AnimationPanel({
     ? transport.pause
     : undefined;
   const handleStep = runtimeTransportBound ? () => transport.step() : undefined;
+  // A backward step is a negative delta. `nextStepTime` clamps the *result* to
+  // the clip rather than clamping the delta, which is what made the control
+  // forward-only.
+  const handleStepBack = runtimeTransportBound
+    ? () => transport.step(-ANIMATION_STEP_SECONDS)
+    : undefined;
   const handleToggleLoop = () => {
     if (runtimeTransportBound) {
       transport.setLoop(!loop);
@@ -275,15 +283,9 @@ export function AnimationPanel({
         className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
         onClick={() => setShowTrackSelector(true)}
         title="Add Track"
+        aria-label="Add Track"
       >
         <Plus className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-zinc-500 hover:text-zinc-200"
-      >
-        <Settings2 className="h-3.5 w-3.5" />
       </Button>
       {onClosePanel ? (
         <Button
@@ -319,8 +321,20 @@ export function AnimationPanel({
               onClick={handleStop}
               disabled={!handleStop || effectivePlaybackState === "stopped"}
               title="Stop"
+              aria-label="Stop"
             >
               <Square className="h-3 w-3 fill-current" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+              onClick={handleStepBack}
+              disabled={!handleStepBack}
+              title="Step back one frame"
+              aria-label="Step back one frame"
+            >
+              <StepBack className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="primary"
@@ -333,6 +347,10 @@ export function AnimationPanel({
                 effectivePlaybackState === "playing"
                   ? !handlePause
                   : !handlePlay
+              }
+              title={effectivePlaybackState === "playing" ? "Pause" : "Play"}
+              aria-label={
+                effectivePlaybackState === "playing" ? "Pause" : "Play"
               }
             >
               {effectivePlaybackState === "playing" ? (
@@ -347,7 +365,8 @@ export function AnimationPanel({
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
               onClick={handleStep}
               disabled={!handleStep}
-              title="Step"
+              title="Step forward one frame"
+              aria-label="Step forward one frame"
             >
               <StepForward className="h-3.5 w-3.5" />
             </Button>
@@ -394,11 +413,9 @@ export function AnimationPanel({
             <Button
               variant={timeDisplayMode === "seconds" ? "primary" : "subtle"}
               size="sm"
-              className={`h-6 px-2 text-[10px] ${
-                timeDisplayMode === "seconds" ? "disabled:opacity-100" : ""
-              }`}
+              className="h-6 px-2 text-[10px]"
               onClick={() => setTimeDisplayMode("seconds")}
-              disabled={timeDisplayMode === "seconds"}
+              aria-pressed={timeDisplayMode === "seconds"}
               title="Show timeline time in seconds"
             >
               Seconds
@@ -406,12 +423,10 @@ export function AnimationPanel({
             <Button
               variant={timeDisplayMode === "frames" ? "primary" : "subtle"}
               size="sm"
-              className={`h-6 px-2 text-[10px] ${
-                timeDisplayMode === "frames" ? "disabled:opacity-100" : ""
-              }`}
+              className="h-6 px-2 text-[10px]"
               onClick={() => setTimeDisplayMode("frames")}
-              disabled={timeDisplayMode === "frames"}
-              title="Show timeline time in frames (32 fps)"
+              aria-pressed={timeDisplayMode === "frames"}
+              title={`Show timeline time in frames (${ANIMATION_TIMELINE_FPS} fps)`}
             >
               Frames
             </Button>
