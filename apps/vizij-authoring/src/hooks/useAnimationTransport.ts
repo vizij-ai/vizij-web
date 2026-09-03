@@ -13,6 +13,7 @@ import {
   type AnimationClipIR,
 } from "../types/animationClipIr";
 import { clipIrToBundleAnimationEntry } from "../utils/animationClipCompiler";
+import { ANIMATION_STEP_SECONDS, nextStepTime } from "./animationStepMath";
 
 /**
  * Millisecond precision, which is what a clip's timings survive.
@@ -603,10 +604,14 @@ export function useAnimationTransport() {
   );
 
   const stepTransport = useCallback(
-    (deltaSeconds = 1 / 30) => {
+    (deltaSeconds = ANIMATION_STEP_SECONDS) => {
       if (!canDrive || !runtimeTransport) {
         syncTransportState({
-          currentTime: currentTime + Math.max(0, deltaSeconds),
+          currentTime: nextStepTime({
+            baseTime: currentTime,
+            deltaSeconds,
+            durationSeconds: 0,
+          }),
           isPlaying: false,
           transportActive: false,
           transportPlaybackState: "stopped",
@@ -619,11 +624,11 @@ export function useAnimationTransport() {
       );
       const baseTime = playbackState?.time ?? currentTime;
       const durationSeconds = playbackState?.duration ?? 0;
-      const unclampedTime = baseTime + Math.max(0, deltaSeconds);
-      const nextTime =
-        durationSeconds > 0
-          ? Math.max(0, Math.min(unclampedTime, durationSeconds))
-          : Math.max(0, unclampedTime);
+      const nextTime = nextStepTime({
+        baseTime,
+        deltaSeconds,
+        durationSeconds,
+      });
       runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, nextTime);
       syncTransportState({
         currentTime: nextTime,

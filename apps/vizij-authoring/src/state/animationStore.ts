@@ -340,9 +340,6 @@ interface AnimationState {
   importClipIr: (clip: AnimationClipIR) => void;
   exportClipIr: (options?: { id?: string; name?: string }) => AnimationClipIR;
   reset: () => void;
-
-  // Runtime
-  tick: (deltaTime: number) => void;
 }
 
 const INITIAL_STATE: Pick<
@@ -421,9 +418,18 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     })),
   setDuration: (duration) =>
     set((state) => {
-      const normalizedDuration = Number.isFinite(duration)
+      const requestedDuration = Number.isFinite(duration)
         ? Math.max(MIN_DURATION_SECONDS, duration)
         : MIN_DURATION_SECONDS;
+      // Shortening below the last keyframe used to clamp every later key to
+      // the new end, where the exact-time de-dupe then collapsed them into
+      // one. The duration is floored at the content instead: delete the
+      // keyframes first if you really want a shorter clip.
+      const lastKeyframeTime = state.tracks.reduce((latest, track) => {
+        const last = track.keyframes[track.keyframes.length - 1];
+        return last && last.time > latest ? last.time : latest;
+      }, 0);
+      const normalizedDuration = Math.max(requestedDuration, lastKeyframeTime);
       return {
         duration: normalizedDuration,
         currentTime: clampTime(state.currentTime, normalizedDuration),
@@ -746,10 +752,19 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
               if (k.id !== keyframeId) {
                 return k;
               }
-              const nextTime =
+              // A requested time that another keyframe already occupies is
+              // refused, not merged. `normalizeKeyframesForTrack` de-dupes by
+              // exact time with last-write-wins, so applying it would destroy
+              // one of the two keyframes — and there is no undo to recover it.
+              const requestedTime =
                 typeof updates.time === "number"
                   ? clampTime(updates.time, state.duration)
                   : k.time;
+              const collides = t.keyframes.some(
+                (other) =>
+                  other.id !== k.id && isSameTime(other.time, requestedTime),
+              );
+              const nextTime = collides ? k.time : requestedTime;
               const interpolationOverride =
                 Object.prototype.hasOwnProperty.call(updates, "interpolation")
                   ? updates.interpolation
@@ -834,25 +849,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       runtimeTransportAdapter: state.runtimeTransportAdapter,
       transportSessionKey: state.transportSessionKey,
     })),
-
-  tick: (deltaTime) => {
-    const state = get();
-    if (!state.isPlaying) return;
-
-    let nextTime = state.currentTime + deltaTime * state.playSpeed;
-    if (nextTime > state.duration) {
-      if (state.loop && state.duration > 0) {
-        nextTime = nextTime % state.duration;
-      } else {
-        nextTime = state.duration;
-        set({
-          isPlaying: false,
-          transportPlaybackState: "paused",
-        });
-      }
-    }
-    set({ currentTime: nextTime });
-  },
 }));
 
 // Helper to evaluate a track at a specific time
