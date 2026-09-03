@@ -1577,6 +1577,31 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       if (clipId) {
+        // Snapshot the store HERE, not inside the updater.
+        //
+        // `exportAnimationClipIr` reads the animation store at the moment it
+        // is called. A functional setState updater runs during a later render
+        // — and in StrictMode runs twice — by which time a clip switch may
+        // already have reloaded the store with a different clip. The snapshot
+        // then captured the incoming clip's tracks and stamped them with the
+        // outgoing clip's id. Traced:
+        //
+        //   save.enter         dest=clip.3  n=1     <- 1 track, correct
+        //   store.importClipIr clip.1 incoming=4    <- store reloaded
+        //   save.writeAuthored dest=clip.3 was=1->4 <- wrong tracks persisted
+        //
+        // Reading it eagerly makes the updater pure, so when it runs cannot
+        // change what it writes.
+        const existing = authoredAnimationTargets.find(
+          (target) => target.targetId === targetId || target.clipId === clipId,
+        );
+        if (!existing) {
+          return;
+        }
+        const snapshotClip = exportAnimationClipIr({
+          id: existing.clipId,
+          name: existing.name,
+        });
         setAuthoredAnimationTargets((previous) => {
           const index = previous.findIndex(
             (target) =>
@@ -1586,10 +1611,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             return previous;
           }
           const target = previous[index]!;
-          const clip = exportAnimationClipIr({
-            id: target.clipId,
-            name: target.name,
-          });
+          const clip = snapshotClip;
           const updatedTarget: AuthoredAnimationTarget = {
             ...target,
             clipId: clip.id,
@@ -1646,6 +1668,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       animationTargetOptions,
+      authoredAnimationTargets,
       exportAnimationClipIr,
       resolveImportedAnimationBaseClip,
     ],
@@ -1682,15 +1705,51 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
+  // Persist to the clip the STORE holds, not to the UI selection.
+  //
+  // This effect fires on store contents, and `selectedAnimationTargetId` used
+  // to be one of its dependencies — so the moment the selection moved it
+  // persisted whatever the store still held onto the *new* target, before that
+  // target had been loaded. Traced while creating a clip with another selected:
+  //
+  //   autosave.effect tgt=clip.2 tracks=4   <- selection flipped, store stale
+  //   save.enter      tgt=clip.2 tracks=4   <- the outgoing clip's tracks
+  //   load.enter      tgt=clip.2            <- clip.2 loads only now
+  //   autosave.effect tgt=clip.2 tracks=0
+  //
+  // which is both the copy-over and the zeroing. Addressing the write by the
+  // store's own `hydratedClipId` makes a selection change incapable of
+  // misrouting it, so no coordination between the two is required.
   useEffect(() => {
-    if (!selectedAnimationTargetId || pendingAnimationTargetSwitchId) {
+    if (pendingAnimationTargetSwitchId) {
       return;
     }
-    saveAnimationTarget(selectedAnimationTargetId);
+    const hydratedClipId = useAnimationStore.getState().hydratedClipId;
+    if (!hydratedClipId) {
+      return;
+    }
+    const authoredTarget = authoredAnimationTargets.find(
+      (target) => target.clipId === hydratedClipId,
+    );
+    const destinationTargetId =
+      authoredTarget?.targetId ??
+      animationTargetOptions.find(
+        (option) =>
+          option.value.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX) &&
+          resolveImportedAnimationBaseClip(option.value)?.id === hydratedClipId,
+      )?.value ??
+      null;
+    if (!destinationTargetId) {
+      return;
+    }
+    saveAnimationTarget(destinationTargetId);
   }, [
     animationDuration,
+    animationTargetOptions,
     animationTracks,
+    authoredAnimationTargets,
     pendingAnimationTargetSwitchId,
+    resolveImportedAnimationBaseClip,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
