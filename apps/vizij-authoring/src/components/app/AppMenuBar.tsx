@@ -30,6 +30,7 @@ interface AppMenuBarProps {
   onImport: () => void;
   onImportSkipChecks: () => void;
   onImportReferenceFace: () => void;
+  onImportGlbAnimations: () => void;
   onSave: () => void;
   onExport: () => void;
   /** The shipped standard profiles a face may opt into (empty = none). */
@@ -73,6 +74,7 @@ export function AppMenuBar({
   onImport,
   onImportSkipChecks,
   onImportReferenceFace,
+  onImportGlbAnimations,
   onSave,
   onExport,
   standardProfiles,
@@ -194,6 +196,12 @@ export function AppMenuBar({
           testId="app-menu-file-import-reference-face"
         >
           Import Reference Face...
+        </MenuItem>
+        <MenuItem
+          onSelect={onImportGlbAnimations}
+          testId="app-menu-file-import-glb-animations"
+        >
+          Import Animations from GLB...
         </MenuItem>
         <MenuSubmenu
           label="Standard Profiles"
