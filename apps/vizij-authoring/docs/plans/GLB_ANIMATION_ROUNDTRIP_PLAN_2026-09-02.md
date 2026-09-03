@@ -375,15 +375,15 @@ identical track counts.
 
 ## Phasing
 
-| Phase | Deliverable                                                                                                                                                                                                                                                                                                                                                                                                | Notes                                                                                                                                                             |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | **done** — corpus locked; `src/animationImport/` resolver + golden corpus test (33 tests); shared `sanitizeMorphKey` / `deriveMorphFeatureKeys` extracted to `@vizij/render`; shared `buildPropsRigInputPath` exported from `autoInputs`                                                                                                                                                                   | mutation-tested: a path-rule change fails the corpus test                                                                                                         |
-| 1     | Channel manifest + provenance contract; `detached` track support in IR and compiler                                                                                                                                                                                                                                                                                                                        | small shared foundation both directions depend on                                                                                                                 |
-| 2     | Import: stop discarding `LoadedVizijAsset.animations`; drop the `RobotData` early exit; `ChannelResolver` identity + **exact** name mode (no fuzzy tiers yet); `weights` -> `targetNames` -> `sanitizeMorphKey`; CUBICSPLINE preservation; per-Action reassembly onto one shared timeline                                                                                                                  | unifies the `componentId` vs rig-path convention; validated against the corpus ; input range fitting (widen targets to admit imported curves, reported per input) |
-| 3     | **partly done** — `src/animationBake/`: `bakeClipToTrackSpecs` (recombine to stride 3/4, euler->quaternion, morph by feature key, cubic-morph resample) + `BakeReport` + `toThreeAnimationClip` with binding pre-validation. **Remaining: the graph sampler** (`stageInput`/`setTime`/`evalAll`) that turns semantic clips into node curves, keyframe decimation, and wiring `exportScene({ animations })` | node-level channels bake and are tested against the corpus; semantic channels are reported as `needs-graph-sampling` rather than silently dropped                 |
-| 4     | Triage cases 1–3 + dedupe on import                                                                                                                                                                                                                                                                                                                                                                        | makes repeat round-trips converge                                                                                                                                 |
-| 5     | Drift detection + `DiscrepancyWizard` `animation` category + reattach UI                                                                                                                                                                                                                                                                                                                                   | the external-edit story                                                                                                                                           |
-| 6     | Corpus regression suite (resolution rate must stay 100%, no duplicate clips across a bake->import cycle), e2e, docs (`ARCHITECTURE.md` boundary section, `UI_DESIGN.md` contract, export guidance, `BACKLOG`/`ROADMAP`/`TRACKER`)                                                                                                                                                                          | one _new_ round-trip fixture is still needed to settle `extras` survival — the corpus cannot answer it                                                            |
+| Phase | Deliverable                                                                                                                                                                                                                                                                                                                                                            | Notes                                                                                                                                                                       |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | **done** — corpus locked; `src/animationImport/` resolver + golden corpus test (33 tests); shared `sanitizeMorphKey` / `deriveMorphFeatureKeys` extracted to `@vizij/render`; shared `buildPropsRigInputPath` exported from `autoInputs`                                                                                                                               | mutation-tested: a path-rule change fails the corpus test                                                                                                                   |
+| 1     | Channel manifest + provenance contract; `detached` track support in IR and compiler                                                                                                                                                                                                                                                                                    | small shared foundation both directions depend on                                                                                                                           |
+| 2     | Import: stop discarding `LoadedVizijAsset.animations`; drop the `RobotData` early exit; `ChannelResolver` identity + **exact** name mode (no fuzzy tiers yet); `weights` -> `targetNames` -> `sanitizeMorphKey`; CUBICSPLINE preservation; per-Action reassembly onto one shared timeline                                                                              | unifies the `componentId` vs rig-path convention; validated against the corpus ; input range fitting (widen targets to admit imported curves, reported per input)           |
+| 3     | **done** — `src/animationBake/`: `bakeClipToTrackSpecs` + `BakeReport` + `toThreeAnimationClip` with binding pre-validation; graph sampler (`sampleClipThroughGraph` behind a `GraphEvaluator` port, device adapter, measured hop cost); RDP decimation; cubic-aware track sampling; `detectBakeHazards`; `exportScene({ animations })` wired through `useVizijExport` | 53 tests, incl. real-wasm device tests and a wiring test; mutation-checked on units, constant-drop, tick-abort, RDP tolerance, endpoints, tangents, and the export argument |
+| 4     | Triage cases 1–3 + dedupe on import                                                                                                                                                                                                                                                                                                                                    | makes repeat round-trips converge                                                                                                                                           |
+| 5     | Drift detection + `DiscrepancyWizard` `animation` category + reattach UI                                                                                                                                                                                                                                                                                               | the external-edit story                                                                                                                                                     |
+| 6     | Corpus regression suite (resolution rate must stay 100%, no duplicate clips across a bake->import cycle), e2e, docs (`ARCHITECTURE.md` boundary section, `UI_DESIGN.md` contract, export guidance, `BACKLOG`/`ROADMAP`/`TRACKER`)                                                                                                                                      | one _new_ round-trip fixture is still needed to settle `extras` survival — the corpus cannot answer it                                                                      |
 
 Phases 0–2 are independently shippable: they turn an already-parsed,
 already-discarded payload into editable clips.
@@ -664,3 +664,48 @@ own scoped piece of work, not a rider on this plan.
 Whichever is chosen, the export preflight must **name the dropped channels**,
 not just count them, so an author animating a color knows it will not appear in
 the GLB.
+
+## Phase 3 as built (2026-09-03)
+
+The plan's phase-3 sketch was right that baking needs graph evaluation, and
+the shape it proposed (`stageInput` / `setTime` / `evalAll`) does exist on
+`@vizij/node-graph`'s `Graph`. It was not what got built, for two reasons
+found while wiring it:
+
+1. **vizij-authoring never uses `Graph` directly** — it evaluates through the
+   device (`@vizij/runtime`). Sampling through `Graph` would have introduced a
+   second evaluation path that must agree with the one that renders, which is
+   the same class of divergence that made animation playback write real values
+   to keys nothing read.
+2. **Fixed stepping, not seeking.** `setTime` would be cheaper, but any node
+   with memory depends on the sequence of steps it has seen, so a seeking
+   sampler bakes a different animation than the one that plays.
+
+So the sampler drives a **separate bake device** built from the exported
+specs, stepping a fixed `1/fps`. Separate because driving the live device
+would make the viewport jump during export and clobber the user's input
+values; built from the exported specs because a second composition would let
+the GLB and the bundle disagree with nothing to catch it.
+
+Facts measured while building it, worth not rediscovering:
+
+- **`AnimationClipIR` times are seconds.** The importer passes glTF seconds
+  through unchanged and `bakeClip` hands them to three.js as seconds. An
+  early draft of the sampler treated `duration` as milliseconds, which is a
+  silent 1000x error in both frame count and key times.
+- **A value crossing between composed sources costs exactly one tick**,
+  measured against a real device. Recording without allowing for it
+  time-shifts the bake by a frame per hop. Zero-dt ticks propagate without
+  advancing time; stepping extra real frames would perturb dt-dependent
+  nodes instead.
+- **Namespacing is a registration-layer concern only.** `buildRigGraphSpec`
+  emits bare paths, so a bake device built from it is self-consistent without
+  any namespace handling.
+
+Two things the plan specified that turned out to matter more than expected:
+
+- **Constant channels must be dropped.** A channel the graph writes but never
+  varies is what the rest pose already says; emitting it pins the node and
+  overrides any other clip that does animate it.
+- **A failing tick must abort sampling.** It stops every node, so continuing
+  records a whole clip of stale values that looks like a successful bake.
