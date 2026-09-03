@@ -96,6 +96,7 @@ import {
 } from "./components/app/importOrientation";
 import { useAnimationStore } from "./state/animationStore";
 import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
+import { shouldPersistAnimationEdit } from "./state/animationHydration";
 import { useManagedTargetLifecycle } from "./hooks/useManagedTargetLifecycle";
 import {
   buildGlbExportDirtySnapshot,
@@ -1562,7 +1563,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (!clipId && !targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
         return;
       }
+      // Refuse to write a snapshot the store was not holding for this clip.
+      // The autosave effect fires on store contents and cannot tell an edit
+      // from a reset, so without this a reset that left a target selected
+      // persisted an empty clip over saved work.
+      const hydratedClipId = useAnimationStore.getState().hydratedClipId;
+
       if (clipId) {
+        if (
+          !shouldPersistAnimationEdit({ hydratedClipId, targetClipId: clipId })
+        ) {
+          return;
+        }
         setAuthoredAnimationTargets((previous) => {
           const index = previous.findIndex(
             (target) =>
@@ -1599,6 +1611,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       const baselineClip = resolveImportedAnimationBaseClip(targetId);
       if (!baselineClip) {
+        return;
+      }
+      if (
+        !shouldPersistAnimationEdit({
+          hydratedClipId,
+          targetClipId: baselineClip.id,
+        })
+      ) {
         return;
       }
       const targetName =
@@ -2077,6 +2097,39 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       resolveImportedAnimationClip,
     ],
   );
+  // Hydration must follow selection, or the autosave guard refuses every edit
+  // made after a selection change that did not load a clip. Creating,
+  // duplicating and deleting a target all set the selection without loading —
+  // 5 of the 9 call sites — so enforcing the invariant here rather than at
+  // each one keeps it true for call sites added later.
+  //
+  // Discarding the store's contents is safe: they belong to the previously
+  // selected target, which was autosaved while it was still selected.
+  useEffect(() => {
+    if (!selectedAnimationTargetId || pendingAnimationTargetSwitchId) {
+      return;
+    }
+    const authoredClipId = parseAuthoredAnimationTargetValue(
+      selectedAnimationTargetId,
+    );
+    const expectedClipId =
+      authoredClipId ??
+      resolveImportedAnimationBaseClip(selectedAnimationTargetId)?.id ??
+      null;
+    if (!expectedClipId) {
+      return;
+    }
+    if (useAnimationStore.getState().hydratedClipId === expectedClipId) {
+      return;
+    }
+    loadSelectedAnimationTarget(selectedAnimationTargetId);
+  }, [
+    loadSelectedAnimationTarget,
+    pendingAnimationTargetSwitchId,
+    resolveImportedAnimationBaseClip,
+    selectedAnimationTargetId,
+  ]);
+
   const loadSelectedProceduralTarget = useCallback(
     (targetId: string | null) => {
       // A profile or skill edit session owns the editor: target changes
