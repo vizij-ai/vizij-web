@@ -12,3 +12,4 @@ export * from "./functions/load-gltf";
 export * from "./functions/load-gltf-blob";
 export * from "./functions/export";
 export * from "./functions/vizij-bundle";
+export * from "./functions/gltf-loading/morph-keys";
