@@ -10,6 +10,12 @@ import { TrackRow } from "./TrackRow";
 interface TimelineEditorProps {
   onSeek?: (timeSeconds: number) => void;
   onPause?: () => void;
+  /**
+   * Resume after a scrub that auto-paused playback. Without it a scrub
+   * silently converts "playing" into "paused", so the user has to press play
+   * again every time they drag the playhead.
+   */
+  onResume?: () => void;
   timeDisplayMode?: AnimationTimeDisplayMode;
   onInspectTrack?: (trackId: string) => void;
 }
@@ -19,6 +25,7 @@ const TRACK_HEADER_WIDTH = 192;
 export function TimelineEditor({
   onSeek,
   onPause,
+  onResume,
   timeDisplayMode = "seconds",
   onInspectTrack,
 }: TimelineEditorProps) {
@@ -128,11 +135,17 @@ export function TimelineEditor({
     }
     isScrubbingRulerRef.current = false;
     scrubStartClientXRef.current = null;
+    // Resume only if *we* paused it for the scrub. A scrub that began while
+    // already paused must stay paused.
+    const shouldResume = pausedForScrubRef.current;
     pausedForScrubRef.current = false;
+    if (shouldResume) {
+      onResume?.();
+    }
     window.removeEventListener("pointermove", handleRulerPointerMove);
     window.removeEventListener("pointerup", stopRulerScrub);
     window.removeEventListener("pointercancel", stopRulerScrub);
-  }, [handleRulerPointerMove]);
+  }, [handleRulerPointerMove, onResume]);
 
   const handleRulerPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,

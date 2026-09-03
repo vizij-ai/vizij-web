@@ -3485,9 +3485,30 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (cancelled) {
         return;
       }
+      // Match the transport contract (UI_DESIGN.md "Animation Transport
+      // Contract" 1): Play starts from the current playhead, at the chosen
+      // speed. This path used to pass `{ reset: true, speed: 1 }`, so the
+      // first Play of a session silently rewound to 0 and ignored the speed
+      // dropdown — while the resume path a few lines up did it correctly.
+      // Read the transport settings imperatively rather than closing over
+      // them: `currentTime` changes on every playhead tick, so having it in
+      // this effect's dependencies would restart playback continuously.
+      const {
+        currentTime: playFromTime,
+        loop: playLoop,
+        playSpeed,
+      } = useAnimationStore.getState();
+      animationRuntimeTransportAdapter.setAnimationLoop(
+        AUTHORED_TIMELINE_CLIP_ID,
+        playLoop,
+      );
+      animationRuntimeTransportAdapter.seekAnimation(
+        AUTHORED_TIMELINE_CLIP_ID,
+        playFromTime,
+      );
       const playPromise = animationRuntimeTransportAdapter.playAnimation(
         AUTHORED_TIMELINE_CLIP_ID,
-        { reset: true, speed: 1 },
+        { reset: false, speed: playSpeed },
       );
       if (
         animationRuntimeTransportAdapter.getAnimationState(
