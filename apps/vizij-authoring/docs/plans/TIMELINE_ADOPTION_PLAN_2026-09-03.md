@@ -1,5 +1,19 @@
 # Adopting `@semio/animation` for the Timeline
 
+> **PAUSED 2026-09-03.** The Phase 1 spike proved adoption is viable, and in
+> doing so showed the total cost is larger than the capability jump justified
+> right now: an R3F substrate swap, a player bridge onto device-authoritative
+> playback, a values bridge, an unresolvable-CSS packaging fix upstream, and a
+> model adapter. Work stopped after Phase 1.
+>
+> The spike code and the four dependencies were removed to avoid carrying an
+> unused dependency on a private package (`git revert` of the "Phase 1 spike"
+> commit restores them). **The findings below are kept deliberately** — they
+> are the expensive part, and none of them need re-deriving to resume.
+>
+> Current direction: finish and clean up the existing timeline instead. See
+> `TIMELINE_POLISH_PLAN_2026-09-03.md`.
+
 Decided 2026-09-03: **adopt `AnimationSheet` wholesale** rather than build our
 own timeline, on the basis that the `@semio/ui` port is already planned — so the
 design-system cost is being paid regardless.
