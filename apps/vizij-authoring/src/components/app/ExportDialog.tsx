@@ -210,6 +210,7 @@ export function ExportDialog({
     animatableComponents,
     animatables,
     values,
+    world: runtimeWorld,
     bindings,
     inputBindings,
     standardInputsById,

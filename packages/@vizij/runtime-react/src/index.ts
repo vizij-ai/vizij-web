@@ -57,3 +57,11 @@ export type {
   RuntimeGraphBundle,
   RuntimeOutputWrite,
 } from "./types";
+
+/**
+ * Graph composition, exported so a host can compose the same way the provider
+ * does — notably when baking authored clips, where a second composition
+ * implementation would be free to drift from the one that actually plays.
+ */
+export { composeGraphSpecs } from "./utils/composeGraph";
+export type { GraphSource, ComposableSpec } from "./utils/composeGraph";

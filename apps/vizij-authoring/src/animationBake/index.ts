@@ -5,3 +5,5 @@ export * from "./sampleTrack";
 export * from "./sampleClipThroughGraph";
 export * from "./decimateClip";
 export * from "./graphEvaluatorDevice";
+export * from "./bakeAuthoredClips";
+export * from "./bakeGraphSources";

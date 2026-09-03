@@ -80,6 +80,37 @@ vi.mock("../../poseRig/services/poseGraphService", () => ({
   },
 }));
 
+/**
+ * A fake device for the bake path: echoes the staged input straight to the
+ * rig graph's output path. The bake itself is covered against real wasm in
+ * `animationBake/__tests__`; what this file checks is the wiring — that
+ * baked clips actually reach `exportScene`.
+ */
+const BAKE_OUTPUT_PATH = "propsrig/l_lid/translation/y";
+vi.mock("@vizij/runtime", () => ({
+  startRuntime: vi.fn(async () => {
+    let staged = 0;
+    let output = 0;
+    return {
+      behaviorError: undefined,
+      setValue: (_path: string, value: { float?: number }) => {
+        staged = typeof value?.float === "number" ? value.float : 0;
+      },
+      step: () => {
+        output = staged;
+      },
+      readValues: (paths: string[]) =>
+        Object.fromEntries(
+          paths.map((path) => [
+            path,
+            path === BAKE_OUTPUT_PATH ? { float: output } : null,
+          ]),
+        ),
+      dispose: () => {},
+    };
+  }),
+}));
+
 vi.mock("../../utils/bundleAudit", () => ({
   auditBundleGraphs: vi.fn(),
 }));
@@ -177,6 +208,7 @@ function createOptions(
     includeVizijBundle: true,
     includeImportedAnimations: false,
     loadedBundle: null,
+    world: {},
     animatableComponents: [COMPONENT],
     animatables: {
       [ANIMATABLE.id]: ANIMATABLE,
@@ -2014,6 +2046,123 @@ describe("useVizijExport", () => {
     expect(options.alertDialog).toHaveBeenCalledWith(
       expect.stringContaining("Pose IR import is unavailable."),
     );
+    hook.unmount();
+  });
+});
+
+describe("useVizijExport GLB animation baking", () => {
+  /** A rig graph that writes the one node channel the fake device echoes. */
+  function rigSpecWithOutput(): GraphSpec {
+    return {
+      nodes: [
+        {
+          id: "in",
+          type: "input",
+          params: { path: "lids_blink", value: { float: 0 } },
+        },
+        { id: "out", type: "output", params: { path: BAKE_OUTPUT_PATH } },
+      ],
+      edges: [{ from: { node_id: "in" }, to: { node_id: "out", input: "in" } }],
+    } as unknown as GraphSpec;
+  }
+
+  const LID_TRANSLATION = {
+    id: "lid-translation",
+    default: [0, 0, 0],
+  };
+
+  function bakeOptions(
+    overrides: Partial<Parameters<typeof useVizijExport>[0]> = {},
+  ) {
+    return createOptions({
+      world: {
+        lid: {
+          id: "lid",
+          name: "L_Lid",
+          features: {
+            translation: { animated: true, value: "lid-translation" },
+          },
+        },
+      } as never,
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+        [LID_TRANSLATION.id]: LID_TRANSLATION,
+      } as never,
+      getExportableBodies: () => [
+        {
+          name: "Scene",
+          traverse: (callback: (child: { name: string }) => void) => {
+            callback({ name: "Scene" });
+            callback({ name: "L_Lid" });
+          },
+        },
+      ],
+      authoredAnimationClips: [
+        {
+          schemaVersion: 1 as const,
+          id: "authoring.timeline.main",
+          name: "Blink",
+          duration: 1,
+          tracks: [
+            {
+              id: "t0",
+              variableId: "lids_blink",
+              channel: "lids_blink",
+              interpolation: "linear" as const,
+              keyframes: [
+                { id: "k0", time: 0, value: 0 },
+                { id: "k1", time: 1, value: 1 },
+              ],
+            },
+          ],
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: rigSpecWithOutput(),
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+    } as never);
+    mockedNormalizeGraphSpec.mockImplementation(
+      async (spec: unknown) => spec as GraphSpec,
+    );
+  });
+
+  it("passes baked animations to exportScene", async () => {
+    // The clip drives `lids_blink`; the exported GLB must carry the *node*
+    // channel the graph derives from it, or a Blender user sees no motion.
+    const hook = renderHook(bakeOptions());
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    const payload = mockedExportScene.mock.calls[0]?.[1] as {
+      animations?: Array<{ name: string; tracks: Array<{ name: string }> }>;
+    };
+    expect(payload.animations).toHaveLength(1);
+    expect(payload.animations![0]!.name).toBe("Blink");
+    expect(payload.animations![0]!.tracks.map((track) => track.name)).toEqual([
+      "L_Lid.position",
+    ]);
+    hook.unmount();
+  });
+
+  it("still exports the GLB when there is nothing to bake", async () => {
+    const hook = renderHook(bakeOptions({ authoredAnimationClips: [] }));
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    const payload = mockedExportScene.mock.calls[0]?.[1] as {
+      animations?: unknown[];
+    };
+    expect(payload.animations).toEqual([]);
     hook.unmount();
   });
 });
