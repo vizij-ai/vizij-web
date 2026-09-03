@@ -117,6 +117,27 @@ app-wide.
 Adoption needs this fixed upstream or a committed `pnpm patch`. Given we have
 influence over the repo, upstream is preferable.
 
+**Reconciled with PR #113** (`Port vizij-authoring onto @semio/ui`, open,
+155 files). That PR pins `@semio/ui: 0.1.4`; the spike initially pinned `0.2.1`,
+which would have forced a version six weeks newer on code written against the
+0.1.x line — a breaking change under 0.x semver.
+
+The publish timeline settles it: `@semio/animation@0.2.1` shipped 2026-07-01,
+the same day as `@semio/ui@0.1.2`, so it was built against 0.1.x and never saw
+0.2.x. Pinned to **0.1.4** to match the port, and verified that
+`@semio/animation` and the app resolve the _same_ instance rather than two —
+`pnpm why` reports one `@semio/ui 0.1.4` for both.
+
+That check matters for the reason #113 gives for removing `@base-ui/react`: two
+copies mean two independent dismissal-layer and portal stacks, which produce
+intermittent "my click did nothing" bugs that get misattributed for months. The
+`three` singleton check above is the same hazard in a different package.
+
+Worth noting for merge order: #113 rewrites
+`apps/vizij-authoring/src/styles.css` (+328/−47), which is exactly where the
+spike's CSS workaround does **not** live — it is scoped to `spike/spike.css` —
+so the two should not collide.
+
 **Open.** Horizontal layout collapses in the bare spike harness (`#root` has no
 intrinsic size outside the app shell, and the sheet's host measures 0 wide).
 Heights propagate correctly, so this reads as a container concern rather than a
