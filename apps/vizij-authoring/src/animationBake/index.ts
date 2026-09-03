@@ -1,3 +1,7 @@
 export * from "./bakeClip";
 export * from "./bakeTargets";
 export * from "./toThreeAnimationClip";
+export * from "./sampleTrack";
+export * from "./sampleClipThroughGraph";
+export * from "./decimateClip";
+export * from "./graphEvaluatorDevice";

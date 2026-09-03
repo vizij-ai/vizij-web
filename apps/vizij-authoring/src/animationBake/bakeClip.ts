@@ -3,6 +3,7 @@ import type {
   AnimationClipIR,
   AnimationTrackIR,
 } from "../types/animationClipIr";
+import { sampleTrackAt, unionKeyTimes as unionTimes } from "./sampleTrack";
 import type { BakeTargetElement, BakeTargetIndex } from "./bakeTargets";
 
 /**
@@ -103,48 +104,6 @@ function parsePropsRigChannel(channel: string): ParsedChannel | null {
     return null;
   }
   return { segment: parts[1]!, feature: parts[2]!, component: parts[3]! };
-}
-
-function sampleTrackAt(track: AnimationTrackIR, time: number): number {
-  const keyframes = track.keyframes;
-  if (keyframes.length === 0) {
-    return 0;
-  }
-  if (time <= keyframes[0]!.time) {
-    return keyframes[0]!.value;
-  }
-  const last = keyframes[keyframes.length - 1]!;
-  if (time >= last.time) {
-    return last.value;
-  }
-  for (let index = 0; index < keyframes.length - 1; index += 1) {
-    const start = keyframes[index]!;
-    const end = keyframes[index + 1]!;
-    if (time < start.time || time > end.time) {
-      continue;
-    }
-    const span = end.time - start.time;
-    if (span <= 0) {
-      return end.value;
-    }
-    const alpha = (time - start.time) / span;
-    if ((start.interpolation ?? track.interpolation) === "step") {
-      return start.value;
-    }
-    return start.value + (end.value - start.value) * alpha;
-  }
-  return last.value;
-}
-
-/** Sorted union of every contributing track's key times. */
-function unionTimes(tracks: ReadonlyArray<AnimationTrackIR>): number[] {
-  const seen = new Set<number>();
-  for (const track of tracks) {
-    for (const keyframe of track.keyframes) {
-      seen.add(keyframe.time);
-    }
-  }
-  return [...seen].sort((left, right) => left - right);
 }
 
 interface ChannelGroup {
