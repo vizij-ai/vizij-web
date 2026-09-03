@@ -265,6 +265,13 @@ interface AnimationState {
   transportRuntimeReady: boolean;
   timeDisplayMode: AnimationTimeDisplayMode;
 
+  /**
+   * Clip this store currently holds. This — not the UI selection — is the
+   * correct destination for a persist: the autosave fires on store contents,
+   * and a selection change can precede the corresponding load.
+   */
+  hydratedClipId: string | null;
+
   // Selection
   selectedTrackId: string | null;
   selectedKeyframeId: string | null;
@@ -349,12 +356,14 @@ const INITIAL_STATE: Pick<
   | "transportSessionKey"
   | "transportRuntimeReady"
   | "timeDisplayMode"
+  | "hydratedClipId"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
   | "nextKeyframeOrdinal"
 > = {
   tracks: [],
+  hydratedClipId: null,
   currentTime: 0,
   duration: 10,
   isPlaying: false,
@@ -809,6 +818,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       return {
         ...state,
         tracks: normalized.tracks,
+        hydratedClipId: compiled.id,
         duration: compiled.duration,
         currentTime: clampTime(state.currentTime, compiled.duration),
         isPlaying: false,
@@ -833,11 +843,13 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
   },
 
   reset: () =>
-    set((state) => ({
-      ...INITIAL_STATE,
-      runtimeTransportAdapter: state.runtimeTransportAdapter,
-      transportSessionKey: state.transportSessionKey,
-    })),
+    set((state) => {
+      return {
+        ...INITIAL_STATE,
+        runtimeTransportAdapter: state.runtimeTransportAdapter,
+        transportSessionKey: state.transportSessionKey,
+      };
+    }),
 }));
 
 // Helper to evaluate a track at a specific time

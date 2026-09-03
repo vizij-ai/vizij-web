@@ -75,6 +75,63 @@ reconciled by effects.
 exported and has **no callers** — a leftover from a third hydration path.
 Worth deleting so it cannot be mistaken for live behaviour.
 
+## Resolved (2026-09-03) — two causes, both traced
+
+Instrumenting `importClipIr`, `reset`, `saveAnimationTarget` and the autosave
+effect with stack traces settled it in one run. Four hypotheses derived by
+reading the code had all been wrong.
+
+### Cause 1: the autosave was addressed by the selection
+
+`selectedAnimationTargetId` was a dependency of the autosave effect, so the
+moment the selection moved the effect persisted whatever the store _still_
+held onto the _new_ target — before that target had been loaded:
+
+```text
+save.enter        tgt=bundle:0  tracks=4   <- saves outgoing clip (correct)
+autosave.effect   tgt=clip.2    tracks=4   <- selection flipped, store stale
+save.enter        tgt=clip.2    tracks=4   <- outgoing clip's tracks, wrong clip
+load.enter        tgt=clip.2               <- clip.2 loads only now
+autosave.effect   tgt=clip.2    tracks=0
+```
+
+Fixed by addressing the write with the store's own `hydratedClipId` rather
+than the selection. A selection change can no longer misroute a persist, so no
+coordination between the two is needed.
+
+### Cause 2: a setState updater read mutable state at invocation time
+
+`saveAnimationTarget` called `exportAnimationClipIr` **inside** a functional
+`setAuthoredAnimationTargets` updater. That updater runs during a later render
+— twice under StrictMode — and `exportAnimationClipIr` reads the animation
+store _when called_. By then a switch had reloaded the store, so the snapshot
+captured the incoming clip's tracks and stamped them with the outgoing clip's
+id:
+
+```text
+save.enter         dest=clip.3  n=1        <- 1 track, correct
+load.enter         dest=bundle:0
+store.importClipIr clip.1 incoming=4       <- store reloaded
+save.writeAuthored dest=clip.3 was=1->4    <- wrong tracks persisted
+save.writeAuthored dest=clip.3 was=1->4    <- again (StrictMode)
+```
+
+Fixed by taking the snapshot eagerly, before the setter, making the updater
+pure. This is the general rule the file should keep: **a functional setState
+updater must not read mutable external state.**
+
+### Verified
+
+Reproduction that failed four times now passes: create a clip, add a track,
+switch away, switch back — the clip keeps its one track and the other clip
+keeps its four. Verified against a loaded face, not in a unit test; the
+coordination these bugs live in is not reachable from one, which is why every
+previous attempt passed its tests and still broke.
+
+The single-owner recommendation below still stands as the durable fix — both
+causes were only _possible_ because live and persisted contents are separate
+stores reconciled by effects.
+
 ## The experiment that would settle the remaining overwrite
 
 Log, with a stack trace, every call to `setSelectedAnimationTargetId` and
