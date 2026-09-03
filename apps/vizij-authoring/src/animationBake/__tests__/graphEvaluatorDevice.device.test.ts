@@ -138,7 +138,9 @@ describe("device graph evaluator", () => {
       const { clip, report } = sampleClipThroughGraph({
         clip: authored,
         evaluator,
-        outputPaths: [OUT],
+        outputs: [
+          { path: OUT, channels: [OUT], elementName: "e", featureKey: "f" },
+        ],
         fps: 10,
       });
 

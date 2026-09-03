@@ -86,7 +86,14 @@ vi.mock("../../poseRig/services/poseGraphService", () => ({
  * `animationBake/__tests__`; what this file checks is the wiring — that
  * baked clips actually reach `exportScene`.
  */
-const BAKE_OUTPUT_PATH = "propsrig/l_lid/translation/y";
+/**
+ * The animatable id the rig graph writes — NOT a propsrig path. Mirrors a
+ * real bundle, where rig outputs are uuids carrying joined vectors. See
+ * `animationBake/__tests__/realBundleConventions.test.ts`.
+ */
+const BAKE_ANIMATABLE_ID = "anim-l-lid-translation";
+/** The graph input path the clip's channel resolves to. */
+const BAKE_INPUT_PATH = "rig/face/propsrig/l_lid/translation/y";
 vi.mock("@vizij/runtime", () => ({
   startRuntime: vi.fn(async () => {
     let staged = 0;
@@ -103,7 +110,10 @@ vi.mock("@vizij/runtime", () => ({
         Object.fromEntries(
           paths.map((path) => [
             path,
-            path === BAKE_OUTPUT_PATH ? { float: output } : null,
+            // A joined vector, as the rig graph actually writes.
+            path === BAKE_ANIMATABLE_ID
+              ? { vec3: { x: 0, y: output, z: 0 } }
+              : null,
           ]),
         ),
       dispose: () => {},
@@ -2056,19 +2066,32 @@ describe("useVizijExport GLB animation baking", () => {
     return {
       nodes: [
         {
-          id: "in",
+          // The `input_` prefix is what collectInputPathMap strips to make the
+          // lookup key a clip's variableId matches.
+          id: "input_propsrig_l_lid_translation_y",
           type: "input",
-          params: { path: "lids_blink", value: { float: 0 } },
+          params: { path: BAKE_INPUT_PATH, value: { float: 0 } },
         },
-        { id: "out", type: "output", params: { path: BAKE_OUTPUT_PATH } },
+        {
+          id: "out_l_lid_translation",
+          type: "output",
+          params: { path: BAKE_ANIMATABLE_ID },
+        },
       ],
-      edges: [{ from: { node_id: "in" }, to: { node_id: "out", input: "in" } }],
+      edges: [
+        {
+          from: { node_id: "input_propsrig_l_lid_translation_y" },
+          to: { node_id: "out_l_lid_translation", input: "in" },
+        },
+      ],
     } as unknown as GraphSpec;
   }
 
   const LID_TRANSLATION = {
-    id: "lid-translation",
-    default: [0, 0, 0],
+    id: BAKE_ANIMATABLE_ID,
+    // A vector default is how buildBakeChannelIndex decides the graph writes
+    // three components at this path.
+    default: { x: 0, y: 0, z: 0 },
   };
 
   function bakeOptions(
@@ -2080,7 +2103,7 @@ describe("useVizijExport GLB animation baking", () => {
           id: "lid",
           name: "L_Lid",
           features: {
-            translation: { animated: true, value: "lid-translation" },
+            translation: { animated: true, value: BAKE_ANIMATABLE_ID },
           },
         },
       } as never,
@@ -2106,8 +2129,8 @@ describe("useVizijExport GLB animation baking", () => {
           tracks: [
             {
               id: "t0",
-              variableId: "lids_blink",
-              channel: "lids_blink",
+              variableId: "propsrig_l_lid_translation_y",
+              channel: "propsrig/l_lid/translation/y",
               interpolation: "linear" as const,
               keyframes: [
                 { id: "k0", time: 0, value: 0 },

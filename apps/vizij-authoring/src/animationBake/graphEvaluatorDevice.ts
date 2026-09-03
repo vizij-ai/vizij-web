@@ -23,21 +23,66 @@ export interface DeviceGraphEvaluator extends GraphEvaluator {
   dispose(): void;
 }
 
-function numericFrom(raw: unknown): number | null {
+const SCALAR_KEYS = ["float", "f32", "f64"] as const;
+const VECTOR_KEYS = ["vec3", "vec2", "vec4", "vector", "quat"] as const;
+const COMPONENT_KEYS = ["x", "y", "z", "w"] as const;
+
+/**
+ * Decode a store value into an ordered component list.
+ *
+ * The rig graph writes *joined vectors* at one path per animatable, so a
+ * scalar-only decode returns null for every vector feature — which is
+ * indistinguishable from a graph that never ran, and is exactly why the first
+ * version of this baked nothing.
+ */
+function componentsFrom(raw: unknown): number[] | null {
   if (typeof raw === "number") {
-    return raw;
+    return [raw];
   }
   if (!raw || typeof raw !== "object") {
     return null;
   }
+  if (Array.isArray(raw)) {
+    const values = raw.filter(
+      (entry): entry is number => typeof entry === "number",
+    );
+    return values.length > 0 ? values : null;
+  }
   const record = raw as Record<string, unknown>;
-  for (const key of ["float", "f32", "f64"]) {
+
+  for (const key of SCALAR_KEYS) {
     const value = record[key];
     if (typeof value === "number") {
-      return value;
+      return [value];
     }
   }
+  for (const key of VECTOR_KEYS) {
+    const nested = record[key];
+    if (nested !== undefined) {
+      const decoded = componentsFrom(nested);
+      if (decoded) {
+        return decoded;
+      }
+    }
+  }
+  // Component-keyed object, e.g. { x, y, z }.
+  const byComponent = COMPONENT_KEYS.map((key) => record[key]).filter(
+    (value): value is number => typeof value === "number",
+  );
+  if (byComponent.length > 0) {
+    return byComponent;
+  }
+  // A single-field wrapper, e.g. { value: 0.5 }.
+  const value = record.value;
+  if (typeof value === "number") {
+    return [value];
+  }
   return null;
+}
+
+/** First component only, for the propagation probe. */
+function numericFrom(raw: unknown): number | null {
+  return componentsFrom(raw)?.[0] ?? null;
 }
 
 export async function createDeviceGraphEvaluator(options: {
@@ -72,9 +117,9 @@ export async function createDeviceGraphEvaluator(options: {
     },
     readOutputs(paths: ReadonlyArray<string>) {
       const raw = runtime.readValues([...paths]);
-      const values = new Map<string, number | null>();
+      const values = new Map<string, ReadonlyArray<number> | null>();
       for (const path of paths) {
-        values.set(path, numericFrom(raw[path]));
+        values.set(path, componentsFrom(raw[path]));
       }
       return values;
     },

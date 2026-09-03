@@ -8,3 +8,4 @@ export * from "./graphEvaluatorDevice";
 export * from "./bakeAuthoredClips";
 export * from "./bakeGraphSources";
 export * from "./bakeHazards";
+export * from "./bakeChannelIndex";
