@@ -265,6 +265,14 @@ interface AnimationState {
   transportRuntimeReady: boolean;
   timeDisplayMode: AnimationTimeDisplayMode;
 
+  /**
+   * Clip this store was last hydrated from, or null when it has been reset.
+   *
+   * Lets a caller distinguish "empty because the user cleared it" from "empty
+   * because we reset it" — see `shouldPersistAnimationEdit`.
+   */
+  hydratedClipId: string | null;
+
   // Selection
   selectedTrackId: string | null;
   selectedKeyframeId: string | null;
@@ -349,12 +357,14 @@ const INITIAL_STATE: Pick<
   | "transportSessionKey"
   | "transportRuntimeReady"
   | "timeDisplayMode"
+  | "hydratedClipId"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
   | "nextKeyframeOrdinal"
 > = {
   tracks: [],
+  hydratedClipId: null,
   currentTime: 0,
   duration: 10,
   isPlaying: false,
@@ -809,6 +819,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       return {
         ...state,
         tracks: normalized.tracks,
+        hydratedClipId: compiled.id,
         duration: compiled.duration,
         currentTime: clampTime(state.currentTime, compiled.duration),
         isPlaying: false,
