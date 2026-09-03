@@ -148,6 +148,24 @@ Direct+pose effective-channel contract:
 2. Low-level propsrig rows are hidden/minimized in default inspector chain flows unless no high-level mapping exists.
 3. Advanced/debug view exposes full propsrig internals through explicit `Show/Hide Props Rig Internals` controls.
 
+## Animation Transport Contract
+
+1. `Play` activates the animation runtime session for the selected clip and
+   starts playback from the current playhead.
+2. `Pause` holds the playhead; the face keeps the pose it was showing.
+3. `Stop` **halts and rewinds**: the playhead returns to 0, the clip's t=0 pose
+   is applied, and the runtime session stays active so `Play` resumes without
+   re-registering.
+4. `Stop` must not tear down the runtime session. Clearing the active runtime
+   target unregisters the animation source and mutes the clip to zero tracks,
+   which makes the next `Play` re-activate and re-register everything, and
+   makes a stopped clip indistinguishable from an absent one in diagnostics.
+5. Tearing the session down is reserved for switching to a different clip and
+   for session reset (new face load).
+6. The transport clock reflects device feedback when available and a host-side
+   playhead otherwise; it must never silently report 0 as a stand-in for
+   "no telemetry".
+
 ## Import/Export UX Contract
 
 1. Import must surface structured diagnostics consistently across pose config/IR/graph paths.
