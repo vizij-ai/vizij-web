@@ -93,55 +93,6 @@ Sequenced ahead of everything else here. Losing authored work outranks every
 ergonomic item below, and polish on a surface that silently discards edits is
 not worth building.
 
-### A0 status (2026-09-03) — reset case fixed, copy-over still open
-
-**Fixed.** The store records the clip it was hydrated from
-(`hydratedClipId`), and `saveAnimationTarget` refuses to persist unless that
-marker matches the target being written. That closes the reset case: after
-`reset()` the marker is null, so an emptied store is never mistaken for the
-user clearing a clip. Every selection path that previously changed the
-selection without loading — create, duplicate, explicit import, delete — now
-hydrates explicitly from the target object it already holds.
-
-A first attempt reconciled hydration from an effect instead, and was reverted
-(`c0722a51`): it forced a load whenever the marker disagreed, and
-`loadSelectedAnimationTarget` falls through to `reset()` when the target is
-missing from its closure, so the failure mode was "empty every clip". An
-effect that can fire against a stale closure and whose failure mode is data
-loss is the wrong shape. Explicit hydration at the call sites has no such
-window.
-
-**Still open: switching clips copies the incoming clip's tracks onto the
-outgoing target.** Verified pre-existing — it reproduces identically with the
-guard reverted, so it is not caused by any of this work.
-
-Reproduction, against `Quori_Current_Extended.glb`:
-
-```text
-New Animation                → Animation Clip 2 · 0 tracks
-Add Track "Background Color R" → Animation Clip 2 · 1 track
-switch to "Nonesense"        → Animation Clip 2 · 4 tracks   (already wrong)
-switch back                  → rows: gaze_left_right, gaze_left_right_copy
-```
-
-The authored track is destroyed and replaced by the four tracks of the clip
-switched _to_. The label and the timeline rows agree, so this is real data
-loss, not a display fault.
-
-What is known:
-
-- It is not `saveAnimationTarget`: the marker guard is active and would refuse
-  a write whose target disagrees with the hydrated clip, and the corruption
-  still happens.
-- `loadSelectedAnimationTarget` cannot be the source: when a target is missing
-  it resets to zero tracks, not four.
-- No caller of `replaceTracks` exists outside the store.
-
-So there is a writer that has not been found. The next step is to instrument
-every `setAuthoredAnimationTargets` call site (there are eight) plus
-`importClipIr`, and run the reproduction above — rather than reason about it,
-which has produced three wrong hypotheses so far.
-
 ## Phase A — the scrubber (the explicit ask)
 
 | #   | Change                                                                                                                                                                                                                  | Rubric   |
