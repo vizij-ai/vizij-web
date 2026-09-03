@@ -178,6 +178,9 @@ export function compileAnimationClipIr({
         channel,
         interpolation,
         keyframes,
+        // Normalize to `undefined` so an attached track never serializes a
+        // redundant `detached: false`.
+        detached: track.detached === true ? true : undefined,
       } satisfies AnimationTrackIR;
     })
     .filter((track) => track.channel.length > 0)
@@ -218,7 +221,9 @@ export function clipIrToBundleAnimationEntry(
       name: compiled.name,
       duration: compiled.duration,
       tracks: compiled.tracks
-        .filter((track) => track.keyframes.length > 0)
+        // Detached tracks point at channels that no longer exist; they are
+        // authored-state only and must never reach the runtime.
+        .filter((track) => !track.detached && track.keyframes.length > 0)
         .map((track) => ({
           channel: track.channel,
           interpolation: track.interpolation,

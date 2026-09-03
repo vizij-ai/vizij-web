@@ -18,6 +18,17 @@ export interface AnimationTrackIR {
   interpolation: AnimationInterpolation;
   keyframes: AnimationKeyframeIR[];
   metadata?: Record<string, unknown>;
+  /**
+   * True when the track's target channel no longer exists on the loaded face —
+   * typically because an element or morph target was renamed or removed
+   * outside Vizij.
+   *
+   * Detached tracks are retained in authored state so keyframe work survives a
+   * rename: `channel` keeps the stale path so the track can be re-attached.
+   * They are excluded from the runtime bundle (see
+   * `clipIrToBundleAnimationEntry`) and must not be compiled or played.
+   */
+  detached?: boolean;
 }
 
 export interface AnimationClipIR {

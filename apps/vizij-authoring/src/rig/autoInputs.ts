@@ -57,22 +57,42 @@ function toPathToken(value: string, fallback: string): string {
   return normalized || fallback;
 }
 
-function toFeaturePathSegment(entry: FeatureEntry): string {
-  return toPathToken(entry.featureKey, "feature");
-}
-
 function toShapePathSegment(entry: FeatureEntry): string {
   const base = entry.elementName || entry.elementId;
-  return toPathToken(base, "shape");
+  return propsRigElementSegment(base);
 }
 
-function toPropertyPathSegment(
-  component: VectorComponentKey | undefined,
-): string {
-  if (!component) {
-    return "value";
-  }
-  return toPathToken(component, "value");
+/**
+ * Path segment for a renderable within `/propsrig/...`.
+ *
+ * Exported because animation channel resolution must derive the same segment
+ * from a glTF node name that generation derives from an element name.
+ */
+export function propsRigElementSegment(elementNameOrId: string): string {
+  return toPathToken(elementNameOrId, "shape");
+}
+
+/**
+ * Canonical propsrig input path for an animatable component.
+ *
+ * This is the animation binding contract: `AnimationTrackIR.channel` holds
+ * this path and `variableId` is derived from it, so anything resolving an
+ * external animation channel onto a Vizij input must build the path here
+ * rather than re-deriving the segment rules.
+ */
+export function buildPropsRigInputPath(options: {
+  elementName: string;
+  featureKey: string;
+  component?: VectorComponentKey | null;
+}): string {
+  const shapeSegment = propsRigElementSegment(options.elementName);
+  const featureSegment = toPathToken(options.featureKey, "feature");
+  const propertySegment = options.component
+    ? toPathToken(options.component, "value")
+    : "value";
+  return normalizeStandardRigInputPath(
+    `/propsrig/${shapeSegment}/${featureSegment}/${propertySegment}`,
+  );
 }
 
 function toPropertyLabel(component: VectorComponentKey | undefined): string {
@@ -160,11 +180,12 @@ function createBlueprintFromComponent(
   registry: Set<string>,
 ): AutoRigInputBlueprint {
   const shapeSegment = toShapePathSegment(entry);
-  const featureSegment = toFeaturePathSegment(entry);
-  const propertySegment = toPropertyPathSegment(propertyKey);
-  const basePath = `/propsrig/${shapeSegment}/${featureSegment}/${propertySegment}`;
   const normalizedPath = ensureUniquePath(
-    normalizeStandardRigInputPath(basePath),
+    buildPropsRigInputPath({
+      elementName: entry.elementName || entry.elementId,
+      featureKey: entry.featureKey,
+      component: propertyKey ?? null,
+    }),
     registry,
   );
   const label = deriveLabelFromNormalizedPath(normalizedPath);
