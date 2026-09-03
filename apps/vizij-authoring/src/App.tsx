@@ -96,7 +96,6 @@ import {
 } from "./components/app/importOrientation";
 import { useAnimationStore } from "./state/animationStore";
 import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
-import { shouldPersistAnimationEdit } from "./state/animationHydration";
 import { useManagedTargetLifecycle } from "./hooks/useManagedTargetLifecycle";
 import {
   buildGlbExportDirtySnapshot,
@@ -1577,25 +1576,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (!clipId && !targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
         return;
       }
-      // Refuse to persist a snapshot the store was not holding for this clip.
-      //
-      // The autosave effect fires on store contents. zustand is an external
-      // store, so loading the incoming clip during a switch can force a
-      // render that still sees the previous `selectedAnimationTargetId` — and
-      // without this the effect writes the incoming clip's tracks onto the
-      // outgoing target. Reproduced: a new clip with one track came back
-      // holding the four tracks of the clip switched to.
-      //
-      // It also covers the reset case: after `reset()` the marker is null, so
-      // an emptied store is never mistaken for the user clearing the clip.
-      const hydratedClipId = useAnimationStore.getState().hydratedClipId;
-
       if (clipId) {
-        if (
-          !shouldPersistAnimationEdit({ hydratedClipId, targetClipId: clipId })
-        ) {
-          return;
-        }
         setAuthoredAnimationTargets((previous) => {
           const index = previous.findIndex(
             (target) =>
@@ -1632,14 +1613,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       const baselineClip = resolveImportedAnimationBaseClip(targetId);
       if (!baselineClip) {
-        return;
-      }
-      if (
-        !shouldPersistAnimationEdit({
-          hydratedClipId,
-          targetClipId: baselineClip.id,
-        })
-      ) {
         return;
       }
       const targetName =
@@ -2300,10 +2273,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     );
     setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
     setSelectedAnimationTargetId(nextTarget.targetId);
-    // Hydrate from the target in hand. Selecting without loading leaves the
-    // store holding the previous clip, which the guard would then refuse to
-    // save for the rest of the session.
-    importAnimationClipIr(nextTarget.clip);
   }, [
     animationDuration,
     authoredAnimationTargets,
@@ -2375,7 +2344,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       setWorkspacePanelVisibility("animation", true);
       setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
       setSelectedAnimationTargetId(nextTarget.targetId);
-      importAnimationClipIr(nextTarget.clip);
     },
     [
       authoredAnimationTargets,
@@ -2534,7 +2502,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         setActiveAuthoringSurface("animations");
         setWorkspacePanelVisibility("animation", true);
         setSelectedAnimationTargetId(nextTargets[0]!.targetId);
-        importAnimationClipIr(nextTargets[0]!.clip);
         await showAlert(summaryLines.join("\n"));
         return;
       }
@@ -2665,12 +2632,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const nextTargetId =
         nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
       setSelectedAnimationTargetId(nextTargetId);
-      const nextAuthored = nextAuthoredTargets[0];
-      if (nextAuthored) {
-        importAnimationClipIr(nextAuthored.clip);
-      } else {
-        loadSelectedAnimationTarget(nextTargetId);
-      }
     },
     [
       animationTargetOptions,
