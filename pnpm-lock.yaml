@@ -31,7 +31,7 @@ overrides:
   yaml@>=2.0.0 <2.8.3: ^2.8.3
   postcss@<8.5.10: ^8.5.10
   '@babel/core@<=7.29.0': ^7.29.6
-  '@semio/ui': 0.2.1
+  '@semio/ui': 0.1.4
   '@semio/utils': 0.2.0
   three: 0.170.0
 
@@ -481,10 +481,10 @@ importers:
         version: 1.3.2(react@19.2.3)
       '@semio/animation':
         specifier: 0.2.1
-        version: 0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@tabler/icons-react@3.46.0(react@19.2.3))(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(@types/three@0.170.0)(react-dom@19.2.3(react@19.2.3))(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
+        version: 0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@tabler/icons-react@3.46.0(react@19.2.3))(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
       '@semio/ui':
-        specifier: 0.2.1
-        version: 0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
+        specifier: 0.1.4
+        version: 0.1.4(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
       '@semio/utils':
         specifier: 0.2.0
         version: 0.2.0(@types/react@19.2.9)(use-sync-external-store@1.6.0(react@19.2.3))
@@ -2917,11 +2917,11 @@ packages:
     peerDependencies:
       '@tabler/icons-react': ^3.34.0
 
-  '@semio/ui@0.2.1':
-    resolution: {integrity: sha512-gJZo7J0GCHQUoJZ3SVI4laT0mTe1fEMhIVj2ipyzq1c8ia5rPM1IFdytavEr9d5a1dfCkM/t0xwZdZfK0cHVEw==}
+  '@semio/ui@0.1.4':
+    resolution: {integrity: sha512-IL7ShOfnak7VPtN8bo+I1rzhPPQO+WmPIcIoi2r50QluRzv/ghtO8U+8kPLJK9GhSdh6RADuF7K5KBUkh0lYUA==}
     peerDependencies:
-      react: ^19.0.0
-      react-dom: ^19.0.0
+      react: ^18.2.0 || ^19.0.0
+      react-dom: ^18.2.0 || ^19.0.0
       tailwindcss: ^4.1.3
 
   '@semio/utils@0.2.0':
@@ -7534,7 +7534,7 @@ snapshots:
 
   '@radix-ui/react-popper@1.3.7(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@floating-ui/react-dom': 2.1.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@floating-ui/react-dom': 2.1.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-arrow': 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-compose-refs': 1.1.5(@types/react@19.2.9)(react@19.2.3)
       '@radix-ui/react-context': 1.2.2(@types/react@19.2.9)(react@19.2.3)
@@ -8211,11 +8211,11 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@semio/animation@0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@tabler/icons-react@3.46.0(react@19.2.3))(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(@types/three@0.170.0)(react-dom@19.2.3(react@19.2.3))(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))':
+  '@semio/animation@0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@tabler/icons-react@3.46.0(react@19.2.3))(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))':
     dependencies:
       '@react-three/drei': 10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@types/react@19.2.9)(@types/three@0.170.0)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
       '@react-three/fiber': 9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
-      '@semio/ui': 0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
+      '@semio/ui': 0.1.4(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))
       '@semio/utils': 0.2.0(@types/react@19.2.9)(use-sync-external-store@1.6.0(react@19.2.3))
       '@solar-icons/react-perf': 2.1.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tabler/icons-react': 3.46.0(react@19.2.3)
@@ -8254,7 +8254,7 @@ snapshots:
       - tailwindcss
       - use-sync-external-store
 
-  '@semio/ui@0.2.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))':
+  '@semio/ui@0.1.4(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(use-sync-external-store@1.6.0(react@19.2.3))':
     dependencies:
       '@base-ui/react': 1.7.0(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@floating-ui/react': 0.27.20(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -10542,7 +10542,7 @@ snapshots:
 
   match-sorter@6.3.4:
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.7
       remove-accents: 0.5.0
 
   math-intrinsics@1.1.0: {}
