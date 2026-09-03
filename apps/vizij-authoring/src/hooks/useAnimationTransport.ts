@@ -14,9 +14,33 @@ import {
 } from "../types/animationClipIr";
 import { clipIrToBundleAnimationEntry } from "../utils/animationClipCompiler";
 
-function toDeterministicSignature(value: unknown): string {
+/**
+ * Millisecond precision, which is what a clip's timings survive.
+ *
+ * The runtime stores a clip's duration as integer milliseconds
+ * (`toStoredAnimationClip`), so a duration like `21.958334` comes back as
+ * `21.958`. Comparing signatures by exact equality then never converges:
+ * `transportRuntimeReady` never latches, the bridge re-applies the bundle on
+ * every change, and playback restarts in a loop. Rounding both sides to the
+ * precision the wire format actually preserves is what makes the comparison
+ * mean "has the runtime caught up", rather than "are these bit-identical".
+ */
+const SIGNATURE_DECIMALS = 3;
+
+function roundForSignature(value: number): number {
+  if (!Number.isFinite(value)) {
+    return value;
+  }
+  const factor = 10 ** SIGNATURE_DECIMALS;
+  return Math.round(value * factor) / factor;
+}
+
+export function toDeterministicSignature(value: unknown): string {
   const seen = new WeakSet<object>();
   return JSON.stringify(value, (_key, currentValue) => {
+    if (typeof currentValue === "number") {
+      return roundForSignature(currentValue);
+    }
     if (!currentValue || typeof currentValue !== "object") {
       return currentValue;
     }

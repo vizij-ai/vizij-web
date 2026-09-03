@@ -20,6 +20,7 @@ function renderMenuBar() {
       onImport={vi.fn()}
       onImportSkipChecks={vi.fn()}
       onImportReferenceFace={vi.fn()}
+      onImportGlbAnimations={vi.fn()}
       onSave={vi.fn()}
       onExport={vi.fn()}
       standardProfiles={[]}
