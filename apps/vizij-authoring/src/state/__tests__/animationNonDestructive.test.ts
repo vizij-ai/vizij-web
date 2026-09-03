@@ -53,9 +53,7 @@ describe("keyframe time collisions", () => {
 
     // Both keyframes survive, and the dragged one stays where it was.
     expect(keyTimes(trackId)).toEqual([1, 2]);
-    expect(
-      useAnimationStore.getState().tracks[0]!.keyframes,
-    ).toHaveLength(2);
+    expect(useAnimationStore.getState().tracks[0]!.keyframes).toHaveLength(2);
   });
 
   it("still allows a drag to an unoccupied time", () => {
@@ -74,7 +72,9 @@ describe("keyframe time collisions", () => {
     store.addKeyframe(trackId, 1, 0.25);
     const key = useAnimationStore.getState().tracks[0]!.keyframes[0]!;
 
-    useAnimationStore.getState().updateKeyframe(trackId, key.id, { value: 0.9 });
+    useAnimationStore
+      .getState()
+      .updateKeyframe(trackId, key.id, { value: 0.9 });
 
     expect(keyTimes(trackId)).toEqual([1]);
     expect(useAnimationStore.getState().tracks[0]!.keyframes[0]!.value).toBe(
