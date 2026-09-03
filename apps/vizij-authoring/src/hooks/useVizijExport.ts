@@ -14,7 +14,7 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
-import { composeGraphSpecs } from "@vizij/runtime-react";
+import { collectInputPathMap, composeGraphSpecs } from "@vizij/runtime-react";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -29,6 +29,7 @@ import {
 } from "@vizij/utils";
 import {
   bakeAuthoredClips,
+  buildBakeChannelIndex,
   buildBakeTargetIndexFromWorld,
   collectBakeGraphSources,
   outputPathsOfSpec,
@@ -1085,10 +1086,28 @@ export function useVizijExport(
       if (bakeSources.length > 0 && clipsToBake.length > 0) {
         try {
           const composed = composeGraphSpecs(bakeSources);
+          // The rig graph writes animatable ids, not propsrig paths, so the
+          // recorded set is the world's animated features restricted to what
+          // the exported graph actually declares as an output.
+          const declaredOutputs = new Set(outputPathsOfSpec(composed));
           const bakeResult = await bakeAuthoredClips({
             clips: clipsToBake,
             spec: composed as unknown as GraphSpec,
-            outputPaths: outputPathsOfSpec(composed),
+            outputs: buildBakeChannelIndex({
+              world: (world ?? {}) as never,
+              animatables: animatables as never,
+              restrictToPaths: declaredOutputs,
+            }),
+            // Built per source, NOT from the composed spec: composition
+            // prefixes node ids ("rig::input_foo"), which defeats the
+            // `input_` strip that produces the lookup key a clip's
+            // variableId matches.
+            inputPathMap: Object.assign(
+              {},
+              ...bakeSources.map((source) =>
+                collectInputPathMap(source.spec as never),
+              ),
+            ),
             targets: buildBakeTargetIndexFromWorld(world ?? {}, animatables),
             root: exportableBodies[0] as never,
           });

@@ -1,4 +1,5 @@
 import type { GraphSpec } from "@vizij/node-graph";
+import { resolveAnimationBridgeOutputPaths } from "@vizij/runtime-react";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import {
   bakeClipToTrackSpecs,
@@ -11,6 +12,7 @@ import {
   DEFAULT_DECIMATE_TOLERANCE,
   type DecimateReport,
 } from "./decimateClip";
+import type { SampledOutputSpec } from "./bakeChannelIndex";
 import {
   describeBakeHazards,
   detectBakeHazards,
@@ -92,8 +94,23 @@ export async function bakeAuthoredClips(options: {
   clips: ReadonlyArray<AnimationClipIR>;
   /** Composed spec for the bake device, built from the exported specs. */
   spec: GraphSpec;
-  /** Node channels to record — the graph's animatable outputs. */
-  outputPaths: ReadonlyArray<string>;
+  /**
+   * What to record: the store paths the graph writes and each component's
+   * canonical channel name. Built by `buildBakeChannelIndex` from the world,
+   * restricted to the paths the exported graph declares.
+   */
+  outputs: ReadonlyArray<SampledOutputSpec>;
+  /**
+   * Clip variable id (or channel) -> the rig graph input path that drives it,
+   * from `collectInputPathMap` on the exported rig spec.
+   *
+   * Required because a clip's channel is NOT a graph input path: a clip drives
+   * `propsrig/l_eye/scale/x` while the graph's input node declares
+   * `rig/<face>/override/propsrig_l_eye_scale_x/value`. Staging the channel
+   * raw writes to a path nothing reads — the same failure that stopped
+   * playback, in a different place.
+   */
+  inputPathMap: Readonly<Record<string, string>>;
   targets: BakeTargetIndex;
   /** The tree the clips will be exported against, for binding validation. */
   root: ThreeObject3DLike;
@@ -109,7 +126,7 @@ export async function bakeAuthoredClips(options: {
     clip.tracks.some((track) => !track.detached && track.keyframes.length > 0),
   );
 
-  if (bakeable.length === 0 || options.outputPaths.length === 0) {
+  if (bakeable.length === 0 || options.outputs.length === 0) {
     return {
       animations: [],
       report: {
@@ -125,16 +142,34 @@ export async function bakeAuthoredClips(options: {
 
   // Measure the hop cost from a channel the graph actually drives, rather
   // than assuming it: it depends on how many sources the value crosses.
+  // Resolve through the same bridge playback uses, then keep only a candidate
+  // the graph actually declares as an input. A channel that resolves to
+  // nothing declared cannot drive anything, and is reported by the sampler
+  // rather than staged into the void.
+  const declaredInputPaths = new Set(Object.values(options.inputPathMap));
+  const resolveInputPath = (track: { variableId: string; channel: string }) => {
+    const map = options.inputPathMap;
+    const direct = map[track.variableId] ?? map[track.channel];
+    if (direct && declaredInputPaths.has(direct)) {
+      return direct;
+    }
+    const candidates = resolveAnimationBridgeOutputPaths(
+      track.channel,
+      undefined,
+      options.inputPathMap,
+    );
+    return candidates.find((path) => declaredInputPaths.has(path)) ?? null;
+  };
+
   let propagationTicks = options.propagationTicks;
   if (propagationTicks === undefined) {
-    const probeInput = bakeable[0]!.tracks.find(
-      (track) => !track.detached,
-    )?.channel;
+    const probeTrack = bakeable[0]!.tracks.find((track) => !track.detached);
+    const probeInput = probeTrack ? resolveInputPath(probeTrack) : null;
     const measured = probeInput
       ? await measurePropagationTicks({
           spec: options.spec,
           inputPath: probeInput,
-          outputPath: options.outputPaths[0]!,
+          outputPath: options.outputs[0]!.path,
         })
       : null;
     propagationTicks = measured ?? 1;
@@ -154,8 +189,9 @@ export async function bakeAuthoredClips(options: {
       const sampled = sampleClipThroughGraph({
         clip: authored,
         evaluator,
-        outputPaths: options.outputPaths,
+        outputs: options.outputs,
         fps,
+        resolveInputPath,
       });
       const decimated = decimateClip({ clip: sampled.clip, tolerance });
       const baked = bakeClipToTrackSpecs({

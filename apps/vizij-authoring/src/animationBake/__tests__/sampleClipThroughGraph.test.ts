@@ -12,6 +12,16 @@ const IN = "lids_blink";
 const OUT_A = "/propsrig/l_lid/translation/y";
 const OUT_B = "/propsrig/r_lid/translation/y";
 
+/** Scalar outputs: one store path, one canonical channel each. */
+function outputsFor(...paths: string[]) {
+  return paths.map((path) => ({
+    path,
+    channels: [path],
+    elementName: path.split("/")[2] ?? "",
+    featureKey: path.split("/")[3] ?? "",
+  }));
+}
+
 function clip(overrides: Partial<AnimationClipIR> = {}): AnimationClipIR {
   return {
     schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
@@ -71,13 +81,13 @@ function fakeGraph(options?: {
       frame += 1;
     },
     readOutputs(paths: ReadonlyArray<string>) {
-      const map = new Map<string, number | null>();
+      const map = new Map<string, ReadonlyArray<number> | null>();
       paths.forEach((path) => {
         if (neverWrite.has(path)) {
           map.set(path, null);
           return;
         }
-        map.set(path, path === OUT_A ? outputs[0] : outputs[1]);
+        map.set(path, [path === OUT_A ? outputs[0] : outputs[1]]);
       });
       return map;
     },
@@ -91,7 +101,7 @@ describe("sampleClipThroughGraph", () => {
     const { clip: sampled, report } = sampleClipThroughGraph({
       clip: clip(),
       evaluator,
-      outputPaths: [OUT_A, OUT_B],
+      outputs: outputsFor(OUT_A, OUT_B),
       fps: 10,
     });
 
@@ -127,7 +137,7 @@ describe("sampleClipThroughGraph", () => {
     const { clip: sampled } = sampleClipThroughGraph({
       clip: clip(),
       evaluator,
-      outputPaths: [OUT_A],
+      outputs: outputsFor(OUT_A),
       fps: 10,
     });
 
@@ -151,7 +161,7 @@ describe("sampleClipThroughGraph", () => {
     const { clip: sampled, report } = sampleClipThroughGraph({
       clip: clip(),
       evaluator,
-      outputPaths: [OUT_A, OUT_B],
+      outputs: outputsFor(OUT_A, OUT_B),
       fps: 10,
     });
 
@@ -167,7 +177,7 @@ describe("sampleClipThroughGraph", () => {
     const { report } = sampleClipThroughGraph({
       clip: clip(),
       evaluator,
-      outputPaths: [OUT_A],
+      outputs: outputsFor(OUT_A),
       fps: 10,
     });
 
@@ -183,7 +193,7 @@ describe("sampleClipThroughGraph", () => {
     const { clip: sampled, report } = sampleClipThroughGraph({
       clip: clip(),
       evaluator,
-      outputPaths: [OUT_A, OUT_B],
+      outputs: outputsFor(OUT_A, OUT_B),
       fps: 10,
     });
 
@@ -211,7 +221,7 @@ describe("sampleClipThroughGraph", () => {
         ],
       }),
       evaluator,
-      outputPaths: [OUT_A],
+      outputs: outputsFor(OUT_A),
       fps: 10,
     });
 
@@ -225,7 +235,7 @@ describe("sampleClipThroughGraph", () => {
       sampleClipThroughGraph({
         clip: clip(),
         evaluator: fakeGraph(),
-        outputPaths: [OUT_A],
+        outputs: outputsFor(OUT_A),
         fps: 0,
       }),
     ).toThrow(/fps must be positive/);

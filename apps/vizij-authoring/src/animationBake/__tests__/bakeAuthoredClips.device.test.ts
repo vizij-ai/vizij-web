@@ -101,7 +101,21 @@ describe("bakeAuthoredClips", () => {
     const { animations, report } = await bakeAuthoredClips({
       clips: [authoredClip()],
       spec: rigSpec(),
-      outputPaths: [OUT_Y, OUT_X],
+      outputs: [
+        {
+          path: OUT_Y,
+          channels: [OUT_Y],
+          elementName: ELEMENT,
+          featureKey: "translation",
+        },
+        {
+          path: OUT_X,
+          channels: [OUT_X],
+          elementName: ELEMENT,
+          featureKey: "translation",
+        },
+      ],
+      inputPathMap: { [INPUT]: INPUT },
       targets,
       root: fakeRoot(),
       fps: 30,
@@ -171,7 +185,21 @@ describe("bakeAuthoredClips", () => {
     const { report } = await bakeAuthoredClips({
       clips: [withMaterial],
       spec: rigSpec(),
-      outputPaths: [OUT_Y, OUT_X],
+      outputs: [
+        {
+          path: OUT_Y,
+          channels: [OUT_Y],
+          elementName: ELEMENT,
+          featureKey: "translation",
+        },
+        {
+          path: OUT_X,
+          channels: [OUT_X],
+          elementName: ELEMENT,
+          featureKey: "translation",
+        },
+      ],
+      inputPathMap: { [INPUT]: INPUT },
       targets,
       root: fakeRoot(),
       fps: 30,
@@ -193,7 +221,15 @@ describe("bakeAuthoredClips", () => {
         },
       ],
       spec: rigSpec(),
-      outputPaths: [OUT_Y],
+      outputs: [
+        {
+          path: OUT_Y,
+          channels: [OUT_Y],
+          elementName: ELEMENT,
+          featureKey: "translation",
+        },
+      ],
+      inputPathMap: { [INPUT]: INPUT },
       targets,
       root: fakeRoot(),
     });

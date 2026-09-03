@@ -3,6 +3,7 @@ import {
   type AnimationClipIR,
   type AnimationTrackIR,
 } from "../types/animationClipIr";
+import type { SampledOutputSpec } from "./bakeChannelIndex";
 import { sampleTrackAt } from "./sampleTrack";
 
 /**
@@ -31,8 +32,17 @@ export interface GraphEvaluator {
   stageInput(path: string, value: number): void;
   /** Advance the graph by `dtMs` and evaluate. */
   step(dtMs: number): void;
-  /** Read the current value at each path; `null` when unset or non-numeric. */
-  readOutputs(paths: ReadonlyArray<string>): ReadonlyMap<string, number | null>;
+  /**
+   * Read the current value at each path as an ordered component list; `null`
+   * when unset or non-numeric.
+   *
+   * A list rather than a scalar because the rig graph writes *joined vectors*
+   * at one path per animatable — a scalar-only read returns null for every
+   * vector feature, which looks exactly like a graph that never ran.
+   */
+  readOutputs(
+    paths: ReadonlyArray<string>,
+  ): ReadonlyMap<string, ReadonlyArray<number> | null>;
   /**
    * Set when the last tick failed. A failing tick stops *every* node, so a
    * sampler that ignores this records a whole clip of stale values.
@@ -43,6 +53,12 @@ export interface GraphEvaluator {
 export type GraphSampleWarning =
   | { kind: "graph-tick-failed"; frame: number; message: string }
   | { kind: "output-never-written"; paths: string[] }
+  /**
+   * Clip channels with no matching graph input. Reported rather than staged
+   * raw: a channel the graph does not declare cannot drive anything, and
+   * staging it anyway writes to a path nothing reads.
+   */
+  | { kind: "input-unresolved"; channels: string[] }
   | { kind: "no-input-tracks" };
 
 export interface GraphSampleReport {
@@ -84,13 +100,16 @@ const CONSTANT_EPSILON = 1e-6;
 export function sampleClipThroughGraph(options: {
   clip: AnimationClipIR;
   evaluator: GraphEvaluator;
-  /** Node channels to record — the graph's animatable outputs. */
-  outputPaths: ReadonlyArray<string>;
+  /**
+   * What to record: the store paths the graph writes and the canonical channel
+   * name of each of their components. Built by `buildBakeChannelIndex`.
+   */
+  outputs: ReadonlyArray<SampledOutputSpec>;
   fps: number;
   /** Maps a clip track to the rig input path it drives. */
   resolveInputPath?: (track: AnimationTrackIR) => string | null;
 }): GraphSampleResult {
-  const { clip, evaluator, outputPaths, fps } = options;
+  const { clip, evaluator, outputs, fps } = options;
   const resolveInputPath =
     options.resolveInputPath ?? ((track: AnimationTrackIR) => track.channel);
 
@@ -100,6 +119,7 @@ export function sampleClipThroughGraph(options: {
 
   const warnings: GraphSampleWarning[] = [];
   const driven: Array<{ path: string; track: AnimationTrackIR }> = [];
+  const unresolved: string[] = [];
   for (const track of clip.tracks) {
     if (track.detached) {
       continue;
@@ -107,7 +127,12 @@ export function sampleClipThroughGraph(options: {
     const path = resolveInputPath(track);
     if (path) {
       driven.push({ path, track });
+    } else {
+      unresolved.push(track.channel);
     }
+  }
+  if (unresolved.length > 0) {
+    warnings.push({ kind: "input-unresolved", channels: unresolved });
   }
   if (driven.length === 0) {
     warnings.push({ kind: "no-input-tracks" });
@@ -122,11 +147,16 @@ export function sampleClipThroughGraph(options: {
   // or the last pose is dropped.
   const frameCount = Math.max(1, Math.round(duration * fps) + 1);
 
-  const paths = [...new Set(outputPaths)];
-  const series = new Map<string, number[]>();
+  const paths = [...new Set(outputs.map((output) => output.path))];
+  const specByPath = new Map(outputs.map((output) => [output.path, output]));
+  /** path -> component index -> value per frame */
+  const series = new Map<string, number[][]>();
   const everWritten = new Set<string>();
-  for (const path of paths) {
-    series.set(path, []);
+  for (const output of outputs) {
+    series.set(
+      output.path,
+      output.channels.map(() => []),
+    );
   }
 
   for (let frame = 0; frame < frameCount; frame += 1) {
@@ -147,17 +177,26 @@ export function sampleClipThroughGraph(options: {
 
     const observed = evaluator.readOutputs(paths);
     for (const path of paths) {
+      const components = series.get(path)!;
       const value = observed.get(path) ?? null;
-      const track = series.get(path)!;
-      if (value === null) {
-        // Carry the previous value rather than injecting a zero: an output
-        // the graph has not written yet is unknown, not zero, and a zero
-        // here would bake a jump to origin on frame 0.
-        track.push(track.length > 0 ? track[track.length - 1]! : 0);
-        continue;
+      if (value !== null) {
+        everWritten.add(path);
       }
-      everWritten.add(path);
-      track.push(value);
+      components.forEach((componentSeries, index) => {
+        const next = value?.[index];
+        if (typeof next === "number" && Number.isFinite(next)) {
+          componentSeries.push(next);
+          return;
+        }
+        // Carry the previous value rather than injecting a zero: an output the
+        // graph has not written yet is unknown, not zero, and a zero here
+        // would bake a jump to origin on frame 0.
+        componentSeries.push(
+          componentSeries.length > 0
+            ? componentSeries[componentSeries.length - 1]!
+            : 0,
+        );
+      });
     }
   }
 
@@ -169,26 +208,33 @@ export function sampleClipThroughGraph(options: {
     if (!everWritten.has(path)) {
       continue;
     }
-    const values = series.get(path)!;
-    const first = values[0] ?? 0;
-    const varies = values.some(
-      (value) => Math.abs(value - first) > CONSTANT_EPSILON,
-    );
-    if (!varies) {
-      constantChannels.push(path);
-      continue;
-    }
-    sampledChannels.push(path);
-    tracks.push({
-      id: `sampled:${path}`,
-      variableId: path,
-      channel: path,
-      interpolation: "linear",
-      keyframes: values.map((value, frame) => ({
-        id: `sampled:${path}:${frame}`,
-        time: Math.min(duration, frame / fps),
-        value,
-      })),
+    const spec = specByPath.get(path)!;
+    const components = series.get(path)!;
+    components.forEach((values, index) => {
+      const channel = spec.channels[index];
+      if (!channel) {
+        return;
+      }
+      const first = values[0] ?? 0;
+      const varies = values.some(
+        (value) => Math.abs(value - first) > CONSTANT_EPSILON,
+      );
+      if (!varies) {
+        constantChannels.push(channel);
+        return;
+      }
+      sampledChannels.push(channel);
+      tracks.push({
+        id: `sampled:${channel}`,
+        variableId: channel,
+        channel,
+        interpolation: "linear",
+        keyframes: values.map((value, frame) => ({
+          id: `sampled:${channel}:${frame}`,
+          time: Math.min(duration, frame / fps),
+          value,
+        })),
+      });
     });
   }
 
