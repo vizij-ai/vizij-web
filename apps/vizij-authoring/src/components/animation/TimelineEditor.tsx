@@ -255,7 +255,16 @@ export function TimelineEditor({
       {/* Tracks Container */}
       <div
         className="flex-1 p-2 space-y-1 overflow-y-auto custom-scrollbar relative"
-        onClick={() => {
+        onClick={(event) => {
+          // Only a click on the empty area deselects. This used to fire for
+          // any descendant click and relied on children calling
+          // stopPropagation to prevent it — so when TrackRow stopped doing
+          // that (to let row clicks seek), selecting a track immediately
+          // deselected it on the way up, and double-click-to-add-keyframe
+          // broke because it bails on an empty selection.
+          if (event.target !== event.currentTarget) {
+            return;
+          }
           selectTrack(null);
           selectKeyframe(null);
         }}
