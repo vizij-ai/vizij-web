@@ -80,6 +80,50 @@ Prove it mounts in _our_ build before designing around it.
 Exit criterion: the sheet renders and a keyframe can be dragged. Nothing wired
 to the runtime yet.
 
+### Phase 1 findings (2026-09-03)
+
+Spike lives at `src/components/animation/spike/SemioAnimationSheetSpike.tsx`,
+reachable at `?semioSpike=1`, which renders it _instead of_ the app — no face
+load, no runtime, no shared store.
+
+**Resolved — the risk that would have killed adoption.** `three` resolves to a
+single `0.170.0` and `react` to a single `19.2.3`, with `@react-three/fiber`
+9.5.0 and `drei` 10.7.7 both bound to them. `three` is now pinned in
+`pnpm.overrides` alongside `@semio/ui` and `@semio/utils`, which the package
+declares as `"*"` and which must never reach the lockfile as floating ranges.
+
+**It mounts and runs.** `AnimationSheet` renders with `createAnimationStore()`,
+producing three canvases and real chrome — "Key View", "No tracks", "Normal
+Playback (1x)" — with no crash and no console errors. Vertical layout is
+correct: for a 360px sheet the canvases measure 144 / 356 / 144.
+
+**Its published CSS does not resolve.** A real upstream packaging bug:
+
+- `./styles.css` and `./theme.css` map to `./src/*.css`, and `src` is not in
+  the published tarball;
+- `./dist/styles.css` is exported and exists, but contains _unbuilt_ Tailwind
+  (`@import "tailwindcss"; @source "../src"`) pointing at that missing source;
+- `./dist/theme.css` exists on disk but is absent from `exports`, so Vite
+  rejects the bare specifier outright.
+
+Worked around in `spike/spike.css` by importing the theme via relative path
+(bypassing `exports`) and pointing Tailwind's `@source` at their compiled
+`dist` so it emits the utilities their class names use. Verified: their
+`grid w-full` computes as `display: grid`, so scanning works. Deliberately
+**not** in the app's global stylesheet — their `theme.css` is an `@theme` block
+defining `--color-primary` and friends, which would override our tokens
+app-wide.
+
+Adoption needs this fixed upstream or a committed `pnpm patch`. Given we have
+influence over the repo, upstream is preferable.
+
+**Open.** Horizontal layout collapses in the bare spike harness (`#root` has no
+intrinsic size outside the app shell, and the sheet's host measures 0 wide).
+Heights propagate correctly, so this reads as a container concern rather than a
+mount failure, but it is unverified — the hidden browser pane throttles timers
+to ~8s and freezes `requestAnimationFrame`, which R3F needs to size and draw,
+so this is best confirmed in a real browser.
+
 ## Phase 2 — model adapter
 
 A bidirectional adapter between `AnimationClipIR` and their `Track`/`Keypoint`,
