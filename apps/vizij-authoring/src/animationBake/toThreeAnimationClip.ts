@@ -10,9 +10,9 @@ import type { BakedTrackSpec } from "./bakeClip";
 // types have to be derived rather than referenced directly.
 type ThreeAnimationClip = InstanceType<typeof AnimationClip>;
 type ThreeKeyframeTrack = InstanceType<typeof NumberKeyframeTrack>;
-type ThreeObject3D = {
+export type ThreeObject3DLike = {
   name: string;
-  traverse: (callback: (child: ThreeObject3D) => void) => void;
+  traverse: (callback: (child: ThreeObject3DLike) => void) => void;
   morphTargetDictionary?: Record<string, number>;
 };
 
@@ -28,8 +28,11 @@ export interface ThreeClipBuildResult {
   issues: ThreeClipValidationIssue[];
 }
 
-function findByName(root: ThreeObject3D, name: string): ThreeObject3D | null {
-  let found: ThreeObject3D | null = null;
+function findByName(
+  root: ThreeObject3DLike,
+  name: string,
+): ThreeObject3DLike | null {
+  let found: ThreeObject3DLike | null = null;
   root.traverse((child) => {
     if (!found && child.name === name) {
       found = child;
@@ -61,7 +64,7 @@ export function toThreeAnimationClip(options: {
   duration: number;
   tracks: ReadonlyArray<BakedTrackSpec>;
   /** The object tree the clip will be exported against. */
-  root: ThreeObject3D;
+  root: ThreeObject3DLike;
 }): ThreeClipBuildResult {
   const { name, duration, tracks, root } = options;
   const issues: ThreeClipValidationIssue[] = [];

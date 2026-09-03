@@ -14,6 +14,7 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
+import { composeGraphSpecs } from "@vizij/runtime-react";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -26,6 +27,13 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
+import {
+  bakeAuthoredClips,
+  buildBakeTargetIndexFromWorld,
+  collectBakeGraphSources,
+  outputPathsOfSpec,
+  summarizeBakeReport,
+} from "../animationBake";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
@@ -124,6 +132,7 @@ interface UseVizijExportOptions {
   animatableComponents: AnimatableComponent[];
   animatables: Record<string, AnimatableValue>;
   values: VizijData["values"];
+  world: VizijData["world"];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   standardInputsById: Map<string, StandardRigInput>;
@@ -579,6 +588,7 @@ export function useVizijExport(
     animatableComponents,
     animatables,
     values,
+    world,
     bindings,
     inputBindings,
     standardInputsById,
@@ -1062,6 +1072,59 @@ export function useVizijExport(
         }
       }
 
+      // Bake authored clips into glTF animation channels, by default and for
+      // every clip (roundtrip plan decisions 1 and 2): interop is the point,
+      // and a Blender user opening the GLB should see the motion.
+      //
+      // Authored clips drive abstract rig inputs, not node transforms, so this
+      // evaluates the exported graph over time and records what it writes —
+      // see `animationBake/sampleClipThroughGraph.ts`.
+      let bakedAnimations: unknown[] = [];
+      const bakeSources = collectBakeGraphSources(bundle);
+      const clipsToBake = authoredAnimationClips ?? [];
+      if (bakeSources.length > 0 && clipsToBake.length > 0) {
+        try {
+          const composed = composeGraphSpecs(bakeSources);
+          const bakeResult = await bakeAuthoredClips({
+            clips: clipsToBake,
+            spec: composed as unknown as GraphSpec,
+            outputPaths: outputPathsOfSpec(composed),
+            targets: buildBakeTargetIndexFromWorld(world ?? {}, animatables),
+            root: exportableBodies[0] as never,
+          });
+          bakedAnimations = bakeResult.animations;
+          // The preflight names the lossy set rather than only counting it
+          // (decision 3): material channels have no glTF channel at all, so
+          // the bundle keeps them while the baked GLB cannot.
+          logVizijExportDebug("export-glb:bake", {
+            summary: summarizeBakeReport(bakeResult.report),
+            fps: bakeResult.report.fps,
+            propagationTicks: bakeResult.report.propagationTicks,
+            clipCount: bakedAnimations.length,
+          });
+        } catch (error) {
+          // A bake failure must not cost the user their export: the bundle
+          // still carries every clip losslessly, so the GLB is written
+          // without baked animation and the reason is surfaced.
+          logVizijExportDebug("export-glb:bake-failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          await alertDialog(
+            `Could not bake animations into the GLB, so it will be exported without them. The Vizij bundle still contains every clip.\n\n${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          bakedAnimations = [];
+        }
+      } else if (clipsToBake.length > 0 && bakeSources.length === 0) {
+        // Baking needs the rig graph, which travels in the bundle. Without it
+        // there is nothing to evaluate the clips through.
+        logVizijExportDebug("export-glb:bake-skipped", {
+          reason: "no-bakeable-graph-in-bundle",
+          clipCount: clipsToBake.length,
+        });
+      }
+
       logVizijExportDebug("export-glb:export-scene", {
         finalBundleGraphKinds: bundle?.graphs?.map((graph) => graph.kind) ?? [],
         finalBundleHasPosePayload: Boolean(bundle?.poses),
@@ -1073,6 +1136,7 @@ export function useVizijExport(
           ? {
               fileName: downloadName,
               bundle,
+              animations: bakedAnimations as never,
               onComplete: onExportGlbComplete,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
@@ -1080,6 +1144,7 @@ export function useVizijExport(
             }
           : {
               fileName: downloadName,
+              animations: bakedAnimations as never,
               onComplete: onExportGlbComplete,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
