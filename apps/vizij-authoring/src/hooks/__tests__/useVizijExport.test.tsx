@@ -2175,6 +2175,54 @@ describe("useVizijExport GLB animation baking", () => {
     hook.unmount();
   });
 
+  it("bakes an imported clip that has no edits", async () => {
+    // `authoredAnimationClips` excludes an untouched imported clip, because
+    // that list also feeds bundle assembly and would duplicate it. Baking has
+    // the opposite expectation: a clip listed in the UI belongs in the GLB.
+    // Before this was folded in, adding a second animation produced a GLB
+    // with only the authored one.
+    const hook = renderHook(
+      bakeOptions({
+        authoredAnimationClips: [],
+        loadedBundle: {
+          version: 1,
+          animations: [
+            {
+              id: "imported.clip.1",
+              clip: {
+                id: "imported.clip.1",
+                name: "Imported",
+                duration: 1,
+                tracks: [
+                  {
+                    channel: "propsrig/l_lid/translation/y",
+                    targetInputId: "propsrig_l_lid_translation_y",
+                    interpolation: "linear",
+                    keyframes: [
+                      { time: 0, value: 0 },
+                      { time: 1, value: 1 },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        } as never,
+      }),
+    );
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    const payload = mockedExportScene.mock.calls[0]?.[1] as {
+      animations?: Array<{ name: string }>;
+    };
+    expect(payload.animations).toHaveLength(1);
+    expect(payload.animations![0]!.name).toBe("Imported");
+    hook.unmount();
+  });
+
   it("still exports the GLB when there is nothing to bake", async () => {
     const hook = renderHook(bakeOptions({ authoredAnimationClips: [] }));
     await act(async () => {

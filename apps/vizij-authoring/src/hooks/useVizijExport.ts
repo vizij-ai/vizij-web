@@ -57,6 +57,7 @@ import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
 import {
+  bundleAnimationEntryToClipIr,
   clipIrToBundleAnimationEntry,
   findCanonicalAuthoredTimelineConflict,
 } from "../utils/animationClipCompiler";
@@ -1082,7 +1083,26 @@ export function useVizijExport(
       // see `animationBake/sampleClipThroughGraph.ts`.
       let bakedAnimations: unknown[] = [];
       const bakeSources = collectBakeGraphSources(bundle);
-      const clipsToBake = authoredAnimationClips ?? [];
+      // Every animation the user can see, not just the authored ones.
+      //
+      // `authoredAnimationClips` carries authored clips plus imported clips
+      // that have *edits* — an imported clip nobody touched is excluded,
+      // because that list also feeds bundle assembly and would duplicate it.
+      // Baking has no such constraint and the opposite expectation: a clip
+      // listed in the UI should be in the exported GLB. So imported baselines
+      // are folded in here, deduped by clip id.
+      const authoredForBake = authoredAnimationClips ?? [];
+      const bakeClipIds = new Set(authoredForBake.map((clip) => clip.id));
+      const importedForBake: AnimationClipIR[] = [];
+      for (const entry of loadedBundle?.animations ?? []) {
+        const clip = bundleAnimationEntryToClipIr(entry);
+        if (!clip || bakeClipIds.has(clip.id)) {
+          continue;
+        }
+        bakeClipIds.add(clip.id);
+        importedForBake.push(clip);
+      }
+      const clipsToBake = [...authoredForBake, ...importedForBake];
       if (bakeSources.length > 0 && clipsToBake.length > 0) {
         try {
           const composed = composeGraphSpecs(bakeSources);
@@ -1120,6 +1140,8 @@ export function useVizijExport(
             fps: bakeResult.report.fps,
             propagationTicks: bakeResult.report.propagationTicks,
             clipCount: bakedAnimations.length,
+            consideredClipIds: bakeResult.report.consideredClipIds,
+            skippedClips: bakeResult.report.skippedClips,
           });
         } catch (error) {
           // A bake failure must not cost the user their export: the bundle

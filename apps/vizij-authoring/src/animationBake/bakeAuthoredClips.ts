@@ -55,11 +55,26 @@ export interface ClipBakeOutcome {
   clip: unknown;
 }
 
+export type ClipSkipReason = "no-keyframes" | "all-tracks-detached";
+
+export interface SkippedClip {
+  clipId: string;
+  clipName: string;
+  reason: ClipSkipReason;
+}
+
 export interface BakeAuthoredClipsReport {
   fps: number;
   tolerance: number;
   propagationTicks: number;
   outcomes: ClipBakeOutcome[];
+  /** Clip ids handed to the bake, so a missing clip is traceable. */
+  consideredClipIds: string[];
+  /**
+   * Clips dropped before sampling. Reported by name: a clip silently absent
+   * from the exported GLB is indistinguishable from a bake that failed.
+   */
+  skippedClips: SkippedClip[];
   /**
    * Channels dropped across every clip, deduped and named.
    *
@@ -122,9 +137,24 @@ export async function bakeAuthoredClips(options: {
   const fps = options.fps ?? DEFAULT_BAKE_FPS;
   const tolerance = options.tolerance ?? DEFAULT_DECIMATE_TOLERANCE;
 
-  const bakeable = options.clips.filter((clip) =>
-    clip.tracks.some((track) => !track.detached && track.keyframes.length > 0),
-  );
+  const bakeable: AnimationClipIR[] = [];
+  const skippedClips: SkippedClip[] = [];
+  for (const clip of options.clips) {
+    const live = clip.tracks.filter((track) => !track.detached);
+    if (live.some((track) => track.keyframes.length > 0)) {
+      bakeable.push(clip);
+      continue;
+    }
+    skippedClips.push({
+      clipId: clip.id,
+      clipName: clip.name ?? clip.id,
+      reason:
+        live.length === 0 && clip.tracks.length > 0
+          ? "all-tracks-detached"
+          : "no-keyframes",
+    });
+  }
+  const consideredClipIds = options.clips.map((clip) => clip.id);
 
   if (bakeable.length === 0 || options.outputs.length === 0) {
     return {
@@ -134,6 +164,8 @@ export async function bakeAuthoredClips(options: {
         tolerance,
         propagationTicks: 0,
         outcomes: [],
+        consideredClipIds,
+        skippedClips,
         droppedChannels: [],
         hazards: [],
       },
@@ -235,6 +267,8 @@ export async function bakeAuthoredClips(options: {
       tolerance,
       propagationTicks,
       outcomes,
+      consideredClipIds,
+      skippedClips,
       droppedChannels: [...dropped.values()],
       hazards: detectBakeHazards(options.spec),
     },
@@ -257,12 +291,28 @@ export function summarizeBakeReport(report: BakeAuthoredClipsReport): string[] {
           `  graph evaluation failed at frame ${warning.frame}: ${warning.message}`,
         );
       }
+      if (warning.kind === "input-unresolved") {
+        lines.push(
+          `  ${warning.channels.length} channel(s) the graph does not drive: ` +
+            warning.channels.slice(0, 8).join(", ") +
+            (warning.channels.length > 8 ? ", …" : ""),
+        );
+      }
+      if (warning.kind === "no-input-tracks") {
+        lines.push("  no track in this clip drives anything in the graph");
+      }
+    }
+    if (outcome.bake.bakedChannels.length === 0) {
+      lines.push("  nothing baked, so this clip is not in the exported GLB");
     }
     for (const issue of outcome.bindingIssues) {
       lines.push(`  dropped track ${issue.trackName} (${issue.reason})`);
     }
   }
   lines.push(...describeBakeHazards(report.hazards, report.fps));
+  for (const skipped of report.skippedClips) {
+    lines.push(`${skipped.clipName}: skipped (${skipped.reason})`);
+  }
   if (report.droppedChannels.length > 0) {
     lines.push("Channels with no glTF equivalent:");
     for (const entry of report.droppedChannels) {
