@@ -194,3 +194,36 @@ describe("clip identity helpers", () => {
     expect(nextClipOrdinal(new Set(["authoring.timeline.main"]))).toBe(1);
   });
 });
+
+describe("explicit target ids", () => {
+  it("keeps a supplied target id instead of deriving one", () => {
+    // Imported clips carry face-scoped, index-based ids
+    // (`bundle-animation:<rootId>:<index>`). Deriving one from the clip id
+    // would change identity for every imported clip, and with it the keys of
+    // everything stored against a target.
+    const state = addClipEntry(EMPTY_CLIP_SET, {
+      clipId: "imported.1",
+      targetId: "bundle-animation:root-abc:0",
+      name: "Stages",
+      source: "imported",
+      baseline: createEmptyClip("imported.1", "Stages"),
+      clip: createEmptyClip("imported.1", "Stages"),
+    });
+    expect(state.clipEntries["imported.1"]!.targetId).toBe(
+      "bundle-animation:root-abc:0",
+    );
+  });
+
+  it("still derives one for an authored clip", () => {
+    const state = addClipEntry(EMPTY_CLIP_SET, {
+      clipId: "authoring.timeline.clip.1",
+      name: "Wave",
+      source: "authored",
+      baseline: null,
+      clip: createEmptyClip("authoring.timeline.clip.1", "Wave"),
+    });
+    expect(state.clipEntries["authoring.timeline.clip.1"]!.targetId).toBe(
+      "authored-animation:authoring.timeline.clip.1",
+    );
+  });
+});

@@ -116,10 +116,25 @@ function sortedOrder(entries: Record<string, AnimationClipEntry>): string[] {
   return [...authored, ...imported];
 }
 
-function withTargetId(
-  entry: Omit<AnimationClipEntry, "targetId">,
-): AnimationClipEntry {
-  return { ...entry, targetId: clipTargetId(entry.clipId, entry.source) };
+/**
+ * An entry as callers supply it: the target id may be given explicitly, and is
+ * derived from the clip id otherwise.
+ *
+ * Imported clips need the explicit form. Their target ids are index-based and
+ * scoped to the loaded face (`bundle-animation:<rootId>:<index>`), which is
+ * what invalidates them when a different face loads — deriving one from the
+ * clip id instead would silently change identity for every imported clip, and
+ * with it the keys of everything else stored against a target.
+ */
+export type AnimationClipEntryInput = Omit<AnimationClipEntry, "targetId"> & {
+  targetId?: string;
+};
+
+function withTargetId(entry: AnimationClipEntryInput): AnimationClipEntry {
+  return {
+    ...entry,
+    targetId: entry.targetId ?? clipTargetId(entry.clipId, entry.source),
+  };
 }
 
 /**
@@ -145,7 +160,7 @@ export const EMPTY_CLIP_SET: ClipSetState = {
 
 export function addClipEntry(
   state: ClipSetState,
-  entry: Omit<AnimationClipEntry, "targetId">,
+  entry: AnimationClipEntryInput,
 ): ClipSetState {
   if (state.clipEntries[entry.clipId]) {
     return state;
@@ -217,7 +232,7 @@ export function commitClipEntry(
 
 export function replaceClipEntries(
   state: ClipSetState,
-  entries: ReadonlyArray<Omit<AnimationClipEntry, "targetId">>,
+  entries: ReadonlyArray<AnimationClipEntryInput>,
   selectedClipId?: string | null,
 ): ClipSetState {
   const clipEntries: Record<string, AnimationClipEntry> = {};

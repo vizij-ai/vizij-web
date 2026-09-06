@@ -24,6 +24,7 @@ import {
   replaceClipEntries,
   selectedClipEntry,
   type AnimationClipEntry,
+  type AnimationClipEntryInput,
   type ClipSetState,
 } from "./animationClipsStore";
 
@@ -317,11 +318,11 @@ interface AnimationState {
   selectedClipId: string | null;
 
   selectClip: (clipId: string | null) => void;
-  addClip: (entry: Omit<AnimationClipEntry, "targetId">) => void;
+  addClip: (entry: AnimationClipEntryInput) => void;
   removeClip: (clipId: string) => void;
   renameClip: (clipId: string, name: string) => void;
   replaceClips: (
-    entries: ReadonlyArray<Omit<AnimationClipEntry, "targetId">>,
+    entries: ReadonlyArray<AnimationClipEntryInput>,
     selectedClipId?: string | null,
   ) => void;
   /**
