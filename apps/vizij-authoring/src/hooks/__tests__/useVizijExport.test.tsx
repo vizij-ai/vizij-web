@@ -16,7 +16,11 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import type { GraphSpec } from "@vizij/node-graph";
-import { exportScene } from "@vizij/render";
+import {
+  downloadGlbBuffer,
+  exportScene,
+  patchVizijBundleMetadata,
+} from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
@@ -32,9 +36,14 @@ import {
 } from "../../poseRig/types";
 import { auditBundleGraphs } from "../../utils/bundleAudit";
 import { useAnimationStore } from "../../state/animationStore";
+import { makeSingleChannelGlb } from "../../animationImport/__tests__/makeGlb";
 
 vi.mock("@vizij/render", () => ({
   exportScene: vi.fn(),
+  // The hook takes the finished GLB via `onBinary`, amends its JSON chunk and
+  // saves it itself, so both helpers are on the export path now.
+  patchVizijBundleMetadata: vi.fn((glb: ArrayBuffer) => glb),
+  downloadGlbBuffer: vi.fn(),
 }));
 
 vi.mock("@vizij/node-graph-authoring", async () => {
@@ -80,11 +89,56 @@ vi.mock("../../poseRig/services/poseGraphService", () => ({
   },
 }));
 
+/**
+ * A fake device for the bake path: echoes the staged input straight to the
+ * rig graph's output path. The bake itself is covered against real wasm in
+ * `animationBake/__tests__`; what this file checks is the wiring — that
+ * baked clips actually reach `exportScene`.
+ */
+/**
+ * The animatable id the rig graph writes — NOT a propsrig path. Mirrors a
+ * real bundle, where rig outputs are uuids carrying joined vectors. See
+ * `animationBake/__tests__/realBundleConventions.test.ts`.
+ */
+const BAKE_ANIMATABLE_ID = "anim-l-lid-translation";
+/** The graph input path the clip's channel resolves to. */
+const BAKE_INPUT_PATH = "rig/face/propsrig/l_lid/translation/y";
+vi.mock("@vizij/runtime", () => ({
+  startRuntime: vi.fn(async () => {
+    let staged = 0;
+    let output = 0;
+    return {
+      behaviorError: undefined,
+      setValue: (_path: string, value: { float?: number }) => {
+        staged = typeof value?.float === "number" ? value.float : 0;
+      },
+      step: () => {
+        output = staged;
+      },
+      readValues: (paths: string[]) =>
+        Object.fromEntries(
+          paths.map((path) => [
+            path,
+            // A joined vector, in the shape the runtime actually returns.
+            // Verified against a real device: `readValues` gives
+            // `{ f32s: [x, y, z] }`, not the `{ vec3: { x, y, z } }` this
+            // mock used to claim — which no runtime ever emitted, so the
+            // mock was asserting against a fiction.
+            path === BAKE_ANIMATABLE_ID ? { f32s: [0, output, 0] } : null,
+          ]),
+        ),
+      dispose: () => {},
+    };
+  }),
+}));
+
 vi.mock("../../utils/bundleAudit", () => ({
   auditBundleGraphs: vi.fn(),
 }));
 
 const mockedExportScene = vi.mocked(exportScene);
+const mockedPatchBundleMetadata = vi.mocked(patchVizijBundleMetadata);
+const mockedDownloadGlb = vi.mocked(downloadGlbBuffer);
 const mockedNormalizeGraphSpec = vi.mocked(normalizeGraphSpec);
 const mockedBuildRigGraphSpec = vi.mocked(buildRigGraphSpec);
 const mockedPoseGraphService = vi.mocked(PoseGraphService);
@@ -177,6 +231,7 @@ function createOptions(
     includeVizijBundle: true,
     includeImportedAnimations: false,
     loadedBundle: null,
+    world: {},
     animatableComponents: [COMPONENT],
     animatables: {
       [ANIMATABLE.id]: ANIMATABLE,
@@ -334,8 +389,16 @@ describe("useVizijExport", () => {
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
     const onExportGlbComplete = vi.fn();
+    // Export now takes the finished GLB via `onBinary` and downloads it
+    // itself, so completion is signalled from there rather than by
+    // `onComplete` — modelling the old contract here would assert against a
+    // path the hook no longer uses.
     mockedExportScene.mockImplementation((_body, options) => {
       if (typeof options === "string") {
+        return;
+      }
+      if (options?.onBinary) {
+        options.onBinary(new ArrayBuffer(0));
         return;
       }
       options?.onComplete?.();
@@ -2014,6 +2077,224 @@ describe("useVizijExport", () => {
     expect(options.alertDialog).toHaveBeenCalledWith(
       expect.stringContaining("Pose IR import is unavailable."),
     );
+    hook.unmount();
+  });
+});
+
+describe("useVizijExport GLB animation baking", () => {
+  /** A rig graph that writes the one node channel the fake device echoes. */
+  function rigSpecWithOutput(): GraphSpec {
+    return {
+      nodes: [
+        {
+          // The `input_` prefix is what collectInputPathMap strips to make the
+          // lookup key a clip's variableId matches.
+          id: "input_propsrig_l_lid_translation_y",
+          type: "input",
+          params: { path: BAKE_INPUT_PATH, value: { float: 0 } },
+        },
+        {
+          id: "out_l_lid_translation",
+          type: "output",
+          params: { path: BAKE_ANIMATABLE_ID },
+        },
+      ],
+      edges: [
+        {
+          from: { node_id: "input_propsrig_l_lid_translation_y" },
+          to: { node_id: "out_l_lid_translation", input: "in" },
+        },
+      ],
+    } as unknown as GraphSpec;
+  }
+
+  const LID_TRANSLATION = {
+    id: BAKE_ANIMATABLE_ID,
+    // A vector default is how buildBakeChannelIndex decides the graph writes
+    // three components at this path.
+    default: { x: 0, y: 0, z: 0 },
+  };
+
+  function bakeOptions(
+    overrides: Partial<Parameters<typeof useVizijExport>[0]> = {},
+  ) {
+    return createOptions({
+      world: {
+        lid: {
+          id: "lid",
+          name: "L_Lid",
+          features: {
+            translation: { animated: true, value: BAKE_ANIMATABLE_ID },
+          },
+        },
+      } as never,
+      animatables: {
+        [ANIMATABLE.id]: ANIMATABLE,
+        [LID_TRANSLATION.id]: LID_TRANSLATION,
+      } as never,
+      getExportableBodies: () => [
+        {
+          name: "Scene",
+          traverse: (callback: (child: { name: string }) => void) => {
+            callback({ name: "Scene" });
+            callback({ name: "L_Lid" });
+          },
+        },
+      ],
+      authoredAnimationClips: [
+        {
+          schemaVersion: 1 as const,
+          id: "authoring.timeline.main",
+          name: "Blink",
+          duration: 1,
+          tracks: [
+            {
+              id: "t0",
+              variableId: "propsrig_l_lid_translation_y",
+              channel: "propsrig/l_lid/translation/y",
+              interpolation: "linear" as const,
+              keyframes: [
+                { id: "k0", time: 0, value: 0 },
+                { id: "k1", time: 1, value: 1 },
+              ],
+            },
+          ],
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    mockedPatchBundleMetadata.mockClear();
+    mockedDownloadGlb.mockClear();
+    // Export runs once and hands the finished GLB back via `onBinary`; the
+    // hook fingerprints it and patches the metadata into that same buffer.
+    // A real GLB, not an empty buffer: fingerprinting has to actually parse
+    // it, and skipping the patch on unreadable bytes is deliberate behaviour
+    // this test would otherwise exercise by accident.
+    mockedExportScene.mockImplementation(((
+      _root: unknown,
+      opts: { onBinary?: (glb: ArrayBuffer) => void } | string | undefined,
+    ) => {
+      if (opts && typeof opts === "object" && opts.onBinary) {
+        opts.onBinary(
+          makeSingleChannelGlb({
+            nodeName: "L_Lid",
+            path: "translation",
+            times: [0, 1],
+            values: [0, 0, 0, 0, 0.02, 0],
+            animationName: "Blink",
+          }),
+        );
+      }
+    }) as never);
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: rigSpecWithOutput(),
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+    } as never);
+    mockedNormalizeGraphSpec.mockImplementation(
+      async (spec: unknown) => spec as GraphSpec,
+    );
+  });
+
+  it("passes baked animations to exportScene", async () => {
+    // The clip drives `lids_blink`; the exported GLB must carry the *node*
+    // channel the graph derives from it, or a Blender user sees no motion.
+    const hook = renderHook(bakeOptions());
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    // The last call is the real export; earlier ones are fingerprint probes.
+    const payload = mockedExportScene.mock.calls.at(-1)?.[1] as {
+      animations?: Array<{ name: string; tracks: Array<{ name: string }> }>;
+    };
+    expect(payload.animations).toHaveLength(1);
+    expect(payload.animations![0]!.name).toBe("Blink");
+    expect(payload.animations![0]!.tracks.map((track) => track.name)).toEqual([
+      "L_Lid.position",
+    ]);
+    hook.unmount();
+
+    // One export, not two. Fingerprints need what was actually written, and
+    // the previous shape learned them by running `GLTFExporter` a second time
+    // — seconds of frozen UI thread on a real asset. The finished buffer is
+    // amended in place instead.
+    expect(mockedExportScene).toHaveBeenCalledTimes(1);
+    expect(mockedPatchBundleMetadata).toHaveBeenCalledTimes(1);
+    const patched = mockedPatchBundleMetadata.mock.calls[0]![1] as {
+      bakedAnimations: Array<{
+        animationIndex: number;
+        clipId: string;
+        fingerprint?: string;
+      }>;
+    };
+    expect(patched.bakedAnimations[0]!.animationIndex).toBe(0);
+    // The fingerprint comes from the exported bytes, which is the whole
+    // reason the patch happens after export rather than before it.
+    expect(patched.bakedAnimations[0]!.fingerprint).toBeTruthy();
+    expect(mockedDownloadGlb).toHaveBeenCalledTimes(1);
+  });
+
+  it("bakes an imported clip that has no edits", async () => {
+    // `authoredAnimationClips` excludes an untouched imported clip, because
+    // that list also feeds bundle assembly and would duplicate it. Baking has
+    // the opposite expectation: a clip listed in the UI belongs in the GLB.
+    // Before this was folded in, adding a second animation produced a GLB
+    // with only the authored one.
+    const hook = renderHook(
+      bakeOptions({
+        authoredAnimationClips: [],
+        loadedBundle: {
+          version: 1,
+          animations: [
+            {
+              id: "imported.clip.1",
+              clip: {
+                id: "imported.clip.1",
+                name: "Imported",
+                duration: 1,
+                tracks: [
+                  {
+                    channel: "propsrig/l_lid/translation/y",
+                    targetInputId: "propsrig_l_lid_translation_y",
+                    interpolation: "linear",
+                    keyframes: [
+                      { time: 0, value: 0 },
+                      { time: 1, value: 1 },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        } as never,
+      }),
+    );
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    const payload = mockedExportScene.mock.calls.at(-1)?.[1] as {
+      animations?: Array<{ name: string }>;
+    };
+    expect(payload.animations).toHaveLength(1);
+    expect(payload.animations![0]!.name).toBe("Imported");
+    hook.unmount();
+  });
+
+  it("still exports the GLB when there is nothing to bake", async () => {
+    const hook = renderHook(bakeOptions({ authoredAnimationClips: [] }));
+    await act(async () => {
+      await hook.result.current?.exportGlb();
+    });
+
+    const payload = mockedExportScene.mock.calls.at(-1)?.[1] as {
+      animations?: unknown[];
+    };
+    expect(payload.animations).toEqual([]);
     hook.unmount();
   });
 });

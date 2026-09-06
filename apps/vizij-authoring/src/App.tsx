@@ -11,6 +11,7 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import { readBakedAnimationRecords } from "./animationImport/bakedAnimationProvenance";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
   useWorkspaceStore,
@@ -36,7 +37,15 @@ import {
   type FacePresetAssetOption,
 } from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
+import { nextClipOrdinal } from "./utils/animationClipIds";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
+import {
+  buildCatalogFromInputPaths,
+  computeInputRangeFit,
+  dedupeImportedClips,
+  describeRangeAdjustment,
+  importGltfAnimations,
+} from "./animationImport";
 import { usePoseGraphImport } from "./hooks/usePoseGraphImport";
 import { useBundleSynchronizer } from "./hooks/useBundleSynchronizer";
 import { RegistryProvider } from "./motiongraph/contexts/RegistryProvider";
@@ -348,24 +357,6 @@ function stableValueFingerprint(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function nextAuthoredAnimationClipOrdinal(
-  targets: readonly AuthoredAnimationTarget[],
-): number {
-  const prefix = "authoring.timeline.clip.";
-  let maxOrdinal = 0;
-  targets.forEach((target) => {
-    if (!target.clipId.startsWith(prefix)) {
-      return;
-    }
-    const raw = target.clipId.slice(prefix.length);
-    const parsed = Number.parseInt(raw, 10);
-    if (Number.isFinite(parsed) && parsed > maxOrdinal) {
-      maxOrdinal = parsed;
-    }
-  });
-  return maxOrdinal + 1;
-}
-
 function authoredProceduralTargetValue(programId: string): string {
   return `${AUTHORED_PROCEDURAL_TARGET_PREFIX}${programId}`;
 }
@@ -669,6 +660,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [cancelPendingMainAssetFetch],
   );
 
+  /**
+   * GLB awaiting automatic animation import, captured when a face starts
+   * loading and consumed once that face's inputs exist.
+   */
+  const pendingAnimationImportRef = useRef<{
+    glb: ArrayBuffer;
+    fileName: string;
+  } | null>(null);
+
+  const capturePendingAnimationImport = useCallback(async (file: File) => {
+    try {
+      pendingAnimationImportRef.current = {
+        glb: await file.arrayBuffer(),
+        fileName: file.name,
+      };
+    } catch {
+      // Import is a convenience on top of the face load; never let it break one.
+      pendingAnimationImportRef.current = null;
+    }
+  }, []);
+
   // Reference Face State
 
   const handleLoadAssetFromUrl = useCallback(
@@ -687,6 +699,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         }
         const file = new File([blob], filename, { type: "model/gltf-binary" });
 
+        await capturePendingAnimationImport(file);
         await loadFromFile(
           file,
           () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
@@ -710,6 +723,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       beginImportFlow,
       cancelPendingMainAssetFetch,
+      capturePendingAnimationImport,
       loadFromFile,
       markImportFlowError,
       markImportFileSelected,
@@ -946,6 +960,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const advanceAnimationTransportSessionKey = useAnimationStore(
     (state) => state.advanceTransportSessionKey,
   );
+  const stopAnimationTransportState = useAnimationStore((state) => state.stop);
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
   );
@@ -982,7 +997,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.customInputPaths,
   );
 
-  const { alert: showAlert } = useDialogQueue();
+  const { alert: showAlert, confirm: showConfirm } = useDialogQueue();
 
   useEffect(() => {
     uiActions.setIncludeVizijBundle(true);
@@ -1532,6 +1547,31 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       if (clipId) {
+        // Snapshot the store HERE, not inside the updater.
+        //
+        // `exportAnimationClipIr` reads the animation store at the moment it
+        // is called. A functional setState updater runs during a later render
+        // — and in StrictMode runs twice — by which time a clip switch may
+        // already have reloaded the store with a different clip. The snapshot
+        // then captured the incoming clip's tracks and stamped them with the
+        // outgoing clip's id. Traced:
+        //
+        //   save.enter         dest=clip.3  n=1     <- 1 track, correct
+        //   store.importClipIr clip.1 incoming=4    <- store reloaded
+        //   save.writeAuthored dest=clip.3 was=1->4 <- wrong tracks persisted
+        //
+        // Reading it eagerly makes the updater pure, so when it runs cannot
+        // change what it writes.
+        const existing = authoredAnimationTargets.find(
+          (target) => target.targetId === targetId || target.clipId === clipId,
+        );
+        if (!existing) {
+          return;
+        }
+        const snapshotClip = exportAnimationClipIr({
+          id: existing.clipId,
+          name: existing.name,
+        });
         setAuthoredAnimationTargets((previous) => {
           const index = previous.findIndex(
             (target) =>
@@ -1541,10 +1581,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             return previous;
           }
           const target = previous[index]!;
-          const clip = exportAnimationClipIr({
-            id: target.clipId,
-            name: target.name,
-          });
+          const clip = snapshotClip;
           const updatedTarget: AuthoredAnimationTarget = {
             ...target,
             clipId: clip.id,
@@ -1601,10 +1638,35 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       animationTargetOptions,
+      authoredAnimationTargets,
       exportAnimationClipIr,
       resolveImportedAnimationBaseClip,
     ],
   );
+
+  /**
+   * Every clip id already taken, authored or imported. Clip id is the identity
+   * used by saving, hydration and export, so a new clip must not reuse one.
+   */
+  const reservedAnimationClipIds = useMemo(() => {
+    const ids = new Set<string>();
+    authoredAnimationTargets.forEach((target) => {
+      ids.add(target.clipId);
+      if (typeof target.clip?.id === "string") {
+        ids.add(target.clip.id);
+      }
+    });
+    (loadedBundle?.animations ?? []).forEach((entry) => {
+      if (typeof entry?.id === "string") {
+        ids.add(entry.id);
+      }
+      const clipId = (entry as { clip?: { id?: unknown } })?.clip?.id;
+      if (typeof clipId === "string") {
+        ids.add(clipId);
+      }
+    });
+    return ids;
+  }, [authoredAnimationTargets, loadedBundle?.animations]);
 
   const selectedAuthoredAnimationTarget = useMemo(
     () =>
@@ -1613,18 +1675,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
-  useEffect(() => {
-    if (!selectedAnimationTargetId || pendingAnimationTargetSwitchId) {
-      return;
-    }
-    saveAnimationTarget(selectedAnimationTargetId);
-  }, [
-    animationDuration,
-    animationTracks,
-    pendingAnimationTargetSwitchId,
-    saveAnimationTarget,
-    selectedAnimationTargetId,
-  ]);
+  // There is deliberately NO autosave effect here.
+  //
+  // One used to persist the editing buffer whenever `tracks` or `duration`
+  // changed. Its destination was resolved separately from the data being
+  // written, so any render where selection and buffer disagreed wrote the
+  // wrong clip — which produced, at different times, a new clip holding
+  // another clip's tracks, every clip emptied, and edits appearing not to
+  // save. See docs/notes/ANIMATION_SELECTION_STATE_2026-09-03.md.
+  //
+  // Nothing needs it. The buffer is persisted when switching away, while it
+  // still holds the outgoing clip, and every other consumer materialises the
+  // selected clip from the buffer directly rather than reading the saved
+  // copy: export via `authoredAnimationClipsForExport`, playback via
+  // `activeAnimationRuntimeClip`, and the clip list below.
+
   const authoringAnimationTargets = useMemo(
     () => [
       ...authoredAnimationTargets.map((target) => ({
@@ -1632,9 +1697,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
         source: "authored" as const,
         selected: target.targetId === selectedAnimationTargetId,
-        meta: `${target.clip.tracks.length} track${
-          target.clip.tracks.length === 1 ? "" : "s"
-        }`,
+        // The saved copy of the selected clip is refreshed on switch-away, so
+        // its count would lag the edit in progress; read the buffer instead.
+        meta: (() => {
+          const trackCount =
+            target.targetId === selectedAnimationTargetId
+              ? animationTracks.length
+              : target.clip.tracks.length;
+          return `${trackCount} track${trackCount === 1 ? "" : "s"}`;
+        })(),
         runtimeState:
           animationTargetPlaybackById[target.targetId]?.state ?? "stopped",
         runtimeTimeLabel:
@@ -1647,11 +1718,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           label: target.label,
           source: "imported" as const,
           selected: target.value === selectedAnimationTargetId,
-          meta: clip
-            ? `${clip.tracks.length} track${
-                clip.tracks.length === 1 ? "" : "s"
-              }`
-            : "Imported clip",
+          meta: (() => {
+            if (!clip) {
+              return "Imported clip";
+            }
+            const trackCount =
+              target.value === selectedAnimationTargetId
+                ? animationTracks.length
+                : clip.tracks.length;
+            return `${trackCount} track${trackCount === 1 ? "" : "s"}`;
+          })(),
           runtimeState:
             animationTargetPlaybackById[target.value]?.state ?? "stopped",
           runtimeTimeLabel:
@@ -1661,11 +1737,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ],
     [
       animationTargetPlaybackById,
+      animationTracks,
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
     ],
+  );
+  // Reads the rendered list rather than `authoredAnimationTargets` so an
+  // imported clip gets its label too.
+  const selectedAnimationClipName = useMemo(
+    () =>
+      authoringAnimationTargets.find((target) => target.selected)?.label ??
+      null,
+    [authoringAnimationTargets],
   );
   const selectedAuthoredProceduralTarget = useMemo(
     () =>
@@ -2192,9 +2277,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       saveAnimationTarget(selectedAnimationTargetId);
     }
 
-    const nextOrdinal = nextAuthoredAnimationClipOrdinal(
-      authoredAnimationTargets,
-    );
+    const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
     const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
     const nextClipName = `Animation Clip ${nextOrdinal}`;
     const nextTarget = createAuthoredAnimationTarget(
@@ -2207,15 +2290,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [
     animationDuration,
     authoredAnimationTargets,
+    // Allocates the next clip id against this; a stale copy hands the new clip
+    // an id an existing one already owns.
+    reservedAnimationClipIds,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
 
   const handleDuplicateAnimationTarget = useCallback(
     (targetId: string) => {
-      const nextOrdinal = nextAuthoredAnimationClipOrdinal(
-        authoredAnimationTargets,
-      );
+      const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
       const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
       let sourceClip: AnimationClipIR | null = null;
       let sourceName = `Animation Clip ${nextOrdinal}`;
@@ -2280,10 +2364,269 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
+      // See above: the clip id is allocated from this.
+      reservedAnimationClipIds,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
       setWorkspacePanelVisibility,
     ],
+  );
+
+  /**
+   * Imports native glTF animations from a GLB onto the loaded face.
+   *
+   * `announce: "problems-only"` is used for the automatic import that runs when
+   * a face loads: a dialog on every load would be noise, but silently swallowing
+   * unresolved channels would hide real problems.
+   */
+  const runGlbAnimationImport = useCallback(
+    async (options: {
+      glb: ArrayBuffer;
+      fileName: string;
+      announce: "always" | "problems-only";
+    }) => {
+      const { glb, fileName, announce } = options;
+      const catalog = buildCatalogFromInputPaths(
+        Array.from(mainFaceInputsById.values()),
+      );
+      if (catalog.size === 0) {
+        if (announce === "always") {
+          await showAlert(
+            "Load a face first — imported animation channels are matched against the loaded face's inputs.",
+          );
+        }
+        return;
+      }
+
+      let result: ReturnType<typeof importGltfAnimations>;
+      try {
+        const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
+        result = importGltfAnimations({
+          glb,
+          catalog,
+          // Animations this file's own bundle says it baked. Skipping them
+          // stops a round trip adding a second copy of every clip.
+          bakedRecords: readBakedAnimationRecords(
+            (
+              loadedBundle?.metadata as
+                | { bakedAnimations?: unknown }
+                | undefined
+            )?.bakedAnimations,
+          ),
+          clipIdPrefix: `authoring.timeline.clip.${nextOrdinal}`,
+          clipNamePrefix: fileName.replace(/\.glb$/i, ""),
+        });
+      } catch (error) {
+        await showAlert(
+          `Could not read animations from ${fileName}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+
+      if (result.stats.sourceAnimations === 0 && announce !== "always") {
+        return;
+      }
+
+      const summaryLines = [
+        `${fileName}`,
+        "",
+        `Source animations: ${result.stats.sourceAnimations} (grouping: ${result.grouping})`,
+        `Channels resolved: ${result.stats.resolvedChannels} of ${result.stats.scalarChannels}`,
+        `Keyframes imported: ${result.stats.keyframes}`,
+        `Clips created: ${result.clips.length}`,
+      ];
+      if (result.diagnostics.length > 0) {
+        summaryLines.push("", "Notes:");
+        for (const diagnostic of result.diagnostics) {
+          summaryLines.push(
+            `• [${diagnostic.severity}] ${diagnostic.message}${
+              diagnostic.remediation ? ` ${diagnostic.remediation}` : ""
+            }`,
+          );
+        }
+      }
+
+      // Re-importing the same GLB is routine; matching on clip content means a
+      // re-export that changed nothing about the animation does not pile up
+      // identical clips.
+      const { fresh, duplicates } = dedupeImportedClips({
+        clips: result.clips,
+        existing: authoredAnimationTargets.map((target) => ({
+          name: target.name,
+          clip: target.clip,
+        })),
+      });
+      if (duplicates.length > 0) {
+        summaryLines.push(
+          "",
+          `Skipped ${duplicates.length} clip(s) already present: ${duplicates
+            .map((entry) => entry.existingName)
+            .join(", ")}.`,
+        );
+      }
+
+      if (fresh.length === 0 && duplicates.length > 0) {
+        if (announce === "always") {
+          await showAlert(summaryLines.join("\n"));
+        }
+        return;
+      }
+
+      if (result.clips.length === 0) {
+        if (announce === "always" || result.stats.scalarChannels > 0) {
+          await showAlert(
+            [
+              "No animation channels could be imported.",
+              "",
+              ...summaryLines,
+            ].join("\n"),
+          );
+        }
+        return;
+      }
+
+      // A propsrig input's range is inferred from a single rest value, which
+      // cannot bound a curve — and the rig graph clamps each channel to its
+      // range, so an imported animation that leaves it is silently flattened.
+      // Widen to admit the curve: real data is better evidence of a channel's
+      // extent than a rest sample, and widening is lossless where clamping
+      // destroys motion.
+      const rangeFit = computeInputRangeFit({
+        clips: fresh,
+        inputsById: mainFaceInputsById,
+      });
+      if (rangeFit.adjustments.length > 0) {
+        // Ask first. Widening edits the *rig*, not the clip, and that edit is
+        // permanent, unprompted and exported back into `RobotData` — so one
+        // noisy external animation could quietly redefine the character's
+        // limits. Clamping is the lesser default only because it is
+        // recoverable: the clip keeps its values, and the range can be widened
+        // later by hand.
+        const detail = rangeFit.adjustments
+          .map((adjustment) => `• ${describeRangeAdjustment(adjustment)}`)
+          .join("\n");
+        const widen = await showConfirm(
+          `${rangeFit.adjustments.length} imported curve(s) go beyond this rig's input ranges, ` +
+            "and the rig graph clamps each channel to its range — so the motion will be " +
+            "flattened unless the ranges are widened.\n\n" +
+            `${detail}\n\n` +
+            "Widen the rig's input ranges to fit? This changes the rig itself and is saved with it.",
+        );
+        if (widen) {
+          rangeFit.adjustments.forEach((adjustment) => {
+            handleUpdateStandardInput(adjustment.inputId, {
+              range: { min: adjustment.next.min, max: adjustment.next.max },
+            });
+          });
+          summaryLines.push(
+            "",
+            `Widened ${rangeFit.adjustments.length} input range(s) so the imported curves are not clamped:`,
+            ...rangeFit.adjustments.map(
+              (adjustment) => `• ${describeRangeAdjustment(adjustment)}`,
+            ),
+          );
+        } else {
+          summaryLines.push(
+            "",
+            `Left ${rangeFit.adjustments.length} input range(s) unchanged, so these curves will be clamped on playback:`,
+            ...rangeFit.adjustments.map(
+              (adjustment) => `• ${describeRangeAdjustment(adjustment)}`,
+            ),
+            "The keyframes are imported as authored; widen the ranges in Inputs to hear them in full.",
+          );
+        }
+      }
+
+      const nextTargets = fresh.map((clip) => ({
+        targetId: authoredAnimationTargetValue(clip.id),
+        clipId: clip.id,
+        name: clip.name ?? clip.id,
+        clip,
+      }));
+
+      setAuthoredAnimationTargets((previous) => [...previous, ...nextTargets]);
+
+      if (announce === "always") {
+        // Explicit import: jump the author to what they just brought in.
+        setActiveAuthoringSurface("animations");
+        setWorkspacePanelVisibility("animation", true);
+        setSelectedAnimationTargetId(nextTargets[0]!.targetId);
+        await showAlert(summaryLines.join("\n"));
+        return;
+      }
+
+      // Automatic import: make the clip selectable without stealing focus.
+      setSelectedAnimationTargetId(
+        (previous) => previous ?? nextTargets[0]!.targetId,
+      );
+      const problems = result.diagnostics.filter(
+        (diagnostic) => diagnostic.severity !== "info",
+      );
+      if (problems.length > 0) {
+        await showAlert(summaryLines.join("\n"));
+      }
+    },
+    [
+      showAlert,
+      showConfirm,
+      authoredAnimationTargets,
+      handleUpdateStandardInput,
+      loadedBundle?.metadata,
+      mainFaceInputsById,
+      // Was missing: the import allocates clip ids against this, so a stale
+      // copy hands a new clip an id an existing one already owns — the
+      // collision that lets one clip's tracks overwrite another's.
+      reservedAnimationClipIds,
+      setActiveAuthoringSurface,
+      setWorkspacePanelVisibility,
+    ],
+  );
+
+  // Auto-import a freshly loaded face's own embedded animations. Gated on
+  // `runtime-ready` plus a non-empty input catalog, because inputs populate
+  // progressively during load and resolving against a partial catalog would
+  // report false "unresolved" channels.
+  useEffect(() => {
+    const pending = pendingAnimationImportRef.current;
+    if (!pending) {
+      return;
+    }
+    if (!faceLoadMilestones["runtime-ready"]) {
+      return;
+    }
+    if (mainFaceInputsById.size === 0) {
+      return;
+    }
+    pendingAnimationImportRef.current = null;
+    void runGlbAnimationImport({
+      glb: pending.glb,
+      fileName: pending.fileName,
+      announce: "problems-only",
+    });
+  }, [faceLoadMilestones, mainFaceInputsById, runGlbAnimationImport]);
+
+  const importAnimationsFromGlbFile = useCallback(
+    async (file: File) => {
+      let glb: ArrayBuffer;
+      try {
+        glb = await file.arrayBuffer();
+      } catch (error) {
+        await showAlert(
+          `Could not read ${file.name}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+      await runGlbAnimationImport({
+        glb,
+        fileName: file.name,
+        announce: "always",
+      });
+    },
+    [runGlbAnimationImport, showAlert],
   );
 
   const deleteAnimationTargetById = useCallback(
@@ -2743,6 +3086,17 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       uiActions,
     ],
   );
+  /**
+   * Stop halts the clip and rewinds to the start, keeping the runtime session
+   * alive.
+   *
+   * It deliberately does not tear the session down: clearing the active
+   * runtime target unregisters the animation source and mutes the clip to
+   * zero tracks, so the next Play has to re-activate and re-register
+   * everything. Halting in place keeps the clip registered, so Play resumes
+   * immediately — and the runtime's own stop already rewinds the player and
+   * emits the clip's t=0 pose.
+   */
   const handleStopAnimationTarget = useCallback(
     (targetId: string) => {
       const runtimeTargetId =
@@ -2753,9 +3107,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       uiActions.setActiveRuntimeSource("animation");
-      clearAnimationRuntimeState();
+      setPendingAnimationRuntimePlayTargetId(null);
+      animationRuntimeTransportAdapter?.stopAnimation(
+        AUTHORED_TIMELINE_CLIP_ID,
+        { clearOutputs: true },
+      );
+      stopAnimationTransportState();
     },
-    [activeAnimationRuntimeTargetId, clearAnimationRuntimeState, uiActions],
+    [
+      activeAnimationRuntimeTargetId,
+      animationRuntimeTransportAdapter,
+      stopAnimationTransportState,
+      uiActions,
+    ],
   );
   const handlePlayProgramTarget = useCallback(
     (targetId: string) => {
@@ -3163,9 +3527,30 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (cancelled) {
         return;
       }
+      // Match the transport contract (UI_DESIGN.md "Animation Transport
+      // Contract" 1): Play starts from the current playhead, at the chosen
+      // speed. This path used to pass `{ reset: true, speed: 1 }`, so the
+      // first Play of a session silently rewound to 0 and ignored the speed
+      // dropdown — while the resume path a few lines up did it correctly.
+      // Read the transport settings imperatively rather than closing over
+      // them: `currentTime` changes on every playhead tick, so having it in
+      // this effect's dependencies would restart playback continuously.
+      const {
+        currentTime: playFromTime,
+        loop: playLoop,
+        playSpeed,
+      } = useAnimationStore.getState();
+      animationRuntimeTransportAdapter.setAnimationLoop(
+        AUTHORED_TIMELINE_CLIP_ID,
+        playLoop,
+      );
+      animationRuntimeTransportAdapter.seekAnimation(
+        AUTHORED_TIMELINE_CLIP_ID,
+        playFromTime,
+      );
       const playPromise = animationRuntimeTransportAdapter.playAnimation(
         AUTHORED_TIMELINE_CLIP_ID,
-        { reset: true, speed: 1 },
+        { reset: false, speed: playSpeed },
       );
       if (
         animationRuntimeTransportAdapter.getAnimationState(
@@ -3945,6 +4330,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       skipNextDiscrepancyCheck.current = false;
 
+      await capturePendingAnimationImport(file);
       await loadFromFile(
         file,
         () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
@@ -3955,6 +4341,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       beginImportFlow,
       cancelPendingMainAssetFetch,
+      capturePendingAnimationImport,
       loadFromFile,
       markImportFileSelected,
       uiActions,
@@ -3970,6 +4357,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     skipNextDiscrepancyCheck.current = true;
     fileInputRef.current?.click();
   }, []);
+
+  const animationGlbInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportGlbAnimationsClick = useCallback(() => {
+    animationGlbInputRef.current?.click();
+  }, []);
+
+  const handleAnimationGlbFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) {
+        return;
+      }
+      await importAnimationsFromGlbFile(file);
+    },
+    [importAnimationsFromGlbFile],
+  );
 
   const {
     profiles: availableStandardProfiles,
@@ -4144,6 +4549,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
       onImportReferenceFace={handleImportReferenceFaceClick}
+      onImportGlbAnimations={handleImportGlbAnimationsClick}
       standardProfiles={availableStandardProfiles}
       embeddedProfileIds={embeddedProfileIds}
       onToggleStandardProfile={(profileId, enabled) => {
@@ -4786,6 +5192,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   : undefined
               }
               statusMessage={animationPanelStatusMessage}
+              clipName={selectedAnimationClipName}
             />
           }
           centerPanelDefaultSize={centerPanelDefaultSize}
@@ -4907,6 +5314,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         accept=".glb,.gltf"
         data-testid="app-import-file-input"
         onChange={(e) => void handleFileChange(e)}
+      />
+      {/* Hidden file input for importing native glTF animations */}
+      <input
+        type="file"
+        ref={animationGlbInputRef}
+        className="hidden"
+        accept=".glb,.gltf"
+        data-testid="app-import-glb-animations-input"
+        onChange={(e) => void handleAnimationGlbFileChange(e)}
       />
       {/* Hidden file input for "Replace <profile> from JSON..." */}
       <input

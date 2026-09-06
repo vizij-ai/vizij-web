@@ -4,7 +4,10 @@ import {
   type AnimationTrack,
   useAnimationStore,
 } from "../../state/animationStore";
-import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
+import {
+  formatKeyframeTime,
+  snapTimeToFrame,
+} from "../../utils/animationTimeDisplay";
 import { cn } from "../../utils/cn";
 
 interface TrackRowProps {
@@ -14,6 +17,9 @@ interface TrackRowProps {
   onInspect?: (trackId: string) => void;
 }
 
+/** Pointer travel required before a keyframe drag retimes anything. */
+const DRAG_THRESHOLD_PX = 3;
+
 export function TrackRow({
   track,
   duration,
@@ -22,6 +28,7 @@ export function TrackRow({
 }: TrackRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const draggingKeyframeIdRef = useRef<string | null>(null);
+  const dragStartClientXRef = useRef<number | null>(null);
   const [draggingKeyframeId, setDraggingKeyframeId] = useState<string | null>(
     null,
   );
@@ -42,9 +49,10 @@ export function TrackRow({
       }
       const relativeX = clientX - rect.left - headerWidth;
       const normalized = Math.max(0, Math.min(1, relativeX / trackWidth));
-      return normalized * duration;
+      const time = normalized * duration;
+      return Math.min(snapTimeToFrame(time, timeDisplayMode), duration);
     },
-    [duration],
+    [duration, timeDisplayMode],
   );
 
   const handleWindowPointerMove = useCallback(
@@ -52,6 +60,19 @@ export function TrackRow({
       const keyframeId = draggingKeyframeIdRef.current;
       if (!keyframeId) {
         return;
+      }
+      // A plain click must not retime the keyframe. Without a threshold, one
+      // pixel of pointer travel between press and release committed a time
+      // change — and with no undo, that is unrecoverable.
+      const startClientX = dragStartClientXRef.current;
+      if (startClientX !== null) {
+        // A non-finite delta must not open the gate: NaN comparisons are false,
+        // which would let a zero-travel click through.
+        const travel = Math.abs(event.clientX - startClientX);
+        if (!Number.isFinite(travel) || travel < DRAG_THRESHOLD_PX) {
+          return;
+        }
+        dragStartClientXRef.current = null;
       }
       const nextTime = resolveTimeFromClientX(event.clientX);
       if (nextTime === null) {
@@ -64,6 +85,7 @@ export function TrackRow({
 
   const endKeyframeDrag = useCallback(() => {
     draggingKeyframeIdRef.current = null;
+    dragStartClientXRef.current = null;
     setDraggingKeyframeId(null);
     window.removeEventListener("pointermove", handleWindowPointerMove);
   }, [handleWindowPointerMove]);
@@ -79,6 +101,7 @@ export function TrackRow({
     onInspect?.(track.id);
     endKeyframeDrag();
     draggingKeyframeIdRef.current = kfId;
+    dragStartClientXRef.current = Number.isFinite(e.clientX) ? e.clientX : 0;
     setDraggingKeyframeId(kfId);
     window.addEventListener("pointermove", handleWindowPointerMove);
     window.addEventListener("pointerup", endKeyframeDrag, { once: true });
@@ -92,8 +115,12 @@ export function TrackRow({
     [endKeyframeDrag],
   );
 
-  const handleTrackClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleTrackClick = () => {
+    // Deliberately does NOT stop propagation. It used to, which meant clicking
+    // a track selected it without moving the playhead while clicking the empty
+    // strip a few pixels below did move it — the same gesture doing two
+    // different things depending on pixel. Keyframes still stop propagation,
+    // so selecting a key does not seek.
     selectTrack(track.id);
     onInspect?.(track.id);
   };

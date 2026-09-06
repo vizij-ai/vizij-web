@@ -14,6 +14,7 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
+import { collectInputPathMap, composeGraphSpecs } from "@vizij/runtime-react";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -26,6 +27,17 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
+import { downloadGlbBuffer, patchVizijBundleMetadata } from "@vizij/render";
+import { readGltfAnimationDocument } from "../animationImport/gltfAnimationDocument";
+import { gltfAnimationFingerprint } from "../animationImport/bakedAnimationProvenance";
+import {
+  bakeAuthoredClips,
+  buildBakeChannelIndex,
+  buildBakeTargetIndexFromWorld,
+  collectBakeGraphSources,
+  outputPathsOfSpec,
+  summarizeBakeReport,
+} from "../animationBake";
 import { faceSlug } from "../utils/faceId";
 import { waitForNextFrame } from "../utils/frame";
 import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
@@ -48,6 +60,7 @@ import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
 import {
+  bundleAnimationEntryToClipIr,
   clipIrToBundleAnimationEntry,
   findCanonicalAuthoredTimelineConflict,
 } from "../utils/animationClipCompiler";
@@ -124,6 +137,7 @@ interface UseVizijExportOptions {
   animatableComponents: AnimatableComponent[];
   animatables: Record<string, AnimatableValue>;
   values: VizijData["values"];
+  world: VizijData["world"];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
   standardInputsById: Map<string, StandardRigInput>;
@@ -579,6 +593,7 @@ export function useVizijExport(
     animatableComponents,
     animatables,
     values,
+    world,
     bindings,
     inputBindings,
     standardInputsById,
@@ -1062,10 +1077,184 @@ export function useVizijExport(
         }
       }
 
+      // Bake authored clips into glTF animation channels, by default and for
+      // every clip (roundtrip plan decisions 1 and 2): interop is the point,
+      // and a Blender user opening the GLB should see the motion.
+      //
+      // Authored clips drive abstract rig inputs, not node transforms, so this
+      // evaluates the exported graph over time and records what it writes —
+      // see `animationBake/sampleClipThroughGraph.ts`.
+      let bakedAnimations: unknown[] = [];
+      // Which clip each baked animation came from, in export order. The
+      // fingerprint cannot be known until the GLB exists, so the records are
+      // written now and amended in the finished file rather than exporting
+      // twice to learn them.
+      let bakedClipOrder: Array<{ clipId: string; clipName: string }> = [];
+      const bakeSources = collectBakeGraphSources(bundle);
+      // Every animation the user can see, not just the authored ones.
+      //
+      // `authoredAnimationClips` carries authored clips plus imported clips
+      // that have *edits* — an imported clip nobody touched is excluded,
+      // because that list also feeds bundle assembly and would duplicate it.
+      // Baking has no such constraint and the opposite expectation: a clip
+      // listed in the UI should be in the exported GLB. So imported baselines
+      // are folded in here, deduped by clip id.
+      const authoredForBake = authoredAnimationClips ?? [];
+      const bakeClipIds = new Set(authoredForBake.map((clip) => clip.id));
+      const importedForBake: AnimationClipIR[] = [];
+      for (const entry of loadedBundle?.animations ?? []) {
+        const clip = bundleAnimationEntryToClipIr(entry);
+        if (!clip || bakeClipIds.has(clip.id)) {
+          continue;
+        }
+        bakeClipIds.add(clip.id);
+        importedForBake.push(clip);
+      }
+      const clipsToBake = [...authoredForBake, ...importedForBake];
+      if (bakeSources.length > 0 && clipsToBake.length > 0) {
+        try {
+          const composed = composeGraphSpecs(bakeSources);
+          // The rig graph writes animatable ids, not propsrig paths, so the
+          // recorded set is the world's animated features restricted to what
+          // the exported graph actually declares as an output.
+          const declaredOutputs = new Set(outputPathsOfSpec(composed));
+          const bakeResult = await bakeAuthoredClips({
+            clips: clipsToBake,
+            spec: composed as unknown as GraphSpec,
+            outputs: buildBakeChannelIndex({
+              world: (world ?? {}) as never,
+              animatables: animatables as never,
+              restrictToPaths: declaredOutputs,
+            }),
+            // Built per source, NOT from the composed spec: composition
+            // prefixes node ids ("rig::input_foo"), which defeats the
+            // `input_` strip that produces the lookup key a clip's
+            // variableId matches.
+            inputPathMap: Object.assign(
+              {},
+              ...bakeSources.map((source) =>
+                collectInputPathMap(source.spec as never),
+              ),
+            ),
+            targets: buildBakeTargetIndexFromWorld(world ?? {}, animatables),
+            root: exportableBodies[0] as never,
+          });
+          bakedAnimations = bakeResult.animations;
+
+          // Record which clip each baked animation came from, so re-importing
+          // this file loads the clip once instead of adding the baked copy as
+          // a second clip — two clips out used to come back as three.
+          //
+          // The fingerprint comes from a throwaway export read back, not from
+          // the bake inputs: `GLTFExporter` merges morph tracks into one
+          // `weights` channel per mesh and every value round-trips through
+          // float32, so a fingerprint predicted from the inputs would never
+          // match the one the importer computes. Fingerprinting what was
+          // actually written is what lets a later import tell "unchanged" from
+          // "edited in Blender" — and so offer both rather than silently
+          // skipping the edit.
+          if (bundle && bakedAnimations.length > 0) {
+            // Ordered, not keyed by name. `bakedAnimations` is built from
+            // these outcomes in order, and `GLTFExporter` writes them in that
+            // order, so position is a real identity while the name is not:
+            // two clips can share a name (nothing enforces uniqueness, and
+            // import takes names from the file), and a name-keyed map silently
+            // kept only the last — reopening the two-clips-out-three-back bug
+            // this record exists to prevent.
+            bakedClipOrder = bakeResult.report.outcomes
+              .filter((outcome) => outcome.clip)
+              .map((outcome) => ({
+                clipId: outcome.clipId,
+                clipName: outcome.clipName,
+              }));
+
+            bundle.metadata = {
+              ...(bundle.metadata ?? {}),
+              bakedAnimations: bakedClipOrder.map((entry, index) => ({
+                animationIndex: index,
+                animationName: entry.clipName,
+                clipId: entry.clipId,
+              })),
+            };
+          }
+          // The preflight names the lossy set rather than only counting it
+          // (decision 3): material channels have no glTF channel at all, so
+          // the bundle keeps them while the baked GLB cannot.
+          logVizijExportDebug("export-glb:bake", {
+            summary: summarizeBakeReport(bakeResult.report),
+            fps: bakeResult.report.fps,
+            propagationTicks: bakeResult.report.propagationTicks,
+            clipCount: bakedAnimations.length,
+            consideredClipIds: bakeResult.report.consideredClipIds,
+            skippedClips: bakeResult.report.skippedClips,
+          });
+        } catch (error) {
+          // A bake failure must not cost the user their export: the bundle
+          // still carries every clip losslessly, so the GLB is written
+          // without baked animation and the reason is surfaced.
+          logVizijExportDebug("export-glb:bake-failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          await alertDialog(
+            `Could not bake animations into the GLB, so it will be exported without them. The Vizij bundle still contains every clip.\n\n${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          bakedAnimations = [];
+        }
+      } else if (clipsToBake.length > 0 && bakeSources.length === 0) {
+        // Baking needs the rig graph, which travels in the bundle. Without it
+        // there is nothing to evaluate the clips through.
+        logVizijExportDebug("export-glb:bake-skipped", {
+          reason: "no-bakeable-graph-in-bundle",
+          clipCount: clipsToBake.length,
+        });
+      }
+
       logVizijExportDebug("export-glb:export-scene", {
         finalBundleGraphKinds: bundle?.graphs?.map((graph) => graph.kind) ?? [],
         finalBundleHasPosePayload: Boolean(bundle?.poses),
       });
+
+      // One export, then amend. Fingerprints have to come from what was
+      // actually written — `GLTFExporter` merges morph tracks per mesh and
+      // every value round-trips through float32 — but running the exporter a
+      // second time to learn them froze the UI thread for seconds on real
+      // assets. Instead the finished GLB is read back and its JSON chunk
+      // patched, which is bytes of work rather than a full re-serialization.
+      const finishExport = (glb: ArrayBuffer) => {
+        let finalGlb = glb;
+        if (bundle && bakedClipOrder.length > 0) {
+          try {
+            const written = readGltfAnimationDocument(glb);
+            const fingerprintByIndex = new Map(
+              written.animations.map((animation) => [
+                animation.index,
+                gltfAnimationFingerprint(animation),
+              ]),
+            );
+            finalGlb = patchVizijBundleMetadata(glb, {
+              bakedAnimations: bakedClipOrder.map((entry, index) => ({
+                animationIndex: index,
+                animationName: entry.clipName,
+                clipId: entry.clipId,
+                ...(fingerprintByIndex.has(index)
+                  ? { fingerprint: fingerprintByIndex.get(index) }
+                  : {}),
+              })),
+            });
+          } catch (error) {
+            // Losing the fingerprints costs the edited-vs-identical
+            // distinction on re-import, not the export: the records already
+            // written still stop the duplicate-import bug.
+            logVizijExportDebug("export-glb:bake-fingerprint-failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        downloadGlbBuffer(finalGlb, downloadName);
+        onExportGlbComplete?.();
+      };
 
       exportScene(
         exportableBodies[0],
@@ -1073,14 +1262,16 @@ export function useVizijExport(
           ? {
               fileName: downloadName,
               bundle,
-              onComplete: onExportGlbComplete,
+              animations: bakedAnimations as never,
+              onBinary: finishExport,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
               },
             }
           : {
               fileName: downloadName,
-              onComplete: onExportGlbComplete,
+              animations: bakedAnimations as never,
+              onBinary: finishExport,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
               },
@@ -1124,8 +1315,15 @@ export function useVizijExport(
     setStoreState,
     sourceName,
     standardInputsById,
+    standardInputMetadataById,
     validOutputTargets,
     values,
+    // Read by the bake, and previously absent: a stale closure here would
+    // export the previous face's world or the previous clip set. Masked so
+    // far only because `values` churns every frame and `ExportDialog` stays
+    // mounted, so the handler was being rebuilt constantly anyway.
+    authoredAnimationClips,
+    world,
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {

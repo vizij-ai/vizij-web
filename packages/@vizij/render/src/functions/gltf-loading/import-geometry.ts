@@ -5,27 +5,7 @@ import {
   createBrowserSafeId,
 } from "@vizij/utils";
 import type { Feature } from "../../types";
-
-function sanitizeMorphKey(
-  name: string,
-  fallbackIndex: number,
-  used: Set<string>,
-): string {
-  const baseName =
-    name && name.trim().length > 0 ? name.trim() : `morph_${fallbackIndex + 1}`;
-  const slug = baseName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gi, "_")
-    .replace(/^_+|_+$/g, "");
-  const safeBase = slug.length > 0 ? slug : `morph_${fallbackIndex + 1}`;
-  let candidate = safeBase;
-  let counter = 1;
-  while (used.has(candidate)) {
-    candidate = `${safeBase}_${counter++}`;
-  }
-  used.add(candidate);
-  return candidate;
-}
+import { sanitizeMorphKey } from "./morph-keys";
 
 export function importGeometry(
   geometry: BufferGeometry,

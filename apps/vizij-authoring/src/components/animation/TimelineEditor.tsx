@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
+  evaluateTrack,
   useAnimationStore,
   type AnimationTimeDisplayMode,
 } from "../../state/animationStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { ANIMATION_TIMELINE_FPS } from "../../utils/animationTimeDisplay";
+import {
+  ANIMATION_TIMELINE_FPS,
+  snapTimeToFrame,
+} from "../../utils/animationTimeDisplay";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
   onSeek?: (timeSeconds: number) => void;
   onPause?: () => void;
+  /**
+   * Resume after a scrub that auto-paused playback. Without it a scrub
+   * silently converts "playing" into "paused", so the user has to press play
+   * again every time they drag the playhead.
+   */
+  onResume?: () => void;
   timeDisplayMode?: AnimationTimeDisplayMode;
   onInspectTrack?: (trackId: string) => void;
 }
@@ -19,6 +29,7 @@ const TRACK_HEADER_WIDTH = 192;
 export function TimelineEditor({
   onSeek,
   onPause,
+  onResume,
   timeDisplayMode = "seconds",
   onInspectTrack,
 }: TimelineEditorProps) {
@@ -59,9 +70,12 @@ export function TimelineEditor({
         return 0;
       }
       const clickX = x - TRACK_HEADER_WIDTH;
-      return Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
+      const time = Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
+      // One snap point for everything a pointer produces here: the playhead,
+      // and the keyframe a double-click inserts.
+      return Math.min(snapTimeToFrame(time, timeDisplayMode), duration);
     },
-    [duration],
+    [duration, timeDisplayMode],
   );
 
   const seekFromClientX = useCallback(
@@ -98,9 +112,16 @@ export function TimelineEditor({
     if (!selectedTrack) {
       return;
     }
-    const defaultValue =
-      standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0;
-    addKeyframe(selectedTrackId, t, defaultValue);
+    // Insert is value-preserving: the new key takes the curve's value at that
+    // time, so adding a key never changes the motion. Writing the input's
+    // default instead put a step into every curve that was not already resting
+    // there — inserting into a translation curve snapped the face.
+    // Only an empty track has no curve to read, and then the default is right.
+    const value =
+      selectedTrack.keyframes.length > 0
+        ? evaluateTrack(selectedTrack, t)
+        : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0);
+    addKeyframe(selectedTrackId, t, value);
   };
 
   const handleRulerPointerMove = useCallback(
@@ -128,11 +149,17 @@ export function TimelineEditor({
     }
     isScrubbingRulerRef.current = false;
     scrubStartClientXRef.current = null;
+    // Resume only if *we* paused it for the scrub. A scrub that began while
+    // already paused must stay paused.
+    const shouldResume = pausedForScrubRef.current;
     pausedForScrubRef.current = false;
+    if (shouldResume) {
+      onResume?.();
+    }
     window.removeEventListener("pointermove", handleRulerPointerMove);
     window.removeEventListener("pointerup", stopRulerScrub);
     window.removeEventListener("pointercancel", stopRulerScrub);
-  }, [handleRulerPointerMove]);
+  }, [handleRulerPointerMove, onResume]);
 
   const handleRulerPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
@@ -242,7 +269,16 @@ export function TimelineEditor({
       {/* Tracks Container */}
       <div
         className="flex-1 p-2 space-y-1 overflow-y-auto custom-scrollbar relative"
-        onClick={() => {
+        onClick={(event) => {
+          // Only a click on the empty area deselects. This used to fire for
+          // any descendant click and relied on children calling
+          // stopPropagation to prevent it — so when TrackRow stopped doing
+          // that (to let row clicks seek), selecting a track immediately
+          // deselected it on the way up, and double-click-to-add-keyframe
+          // broke because it bails on an empty selection.
+          if (event.target !== event.currentTarget) {
+            return;
+          }
           selectTrack(null);
           selectKeyframe(null);
         }}

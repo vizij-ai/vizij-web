@@ -110,6 +110,35 @@ Execution note:
 9. Derived composition outputs use deterministic synthetic paths (`/pose/groups/{groupId}.output`, `/pose/stages/{stageId}.output`) for visibility and provenance.
 10. Derived group/stage outputs are read-only/non-selectable in Inputs; edits flow through pose/pose-group/stage authoring surfaces.
 
+## Source Motion Import and Animation Interop
+
+Animation crosses the tool boundary in two directions, with deliberately
+unequal standing:
+
+1. `VizijBundleExtension.animations` is **authoritative** and lossless.
+2. Native glTF animation channels are a **derived, lossy projection** written
+   for interoperability (Blender, viewers, other engines) and never trusted
+   over the bundle on re-import.
+
+Boundary invariants:
+
+1. Animation tracks bind by **name-derived channel path**
+   (`/propsrig/{element}/{feature}/{component}`), never by animatable id.
+   Regenerated ids do not break bindings; renames do.
+2. The propsrig path rule (`buildPropsRigInputPath`) and the morph feature-key
+   rule (`sanitizeMorphKey`) each have exactly one implementation, shared by
+   rig generation and animation channel resolution. Duplicating either lets
+   generation and resolution drift silently.
+3. Import resolution is exact, deterministic, and idempotent; unresolved
+   channels are reported with the path attempted.
+4. Tracks whose channel disappears are **detached, not deleted**, and excluded
+   from compile and from the bundle.
+5. Baked animations carry provenance in glTF `extras` (not a custom extension),
+   because Blender preserves extras and drops unknown extensions.
+
+Full read/write cycle, per-format detail, and rigger guidance:
+[`ANIMATION_INTEROP.md`](./ANIMATION_INTEROP.md).
+
 ## Diagnostics and Validation Contracts
 
 1. Compile/import/export must emit machine-readable diagnostics for warnings/errors.

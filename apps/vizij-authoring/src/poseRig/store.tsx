@@ -594,6 +594,20 @@ export interface PoseRigState {
   updateCurrentValues: (values: Record<StandardInputId, number>) => void;
   selectPose: (poseId: string | null) => void;
   createPose: (name?: string, group?: string | null) => void;
+  /**
+   * Create a pose already holding `values`, in one action.
+   *
+   * `createPose` then `capturePose` would be two steps, and `capturePose`
+   * snapshots the store's `currentValues` — which only changes when an Inputs
+   * slider moves. Taking a pose from an animation frame therefore cannot go
+   * through it: the values have to be supplied by the caller, which samples
+   * the clip. Returns the new pose id so the caller can select or rename it.
+   */
+  createPoseFromValues: (options: {
+    name?: string;
+    group?: string | null;
+    values: Record<StandardInputId, number>;
+  }) => string | null;
   addPose: (pose: PoseDefinition) => void;
   duplicatePose: (poseId: string) => void;
   deletePose: (poseId: string) => void;
@@ -681,6 +695,7 @@ const defaultState: Omit<
   | "deletePose"
   | "updatePose"
   | "capturePose"
+  | "createPoseFromValues"
   | "applyPose"
   | "captureNeutral"
   | "applyNeutral"
@@ -986,6 +1001,7 @@ export function createPoseRigStore(
     | "deletePose"
     | "updatePose"
     | "capturePose"
+    | "createPoseFromValues"
     | "applyPose"
     | "captureNeutral"
     | "applyNeutral"
@@ -1329,6 +1345,43 @@ export function createPoseRigStore(
         };
       });
     },
+    createPoseFromValues: ({ name, group, values }) => {
+      let createdId: string | null = null;
+      setState((prev) => {
+        const configuredGroups = getConfiguredPoseGroups(prev);
+        const newPose = PoseSnapshotService.createPoseDefinition(
+          name || `Pose ${prev.poses.length + 1}`,
+          group ?? null,
+          {
+            existingIds: prev.poses.map((pose) => pose.id),
+            reservedIds: [NEUTRAL_POSE_ID],
+          },
+        );
+        const withValues = {
+          ...newPose,
+          values: { ...values },
+          composeModes: projectPoseComposeModesForValues(
+            newPose.composeModes,
+            values,
+          ),
+        };
+        const normalizedPose = canonicalizePoseMembership(
+          withValues,
+          configuredGroups,
+        );
+        createdId = normalizedPose.id;
+        const nextPoses = [...prev.poses, normalizedPose];
+        return {
+          ...buildProjectedPoseIrPatch(prev, {
+            poses: nextPoses,
+            poseGroups: configuredGroups,
+          }),
+          selectedPoseId: normalizedPose.id,
+        };
+      });
+      return createdId;
+    },
+
     addPose: (pose) => {
       setState((prev) => {
         const configuredGroups = getConfiguredPoseGroups(prev);

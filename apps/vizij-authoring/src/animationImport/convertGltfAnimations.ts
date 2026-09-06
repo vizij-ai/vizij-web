@@ -1,0 +1,620 @@
+import { deriveStandardRigInputIdFromPath } from "@vizij/utils";
+import { buildPropsRigInputPath } from "../rig/autoInputs";
+import {
+  ANIMATION_CLIP_IR_SCHEMA_VERSION,
+  type AnimationClipIR,
+  type AnimationInterpolation,
+  type AnimationKeyframeIR,
+  type AnimationTrackIR,
+} from "../types/animationClipIr";
+import { compileAnimationClipIr } from "../utils/animationClipCompiler";
+import {
+  classifyGltfAnimation,
+  EMPTY_BAKED_ANIMATION_RECORDS,
+  type BakedAnimationRecords,
+} from "./bakedAnimationProvenance";
+import type {
+  GltfAnimationCurve,
+  GltfAnimationDocument,
+} from "./gltfAnimationDocument";
+import type { PropsRigTargetCatalog } from "./propsRigTargetCatalog";
+import { quaternionCurveToEulerZYX } from "./quaternionToEuler";
+
+/**
+ * Converts a decoded glTF animation document into Vizij animation clips.
+ *
+ * Pure: no file access, no `ArrayBuffer`, no Three.js. Given the same document
+ * and catalog it always produces the same clips, so it can be tested from
+ * literal inputs rather than through real GLB bytes.
+ */
+
+/** How the source grouped its animations, inferred from the document's shape. */
+export type GltfAnimationGrouping =
+  | "per-action"
+  | "per-animation"
+  | "single-scene";
+
+export type GltfImportDiagnosticSeverity = "info" | "warning" | "error";
+
+export interface GltfImportDiagnostic {
+  severity: GltfImportDiagnosticSeverity;
+  code: string;
+  message: string;
+  /** A concrete next step, when the author has one. */
+  remediation?: string;
+}
+
+export interface GltfConversionStats {
+  sourceAnimations: number;
+  /** Scalar curves the document carries, after expanding vectors and morphs. */
+  scalarChannels: number;
+  resolvedChannels: number;
+  unresolvedChannels: number;
+  keyframes: number;
+}
+
+export interface GltfConversionResult {
+  clips: AnimationClipIR[];
+  grouping: GltfAnimationGrouping;
+  diagnostics: GltfImportDiagnostic[];
+  stats: GltfConversionStats;
+}
+
+export interface ConvertGltfAnimationsOptions {
+  document: GltfAnimationDocument;
+  catalog: PropsRigTargetCatalog;
+  clipId?: string;
+  clipName?: string;
+  /**
+   * What export recorded about the animations it baked, keyed by glTF
+   * animation name. Absent for a plain Blender export or a GLB written before
+   * bake provenance existed, in which case everything imports.
+   */
+  bakedRecords?: BakedAnimationRecords;
+}
+
+const BLENDER_ACTION_NAME = /Action(\.\d+)?$/;
+
+const VECTOR_COMPONENTS = ["x", "y", "z"] as const;
+type VectorComponent = (typeof VECTOR_COMPONENTS)[number];
+
+const FEATURE_KEY_BY_PATH = {
+  translation: "translation",
+  rotation: "rotation",
+  scale: "scale",
+} as const;
+
+function toClipInterpolation(
+  curve: GltfAnimationCurve,
+): AnimationInterpolation {
+  if (curve.interpolation === "STEP") {
+    return "step";
+  }
+  if (curve.interpolation === "CUBICSPLINE") {
+    return "cubic";
+  }
+  return "linear";
+}
+
+/** True when the curve's output carries CUBICSPLINE tangent triplets. */
+function hasTangentTriplets(curve: GltfAnimationCurve): boolean {
+  return (
+    curve.interpolation === "CUBICSPLINE" &&
+    curve.values.length === curve.times.length * curve.stride * 3
+  );
+}
+
+/**
+ * Scalar count a curve contributes: one per vector component, or one per morph
+ * target.
+ */
+function scalarCountOf(curve: GltfAnimationCurve): number {
+  return curve.path === "weights"
+    ? (curve.morphFeatureKeys?.length ?? 0)
+    : VECTOR_COMPONENTS.length;
+}
+
+/**
+ * Infers how the exporter grouped animations.
+ *
+ * Blender's default per-Action mode emits one animation per action per object,
+ * so its animations are fragments of a single timeline rather than separate
+ * clips. Detecting that is what lets conversion reassemble them instead of
+ * producing a dozen one-channel clips.
+ */
+export function inferGltfAnimationGrouping(
+  document: GltfAnimationDocument,
+): GltfAnimationGrouping {
+  const { animations } = document;
+  if (animations.length <= 1) {
+    return "single-scene";
+  }
+  const actionNamed = animations.filter((entry) =>
+    BLENDER_ACTION_NAME.test(entry.name),
+  );
+  const maxCurves = Math.max(...animations.map((entry) => entry.curves.length));
+  if (
+    actionNamed.length >= Math.ceil(animations.length / 2) &&
+    maxCurves <= 3
+  ) {
+    return "per-action";
+  }
+  return "per-animation";
+}
+
+/** One scalar column of a curve, already resolved to a Vizij channel. */
+interface ResolvedColumn {
+  curve: GltfAnimationCurve;
+  animationName: string;
+  propsRigPath: string;
+  /** Column within a key's stride. */
+  valueIndex: number;
+  component?: VectorComponent;
+  morphFeatureKey?: string;
+}
+
+function readColumn(
+  curve: GltfAnimationCurve,
+  valueIndex: number,
+): number[] | null {
+  const cubic = hasTangentTriplets(curve);
+  const expected = curve.times.length * curve.stride * (cubic ? 3 : 1);
+  if (curve.values.length !== expected) {
+    return null;
+  }
+  const out: number[] = [];
+  for (let index = 0; index < curve.times.length; index += 1) {
+    const base = index * curve.stride * (cubic ? 3 : 1);
+    const at = cubic ? base + curve.stride + valueIndex : base + valueIndex;
+    out.push(curve.values[at] ?? 0);
+  }
+  return out;
+}
+
+function tangentsFor(
+  curve: GltfAnimationCurve,
+  valueIndex: number,
+): { inTangent: number[]; outTangent: number[] } | null {
+  if (!hasTangentTriplets(curve)) {
+    return null;
+  }
+  const inTangent: number[] = [];
+  const outTangent: number[] = [];
+  for (let index = 0; index < curve.times.length; index += 1) {
+    const base = index * curve.stride * 3;
+    inTangent.push(curve.values[base + valueIndex] ?? 0);
+    outTangent.push(curve.values[base + curve.stride * 2 + valueIndex] ?? 0);
+  }
+  return { inTangent, outTangent };
+}
+
+export function convertGltfAnimations(
+  options: ConvertGltfAnimationsOptions,
+): GltfConversionResult {
+  const { document: rawDocument, catalog } = options;
+
+  // Decide what to do with each glTF animation the bundle may already carry.
+  //
+  // Export writes clips twice on purpose: losslessly into
+  // `VIZIJ_bundle.animations`, and baked into glTF channels so Blender and
+  // other viewers see the motion. Loading our own export therefore offers the
+  // same clip from two directions, and importing both is how two clips became
+  // three.
+  //
+  // Skipping every baked animation would be wrong the other way: baking exists
+  // so people can edit the GLB elsewhere. An animation that no longer matches
+  // what we baked is new information, so it is imported *alongside* the
+  // authored clip and flagged, rather than discarded.
+  const bakedRecords = options.bakedRecords ?? EMPTY_BAKED_ANIMATION_RECORDS;
+  const duplicates: string[] = [];
+  const edited: string[] = [];
+  for (const animation of rawDocument.animations) {
+    const disposition = classifyGltfAnimation({ animation, bakedRecords });
+    if (disposition.kind === "skip-duplicate") {
+      duplicates.push(animation.name);
+    } else if (disposition.kind === "keep-both-edited") {
+      edited.push(animation.name);
+    }
+  }
+  const document =
+    duplicates.length > 0
+      ? {
+          ...rawDocument,
+          animations: rawDocument.animations.filter(
+            (animation) => !duplicates.includes(animation.name),
+          ),
+        }
+      : rawDocument;
+  const diagnostics: GltfImportDiagnostic[] = [];
+  if (duplicates.length > 0) {
+    diagnostics.push({
+      severity: "info",
+      code: "already-in-bundle",
+      message: `Skipped ${duplicates.length} baked animation(s) already present in this file's Vizij bundle: ${duplicates.join(", ")}.`,
+    });
+  }
+  if (edited.length > 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "baked-animation-edited",
+      message: `${edited.length} baked animation(s) were changed outside Vizij: ${edited.join(", ")}. Imported alongside the authored clip so neither version is lost — keep whichever you meant.`,
+    });
+  }
+  const grouping = inferGltfAnimationGrouping(document);
+  const sourceAnimations = document.animations.length;
+
+  for (const message of document.readErrors) {
+    diagnostics.push({
+      severity: "error",
+      code: "sampler-read-failed",
+      message: `Could not read sampler data for ${message}`,
+    });
+  }
+
+  if (sourceAnimations === 0) {
+    diagnostics.push({
+      severity: "info",
+      code: "no-native-animations",
+      message: "This GLB has no native glTF animations.",
+    });
+  }
+
+  if (grouping === "per-action" && sourceAnimations > 1) {
+    diagnostics.push({
+      severity: "info",
+      code: "per-action-grouping",
+      message:
+        `This GLB was exported with Blender's default per-Action mode, so its ` +
+        `${sourceAnimations} animations are fragments of one timeline rather ` +
+        `than ${sourceAnimations} clips. Importing them as a single clip.`,
+      remediation:
+        "To preserve your own grouping, re-export from Blender with Animation Mode = NLA Tracks.",
+    });
+  }
+
+  // --- resolve every scalar column onto a Vizij channel --------------------
+  const resolved: ResolvedColumn[] = [];
+  const unresolvedByReason = new Map<string, number>();
+  let scalarChannels = 0;
+
+  const reject = (reason: string) => {
+    unresolvedByReason.set(reason, (unresolvedByReason.get(reason) ?? 0) + 1);
+  };
+
+  for (const animation of document.animations) {
+    for (const curve of animation.curves) {
+      const scalarCount = scalarCountOf(curve);
+      scalarChannels += scalarCount;
+
+      if (!curve.nodeName) {
+        for (let i = 0; i < scalarCount; i += 1) {
+          reject("unnamed-node");
+        }
+        continue;
+      }
+      if (curve.path === "weights" && scalarCount === 0) {
+        reject("no-morph-targets");
+        continue;
+      }
+
+      if (curve.path === "weights") {
+        (curve.morphFeatureKeys ?? []).forEach((featureKey, valueIndex) => {
+          if (!featureKey) {
+            reject("no-morph-targets");
+            return;
+          }
+          const propsRigPath = buildPropsRigInputPath({
+            elementName: curve.nodeName,
+            featureKey,
+          });
+          if (!catalog.hasInputPath(propsRigPath)) {
+            reject("no-matching-input");
+            return;
+          }
+          resolved.push({
+            curve,
+            animationName: animation.name,
+            propsRigPath,
+            valueIndex,
+            morphFeatureKey: featureKey,
+          });
+        });
+        continue;
+      }
+
+      const featureKey = FEATURE_KEY_BY_PATH[curve.path];
+      VECTOR_COMPONENTS.forEach((component, valueIndex) => {
+        const propsRigPath = buildPropsRigInputPath({
+          elementName: curve.nodeName,
+          featureKey,
+          component,
+        });
+        if (!catalog.hasInputPath(propsRigPath)) {
+          reject("no-matching-input");
+          return;
+        }
+        resolved.push({
+          curve,
+          animationName: animation.name,
+          propsRigPath,
+          valueIndex,
+          component,
+        });
+      });
+    }
+  }
+
+  for (const [reason, count] of unresolvedByReason) {
+    diagnostics.push({
+      severity: "warning",
+      code: `unresolved-${reason}`,
+      message: `${count} channel(s) could not be matched to a Vizij input (${reason}).`,
+      remediation:
+        reason === "no-matching-input"
+          ? "Check that the object and shape-key names in Blender still match the Vizij face."
+          : undefined,
+    });
+  }
+
+  // --- build tracks --------------------------------------------------------
+  // Keyed by (clip group, channel). When the grouping says the source
+  // animations are independent, each becomes its own clip — so two of them
+  // driving the same channel must not land in the same track.
+  const tracksByChannel = new Map<string, AnimationTrackIR>();
+  const groupOrder: string[] = [];
+  const channelsByGroup = new Map<string, string[]>();
+  const groupKeyFor = (animationName: string) =>
+    grouping === "per-animation" ? animationName : "";
+  const trackKeyFor = (animationName: string, channel: string) =>
+    `${groupKeyFor(animationName)}\u0000${channel}`;
+  const eulerCache = new Map<
+    GltfAnimationCurve,
+    ReturnType<typeof quaternionCurveToEulerZYX> | null
+  >();
+  let keyframes = 0;
+  let gimbalKeyTotal = 0;
+  let cubicRotationCurves = 0;
+  let ordinal = 0;
+
+  for (const column of resolved) {
+    const { curve } = column;
+    const trackId = `gltf-${(ordinal += 1).toString().padStart(4, "0")}`;
+    let values: number[] | null;
+    let tangents: ReturnType<typeof tangentsFor> = null;
+
+    if (curve.path === "rotation") {
+      let euler = eulerCache.get(curve);
+      if (euler === undefined) {
+        if (curve.interpolation === "CUBICSPLINE") {
+          cubicRotationCurves += 1;
+        }
+        // Quaternion tangents have no euler equivalent, so cubic rotation uses
+        // the value column only and degrades to linear.
+        const quaternionValues = hasTangentTriplets(curve)
+          ? (() => {
+              const flat: number[] = [];
+              for (let i = 0; i < curve.times.length; i += 1) {
+                const base = i * curve.stride * 3 + curve.stride;
+                for (let c = 0; c < curve.stride; c += 1) {
+                  flat.push(curve.values[base + c] ?? 0);
+                }
+              }
+              return flat;
+            })()
+          : curve.values;
+        euler = quaternionCurveToEulerZYX(quaternionValues, curve.times.length);
+        gimbalKeyTotal += euler.gimbalKeyCount;
+        eulerCache.set(curve, euler);
+      }
+      values = euler ? euler[column.component ?? "x"] : null;
+    } else {
+      values = readColumn(curve, column.valueIndex);
+      tangents = tangentsFor(curve, column.valueIndex);
+    }
+
+    if (!values) {
+      diagnostics.push({
+        severity: "error",
+        code: "sampler-stride-mismatch",
+        message: `"${column.animationName}": sampler output length does not match its key count; channel ${column.propsRigPath} was skipped.`,
+      });
+      continue;
+    }
+
+    const built: AnimationKeyframeIR[] = [];
+    curve.times.forEach((time, index) => {
+      const value = values![index];
+      if (!Number.isFinite(time) || !Number.isFinite(value)) {
+        return;
+      }
+      const keyframe: AnimationKeyframeIR = {
+        id: `${trackId}:kf${index.toString().padStart(4, "0")}`,
+        time,
+        value: value as number,
+      };
+      if (tangents) {
+        keyframe.inTangent = tangents.inTangent[index];
+        keyframe.outTangent = tangents.outTangent[index];
+      }
+      built.push(keyframe);
+    });
+    if (built.length === 0) {
+      continue;
+    }
+    keyframes += built.length;
+
+    const trackKey = trackKeyFor(column.animationName, column.propsRigPath);
+    const existing = tracksByChannel.get(trackKey);
+    if (existing) {
+      // Same channel, same clip. For `per-action` that is the intended shape —
+      // fragments of one shared performance. Overlapping times are settled by
+      // the compiler's equal-time dedupe, which keeps one key per time, so say
+      // so rather than letting keyframes disappear quietly.
+      const overlapping = new Set(
+        existing.keyframes.map((keyframe) => keyframe.time),
+      );
+      const dropped = built.filter((keyframe) =>
+        overlapping.has(keyframe.time),
+      ).length;
+      if (dropped > 0) {
+        diagnostics.push({
+          severity: "warning",
+          code: "channel-time-collision",
+          message:
+            `"${column.animationName}": ${dropped} keyframe(s) on ` +
+            `${column.propsRigPath} land on times another source animation ` +
+            "already keys; only one value per time survives.",
+          remediation:
+            "Export the animations separately, or move the overlapping keys, if both were meant to be kept.",
+        });
+      }
+      existing.keyframes = [...existing.keyframes, ...built];
+      continue;
+    }
+
+    const groupKey = groupKeyFor(column.animationName);
+    if (!channelsByGroup.has(groupKey)) {
+      channelsByGroup.set(groupKey, []);
+      groupOrder.push(groupKey);
+    }
+    channelsByGroup.get(groupKey)!.push(trackKey);
+
+    tracksByChannel.set(trackKey, {
+      id: trackId,
+      variableId: deriveStandardRigInputIdFromPath(column.propsRigPath),
+      channel: column.propsRigPath,
+      label: column.morphFeatureKey
+        ? `${curve.nodeName} ${column.morphFeatureKey}`
+        : `${curve.nodeName} ${curve.path}${
+            column.component ? ` ${column.component}` : ""
+          }`,
+      // Euler conversion discards quaternion tangents, so rotation is linear.
+      interpolation:
+        curve.path === "rotation" ? "linear" : toClipInterpolation(curve),
+      keyframes: built,
+      metadata: {
+        source: "gltf-native-animation",
+        sourceAnimation: column.animationName,
+        sourceNode: curve.nodeName,
+        sourcePath: curve.path,
+        ...(column.morphFeatureKey
+          ? { sourceMorphName: column.morphFeatureKey }
+          : {}),
+      },
+    });
+  }
+
+  if (cubicRotationCurves > 0) {
+    diagnostics.push({
+      severity: "info",
+      code: "rotation-cubic-to-linear",
+      message:
+        `${cubicRotationCurves} rotation channel(s) used CUBICSPLINE ` +
+        "interpolation. Quaternion tangents have no euler equivalent, so those " +
+        "curves were imported as linear through the same keyframes.",
+    });
+  }
+
+  if (gimbalKeyTotal > 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "rotation-gimbal-keys",
+      message:
+        `${gimbalKeyTotal} rotation keyframe(s) sit at the euler singularity ` +
+        "(pitch near ±90°), where one axis becomes indeterminate. Those keys " +
+        "may read differently than in the source.",
+      remediation:
+        "Check rotation on the affected elements, and prefer keeping pitch away from ±90° in the source rig.",
+    });
+  }
+
+  const tracks = [...tracksByChannel.values()];
+
+  // Blender emits a `weights` channel covering every morph target on a mesh,
+  // even when only one target is keyed, so an import legitimately produces
+  // tracks that never change. Report them: a timeline full of flat tracks
+  // otherwise looks like the import read zeroes by mistake.
+  const constantTracks = tracks.filter((track) => {
+    if (track.keyframes.length === 0) {
+      return false;
+    }
+    const first = track.keyframes[0]!.value;
+    return track.keyframes.every(
+      (keyframe) => Math.abs(keyframe.value - first) < 1e-9,
+    );
+  });
+  if (constantTracks.length > 0) {
+    const names = constantTracks
+      .map((track) => `${track.channel} (=${track.keyframes[0]!.value})`)
+      .sort();
+    diagnostics.push({
+      severity: "info",
+      code: "constant-tracks",
+      message:
+        `${constantTracks.length} of ${tracks.length} imported track(s) hold a ` +
+        `single value for the whole clip and will not produce motion: ${names.join(", ")}.`,
+      remediation:
+        "This usually means the source only keyed some of a mesh's morph targets; glTF stores all of them in one channel.",
+    });
+  }
+
+  const clips: AnimationClipIR[] = [];
+  const baseClipId = options.clipId ?? "gltf-import";
+  const baseClipName = options.clipName ?? "Imported GLB Animation";
+
+  for (const groupKey of groupOrder) {
+    const groupTracks = (channelsByGroup.get(groupKey) ?? [])
+      .map((key) => tracksByChannel.get(key))
+      .filter((track): track is AnimationTrackIR => track !== undefined);
+    if (groupTracks.length === 0) {
+      continue;
+    }
+
+    // Per-action fragments share one timeline, so duration is the latest key
+    // across all of them and NO per-animation time shift is applied — shifting
+    // each fragment to zero would collapse the choreography. Independent
+    // animations each keep their own span for the same reason in reverse:
+    // they were never on a shared clock.
+    const duration = groupTracks.reduce((max, track) => {
+      const last = track.keyframes[track.keyframes.length - 1];
+      return last && last.time > max ? last.time : max;
+    }, 0);
+
+    const isSplit = groupOrder.length > 1;
+    clips.push(
+      compileAnimationClipIr({
+        clip: {
+          schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
+          id: isSplit ? `${baseClipId}.${clips.length + 1}` : baseClipId,
+          name: isSplit ? groupKey || baseClipName : baseClipName,
+          duration,
+          tracks: groupTracks,
+          metadata: {
+            source: "gltf-native-animation",
+            grouping,
+            sourceAnimationCount: sourceAnimations,
+            ...(isSplit ? { sourceAnimation: groupKey } : {}),
+          },
+        },
+      }),
+    );
+  }
+
+  const unresolvedChannels = [...unresolvedByReason.values()].reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+
+  return {
+    clips,
+    grouping,
+    diagnostics,
+    stats: {
+      sourceAnimations,
+      scalarChannels,
+      resolvedChannels: resolved.length,
+      unresolvedChannels,
+      keyframes,
+    },
+  };
+}

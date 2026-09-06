@@ -57,3 +57,26 @@ export type {
   RuntimeGraphBundle,
   RuntimeOutputWrite,
 } from "./types";
+
+/**
+ * Graph composition, exported so a host can compose the same way the provider
+ * does — notably when baking authored clips, where a second composition
+ * implementation would be free to drift from the one that actually plays.
+ */
+export { composeGraphSpecs } from "./utils/composeGraph";
+export type { GraphSource, ComposableSpec } from "./utils/composeGraph";
+
+/**
+ * The graph's input-path map, exported for the same reason as
+ * `composeGraphSpecs`: baking has to drive the rig through the paths its input
+ * nodes actually declare, and deriving that a second way is how a channel ends
+ * up staged at a path nothing reads.
+ */
+export { collectInputPathMap } from "./utils/graph";
+
+/**
+ * The clip-channel to graph-path resolver, exported so baking resolves
+ * channels exactly as playback does. Three independent implementations of
+ * this mapping is how a clip ends up driving a path nothing reads.
+ */
+export { resolveAnimationBridgeOutputPaths } from "./utils/animationBridge";

@@ -109,6 +109,17 @@ type ClipPlaybackState = {
   weight: number;
   loop: boolean;
   playing: boolean;
+  /**
+   * Host-side playhead in seconds, advanced from engine `dt` while playing and
+   * re-based by seek/play/stop.
+   *
+   * The device owns clip sampling; this exists so the transport surface always
+   * has a playhead to show and seek against. `player_states` feedback is
+   * authoritative when present, but it is not always available, and a UI whose
+   * clock silently reads 0 makes playback look broken even while the device is
+   * sampling correctly.
+   */
+  playhead: number;
   resolve: (() => void) | null;
   completion: Promise<void> | null;
 };
@@ -1570,6 +1581,10 @@ function VizijRuntimeProviderInner({
   const animationHostRef = useRef<AnimationModuleHost | null>(null);
   // Whether the animations graph source is composed into the device.
   const animationsSourceRegisteredRef = useRef(false);
+  /** Module-ready revision the last registration ran for. */
+  const lastRegisteredModuleRevisionRef = useRef(0);
+  /** Last reported graph-tick error, so each distinct one is reported once. */
+  const lastBehaviorErrorRef = useRef<string | undefined>(undefined);
   // Capability-gap warnings already emitted (once each) — see warnAnimationGap.
   const animationGapWarnedRef = useRef<Set<string>>(new Set());
   const animationSystemActiveRef = useRef(true);
@@ -1851,13 +1866,22 @@ function VizijRuntimeProviderInner({
       // Clip conversion resolves each track's final store keys at LOAD time
       // (the same routing the JS pipeline used per tick), so the module's
       // outputs name the rig paths directly and the graph applies them.
-      animationHostRef.current = new AnimationModuleHost(getDevice, (key) =>
-        resolveAnimationBridgeOutputPaths(
+      animationHostRef.current = new AnimationModuleHost(getDevice, (key) => {
+        // The clip's target keys must be namespaced exactly as `setInput`
+        // namespaces a staged input, because they land in the same store and
+        // are read by the same graph nodes — whose `params.path` the
+        // registration pass rewrites to the namespaced form. Writing the bare
+        // path puts real sampled values at a key nothing reads: the animation
+        // looks correct at every stage and the face never moves, while the
+        // Inputs surface (which does namespace) works.
+        const namespace = namespaceRef.current;
+        const resolved = resolveAnimationBridgeOutputPaths(
           key,
           faceIdRef.current ?? undefined,
           rigInputMapRef.current,
-        ),
-      );
+        ).map((path) => namespaceTypedPath(path, namespace));
+        return [...new Set(resolved)];
+      });
     }
     return animationHostRef.current;
   }, [getDevice]);
@@ -1901,6 +1925,17 @@ function VizijRuntimeProviderInner({
   // `onDeviceStarted` replays the host's setup calls into a rebuilt device,
   // whose module guest state starts from scratch.
   const hasBundleAnimations = (assetBundle.animations?.length ?? 0) > 0;
+  /**
+   * Bumped once the animation module finishes loading.
+   *
+   * The module only loads after a clip appears, so a play issued right after
+   * an import races it: the host does not exist yet and the command is
+   * dropped. Registration is what hands clips to the host and replays pending
+   * transport, so it has to run again once the module is ready — nothing else
+   * would trigger it.
+   */
+  const [animationModuleReadyRevision, setAnimationModuleReadyRevision] =
+    useState(0);
   useEffect(() => {
     if (!hasBundleAnimations || animationModuleRef.current) {
       return;
@@ -1917,6 +1952,7 @@ function VizijRuntimeProviderInner({
           animationHostRef.current?.replayInto(handle.device);
         };
         ensureAnimationHost();
+        setAnimationModuleReadyRevision((previous) => previous + 1);
       })
       .catch((err: unknown) => {
         pushError({
@@ -2098,6 +2134,25 @@ function VizijRuntimeProviderInner({
       if (!handle.device.running) {
         handle.device.step(dt * 1000);
       }
+
+      // A failing graph tick stops EVERY node — the rig, the pose graph, and
+      // the animation module's step alike — while the runtime keeps running
+      // and the last rendered frame stays on screen. Nothing else surfaces
+      // this, so an unreported failure looks exactly like "the app is fine but
+      // nothing moves". One input node without a staged value or a default is
+      // enough to cause it.
+      const behaviorError = handle.device.behaviorError;
+      if (behaviorError !== lastBehaviorErrorRef.current) {
+        lastBehaviorErrorRef.current = behaviorError;
+        if (behaviorError) {
+          pushError({
+            message: `Graph tick failed: ${behaviorError}`,
+            phase: "engine",
+            timestamp: performance.now(),
+          });
+        }
+      }
+
       const changes = handle.device.drainChanges() as Record<
         string,
         ValueJSON | null
@@ -2477,11 +2532,12 @@ function VizijRuntimeProviderInner({
         rigInputMapRef.current,
       );
       if (isRuntimeDebugEnabled()) {
-        console.log("[vizij-runtime] animation output routing", {
-          animationId: animation.id,
-          bridgeOutputs,
-          bridgeOutputsText: bridgeOutputs.join(" | "),
-        });
+        // Flat string: these paths exist to be compared against the rig's
+        // declared graph inputs, and a collapsed object hides them.
+        console.log(
+          `[vizij-runtime] animation output routing ${animation.id} (${bridgeOutputs.length}) | ` +
+            bridgeOutputs.join(" | "),
+        );
       }
       recordOutputs(bridgeOutputs);
     }
@@ -2569,7 +2625,48 @@ function VizijRuntimeProviderInner({
         });
       }
     }
-    ensureAnimationHost()?.setClips(hostClips);
+    const host = ensureAnimationHost();
+    host?.setClips(hostClips);
+
+    // Re-issue transport for clips already marked playing.
+    //
+    // `playAnimation` can be called before the animation module finishes
+    // loading; there is no host yet, so the command is dropped and only a
+    // warning is emitted. Registration is the first point where the host and
+    // its clips both exist, so replay here — otherwise a play issued during
+    // startup is lost for good and the transport reports playing while the
+    // device never advances the clip.
+    if (host) {
+      let resumed = false;
+      clipPlaybackRef.current.forEach((clipState, clipId) => {
+        if (!clipState.playing || !host.has(clipId)) {
+          return;
+        }
+        resumed = true;
+        host.setSpeed(clipId, clipState.speed);
+        host.setWeight(clipId, clipState.weight);
+        host.setLoop(clipId, clipState.loop ? "loop" : "once");
+        if (clipState.playhead > 0) {
+          host.seek(clipId, clipState.playhead);
+        }
+        void host.play(clipId).catch((err: unknown) => {
+          pushError({
+            message: `Failed to resume animation ${clipId} after the module became ready`,
+            cause: err,
+            phase: "animation",
+            timestamp: performance.now(),
+          });
+        });
+      });
+      // Compose the animations source and restore the active step cadence.
+      // Marking a clip playing is not enough: the module only ticks while its
+      // graph source is registered, so a resume that skips this leaves the
+      // clip "playing" with a live player that never advances.
+      if (resumed) {
+        setAnimationsSourceRegistered(host.hasPlaying());
+        updateLoopMode();
+      }
+    }
 
     registeredAnimationsRef.current = animationIds;
 
@@ -2618,6 +2715,8 @@ function VizijRuntimeProviderInner({
     reportStatus,
     resolvedProgramAssets,
     setInput,
+    setAnimationsSourceRegistered,
+    updateLoopMode,
   ]);
 
   useEffect(() => {
@@ -2629,7 +2728,17 @@ function VizijRuntimeProviderInner({
       registeredGraphsRef.current.length > 0 ||
       registeredAnimationsRef.current.length > 0 ||
       programControllerIdsRef.current.size > 0;
-    if (plan && !plan.reregisterGraphs && hasRegistered) {
+    // A module-ready bump must always re-register: it is the only path that
+    // gets clips into a host created after the first registration.
+    const forcedByModuleReady =
+      animationModuleReadyRevision !== lastRegisteredModuleRevisionRef.current;
+    lastRegisteredModuleRevisionRef.current = animationModuleReadyRevision;
+    if (
+      plan &&
+      !plan.reregisterGraphs &&
+      hasRegistered &&
+      !forcedByModuleReady
+    ) {
       return;
     }
     registerControllers().catch((err: unknown) => {
@@ -2640,7 +2749,14 @@ function VizijRuntimeProviderInner({
         timestamp: performance.now(),
       });
     });
-  }, [ready, status.loading, graphUpdateToken, registerControllers, pushError]);
+  }, [
+    ready,
+    status.loading,
+    graphUpdateToken,
+    registerControllers,
+    pushError,
+    animationModuleReadyRevision,
+  ]);
 
   useEffect(() => {
     // Bound into a ref so stepRuntime (defined above) can pull each tick's
@@ -2790,6 +2906,34 @@ function VizijRuntimeProviderInner({
     }
   }, []);
 
+  /**
+   * Advances the host-side playhead of every playing clip by engine `dt`.
+   *
+   * Mirrors what the module does device-side so the transport surface has a
+   * monotonic clock. Uses engine time rather than wall clock so it stays
+   * consistent with the device across suspensions and throttled frames.
+   */
+  const advanceClipPlayheads = useCallback((dt: number) => {
+    if (!(dt > 0) || !Number.isFinite(dt)) {
+      return;
+    }
+    clipPlaybackRef.current.forEach((state) => {
+      if (!state.playing) {
+        return;
+      }
+      const speed =
+        Number.isFinite(state.speed) && state.speed > 0 ? state.speed : 1;
+      const next = state.playhead + dt * speed;
+      if (!(state.duration > 0)) {
+        state.playhead = next;
+        return;
+      }
+      state.playhead = state.loop
+        ? next % state.duration
+        : Math.min(next, state.duration);
+    });
+  }, []);
+
   const advanceAnimationTweens = useCallback(
     (dt: number) => {
       if (animationTweensRef.current.size === 0) {
@@ -2867,6 +3011,7 @@ function VizijRuntimeProviderInner({
         weight: 1,
         loop: true,
         playing: false,
+        playhead: 0,
         resolve: null,
         completion: null,
       };
@@ -2996,8 +3141,21 @@ function VizijRuntimeProviderInner({
     const raw = device.readValues([ANIMATION_PLAYERS_PATH])[
       ANIMATION_PLAYERS_PATH
     ];
-    return decodePlayerStates(raw);
-  }, [deviceSlot]);
+    const states = decodePlayerStates(raw);
+    // A value that decodes to nothing means the wire shape drifted from what
+    // the decoder expects. That degrades silently (no playhead telemetry), so
+    // surface the observed shape once rather than leaving it to be inferred
+    // from a transport clock that never moves.
+    if (DEV_MODE && states.length === 0 && raw && typeof raw === "object") {
+      warnAnimationGap(
+        "player-states-undecodable",
+        `Animation player_states feedback at "${ANIMATION_PLAYERS_PATH}" could not be decoded (top-level keys: ${Object.keys(
+          raw as Record<string, unknown>,
+        ).join(", ")}). The transport falls back to a host-side playhead.`,
+      );
+    }
+    return states;
+  }, [deviceSlot, warnAnimationGap]);
 
   /**
    * Resolve play() completions off the device feedback: a non-looping clip
@@ -3067,6 +3225,7 @@ function VizijRuntimeProviderInner({
         // entering the module now).
         if (options?.reset === true) {
           host.seek(id, 0);
+          state.playhead = 0;
         }
         host.setSpeed(id, state.speed);
         host.setWeight(id, state.weight);
@@ -3116,10 +3275,16 @@ function VizijRuntimeProviderInner({
   );
 
   const seekAnimation = useCallback((id: string, timeSeconds: number) => {
-    if (!clipPlaybackRef.current.has(id)) {
+    const state = clipPlaybackRef.current.get(id);
+    if (!state) {
       return;
     }
-    animationHostRef.current?.seek(id, Math.max(0, timeSeconds));
+    const target = Math.max(0, timeSeconds);
+    // Re-base the host-side playhead so the transport reflects the seek even
+    // before (or without) device feedback.
+    state.playhead =
+      state.duration > 0 ? Math.min(target, state.duration) : target;
+    animationHostRef.current?.seek(id, target);
   }, []);
 
   const setAnimationLoop = useCallback(
@@ -3150,7 +3315,11 @@ function VizijRuntimeProviderInner({
           ? readPlayerStates().find((entry) => entry.player === playerId)
           : undefined;
       return {
-        time: feedback?.time ?? 0,
+        // Feedback is authoritative; the host-side playhead stands in when it
+        // is unavailable. Never fall back to a hard 0 — that reads as "the
+        // animation is parked at the start" rather than "no telemetry", and it
+        // pins the transport clock and defeats seeking.
+        time: feedback?.time ?? state.playhead,
         duration:
           feedback && feedback.duration > 0
             ? feedback.duration
@@ -3181,6 +3350,9 @@ function VizijRuntimeProviderInner({
         // (its authored rest). The source stays composed for that one step —
         // it unregisters after the step that lands the reset.
         host?.stop(id);
+        if (state) {
+          state.playhead = 0;
+        }
         const unsubscribe = subscribeToStep(() => {
           unsubscribe();
           syncAnimationsSource();
@@ -3550,6 +3722,30 @@ function VizijRuntimeProviderInner({
     [faceId, namespace, pushError, setInput, setRendererValue],
   );
 
+  /**
+   * Re-assert the animations source each pump step, in the registering
+   * direction only.
+   *
+   * `play()` composes the source when it is called, but a play issued before
+   * the animation module finished loading has no host to ask, so nothing gets
+   * composed and nothing ever retries: the clip reports itself as playing
+   * while the source stays absent, the module never ticks, and playback is
+   * dead until a full teardown. Reconciling here closes that window without a
+   * lifecycle special case.
+   *
+   * Deliberately one-directional. `setAnimationsSourceRegistered` early-returns
+   * when the flag already matches, so this is a no-op on all but the first
+   * recovering tick; dropping the source is left to the pause/stop paths via
+   * `syncAnimationsSource`, which also refreshes the loop mode.
+   */
+  const reconcileAnimationsSource = useCallback(() => {
+    const host = animationHostRef.current;
+    if (!host || !host.hasPlaying()) {
+      return;
+    }
+    setAnimationsSourceRegistered(true);
+  }, [setAnimationsSourceRegistered]);
+
   const flushStagedInputs = useCallback(() => {
     if (stagedInputsRef.current.size === 0) {
       return;
@@ -3573,6 +3769,8 @@ function VizijRuntimeProviderInner({
       // pump advances tweens, flushes staged inputs, and settles play()
       // completions off the device feedback.
       advanceAnimationTweens(dt);
+      advanceClipPlayheads(dt);
+      reconcileAnimationsSource();
       flushStagedInputs();
       if (driveRuntimeRef.current || opts?.forceRuntime) {
         stepRuntime(dt);
@@ -3581,7 +3779,9 @@ function VizijRuntimeProviderInner({
     },
     [
       advanceAnimationTweens,
+      advanceClipPlayheads,
       flushStagedInputs,
+      reconcileAnimationsSource,
       settleFinishedClips,
       stepRuntime,
     ],

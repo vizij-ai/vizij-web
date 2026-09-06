@@ -258,6 +258,9 @@ export class AnimationModuleHost {
    * Re-issue setup and transport for every playing clip against a freshly
    * started device (module guest state did not survive the rebuild). Voids
    * stale ids first. Called from `DeviceSlot.onDeviceStarted`.
+   *
+   * A freshly loaded player advances without an explicit `play` — asserted by
+   * the rebuild case in `animationPipeline.device.test.ts`.
    */
   replayInto(device: Runtime): void {
     for (const entry of this.clips.values()) {
