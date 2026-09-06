@@ -593,6 +593,37 @@ export function useAnimationTransport() {
 
   const seekTransport = useCallback(
     (timeSeconds: number) => {
+      // Temporary, dev-only. Seeking has failed in three different ways so
+      // far, each hidden behind the last, and reasoning about it from the
+      // source has not been enough — this reports which path a seek actually
+      // takes and whether the engine honours it.
+      if (process.env.NODE_ENV !== "production") {
+        const before = runtimeTransport?.getAnimationState?.(
+          AUTHORED_TIMELINE_CLIP_ID,
+        );
+        // eslint-disable-next-line no-console
+        console.log("[timeline][seek] requested", {
+          timeSeconds,
+          canDrive,
+          hasAdapter: Boolean(runtimeTransport),
+          isPlaying,
+          transportPlaybackState,
+          engineTimeBefore: before?.time,
+          enginePlaying: before?.playing,
+        });
+        window.setTimeout(() => {
+          const after = runtimeTransport?.getAnimationState?.(
+            AUTHORED_TIMELINE_CLIP_ID,
+          );
+          // eslint-disable-next-line no-console
+          console.log("[timeline][seek] settled", {
+            requested: timeSeconds,
+            engineTimeAfter: after?.time,
+            enginePlaying: after?.playing,
+            storeTime: useAnimationStore.getState().currentTime,
+          });
+        }, 200);
+      }
       if (!canDrive || !runtimeTransport) {
         syncTransportState({
           currentTime: timeSeconds,
