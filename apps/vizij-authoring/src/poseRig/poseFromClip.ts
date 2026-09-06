@@ -10,8 +10,11 @@ import type { StandardInputId } from "./types";
  * playing to it — and it is a pure function of the clip, so it is testable
  * without a device. The alternative, reading live values, is also currently
  * broken for this purpose: `capturePose` snapshots the pose store's
- * `currentValues`, which only ever changes when an Inputs slider moves, so at
- * a playhead it captures the last slider positions rather than the frame.
+ * `currentValues`, which is written only by `applyPose`, `applyNeutral` and
+ * rig-load defaults — `updateCurrentValues` has no caller in the app at all.
+ * The Inputs sliders write `inputValues` in the binding store instead, and
+ * nothing mirrors the runtime into either while a clip drives it. So at a
+ * playhead `capturePose` records the last *applied pose*, not the frame.
  */
 
 export type PoseCaptureScope =
