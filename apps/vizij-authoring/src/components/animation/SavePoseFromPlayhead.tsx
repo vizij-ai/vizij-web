@@ -22,10 +22,10 @@ import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
  * Saves the clip's value at the playhead as a pose.
  *
  * The values are sampled from the clip rather than read from the runtime.
- * `capturePose` snapshots the pose store's `currentValues`, which only ever
- * changes when an Inputs slider moves — so wiring this button to it would
- * record the last slider positions instead of the frame, and look like it had
- * worked. See `poseFromClipAtTime`.
+ * `capturePose` snapshots the pose store's `currentValues`, which no authoring
+ * surface writes as you work — so wiring this button to it would record the
+ * last applied pose instead of the frame, and look like it had worked. See
+ * `poseFromClipAtTime`.
  */
 
 export interface SavePoseFromPlayheadProps {
