@@ -1299,8 +1299,15 @@ export function useVizijExport(
     setStoreState,
     sourceName,
     standardInputsById,
+    standardInputMetadataById,
     validOutputTargets,
     values,
+    // Read by the bake, and previously absent: a stale closure here would
+    // export the previous face's world or the previous clip set. Masked so
+    // far only because `values` churns every frame and `ExportDialog` stays
+    // mounted, so the handler was being rebuilt constantly anyway.
+    authoredAnimationClips,
+    world,
   ]);
 
   const exportPoseGraphFile = useCallback(async () => {
