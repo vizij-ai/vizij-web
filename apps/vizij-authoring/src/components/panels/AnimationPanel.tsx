@@ -19,6 +19,7 @@ import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { TimelineEditor } from "../animation/TimelineEditor";
+import { scrubPreviewValues } from "../animation/clipPreview";
 import { SavePoseFromPlayhead } from "../animation/SavePoseFromPlayhead";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../../hooks/useAnimationTransport";
@@ -152,7 +153,35 @@ export function AnimationPanel({
     : transport.stop;
   const runtimeTransportBound =
     !hasExternalTransportControls || effectivePlaybackState !== "stopped";
-  const handleSeek = runtimeTransportBound ? transport.seek : seek;
+  const applyStandardInputBatch = useBindingAuthoring(
+    (state) => state.applyStandardInputBatch,
+  );
+
+  // Scrubbing has to move the face, not just the playhead. While the runtime
+  // transport is not driving — which is the whole time playback is stopped —
+  // nothing else writes the rig, so the seek samples the clip and applies its
+  // inputs. `source: "timeline"` because these values come from the clip
+  // rather than from a person moving a slider, and the manual-write lock must
+  // not treat them as a conflict.
+  const previewClipAt = (timeSeconds: number) => {
+    const values = scrubPreviewValues({
+      tracks,
+      time: timeSeconds,
+      playbackState: effectivePlaybackState,
+    });
+    if (values) {
+      applyStandardInputBatch(values, { source: "timeline" });
+    }
+  };
+
+  const handleSeek = (timeSeconds: number) => {
+    if (runtimeTransportBound) {
+      transport.seek(timeSeconds);
+    } else {
+      seek(timeSeconds);
+    }
+    previewClipAt(timeSeconds);
+  };
   const handleTimelinePause = runtimeTransportBound
     ? transport.pause
     : undefined;
