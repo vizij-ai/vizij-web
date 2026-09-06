@@ -95,11 +95,48 @@ describe("extractGltfAnimationChannels", () => {
     expect(channels[0]?.nodeName).toBe("Face_Tran_Rot_C");
   });
 
-  it("returns an empty morph name list when the mesh declares no targetNames", () => {
+  it("returns an empty morph name list when the mesh declares no targets at all", () => {
     const [channel] = extractGltfAnimationChannels(
       makeJson({ meshes: [{ extras: null }] }),
     );
     expect(channel?.morphNames).toEqual([]);
+  });
+
+  it("falls back to the primitive target count when targetNames is absent", () => {
+    // `extras.targetNames` is an exporter convention, not spec. A file from
+    // another tool has none, and the weights channel used to expand to zero
+    // scalar targets — the whole channel vanished without a diagnostic.
+    const [channel] = extractGltfAnimationChannels(
+      makeJson({
+        meshes: [
+          {
+            extras: null,
+            primitives: [{ targets: [{}, {}, {}] }],
+          },
+        ],
+      }),
+    );
+    // Empty names on purpose: `deriveMorphFeatureKeys` turns them into
+    // `morph_1..morph_3`, matching what geometry import derives for unnamed
+    // targets, so the channels still line up.
+    expect(channel?.morphNames).toEqual(["", "", ""]);
+    expect(
+      expandChannelToScalarTargets(channel!).map((t) => t.morphFeatureKey),
+    ).toEqual(["morph_1", "morph_2", "morph_3"]);
+  });
+
+  it("prefers targetNames over the primitive count when both exist", () => {
+    const [channel] = extractGltfAnimationChannels(
+      makeJson({
+        meshes: [
+          {
+            extras: { targetNames: ["Lid_UpDn", "CurveUp"] },
+            primitives: [{ targets: [{}, {}, {}] }],
+          },
+        ],
+      }),
+    );
+    expect(channel?.morphNames).toEqual(["Lid_UpDn", "CurveUp"]);
   });
 
   it("names animations by index when unnamed", () => {

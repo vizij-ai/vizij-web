@@ -69,17 +69,32 @@ export function SavePoseFromPlayhead({
     [standardInputs],
   );
 
-  // The rig's neutral is only explicitly captured for some inputs, so fall
-  // back to each input's declared default — that is what `createNeutralInputs`
-  // builds neutral from in the first place. Without a per-input basis the
-  // at-neutral filter cannot fire, and every animated track would be pinned.
-  const neutralValues = useMemo(() => {
+  const defaultValues = useMemo(() => {
     const resolved: Record<string, number> = {};
     for (const input of standardInputs) {
       resolved[input.id] = input.defaultValue ?? 0;
     }
-    return { ...resolved, ...storeNeutralInputs };
-  }, [standardInputs, storeNeutralInputs]);
+    return resolved;
+  }, [standardInputs]);
+
+  // The rig's neutral is only explicitly captured for some inputs, so fall
+  // back to each input's declared default — that is what `createNeutralInputs`
+  // builds neutral from in the first place. Without a per-input basis the
+  // at-neutral filter cannot fire, and every animated track would be pinned.
+  const neutralValues = useMemo(
+    () => ({ ...defaultValues, ...storeNeutralInputs }),
+    [defaultValues, storeNeutralInputs],
+  );
+
+  // `currentValues` is a *filtered* mirror of the binding store, restricted to
+  // the visible pose-rig inputs — so it is empty on a face with no pose rig,
+  // and "every input" silently captured nothing. Start from the face's own
+  // catalog so the scope means what it says; a known live value wins over the
+  // declared default.
+  const allInputValues = useMemo(
+    () => ({ ...defaultValues, ...currentValues }),
+    [currentValues, defaultValues],
+  );
 
   // Frozen when the dialog opens: the playhead can still move underneath it
   // (playback is not stopped to open this), and a pose that quietly retargeted
@@ -106,14 +121,14 @@ export function SavePoseFromPlayhead({
       clip,
       time: capturedTime,
       knownInputIds,
-      baseValues: currentValues,
+      baseValues: allInputValues,
       neutralValues,
       scope,
     });
   }, [
     open,
+    allInputValues,
     capturedTime,
-    currentValues,
     duration,
     knownInputIds,
     neutralValues,
@@ -241,7 +256,7 @@ export function SavePoseFromPlayhead({
               <span>
                 Every input
                 <span className="ml-1 text-[10px] text-text-muted">
-                  ({Object.keys(currentValues).length})
+                  ({Object.keys(allInputValues).length})
                 </span>
                 <span className="block text-[10px] text-text-muted">
                   Pins inputs the clip never touched to their current values.

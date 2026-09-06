@@ -294,3 +294,41 @@ describe("SavePoseFromPlayhead at-neutral filtering", () => {
     expect(confirmButton().disabled).toBe(true);
   });
 });
+
+describe("SavePoseFromPlayhead scope counts", () => {
+  it("captures every catalog input when the pose rig mirror is empty", () => {
+    // `currentValues` is a filtered mirror of the binding store and is empty
+    // on a face with no pose rig, so "every input" used to read (0) and save
+    // nothing at all.
+    animationState.tracks = [track("jaw_open", [{ time: 0, value: 0.25 }])];
+    poseState.standardInputs = [
+      { id: "jaw_open", defaultValue: 0 },
+      { id: "brow_raise", defaultValue: 0.3 },
+    ];
+    poseState.currentValues = {};
+
+    render(<SavePoseFromPlayhead clipName="Wave" />);
+    openDialog();
+    fireEvent.click(screen.getByRole("radio", { name: /every input/i }));
+    fireEvent.click(confirmButton());
+
+    // The clip's value wins; the untouched input falls back to its default.
+    expect(savedValues()).toEqual({ jaw_open: 0.25, brow_raise: 0.3 });
+  });
+
+  it("prefers a live value over the declared default", () => {
+    animationState.tracks = [track("jaw_open", [{ time: 0, value: 0.25 }])];
+    poseState.standardInputs = [
+      { id: "jaw_open", defaultValue: 0 },
+      { id: "brow_raise", defaultValue: 0.3 },
+    ];
+    poseState.currentValues = { brow_raise: 0.9 };
+
+    render(<SavePoseFromPlayhead clipName="Wave" />);
+    openDialog();
+    fireEvent.click(screen.getByRole("radio", { name: /every input/i }));
+    fireEvent.click(confirmButton());
+
+    expect(savedValues()).toEqual({ jaw_open: 0.25, brow_raise: 0.9 });
+  });
+});

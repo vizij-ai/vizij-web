@@ -7,7 +7,11 @@ import { deriveMorphFeatureKeys } from "@vizij/render";
  */
 export interface GltfJsonLike {
   nodes?: ReadonlyArray<{ name?: unknown; mesh?: unknown } | null>;
-  meshes?: ReadonlyArray<{ extras?: { targetNames?: unknown } | null } | null>;
+  meshes?: ReadonlyArray<{
+    extras?: { targetNames?: unknown } | null;
+    /** Normative morph-target count; `extras.targetNames` is only a convention. */
+    primitives?: ReadonlyArray<{ targets?: ReadonlyArray<unknown> } | null>;
+  } | null>;
   animations?: ReadonlyArray<{
     name?: unknown;
     channels?: ReadonlyArray<{
@@ -95,12 +99,28 @@ function readTargetNames(
   if (typeof meshIndex !== "number") {
     return undefined;
   }
-  const targetNames = json.meshes?.[meshIndex]?.extras?.targetNames;
-  if (!Array.isArray(targetNames)) {
-    return undefined;
+  const mesh = json.meshes?.[meshIndex];
+  const targetNames = mesh?.extras?.targetNames;
+  if (Array.isArray(targetNames) && targetNames.length > 0) {
+    return targetNames.map((entry) => asString(entry));
   }
-  const names = targetNames.map((entry) => asString(entry));
-  return names.length > 0 ? names : undefined;
+
+  // `extras.targetNames` is an exporter convention, not part of the spec, so a
+  // file from another tool often has none. The count is still knowable from
+  // `primitives[].targets`, and without this fallback a `weights` channel
+  // expanded to zero scalar targets and the whole channel vanished silently.
+  //
+  // Empty names are deliberate: `deriveMorphFeatureKeys` turns them into
+  // `morph_1..morph_N`, which is exactly what geometry import derives for
+  // unnamed targets, so the channels still line up.
+  const targetCount = mesh?.primitives?.reduce(
+    (max, primitive) => Math.max(max, primitive?.targets?.length ?? 0),
+    0,
+  );
+  if (typeof targetCount === "number" && targetCount > 0) {
+    return new Array<string>(targetCount).fill("");
+  }
+  return undefined;
 }
 
 /**
