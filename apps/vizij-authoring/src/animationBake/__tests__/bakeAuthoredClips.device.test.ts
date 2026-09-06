@@ -238,3 +238,90 @@ describe("bakeAuthoredClips", () => {
     expect(report.outcomes).toEqual([]);
   });
 });
+
+/**
+ * A `time` node's output is the accumulated graph clock, so it is state that
+ * survives across clips. Baking used to build one evaluator for the whole
+ * batch, which left the second clip starting at the first clip's end time
+ * rather than at zero — so the output depended on the order clips happened to
+ * be in, and baking [A, B] gave a different B than baking [B].
+ *
+ * `slew` would express this more directly but is inert in this runtime's
+ * vocabulary (verified: it passes its input straight through), so the clock is
+ * the honest way to hold state here.
+ */
+function clockRigSpec(): GraphSpec {
+  return {
+    nodes: [
+      { id: "clock", type: "time" },
+      { id: "out_y", type: "output", params: { path: OUT_Y } },
+    ],
+    edges: [
+      { from: { node_id: "clock" }, to: { node_id: "out_y", input: "in" } },
+    ],
+  } as unknown as GraphSpec;
+}
+
+function namedClip(id: string, name: string): AnimationClipIR {
+  return {
+    schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
+    id,
+    name,
+    duration: 1,
+    tracks: [
+      {
+        id: `${id}-t0`,
+        variableId: INPUT,
+        channel: INPUT,
+        interpolation: "linear",
+        keyframes: [
+          { id: "k0", time: 0, value: 0 },
+          { id: "k1", time: 1, value: 1 },
+        ],
+      },
+    ],
+  };
+}
+
+async function bakeWithClock(clips: AnimationClipIR[]) {
+  return bakeAuthoredClips({
+    clips,
+    spec: clockRigSpec(),
+    outputs: [
+      {
+        path: OUT_Y,
+        channels: [OUT_Y],
+        elementName: ELEMENT,
+        featureKey: "translation",
+      },
+    ],
+    inputPathMap: { [INPUT]: INPUT },
+    targets,
+    root: fakeRoot(),
+    fps: 30,
+    // Pinned so the two batches cannot differ merely by probing the graph.
+    propagationTicks: 1,
+  });
+}
+
+describe("bakeAuthoredClips graph state", () => {
+  it("bakes a clip the same whether or not another clip preceded it", async () => {
+    const solo = await bakeWithClock([namedClip("c2", "Second")]);
+    const batched = await bakeWithClock([
+      namedClip("c1", "First"),
+      namedClip("c2", "Second"),
+    ]);
+
+    const soloClip = solo.animations[0] as {
+      tracks: Array<{ values: Float32Array }>;
+    };
+    const batchedSecond = batched.animations[1] as {
+      tracks: Array<{ values: Float32Array }>;
+    };
+
+    expect(batched.animations).toHaveLength(2);
+    expect([...batchedSecond.tracks[0]!.values]).toEqual([
+      ...soloClip.tracks[0]!.values,
+    ]);
+  });
+});

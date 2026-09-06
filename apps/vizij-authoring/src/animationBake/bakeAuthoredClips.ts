@@ -207,17 +207,23 @@ export async function bakeAuthoredClips(options: {
     propagationTicks = measured ?? 1;
   }
 
-  const evaluator = await createDeviceGraphEvaluator({
-    spec: options.spec,
-    propagationTicks,
-  });
-
   const animations: unknown[] = [];
   const outcomes: ClipBakeOutcome[] = [];
   const dropped = new Map<string, BakeSkippedChannel>();
 
-  try {
-    for (const authored of bakeable) {
+  for (const authored of bakeable) {
+    // One evaluator per clip. The graph carries state across ticks — that is
+    // the whole reason the sampler steps a fixed grid rather than jumping to
+    // each frame — so a shared evaluator would start each clip from the
+    // previous clip's slew/spring/oscillator state at an already-advanced
+    // clock. Baking [A, B] would then produce a different B than baking [B],
+    // making the output depend on clip order.
+    const evaluator = await createDeviceGraphEvaluator({
+      spec: options.spec,
+      propagationTicks,
+    });
+
+    try {
       const sampled = sampleClipThroughGraph({
         clip: authored,
         evaluator,
@@ -255,9 +261,9 @@ export async function bakeAuthoredClips(options: {
         bindingIssues: built.issues,
         clip: built.clip,
       });
+    } finally {
+      evaluator.dispose();
     }
-  } finally {
-    evaluator.dispose();
   }
 
   return {
