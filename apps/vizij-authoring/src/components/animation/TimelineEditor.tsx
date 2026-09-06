@@ -87,6 +87,10 @@ export function TimelineEditor({
     (state) => state.standardInputsById,
   );
   const setScrubbing = useAnimationStore((state) => state.setScrubbing);
+  // Read through a ref in the unmount cleanup so that cleanup can depend on
+  // nothing and therefore run only on unmount.
+  const setScrubbingRef = useRef(setScrubbing);
+  setScrubbingRef.current = setScrubbing;
   const seekTo = onSeek ?? seek;
 
   const resolveTimeFromClientX = useCallback(
@@ -170,6 +174,34 @@ export function TimelineEditor({
     insertKeyframeAt(t);
   };
 
+  /**
+   * The window listeners, with identities that never change.
+   *
+   * The handlers themselves are rebuilt on every render — they close over
+   * `onSeek`, which `AnimationPanel` recreates each time — and during playback
+   * the store updates every frame. Registering them directly meant the
+   * listener added on pointer-down was never the one a later cleanup removed,
+   * and, worse, the cleanup effect re-ran mid-drag and tore down the drag it
+   * was in the middle of: `pausedForScrubRef` was cleared, so the release
+   * never resumed playback and the clip sat paused with the transport still
+   * claiming to play.
+   *
+   * Delegating through a ref keeps the registration stable, so the drag ends
+   * when the pointer says so and the cleanup runs only on unmount.
+   */
+  const scrubHandlersRef = useRef<{
+    move: (event: PointerEvent) => void;
+    stop: () => void;
+  }>({ move: () => {}, stop: () => {} });
+  const onWindowPointerMove = useCallback(
+    (event: PointerEvent) => scrubHandlersRef.current.move(event),
+    [],
+  );
+  const onWindowPointerEnd = useCallback(
+    () => scrubHandlersRef.current.stop(),
+    [],
+  );
+
   const handleRulerPointerMove = useCallback(
     (event: PointerEvent) => {
       if (!isScrubbingRulerRef.current) {
@@ -203,10 +235,15 @@ export function TimelineEditor({
     if (shouldResume) {
       onResume?.();
     }
-    window.removeEventListener("pointermove", handleRulerPointerMove);
-    window.removeEventListener("pointerup", stopRulerScrub);
-    window.removeEventListener("pointercancel", stopRulerScrub);
-  }, [handleRulerPointerMove, onResume, setScrubbing]);
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerEnd);
+    window.removeEventListener("pointercancel", onWindowPointerEnd);
+  }, [onResume, onWindowPointerEnd, onWindowPointerMove, setScrubbing]);
+
+  scrubHandlersRef.current = {
+    move: handleRulerPointerMove,
+    stop: stopRulerScrub,
+  };
 
   const handleRulerPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
@@ -221,28 +258,25 @@ export function TimelineEditor({
     // overwrites it on the very next frame.
     setScrubbing(true);
     seekFromClientX(event.clientX);
-    window.addEventListener("pointermove", handleRulerPointerMove);
-    window.addEventListener("pointerup", stopRulerScrub);
-    window.addEventListener("pointercancel", stopRulerScrub);
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerEnd);
+    window.addEventListener("pointercancel", onWindowPointerEnd);
   };
 
   useEffect(
     () => () => {
-      const wasScrubbing = isScrubbingRulerRef.current;
-      isScrubbingRulerRef.current = false;
+      // Unmount only, by construction: these dependencies never change.
+      if (isScrubbingRulerRef.current) {
+        isScrubbingRulerRef.current = false;
+        setScrubbingRef.current(false);
+      }
       scrubStartClientXRef.current = null;
       pausedForScrubRef.current = false;
-      // Only when a drag was actually in flight. This cleanup re-runs whenever
-      // its dependencies change, which during playback is every frame, and an
-      // unconditional release wrote to the store on each one.
-      if (wasScrubbing) {
-        setScrubbing(false);
-      }
-      window.removeEventListener("pointermove", handleRulerPointerMove);
-      window.removeEventListener("pointerup", stopRulerScrub);
-      window.removeEventListener("pointercancel", stopRulerScrub);
+      window.removeEventListener("pointermove", onWindowPointerMove);
+      window.removeEventListener("pointerup", onWindowPointerEnd);
+      window.removeEventListener("pointercancel", onWindowPointerEnd);
     },
-    [handleRulerPointerMove, setScrubbing, stopRulerScrub],
+    [onWindowPointerEnd, onWindowPointerMove],
   );
 
   const commitTimeDraft = useCallback(() => {

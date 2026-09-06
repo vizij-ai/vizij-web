@@ -27,7 +27,7 @@ const state = {
   currentTime: 0,
   selectedTrackId: "track-1" as string | null,
   selectedKeyframeId: null as string | null,
-  transportPlaybackState: "stopped" as const,
+  transportPlaybackState: "stopped" as "stopped" | "playing" | "paused",
   selectTrack: vi.fn(),
   selectKeyframe: vi.fn(),
   seek: vi.fn(),
@@ -74,6 +74,7 @@ beforeEach(() => {
   state.updateKeyframe.mockClear();
   state.removeKeyframe.mockClear();
   state.setScrubbing.mockClear();
+  state.transportPlaybackState = "stopped";
 });
 
 // Auto-cleanup only runs with Vitest globals enabled, and this project does
@@ -388,6 +389,7 @@ describe("TimelineEditor scrub ownership", () => {
     const view = render(<TimelineEditor />);
     pointerDown(ruler(view), 0, 300);
     state.setScrubbing.mockClear();
+    state.transportPlaybackState = "stopped";
 
     view.unmount();
     expect(state.setScrubbing).toHaveBeenCalledWith(false);
@@ -397,5 +399,86 @@ describe("TimelineEditor scrub ownership", () => {
     const view = render(<TimelineEditor />);
     pointerDown(ruler(view), 2, 300);
     expect(state.setScrubbing).not.toHaveBeenCalled();
+  });
+});
+
+describe("TimelineEditor scrub survives re-renders", () => {
+  function ruler(view: ReturnType<typeof render>): HTMLElement {
+    return view.container.querySelector(".cursor-ew-resize") as HTMLElement;
+  }
+
+  function pointerDown(target: HTMLElement, clientX: number) {
+    target.dispatchEvent(
+      new MouseEvent("pointerdown", { button: 0, clientX, bubbles: true }),
+    );
+  }
+
+  it("resumes playback on release even after re-rendering mid-drag", () => {
+    // The drag's own listeners are rebuilt every render, and during playback
+    // the store updates every frame. The cleanup used to re-run mid-drag and
+    // tear down the drag it was in the middle of, so the release never
+    // resumed: the clip sat paused while the transport still claimed to play.
+    state.transportPlaybackState = "playing";
+    const onPause = vi.fn();
+    const onResume = vi.fn();
+
+    // `onSeek` is a fresh function every render in the app — `AnimationPanel`
+    // rebuilds it — and that is what churns the drag's handler identities.
+    // Stable props here would leave the identities unchanged and the test
+    // would pass against the bug.
+    const view = render(
+      <TimelineEditor
+        onSeek={() => {}}
+        onPause={onPause}
+        onResume={onResume}
+      />,
+    );
+    pointerDown(ruler(view), 300);
+
+    // A move far enough to auto-pause for the scrub.
+    window.dispatchEvent(
+      new MouseEvent("pointermove", { clientX: 380, bubbles: true }),
+    );
+    expect(onPause).toHaveBeenCalledTimes(1);
+
+    // Exactly what playback does: re-render with new handler identities.
+    view.rerender(
+      <TimelineEditor
+        onSeek={() => {}}
+        onPause={onPause}
+        onResume={onResume}
+      />,
+    );
+    view.rerender(
+      <TimelineEditor
+        onSeek={() => {}}
+        onPause={onPause}
+        onResume={onResume}
+      />,
+    );
+
+    window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(state.setScrubbing).toHaveBeenLastCalledWith(false);
+    state.transportPlaybackState = "stopped";
+  });
+
+  it("does not resume a scrub that began while already paused", () => {
+    state.transportPlaybackState = "paused";
+    const onResume = vi.fn();
+
+    const view = render(
+      <TimelineEditor onSeek={() => {}} onResume={onResume} />,
+    );
+    pointerDown(ruler(view), 300);
+    window.dispatchEvent(
+      new MouseEvent("pointermove", { clientX: 380, bubbles: true }),
+    );
+    view.rerender(<TimelineEditor onSeek={() => {}} onResume={onResume} />);
+    window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+
+    expect(onResume).not.toHaveBeenCalled();
+    state.transportPlaybackState = "stopped";
   });
 });
