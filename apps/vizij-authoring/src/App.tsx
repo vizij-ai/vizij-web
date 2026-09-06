@@ -1001,6 +1001,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const pauseAnimationTransportState = useAnimationStore(
     (state) => state.pause,
   );
+  const playAnimationTransportState = useAnimationStore(
+    (state) => state.play,
+  );
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
   );
@@ -2962,6 +2965,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             speed: animationPlaySpeed,
           },
         );
+        // Resuming has to say so locally, the same as pause and stop do.
+        // This branch used to clear the optimistic flag — the only thing
+        // standing in for "playing" until the runtime confirms — and write
+        // nothing in its place, so a resumed clip went on reporting "paused"
+        // until a frame arrived to correct it. The first Play of a session
+        // looked fine only because it takes the branch below, which sets the
+        // optimistic flag rather than clearing it.
+        playAnimationTransportState();
         setPendingAnimationRuntimePlayTargetId(null);
         return;
       }
@@ -2971,6 +2982,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       activeAnimationRuntimeTargetId,
       startAnimationRuntimeSession,
       animationLoopEnabled,
+      playAnimationTransportState,
       animationPlaySpeed,
       animationPlaybackState,
       animationRuntimeTransportAdapter,

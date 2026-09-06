@@ -30,6 +30,25 @@ describe("transport state after pause", () => {
     expect(state.transportActive).toBe(true);
   });
 
+  it("reports playing again on resume, without waiting either", () => {
+    // The symmetric half: resuming a paused clip used to clear the optimistic
+    // "playing" override and write nothing in its place, so the clip went on
+    // reporting paused until a frame arrived.
+    const store = useAnimationStore.getState();
+    store.seek(1.25);
+    store.play();
+    store.pause();
+    expect(useAnimationStore.getState().transportPlaybackState).toBe("paused");
+
+    store.play();
+
+    const state = useAnimationStore.getState();
+    expect(state.transportPlaybackState).toBe("playing");
+    expect(state.isPlaying).toBe(true);
+    // Resume, not restart.
+    expect(state.currentTime).toBeCloseTo(1.25, 10);
+  });
+
   it("keeps the playhead where it was, unlike stop", () => {
     const store = useAnimationStore.getState();
     store.seek(2.5);
