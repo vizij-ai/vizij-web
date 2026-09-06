@@ -174,12 +174,14 @@ export function AnimationPanel({
     }
   };
 
+  // Always through the transport, never the bare store setter. `seekTransport`
+  // already handles both cases — it drives the runtime when it can and falls
+  // back to updating the store when it cannot — whereas writing only the store
+  // left the engine's clock where it was, and the runtime feedback loop then
+  // restored the old time the moment the drag ended. The playhead moved during
+  // the drag and snapped back on release.
   const handleSeek = (timeSeconds: number) => {
-    if (runtimeTransportBound) {
-      transport.seek(timeSeconds);
-    } else {
-      seek(timeSeconds);
-    }
+    transport.seek(timeSeconds);
     previewClipAt(timeSeconds);
   };
   const handleTimelinePause = runtimeTransportBound
