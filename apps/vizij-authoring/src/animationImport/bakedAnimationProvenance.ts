@@ -132,9 +132,7 @@ export const EMPTY_BAKED_ANIMATION_RECORDS: BakedAnimationRecords = {
 };
 
 /** Build the lookups from whatever the bundle recorded, tolerating junk. */
-export function readBakedAnimationRecords(
-  raw: unknown,
-): BakedAnimationRecords {
+export function readBakedAnimationRecords(raw: unknown): BakedAnimationRecords {
   const byIndex = new Map<number, BakedAnimationRecord>();
   const byName = new Map<string, BakedAnimationRecord | null>();
   if (!Array.isArray(raw)) {
