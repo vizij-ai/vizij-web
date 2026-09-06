@@ -55,6 +55,7 @@ export function SavePoseFromPlayhead({
 
   const standardInputs = usePoseRigStore((state) => state.standardInputs);
   const currentValues = usePoseRigStore((state) => state.currentValues);
+  const storeNeutralInputs = usePoseRigStore((state) => state.neutralInputs);
   const createPoseFromValues = usePoseRigStore(
     (state) => state.createPoseFromValues,
   );
@@ -67,6 +68,18 @@ export function SavePoseFromPlayhead({
     () => new Set(standardInputs.map((input) => input.id)),
     [standardInputs],
   );
+
+  // The rig's neutral is only explicitly captured for some inputs, so fall
+  // back to each input's declared default — that is what `createNeutralInputs`
+  // builds neutral from in the first place. Without a per-input basis the
+  // at-neutral filter cannot fire, and every animated track would be pinned.
+  const neutralValues = useMemo(() => {
+    const resolved: Record<string, number> = {};
+    for (const input of standardInputs) {
+      resolved[input.id] = input.defaultValue ?? 0;
+    }
+    return { ...resolved, ...storeNeutralInputs };
+  }, [standardInputs, storeNeutralInputs]);
 
   // Frozen when the dialog opens: the playhead can still move underneath it
   // (playback is not stopped to open this), and a pose that quietly retargeted
@@ -94,6 +107,7 @@ export function SavePoseFromPlayhead({
       time: capturedTime,
       knownInputIds,
       baseValues: currentValues,
+      neutralValues,
       scope,
     });
   }, [
@@ -102,6 +116,7 @@ export function SavePoseFromPlayhead({
     currentValues,
     duration,
     knownInputIds,
+    neutralValues,
     scope,
     tracks,
   ]);
@@ -211,7 +226,8 @@ export function SavePoseFromPlayhead({
                   ({animatedCount})
                 </span>
                 <span className="block text-[10px] text-text-muted">
-                  The pose composes with everything else.
+                  Composes with everything else. Inputs resting at neutral are
+                  left out so the pose does not fight the ones it blends with.
                 </span>
               </span>
             </label>
@@ -233,6 +249,17 @@ export function SavePoseFromPlayhead({
               </span>
             </label>
           </fieldset>
+
+          {preview && preview.neutralInputIds.length > 0 ? (
+            <p
+              className="text-[10px] text-text-muted"
+              data-testid="save-pose-neutral-note"
+            >
+              {preview.neutralInputIds.length} of {animatedCount} animated input
+              {animatedCount === 1 ? "" : "s"} rest at neutral here and are left
+              out.
+            </p>
+          ) : null}
 
           {preview && preview.unresolvedChannels.length > 0 ? (
             <p
