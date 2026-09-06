@@ -3,7 +3,7 @@ import {
   classifyGltfAnimation,
   gltfAnimationFingerprint,
   readBakedAnimationRecords,
-  type BakedAnimationRecord,
+  type BakedAnimationRecords,
 } from "../bakedAnimationProvenance";
 import type { GltfAnimationEntry } from "../gltfAnimationDocument";
 
@@ -21,9 +21,11 @@ function animation(
   name: string,
   values: number[],
   overrides: Partial<GltfAnimationEntry["curves"][number]> = {},
-): Pick<GltfAnimationEntry, "name" | "curves"> {
+  index = 0,
+): Pick<GltfAnimationEntry, "name" | "index" | "curves"> {
   return {
     name,
+    index,
     curves: [
       {
         nodeName: "L_Lid",
@@ -42,15 +44,15 @@ function recordsFor(
   name: string,
   clipId: string,
   animationForFingerprint: Pick<GltfAnimationEntry, "curves">,
-): Map<string, BakedAnimationRecord> {
-  return new Map([
-    [
-      name,
-      {
-        clipId,
-        fingerprint: gltfAnimationFingerprint(animationForFingerprint),
-      },
-    ],
+  index = 0,
+): BakedAnimationRecords {
+  return readBakedAnimationRecords([
+    {
+      animationIndex: index,
+      animationName: name,
+      clipId,
+      fingerprint: gltfAnimationFingerprint(animationForFingerprint),
+    },
   ]);
 }
 
@@ -82,23 +84,97 @@ describe("round trip: what happens to a baked animation on re-import", () => {
   });
 
   it("an animation the bundle never baked is imported normally", () => {
-    // A clip authored entirely in Blender.
+    // A clip authored entirely in Blender: appended, so it sits past the
+    // indices export recorded, and its name matches nothing.
     expect(
       classifyGltfAnimation({
-        animation: animation("HandWave", [0, 0, 0, 1, 1, 1]),
+        animation: animation("HandWave", [0, 0, 0, 1, 1, 1], {}, 1),
         bakedRecords: recordsFor("Blink", "clip.1", BAKED),
       }),
     ).toEqual({ kind: "import-new" });
   });
 
-  it("a baked animation renamed in the GLB imports as new", () => {
-    // glTF gives a clip no identity but its name, so a rename is
-    // indistinguishable from a new animation. Importing loses nothing; the
-    // alternative would be silently dropping it.
+  it("reads a changed animation in a recorded slot as edited, not new", () => {
+    // Deliberate: something occupying a slot we baked into is more likely our
+    // clip after an edit than an unrelated animation, and "edited" keeps both
+    // copies. The failure direction that matters is dropping a clip, and
+    // neither branch does that.
+    expect(
+      classifyGltfAnimation({
+        animation: animation("HandWave", [0, 0, 0, 1, 1, 1], {}, 0),
+        bakedRecords: recordsFor("Blink", "clip.1", BAKED),
+      }),
+    ).toEqual({ kind: "keep-both-edited", clipId: "clip.1" });
+  });
+
+  it("a rename alone still matches, because position identifies it", () => {
+    // A rename in Blender used to read as a whole new animation. Position is
+    // the stronger identity and survives it, so the round trip stays stable.
     expect(
       classifyGltfAnimation({
         animation: { ...BAKED, name: "Blink.001" },
         bakedRecords: recordsFor("Blink", "clip.1", BAKED),
+      }),
+    ).toEqual({ kind: "skip-duplicate", clipId: "clip.1" });
+  });
+
+  it("a rename and a reorder together import as new", () => {
+    // Nothing identifies it any more. Importing loses nothing; the
+    // alternative would be silently dropping it.
+    expect(
+      classifyGltfAnimation({
+        animation: { ...BAKED, name: "Blink.001", index: 7 },
+        bakedRecords: recordsFor("Blink", "clip.1", BAKED),
+      }),
+    ).toEqual({ kind: "import-new" });
+  });
+
+  it("matches a reordered animation by name when the index moved", () => {
+    // An editor that reorders animations must not resurrect the duplicate
+    // bug; the name carries the match when position no longer does.
+    expect(
+      classifyGltfAnimation({
+        animation: { ...BAKED, index: 4 },
+        bakedRecords: recordsFor("Blink", "clip.1", BAKED),
+      }),
+    ).toEqual({ kind: "skip-duplicate", clipId: "clip.1" });
+  });
+
+  it("does not match on a name two clips share", () => {
+    // The bug this keying replaces: a name-keyed map kept only the last of a
+    // duplicate pair, so the other clip's baked copy came back as a third
+    // clip. Ambiguous names now match nothing, and both records stay
+    // reachable by position.
+    const records = readBakedAnimationRecords([
+      {
+        animationIndex: 0,
+        animationName: "Blink",
+        clipId: "clip.1",
+        fingerprint: gltfAnimationFingerprint(BAKED),
+      },
+      {
+        animationIndex: 1,
+        animationName: "Blink",
+        clipId: "clip.2",
+        fingerprint: gltfAnimationFingerprint(BAKED),
+      },
+    ]);
+
+    // Position still resolves each one.
+    expect(
+      classifyGltfAnimation({ animation: BAKED, bakedRecords: records }),
+    ).toEqual({ kind: "skip-duplicate", clipId: "clip.1" });
+    expect(
+      classifyGltfAnimation({
+        animation: { ...BAKED, index: 1 },
+        bakedRecords: records,
+      }),
+    ).toEqual({ kind: "skip-duplicate", clipId: "clip.2" });
+    // The ambiguous name alone does not.
+    expect(
+      classifyGltfAnimation({
+        animation: { ...BAKED, index: 9 },
+        bakedRecords: records,
       }),
     ).toEqual({ kind: "import-new" });
   });
@@ -111,7 +187,9 @@ describe("round trip: what happens to a baked animation on re-import", () => {
     expect(
       classifyGltfAnimation({
         animation: animation("Blink", [0, 0, 0, 0, 9, 0]),
-        bakedRecords: new Map([["Blink", { clipId: "clip.1" }]]),
+        bakedRecords: readBakedAnimationRecords([
+          { animationIndex: 0, animationName: "Blink", clipId: "clip.1" },
+        ]),
       }),
     ).toEqual({ kind: "skip-duplicate", clipId: "clip.1" });
   });
@@ -121,7 +199,7 @@ describe("round trip: what happens to a baked animation on re-import", () => {
     expect(
       classifyGltfAnimation({
         animation: BAKED,
-        bakedRecords: new Map(),
+        bakedRecords: readBakedAnimationRecords([]),
       }),
     ).toEqual({ kind: "import-new" });
   });
@@ -196,22 +274,52 @@ describe("gltfAnimationFingerprint", () => {
 });
 
 describe("readBakedAnimationRecords", () => {
-  it("reads what export recorded", () => {
+  it("reads what export recorded, both ways", () => {
+    const records = readBakedAnimationRecords([
+      {
+        animationIndex: 0,
+        animationName: "Blink",
+        clipId: "clip.1",
+        fingerprint: "abc",
+      },
+    ]);
+    const expected = { clipId: "clip.1", fingerprint: "abc" };
+    expect(records.byIndex.get(0)).toEqual(expected);
+    expect(records.byName.get("Blink")).toEqual(expected);
+  });
+
+  it("still reads a record written before the index existed", () => {
+    // Bundles exported by an earlier build carry only the name.
     const records = readBakedAnimationRecords([
       { animationName: "Blink", clipId: "clip.1", fingerprint: "abc" },
     ]);
-    expect(records.get("Blink")).toEqual({
+    expect(records.byIndex.size).toBe(0);
+    expect(records.byName.get("Blink")).toEqual({
       clipId: "clip.1",
       fingerprint: "abc",
     });
   });
 
+  it("marks a name shared by two records as ambiguous", () => {
+    const records = readBakedAnimationRecords([
+      { animationIndex: 0, animationName: "Blink", clipId: "clip.1" },
+      { animationIndex: 1, animationName: "Blink", clipId: "clip.2" },
+    ]);
+    expect(records.byName.get("Blink")).toBeNull();
+    expect(records.byIndex.size).toBe(2);
+  });
+
   it("tolerates a missing or malformed record set", () => {
     // Older exports have no records at all; they must import, not throw.
-    expect(readBakedAnimationRecords(undefined).size).toBe(0);
-    expect(readBakedAnimationRecords("nope").size).toBe(0);
-    expect(
-      readBakedAnimationRecords([null, 7, {}, { animationName: "x" }]).size,
-    ).toBe(0);
+    expect(readBakedAnimationRecords(undefined).byName.size).toBe(0);
+    expect(readBakedAnimationRecords("nope").byName.size).toBe(0);
+    const junk = readBakedAnimationRecords([
+      null,
+      7,
+      {},
+      { animationName: "x" },
+    ]);
+    expect(junk.byName.size).toBe(0);
+    expect(junk.byIndex.size).toBe(0);
   });
 });

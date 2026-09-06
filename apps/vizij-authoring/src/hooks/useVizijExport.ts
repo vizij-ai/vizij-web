@@ -1148,12 +1148,20 @@ export function useVizijExport(
           // "edited in Blender" — and so offer both rather than silently
           // skipping the edit.
           if (bundle && bakedAnimations.length > 0) {
-            const bakedByName = new Map(
-              bakeResult.report.outcomes
-                .filter((outcome) => outcome.clip)
-                .map((outcome) => [outcome.clipName, outcome.clipId]),
-            );
-            let fingerprints = new Map<string, string>();
+            // Ordered, not keyed by name. `bakedAnimations` is built from
+            // these outcomes in order, and `GLTFExporter` writes them in that
+            // order, so position is a real identity while the name is not:
+            // two clips can share a name (nothing enforces uniqueness, and
+            // import takes names from the file), and a name-keyed map silently
+            // kept only the last — reopening the two-clips-out-three-back bug
+            // this record exists to prevent.
+            const bakedOrder = bakeResult.report.outcomes
+              .filter((outcome) => outcome.clip)
+              .map((outcome) => ({
+                clipId: outcome.clipId,
+                clipName: outcome.clipName,
+              }));
+            let fingerprintByIndex = new Map<number, string>();
             try {
               const probeGlb = await new Promise<ArrayBuffer>(
                 (resolve, reject) => {
@@ -1166,9 +1174,9 @@ export function useVizijExport(
                 },
               );
               const probeDocument = readGltfAnimationDocument(probeGlb);
-              fingerprints = new Map(
+              fingerprintByIndex = new Map(
                 probeDocument.animations.map((animation) => [
-                  animation.name,
+                  animation.index,
                   gltfAnimationFingerprint(animation),
                 ]),
               );
@@ -1183,15 +1191,14 @@ export function useVizijExport(
 
             bundle.metadata = {
               ...(bundle.metadata ?? {}),
-              bakedAnimations: [...bakedByName.entries()].map(
-                ([animationName, clipId]) => ({
-                  animationName,
-                  clipId,
-                  ...(fingerprints.has(animationName)
-                    ? { fingerprint: fingerprints.get(animationName) }
-                    : {}),
-                }),
-              ),
+              bakedAnimations: bakedOrder.map((entry, index) => ({
+                animationIndex: index,
+                animationName: entry.clipName,
+                clipId: entry.clipId,
+                ...(fingerprintByIndex.has(index)
+                  ? { fingerprint: fingerprintByIndex.get(index) }
+                  : {}),
+              })),
             };
           }
           // The preflight names the lossy set rather than only counting it

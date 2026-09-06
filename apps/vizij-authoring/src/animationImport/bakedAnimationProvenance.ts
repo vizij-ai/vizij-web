@@ -77,18 +77,39 @@ export function gltfAnimationFingerprint(
 }
 
 /**
+ * Records from the loaded bundle, indexed both ways.
+ *
+ * Position is the primary identity: it is unique by construction, whereas a
+ * clip name is not — nothing stops two clips sharing one, and import takes
+ * names from the file. A name-keyed lookup silently kept only the last of a
+ * duplicate pair, which reopened the two-clips-out-three-back bug these
+ * records exist to prevent.
+ *
+ * The name index remains as a fallback, for bundles written before the index
+ * was recorded and for files an editor has reordered. A name shared by more
+ * than one record resolves to `null`: ambiguous, so it does not match at all
+ * and the animation imports as new. That errs toward an extra clip rather
+ * than toward dropping one, which is the recoverable direction.
+ */
+export interface BakedAnimationRecords {
+  byIndex: ReadonlyMap<number, BakedAnimationRecord>;
+  byName: ReadonlyMap<string, BakedAnimationRecord | null>;
+}
+
+/**
  * Decide what to do with one glTF animation, given what export recorded.
  *
- * Matching is by animation name because that is the only identity glTF gives a
- * clip. A rename in Blender therefore reads as a new animation — correct, since
- * we can no longer tell it is the same clip, and importing it loses nothing.
+ * A rename *and* a reorder together read as a new animation — correct, since
+ * nothing then identifies it as the same clip, and importing it loses nothing.
  */
 export function classifyGltfAnimation(options: {
-  animation: Pick<GltfAnimationEntry, "name" | "curves">;
-  /** Records from the loaded bundle, keyed by baked animation name. */
-  bakedRecords: ReadonlyMap<string, BakedAnimationRecord>;
+  animation: Pick<GltfAnimationEntry, "name" | "index" | "curves">;
+  bakedRecords: BakedAnimationRecords;
 }): BakedAnimationDisposition {
-  const record = options.bakedRecords.get(options.animation.name);
+  const record =
+    options.bakedRecords.byIndex.get(options.animation.index) ??
+    options.bakedRecords.byName.get(options.animation.name) ??
+    null;
   if (!record) {
     return { kind: "import-new" };
   }
@@ -104,32 +125,41 @@ export function classifyGltfAnimation(options: {
     : { kind: "keep-both-edited", clipId: record.clipId };
 }
 
-/** Build the lookup from whatever the bundle recorded, tolerating junk. */
+/** Nothing recorded: every animation imports normally. */
+export const EMPTY_BAKED_ANIMATION_RECORDS: BakedAnimationRecords = {
+  byIndex: new Map(),
+  byName: new Map(),
+};
+
+/** Build the lookups from whatever the bundle recorded, tolerating junk. */
 export function readBakedAnimationRecords(
   raw: unknown,
-): Map<string, BakedAnimationRecord> {
-  const records = new Map<string, BakedAnimationRecord>();
+): BakedAnimationRecords {
+  const byIndex = new Map<number, BakedAnimationRecord>();
+  const byName = new Map<string, BakedAnimationRecord | null>();
   if (!Array.isArray(raw)) {
-    return records;
+    return { byIndex, byName };
   }
   for (const entry of raw) {
     if (!entry || typeof entry !== "object") {
       continue;
     }
-    const { animationName, clipId, fingerprint } = entry as Record<
-      string,
-      unknown
-    >;
-    if (
-      typeof animationName === "string" &&
-      typeof clipId === "string" &&
-      animationName.length > 0
-    ) {
-      records.set(animationName, {
-        clipId,
-        ...(typeof fingerprint === "string" ? { fingerprint } : {}),
-      });
+    const { animationIndex, animationName, clipId, fingerprint } =
+      entry as Record<string, unknown>;
+    if (typeof clipId !== "string" || clipId.length === 0) {
+      continue;
+    }
+    const record: BakedAnimationRecord = {
+      clipId,
+      ...(typeof fingerprint === "string" ? { fingerprint } : {}),
+    };
+    if (Number.isInteger(animationIndex)) {
+      byIndex.set(animationIndex as number, record);
+    }
+    if (typeof animationName === "string" && animationName.length > 0) {
+      // Second sighting of a name makes it ambiguous, and it stays that way.
+      byName.set(animationName, byName.has(animationName) ? null : record);
     }
   }
-  return records;
+  return { byIndex, byName };
 }

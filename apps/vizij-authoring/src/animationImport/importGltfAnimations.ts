@@ -1,4 +1,4 @@
-import type { BakedAnimationRecord } from "./bakedAnimationProvenance";
+import type { BakedAnimationRecords } from "./bakedAnimationProvenance";
 import {
   convertGltfAnimations,
   type GltfConversionResult,
@@ -14,7 +14,7 @@ export interface ImportGltfAnimationsOptions {
   clipIdPrefix?: string;
   clipNamePrefix?: string;
   /** What export recorded about the animations it baked, by animation name. */
-  bakedRecords?: ReadonlyMap<string, BakedAnimationRecord>;
+  bakedRecords?: BakedAnimationRecords;
 }
 
 /**
