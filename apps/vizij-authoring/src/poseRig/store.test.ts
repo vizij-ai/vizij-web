@@ -892,3 +892,52 @@ describe("PoseRigStore", () => {
     expect(store.getState().poseConfigDraft?.blendStages).toEqual(expected);
   });
 });
+
+describe("createPoseFromValues", () => {
+  it("creates a pose already holding the supplied values", () => {
+    // Taking a pose from an animation frame cannot go through `capturePose`,
+    // which snapshots `currentValues` — those only change when an Inputs
+    // slider moves, so at a playhead they are the last slider positions, not
+    // the frame.
+    const store = createPoseRigStore();
+    const id = store.getState().createPoseFromValues({
+      name: "Frame 24",
+      values: { lids_blink: 1, gaze_left_right: -0.5 },
+    });
+
+    expect(id).toBeTruthy();
+    const pose = store.getState().poses.find((entry) => entry.id === id);
+    expect(pose?.name).toBe("Frame 24");
+    expect(pose?.values).toEqual({ lids_blink: 1, gaze_left_right: -0.5 });
+  });
+
+  it("selects the new pose and leaves existing poses alone", () => {
+    const store = createPoseRigStore();
+    const first = store.getState().createPoseFromValues({
+      name: "One",
+      values: { lids_blink: 1 },
+    });
+    const second = store.getState().createPoseFromValues({
+      name: "Two",
+      values: { lids_blink: 0 },
+    });
+
+    expect(store.getState().selectedPoseId).toBe(second);
+    const kept = store.getState().poses.find((entry) => entry.id === first);
+    expect(kept?.values).toEqual({ lids_blink: 1 });
+    expect(store.getState().poses).toHaveLength(2);
+  });
+
+  it("gives each pose a distinct id even with the same name", () => {
+    const store = createPoseRigStore();
+    const a = store
+      .getState()
+      .createPoseFromValues({ name: "Frame", values: { lids_blink: 1 } });
+    const b = store
+      .getState()
+      .createPoseFromValues({ name: "Frame", values: { lids_blink: 0 } });
+
+    expect(a).not.toBe(b);
+    expect(store.getState().poses).toHaveLength(2);
+  });
+});
