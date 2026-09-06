@@ -397,6 +397,8 @@ interface AnimationState {
   importClipIr: (clip: AnimationClipIR) => void;
   exportClipIr: (options?: { id?: string; name?: string }) => AnimationClipIR;
   reset: () => void;
+  /** Teardown: clears the clip set as well as the buffer. */
+  resetAll: () => void;
 }
 
 const INITIAL_STATE: Pick<
@@ -1089,7 +1091,29 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     });
   },
 
+  /**
+   * Clear the editing buffer and transport, keeping the clip set.
+   *
+   * Most callers mean "nothing is loaded right now": switching targets,
+   * failing to resolve one, deleting one. Wiping every clip there would
+   * destroy the user's work — and once clips live in this store rather than in
+   * App state, `...INITIAL_STATE` would do exactly that, since it carries an
+   * empty clip set. Full teardown is `resetAll`.
+   */
   reset: () =>
+    set((state) => {
+      return {
+        ...INITIAL_STATE,
+        clipEntries: state.clipEntries,
+        clipOrder: state.clipOrder,
+        selectedClipId: state.selectedClipId,
+        runtimeTransportAdapter: state.runtimeTransportAdapter,
+        transportSessionKey: state.transportSessionKey,
+      };
+    }),
+
+  /** Teardown: drop the clip set too. For unloading a face. */
+  resetAll: () =>
     set((state) => {
       return {
         ...INITIAL_STATE,
