@@ -16,6 +16,7 @@ import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { TimelineEditor } from "../animation/TimelineEditor";
+import { SavePoseFromPlayhead } from "../animation/SavePoseFromPlayhead";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../../hooks/useAnimationTransport";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
@@ -98,6 +99,8 @@ interface AnimationPanelProps {
   onPauseTransport?: () => void;
   onStopTransport?: () => void;
   statusMessage?: string | null;
+  /** Names a pose saved from the playhead; falls back to "Pose" when absent. */
+  clipName?: string | null;
 }
 
 export function AnimationPanel({
@@ -108,6 +111,7 @@ export function AnimationPanel({
   onPauseTransport,
   onStopTransport,
   statusMessage = null,
+  clipName = null,
 }: AnimationPanelProps) {
   const {
     isPlaying,
@@ -181,6 +185,7 @@ export function AnimationPanel({
 
   const [showTrackSelector, setShowTrackSelector] = useState(false);
   const [trackSearch, setTrackSearch] = useState("");
+  const [savedPoseNotice, setSavedPoseNotice] = useState<string | null>(null);
 
   const fullyLockedFaceElementIds = useMemo(
     () =>
@@ -431,11 +436,42 @@ export function AnimationPanel({
               Frames
             </Button>
           </div>
+
+          <div className="h-6 w-px bg-zinc-800/50 mx-1" />
+
+          <SavePoseFromPlayhead
+            clipName={clipName}
+            timeDisplayMode={timeDisplayMode}
+            onSaved={({ name }) => setSavedPoseNotice(name)}
+          />
         </div>
 
         {statusMessage ? (
           <p className="px-1 text-[11px] text-text-secondary">
             {statusMessage}
+          </p>
+        ) : null}
+
+        {savedPoseNotice ? (
+          <p
+            className="flex items-center gap-2 px-1 text-[11px] text-text-secondary"
+            data-testid="animation-panel-saved-pose-notice"
+          >
+            <span>
+              Saved pose{" "}
+              <span className="font-medium text-text-primary">
+                {savedPoseNotice}
+              </span>
+              . Edit it from the Poses panel.
+            </span>
+            <button
+              type="button"
+              className="text-text-muted hover:text-text-primary"
+              onClick={() => setSavedPoseNotice(null)}
+              aria-label="Dismiss saved pose notice"
+            >
+              <X className="h-3 w-3" />
+            </button>
           </p>
         ) : null}
 
