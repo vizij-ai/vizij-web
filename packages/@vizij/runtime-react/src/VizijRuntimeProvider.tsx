@@ -3146,12 +3146,7 @@ function VizijRuntimeProviderInner({
     // the decoder expects. That degrades silently (no playhead telemetry), so
     // surface the observed shape once rather than leaving it to be inferred
     // from a transport clock that never moves.
-    if (
-      process.env.NODE_ENV !== "production" &&
-      states.length === 0 &&
-      raw &&
-      typeof raw === "object"
-    ) {
+    if (DEV_MODE && states.length === 0 && raw && typeof raw === "object") {
       warnAnimationGap(
         "player-states-undecodable",
         `Animation player_states feedback at "${ANIMATION_PLAYERS_PATH}" could not be decoded (top-level keys: ${Object.keys(
