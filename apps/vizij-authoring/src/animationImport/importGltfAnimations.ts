@@ -1,3 +1,4 @@
+import type { BakedAnimationRecord } from "./bakedAnimationProvenance";
 import {
   convertGltfAnimations,
   type GltfConversionResult,
@@ -12,6 +13,8 @@ export interface ImportGltfAnimationsOptions {
   catalog: PropsRigTargetCatalog;
   clipIdPrefix?: string;
   clipNamePrefix?: string;
+  /** What export recorded about the animations it baked, by animation name. */
+  bakedRecords?: ReadonlyMap<string, BakedAnimationRecord>;
 }
 
 /**
@@ -34,5 +37,6 @@ export function importGltfAnimations(
     catalog: options.catalog,
     clipId: options.clipIdPrefix,
     clipName: options.clipNamePrefix,
+    bakedRecords: options.bakedRecords,
   });
 }

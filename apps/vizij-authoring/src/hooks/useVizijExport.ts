@@ -1132,6 +1132,20 @@ export function useVizijExport(
             root: exportableBodies[0] as never,
           });
           bakedAnimations = bakeResult.animations;
+          // Record which clip each baked animation came from, so re-importing
+          // this file loads the clip once instead of adding the baked copy as
+          // a second clip. Without it, two clips out came back as three.
+          if (bundle) {
+            bundle.metadata = {
+              ...(bundle.metadata ?? {}),
+              bakedAnimations: bakeResult.report.outcomes
+                .filter((outcome) => outcome.clip)
+                .map((outcome) => ({
+                  animationName: outcome.clipName,
+                  clipId: outcome.clipId,
+                })),
+            };
+          }
           // The preflight names the lossy set rather than only counting it
           // (decision 3): material channels have no glTF channel at all, so
           // the bundle keeps them while the baked GLB cannot.
