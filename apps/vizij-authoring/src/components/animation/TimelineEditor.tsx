@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Plus } from "lucide-react";
 import {
   evaluateTrack,
   useAnimationStore,
@@ -7,8 +15,11 @@ import {
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import {
   ANIMATION_TIMELINE_FPS,
+  formatKeyframeTime,
+  parseTimeInput,
   snapTimeToFrame,
 } from "../../utils/animationTimeDisplay";
+import { Button } from "../ui/Button";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
@@ -22,6 +33,13 @@ interface TimelineEditorProps {
   onResume?: () => void;
   timeDisplayMode?: AnimationTimeDisplayMode;
   onInspectTrack?: (trackId: string) => void;
+  /**
+   * Actions that operate on the playhead, rendered in the toolbar beside the
+   * time field. A slot rather than an import: the pose action needs the
+   * pose-rig store, and the timeline has nothing to do with poses — wiring it
+   * in directly would make every timeline test stand up a pose rig.
+   */
+  playheadActions?: ReactNode;
 }
 
 const TRACK_HEADER_WIDTH = 192;
@@ -32,6 +50,7 @@ export function TimelineEditor({
   onResume,
   timeDisplayMode = "seconds",
   onInspectTrack,
+  playheadActions,
 }: TimelineEditorProps) {
   const {
     tracks,
@@ -44,6 +63,10 @@ export function TimelineEditor({
     selectTrack,
     selectKeyframe,
   } = useAnimationStore();
+
+  // Held as text while focused so a partial entry ("1." , "-") is not fought
+  // by a reformat on every keystroke; committed on Enter or blur.
+  const [timeDraft, setTimeDraft] = useState<string | null>(null);
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
@@ -96,6 +119,32 @@ export function TimelineEditor({
     seekFromClientX(e.clientX);
   };
 
+  const insertKeyframeAt = useCallback(
+    (time: number) => {
+      if (!selectedTrackId) {
+        return;
+      }
+      const selectedTrack = tracks.find(
+        (track) => track.id === selectedTrackId,
+      );
+      if (!selectedTrack) {
+        return;
+      }
+      // Insert is value-preserving: the new key takes the curve's value at that
+      // time, so adding a key never changes the motion. Writing the input's
+      // default instead put a step into every curve that was not already
+      // resting there — inserting into a translation curve snapped the face.
+      // Only an empty track has no curve to read, and then the default is right.
+      const value =
+        selectedTrack.keyframes.length > 0
+          ? evaluateTrack(selectedTrack, time)
+          : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ??
+            0);
+      addKeyframe(selectedTrackId, time, value);
+    },
+    [addKeyframe, selectedTrackId, standardInputsById, tracks],
+  );
+
   // Double click to add keyframe
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (!selectedTrackId) return;
@@ -107,21 +156,7 @@ export function TimelineEditor({
     if (t === null) {
       return;
     }
-
-    const selectedTrack = tracks.find((track) => track.id === selectedTrackId);
-    if (!selectedTrack) {
-      return;
-    }
-    // Insert is value-preserving: the new key takes the curve's value at that
-    // time, so adding a key never changes the motion. Writing the input's
-    // default instead put a step into every curve that was not already resting
-    // there — inserting into a translation curve snapped the face.
-    // Only an empty track has no curve to read, and then the default is right.
-    const value =
-      selectedTrack.keyframes.length > 0
-        ? evaluateTrack(selectedTrack, t)
-        : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0);
-    addKeyframe(selectedTrackId, t, value);
+    insertKeyframeAt(t);
   };
 
   const handleRulerPointerMove = useCallback(
@@ -188,6 +223,20 @@ export function TimelineEditor({
     [handleRulerPointerMove, stopRulerScrub],
   );
 
+  const commitTimeDraft = useCallback(() => {
+    if (timeDraft === null) {
+      return;
+    }
+    const parsed = parseTimeInput(timeDraft, timeDisplayMode);
+    setTimeDraft(null);
+    if (parsed === null) {
+      // Unreadable input leaves the playhead where it was. Snapping to zero on
+      // a typo loses the author's place for no reason.
+      return;
+    }
+    seekTo(Math.min(snapTimeToFrame(parsed, timeDisplayMode), duration));
+  }, [duration, seekTo, timeDisplayMode, timeDraft]);
+
   const rulerTicks = useMemo(() => {
     const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;
     if (timeDisplayMode === "frames") {
@@ -238,6 +287,61 @@ export function TimelineEditor({
       onClick={handleTimelineClick}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Toolbar. The actions that act on the playhead live next to the
+          playhead readout, rather than in the transport row with play/pause:
+          adding a key and saving a pose both write something durable, and
+          "frame" only reads clearly beside a frame count. It also gives
+          add-keyframe a label — double-click was the only way to do it, and
+          nothing said so. */}
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-border-default/60 bg-bg-panel/60 shrink-0">
+        <label className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
+            Time
+          </span>
+          <input
+            className="w-20 rounded border border-zinc-800 bg-zinc-950/60 px-1.5 py-0.5 text-[11px] font-mono text-zinc-100 outline-none focus:border-zinc-600"
+            value={
+              timeDraft ?? formatKeyframeTime(currentTime, timeDisplayMode)
+            }
+            onChange={(event) => setTimeDraft(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            onBlur={commitTimeDraft}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitTimeDraft();
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setTimeDraft(null);
+              }
+            }}
+            aria-label="Current time"
+            data-testid="timeline-current-time"
+          />
+        </label>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[10px] px-2"
+          onClick={() => insertKeyframeAt(currentTime)}
+          disabled={!selectedTrackId}
+          title={
+            selectedTrackId
+              ? "Add a keyframe on the selected track at the playhead"
+              : "Select a track to add a keyframe"
+          }
+          data-testid="timeline-add-key"
+        >
+          <Plus className="mr-1 h-3 w-3" />
+          Add Key
+        </Button>
+
+        {playheadActions}
+      </div>
+
       {/* Time Ruler */}
       <div
         className="h-7 border-b border-border-default/80 bg-bg-panel/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-ew-resize hover:bg-bg-panel transition-colors"

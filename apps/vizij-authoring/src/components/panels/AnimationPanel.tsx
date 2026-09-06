@@ -436,14 +436,6 @@ export function AnimationPanel({
               Frames
             </Button>
           </div>
-
-          <div className="h-6 w-px bg-zinc-800/50 mx-1" />
-
-          <SavePoseFromPlayhead
-            clipName={clipName}
-            timeDisplayMode={timeDisplayMode}
-            onSaved={({ name }) => setSavedPoseNotice(name)}
-          />
         </div>
 
         {statusMessage ? (
@@ -481,10 +473,14 @@ export function AnimationPanel({
           onResume={handlePlay}
           timeDisplayMode={timeDisplayMode}
           onInspectTrack={onInspectTrack}
+          playheadActions={
+            <SavePoseFromPlayhead
+              clipName={clipName}
+              timeDisplayMode={timeDisplayMode}
+              onSaved={({ name }) => setSavedPoseNotice(name)}
+            />
+          }
         />
-        <div className="rounded-md border border-border-default/60 bg-bg-panel/40 px-2 py-1 text-[10px] text-text-muted">
-          Select a track or keyframe to edit it from the Inspector panel.
-        </div>
 
         <Modal
           open={showTrackSelector}

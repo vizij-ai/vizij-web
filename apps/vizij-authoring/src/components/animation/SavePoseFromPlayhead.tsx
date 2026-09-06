@@ -185,18 +185,18 @@ export function SavePoseFromPlayhead({
         disabled={!hasTracks}
         title={
           hasTracks
-            ? "Save the values at the playhead as a pose"
-            : "Add a track before saving a pose from the playhead"
+            ? "Save this frame's values as a pose"
+            : "Add a track before saving a frame as a pose"
         }
       >
         <Bookmark className="mr-1 h-3 w-3" />
-        Save Pose
+        Save Frame as Pose
       </Button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Save Pose From Playhead"
+        title="Save Frame as Pose"
         maxWidth="md"
       >
         <div className="flex flex-col gap-3">

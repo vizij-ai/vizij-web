@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
 import { TimelineEditor } from "./TimelineEditor";
 
 /**
@@ -53,6 +54,28 @@ vi.mock("../../state/bindingAuthoringStore", () => {
     selector ? selector(store) : store;
   return { useBindingAuthoring: hook, useBindingAuthoringStore: hook };
 });
+
+const DEFAULT_TRACKS = state.tracks;
+
+beforeEach(() => {
+  // `state` is a mutable module-level object the mock reads through, so a test
+  // that changes tracks or the playhead would otherwise leak into the next.
+  state.tracks = DEFAULT_TRACKS;
+  state.duration = 1;
+  state.currentTime = 0;
+  state.selectedTrackId = "track-1";
+  state.selectedKeyframeId = null;
+  state.selectTrack.mockClear();
+  state.selectKeyframe.mockClear();
+  state.seek.mockClear();
+  state.addKeyframe.mockClear();
+  state.updateKeyframe.mockClear();
+});
+
+// Auto-cleanup only runs with Vitest globals enabled, and this project does
+// not enable them — without this, each render stacks another timeline in the
+// same document and every query finds two.
+afterEach(cleanup);
 
 describe("TimelineEditor selection", () => {
   it("keeps the track selected when a track row is clicked", () => {
@@ -143,5 +166,111 @@ describe("TimelineEditor keyframe insert", () => {
 
     expect(state.addKeyframe).toHaveBeenCalledTimes(1);
     expect(state.addKeyframe.mock.calls[0]![2]).toBe(0);
+  });
+});
+
+describe("TimelineEditor toolbar", () => {
+  function timeField(): HTMLInputElement {
+    return screen.getByTestId("timeline-current-time") as HTMLInputElement;
+  }
+
+  it("adds a key at the playhead from a labelled button", () => {
+    // Double-click was the only way to add a keyframe, and nothing said so.
+    state.tracks = [
+      {
+        id: "track-1",
+        label: "Jaw Open",
+        variableId: "jaw.open",
+        channel: "/propsrig/jaw/open",
+        color: "#fff",
+        interpolation: "linear" as const,
+        keyframes: [
+          { id: "kf-1", time: 0, value: 0.2 },
+          { id: "kf-2", time: 1, value: 0.8 },
+        ],
+      },
+    ];
+    state.duration = 1;
+    state.currentTime = 0.5;
+    state.selectedTrackId = "track-1";
+
+    render(<TimelineEditor />);
+    state.addKeyframe.mockClear();
+    fireEvent.click(screen.getByTestId("timeline-add-key"));
+
+    const [trackId, time, value] = state.addKeyframe.mock.calls[0]!;
+    expect(trackId).toBe("track-1");
+    expect(time).toBeCloseTo(0.5, 6);
+    // Value-preserving, exactly like the double-click path it shares.
+    expect(value).toBeCloseTo(0.5, 6);
+  });
+
+  it("disables Add Key with no track selected, and says why", () => {
+    state.selectedTrackId = null;
+    render(<TimelineEditor />);
+    const button = screen.getByTestId("timeline-add-key") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toContain("Select a track");
+  });
+
+  it("seeks to a typed time on Enter", () => {
+    state.duration = 5;
+    state.currentTime = 0;
+    render(<TimelineEditor />);
+    state.seek.mockClear();
+
+    fireEvent.change(timeField(), { target: { value: "2.25" } });
+    fireEvent.keyDown(timeField(), { key: "Enter" });
+
+    expect(state.seek).toHaveBeenCalledTimes(1);
+    expect(state.seek.mock.calls[0]![0]).toBeCloseTo(2.25, 6);
+  });
+
+  it("clamps a typed time past the end to the clip duration", () => {
+    state.duration = 5;
+    render(<TimelineEditor />);
+    state.seek.mockClear();
+
+    fireEvent.change(timeField(), { target: { value: "99" } });
+    fireEvent.blur(timeField());
+
+    expect(state.seek.mock.calls[0]![0]).toBeCloseTo(5, 6);
+  });
+
+  it("leaves the playhead alone when the typed time is unreadable", () => {
+    // Snapping to zero on a typo loses the author's place for no reason.
+    state.duration = 5;
+    render(<TimelineEditor />);
+    state.seek.mockClear();
+
+    fireEvent.change(timeField(), { target: { value: "abc" } });
+    fireEvent.keyDown(timeField(), { key: "Enter" });
+
+    expect(state.seek).not.toHaveBeenCalled();
+  });
+
+  it("abandons the draft on Escape", () => {
+    state.duration = 5;
+    state.currentTime = 1;
+    render(<TimelineEditor />);
+    state.seek.mockClear();
+
+    fireEvent.change(timeField(), { target: { value: "4" } });
+    fireEvent.keyDown(timeField(), { key: "Escape" });
+
+    expect(state.seek).not.toHaveBeenCalled();
+    // Back to showing the real playhead, not the abandoned text.
+    expect(timeField().value).toBe(formatKeyframeTime(1, "seconds"));
+  });
+
+  it("renders the playhead actions it is given", () => {
+    render(
+      <TimelineEditor
+        playheadActions={<button type="button">Save Frame as Pose</button>}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Save Frame as Pose" }),
+    ).toBeTruthy();
   });
 });
