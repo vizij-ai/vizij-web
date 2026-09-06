@@ -13,9 +13,9 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   LEGACY_AUTHORED_TIMELINE_CLIP_ID,
 } from "../types/animationClipIr";
+import { normalizeInterpolation } from "./sampleAnimationTrack";
 
 const DECIMAL_PRECISION = 6;
-const EPSILON = 1e-6;
 
 function quantize(value: number): number {
   if (!Number.isFinite(value)) {
@@ -27,16 +27,6 @@ function quantize(value: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function normalizeInterpolation(value: unknown): AnimationInterpolation {
-  if (value === "linear" || value === "step" || value === "cubic") {
-    return value;
-  }
-  if (value === "smooth") {
-    return "cubic";
-  }
-  return "linear";
 }
 
 function normalizeChannel(value: string): string {
@@ -427,74 +417,3 @@ export function findCanonicalAuthoredTimelineConflict(
   );
 }
 
-export function evaluateAnimationTrackAtTime(
-  track: AnimationTrackIR,
-  time: number,
-): number {
-  if (!Array.isArray(track.keyframes) || track.keyframes.length === 0) {
-    return 0;
-  }
-
-  const keyframes = [...track.keyframes].sort((left, right) => {
-    if (left.time !== right.time) {
-      return left.time - right.time;
-    }
-    return left.id.localeCompare(right.id);
-  });
-
-  if (time <= keyframes[0].time + EPSILON) {
-    return keyframes[0].value;
-  }
-
-  const last = keyframes[keyframes.length - 1];
-  if (time >= last.time - EPSILON) {
-    return last.value;
-  }
-
-  for (let index = 0; index < keyframes.length - 1; index += 1) {
-    const start = keyframes[index];
-    const end = keyframes[index + 1];
-
-    if (time + EPSILON < start.time || time - EPSILON > end.time) {
-      continue;
-    }
-
-    const span = end.time - start.time;
-    if (span <= EPSILON) {
-      return end.value;
-    }
-
-    const alpha = clamp((time - start.time) / span, 0, 1);
-    const interpolation = normalizeInterpolation(
-      start.interpolation ?? track.interpolation,
-    );
-
-    if (interpolation === "step") {
-      return start.value;
-    }
-
-    if (interpolation === "cubic") {
-      const slope = (end.value - start.value) / span;
-      const startTangent =
-        typeof start.outTangent === "number" ? start.outTangent : slope;
-      const endTangent =
-        typeof end.inTangent === "number" ? end.inTangent : slope;
-      const t2 = alpha * alpha;
-      const t3 = t2 * alpha;
-      const h00 = 2 * t3 - 3 * t2 + 1;
-      const h10 = t3 - 2 * t2 + alpha;
-      const h01 = -2 * t3 + 3 * t2;
-      const h11 = t3 - t2;
-      return (
-        h00 * start.value +
-        h10 * startTangent * span +
-        h01 * end.value +
-        h11 * endTangent * span
-      );
-    }
-
-    return start.value + (end.value - start.value) * alpha;
-  }
-
-  return last.value;
-}

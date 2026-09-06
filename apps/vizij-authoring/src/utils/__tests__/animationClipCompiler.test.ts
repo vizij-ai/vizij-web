@@ -12,10 +12,10 @@ import {
   bundleAnimationEntryToClipIr,
   clipIrToBundleAnimationEntry,
   compileAnimationClipIr,
-  evaluateAnimationTrackAtTime,
   findCanonicalAuthoredTimelineConflict,
   findAuthoredTimelineBundleAnimation,
 } from "../animationClipCompiler";
+import { sampleTrackAt } from "../sampleAnimationTrack";
 
 describe("compileAnimationClipIr", () => {
   it("sorts tracks by channel then track id and dedupes keyframes by time", () => {
@@ -194,7 +194,7 @@ describe("bundle conversion", () => {
   });
 });
 
-describe("evaluateAnimationTrackAtTime", () => {
+describe("sampleTrackAt", () => {
   it("supports linear, step, and cubic semantics", () => {
     const linearTrack: AnimationTrackIR = {
       id: "linear-track",
@@ -239,9 +239,9 @@ describe("evaluateAnimationTrackAtTime", () => {
       ],
     };
 
-    expect(evaluateAnimationTrackAtTime(linearTrack, 0.5)).toBeCloseTo(0.5, 6);
-    expect(evaluateAnimationTrackAtTime(stepTrack, 0.75)).toBe(0);
-    expect(evaluateAnimationTrackAtTime(cubicTrack, 0.5)).toBeCloseTo(0.5, 6);
+    expect(sampleTrackAt(linearTrack, 0.5)).toBeCloseTo(0.5, 6);
+    expect(sampleTrackAt(stepTrack, 0.75)).toBe(0);
+    expect(sampleTrackAt(cubicTrack, 0.5)).toBeCloseTo(0.5, 6);
   });
 });
 

@@ -45,6 +45,41 @@ export function snapTimeToFrame(
   return Math.max(0, Math.round(seconds * fps) / fps);
 }
 
+/**
+ * Parse a time the user typed, in whichever unit the timeline is showing.
+ *
+ * Accepts a bare number in the current unit, and tolerates the unit suffix the
+ * readout itself prints (`1.5s`, `48f`) so round-tripping a displayed value
+ * works. An explicit suffix wins over the current mode — someone who types
+ * `48f` in Seconds mode means frame 48.
+ *
+ * Returns null for anything unparseable, so the caller can leave the field
+ * alone rather than snapping the playhead to zero on a typo.
+ */
+export function parseTimeInput(
+  text: string,
+  mode: AnimationTimeDisplayMode,
+  fps = ANIMATION_TIMELINE_FPS,
+): number | null {
+  const trimmed = text.trim().toLowerCase();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const suffixed = /^(-?\d*\.?\d+)\s*(s|f)?$/.exec(trimmed);
+  if (!suffixed) {
+    return null;
+  }
+  const value = Number.parseFloat(suffixed[1]!);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  const unit = suffixed[2] ?? (mode === "frames" ? "f" : "s");
+  const seconds = unit === "f" ? framesToSeconds(value, fps) : value;
+  return Math.max(0, seconds);
+}
+
 export function formatPlaybackClock(
   seconds: number,
   mode: AnimationTimeDisplayMode,

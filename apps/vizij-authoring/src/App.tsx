@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import type { ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   Panel as ResizablePanel,
@@ -38,6 +39,8 @@ import {
 } from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
 import { nextClipOrdinal } from "./utils/animationClipIds";
+import type { AnimationClipEntry } from "./state/animationClipsStore";
+import { buildImportedClipEntries } from "./state/importedClipEntries";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import {
   buildCatalogFromInputPaths,
@@ -96,8 +99,12 @@ import {
   resolveRootSceneRotationInputs,
   type RotationAxis,
 } from "./components/app/importOrientation";
-import { useAnimationStore } from "./state/animationStore";
-import { bundleAnimationEntryToClipIr } from "./utils/animationClipCompiler";
+import {
+  getCurrentPlayheadTime,
+  useAnimationStore,
+} from "./state/animationStore";
+import { PlayheadClock } from "./components/animation/PlayheadClock";
+import {} from /* moved to importedClipEntries */ "./utils/animationClipCompiler";
 import { useManagedTargetLifecycle } from "./hooks/useManagedTargetLifecycle";
 import {
   buildGlbExportDirtySnapshot,
@@ -124,7 +131,6 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   type AnimationClipIR,
 } from "./types/animationClipIr";
-import { formatPlaybackClock } from "./utils/animationTimeDisplay";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const AUTHORED_ANIMATION_TARGET_PREFIX = "authored-animation:";
@@ -261,13 +267,6 @@ const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
   "runtime-stabilization": 10,
 });
 
-interface AuthoredAnimationTarget {
-  targetId: string;
-  clipId: string;
-  name: string;
-  clip: AnimationClipIR;
-}
-
 interface ProceduralProgramSnapshot {
   nodes: EditorNode[];
   edges: EditorEdge[];
@@ -293,7 +292,7 @@ type RuntimePlaybackState = "playing" | "paused" | "stopped";
 
 interface AnimationTargetPlaybackStatus {
   state: RuntimePlaybackState;
-  timeLabel: string | null;
+  timeLabel: ReactNode;
 }
 
 interface ProgramTargetPlaybackStatus {
@@ -338,19 +337,6 @@ function createEmptyAnimationClip(
 
 function motionGraphRuntimeControllerId(targetId: string): string {
   return `motiongraph-runtime:${encodeURIComponent(targetId)}`;
-}
-
-function createAuthoredAnimationTarget(
-  clipId: string,
-  name: string,
-  duration = 10,
-): AuthoredAnimationTarget {
-  return {
-    targetId: authoredAnimationTargetValue(clipId),
-    clipId,
-    name,
-    clip: createEmptyAnimationClip(clipId, name, duration),
-  };
 }
 
 function stableValueFingerprint(value: unknown): string {
@@ -798,12 +784,74 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [viewerSplitVertical, setViewerSplitVertical] = useState(false);
   const [motionGraphSplitVertical, setMotionGraphSplitVertical] =
     useState(false);
-  const [authoredAnimationTargets, setAuthoredAnimationTargets] = useState<
-    AuthoredAnimationTarget[]
-  >([]);
-  const [selectedAnimationTargetId, setSelectedAnimationTargetId] = useState<
-    string | null
-  >(null);
+  // Clips live in `animationStore`, which owns both the data and which one is
+  // selected. These are *derivations*, not copies: there is no second owner to
+  // fall out of step with, which is what made every earlier version of this
+  // corrupt clips.
+  const clipEntries = useAnimationStore((state) => state.clipEntries);
+  const clipOrder = useAnimationStore((state) => state.clipOrder);
+  const selectedClipId = useAnimationStore((state) => state.selectedClipId);
+  const selectClipInStore = useAnimationStore((state) => state.selectClip);
+  const addClipToStore = useAnimationStore((state) => state.addClip);
+  const removeClipFromStore = useAnimationStore((state) => state.removeClip);
+  const renameClipInStore = useAnimationStore((state) => state.renameClip);
+  const replaceClipsInStore = useAnimationStore((state) => state.replaceClips);
+  const updateClipInStore = useAnimationStore((state) => state.updateClip);
+  const getAllClipsFromStore = useAnimationStore((state) => state.getAllClips);
+
+  const orderedClipEntries = useMemo(
+    () =>
+      clipOrder
+        .map((clipId) => clipEntries[clipId])
+        .filter((entry): entry is AnimationClipEntry => Boolean(entry)),
+    [clipEntries, clipOrder],
+  );
+
+  const authoredClipEntries = useMemo(
+    () => orderedClipEntries.filter((entry) => entry.source === "authored"),
+    [orderedClipEntries],
+  );
+
+  /**
+   * An authored clip addressed either way round: callers hold a target id, a
+   * clip id, or one parsed out of the other, and the same two-way lookup was
+   * written out at five call sites.
+   */
+  const findAuthoredClipEntry = useCallback(
+    (targetId: string | null, clipId: string | null) =>
+      authoredClipEntries.find(
+        (entry) =>
+          (targetId !== null && entry.targetId === targetId) ||
+          (clipId !== null && entry.clipId === clipId),
+      ) ?? null,
+    [authoredClipEntries],
+  );
+
+  const clipEntryByTargetId = useMemo(() => {
+    const byTarget = new Map<string, AnimationClipEntry>();
+    orderedClipEntries.forEach((entry) => byTarget.set(entry.targetId, entry));
+    return byTarget;
+  }, [orderedClipEntries]);
+
+  const selectedAnimationTargetId = useMemo(
+    () =>
+      selectedClipId ? (clipEntries[selectedClipId]?.targetId ?? null) : null,
+    [clipEntries, selectedClipId],
+  );
+
+  const setSelectedAnimationTargetId = useCallback(
+    (targetId: string | null) => {
+      if (targetId === null) {
+        selectClipInStore(null);
+        return;
+      }
+      const entry = clipEntryByTargetId.get(targetId);
+      // An unknown target selects nothing rather than leaving the previous
+      // clip selected while the UI claims otherwise.
+      selectClipInStore(entry ? entry.clipId : null);
+    },
+    [clipEntryByTargetId, selectClipInStore],
+  );
   const [activeAnimationRuntimeTargetId, setActiveAnimationRuntimeTargetId] =
     useState<string | null>(null);
   const [
@@ -817,14 +865,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const [authoredProceduralTargets, setAuthoredProceduralTargets] = useState<
     AuthoredProceduralTarget[]
   >([]);
-  const [bundleAnimationNameOverrides, setBundleAnimationNameOverrides] =
-    useState<Record<string, string>>({});
-  const [
-    bundleAnimationDurationOverrides,
-    setBundleAnimationDurationOverrides,
-  ] = useState<Record<string, number>>({});
-  const [bundleAnimationClipOverrides, setBundleAnimationClipOverrides] =
-    useState<Record<string, AnimationClipIR>>({});
   const [bundleProceduralNameOverrides, setBundleProceduralNameOverrides] =
     useState<Record<string, string>>({});
   const [
@@ -885,9 +925,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setRuntimeExportBodies(createEmptyRuntimeExportBodiesSnapshot());
   }, [rootId]);
   useEffect(() => {
-    setBundleAnimationNameOverrides({});
-    setBundleAnimationDurationOverrides({});
-    setBundleAnimationClipOverrides({});
     setBundleProceduralNameOverrides({});
     setBundleProceduralSnapshotOverrides({});
     setHiddenBundleAnimationTargetIds({});
@@ -961,6 +998,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.advanceTransportSessionKey,
   );
   const stopAnimationTransportState = useAnimationStore((state) => state.stop);
+  const pauseAnimationTransportState = useAnimationStore(
+    (state) => state.pause,
+  );
+  const playAnimationTransportState = useAnimationStore(
+    (state) => state.play,
+  );
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
   );
@@ -969,7 +1012,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.selectKeyframe,
   );
   const animationDuration = useAnimationStore((state) => state.duration);
-  const animationCurrentTime = useAnimationStore((state) => state.currentTime);
   const animationTimeDisplayMode = useAnimationStore(
     (state) => state.timeDisplayMode,
   );
@@ -1073,20 +1115,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     clearProgramRuntimeState();
     setPendingAnimationTargetSwitchId(null);
     poseRig.resetPoseState();
-    setAuthoredAnimationTargets([]);
-    setSelectedAnimationTargetId(null);
+    // One owner, one call. This used to clear four separate pieces of clip
+    // state that had to agree with each other.
+    replaceClipsInStore([], null);
     setAuthoredProceduralTargets([]);
     setSelectedProceduralTargetId(null);
-    setBundleAnimationNameOverrides({});
-    setBundleAnimationDurationOverrides({});
-    setBundleAnimationClipOverrides({});
     setBundleProceduralNameOverrides({});
     setBundleProceduralSnapshotOverrides({});
     setHiddenBundleAnimationTargetIds({});
     setHiddenBundleProceduralTargetIds({});
     setActiveInspectorTarget(null);
     uiActions.setActiveRuntimeSource("none");
-    useAnimationStore.getState().reset();
+    useAnimationStore.getState().resetAll();
     const editorStore = useEditorStore.getState();
     editorStore.clear();
     editorStore.setSelected(null);
@@ -1138,6 +1178,33 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const bundleSessionKey = rootId ?? faceLoadSessionToken ?? "__no-bundle__";
 
+  // Imported clips enter the store once per bundle, and only if absent —
+  // `addClip` is a no-op for a clip id already present, so this cannot
+  // overwrite edits the author has made since. A previous face's entries are
+  // gone because `resetAuthoringSessionState` clears the whole set.
+  //
+  // Deliberately not a reconciling effect: it adds what is missing and never
+  // rewrites what is there. An effect that copied bundle state over store
+  // state on every change is what corrupted clips in the two earlier attempts
+  // at this.
+  const importedClipEntries = useMemo(
+    () =>
+      buildImportedClipEntries({
+        animations: loadedBundle?.animations,
+        targetPrefix: BUNDLE_ANIMATION_TARGET_PREFIX,
+        sessionKey: bundleSessionKey,
+        standardInputsById: mainFaceInputsById,
+      }),
+    [bundleSessionKey, loadedBundle?.animations, mainFaceInputsById],
+  );
+
+  useEffect(() => {
+    if (importedClipEntries.length === 0) {
+      return;
+    }
+    importedClipEntries.forEach((entry) => addClipToStore(entry));
+  }, [addClipToStore, importedClipEntries]);
+
   const bundleAnimationTargetOptions = useMemo(() => {
     const entries = loadedBundle?.animations ?? [];
     return entries
@@ -1154,24 +1221,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         const baseLabel = clipName || fallbackName;
         return {
           value: targetValue,
-          label: bundleAnimationNameOverrides[targetValue] ?? baseLabel,
+          label: clipEntryByTargetId.get(targetValue)?.name ?? baseLabel,
         };
       })
       .filter((option) => !hiddenBundleAnimationTargetIds[option.value]);
   }, [
     bundleSessionKey,
-    bundleAnimationNameOverrides,
+    clipEntryByTargetId,
     hiddenBundleAnimationTargetIds,
     loadedBundle?.animations,
   ]);
 
   const authoredAnimationTargetOptions = useMemo(
     () =>
-      authoredAnimationTargets.map((target) => ({
+      authoredClipEntries.map((target) => ({
         value: target.targetId,
         label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
       })),
-    [authoredAnimationTargets],
+    [authoredClipEntries],
   );
 
   const animationTargetOptions = useMemo(
@@ -1246,95 +1313,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ),
     [proceduralTargetOptions],
   );
-  const resolveBundleAnimationEntry = useCallback(
-    (targetId: string) => {
-      const index = parseBundleTargetIndex(
-        targetId,
-        BUNDLE_ANIMATION_TARGET_PREFIX,
-      );
-      if (index === null) {
-        return null;
-      }
-      return loadedBundle?.animations?.[index] ?? null;
-    },
-    [loadedBundle?.animations],
-  );
+  // Both resolvers are now lookups. They used to rebuild the clip from the
+  // bundle and then layer three override maps over it on every call, which is
+  // why "what is this clip?" and "has it been edited?" could disagree.
   const resolveImportedAnimationClip = useCallback(
-    (targetId: string): AnimationClipIR | null => {
-      const entry = resolveBundleAnimationEntry(targetId);
-      if (!entry) {
-        return null;
-      }
-      const baseClip = bundleAnimationEntryToClipIr(entry, {
-        standardInputsById: mainFaceInputsById,
-      });
-      if (!baseClip) {
-        return null;
-      }
-      const overriddenName = bundleAnimationNameOverrides[targetId]?.trim();
-      const overriddenDuration = bundleAnimationDurationOverrides[targetId];
-      const resolvedBaseClip = {
-        ...baseClip,
-        name:
-          overriddenName && overriddenName.length > 0
-            ? overriddenName
-            : baseClip.name,
-        duration: Number.isFinite(overriddenDuration)
-          ? overriddenDuration
-          : baseClip.duration,
-      };
-      const override = bundleAnimationClipOverrides[targetId];
-      const clip = override ? structuredClone(override) : resolvedBaseClip;
-      return {
-        ...clip,
-        name:
-          overriddenName && overriddenName.length > 0
-            ? overriddenName
-            : clip.name,
-        duration: Number.isFinite(overriddenDuration)
-          ? overriddenDuration
-          : clip.duration,
-      };
-    },
-    [
-      bundleAnimationClipOverrides,
-      bundleAnimationDurationOverrides,
-      bundleAnimationNameOverrides,
-      mainFaceInputsById,
-      resolveBundleAnimationEntry,
-    ],
+    (targetId: string): AnimationClipIR | null =>
+      clipEntryByTargetId.get(targetId)?.clip ?? null,
+    [clipEntryByTargetId],
   );
   const resolveImportedAnimationBaseClip = useCallback(
     (targetId: string): AnimationClipIR | null => {
-      const entry = resolveBundleAnimationEntry(targetId);
+      const entry = clipEntryByTargetId.get(targetId);
       if (!entry) {
         return null;
       }
-      const clip = bundleAnimationEntryToClipIr(entry, {
-        standardInputsById: mainFaceInputsById,
-      });
-      if (!clip) {
-        return null;
-      }
-      const overriddenName = bundleAnimationNameOverrides[targetId]?.trim();
-      const overriddenDuration = bundleAnimationDurationOverrides[targetId];
-      return {
-        ...clip,
-        name:
-          overriddenName && overriddenName.length > 0
-            ? overriddenName
-            : clip.name,
-        duration: Number.isFinite(overriddenDuration)
-          ? overriddenDuration
-          : clip.duration,
-      };
+      // The clip as the bundle shipped it, but under the current name — a
+      // rename is not an edit to the animation, and treating it as one would
+      // mark every renamed import as changed.
+      const baseline = entry.baseline ?? entry.clip;
+      return { ...baseline, name: entry.name };
     },
-    [
-      bundleAnimationDurationOverrides,
-      bundleAnimationNameOverrides,
-      mainFaceInputsById,
-      resolveBundleAnimationEntry,
-    ],
+    [clipEntryByTargetId],
   );
   const resolveBundleProceduralEntry = useCallback(
     (targetId: string) => {
@@ -1376,6 +1375,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [bundleProceduralSnapshotOverrides, resolveImportedProceduralBaseSnapshot],
   );
+  // The pending flag makes the transport read as "playing" from the moment
+  // Play is pressed, so the button does not flicker while the engine starts.
+  // It was only ever cleared by a synchronous `getAnimationState` issued
+  // immediately after `playAnimation`, which returns null because the engine
+  // has not registered the clip yet — so it stayed set for the whole session
+  // and pinned the transport to "playing". Pause could never flip the button,
+  // because the button was not reading the transport at all.
+  //
+  // Clear it when the engine confirms instead: that is the event the flag was
+  // always standing in for.
+  useEffect(() => {
+    if (
+      pendingAnimationRuntimePlayTargetId &&
+      animationPlaybackState === "playing"
+    ) {
+      setPendingAnimationRuntimePlayTargetId(null);
+    }
+  }, [animationPlaybackState, pendingAnimationRuntimePlayTargetId]);
+
   const effectiveAnimationRuntimePlaybackState: RuntimePlaybackState =
     activeAnimationRuntimeTargetId
       ? pendingAnimationRuntimePlayTargetId === activeAnimationRuntimeTargetId
@@ -1386,9 +1404,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     activeProgramRuntimeTargetId ? programRuntimePlaybackState : "stopped";
   const activeAnimationRuntimeTimeLabel =
     activeAnimationRuntimeTargetId &&
-    effectiveAnimationRuntimePlaybackState !== "stopped"
-      ? formatPlaybackClock(animationCurrentTime, animationTimeDisplayMode)
-      : null;
+    effectiveAnimationRuntimePlaybackState !== "stopped" ? (
+      <PlayheadClock timeDisplayMode={animationTimeDisplayMode} />
+    ) : null;
   const animationTargetPlaybackById = useMemo<
     Record<string, AnimationTargetPlaybackStatus>
   >(() => {
@@ -1562,9 +1580,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         //
         // Reading it eagerly makes the updater pure, so when it runs cannot
         // change what it writes.
-        const existing = authoredAnimationTargets.find(
-          (target) => target.targetId === targetId || target.clipId === clipId,
-        );
+        const existing = findAuthoredClipEntry(targetId, clipId);
         if (!existing) {
           return;
         }
@@ -1572,35 +1588,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           id: existing.clipId,
           name: existing.name,
         });
-        setAuthoredAnimationTargets((previous) => {
-          const index = previous.findIndex(
-            (target) =>
-              target.targetId === targetId || target.clipId === clipId,
-          );
-          if (index < 0) {
-            return previous;
-          }
-          const target = previous[index]!;
-          const clip = snapshotClip;
-          const updatedTarget: AuthoredAnimationTarget = {
-            ...target,
-            clipId: clip.id,
-            targetId: authoredAnimationTargetValue(clip.id),
-            clip,
-          };
-          if (
-            updatedTarget.clipId === target.clipId &&
-            updatedTarget.targetId === target.targetId &&
-            updatedTarget.name === target.name &&
-            stableValueFingerprint(updatedTarget.clip) ===
-              stableValueFingerprint(target.clip)
-          ) {
-            return previous;
-          }
-          const next = [...previous];
-          next[index] = updatedTarget;
-          return next;
-        });
+        // Addresses the entry that owns the data, rather than searching a
+        // separate array for something that matches by id — the search is
+        // where the wrong clip used to get written.
+        updateClipInStore(existing.clipId, (entry) =>
+          stableValueFingerprint(entry.clip) ===
+          stableValueFingerprint(snapshotClip)
+            ? entry
+            : { ...entry, clip: snapshotClip },
+        );
         return;
       }
       const baselineClip = resolveImportedAnimationBaseClip(targetId);
@@ -1614,31 +1610,27 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         id: baselineClip.id,
         name: targetName,
       });
-      setBundleAnimationClipOverrides((previous) => {
-        const previousClip = previous[targetId];
-        const fingerprint = stableValueFingerprint(clip);
-        if (fingerprint === stableValueFingerprint(baselineClip)) {
-          if (!previousClip) {
-            return previous;
-          }
-          const { [targetId]: _removed, ...rest } = previous;
-          return rest;
-        }
-        if (
-          previousClip &&
-          fingerprint === stableValueFingerprint(previousClip)
-        ) {
-          return previous;
-        }
-        return {
-          ...previous,
-          [targetId]: clip,
-        };
-      });
+      const entry = clipEntryByTargetId.get(targetId);
+      if (entry) {
+        // Reverting to the baseline stores the baseline rather than deleting
+        // an override: one instance of the data, so "unedited" is a value the
+        // clip has, not the absence of a record somewhere else.
+        const revertsToBaseline =
+          stableValueFingerprint(clip) === stableValueFingerprint(baselineClip);
+        updateClipInStore(entry.clipId, (current) => {
+          const nextClip = revertsToBaseline
+            ? { ...(current.baseline ?? clip), name: current.name }
+            : clip;
+          return stableValueFingerprint(current.clip) ===
+            stableValueFingerprint(nextClip)
+            ? current
+            : { ...current, clip: nextClip };
+        });
+      }
     },
     [
       animationTargetOptions,
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       exportAnimationClipIr,
       resolveImportedAnimationBaseClip,
     ],
@@ -1650,7 +1642,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
    */
   const reservedAnimationClipIds = useMemo(() => {
     const ids = new Set<string>();
-    authoredAnimationTargets.forEach((target) => {
+    authoredClipEntries.forEach((target) => {
       ids.add(target.clipId);
       if (typeof target.clip?.id === "string") {
         ids.add(target.clip.id);
@@ -1666,33 +1658,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
     });
     return ids;
-  }, [authoredAnimationTargets, loadedBundle?.animations]);
-
-  const selectedAuthoredAnimationTarget = useMemo(
-    () =>
-      authoredAnimationTargets.find(
-        (target) => target.targetId === selectedAnimationTargetId,
-      ) ?? null,
-    [authoredAnimationTargets, selectedAnimationTargetId],
-  );
-  // There is deliberately NO autosave effect here.
-  //
-  // One used to persist the editing buffer whenever `tracks` or `duration`
-  // changed. Its destination was resolved separately from the data being
-  // written, so any render where selection and buffer disagreed wrote the
-  // wrong clip — which produced, at different times, a new clip holding
-  // another clip's tracks, every clip emptied, and edits appearing not to
-  // save. See docs/notes/ANIMATION_SELECTION_STATE_2026-09-03.md.
-  //
-  // Nothing needs it. The buffer is persisted when switching away, while it
-  // still holds the outgoing clip, and every other consumer materialises the
-  // selected clip from the buffer directly rather than reading the saved
-  // copy: export via `authoredAnimationClipsForExport`, playback via
-  // `activeAnimationRuntimeClip`, and the clip list below.
+  }, [authoredClipEntries, loadedBundle?.animations]);
 
   const authoringAnimationTargets = useMemo(
     () => [
-      ...authoredAnimationTargets.map((target) => ({
+      ...authoredClipEntries.map((target) => ({
         id: target.targetId,
         label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
         source: "authored" as const,
@@ -1738,13 +1708,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       animationTargetPlaybackById,
       animationTracks,
-      authoredAnimationTargets,
+      authoredClipEntries,
       bundleAnimationTargetOptions,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
     ],
   );
-  // Reads the rendered list rather than `authoredAnimationTargets` so an
+  // Reads the rendered list rather than `authoredClipEntries` so an
   // imported clip gets its label too.
   const selectedAnimationClipName = useMemo(
     () =>
@@ -1787,10 +1757,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       let source: "authored" | "imported" = "imported";
 
       if (authoredClipId) {
-        const authoredTarget = authoredAnimationTargets.find(
-          (target) =>
-            target.targetId === selectedAnimationTargetId ||
-            target.clipId === authoredClipId,
+        const authoredTarget = findAuthoredClipEntry(
+          selectedAnimationTargetId,
+          authoredClipId,
         );
         if (!authoredTarget) {
           return null;
@@ -1853,7 +1822,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     }, [
       animationDuration,
       animationTracks,
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
       mainFaceInputsById,
@@ -1987,10 +1956,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       activeAnimationRuntimeTargetId,
     );
     if (authoredClipId) {
-      const authoredTarget = authoredAnimationTargets.find(
-        (target) =>
-          target.targetId === activeAnimationRuntimeTargetId ||
-          target.clipId === authoredClipId,
+      const authoredTarget = findAuthoredClipEntry(
+        activeAnimationRuntimeTargetId,
+        authoredClipId,
       );
       if (!authoredTarget) {
         return null;
@@ -2024,7 +1992,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     };
   }, [
     activeAnimationRuntimeTargetId,
-    authoredAnimationTargets,
+    findAuthoredClipEntry,
     exportAnimationClipIr,
     resolveImportedAnimationClip,
     selectedAnimationTargetId,
@@ -2108,10 +2076,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
       if (authoredClipId) {
-        const target = authoredAnimationTargets.find(
-          (entry) =>
-            entry.targetId === targetId || entry.clipId === authoredClipId,
-        );
+        const target = findAuthoredClipEntry(targetId, authoredClipId);
         if (target) {
           importAnimationClipIr(target.clip);
           return;
@@ -2126,7 +2091,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       useAnimationStore.getState().reset();
     },
     [
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       importAnimationClipIr,
       resolveImportedAnimationClip,
     ],
@@ -2280,16 +2245,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
     const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
     const nextClipName = `Animation Clip ${nextOrdinal}`;
-    const nextTarget = createAuthoredAnimationTarget(
-      nextClipId,
-      nextClipName,
-      animationDuration,
-    );
-    setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
-    setSelectedAnimationTargetId(nextTarget.targetId);
+    addClipToStore({
+      clipId: nextClipId,
+      name: nextClipName,
+      source: "authored",
+      baseline: null,
+      clip: createEmptyAnimationClip(
+        nextClipId,
+        nextClipName,
+        animationDuration,
+      ),
+    });
+    selectClipInStore(nextClipId);
   }, [
     animationDuration,
-    authoredAnimationTargets,
     // Allocates the next clip id against this; a stale copy hands the new clip
     // an id an existing one already owns.
     reservedAnimationClipIds,
@@ -2306,10 +2275,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
       const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
       if (authoredClipId) {
-        const authoredTarget = authoredAnimationTargets.find(
-          (target) =>
-            target.targetId === targetId || target.clipId === authoredClipId,
-        );
+        const authoredTarget = findAuthoredClipEntry(targetId, authoredClipId);
         if (!authoredTarget) {
           return;
         }
@@ -2348,20 +2314,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         id: nextClipId,
         name: nextName,
       };
-      const nextTarget: AuthoredAnimationTarget = {
-        targetId: authoredAnimationTargetValue(nextClipId),
-        clipId: nextClipId,
-        name: nextName,
-        clip: nextClip,
-      };
-
       setActiveAuthoringSurface("animations");
       setWorkspacePanelVisibility("animation", true);
-      setAuthoredAnimationTargets((previous) => [...previous, nextTarget]);
-      setSelectedAnimationTargetId(nextTarget.targetId);
+      addClipToStore({
+        clipId: nextClipId,
+        name: nextName,
+        source: "authored",
+        baseline: null,
+        clip: nextClip,
+      });
+      selectClipInStore(nextClipId);
     },
     [
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
       // See above: the clip id is allocated from this.
@@ -2453,7 +2418,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       // identical clips.
       const { fresh, duplicates } = dedupeImportedClips({
         clips: result.clips,
-        existing: authoredAnimationTargets.map((target) => ({
+        existing: authoredClipEntries.map((target) => ({
           name: target.name,
           clip: target.clip,
         })),
@@ -2546,21 +2511,32 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         clip,
       }));
 
-      setAuthoredAnimationTargets((previous) => [...previous, ...nextTargets]);
+      nextTargets.forEach((target) => {
+        addClipToStore({
+          clipId: target.clipId,
+          name: target.name,
+          source: "authored",
+          baseline: null,
+          clip: target.clip,
+        });
+      });
 
       if (announce === "always") {
         // Explicit import: jump the author to what they just brought in.
         setActiveAuthoringSurface("animations");
         setWorkspacePanelVisibility("animation", true);
-        setSelectedAnimationTargetId(nextTargets[0]!.targetId);
+        selectClipInStore(nextTargets[0]!.clipId);
         await showAlert(summaryLines.join("\n"));
         return;
       }
 
-      // Automatic import: make the clip selectable without stealing focus.
-      setSelectedAnimationTargetId(
-        (previous) => previous ?? nextTargets[0]!.targetId,
-      );
+      // Automatic import: make the clip selectable without stealing focus, so
+      // only select it when nothing is selected yet. Read the store rather
+      // than a stale closure — this runs well after the render that scheduled
+      // it, and the selection may have moved since.
+      if (!useAnimationStore.getState().selectedClipId) {
+        selectClipInStore(nextTargets[0]!.clipId);
+      }
       const problems = result.diagnostics.filter(
         (diagnostic) => diagnostic.severity !== "info",
       );
@@ -2571,7 +2547,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       showAlert,
       showConfirm,
-      authoredAnimationTargets,
+      authoredClipEntries,
       handleUpdateStandardInput,
       loadedBundle?.metadata,
       mainFaceInputsById,
@@ -2631,9 +2607,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const deleteAnimationTargetById = useCallback(
     (deletingTargetId: string) => {
-      const authoredClipId =
-        parseAuthoredAnimationTargetValue(deletingTargetId);
-      const activeTarget = authoredAnimationTargets.find(
+      const activeTarget = authoredClipEntries.find(
         (target) => target.targetId === deletingTargetId,
       );
       const activeOptionLabel =
@@ -2649,20 +2623,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
 
-      let nextAuthoredTargets = authoredAnimationTargets;
-      if (authoredClipId) {
-        nextAuthoredTargets = authoredAnimationTargets.filter(
-          (target) => target.targetId !== deletingTargetId,
-        );
-      } else if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      const deletingEntry = clipEntryByTargetId.get(deletingTargetId);
+      const nextAuthoredTargets = authoredClipEntries.filter(
+        (target) => target.targetId !== deletingTargetId,
+      );
+      if (deletingEntry) {
+        // Removing the entry removes its edits with it. The imported case used
+        // to need a second write to drop the clip override, which is one more
+        // place for the two to disagree.
+        removeClipFromStore(deletingEntry.clipId);
+      }
+      if (deletingTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
         setHiddenBundleAnimationTargetIds((previous) => ({
           ...previous,
           [deletingTargetId]: true,
         }));
-        setBundleAnimationClipOverrides((previous) => {
-          const { [deletingTargetId]: _removed, ...rest } = previous;
-          return rest;
-        });
       }
 
       const remainingBundleTargets = bundleAnimationTargetOptions.filter(
@@ -2673,8 +2648,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         nextAuthoredTargets.length === 0 &&
         remainingBundleTargets.length === 0
       ) {
-        setAuthoredAnimationTargets([]);
-        setSelectedAnimationTargetId(null);
+        selectClipInStore(null);
         setActiveInspectorTarget((previous) =>
           previous?.kind === "animation-target" ||
           previous?.kind === "animation-track"
@@ -2685,103 +2659,48 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
 
-      setAuthoredAnimationTargets(nextAuthoredTargets);
       const nextTargetId =
         nextAuthoredTargets[0]?.targetId ?? remainingBundleTargets[0]!.value;
       setSelectedAnimationTargetId(nextTargetId);
     },
     [
       animationTargetOptions,
-      authoredAnimationTargets,
+      authoredClipEntries,
       bundleAnimationTargetOptions,
-      setBundleAnimationClipOverrides,
+      clipEntryByTargetId,
+      removeClipFromStore,
+      selectClipInStore,
       setHiddenBundleAnimationTargetIds,
     ],
   );
+  // Every clip, with the selected one taken from the live editing buffer so
+  // what ships is what is on screen.
+  //
+  // This replaced an 85-line memo that rebuilt authored clips from one array,
+  // imported ones from a bundle plus three override maps, and then decided per
+  // clip which copy was authoritative. `getAllClips` answers that by
+  // construction: the store holds one instance of each clip's data.
   const authoredAnimationClipsForExport = useMemo(() => {
-    const authoredClipId = parseAuthoredAnimationTargetValue(
-      selectedAnimationTargetId,
-    );
-    const activeImportedTargetId =
-      selectedAnimationTargetId &&
-      selectedAnimationTargetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)
-        ? selectedAnimationTargetId
-        : null;
-    const liveActiveClip =
-      authoredClipId && selectedAuthoredAnimationTarget
-        ? exportAnimationClipIr({
-            id: selectedAuthoredAnimationTarget.clipId,
-            name: selectedAuthoredAnimationTarget.name,
-          })
-        : null;
-    const authoredClips = authoredAnimationTargets.map((target) => {
-      if (
-        liveActiveClip &&
-        target.targetId === selectedAuthoredAnimationTarget?.targetId
-      ) {
-        return liveActiveClip;
-      }
-      return target.clip;
-    });
-    const importedTargetIds = new Set(
-      Object.keys(bundleAnimationClipOverrides),
-    );
-    Object.keys(bundleAnimationNameOverrides).forEach((targetId) =>
-      importedTargetIds.add(targetId),
-    );
-    Object.keys(bundleAnimationDurationOverrides).forEach((targetId) =>
-      importedTargetIds.add(targetId),
-    );
-    if (activeImportedTargetId) {
-      importedTargetIds.add(activeImportedTargetId);
-    }
-    const importedClips = Array.from(importedTargetIds)
-      .map((targetId) =>
-        targetId === activeImportedTargetId
-          ? (() => {
-              const baselineClip = resolveImportedAnimationBaseClip(targetId);
-              if (!baselineClip) {
-                return null;
-              }
-              const targetName =
-                animationTargetOptions.find(
-                  (option) => option.value === targetId,
-                )?.label ?? baselineClip.name;
-              const liveClip = exportAnimationClipIr({
-                id: baselineClip.id,
-                name: targetName,
-              });
-              const matchesBaseline =
-                stableValueFingerprint(liveClip) ===
-                stableValueFingerprint(baselineClip);
-              const hasImportedEdits =
-                Boolean(bundleAnimationClipOverrides[targetId]) ||
-                Boolean(bundleAnimationNameOverrides[targetId]) ||
-                Number.isFinite(bundleAnimationDurationOverrides[targetId]);
-              return matchesBaseline && !hasImportedEdits
-                ? null
-                : matchesBaseline
-                  ? baselineClip
-                  : liveClip;
-            })()
-          : resolveImportedAnimationClip(targetId),
-      )
-      .filter((clip): clip is AnimationClipIR => clip !== null);
-    return [...authoredClips, ...importedClips];
-  }, [
-    animationDuration,
-    animationTracks,
-    animationTargetOptions,
-    authoredAnimationTargets,
-    bundleAnimationClipOverrides,
-    bundleAnimationDurationOverrides,
-    bundleAnimationNameOverrides,
-    exportAnimationClipIr,
-    resolveImportedAnimationBaseClip,
-    resolveImportedAnimationClip,
-    selectedAnimationTargetId,
-    selectedAuthoredAnimationTarget,
-  ]);
+    void animationTracks;
+    void animationDuration;
+    return getAllClipsFromStore()
+      .filter((entry) => {
+        if (entry.source !== "imported") {
+          return true;
+        }
+        // An untouched import is already in the bundle; exporting it again
+        // would duplicate it. An edited one has to ship.
+        const baseline = entry.baseline;
+        if (!baseline) {
+          return true;
+        }
+        return (
+          stableValueFingerprint(entry.clip) !==
+          stableValueFingerprint({ ...baseline, name: entry.name })
+        );
+      })
+      .map((entry) => entry.clip);
+  }, [animationDuration, animationTracks, getAllClipsFromStore]);
 
   const handleSelectProceduralTarget = useCallback(
     (targetId: string) => {
@@ -3037,7 +2956,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         );
         animationRuntimeTransportAdapter.seekAnimation(
           AUTHORED_TIMELINE_CLIP_ID,
-          animationCurrentTime,
+          getCurrentPlayheadTime(),
         );
         void animationRuntimeTransportAdapter.playAnimation(
           AUTHORED_TIMELINE_CLIP_ID,
@@ -3046,6 +2965,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             speed: animationPlaySpeed,
           },
         );
+        // Resuming has to say so locally, the same as pause and stop do.
+        // This branch used to clear the optimistic flag — the only thing
+        // standing in for "playing" until the runtime confirms — and write
+        // nothing in its place, so a resumed clip went on reporting "paused"
+        // until a frame arrived to correct it. The first Play of a session
+        // looked fine only because it takes the branch below, which sets the
+        // optimistic flag rather than clearing it.
+        playAnimationTransportState();
         setPendingAnimationRuntimePlayTargetId(null);
         return;
       }
@@ -3054,8 +2981,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       activeAnimationRuntimeTargetId,
       startAnimationRuntimeSession,
-      animationCurrentTime,
       animationLoopEnabled,
+      playAnimationTransportState,
       animationPlaySpeed,
       animationPlaybackState,
       animationRuntimeTransportAdapter,
@@ -3076,13 +3003,28 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       uiActions.setActiveRuntimeSource("animation");
+      // Pressing pause ends the optimistic "playing" override, whatever the
+      // engine has reported. The flag bridges the gap between pressing Play
+      // and the engine confirming; once the author asks for pause that gap is
+      // moot, and leaving it set pinned the button to Pause forever whenever
+      // the confirmation never arrived.
+      setPendingAnimationRuntimePlayTargetId(null);
       animationRuntimeTransportAdapter?.pauseAnimation(
         AUTHORED_TIMELINE_CLIP_ID,
       );
+      // Write the paused state here rather than waiting to be told, exactly
+      // as Stop does two functions down. The runtime confirms a pause through
+      // the feedback loop, which only runs while frames arrive; relying on
+      // that alone leaves the button reading "Pause" with no way back to Play
+      // whenever the confirmation is slow or never comes. If the engine
+      // turns out to still be playing, the next frame corrects this — a
+      // flicker, against a control that was previously stuck for good.
+      pauseAnimationTransportState();
     },
     [
       activeAnimationRuntimeTargetId,
       animationRuntimeTransportAdapter,
+      pauseAnimationTransportState,
       uiActions,
     ],
   );
@@ -3174,26 +3116,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const handleRenameAnimationTarget = useCallback(
     (targetId: string, nextName: string) => {
-      const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
-      if (authoredClipId) {
-        setAuthoredAnimationTargets((previous) =>
-          previous.map((target) =>
-            target.targetId === targetId || target.clipId === authoredClipId
-              ? { ...target, name: nextName }
-              : target,
-          ),
-        );
+      // One path for both sources. Authored clips used to be renamed in an
+      // array while imported ones went into a separate overrides map, so the
+      // same user action had two implementations that could disagree.
+      const entry = clipEntryByTargetId.get(targetId);
+      if (!entry) {
         return;
       }
-      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
-        return;
-      }
-      setBundleAnimationNameOverrides((previous) => ({
-        ...previous,
-        [targetId]: nextName,
-      }));
+      renameClipInStore(entry.clipId, nextName);
     },
-    [],
+    [clipEntryByTargetId, renameClipInStore],
   );
   const handleUpdateAnimationTargetDuration = useCallback(
     (targetId: string, nextDuration: number) => {
@@ -3211,22 +3143,28 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         saveAnimationTarget(targetId);
         return;
       }
-      if (!targetId.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX)) {
+      const entry = clipEntryByTargetId.get(targetId);
+      if (!entry) {
         return;
       }
-      setBundleAnimationDurationOverrides((previous) => ({
-        ...previous,
-        [targetId]: normalizedDuration,
-      }));
+      updateClipInStore(entry.clipId, (current) =>
+        current.clip.duration === normalizedDuration
+          ? current
+          : {
+              ...current,
+              clip: { ...current.clip, duration: normalizedDuration },
+            },
+      );
       if (targetId === selectedAnimationTargetId) {
         setAnimationDuration(normalizedDuration);
       }
     },
     [
+      clipEntryByTargetId,
       saveAnimationTarget,
       selectedAnimationTargetId,
       setAnimationDuration,
-      setBundleAnimationDurationOverrides,
+      updateClipInStore,
     ],
   );
   const handleInspectAnimationTrackFromInspector = useCallback(

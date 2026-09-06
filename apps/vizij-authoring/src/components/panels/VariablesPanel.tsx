@@ -55,6 +55,7 @@ import {
 } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import {
+  getCurrentPlayheadTime,
   useAnimationStore,
   type AnimationInputKeyframeEntry,
 } from "../../state/animationStore";
@@ -3329,7 +3330,6 @@ export function VariablesPanel({
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
   const animationTracks = useAnimationStore((state) => state.tracks);
-  const animationCurrentTime = useAnimationStore((state) => state.currentTime);
   const addAnimationTrack = useAnimationStore((state) => state.addTrack);
   const removeAnimationTrack = useAnimationStore((state) => state.removeTrack);
   const upsertAnimationInputKeyframe = useAnimationStore(
@@ -5749,10 +5749,10 @@ export function VariablesPanel({
           label: input?.label ?? inputId,
           channel: input?.path ?? inputId,
         },
-        animationCurrentTime,
+        getCurrentPlayheadTime(),
       );
     },
-    [animationCurrentTime, standardInputsById, upsertAnimationInputKeyframe],
+    [standardInputsById, upsertAnimationInputKeyframe],
   );
   const handlePanelInputValueChange = useCallback(
     (inputId: string, value: number) => {
@@ -5843,11 +5843,10 @@ export function VariablesPanel({
       if (entries.length === 0) {
         return;
       }
-      upsertAnimationInputKeyframes(entries, animationCurrentTime);
+      upsertAnimationInputKeyframes(entries, getCurrentPlayheadTime());
       applyStandardInputBatch(previewValues);
     },
     [
-      animationCurrentTime,
       applyStandardInputBatch,
       standardInputsById,
       upsertAnimationInputKeyframes,

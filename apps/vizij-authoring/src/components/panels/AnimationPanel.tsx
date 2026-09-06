@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   Pause,
   Play,
@@ -9,13 +10,17 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { ANIMATION_STEP_SECONDS } from "../../hooks/animationStepMath";
+import {
+  ANIMATION_STEP_SECONDS,
+  nextStepTime,
+} from "../../hooks/animationStepMath";
 import { ANIMATION_TIMELINE_FPS } from "../../utils/animationTimeDisplay";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { TimelineEditor } from "../animation/TimelineEditor";
+import { scrubPreviewValues } from "../animation/clipPreview";
 import { SavePoseFromPlayhead } from "../animation/SavePoseFromPlayhead";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../../hooks/useAnimationTransport";
@@ -113,6 +118,9 @@ export function AnimationPanel({
   statusMessage = null,
   clipName = null,
 }: AnimationPanelProps) {
+  // Selected, not the whole store — see the note in `TimelineEditor`. This
+  // component in particular amplified two render loops today, because it
+  // re-rendered on every store change and its handlers feed effects elsewhere.
   const {
     isPlaying,
     currentTime,
@@ -128,7 +136,24 @@ export function AnimationPanel({
     selectedTrackId,
     timeDisplayMode,
     setTimeDisplayMode,
-  } = useAnimationStore();
+  } = useAnimationStore(
+    useShallow((state) => ({
+      isPlaying: state.isPlaying,
+      currentTime: state.currentTime,
+      duration: state.duration,
+      loop: state.loop,
+      playSpeed: state.playSpeed,
+      seek: state.seek,
+      setLoop: state.setLoop,
+      setPlaySpeed: state.setPlaySpeed,
+      tracks: state.tracks,
+      addTrack: state.addTrack,
+      removeTrack: state.removeTrack,
+      selectedTrackId: state.selectedTrackId,
+      timeDisplayMode: state.timeDisplayMode,
+      setTimeDisplayMode: state.setTimeDisplayMode,
+    })),
+  );
   const transport = useAnimationTransport();
   const hasExternalTransportControls =
     playbackState !== undefined ||
@@ -149,17 +174,73 @@ export function AnimationPanel({
     : transport.stop;
   const runtimeTransportBound =
     !hasExternalTransportControls || effectivePlaybackState !== "stopped";
-  const handleSeek = runtimeTransportBound ? transport.seek : seek;
+  const applyStandardInputBatch = useBindingAuthoring(
+    (state) => state.applyStandardInputBatch,
+  );
+
+  // Scrubbing has to move the face, not just the playhead. While the runtime
+  // transport is not driving — which is the whole time playback is stopped —
+  // nothing else writes the rig, so the seek samples the clip and applies its
+  // inputs. `source: "timeline"` because these values come from the clip
+  // rather than from a person moving a slider, and the manual-write lock must
+  // not treat them as a conflict.
+  const previewClipAt = (timeSeconds: number) => {
+    const values = scrubPreviewValues({
+      tracks,
+      time: timeSeconds,
+      playbackState: effectivePlaybackState,
+    });
+    if (values) {
+      applyStandardInputBatch(values, { source: "timeline" });
+    }
+  };
+
+  // Who owns the clock depends on whether the engine is running it.
+  //
+  // Active (playing or paused): the engine owns it, so the seek must go
+  // through the transport or the feedback loop will report the old time back.
+  //
+  // Stopped: the host owns it. Routing through the transport there was worse
+  // than it looked — `seekTransport` starts the clip and immediately pauses it
+  // to make the seek land, which left the engine parked such that the next
+  // Play reported `playing` while its clock never advanced. Measured: playback
+  // advances from a fresh load and does not after a scrub. The store write
+  // plus the face preview below is the whole job while stopped; the feedback
+  // loop is inactive then, so there is nothing to contradict it.
+  const handleSeek = (timeSeconds: number) => {
+    if (runtimeTransportBound) {
+      transport.seek(timeSeconds);
+    } else {
+      seek(timeSeconds);
+    }
+    previewClipAt(timeSeconds);
+  };
   const handleTimelinePause = runtimeTransportBound
     ? transport.pause
     : undefined;
-  const handleStep = runtimeTransportBound ? () => transport.step() : undefined;
   // A backward step is a negative delta. `nextStepTime` clamps the *result* to
   // the clip rather than clamping the delta, which is what made the control
   // forward-only.
-  const handleStepBack = runtimeTransportBound
-    ? () => transport.step(-ANIMATION_STEP_SECONDS)
-    : undefined;
+  //
+  // Falls back to a plain seek when the runtime transport is not bound, which
+  // is the case whenever playback is stopped — so stepping used to be dead
+  // exactly when an author most wants it: parked on a frame, nudging one at a
+  // time. Same clamped arithmetic either way.
+  const stepBy = (deltaSeconds: number) => {
+    if (runtimeTransportBound) {
+      transport.step(deltaSeconds);
+      return;
+    }
+    seek(
+      nextStepTime({
+        baseTime: currentTime,
+        deltaSeconds,
+        durationSeconds: duration,
+      }),
+    );
+  };
+  const handleStep = () => stepBy(ANIMATION_STEP_SECONDS);
+  const handleStepBack = () => stepBy(-ANIMATION_STEP_SECONDS);
   const handleToggleLoop = () => {
     if (runtimeTransportBound) {
       transport.setLoop(!loop);
@@ -335,7 +416,6 @@ export function AnimationPanel({
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
               onClick={handleStepBack}
-              disabled={!handleStepBack}
               title="Step back one frame"
               aria-label="Step back one frame"
             >
@@ -369,7 +449,6 @@ export function AnimationPanel({
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
               onClick={handleStep}
-              disabled={!handleStep}
               title="Step forward one frame"
               aria-label="Step forward one frame"
             >
@@ -436,14 +515,6 @@ export function AnimationPanel({
               Frames
             </Button>
           </div>
-
-          <div className="h-6 w-px bg-zinc-800/50 mx-1" />
-
-          <SavePoseFromPlayhead
-            clipName={clipName}
-            timeDisplayMode={timeDisplayMode}
-            onSaved={({ name }) => setSavedPoseNotice(name)}
-          />
         </div>
 
         {statusMessage ? (
@@ -481,10 +552,22 @@ export function AnimationPanel({
           onResume={handlePlay}
           timeDisplayMode={timeDisplayMode}
           onInspectTrack={onInspectTrack}
+          onTogglePlay={
+            effectivePlaybackState === "playing"
+              ? handlePause
+              : (handlePlay ?? undefined)
+          }
+          onStep={(direction) =>
+            direction === 1 ? handleStep() : handleStepBack()
+          }
+          playheadActions={
+            <SavePoseFromPlayhead
+              clipName={clipName}
+              timeDisplayMode={timeDisplayMode}
+              onSaved={({ name }) => setSavedPoseNotice(name)}
+            />
+          }
         />
-        <div className="rounded-md border border-border-default/60 bg-bg-panel/40 px-2 py-1 text-[10px] text-text-muted">
-          Select a track or keyframe to edit it from the Inspector panel.
-        </div>
 
         <Modal
           open={showTrackSelector}
