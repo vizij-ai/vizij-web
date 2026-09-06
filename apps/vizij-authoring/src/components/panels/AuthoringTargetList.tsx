@@ -191,6 +191,10 @@ export function AuthoringTargetList({
             {filteredItems.map((item) => {
               const runtimeState = item.runtimeState ?? "stopped";
               const isRuntimeActive = runtimeState !== "stopped";
+              // Play is offered whenever the row is not playing — stopped or
+              // paused. Pausing used to swap Play for a *disabled* Pause,
+              // which left no control to resume with.
+              const isRuntimePlaying = runtimeState === "playing";
               return (
                 <div
                   key={item.id}
@@ -229,7 +233,7 @@ export function AuthoringTargetList({
                     ) : null}
                   </button>
                   <div className="flex w-full flex-wrap items-center gap-1">
-                    {onPlay && !isRuntimeActive ? (
+                    {onPlay && !isRuntimePlaying ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -245,12 +249,11 @@ export function AuthoringTargetList({
                         Play
                       </Button>
                     ) : null}
-                    {onPause && isRuntimeActive ? (
+                    {onPause && isRuntimePlaying ? (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
-                        disabled={runtimeState !== "playing"}
                         onClick={(event) => {
                           event.stopPropagation();
                           onSelect(item.id);
