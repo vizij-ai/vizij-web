@@ -1086,7 +1086,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setHiddenBundleProceduralTargetIds({});
     setActiveInspectorTarget(null);
     uiActions.setActiveRuntimeSource("none");
-    useAnimationStore.getState().reset();
+    useAnimationStore.getState().resetAll();
     const editorStore = useEditorStore.getState();
     editorStore.clear();
     editorStore.setSelected(null);

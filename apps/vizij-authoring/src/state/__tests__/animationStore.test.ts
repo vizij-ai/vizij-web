@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAnimationStore } from "../animationStore";
+import { createEmptyClip } from "../animationClipsStore";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
 
@@ -203,5 +204,54 @@ describe("animationStore deterministic behavior", () => {
     state = useAnimationStore.getState();
     expect(state.transportActive).toBe(false);
     expect(state.transportPlaybackState).toBe("stopped");
+  });
+});
+
+describe("animationStore reset vs resetAll", () => {
+  function clip(clipId: string, name: string) {
+    return {
+      clipId,
+      name,
+      source: "authored" as const,
+      baseline: null,
+      clip: createEmptyClip(clipId, name),
+    };
+  }
+
+  function seedTwoClips() {
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.1", "First"));
+    store.addClip(clip("clip.2", "Second"));
+    useAnimationStore
+      .getState()
+      .addTrack("jaw_open", "Jaw Open", "/propsrig/jaw/open");
+    return useAnimationStore.getState();
+  }
+
+  it("reset clears the buffer but keeps every clip", () => {
+    // App calls reset() while switching targets, failing to resolve one, and
+    // deleting one. Now that this store owns the clips, wiping them there
+    // would destroy the user's work — and `...INITIAL_STATE` very nearly does.
+    const seeded = seedTwoClips();
+    expect(seeded.clipOrder.length).toBe(2);
+
+    useAnimationStore.getState().reset();
+    const after = useAnimationStore.getState();
+
+    expect(after.clipOrder.length).toBe(2);
+    expect(after.tracks).toEqual([]);
+    expect(after.currentTime).toBe(0);
+    expect(after.transportPlaybackState).toBe("stopped");
+  });
+
+  it("resetAll drops the clip set too, for unloading a face", () => {
+    seedTwoClips();
+    useAnimationStore.getState().resetAll();
+    const after = useAnimationStore.getState();
+
+    expect(after.clipOrder).toEqual([]);
+    expect(after.clipEntries).toEqual({});
+    expect(after.selectedClipId).toBeNull();
+    expect(after.tracks).toEqual([]);
   });
 });
