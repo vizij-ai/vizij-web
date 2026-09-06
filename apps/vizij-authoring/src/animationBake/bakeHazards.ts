@@ -8,8 +8,15 @@
  * comparing a GLB against the viewport.
  */
 
-/** Nodes whose output depends on the sequence and size of steps taken. */
-const RATE_DEPENDENT_TYPES = new Set(["slew", "spring", "damp", "damping"]);
+/**
+ * Nodes whose output depends on the sequence and size of steps taken.
+ *
+ * Every entry must be a real node type — `bakeHazards.device.test.ts` asserts
+ * the runtime accepts each one. A misspelling here is invisible otherwise: the
+ * set simply never matches, and the preflight goes quiet about a real hazard.
+ * `damping` was such an entry, and is not a node type at all.
+ */
+const RATE_DEPENDENT_TYPES = new Set(["slew", "spring", "damp"]);
 
 /** Nodes driven by the graph clock rather than by the clip. */
 const CLOCK_DRIVEN_TYPES = new Set([
