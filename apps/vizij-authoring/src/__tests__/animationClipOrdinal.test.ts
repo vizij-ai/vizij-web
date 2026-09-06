@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextAuthoredAnimationClipOrdinal } from "../App";
+import { nextClipOrdinal } from "../state/animationClipsStore";
 
 /**
  * A new authored clip must never reuse a clip id an imported clip already
@@ -9,25 +9,22 @@ import { nextAuthoredAnimationClipOrdinal } from "../App";
  * into another and collapses both into a single entry on export.
  */
 
-describe("nextAuthoredAnimationClipOrdinal", () => {
+describe("nextClipOrdinal", () => {
   it("skips ordinals taken by imported clips", () => {
     // The reported failure: with no authored clips and an imported
     // `clip.1`, the old implementation returned 1 and collided.
     expect(
-      nextAuthoredAnimationClipOrdinal([
-        "authoring.timeline.clip.1",
-        "authoring.timeline.main",
-      ]),
+      nextClipOrdinal(["authoring.timeline.clip.1", "authoring.timeline.main"]),
     ).toBe(2);
   });
 
   it("starts at 1 when nothing is reserved", () => {
-    expect(nextAuthoredAnimationClipOrdinal([])).toBe(1);
+    expect(nextClipOrdinal([])).toBe(1);
   });
 
   it("takes the highest ordinal in use, not the count", () => {
     expect(
-      nextAuthoredAnimationClipOrdinal([
+      nextClipOrdinal([
         "authoring.timeline.clip.1",
         "authoring.timeline.clip.7",
       ]),
@@ -36,7 +33,7 @@ describe("nextAuthoredAnimationClipOrdinal", () => {
 
   it("ignores ids that are not of the ordinal scheme", () => {
     expect(
-      nextAuthoredAnimationClipOrdinal([
+      nextClipOrdinal([
         "authoring.timeline.main",
         "some-uuid-4f6d-b0c6",
         "authoring.timeline.clip.notanumber",
@@ -45,8 +42,6 @@ describe("nextAuthoredAnimationClipOrdinal", () => {
   });
 
   it("accepts a Set, which is how the app supplies it", () => {
-    expect(
-      nextAuthoredAnimationClipOrdinal(new Set(["authoring.timeline.clip.3"])),
-    ).toBe(4);
+    expect(nextClipOrdinal(new Set(["authoring.timeline.clip.3"]))).toBe(4);
   });
 });
