@@ -10,7 +10,8 @@ import {
 import { compileAnimationClipIr } from "../utils/animationClipCompiler";
 import {
   classifyGltfAnimation,
-  type BakedAnimationRecord,
+  EMPTY_BAKED_ANIMATION_RECORDS,
+  type BakedAnimationRecords,
 } from "./bakedAnimationProvenance";
 import type {
   GltfAnimationCurve,
@@ -69,7 +70,7 @@ export interface ConvertGltfAnimationsOptions {
    * animation name. Absent for a plain Blender export or a GLB written before
    * bake provenance existed, in which case everything imports.
    */
-  bakedRecords?: ReadonlyMap<string, BakedAnimationRecord>;
+  bakedRecords?: BakedAnimationRecords;
 }
 
 const BLENDER_ACTION_NAME = /Action(\.\d+)?$/;
@@ -204,7 +205,7 @@ export function convertGltfAnimations(
   // so people can edit the GLB elsewhere. An animation that no longer matches
   // what we baked is new information, so it is imported *alongside* the
   // authored clip and flagged, rather than discarded.
-  const bakedRecords = options.bakedRecords ?? new Map();
+  const bakedRecords = options.bakedRecords ?? EMPTY_BAKED_ANIMATION_RECORDS;
   const duplicates: string[] = [];
   const edited: string[] = [];
   for (const animation of rawDocument.animations) {
