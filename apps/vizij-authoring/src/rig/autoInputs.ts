@@ -10,7 +10,11 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import { buildFeatureEntries } from "../scene/featureEntries";
-import type { FeatureEntry } from "../components/binding";
+// From the definition site, not the `components/binding` barrel. The barrel
+// also exports `BindingEditor`, so a type-only import through it drags the
+// whole React component tree into the module graph of every consumer — which
+// is how a pure bake module ended up typechecking `Panel.tsx` in another app.
+import type { FeatureEntry } from "../scene/featureEntries";
 
 type VectorComponentKey = NonNullable<AnimatableComponent["component"]>;
 
