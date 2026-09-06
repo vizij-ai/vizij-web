@@ -4,7 +4,10 @@ import {
   type AnimationTrack,
   useAnimationStore,
 } from "../../state/animationStore";
-import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
+import {
+  formatKeyframeTime,
+  snapTimeToFrame,
+} from "../../utils/animationTimeDisplay";
 import { cn } from "../../utils/cn";
 
 interface TrackRowProps {
@@ -46,9 +49,10 @@ export function TrackRow({
       }
       const relativeX = clientX - rect.left - headerWidth;
       const normalized = Math.max(0, Math.min(1, relativeX / trackWidth));
-      return normalized * duration;
+      const time = normalized * duration;
+      return Math.min(snapTimeToFrame(time, timeDisplayMode), duration);
     },
-    [duration],
+    [duration, timeDisplayMode],
   );
 
   const handleWindowPointerMove = useCallback(
