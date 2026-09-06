@@ -124,6 +124,53 @@ describe("sampleTrackAt", () => {
     expect(sampleTrackAt(subject, 0.5)).toBe(0);
   });
 
+  describe("two keys sharing a time (an instantaneous jump)", () => {
+    const jump = () =>
+      track([
+        { time: 0, value: 0 },
+        { time: 1, value: 5 },
+        { time: 1, value: 9 },
+        { time: 2, value: 9 },
+      ]);
+
+    it("has not yet jumped at the shared time itself", () => {
+      // The value the scan this replaced returned. Landing on the second key
+      // instead would move every authored jump one sample earlier — which is
+      // exactly what a bake samples at.
+      expect(sampleTrackAt(jump(), 1)).toBeCloseTo(5, 10);
+    });
+
+    it("has jumped just after it", () => {
+      expect(sampleTrackAt(jump(), 1.5)).toBeCloseTo(9, 10);
+    });
+
+    it("interpolates out of the second key, not the first", () => {
+      const subject = track([
+        { time: 1, value: 0 },
+        { time: 1, value: 5 },
+        { time: 2, value: 1 },
+      ]);
+      expect(sampleTrackAt(subject, 1.5)).toBeCloseTo(3, 10);
+    });
+  });
+
+  it("samples a long track without scanning it", () => {
+    // A bake samples a track once per key, so an O(n) scan or a per-sample
+    // sort turns a three-minute 60fps channel into ~10^8 operations.
+    const subject = track(
+      Array.from({ length: 10_000 }, (_, index) => ({
+        id: `k${index}`,
+        time: index / 60,
+        value: index % 2,
+      })),
+    );
+    const started = performance.now();
+    for (let index = 0; index < 10_000; index += 1) {
+      sampleTrackAt(subject, index / 60);
+    }
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   it("sorts keyframes before sampling", () => {
     const subject = track([
       { time: 2, value: 1 },

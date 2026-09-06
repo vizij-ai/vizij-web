@@ -45,17 +45,61 @@ function tangentOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+/**
+ * Keyframes are almost always already in order — `compileAnimationClipIr`
+ * sorts them, and the editor inserts in place. Checking is O(n) and lets the
+ * common case skip an allocation and a sort *per sample*; a bake of a
+ * 10,000-key track samples it 10,000 times.
+ */
+function isSorted(keyframes: AnimationTrackIR["keyframes"]): boolean {
+  for (let index = 1; index < keyframes.length; index += 1) {
+    if (keyframes[index]!.time < keyframes[index - 1]!.time) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Start index of the *first* segment that contains `time` — the smallest `i`
+ * where `keyframes[i + 1].time >= time`.
+ *
+ * "First" matters only when two keys share a time, which is how an author
+ * writes an instantaneous jump. Landing on the last such key instead would
+ * move the jump a frame earlier, so this reproduces what the scan it replaced
+ * did rather than picking the nicer-looking answer.
+ */
+function segmentStartIndex(
+  keyframes: AnimationTrackIR["keyframes"],
+  time: number,
+): number {
+  let low = 0;
+  let high = keyframes.length - 2;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (keyframes[mid + 1]!.time >= time - EPSILON) {
+      high = mid;
+    } else {
+      low = mid + 1;
+    }
+  }
+  return low;
+}
+
 export function sampleTrackAt(track: AnimationTrackIR, time: number): number {
-  if (!Array.isArray(track.keyframes) || track.keyframes.length === 0) {
+  const raw = track.keyframes;
+  if (!Array.isArray(raw) || raw.length === 0) {
     return 0;
   }
 
-  const keyframes = [...track.keyframes].sort((left, right) => {
-    if (left.time !== right.time) {
-      return left.time - right.time;
-    }
-    return left.id.localeCompare(right.id);
-  });
+  const keyframes = isSorted(raw)
+    ? raw
+    : [...raw].sort((left, right) => {
+        if (left.time !== right.time) {
+          return left.time - right.time;
+        }
+        return left.id.localeCompare(right.id);
+      });
 
   if (time <= keyframes[0]!.time + EPSILON) {
     return keyframes[0]!.value;
@@ -66,50 +110,43 @@ export function sampleTrackAt(track: AnimationTrackIR, time: number): number {
     return last.value;
   }
 
-  for (let index = 0; index < keyframes.length - 1; index += 1) {
-    const start = keyframes[index]!;
-    const end = keyframes[index + 1]!;
+  const index = segmentStartIndex(keyframes, time);
+  const start = keyframes[index]!;
+  const end = keyframes[index + 1]!;
 
-    if (time + EPSILON < start.time || time - EPSILON > end.time) {
-      continue;
-    }
-
-    const span = end.time - start.time;
-    if (span <= EPSILON) {
-      return end.value;
-    }
-
-    const alpha = clamp((time - start.time) / span, 0, 1);
-    const interpolation = normalizeInterpolation(
-      start.interpolation ?? track.interpolation,
-    );
-
-    if (interpolation === "step") {
-      return start.value;
-    }
-
-    if (interpolation === "cubic") {
-      // glTF CUBICSPLINE: tangents are derivatives per second, so each is
-      // scaled by the segment duration.
-      const slope = (end.value - start.value) / span;
-      const startTangent = tangentOr(start.outTangent, slope);
-      const endTangent = tangentOr(end.inTangent, slope);
-      const t2 = alpha * alpha;
-      const t3 = t2 * alpha;
-      const h00 = 2 * t3 - 3 * t2 + 1;
-      const h10 = t3 - 2 * t2 + alpha;
-      const h01 = -2 * t3 + 3 * t2;
-      const h11 = t3 - t2;
-      return (
-        h00 * start.value +
-        h10 * startTangent * span +
-        h01 * end.value +
-        h11 * endTangent * span
-      );
-    }
-
-    return start.value + (end.value - start.value) * alpha;
+  const span = end.time - start.time;
+  if (span <= EPSILON) {
+    return end.value;
   }
 
-  return last.value;
+  const alpha = clamp((time - start.time) / span, 0, 1);
+  const interpolation = normalizeInterpolation(
+    start.interpolation ?? track.interpolation,
+  );
+
+  if (interpolation === "step") {
+    return start.value;
+  }
+
+  if (interpolation === "cubic") {
+    // glTF CUBICSPLINE: tangents are derivatives per second, so each is
+    // scaled by the segment duration.
+    const slope = (end.value - start.value) / span;
+    const startTangent = tangentOr(start.outTangent, slope);
+    const endTangent = tangentOr(end.inTangent, slope);
+    const t2 = alpha * alpha;
+    const t3 = t2 * alpha;
+    const h00 = 2 * t3 - 3 * t2 + 1;
+    const h10 = t3 - 2 * t2 + alpha;
+    const h01 = -2 * t3 + 3 * t2;
+    const h11 = t3 - t2;
+    return (
+      h00 * start.value +
+      h10 * startTangent * span +
+      h01 * end.value +
+      h11 * endTangent * span
+    );
+  }
+
+  return start.value + (end.value - start.value) * alpha;
 }

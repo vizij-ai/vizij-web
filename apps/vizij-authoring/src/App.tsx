@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import type { ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   Panel as ResizablePanel,
@@ -98,7 +99,11 @@ import {
   resolveRootSceneRotationInputs,
   type RotationAxis,
 } from "./components/app/importOrientation";
-import { useAnimationStore } from "./state/animationStore";
+import {
+  getCurrentPlayheadTime,
+  useAnimationStore,
+} from "./state/animationStore";
+import { PlayheadClock } from "./components/animation/PlayheadClock";
 import {} from /* moved to importedClipEntries */ "./utils/animationClipCompiler";
 import { useManagedTargetLifecycle } from "./hooks/useManagedTargetLifecycle";
 import {
@@ -126,7 +131,6 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   type AnimationClipIR,
 } from "./types/animationClipIr";
-import { formatPlaybackClock } from "./utils/animationTimeDisplay";
 
 const __DEV__ = process.env.NODE_ENV !== "production";
 const AUTHORED_ANIMATION_TARGET_PREFIX = "authored-animation:";
@@ -295,7 +299,7 @@ type RuntimePlaybackState = "playing" | "paused" | "stopped";
 
 interface AnimationTargetPlaybackStatus {
   state: RuntimePlaybackState;
-  timeLabel: string | null;
+  timeLabel: ReactNode;
 }
 
 interface ProgramTargetPlaybackStatus {
@@ -1015,7 +1019,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.selectKeyframe,
   );
   const animationDuration = useAnimationStore((state) => state.duration);
-  const animationCurrentTime = useAnimationStore((state) => state.currentTime);
   const animationTimeDisplayMode = useAnimationStore(
     (state) => state.timeDisplayMode,
   );
@@ -1409,7 +1412,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const activeAnimationRuntimeTimeLabel =
     activeAnimationRuntimeTargetId &&
     effectiveAnimationRuntimePlaybackState !== "stopped"
-      ? formatPlaybackClock(animationCurrentTime, animationTimeDisplayMode)
+      ? <PlayheadClock timeDisplayMode={animationTimeDisplayMode} />
       : null;
   const animationTargetPlaybackById = useMemo<
     Record<string, AnimationTargetPlaybackStatus>
@@ -2979,7 +2982,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         );
         animationRuntimeTransportAdapter.seekAnimation(
           AUTHORED_TIMELINE_CLIP_ID,
-          animationCurrentTime,
+          getCurrentPlayheadTime(),
         );
         void animationRuntimeTransportAdapter.playAnimation(
           AUTHORED_TIMELINE_CLIP_ID,
@@ -2996,7 +2999,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       activeAnimationRuntimeTargetId,
       startAnimationRuntimeSession,
-      animationCurrentTime,
       animationLoopEnabled,
       animationPlaySpeed,
       animationPlaybackState,

@@ -1197,6 +1197,20 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     }),
 }));
 
+/**
+ * Read the playhead without subscribing to it.
+ *
+ * It moves 60 times a second during playback, so a component that selects it
+ * re-renders on every frame and every `useCallback` listing it as a dependency
+ * is rebuilt on every frame — invalidating the memos below it. Event handlers
+ * ("key this input here", "save this frame", "play from here") want the value
+ * at the moment they fire, so they should call this instead. Only surfaces
+ * that actually display a moving playhead should subscribe.
+ */
+export function getCurrentPlayheadTime(): number {
+  return useAnimationStore.getState().currentTime;
+}
+
 // Helper to evaluate a track at a specific time
 export function evaluateTrack(track: AnimationTrack, time: number): number {
   return sampleTrackAt(track, time);

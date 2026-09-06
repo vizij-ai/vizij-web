@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Copy,
   Film,
@@ -25,7 +26,9 @@ export interface AuthoringTargetItem {
   selected?: boolean;
   meta?: string;
   runtimeState?: AuthoringTargetRuntimeState;
-  runtimeTimeLabel?: string | null;
+  /** A node, not a string: a live clock must subscribe for itself
+   * rather than have its value threaded down through the owner's renders. */
+  runtimeTimeLabel?: ReactNode;
 }
 
 interface AuthoringTargetListProps {

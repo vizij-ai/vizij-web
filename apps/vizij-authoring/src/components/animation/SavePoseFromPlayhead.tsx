@@ -3,6 +3,7 @@ import { Bookmark } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import {
+  getCurrentPlayheadTime,
   useAnimationStore,
   type AnimationTimeDisplayMode,
 } from "../../state/animationStore";
@@ -51,7 +52,6 @@ export function SavePoseFromPlayhead({
 }: SavePoseFromPlayheadProps) {
   const tracks = useAnimationStore((state) => state.tracks);
   const duration = useAnimationStore((state) => state.duration);
-  const currentTime = useAnimationStore((state) => state.currentTime);
 
   const standardInputs = usePoseRigStore((state) => state.standardInputs);
   const currentValues = usePoseRigStore((state) => state.currentValues);
@@ -150,6 +150,9 @@ export function SavePoseFromPlayhead({
   const hasTracks = tracks.length > 0;
 
   const handleOpen = () => {
+    // Read at click time rather than subscribing: this button is not a clock,
+    // and the playhead moves every frame while the animation plays.
+    const currentTime = getCurrentPlayheadTime();
     setCapturedTime(currentTime);
     setName(buildDefaultPoseName(clipName, currentTime, timeDisplayMode));
     setScope("animated");
