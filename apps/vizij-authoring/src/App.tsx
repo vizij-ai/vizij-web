@@ -37,7 +37,7 @@ import {
   type FacePresetAssetOption,
 } from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
-import { nextClipOrdinal } from "./state/animationClipsStore";
+import { nextClipOrdinal } from "./utils/animationClipIds";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import {
   buildCatalogFromInputPaths,
@@ -1086,7 +1086,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setHiddenBundleProceduralTargetIds({});
     setActiveInspectorTarget(null);
     uiActions.setActiveRuntimeSource("none");
-    useAnimationStore.getState().resetAll();
+    useAnimationStore.getState().reset();
     const editorStore = useEditorStore.getState();
     editorStore.clear();
     editorStore.setSelected(null);
