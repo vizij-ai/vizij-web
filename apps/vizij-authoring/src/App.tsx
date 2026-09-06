@@ -998,6 +998,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.advanceTransportSessionKey,
   );
   const stopAnimationTransportState = useAnimationStore((state) => state.stop);
+  const pauseAnimationTransportState = useAnimationStore(
+    (state) => state.pause,
+  );
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
   );
@@ -2997,10 +3000,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       animationRuntimeTransportAdapter?.pauseAnimation(
         AUTHORED_TIMELINE_CLIP_ID,
       );
+      // Write the paused state here rather than waiting to be told, exactly
+      // as Stop does two functions down. The runtime confirms a pause through
+      // the feedback loop, which only runs while frames arrive; relying on
+      // that alone leaves the button reading "Pause" with no way back to Play
+      // whenever the confirmation is slow or never comes. If the engine
+      // turns out to still be playing, the next frame corrects this — a
+      // flicker, against a control that was previously stuck for good.
+      pauseAnimationTransportState();
     },
     [
       activeAnimationRuntimeTargetId,
       animationRuntimeTransportAdapter,
+      pauseAnimationTransportState,
       uiActions,
     ],
   );
