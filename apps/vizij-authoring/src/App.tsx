@@ -1775,6 +1775,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       selectedAnimationTargetId,
     ],
   );
+  // Reads the rendered list rather than `authoredAnimationTargets` so an
+  // imported clip gets its label too.
+  const selectedAnimationClipName = useMemo(
+    () =>
+      authoringAnimationTargets.find((target) => target.selected)?.label ??
+      null,
+    [authoringAnimationTargets],
+  );
   const selectedAuthoredProceduralTarget = useMemo(
     () =>
       authoredProceduralTargets.find(
@@ -5184,6 +5192,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   : undefined
               }
               statusMessage={animationPanelStatusMessage}
+              clipName={selectedAnimationClipName}
             />
           }
           centerPanelDefaultSize={centerPanelDefaultSize}
