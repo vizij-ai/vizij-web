@@ -30,6 +30,7 @@ const animationState = {
 const poseState = {
   standardInputs: [] as { id: string; defaultValue?: number }[],
   currentValues: {} as Record<string, number>,
+  neutralInputs: {} as Record<string, number>,
   createPoseFromValues: vi.fn(
     (_options: {
       name?: string;
@@ -99,6 +100,7 @@ beforeEach(() => {
   animationState.currentTime = 0;
   poseState.standardInputs = [];
   poseState.currentValues = {};
+  poseState.neutralInputs = {};
   poseState.createPoseFromValues.mockClear();
 });
 
@@ -238,6 +240,53 @@ describe("SavePoseFromPlayhead", () => {
   it("cannot save when no track resolves to a known input", () => {
     animationState.tracks = [track("from_other_rig", [{ time: 0, value: 1 }])];
     poseState.standardInputs = [{ id: "jaw_open" }];
+
+    render(<SavePoseFromPlayhead clipName="Wave" />);
+    openDialog();
+
+    expect(confirmButton().disabled).toBe(true);
+  });
+});
+
+describe("SavePoseFromPlayhead at-neutral filtering", () => {
+  it("leaves out animated inputs resting at neutral", () => {
+    animationState.tracks = [
+      track("jaw_open", [{ time: 0, value: 0.25 }]),
+      // Animated, but not displaced at this frame.
+      track("brow_raise", [{ time: 0, value: 0 }]),
+    ];
+    poseState.standardInputs = [
+      { id: "jaw_open", defaultValue: 0 },
+      { id: "brow_raise", defaultValue: 0 },
+    ];
+
+    render(<SavePoseFromPlayhead clipName="Wave" />);
+    openDialog();
+
+    expect(screen.getByTestId("save-pose-neutral-note").textContent).toContain(
+      "1 of 2",
+    );
+
+    fireEvent.click(confirmButton());
+    expect(savedValues()).toEqual({ jaw_open: 0.25 });
+  });
+
+  it("compares against a non-zero neutral from the rig, not zero", () => {
+    animationState.tracks = [track("jaw_open", [{ time: 0, value: 0.5 }])];
+    poseState.standardInputs = [{ id: "jaw_open", defaultValue: 0 }];
+    // The rig's captured neutral wins over the input's declared default.
+    poseState.neutralInputs = { jaw_open: 0.5 };
+
+    render(<SavePoseFromPlayhead clipName="Wave" />);
+    openDialog();
+
+    expect(confirmButton().disabled).toBe(true);
+  });
+
+  it("falls back to the input default when neutral was never captured", () => {
+    animationState.tracks = [track("jaw_open", [{ time: 0, value: 0.2 }])];
+    poseState.standardInputs = [{ id: "jaw_open", defaultValue: 0.2 }];
+    poseState.neutralInputs = {};
 
     render(<SavePoseFromPlayhead clipName="Wave" />);
     openDialog();

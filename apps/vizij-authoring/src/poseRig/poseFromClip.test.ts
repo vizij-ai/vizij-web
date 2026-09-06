@@ -185,3 +185,107 @@ describe("poseFromClipAtTime", () => {
     expect(result.unresolvedChannels).toEqual([]);
   });
 });
+
+describe("poseFromClipAtTime at-neutral filtering", () => {
+  const NEUTRAL = {
+    lids_blink: 0,
+    gaze_left_right: 0,
+    mouth_open: 0,
+  };
+
+  it("leaves out inputs resting at neutral so the pose does not fight blending", () => {
+    const result = poseFromClipAtTime({
+      clip: clip(
+        track("lids_blink", [
+          [0, 0],
+          [2, 1],
+        ]),
+        // Flat at neutral for the whole clip: animated, but not displaced.
+        track("gaze_left_right", [
+          [0, 0],
+          [2, 0],
+        ]),
+      ),
+      time: 2,
+      knownInputIds: KNOWN,
+      neutralValues: NEUTRAL,
+    });
+
+    expect(result.values).toEqual({ lids_blink: 1 });
+    expect(result.neutralInputIds).toEqual(["gaze_left_right"]);
+  });
+
+  it("keeps a non-zero neutral's displaced value and drops the resting one", () => {
+    const result = poseFromClipAtTime({
+      clip: clip(
+        track("lids_blink", [[0, 0.5]]),
+        track("gaze_left_right", [[0, 0.25]]),
+      ),
+      time: 0,
+      knownInputIds: KNOWN,
+      // Neutral is not always zero; the comparison is per input.
+      neutralValues: { ...NEUTRAL, lids_blink: 0.5 },
+    });
+
+    expect(result.values).toEqual({ gaze_left_right: 0.25 });
+    expect(result.neutralInputIds).toEqual(["lids_blink"]);
+  });
+
+  it("drops nothing without neutral values, having no basis to judge", () => {
+    const result = poseFromClipAtTime({
+      clip: clip(track("lids_blink", [[0, 0]])),
+      time: 0,
+      knownInputIds: KNOWN,
+    });
+
+    expect(result.values).toEqual({ lids_blink: 0 });
+    expect(result.neutralInputIds).toEqual([]);
+  });
+
+  it("keeps an input whose neutral is unknown rather than guessing zero", () => {
+    const result = poseFromClipAtTime({
+      clip: clip(track("mouth_open", [[0, 0]])),
+      time: 0,
+      knownInputIds: KNOWN,
+      neutralValues: { lids_blink: 0 },
+    });
+
+    expect(result.values).toEqual({ mouth_open: 0 });
+    expect(result.neutralInputIds).toEqual([]);
+  });
+
+  it('pins at-neutral inputs anyway when scope is "all"', () => {
+    const result = poseFromClipAtTime({
+      clip: clip(track("lids_blink", [[0, 0]])),
+      time: 0,
+      knownInputIds: KNOWN,
+      neutralValues: NEUTRAL,
+      baseValues: { gaze_left_right: 0.4 },
+      scope: "all",
+    });
+
+    expect(result.values).toEqual({ lids_blink: 0, gaze_left_right: 0.4 });
+    expect(result.neutralInputIds).toEqual([]);
+  });
+
+  it("omitting an at-neutral input applies identically to declaring it", () => {
+    // The reason dropping is safe: `PoseSnapshotService.apply` starts from the
+    // neutral values, so an absent input resolves to neutral regardless.
+    const dropped = poseFromClipAtTime({
+      clip: clip(
+        track("lids_blink", [[0, 1]]),
+        track("gaze_left_right", [[0, 0]]),
+      ),
+      time: 0,
+      knownInputIds: KNOWN,
+      neutralValues: NEUTRAL,
+    });
+
+    const applied = { ...NEUTRAL, ...dropped.values };
+    expect(applied).toEqual({
+      lids_blink: 1,
+      gaze_left_right: 0,
+      mouth_open: 0,
+    });
+  });
+});
