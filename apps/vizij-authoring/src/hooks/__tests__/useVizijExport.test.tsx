@@ -2145,6 +2145,17 @@ describe("useVizijExport GLB animation baking", () => {
   }
 
   beforeEach(() => {
+    // Export runs twice when clips bake: once as a throwaway probe that hands
+    // back the GLB via `onBinary` so the baked animations can be fingerprinted,
+    // then once for real. The probe must resolve or the export never finishes.
+    mockedExportScene.mockImplementation(((
+      _root: unknown,
+      opts: { onBinary?: (glb: ArrayBuffer) => void } | string | undefined,
+    ) => {
+      if (opts && typeof opts === "object" && opts.onBinary) {
+        opts.onBinary(new ArrayBuffer(0));
+      }
+    }) as never);
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: rigSpecWithOutput(),
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
@@ -2163,8 +2174,8 @@ describe("useVizijExport GLB animation baking", () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    const payload = mockedExportScene.mock.calls[0]?.[1] as {
+    // The last call is the real export; earlier ones are fingerprint probes.
+    const payload = mockedExportScene.mock.calls.at(-1)?.[1] as {
       animations?: Array<{ name: string; tracks: Array<{ name: string }> }>;
     };
     expect(payload.animations).toHaveLength(1);
@@ -2214,8 +2225,7 @@ describe("useVizijExport GLB animation baking", () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    const payload = mockedExportScene.mock.calls[0]?.[1] as {
+    const payload = mockedExportScene.mock.calls.at(-1)?.[1] as {
       animations?: Array<{ name: string }>;
     };
     expect(payload.animations).toHaveLength(1);
@@ -2229,8 +2239,7 @@ describe("useVizijExport GLB animation baking", () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    const payload = mockedExportScene.mock.calls[0]?.[1] as {
+    const payload = mockedExportScene.mock.calls.at(-1)?.[1] as {
       animations?: unknown[];
     };
     expect(payload.animations).toEqual([]);

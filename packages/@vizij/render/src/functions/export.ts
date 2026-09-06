@@ -13,6 +13,16 @@ export type ExportSceneOptions = {
   binary?: boolean;
   onError?: (error: Error) => void;
   onComplete?: () => void;
+  /**
+   * Receives the finished GLB instead of it being downloaded.
+   *
+   * Exists so a caller can inspect what was actually written before writing
+   * the real file — notably to fingerprint the baked animation channels, which
+   * cannot be predicted from the input: `GLTFExporter` merges morph tracks
+   * into one `weights` channel per mesh, and every value round-trips through
+   * float32. When present, no download is triggered.
+   */
+  onBinary?: (glb: ArrayBuffer) => void;
 };
 
 function normalizeExportError(error: unknown): Error {
@@ -341,6 +351,11 @@ export function exportScene(
           gltf,
           data.name?.trim() || undefined,
         );
+        if (options.onBinary) {
+          options.onBinary(sanitizedGltf);
+          options.onComplete?.();
+          return;
+        }
         const trimmed = fileName.trim();
         const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";
         const downloadName = safeFileName.toLowerCase().endsWith(".glb")
