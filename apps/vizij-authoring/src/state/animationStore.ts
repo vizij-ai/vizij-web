@@ -11,8 +11,8 @@ import {
 } from "../types/animationClipIr";
 import {
   compileAnimationClipIr,
-  evaluateAnimationTrackAtTime,
 } from "../utils/animationClipCompiler";
+import { sampleTrackAt } from "../utils/sampleAnimationTrack";
 import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
 import {
   addClipEntry,
@@ -1199,5 +1199,5 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
 
 // Helper to evaluate a track at a specific time
 export function evaluateTrack(track: AnimationTrack, time: number): number {
-  return evaluateAnimationTrackAtTime(track, time);
+  return sampleTrackAt(track, time);
 }

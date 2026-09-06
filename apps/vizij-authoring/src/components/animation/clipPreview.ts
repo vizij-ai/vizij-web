@@ -1,4 +1,4 @@
-import { evaluateAnimationTrackAtTime } from "../../utils/animationClipCompiler";
+import { sampleTrackAt } from "../../utils/sampleAnimationTrack";
 import type { AnimationTrack } from "../../state/animationStore";
 
 /**
@@ -28,7 +28,7 @@ export function clipInputValuesAtTime(
     if (!inputId) {
       continue;
     }
-    const value = evaluateAnimationTrackAtTime(track, time);
+    const value = sampleTrackAt(track, time);
     if (Number.isFinite(value)) {
       values[inputId] = value;
     }
