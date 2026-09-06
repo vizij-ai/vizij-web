@@ -174,14 +174,24 @@ export function AnimationPanel({
     }
   };
 
-  // Always through the transport, never the bare store setter. `seekTransport`
-  // already handles both cases — it drives the runtime when it can and falls
-  // back to updating the store when it cannot — whereas writing only the store
-  // left the engine's clock where it was, and the runtime feedback loop then
-  // restored the old time the moment the drag ended. The playhead moved during
-  // the drag and snapped back on release.
+  // Who owns the clock depends on whether the engine is running it.
+  //
+  // Active (playing or paused): the engine owns it, so the seek must go
+  // through the transport or the feedback loop will report the old time back.
+  //
+  // Stopped: the host owns it. Routing through the transport there was worse
+  // than it looked — `seekTransport` starts the clip and immediately pauses it
+  // to make the seek land, which left the engine parked such that the next
+  // Play reported `playing` while its clock never advanced. Measured: playback
+  // advances from a fresh load and does not after a scrub. The store write
+  // plus the face preview below is the whole job while stopped; the feedback
+  // loop is inactive then, so there is nothing to contradict it.
   const handleSeek = (timeSeconds: number) => {
-    transport.seek(timeSeconds);
+    if (runtimeTransportBound) {
+      transport.seek(timeSeconds);
+    } else {
+      seek(timeSeconds);
+    }
     previewClipAt(timeSeconds);
   };
   const handleTimelinePause = runtimeTransportBound
