@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextClipOrdinal } from "../state/animationClipsStore";
+import { nextClipOrdinal } from "../utils/animationClipIds";
 
 /**
  * A new authored clip must never reuse a clip id an imported clip already
