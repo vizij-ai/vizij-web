@@ -1379,6 +1379,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [bundleProceduralSnapshotOverrides, resolveImportedProceduralBaseSnapshot],
   );
+  // The pending flag makes the transport read as "playing" from the moment
+  // Play is pressed, so the button does not flicker while the engine starts.
+  // It was only ever cleared by a synchronous `getAnimationState` issued
+  // immediately after `playAnimation`, which returns null because the engine
+  // has not registered the clip yet — so it stayed set for the whole session
+  // and pinned the transport to "playing". Pause could never flip the button,
+  // because the button was not reading the transport at all.
+  //
+  // Clear it when the engine confirms instead: that is the event the flag was
+  // always standing in for.
+  useEffect(() => {
+    if (
+      pendingAnimationRuntimePlayTargetId &&
+      animationPlaybackState === "playing"
+    ) {
+      setPendingAnimationRuntimePlayTargetId(null);
+    }
+  }, [animationPlaybackState, pendingAnimationRuntimePlayTargetId]);
+
   const effectiveAnimationRuntimePlaybackState: RuntimePlaybackState =
     activeAnimationRuntimeTargetId
       ? pendingAnimationRuntimePlayTargetId === activeAnimationRuntimeTargetId
