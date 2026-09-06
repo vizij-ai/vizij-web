@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   type AnimationTimeDisplayMode,
   type AnimationTrack,
@@ -32,8 +33,17 @@ export function TrackRow({
   const [draggingKeyframeId, setDraggingKeyframeId] = useState<string | null>(
     null,
   );
+  // One row per track, so a whole-store subscription here re-rendered every
+  // row on every playhead tick.
   const { selectKeyframe, selectedKeyframeId, selectTrack, selectedTrackId } =
-    useAnimationStore();
+    useAnimationStore(
+      useShallow((state) => ({
+        selectKeyframe: state.selectKeyframe,
+        selectedKeyframeId: state.selectedKeyframeId,
+        selectTrack: state.selectTrack,
+        selectedTrackId: state.selectedTrackId,
+      })),
+    );
   const updateKeyframe = useAnimationStore((state) => state.updateKeyframe);
 
   const resolveTimeFromClientX = useCallback(

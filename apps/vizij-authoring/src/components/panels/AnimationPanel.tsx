@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   Pause,
   Play,
@@ -117,6 +118,9 @@ export function AnimationPanel({
   statusMessage = null,
   clipName = null,
 }: AnimationPanelProps) {
+  // Selected, not the whole store — see the note in `TimelineEditor`. This
+  // component in particular amplified two render loops today, because it
+  // re-rendered on every store change and its handlers feed effects elsewhere.
   const {
     isPlaying,
     currentTime,
@@ -132,7 +136,24 @@ export function AnimationPanel({
     selectedTrackId,
     timeDisplayMode,
     setTimeDisplayMode,
-  } = useAnimationStore();
+  } = useAnimationStore(
+    useShallow((state) => ({
+      isPlaying: state.isPlaying,
+      currentTime: state.currentTime,
+      duration: state.duration,
+      loop: state.loop,
+      playSpeed: state.playSpeed,
+      seek: state.seek,
+      setLoop: state.setLoop,
+      setPlaySpeed: state.setPlaySpeed,
+      tracks: state.tracks,
+      addTrack: state.addTrack,
+      removeTrack: state.removeTrack,
+      selectedTrackId: state.selectedTrackId,
+      timeDisplayMode: state.timeDisplayMode,
+      setTimeDisplayMode: state.setTimeDisplayMode,
+    })),
+  );
   const transport = useAnimationTransport();
   const hasExternalTransportControls =
     playbackState !== undefined ||

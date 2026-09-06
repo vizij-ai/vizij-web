@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Plus } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import {
   evaluateTrack,
   useAnimationStore,
@@ -62,6 +63,10 @@ export function TimelineEditor({
   onTogglePlay,
   onStep,
 }: TimelineEditorProps) {
+  // Selected, not the whole store. A bare `useAnimationStore()` re-renders on
+  // every change — during playback that is every frame — which rebuilds every
+  // handler here and, twice today, fed a render loop through an effect that
+  // wrote back to the store.
   const {
     tracks,
     duration,
@@ -72,7 +77,19 @@ export function TimelineEditor({
     selectedTrackId,
     selectTrack,
     selectKeyframe,
-  } = useAnimationStore();
+  } = useAnimationStore(
+    useShallow((state) => ({
+      tracks: state.tracks,
+      duration: state.duration,
+      currentTime: state.currentTime,
+      transportPlaybackState: state.transportPlaybackState,
+      seek: state.seek,
+      addKeyframe: state.addKeyframe,
+      selectedTrackId: state.selectedTrackId,
+      selectTrack: state.selectTrack,
+      selectKeyframe: state.selectKeyframe,
+    })),
+  );
 
   // Held as text while focused so a partial entry ("1." , "-") is not fought
   // by a reformat on every keystroke; committed on Enter or blur.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { VizijAnimationAsset } from "@vizij/runtime-react";
 import { useOptionalVizijRuntime, useVizijRuntime } from "@vizij/runtime-react";
 import { useBindingAuthoring } from "../state/RigControllerProvider";
@@ -535,6 +536,9 @@ export function useAnimationTransport() {
     (state) => state.runtimeTransportAdapter,
   );
   const transportEnabled = useAnimationStore((state) => state.transportEnabled);
+  // Selected rather than the whole store: every consumer of this hook would
+  // otherwise re-render on any store change, including clip edits it does not
+  // care about.
   const {
     tracks,
     currentTime,
@@ -548,7 +552,22 @@ export function useAnimationTransport() {
     setLoop,
     setPlaySpeed,
     syncTransportState,
-  } = useAnimationStore();
+  } = useAnimationStore(
+    useShallow((state) => ({
+      tracks: state.tracks,
+      currentTime: state.currentTime,
+      isPlaying: state.isPlaying,
+      transportPlaybackState: state.transportPlaybackState,
+      playSpeed: state.playSpeed,
+      loop: state.loop,
+      play: state.play,
+      pause: state.pause,
+      stop: state.stop,
+      setLoop: state.setLoop,
+      setPlaySpeed: state.setPlaySpeed,
+      syncTransportState: state.syncTransportState,
+    })),
+  );
 
   const runtimeTransport = runtime ?? runtimeTransportAdapter;
   const hasTracks = tracks.length > 0;

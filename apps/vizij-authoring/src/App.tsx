@@ -3018,6 +3018,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return;
       }
       uiActions.setActiveRuntimeSource("animation");
+      // Pressing pause ends the optimistic "playing" override, whatever the
+      // engine has reported. The flag bridges the gap between pressing Play
+      // and the engine confirming; once the author asks for pause that gap is
+      // moot, and leaving it set pinned the button to Pause forever whenever
+      // the confirmation never arrived.
+      setPendingAnimationRuntimePlayTargetId(null);
       animationRuntimeTransportAdapter?.pauseAnimation(
         AUTHORED_TIMELINE_CLIP_ID,
       );
