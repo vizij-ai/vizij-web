@@ -997,7 +997,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     (state) => state.customInputPaths,
   );
 
-  const { alert: showAlert } = useDialogQueue();
+  const { alert: showAlert, confirm: showConfirm } = useDialogQueue();
 
   useEffect(() => {
     uiActions.setIncludeVizijBundle(true);
@@ -2290,6 +2290,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [
     animationDuration,
     authoredAnimationTargets,
+    // Allocates the next clip id against this; a stale copy hands the new clip
+    // an id an existing one already owns.
+    reservedAnimationClipIds,
     saveAnimationTarget,
     selectedAnimationTargetId,
   ]);
@@ -2361,6 +2364,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
+      // See above: the clip id is allocated from this.
+      reservedAnimationClipIds,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
       setWorkspacePanelVisibility,
@@ -2493,18 +2498,45 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         inputsById: mainFaceInputsById,
       });
       if (rangeFit.adjustments.length > 0) {
-        rangeFit.adjustments.forEach((adjustment) => {
-          handleUpdateStandardInput(adjustment.inputId, {
-            range: { min: adjustment.next.min, max: adjustment.next.max },
-          });
-        });
-        summaryLines.push(
-          "",
-          `Widened ${rangeFit.adjustments.length} input range(s) so the imported curves are not clamped:`,
-          ...rangeFit.adjustments.map(
-            (adjustment) => `• ${describeRangeAdjustment(adjustment)}`,
-          ),
+        // Ask first. Widening edits the *rig*, not the clip, and that edit is
+        // permanent, unprompted and exported back into `RobotData` — so one
+        // noisy external animation could quietly redefine the character's
+        // limits. Clamping is the lesser default only because it is
+        // recoverable: the clip keeps its values, and the range can be widened
+        // later by hand.
+        const detail = rangeFit.adjustments
+          .map((adjustment) => `• ${describeRangeAdjustment(adjustment)}`)
+          .join("\n");
+        const widen = await showConfirm(
+          `${rangeFit.adjustments.length} imported curve(s) go beyond this rig's input ranges, ` +
+            "and the rig graph clamps each channel to its range — so the motion will be " +
+            "flattened unless the ranges are widened.\n\n" +
+            `${detail}\n\n` +
+            "Widen the rig's input ranges to fit? This changes the rig itself and is saved with it.",
         );
+        if (widen) {
+          rangeFit.adjustments.forEach((adjustment) => {
+            handleUpdateStandardInput(adjustment.inputId, {
+              range: { min: adjustment.next.min, max: adjustment.next.max },
+            });
+          });
+          summaryLines.push(
+            "",
+            `Widened ${rangeFit.adjustments.length} input range(s) so the imported curves are not clamped:`,
+            ...rangeFit.adjustments.map(
+              (adjustment) => `• ${describeRangeAdjustment(adjustment)}`,
+            ),
+          );
+        } else {
+          summaryLines.push(
+            "",
+            `Left ${rangeFit.adjustments.length} input range(s) unchanged, so these curves will be clamped on playback:`,
+            ...rangeFit.adjustments.map(
+              (adjustment) => `• ${describeRangeAdjustment(adjustment)}`,
+            ),
+            "The keyframes are imported as authored; widen the ranges in Inputs to hear them in full.",
+          );
+        }
       }
 
       const nextTargets = fresh.map((clip) => ({
@@ -2538,10 +2570,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       showAlert,
+      showConfirm,
       authoredAnimationTargets,
       handleUpdateStandardInput,
       loadedBundle?.metadata,
       mainFaceInputsById,
+      // Was missing: the import allocates clip ids against this, so a stale
+      // copy hands a new clip an id an existing one already owns — the
+      // collision that lets one clip's tracks overwrite another's.
+      reservedAnimationClipIds,
       setActiveAuthoringSurface,
       setWorkspacePanelVisibility,
     ],
