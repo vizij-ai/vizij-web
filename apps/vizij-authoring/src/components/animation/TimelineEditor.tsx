@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
+  evaluateTrack,
   useAnimationStore,
   type AnimationTimeDisplayMode,
 } from "../../state/animationStore";
@@ -105,9 +106,16 @@ export function TimelineEditor({
     if (!selectedTrack) {
       return;
     }
-    const defaultValue =
-      standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0;
-    addKeyframe(selectedTrackId, t, defaultValue);
+    // Insert is value-preserving: the new key takes the curve's value at that
+    // time, so adding a key never changes the motion. Writing the input's
+    // default instead put a step into every curve that was not already resting
+    // there — inserting into a translation curve snapped the face.
+    // Only an empty track has no curve to read, and then the default is right.
+    const value =
+      selectedTrack.keyframes.length > 0
+        ? evaluateTrack(selectedTrack, t)
+        : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0);
+    addKeyframe(selectedTrackId, t, value);
   };
 
   const handleRulerPointerMove = useCallback(
