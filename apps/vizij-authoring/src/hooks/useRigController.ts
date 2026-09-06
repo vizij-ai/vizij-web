@@ -1667,8 +1667,25 @@ export function useRigController(
           nextLockedInputIds.add(resolveRuntimeInputId(normalizedTrackId));
         });
       }
+      const previousLockedInputIds = timelineLockedInputIdsRef.current;
       timelineLockedInputIdsRef.current = nextLockedInputIds;
       timelineInputLockActiveRef.current = timelineDriving;
+
+      // This runs on *every* animation-store change, which during playback is
+      // every frame. Writing an unconditional new Set notified every binding
+      // subscriber each time, re-rendering panels that in turn write back to
+      // the animation store — the loop React reported as "Maximum update depth
+      // exceeded". The locks only actually change when playback starts or
+      // stops, or when the track set does.
+      const unchanged =
+        bindingAuthoringStore.getState().timelineInputLockActive ===
+          timelineDriving &&
+        previousLockedInputIds.size === nextLockedInputIds.size &&
+        [...nextLockedInputIds].every((id) => previousLockedInputIds.has(id));
+      if (unchanged) {
+        return;
+      }
+
       bindingAuthoringStore.setState({
         timelineInputLockActive: timelineDriving,
         timelineLockedInputIds: nextLockedInputIds,

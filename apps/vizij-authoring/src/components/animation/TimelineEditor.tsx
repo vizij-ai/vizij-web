@@ -228,11 +228,16 @@ export function TimelineEditor({
 
   useEffect(
     () => () => {
+      const wasScrubbing = isScrubbingRulerRef.current;
       isScrubbingRulerRef.current = false;
       scrubStartClientXRef.current = null;
       pausedForScrubRef.current = false;
-      // Unmounting mid-drag must not leave the feedback loop deferred forever.
-      setScrubbing(false);
+      // Only when a drag was actually in flight. This cleanup re-runs whenever
+      // its dependencies change, which during playback is every frame, and an
+      // unconditional release wrote to the store on each one.
+      if (wasScrubbing) {
+        setScrubbing(false);
+      }
       window.removeEventListener("pointermove", handleRulerPointerMove);
       window.removeEventListener("pointerup", stopRulerScrub);
       window.removeEventListener("pointercancel", stopRulerScrub);

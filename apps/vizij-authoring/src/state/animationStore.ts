@@ -853,7 +853,17 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
    * App state, `...INITIAL_STATE` would do exactly that, since it carries an
    * empty clip set. Full teardown is `resetAll`.
    */
-  setScrubbing: (scrubbing) => set({ isScrubbing: scrubbing }),
+  setScrubbing: (scrubbing) =>
+    set((state) =>
+      // Idempotent on purpose. `set` always produces a new state object, so an
+      // unconditional write notifies every subscriber — and `AnimationPanel`
+      // subscribes to the whole store, so a redundant write re-renders it,
+      // which re-creates the handlers whose identity a cleanup depends on,
+      // which writes again. That loop froze the app during playback.
+      state.isScrubbing === scrubbing
+        ? state
+        : { ...state, isScrubbing: scrubbing },
+    ),
 
   reset: () =>
     set((state) => {
