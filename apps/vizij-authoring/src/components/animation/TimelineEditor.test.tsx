@@ -33,6 +33,7 @@ const state = {
   seek: vi.fn(),
   addKeyframe: vi.fn(),
   updateKeyframe: vi.fn(),
+  removeKeyframe: vi.fn(),
 };
 
 vi.mock("../../state/animationStore", async () => {
@@ -70,6 +71,7 @@ beforeEach(() => {
   state.seek.mockClear();
   state.addKeyframe.mockClear();
   state.updateKeyframe.mockClear();
+  state.removeKeyframe.mockClear();
 });
 
 // Auto-cleanup only runs with Vitest globals enabled, and this project does
@@ -272,5 +274,74 @@ describe("TimelineEditor toolbar", () => {
     expect(
       screen.getByRole("button", { name: "Save Frame as Pose" }),
     ).toBeTruthy();
+  });
+});
+
+describe("TimelineEditor keyboard shortcuts", () => {
+  function press(key: string, target?: Element) {
+    fireEvent.keyDown(target ?? document.body, { key });
+  }
+
+  it("toggles playback on Space", () => {
+    const onTogglePlay = vi.fn();
+    render(<TimelineEditor onTogglePlay={onTogglePlay} />);
+    press(" ");
+    expect(onTogglePlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("steps a frame each way on the arrow keys", () => {
+    const onStep = vi.fn();
+    render(<TimelineEditor onStep={onStep} />);
+    press("ArrowRight");
+    press("ArrowLeft");
+    expect(onStep.mock.calls.map(([direction]) => direction)).toEqual([1, -1]);
+  });
+
+  it("deletes the selected keyframe", () => {
+    state.selectedTrackId = "track-1";
+    state.selectedKeyframeId = "kf-1";
+    render(<TimelineEditor />);
+    press("Delete");
+    expect(state.removeKeyframe).toHaveBeenCalledWith("track-1", "kf-1");
+  });
+
+  it("does nothing on Delete with no keyframe selected", () => {
+    state.selectedTrackId = "track-1";
+    state.selectedKeyframeId = null;
+    render(<TimelineEditor />);
+    press("Delete");
+    expect(state.removeKeyframe).not.toHaveBeenCalled();
+  });
+
+  it("jumps to the ends on Home and End", () => {
+    state.duration = 4;
+    render(<TimelineEditor />);
+    press("Home");
+    press("End");
+    expect(state.seek.mock.calls.map(([time]) => time)).toEqual([0, 4]);
+  });
+
+  it("leaves keys alone while a field has focus", () => {
+    // The toolbar's own time field is the obvious way to break this: typing a
+    // time must not scrub, and Delete must not remove a keyframe.
+    const onTogglePlay = vi.fn();
+    state.selectedTrackId = "track-1";
+    state.selectedKeyframeId = "kf-1";
+    render(<TimelineEditor onTogglePlay={onTogglePlay} />);
+
+    const field = screen.getByTestId("timeline-current-time");
+    press(" ", field);
+    press("Delete", field);
+
+    expect(onTogglePlay).not.toHaveBeenCalled();
+    expect(state.removeKeyframe).not.toHaveBeenCalled();
+  });
+
+  it("stops listening once unmounted", () => {
+    const onTogglePlay = vi.fn();
+    const view = render(<TimelineEditor onTogglePlay={onTogglePlay} />);
+    view.unmount();
+    press(" ");
+    expect(onTogglePlay).not.toHaveBeenCalled();
   });
 });

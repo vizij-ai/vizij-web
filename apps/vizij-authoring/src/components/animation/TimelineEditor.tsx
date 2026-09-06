@@ -20,6 +20,10 @@ import {
   snapTimeToFrame,
 } from "../../utils/animationTimeDisplay";
 import { Button } from "../ui/Button";
+import {
+  resolveTimelineShortcut,
+  shouldIgnoreTimelineShortcut,
+} from "./timelineShortcuts";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
@@ -40,6 +44,10 @@ interface TimelineEditorProps {
    * in directly would make every timeline test stand up a pose rig.
    */
   playheadActions?: ReactNode;
+  /** Space. Omitted when no transport is bound, which disables the shortcut. */
+  onTogglePlay?: () => void;
+  /** Left/right arrow, in frames. */
+  onStep?: (direction: -1 | 1) => void;
 }
 
 const TRACK_HEADER_WIDTH = 192;
@@ -51,6 +59,8 @@ export function TimelineEditor({
   timeDisplayMode = "seconds",
   onInspectTrack,
   playheadActions,
+  onTogglePlay,
+  onStep,
 }: TimelineEditorProps) {
   const {
     tracks,
@@ -236,6 +246,70 @@ export function TimelineEditor({
     }
     seekTo(Math.min(snapTimeToFrame(parsed, timeDisplayMode), duration));
   }, [duration, seekTo, timeDisplayMode, timeDraft]);
+
+  const removeKeyframe = useAnimationStore((state) => state.removeKeyframe);
+  const selectedKeyframeId = useAnimationStore(
+    (state) => state.selectedKeyframeId,
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (shouldIgnoreTimelineShortcut(event)) {
+        return;
+      }
+      const shortcut = resolveTimelineShortcut(event.key);
+      if (!shortcut) {
+        return;
+      }
+
+      switch (shortcut.kind) {
+        case "toggle-play": {
+          if (!onTogglePlay) {
+            return;
+          }
+          onTogglePlay();
+          break;
+        }
+        case "step": {
+          if (!onStep) {
+            return;
+          }
+          onStep(shortcut.direction);
+          break;
+        }
+        case "delete-keyframe": {
+          if (!selectedTrackId || !selectedKeyframeId) {
+            return;
+          }
+          removeKeyframe(selectedTrackId, selectedKeyframeId);
+          break;
+        }
+        case "go-to-start": {
+          seekTo(0);
+          break;
+        }
+        case "go-to-end": {
+          seekTo(duration);
+          break;
+        }
+      }
+      // Only once the shortcut is handled: Space would otherwise scroll the
+      // page and Backspace could navigate back, and claiming those before
+      // knowing we act on them would break the rest of the app.
+      event.preventDefault();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    duration,
+    onStep,
+    onTogglePlay,
+    removeKeyframe,
+    seekTo,
+    selectedKeyframeId,
+    selectedTrackId,
+  ]);
 
   const rulerTicks = useMemo(() => {
     const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;

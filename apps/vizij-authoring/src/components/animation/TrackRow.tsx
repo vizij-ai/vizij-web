@@ -133,6 +133,15 @@ export function TrackRow({
   };
 
   const isSelected = selectedTrackId === track.id;
+  // A detached track's input is not on this face, so it plays nothing, bakes
+  // to nothing and is left out of the export — while looking exactly like a
+  // working track. Its keyframes are kept deliberately, so it must read as
+  // retained-but-inert rather than either normal or missing.
+  const isDetached = track.detached === true;
+  const detachedReason =
+    `${track.label} is detached: this face has no input at ${track.channel}, ` +
+    "so the track does not play and is left out of the bake. Its keyframes " +
+    "are kept and will reattach if the input comes back.";
 
   return (
     <div
@@ -141,9 +150,13 @@ export function TrackRow({
         isSelected
           ? "border-accent/50 bg-bg-secondary/30"
           : "border-border-default/50",
+        isDetached && "border-dashed border-amber-500/50 opacity-60",
       )}
       onClick={handleTrackClick}
       ref={containerRef}
+      {...(isDetached
+        ? { title: detachedReason, "data-detached": "true" }
+        : {})}
     >
       {/* Label / Header */}
       <div className="absolute inset-y-0 left-0 w-48 bg-bg-panel/85 border-r border-border-default/80 z-10 flex items-center px-3">
@@ -156,7 +169,18 @@ export function TrackRow({
             {track.label}
           </div>
           <div className="text-[9px] text-text-muted truncate">
-            {track.interpolation} · {track.keyframes.length} keys
+            {isDetached ? (
+              <span
+                className="text-amber-400/90"
+                data-testid={`track-detached-${track.id}`}
+              >
+                Detached · {track.keyframes.length} keys kept
+              </span>
+            ) : (
+              <>
+                {track.interpolation} · {track.keyframes.length} keys
+              </>
+            )}
           </div>
         </div>
       </div>

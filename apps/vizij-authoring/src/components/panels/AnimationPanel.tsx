@@ -9,7 +9,10 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { ANIMATION_STEP_SECONDS } from "../../hooks/animationStepMath";
+import {
+  ANIMATION_STEP_SECONDS,
+  nextStepTime,
+} from "../../hooks/animationStepMath";
 import { ANIMATION_TIMELINE_FPS } from "../../utils/animationTimeDisplay";
 import type { ManagedStandardInput } from "../../types/standardInputs";
 import { Panel } from "../ui/Panel";
@@ -153,13 +156,29 @@ export function AnimationPanel({
   const handleTimelinePause = runtimeTransportBound
     ? transport.pause
     : undefined;
-  const handleStep = runtimeTransportBound ? () => transport.step() : undefined;
   // A backward step is a negative delta. `nextStepTime` clamps the *result* to
   // the clip rather than clamping the delta, which is what made the control
   // forward-only.
-  const handleStepBack = runtimeTransportBound
-    ? () => transport.step(-ANIMATION_STEP_SECONDS)
-    : undefined;
+  //
+  // Falls back to a plain seek when the runtime transport is not bound, which
+  // is the case whenever playback is stopped — so stepping used to be dead
+  // exactly when an author most wants it: parked on a frame, nudging one at a
+  // time. Same clamped arithmetic either way.
+  const stepBy = (deltaSeconds: number) => {
+    if (runtimeTransportBound) {
+      transport.step(deltaSeconds);
+      return;
+    }
+    seek(
+      nextStepTime({
+        baseTime: currentTime,
+        deltaSeconds,
+        durationSeconds: duration,
+      }),
+    );
+  };
+  const handleStep = () => stepBy(ANIMATION_STEP_SECONDS);
+  const handleStepBack = () => stepBy(-ANIMATION_STEP_SECONDS);
   const handleToggleLoop = () => {
     if (runtimeTransportBound) {
       transport.setLoop(!loop);
@@ -335,7 +354,6 @@ export function AnimationPanel({
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
               onClick={handleStepBack}
-              disabled={!handleStepBack}
               title="Step back one frame"
               aria-label="Step back one frame"
             >
@@ -369,7 +387,6 @@ export function AnimationPanel({
               size="sm"
               className="h-6 w-6 p-0 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
               onClick={handleStep}
-              disabled={!handleStep}
               title="Step forward one frame"
               aria-label="Step forward one frame"
             >
@@ -473,6 +490,14 @@ export function AnimationPanel({
           onResume={handlePlay}
           timeDisplayMode={timeDisplayMode}
           onInspectTrack={onInspectTrack}
+          onTogglePlay={
+            effectivePlaybackState === "playing"
+              ? handlePause
+              : (handlePlay ?? undefined)
+          }
+          onStep={(direction) =>
+            direction === 1 ? handleStep() : handleStepBack()
+          }
           playheadActions={
             <SavePoseFromPlayhead
               clipName={clipName}
