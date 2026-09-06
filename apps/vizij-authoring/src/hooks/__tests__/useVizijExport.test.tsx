@@ -110,10 +110,12 @@ vi.mock("@vizij/runtime", () => ({
         Object.fromEntries(
           paths.map((path) => [
             path,
-            // A joined vector, as the rig graph actually writes.
-            path === BAKE_ANIMATABLE_ID
-              ? { vec3: { x: 0, y: output, z: 0 } }
-              : null,
+            // A joined vector, in the shape the runtime actually returns.
+            // Verified against a real device: `readValues` gives
+            // `{ f32s: [x, y, z] }`, not the `{ vec3: { x, y, z } }` this
+            // mock used to claim — which no runtime ever emitted, so the
+            // mock was asserting against a fiction.
+            path === BAKE_ANIMATABLE_ID ? { f32s: [0, output, 0] } : null,
           ]),
         ),
       dispose: () => {},

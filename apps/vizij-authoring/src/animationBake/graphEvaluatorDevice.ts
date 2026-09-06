@@ -1,6 +1,9 @@
 import { startRuntime, type Runtime } from "@vizij/runtime";
+import { valueAsNumber, valueAsVector } from "@vizij/value-json";
 import type { GraphSpec } from "@vizij/node-graph";
 import type { GraphEvaluator } from "./sampleClipThroughGraph";
+
+const COMPONENT_KEYS = ["x", "y", "z", "w"] as const;
 
 /**
  * A `GraphEvaluator` backed by a real device, for baking.
@@ -23,10 +26,6 @@ export interface DeviceGraphEvaluator extends GraphEvaluator {
   dispose(): void;
 }
 
-const SCALAR_KEYS = ["float", "f32", "f64"] as const;
-const VECTOR_KEYS = ["vec3", "vec2", "vec4", "vector", "quat"] as const;
-const COMPONENT_KEYS = ["x", "y", "z", "w"] as const;
-
 /**
  * Decode a store value into an ordered component list.
  *
@@ -34,43 +33,46 @@ const COMPONENT_KEYS = ["x", "y", "z", "w"] as const;
  * scalar-only decode returns null for every vector feature — which is
  * indistinguishable from a graph that never ran, and is exactly why the first
  * version of this baked nothing.
+ *
+ * Delegates to `@vizij/value-json`, which owns the encoding. The hand-rolled
+ * version this replaces dropped non-numeric entries *without preserving
+ * position*, so `{ x: 1, z: 3 }` decoded to `[1, 3]` and the consumer — which
+ * indexes positionally — wrote z's value into the y channel.
  */
-function componentsFrom(raw: unknown): number[] | null {
+export function componentsFrom(raw: unknown): number[] | null {
   if (typeof raw === "number") {
     return [raw];
   }
-  if (!raw || typeof raw !== "object") {
+  if (raw === null || raw === undefined) {
     return null;
   }
-  if (Array.isArray(raw)) {
-    const values = raw.filter(
-      (entry): entry is number => typeof entry === "number",
-    );
-    return values.length > 0 ? values : null;
+
+  const asValueJson = raw as Parameters<typeof valueAsVector>[0];
+  const vector = valueAsVector(asValueJson);
+  if (vector && vector.length > 0) {
+    return vector;
+  }
+  const scalar = valueAsNumber(asValueJson);
+  if (scalar !== undefined) {
+    return [scalar];
+  }
+
+  if (typeof raw !== "object") {
+    return null;
   }
   const record = raw as Record<string, unknown>;
 
-  for (const key of SCALAR_KEYS) {
-    const value = record[key];
-    if (typeof value === "number") {
-      return [value];
-    }
-  }
-  for (const key of VECTOR_KEYS) {
-    const nested = record[key];
-    if (nested !== undefined) {
-      const decoded = componentsFrom(nested);
-      if (decoded) {
-        return decoded;
-      }
-    }
-  }
-  // Component-keyed object, e.g. { x, y, z }.
-  const byComponent = COMPONENT_KEYS.map((key) => record[key]).filter(
-    (value): value is number => typeof value === "number",
+  // Component-keyed object, e.g. { x, y, z }. Not part of the ValueJSON
+  // surface, so it stays here — but a missing component now reads as 0 rather
+  // than silently shifting every later component down one slot.
+  const present = COMPONENT_KEYS.filter(
+    (key) => typeof record[key] === "number",
   );
-  if (byComponent.length > 0) {
-    return byComponent;
+  if (present.length > 0) {
+    const highest = COMPONENT_KEYS.indexOf(present[present.length - 1]!);
+    return COMPONENT_KEYS.slice(0, highest + 1).map((key) =>
+      typeof record[key] === "number" ? (record[key] as number) : 0,
+    );
   }
   // A single-field wrapper, e.g. { value: 0.5 }.
   const value = record.value;
