@@ -27,6 +27,7 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
+import { downloadGlbBuffer, patchVizijBundleMetadata } from "@vizij/render";
 import { readGltfAnimationDocument } from "../animationImport/gltfAnimationDocument";
 import { gltfAnimationFingerprint } from "../animationImport/bakedAnimationProvenance";
 import {
@@ -1084,6 +1085,11 @@ export function useVizijExport(
       // evaluates the exported graph over time and records what it writes —
       // see `animationBake/sampleClipThroughGraph.ts`.
       let bakedAnimations: unknown[] = [];
+      // Which clip each baked animation came from, in export order. The
+      // fingerprint cannot be known until the GLB exists, so the records are
+      // written now and amended in the finished file rather than exporting
+      // twice to learn them.
+      let bakedClipOrder: Array<{ clipId: string; clipName: string }> = [];
       const bakeSources = collectBakeGraphSources(bundle);
       // Every animation the user can see, not just the authored ones.
       //
@@ -1155,49 +1161,19 @@ export function useVizijExport(
             // import takes names from the file), and a name-keyed map silently
             // kept only the last — reopening the two-clips-out-three-back bug
             // this record exists to prevent.
-            const bakedOrder = bakeResult.report.outcomes
+            bakedClipOrder = bakeResult.report.outcomes
               .filter((outcome) => outcome.clip)
               .map((outcome) => ({
                 clipId: outcome.clipId,
                 clipName: outcome.clipName,
               }));
-            let fingerprintByIndex = new Map<number, string>();
-            try {
-              const probeGlb = await new Promise<ArrayBuffer>(
-                (resolve, reject) => {
-                  exportScene(exportableBodies[0], {
-                    fileName: downloadName,
-                    animations: bakedAnimations as never,
-                    onBinary: resolve,
-                    onError: reject,
-                  });
-                },
-              );
-              const probeDocument = readGltfAnimationDocument(probeGlb);
-              fingerprintByIndex = new Map(
-                probeDocument.animations.map((animation) => [
-                  animation.index,
-                  gltfAnimationFingerprint(animation),
-                ]),
-              );
-            } catch (error) {
-              // A failed probe costs the edited-vs-identical distinction, not
-              // the export: records without a fingerprint still stop the
-              // duplicate-import bug.
-              logVizijExportDebug("export-glb:bake-fingerprint-failed", {
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
 
             bundle.metadata = {
               ...(bundle.metadata ?? {}),
-              bakedAnimations: bakedOrder.map((entry, index) => ({
+              bakedAnimations: bakedClipOrder.map((entry, index) => ({
                 animationIndex: index,
                 animationName: entry.clipName,
                 clipId: entry.clipId,
-                ...(fingerprintByIndex.has(index)
-                  ? { fingerprint: fingerprintByIndex.get(index) }
-                  : {}),
               })),
             };
           }
@@ -1240,6 +1216,46 @@ export function useVizijExport(
         finalBundleHasPosePayload: Boolean(bundle?.poses),
       });
 
+      // One export, then amend. Fingerprints have to come from what was
+      // actually written — `GLTFExporter` merges morph tracks per mesh and
+      // every value round-trips through float32 — but running the exporter a
+      // second time to learn them froze the UI thread for seconds on real
+      // assets. Instead the finished GLB is read back and its JSON chunk
+      // patched, which is bytes of work rather than a full re-serialization.
+      const finishExport = (glb: ArrayBuffer) => {
+        let finalGlb = glb;
+        if (bundle && bakedClipOrder.length > 0) {
+          try {
+            const written = readGltfAnimationDocument(glb);
+            const fingerprintByIndex = new Map(
+              written.animations.map((animation) => [
+                animation.index,
+                gltfAnimationFingerprint(animation),
+              ]),
+            );
+            finalGlb = patchVizijBundleMetadata(glb, {
+              bakedAnimations: bakedClipOrder.map((entry, index) => ({
+                animationIndex: index,
+                animationName: entry.clipName,
+                clipId: entry.clipId,
+                ...(fingerprintByIndex.has(index)
+                  ? { fingerprint: fingerprintByIndex.get(index) }
+                  : {}),
+              })),
+            });
+          } catch (error) {
+            // Losing the fingerprints costs the edited-vs-identical
+            // distinction on re-import, not the export: the records already
+            // written still stop the duplicate-import bug.
+            logVizijExportDebug("export-glb:bake-fingerprint-failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        downloadGlbBuffer(finalGlb, downloadName);
+        onExportGlbComplete?.();
+      };
+
       exportScene(
         exportableBodies[0],
         bundle
@@ -1247,7 +1263,7 @@ export function useVizijExport(
               fileName: downloadName,
               bundle,
               animations: bakedAnimations as never,
-              onComplete: onExportGlbComplete,
+              onBinary: finishExport,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
               },
@@ -1255,7 +1271,7 @@ export function useVizijExport(
           : {
               fileName: downloadName,
               animations: bakedAnimations as never,
-              onComplete: onExportGlbComplete,
+              onBinary: finishExport,
               onError: (error: Error) => {
                 void alertDialog(`GLB export failed: ${error.message}`);
               },

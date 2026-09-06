@@ -211,9 +211,21 @@ function normalizeExportedSceneJson(
   return changed;
 }
 
-function sanitizeExportedGlb(
+/**
+ * Rewrite a GLB's JSON chunk in place.
+ *
+ * `mutate` returns whether it changed anything; when it did not, the original
+ * buffer is handed back untouched rather than re-encoded. Any malformed input
+ * — wrong magic, missing JSON chunk, unparseable payload — returns the buffer
+ * as-is, since a patch is never worth corrupting an export over.
+ *
+ * Exists so a caller can amend an already-exported GLB instead of exporting
+ * twice: `GLTFExporter` is the expensive part, and running it again to change
+ * a few bytes of metadata froze the UI thread on real assets.
+ */
+export function patchGlbJson(
   buffer: ArrayBuffer,
-  fallbackSceneName?: string,
+  mutate: (json: Record<string, unknown>) => boolean,
 ): ArrayBuffer {
   if (buffer.byteLength < GLB_HEADER_BYTES + GLB_CHUNK_HEADER_BYTES) {
     return buffer;
@@ -239,18 +251,17 @@ function sanitizeExportedGlb(
     return buffer;
   }
 
-  let jsonPayload: GltfJsonLike;
+  let jsonPayload: Record<string, unknown>;
   try {
     const jsonText = new TextDecoder().decode(
       originalBytes.slice(jsonChunkStart, jsonChunkEnd),
     );
-    jsonPayload = JSON.parse(jsonText) as GltfJsonLike;
+    jsonPayload = JSON.parse(jsonText) as Record<string, unknown>;
   } catch {
     return buffer;
   }
 
-  const changed = normalizeExportedSceneJson(jsonPayload, fallbackSceneName);
-  if (!changed) {
+  if (!mutate(jsonPayload)) {
     return buffer;
   }
 
@@ -279,6 +290,69 @@ function sanitizeExportedGlb(
   sanitizedBytes.set(remainingChunks, jsonChunkStart + paddedJsonLength);
 
   return sanitized;
+}
+
+function sanitizeExportedGlb(
+  buffer: ArrayBuffer,
+  fallbackSceneName?: string,
+): ArrayBuffer {
+  return patchGlbJson(buffer, (json) =>
+    normalizeExportedSceneJson(json as GltfJsonLike, fallbackSceneName),
+  );
+}
+
+/**
+ * Merge `metadata` into the `VIZIJ_bundle` extension already written into
+ * `glb`, wherever it landed — the exporter attaches it to a node, but a
+ * root-level extension is read back too, so both are handled.
+ */
+export function patchVizijBundleMetadata(
+  glb: ArrayBuffer,
+  metadata: Record<string, unknown>,
+): ArrayBuffer {
+  return patchGlbJson(glb, (json) => {
+    const carriers: Array<Record<string, unknown>> = [];
+    const rootExtensions = json.extensions;
+    if (rootExtensions && typeof rootExtensions === "object") {
+      carriers.push(rootExtensions as Record<string, unknown>);
+    }
+    const nodes = Array.isArray(json.nodes) ? json.nodes : [];
+    for (const node of nodes) {
+      const extensions = (node as { extensions?: unknown } | null)?.extensions;
+      if (extensions && typeof extensions === "object") {
+        carriers.push(extensions as Record<string, unknown>);
+      }
+    }
+
+    let patched = false;
+    for (const extensions of carriers) {
+      const bundle = extensions.VIZIJ_bundle;
+      if (!bundle || typeof bundle !== "object") {
+        continue;
+      }
+      const record = bundle as Record<string, unknown>;
+      const existing =
+        record.metadata && typeof record.metadata === "object"
+          ? (record.metadata as Record<string, unknown>)
+          : {};
+      record.metadata = { ...existing, ...metadata };
+      patched = true;
+    }
+    return patched;
+  });
+}
+
+/** Save a finished GLB, for callers that took it via `onBinary`. */
+export function downloadGlbBuffer(glb: ArrayBuffer, fileName: string): void {
+  const trimmed = fileName.trim();
+  const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";
+  const downloadName = safeFileName.toLowerCase().endsWith(".glb")
+    ? safeFileName
+    : `${safeFileName}.glb`;
+  triggerBlobDownload(
+    new Blob([glb], { type: "application/octet-stream" }),
+    downloadName,
+  );
 }
 
 export function exportScene(
