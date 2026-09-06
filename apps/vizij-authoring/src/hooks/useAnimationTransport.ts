@@ -79,6 +79,26 @@ function hasAnimationTracks(animation: VizijAnimationAsset): boolean {
   return Array.isArray(tracks) && tracks.length > 0;
 }
 
+/**
+ * Project what the runtime holds into the same shape `mergedAnimations` is
+ * built in, so the two signatures can actually be compared.
+ *
+ * Exported for its own test: comparing the raw runtime list against the merged
+ * one could never succeed, and the failure was silent — the transport simply
+ * never reported ready and every Play did nothing.
+ */
+export function selectComparableRuntimeAnimations(
+  animations: ReadonlyArray<VizijAnimationAsset>,
+  hasAuthoredAnimation: boolean,
+): VizijAnimationAsset[] {
+  const kept = animations.filter((animation) =>
+    isAuthoredTimelineAnimation(animation)
+      ? hasAuthoredAnimation
+      : hasAnimationTracks(animation),
+  );
+  return [...kept].sort((left, right) => left.id.localeCompare(right.id));
+}
+
 function muteAnimationClip(
   animation: VizijAnimationAsset,
 ): VizijAnimationAsset {
@@ -249,9 +269,34 @@ export function AnimationRuntimeBridge({
     playableInheritedAssetAnimations,
   ]);
 
+  /**
+   * What the runtime holds, projected the way `mergedAnimations` is built.
+   *
+   * The two signatures are compared to decide whether the runtime has caught
+   * up, and comparing the raw list against the merged one could never succeed:
+   * `mergedAnimations` drops inherited clips with no tracks, so any track-less
+   * clip in the runtime — an authored clip whose tracks were removed, an
+   * import that resolved to nothing — sat on one side of the comparison
+   * forever. `transportRuntimeReady` then stayed false for the rest of the
+   * session and every Play silently did nothing, because App's play effect
+   * bails on exactly that flag.
+   *
+   * The authored clip is kept or dropped to match whether `mergedAnimations`
+   * will contribute one, since it is added there regardless of its track
+   * count.
+   */
+  const comparableCurrentAnimations = useMemo(
+    () =>
+      selectComparableRuntimeAnimations(
+        currentAnimations,
+        Boolean(authoredAnimation),
+      ),
+    [authoredAnimation, currentAnimations],
+  );
+
   const currentAnimationSignature = useMemo(
-    () => toDeterministicSignature(currentAnimations),
-    [currentAnimations],
+    () => toDeterministicSignature(comparableCurrentAnimations),
+    [comparableCurrentAnimations],
   );
   const mergedAnimationSignature = useMemo(
     () => toDeterministicSignature(mergedAnimations),
