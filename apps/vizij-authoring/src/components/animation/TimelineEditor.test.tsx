@@ -34,6 +34,7 @@ const state = {
   addKeyframe: vi.fn(),
   updateKeyframe: vi.fn(),
   removeKeyframe: vi.fn(),
+  setScrubbing: vi.fn(),
 };
 
 vi.mock("../../state/animationStore", async () => {
@@ -72,6 +73,7 @@ beforeEach(() => {
   state.addKeyframe.mockClear();
   state.updateKeyframe.mockClear();
   state.removeKeyframe.mockClear();
+  state.setScrubbing.mockClear();
 });
 
 // Auto-cleanup only runs with Vitest globals enabled, and this project does
@@ -343,5 +345,57 @@ describe("TimelineEditor keyboard shortcuts", () => {
     view.unmount();
     press(" ");
     expect(onTogglePlay).not.toHaveBeenCalled();
+  });
+});
+
+describe("TimelineEditor scrub ownership", () => {
+  function ruler(view: ReturnType<typeof render>): HTMLElement {
+    return view.container.querySelector(".cursor-ew-resize") as HTMLElement;
+  }
+
+  /**
+   * jsdom's synthetic pointer events drop `button`, so `fireEvent.pointerDown`
+   * arrives with it undefined and the handler's primary-button guard rejects
+   * it. A MouseEvent named `pointerdown` carries the field and still reaches
+   * React's `onPointerDown`.
+   */
+  function pointerDown(target: HTMLElement, button: number, clientX: number) {
+    target.dispatchEvent(
+      new MouseEvent("pointerdown", { button, clientX, bubbles: true }),
+    );
+  }
+
+  it("claims the clock for the whole drag and releases it after", () => {
+    // The runtime feedback loop writes `currentTime` every frame from what the
+    // engine reports, so without this the scrub was undone a frame after it
+    // landed: the playhead snapped back and the readout never moved.
+    const view = render(<TimelineEditor />);
+    const target = ruler(view);
+
+    pointerDown(target, 0, 300);
+    expect(state.setScrubbing).toHaveBeenCalledWith(true);
+    // Claimed before the first seek, not after it.
+    expect(state.setScrubbing.mock.invocationCallOrder[0]).toBeLessThan(
+      state.seek.mock.invocationCallOrder[0] ?? Infinity,
+    );
+
+    fireEvent.pointerUp(window);
+    expect(state.setScrubbing).toHaveBeenLastCalledWith(false);
+  });
+
+  it("releases the clock if it unmounts mid-drag", () => {
+    // Otherwise the feedback loop stays deferred for the rest of the session.
+    const view = render(<TimelineEditor />);
+    pointerDown(ruler(view), 0, 300);
+    state.setScrubbing.mockClear();
+
+    view.unmount();
+    expect(state.setScrubbing).toHaveBeenCalledWith(false);
+  });
+
+  it("ignores a non-primary button, which is not a scrub", () => {
+    const view = render(<TimelineEditor />);
+    pointerDown(ruler(view), 2, 300);
+    expect(state.setScrubbing).not.toHaveBeenCalled();
   });
 });

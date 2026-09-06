@@ -432,14 +432,26 @@ export function AnimationRuntimeBridge({
             isPlaying: false,
             transportActive: false,
             transportPlaybackState: "stopped",
-            currentTime: 0,
+            // Not while dragging: rewinding to zero under the author's pointer
+            // is the same overwrite in its most abrupt form.
+            ...(useAnimationStore.getState().isScrubbing
+              ? {}
+              : { currentTime: 0 }),
           },
           transportSessionKey,
         );
       } else {
+        // While the author is dragging, the host owns the clock. Read the flag
+        // imperatively rather than depending on it: this effect must not tear
+        // down and restart its rAF loop when a drag begins.
+        const scrubbing = useAnimationStore.getState().isScrubbing;
         syncTransportState(
           {
-            currentTime: playbackState.time,
+            // `currentTime` is deliberately omitted mid-drag. Writing the
+            // engine's time back every frame undid the scrub a frame after it
+            // landed, so the playhead snapped back and the readout never
+            // moved.
+            ...(scrubbing ? {} : { currentTime: playbackState.time }),
             duration: playbackState.duration,
             isPlaying: playbackState.playing,
             loop: playbackState.loop,

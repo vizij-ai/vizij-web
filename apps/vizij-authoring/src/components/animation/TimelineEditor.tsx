@@ -86,6 +86,7 @@ export function TimelineEditor({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const setScrubbing = useAnimationStore((state) => state.setScrubbing);
   const seekTo = onSeek ?? seek;
 
   const resolveTimeFromClientX = useCallback(
@@ -194,6 +195,7 @@ export function TimelineEditor({
     }
     isScrubbingRulerRef.current = false;
     scrubStartClientXRef.current = null;
+    setScrubbing(false);
     // Resume only if *we* paused it for the scrub. A scrub that began while
     // already paused must stay paused.
     const shouldResume = pausedForScrubRef.current;
@@ -204,7 +206,7 @@ export function TimelineEditor({
     window.removeEventListener("pointermove", handleRulerPointerMove);
     window.removeEventListener("pointerup", stopRulerScrub);
     window.removeEventListener("pointercancel", stopRulerScrub);
-  }, [handleRulerPointerMove, onResume]);
+  }, [handleRulerPointerMove, onResume, setScrubbing]);
 
   const handleRulerPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
@@ -215,6 +217,9 @@ export function TimelineEditor({
     isScrubbingRulerRef.current = true;
     scrubStartClientXRef.current = event.clientX;
     pausedForScrubRef.current = false;
+    // Claim the clock before the first seek, or the runtime feedback loop
+    // overwrites it on the very next frame.
+    setScrubbing(true);
     seekFromClientX(event.clientX);
     window.addEventListener("pointermove", handleRulerPointerMove);
     window.addEventListener("pointerup", stopRulerScrub);
@@ -226,11 +231,13 @@ export function TimelineEditor({
       isScrubbingRulerRef.current = false;
       scrubStartClientXRef.current = null;
       pausedForScrubRef.current = false;
+      // Unmounting mid-drag must not leave the feedback loop deferred forever.
+      setScrubbing(false);
       window.removeEventListener("pointermove", handleRulerPointerMove);
       window.removeEventListener("pointerup", stopRulerScrub);
       window.removeEventListener("pointercancel", stopRulerScrub);
     },
-    [handleRulerPointerMove, stopRulerScrub],
+    [handleRulerPointerMove, setScrubbing, stopRulerScrub],
   );
 
   const commitTimeDraft = useCallback(() => {

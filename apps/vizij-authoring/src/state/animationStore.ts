@@ -331,6 +331,16 @@ interface AnimationState {
   replaceTracks: (tracks: AnimationTrack[]) => void;
   importClipIr: (clip: AnimationClipIR) => void;
   exportClipIr: (options?: { id?: string; name?: string }) => AnimationClipIR;
+  /**
+   * True while the author is dragging the playhead.
+   *
+   * The runtime feedback loop overwrites `currentTime` every frame from what
+   * the engine reports, which means a scrub is undone the frame after it is
+   * written — the playhead snapped back and the readout never moved. During a
+   * drag the host is authoritative, so the feedback defers.
+   */
+  isScrubbing: boolean;
+  setScrubbing: (scrubbing: boolean) => void;
   reset: () => void;
 }
 
@@ -349,6 +359,7 @@ const INITIAL_STATE: Pick<
   | "transportSessionKey"
   | "transportRuntimeReady"
   | "timeDisplayMode"
+  | "isScrubbing"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
@@ -367,6 +378,7 @@ const INITIAL_STATE: Pick<
   transportSessionKey: 0,
   transportRuntimeReady: false,
   timeDisplayMode: "seconds",
+  isScrubbing: false,
   selectedTrackId: null,
   selectedKeyframeId: null,
   nextTrackOrdinal: 1,
@@ -841,6 +853,8 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
    * App state, `...INITIAL_STATE` would do exactly that, since it carries an
    * empty clip set. Full teardown is `resetAll`.
    */
+  setScrubbing: (scrubbing) => set({ isScrubbing: scrubbing }),
+
   reset: () =>
     set((state) => {
       return {
