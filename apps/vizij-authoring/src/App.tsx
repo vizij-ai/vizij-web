@@ -37,6 +37,7 @@ import {
   type FacePresetAssetOption,
 } from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
+import { nextClipOrdinal } from "./state/animationClipsStore";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
 import {
   buildCatalogFromInputPaths,
@@ -354,38 +355,6 @@ function createAuthoredAnimationTarget(
 
 function stableValueFingerprint(value: unknown): string {
   return JSON.stringify(value);
-}
-
-/**
- * Next free ordinal for an `authoring.timeline.clip.N` id.
- *
- * Must be given **every** clip id already in play, not just the authored
- * targets'. Imported bundle clips use the same id scheme — they were exported
- * from this app — so scanning authored targets alone hands the next authored
- * clip an id an imported clip already owns. Two targets then share a clip id,
- * and because clip id is the identity everywhere downstream, that single
- * collision:
- *
- * - lets `saveAnimationTarget`'s `clipId` match resolve to the wrong target,
- * - makes the two indistinguishable to the store's hydration marker, so one
- *   clip's tracks get written into the other,
- * - and collapses them into one entry on export, which is dropped animations.
- */
-export function nextAuthoredAnimationClipOrdinal(
-  existingClipIds: Iterable<string>,
-): number {
-  const prefix = "authoring.timeline.clip.";
-  let maxOrdinal = 0;
-  for (const clipId of existingClipIds) {
-    if (typeof clipId !== "string" || !clipId.startsWith(prefix)) {
-      continue;
-    }
-    const parsed = Number.parseInt(clipId.slice(prefix.length), 10);
-    if (Number.isFinite(parsed) && parsed > maxOrdinal) {
-      maxOrdinal = parsed;
-    }
-  }
-  return maxOrdinal + 1;
 }
 
 function authoredProceduralTargetValue(programId: string): string {
@@ -2308,9 +2277,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       saveAnimationTarget(selectedAnimationTargetId);
     }
 
-    const nextOrdinal = nextAuthoredAnimationClipOrdinal(
-      reservedAnimationClipIds,
-    );
+    const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
     const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
     const nextClipName = `Animation Clip ${nextOrdinal}`;
     const nextTarget = createAuthoredAnimationTarget(
@@ -2329,9 +2296,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const handleDuplicateAnimationTarget = useCallback(
     (targetId: string) => {
-      const nextOrdinal = nextAuthoredAnimationClipOrdinal(
-        reservedAnimationClipIds,
-      );
+      const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
       const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
       let sourceClip: AnimationClipIR | null = null;
       let sourceName = `Animation Clip ${nextOrdinal}`;
@@ -2430,9 +2395,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
       let result: ReturnType<typeof importGltfAnimations>;
       try {
-        const nextOrdinal = nextAuthoredAnimationClipOrdinal(
-          reservedAnimationClipIds,
-        );
+        const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
         result = importGltfAnimations({
           glb,
           catalog,
