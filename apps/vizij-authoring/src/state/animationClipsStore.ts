@@ -1,4 +1,3 @@
-import { create } from "zustand";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   type AnimationClipIR,
@@ -40,30 +39,6 @@ export interface AnimationClipEntry {
   baseline: AnimationClipIR | null;
   /** The single instance of this clip's data. */
   clip: AnimationClipIR;
-}
-
-export interface AnimationClipsState {
-  entries: Readonly<Record<string, AnimationClipEntry>>;
-  /** Display order; authored clips first, matching the existing UI. */
-  order: readonly string[];
-  selectedClipId: string | null;
-
-  selectClip: (clipId: string | null) => void;
-  addClip: (entry: Omit<AnimationClipEntry, "targetId">) => void;
-  removeClip: (clipId: string) => void;
-  renameClip: (clipId: string, name: string) => void;
-  /**
-   * The only way to change clip data. Applies to the selected clip, so an edit
-   * cannot be misrouted to a clip the user is not looking at.
-   */
-  updateSelectedClip: (
-    updater: (clip: AnimationClipIR) => AnimationClipIR,
-  ) => void;
-  replaceAll: (
-    entries: ReadonlyArray<Omit<AnimationClipEntry, "targetId">>,
-    selectedClipId?: string | null,
-  ) => void;
-  reset: () => void;
 }
 
 export const AUTHORED_CLIP_TARGET_PREFIX = "authored-animation:";
@@ -132,141 +107,131 @@ function withTargetId(
   return { ...entry, targetId: clipTargetId(entry.clipId, entry.source) };
 }
 
-const INITIAL: Pick<
-  AnimationClipsState,
-  "entries" | "order" | "selectedClipId"
-> = {
-  entries: {},
-  order: [],
+/**
+ * The clip set and which clip is selected, as pure reducers.
+ *
+ * These are owned by `animationStore` rather than living in a store of their
+ * own: switching clips has to materialise the editing buffer into the outgoing
+ * entry and load the incoming one in the *same* `set()`. Split across two
+ * stores that is two updates, and the window between them is exactly where
+ * every clip-corruption bug in this codebase has lived.
+ */
+export interface ClipSetState {
+  clipEntries: Readonly<Record<string, AnimationClipEntry>>;
+  clipOrder: readonly string[];
+  selectedClipId: string | null;
+}
+
+export const EMPTY_CLIP_SET: ClipSetState = {
+  clipEntries: {},
+  clipOrder: [],
   selectedClipId: null,
 };
 
-export const useAnimationClipsStore = create<AnimationClipsState>(
-  (set, get) => ({
-    ...INITIAL,
-
-    selectClip: (clipId) =>
-      set((state) => {
-        if (clipId !== null && !state.entries[clipId]) {
-          // Selecting a clip that does not exist would leave the selection and
-          // the data disagreeing, which is the whole class of bug this store
-          // exists to prevent. Refuse rather than fall back to another clip.
-          return state;
-        }
-        if (state.selectedClipId === clipId) {
-          return state;
-        }
-        return { ...state, selectedClipId: clipId };
-      }),
-
-    addClip: (entry) =>
-      set((state) => {
-        if (state.entries[entry.clipId]) {
-          return state;
-        }
-        const entries = {
-          ...state.entries,
-          [entry.clipId]: withTargetId(entry),
-        };
-        return { ...state, entries, order: sortedOrder(entries) };
-      }),
-
-    removeClip: (clipId) =>
-      set((state) => {
-        if (!state.entries[clipId]) {
-          return state;
-        }
-        const entries = { ...state.entries };
-        delete entries[clipId];
-        const order = sortedOrder(entries);
-        return {
-          ...state,
-          entries,
-          order,
-          selectedClipId:
-            state.selectedClipId === clipId
-              ? (order[0] ?? null)
-              : state.selectedClipId,
-        };
-      }),
-
-    renameClip: (clipId, name) =>
-      set((state) => {
-        const entry = state.entries[clipId];
-        if (!entry || entry.name === name) {
-          return state;
-        }
-        return {
-          ...state,
-          entries: {
-            ...state.entries,
-            [clipId]: { ...entry, name, clip: { ...entry.clip, name } },
-          },
-        };
-      }),
-
-    updateSelectedClip: (updater) =>
-      set((state) => {
-        const clipId = state.selectedClipId;
-        if (!clipId) {
-          return state;
-        }
-        const entry = state.entries[clipId];
-        if (!entry) {
-          return state;
-        }
-        const nextClip = updater(entry.clip);
-        if (nextClip === entry.clip) {
-          return state;
-        }
-        // The clip's own id is not the updater's to change: it is the identity
-        // the entry is keyed by, and letting an edit rewrite it would make the
-        // map and the entry disagree.
-        return {
-          ...state,
-          entries: {
-            ...state.entries,
-            [clipId]: { ...entry, clip: { ...nextClip, id: clipId } },
-          },
-        };
-      }),
-
-    replaceAll: (nextEntries, selectedClipId) =>
-      set((state) => {
-        const entries: Record<string, AnimationClipEntry> = {};
-        for (const entry of nextEntries) {
-          entries[entry.clipId] = withTargetId(entry);
-        }
-        const order = sortedOrder(entries);
-        const requested =
-          selectedClipId === undefined ? state.selectedClipId : selectedClipId;
-        return {
-          ...state,
-          entries,
-          order,
-          selectedClipId:
-            requested && entries[requested] ? requested : (order[0] ?? null),
-        };
-      }),
-
-    reset: () => set(() => ({ ...INITIAL })),
-  }),
-);
-
-/** The selected entry, or null. A selector so components resubscribe correctly. */
-export function selectSelectedEntry(
-  state: AnimationClipsState,
-): AnimationClipEntry | null {
-  return state.selectedClipId
-    ? (state.entries[state.selectedClipId] ?? null)
-    : null;
+export function addClipEntry(
+  state: ClipSetState,
+  entry: Omit<AnimationClipEntry, "targetId">,
+): ClipSetState {
+  if (state.clipEntries[entry.clipId]) {
+    return state;
+  }
+  const clipEntries = {
+    ...state.clipEntries,
+    [entry.clipId]: withTargetId(entry),
+  };
+  return { ...state, clipEntries, clipOrder: sortedOrder(clipEntries) };
 }
 
-/** Entries in display order. */
-export function selectOrderedEntries(
-  state: AnimationClipsState,
-): AnimationClipEntry[] {
-  return state.order
-    .map((clipId) => state.entries[clipId])
+export function removeClipEntry(
+  state: ClipSetState,
+  clipId: string,
+): ClipSetState {
+  if (!state.clipEntries[clipId]) {
+    return state;
+  }
+  const clipEntries = { ...state.clipEntries };
+  delete clipEntries[clipId];
+  const clipOrder = sortedOrder(clipEntries);
+  return {
+    ...state,
+    clipEntries,
+    clipOrder,
+    selectedClipId:
+      state.selectedClipId === clipId
+        ? (clipOrder[0] ?? null)
+        : state.selectedClipId,
+  };
+}
+
+export function renameClipEntry(
+  state: ClipSetState,
+  clipId: string,
+  name: string,
+): ClipSetState {
+  const entry = state.clipEntries[clipId];
+  if (!entry || entry.name === name) {
+    return state;
+  }
+  return {
+    ...state,
+    clipEntries: {
+      ...state.clipEntries,
+      [clipId]: { ...entry, name, clip: { ...entry.clip, name } },
+    },
+  };
+}
+
+/** Write `clip` into `clipId`'s entry, pinning the entry's identity. */
+export function commitClipEntry(
+  state: ClipSetState,
+  clipId: string,
+  clip: AnimationClipIR,
+): ClipSetState {
+  const entry = state.clipEntries[clipId];
+  if (!entry) {
+    return state;
+  }
+  return {
+    ...state,
+    clipEntries: {
+      ...state.clipEntries,
+      [clipId]: { ...entry, clip: { ...clip, id: clipId } },
+    },
+  };
+}
+
+export function replaceClipEntries(
+  state: ClipSetState,
+  entries: ReadonlyArray<Omit<AnimationClipEntry, "targetId">>,
+  selectedClipId?: string | null,
+): ClipSetState {
+  const clipEntries: Record<string, AnimationClipEntry> = {};
+  for (const entry of entries) {
+    clipEntries[entry.clipId] = withTargetId(entry);
+  }
+  const clipOrder = sortedOrder(clipEntries);
+  const requested =
+    selectedClipId === undefined ? state.selectedClipId : selectedClipId;
+  return {
+    ...state,
+    clipEntries,
+    clipOrder,
+    selectedClipId:
+      requested && clipEntries[requested] ? requested : (clipOrder[0] ?? null),
+  };
+}
+
+/** Ordered entries, for lists and export. */
+export function orderedClipEntries(state: ClipSetState): AnimationClipEntry[] {
+  return state.clipOrder
+    .map((clipId) => state.clipEntries[clipId])
     .filter((entry): entry is AnimationClipEntry => Boolean(entry));
+}
+
+export function selectedClipEntry(
+  state: ClipSetState,
+): AnimationClipEntry | null {
+  return state.selectedClipId
+    ? (state.clipEntries[state.selectedClipId] ?? null)
+    : null;
 }

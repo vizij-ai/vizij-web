@@ -1705,54 +1705,21 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       ) ?? null,
     [authoredAnimationTargets, selectedAnimationTargetId],
   );
-  // Persist to the clip the STORE holds, not to the UI selection.
+  // There is deliberately NO autosave effect here.
   //
-  // This effect fires on store contents, and `selectedAnimationTargetId` used
-  // to be one of its dependencies — so the moment the selection moved it
-  // persisted whatever the store still held onto the *new* target, before that
-  // target had been loaded. Traced while creating a clip with another selected:
+  // One used to persist the editing buffer whenever `tracks` or `duration`
+  // changed. Its destination was resolved separately from the data being
+  // written, so any render where selection and buffer disagreed wrote the
+  // wrong clip — which produced, at different times, a new clip holding
+  // another clip's tracks, every clip emptied, and edits appearing not to
+  // save. See docs/notes/ANIMATION_SELECTION_STATE_2026-09-03.md.
   //
-  //   autosave.effect tgt=clip.2 tracks=4   <- selection flipped, store stale
-  //   save.enter      tgt=clip.2 tracks=4   <- the outgoing clip's tracks
-  //   load.enter      tgt=clip.2            <- clip.2 loads only now
-  //   autosave.effect tgt=clip.2 tracks=0
-  //
-  // which is both the copy-over and the zeroing. Addressing the write by the
-  // store's own `hydratedClipId` makes a selection change incapable of
-  // misrouting it, so no coordination between the two is required.
-  useEffect(() => {
-    if (pendingAnimationTargetSwitchId) {
-      return;
-    }
-    const hydratedClipId = useAnimationStore.getState().hydratedClipId;
-    if (!hydratedClipId) {
-      return;
-    }
-    const authoredTarget = authoredAnimationTargets.find(
-      (target) => target.clipId === hydratedClipId,
-    );
-    const destinationTargetId =
-      authoredTarget?.targetId ??
-      animationTargetOptions.find(
-        (option) =>
-          option.value.startsWith(BUNDLE_ANIMATION_TARGET_PREFIX) &&
-          resolveImportedAnimationBaseClip(option.value)?.id === hydratedClipId,
-      )?.value ??
-      null;
-    if (!destinationTargetId) {
-      return;
-    }
-    saveAnimationTarget(destinationTargetId);
-  }, [
-    animationDuration,
-    animationTargetOptions,
-    animationTracks,
-    authoredAnimationTargets,
-    pendingAnimationTargetSwitchId,
-    resolveImportedAnimationBaseClip,
-    saveAnimationTarget,
-    selectedAnimationTargetId,
-  ]);
+  // Nothing needs it. The buffer is persisted when switching away, while it
+  // still holds the outgoing clip, and every other consumer materialises the
+  // selected clip from the buffer directly rather than reading the saved
+  // copy: export via `authoredAnimationClipsForExport`, playback via
+  // `activeAnimationRuntimeClip`, and the clip list below.
+
   const authoringAnimationTargets = useMemo(
     () => [
       ...authoredAnimationTargets.map((target) => ({
@@ -1760,9 +1727,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
         source: "authored" as const,
         selected: target.targetId === selectedAnimationTargetId,
-        meta: `${target.clip.tracks.length} track${
-          target.clip.tracks.length === 1 ? "" : "s"
-        }`,
+        // The saved copy of the selected clip is refreshed on switch-away, so
+        // its count would lag the edit in progress; read the buffer instead.
+        meta: (() => {
+          const trackCount =
+            target.targetId === selectedAnimationTargetId
+              ? animationTracks.length
+              : target.clip.tracks.length;
+          return `${trackCount} track${trackCount === 1 ? "" : "s"}`;
+        })(),
         runtimeState:
           animationTargetPlaybackById[target.targetId]?.state ?? "stopped",
         runtimeTimeLabel:
@@ -1775,11 +1748,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           label: target.label,
           source: "imported" as const,
           selected: target.value === selectedAnimationTargetId,
-          meta: clip
-            ? `${clip.tracks.length} track${
-                clip.tracks.length === 1 ? "" : "s"
-              }`
-            : "Imported clip",
+          meta: (() => {
+            if (!clip) {
+              return "Imported clip";
+            }
+            const trackCount =
+              target.value === selectedAnimationTargetId
+                ? animationTracks.length
+                : clip.tracks.length;
+            return `${trackCount} track${trackCount === 1 ? "" : "s"}`;
+          })(),
           runtimeState:
             animationTargetPlaybackById[target.value]?.state ?? "stopped",
           runtimeTimeLabel:
@@ -1789,6 +1767,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     ],
     [
       animationTargetPlaybackById,
+      animationTracks,
       authoredAnimationTargets,
       bundleAnimationTargetOptions,
       resolveImportedAnimationClip,
