@@ -14,6 +14,18 @@ import {
   evaluateAnimationTrackAtTime,
 } from "../utils/animationClipCompiler";
 import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
+import {
+  addClipEntry,
+  commitClipEntry,
+  EMPTY_CLIP_SET,
+  orderedClipEntries,
+  removeClipEntry,
+  renameClipEntry,
+  replaceClipEntries,
+  selectedClipEntry,
+  type AnimationClipEntry,
+  type ClipSetState,
+} from "./animationClipsStore";
 
 export type AnimationKeyframe = AnimationKeyframeIR;
 export type AnimationTrack = AnimationTrackIR;
@@ -53,6 +65,31 @@ const KEYFRAME_ID_PREFIX = "kf-";
 
 function quantizeTime(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+/**
+ * The editing buffer as a clip, stamped with `clipId`.
+ *
+ * Taken eagerly wherever it is needed — never inside a setState updater. An
+ * updater runs during a later render (twice under StrictMode), by which time a
+ * switch may have replaced the buffer, and the snapshot would then carry the
+ * wrong clip's tracks under this id. That was a real defect, not a hypothetical
+ * one.
+ */
+function materialiseBuffer(
+  state: Pick<AnimationState, "tracks" | "duration">,
+  clipId: string,
+  name: string,
+): AnimationClipIR {
+  return compileAnimationClipIr({
+    clip: {
+      schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
+      id: clipId,
+      name,
+      duration: state.duration,
+      tracks: state.tracks,
+    },
+  });
 }
 
 function clampTime(value: number, duration: number): number {
@@ -266,11 +303,32 @@ interface AnimationState {
   timeDisplayMode: AnimationTimeDisplayMode;
 
   /**
-   * Clip this store currently holds. This — not the UI selection — is the
-   * correct destination for a persist: the autosave fires on store contents,
-   * and a selection change can precede the corresponding load.
+   * Every clip, and which one is being edited.
+   *
+   * `tracks`/`duration` above are the editing buffer for `selectedClipId`.
+   * They are a projection of `clipEntries[selectedClipId]`, not a second copy
+   * kept in step by an effect: `selectClip` materialises the buffer into the
+   * outgoing entry and loads the incoming one in the *same* `set()`, so no
+   * render can observe the two referring to different clips. That window is
+   * where every clip-corruption bug in this codebase lived.
    */
-  hydratedClipId: string | null;
+  clipEntries: ClipSetState["clipEntries"];
+  clipOrder: ClipSetState["clipOrder"];
+  selectedClipId: string | null;
+
+  selectClip: (clipId: string | null) => void;
+  addClip: (entry: Omit<AnimationClipEntry, "targetId">) => void;
+  removeClip: (clipId: string) => void;
+  renameClip: (clipId: string, name: string) => void;
+  replaceClips: (
+    entries: ReadonlyArray<Omit<AnimationClipEntry, "targetId">>,
+    selectedClipId?: string | null,
+  ) => void;
+  /**
+   * Every clip, with the selected one materialised from the editing buffer.
+   * The single read path for export — so what ships is what is on screen.
+   */
+  getAllClips: () => AnimationClipEntry[];
 
   // Selection
   selectedTrackId: string | null;
@@ -356,14 +414,18 @@ const INITIAL_STATE: Pick<
   | "transportSessionKey"
   | "transportRuntimeReady"
   | "timeDisplayMode"
-  | "hydratedClipId"
+  | "clipEntries"
+  | "clipOrder"
+  | "selectedClipId"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
   | "nextKeyframeOrdinal"
 > = {
   tracks: [],
-  hydratedClipId: null,
+  clipEntries: EMPTY_CLIP_SET.clipEntries,
+  clipOrder: EMPTY_CLIP_SET.clipOrder,
+  selectedClipId: EMPTY_CLIP_SET.selectedClipId,
   currentTime: 0,
   duration: 10,
   isPlaying: false,
@@ -818,7 +880,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       return {
         ...state,
         tracks: normalized.tracks,
-        hydratedClipId: compiled.id,
         duration: compiled.duration,
         currentTime: clampTime(state.currentTime, compiled.duration),
         isPlaying: false,
@@ -828,6 +889,192 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
       };
     }),
+
+  selectClip: (clipId) =>
+    set((state) => {
+      if (clipId !== null && !state.clipEntries[clipId]) {
+        // Falling back to some other clip is what made selection and data
+        // disagree; refuse instead, so a bad id is a visible no-op.
+        return state;
+      }
+      if (clipId === state.selectedClipId) {
+        return state;
+      }
+
+      // One transaction: materialise the outgoing clip, then load the
+      // incoming one. Nothing can observe a half-applied switch.
+      let clipSet: ClipSetState = {
+        clipEntries: state.clipEntries,
+        clipOrder: state.clipOrder,
+        selectedClipId: state.selectedClipId,
+      };
+      const outgoing = selectedClipEntry(clipSet);
+      if (outgoing) {
+        clipSet = commitClipEntry(
+          clipSet,
+          outgoing.clipId,
+          materialiseBuffer(state, outgoing.clipId, outgoing.name),
+        );
+      }
+
+      const incoming = clipId ? clipSet.clipEntries[clipId] : null;
+      if (!incoming) {
+        return {
+          ...state,
+          ...clipSet,
+          selectedClipId: null,
+          tracks: [],
+          duration: INITIAL_STATE.duration,
+          currentTime: 0,
+          selectedTrackId: null,
+          selectedKeyframeId: null,
+        };
+      }
+
+      const compiled = compileAnimationClipIr({ clip: incoming.clip });
+      const normalized = normalizeTracksForState(
+        compiled.tracks,
+        compiled.duration,
+      );
+      return {
+        ...state,
+        ...clipSet,
+        selectedClipId: clipId,
+        tracks: normalized.tracks,
+        duration: compiled.duration,
+        currentTime: clampTime(state.currentTime, compiled.duration),
+        isPlaying: false,
+        selectedTrackId: null,
+        selectedKeyframeId: null,
+        nextTrackOrdinal: normalized.nextTrackOrdinal,
+        nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+      };
+    }),
+
+  addClip: (entry) =>
+    set((state) => ({
+      ...state,
+      ...addClipEntry(
+        {
+          clipEntries: state.clipEntries,
+          clipOrder: state.clipOrder,
+          selectedClipId: state.selectedClipId,
+        },
+        entry,
+      ),
+    })),
+
+  removeClip: (clipId) =>
+    set((state) => {
+      const next = removeClipEntry(
+        {
+          clipEntries: state.clipEntries,
+          clipOrder: state.clipOrder,
+          selectedClipId: state.selectedClipId,
+        },
+        clipId,
+      );
+      if (next.selectedClipId === state.selectedClipId) {
+        return { ...state, ...next };
+      }
+      // The selection moved because the selected clip was removed; load
+      // whatever replaced it in the same transaction.
+      const incoming = next.selectedClipId
+        ? next.clipEntries[next.selectedClipId]
+        : null;
+      if (!incoming) {
+        return {
+          ...state,
+          ...next,
+          tracks: [],
+          duration: INITIAL_STATE.duration,
+          currentTime: 0,
+        };
+      }
+      const compiled = compileAnimationClipIr({ clip: incoming.clip });
+      const normalized = normalizeTracksForState(
+        compiled.tracks,
+        compiled.duration,
+      );
+      return {
+        ...state,
+        ...next,
+        tracks: normalized.tracks,
+        duration: compiled.duration,
+        currentTime: clampTime(state.currentTime, compiled.duration),
+        nextTrackOrdinal: normalized.nextTrackOrdinal,
+        nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+      };
+    }),
+
+  renameClip: (clipId, name) =>
+    set((state) => ({
+      ...state,
+      ...renameClipEntry(
+        {
+          clipEntries: state.clipEntries,
+          clipOrder: state.clipOrder,
+          selectedClipId: state.selectedClipId,
+        },
+        clipId,
+        name,
+      ),
+    })),
+
+  replaceClips: (entries, selectedClipId) =>
+    set((state) => {
+      const next = replaceClipEntries(
+        {
+          clipEntries: state.clipEntries,
+          clipOrder: state.clipOrder,
+          selectedClipId: state.selectedClipId,
+        },
+        entries,
+        selectedClipId,
+      );
+      const incoming = next.selectedClipId
+        ? next.clipEntries[next.selectedClipId]
+        : null;
+      if (!incoming) {
+        return {
+          ...state,
+          ...next,
+          tracks: [],
+          duration: INITIAL_STATE.duration,
+          currentTime: 0,
+        };
+      }
+      const compiled = compileAnimationClipIr({ clip: incoming.clip });
+      const normalized = normalizeTracksForState(
+        compiled.tracks,
+        compiled.duration,
+      );
+      return {
+        ...state,
+        ...next,
+        tracks: normalized.tracks,
+        duration: compiled.duration,
+        currentTime: clampTime(state.currentTime, compiled.duration),
+        nextTrackOrdinal: normalized.nextTrackOrdinal,
+        nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+      };
+    }),
+
+  getAllClips: () => {
+    const state = get();
+    return orderedClipEntries({
+      clipEntries: state.clipEntries,
+      clipOrder: state.clipOrder,
+      selectedClipId: state.selectedClipId,
+    }).map((entry) =>
+      entry.clipId === state.selectedClipId
+        ? {
+            ...entry,
+            clip: materialiseBuffer(state, entry.clipId, entry.name),
+          }
+        : entry,
+    );
+  },
 
   exportClipIr: (options) => {
     const state = get();

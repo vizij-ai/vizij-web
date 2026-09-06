@@ -1,26 +1,29 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  addClipEntry,
   clipTargetId,
+  commitClipEntry,
   createEmptyClip,
+  EMPTY_CLIP_SET,
   nextClipOrdinal,
-  selectOrderedEntries,
-  selectSelectedEntry,
-  useAnimationClipsStore,
+  orderedClipEntries,
+  removeClipEntry,
+  renameClipEntry,
+  replaceClipEntries,
+  selectedClipEntry,
   type AnimationClipEntry,
+  type ClipSetState,
 } from "../animationClipsStore";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 
 /**
- * These encode the failures that motivated a single owner. Each one is a real
- * sequence that destroyed data when clip contents lived in one store and the
- * saved copies in another — see
- * docs/notes/ANIMATION_SELECTION_STATE_2026-09-03.md.
+ * The clip set as pure reducers. These encode the failures that motivated a
+ * single owner — see docs/notes/ANIMATION_SELECTION_STATE_2026-09-03.md.
  */
 
 function clipWithTracks(clipId: string, trackCount: number): AnimationClipIR {
-  const clip = createEmptyClip(clipId, clipId);
   return {
-    ...clip,
+    ...createEmptyClip(clipId, clipId),
     tracks: Array.from({ length: trackCount }, (_, index) => ({
       id: `${clipId}-t${index}`,
       variableId: `var_${index}`,
@@ -35,7 +38,7 @@ function entry(
   clipId: string,
   trackCount: number,
   source: AnimationClipEntry["source"] = "authored",
-) {
+): Omit<AnimationClipEntry, "targetId"> {
   return {
     clipId,
     name: clipId,
@@ -45,134 +48,127 @@ function entry(
   };
 }
 
-const store = () => useAnimationClipsStore.getState();
-const trackCount = (clipId: string) =>
-  useAnimationClipsStore.getState().entries[clipId]?.clip.tracks.length ?? null;
+function withClips(
+  ...entries: Array<Omit<AnimationClipEntry, "targetId">>
+): ClipSetState {
+  return entries.reduce(addClipEntry, EMPTY_CLIP_SET);
+}
 
-describe("animation clips store", () => {
-  beforeEach(() => {
-    useAnimationClipsStore.getState().reset();
-  });
+const tracksOf = (state: ClipSetState, clipId: string) =>
+  state.clipEntries[clipId]?.clip.tracks.length ?? null;
 
-  it("switching clips moves no data between them", () => {
-    // The reported failure: a new clip with one track came back holding the
-    // four tracks of the clip switched to.
-    store().addClip(entry("imported.1", 4, "imported"));
-    store().addClip(entry("clip.2", 1));
-    store().selectClip("clip.2");
+describe("clip set reducers", () => {
+  it("adding a clip leaves every other clip's data untouched", () => {
+    // The reported failure: creating an animation overwrote or emptied the
+    // existing one.
+    const before = withClips(entry("imported.1", 4, "imported"));
+    const after = addClipEntry(before, entry("clip.2", 0));
 
-    store().selectClip("imported.1");
-    expect(trackCount("clip.2")).toBe(1);
-    expect(trackCount("imported.1")).toBe(4);
-
-    store().selectClip("clip.2");
-    expect(trackCount("clip.2")).toBe(1);
-    expect(trackCount("imported.1")).toBe(4);
-  });
-
-  it("adding a clip while another is selected touches neither's data", () => {
-    // The other reported failure: creating an animation emptied or overwrote
-    // the existing one.
-    store().addClip(entry("imported.1", 4, "imported"));
-    store().selectClip("imported.1");
-
-    store().addClip(entry("clip.2", 0));
-
-    expect(trackCount("imported.1")).toBe(4);
-    expect(trackCount("clip.2")).toBe(0);
+    expect(tracksOf(after, "imported.1")).toBe(4);
+    expect(tracksOf(after, "clip.2")).toBe(0);
     // Adding does not steal the selection.
-    expect(store().selectedClipId).toBe("imported.1");
+    expect(after.selectedClipId).toBe(before.selectedClipId);
   });
 
-  it("edits land on the selected clip and nowhere else", () => {
-    store().addClip(entry("clip.1", 1));
-    store().addClip(entry("clip.2", 1));
-    store().selectClip("clip.2");
+  it("committing a clip writes only that clip", () => {
+    const before = withClips(entry("clip.1", 1), entry("clip.2", 1));
+    const after = commitClipEntry(
+      before,
+      "clip.2",
+      clipWithTracks("clip.2", 5),
+    );
 
-    store().updateSelectedClip((clip) => ({ ...clip, duration: 42 }));
-
-    expect(store().entries["clip.2"]!.clip.duration).toBe(42);
-    expect(store().entries["clip.1"]!.clip.duration).toBe(10);
+    expect(tracksOf(after, "clip.2")).toBe(5);
+    expect(tracksOf(after, "clip.1")).toBe(1);
   });
 
-  it("edits after a switch land on the newly selected clip", () => {
-    // Selection and data change in one transition, so there is no window in
-    // which an edit can be routed to the clip just left.
-    store().addClip(entry("clip.1", 1));
-    store().addClip(entry("clip.2", 1));
-    store().selectClip("clip.1");
-    store().selectClip("clip.2");
+  it("a commit cannot rewrite the entry's identity", () => {
+    // clipId is what saving, hydration and export all key on; letting a write
+    // change it makes the map and the entry disagree.
+    const before = withClips(entry("clip.1", 1));
+    const after = commitClipEntry(before, "clip.1", {
+      ...clipWithTracks("clip.1", 2),
+      id: "hijacked",
+    });
 
-    store().updateSelectedClip((clip) => ({ ...clip, duration: 7 }));
-
-    expect(store().entries["clip.2"]!.clip.duration).toBe(7);
-    expect(store().entries["clip.1"]!.clip.duration).toBe(10);
+    expect(after.clipEntries["hijacked"]).toBeUndefined();
+    expect(after.clipEntries["clip.1"]!.clip.id).toBe("clip.1");
+    expect(tracksOf(after, "clip.1")).toBe(2);
   });
 
-  it("ignores edits when nothing is selected rather than guessing", () => {
-    store().addClip(entry("clip.1", 1));
-    store().updateSelectedClip((clip) => ({ ...clip, duration: 99 }));
-    expect(store().entries["clip.1"]!.clip.duration).toBe(10);
-  });
+  it("committing an unknown clip is a no-op, not an insert", () => {
+    const before = withClips(entry("clip.1", 1));
+    const after = commitClipEntry(before, "ghost", clipWithTracks("ghost", 3));
 
-  it("refuses to select a clip that does not exist", () => {
-    // Falling back to another clip is what made selection and data disagree.
-    store().addClip(entry("clip.1", 1));
-    store().selectClip("clip.1");
-    store().selectClip("nope");
-    expect(store().selectedClipId).toBe("clip.1");
-  });
-
-  it("an edit cannot rewrite the clip's identity", () => {
-    store().addClip(entry("clip.1", 1));
-    store().selectClip("clip.1");
-    store().updateSelectedClip((clip) => ({ ...clip, id: "hijacked" }));
-
-    expect(store().entries["hijacked"]).toBeUndefined();
-    expect(store().entries["clip.1"]!.clip.id).toBe("clip.1");
+    expect(after).toBe(before);
+    expect(after.clipEntries["ghost"]).toBeUndefined();
   });
 
   it("removing the selected clip selects another rather than nothing", () => {
-    store().addClip(entry("clip.1", 1));
-    store().addClip(entry("clip.2", 1));
-    store().selectClip("clip.2");
+    const seeded = withClips(entry("clip.1", 1), entry("clip.2", 1));
+    const before = { ...seeded, selectedClipId: "clip.2" };
+    const after = removeClipEntry(before, "clip.2");
 
-    store().removeClip("clip.2");
+    expect(after.selectedClipId).toBe("clip.1");
+    expect(after.clipEntries["clip.2"]).toBeUndefined();
+    expect(tracksOf(after, "clip.1")).toBe(1);
+  });
 
-    expect(store().selectedClipId).toBe("clip.1");
-    expect(store().entries["clip.2"]).toBeUndefined();
-    expect(trackCount("clip.1")).toBe(1);
+  it("removing a clip that is not selected keeps the selection", () => {
+    const seeded = withClips(entry("clip.1", 1), entry("clip.2", 1));
+    const before = { ...seeded, selectedClipId: "clip.1" };
+    expect(removeClipEntry(before, "clip.2").selectedClipId).toBe("clip.1");
+  });
+
+  it("renaming touches the entry and the clip together", () => {
+    const before = withClips(entry("clip.1", 1));
+    const after = renameClipEntry(before, "clip.1", "Blink");
+
+    expect(after.clipEntries["clip.1"]!.name).toBe("Blink");
+    expect(after.clipEntries["clip.1"]!.clip.name).toBe("Blink");
   });
 
   it("orders authored clips before imported ones", () => {
-    store().addClip(entry("imported.1", 1, "imported"));
-    store().addClip(entry("clip.2", 1));
-
-    expect(selectOrderedEntries(store()).map((e) => e.clipId)).toEqual([
+    const state = withClips(
+      entry("imported.1", 1, "imported"),
+      entry("clip.2", 1),
+    );
+    expect(orderedClipEntries(state).map((e) => e.clipId)).toEqual([
       "clip.2",
       "imported.1",
     ]);
   });
 
   it("keeps an imported clip's baseline so edits stay comparable", () => {
-    store().addClip(entry("imported.1", 2, "imported"));
-    store().selectClip("imported.1");
-    store().updateSelectedClip((clip) => ({ ...clip, duration: 3 }));
+    const before = {
+      ...withClips(entry("imported.1", 2, "imported")),
+      selectedClipId: "imported.1",
+    };
+    const after = commitClipEntry(before, "imported.1", {
+      ...clipWithTracks("imported.1", 2),
+      duration: 3,
+    });
+    const found = selectedClipEntry(after)!;
 
-    const found = selectSelectedEntry(store())!;
     expect(found.clip.duration).toBe(3);
     expect(found.baseline!.duration).toBe(10);
   });
 
-  it("replaceAll keeps a valid selection and drops an invalid one", () => {
-    store().addClip(entry("clip.1", 1));
-    store().selectClip("clip.1");
+  it("replaceClipEntries keeps a valid selection and drops an invalid one", () => {
+    const before = {
+      ...withClips(entry("clip.1", 1)),
+      selectedClipId: "clip.1",
+    };
 
-    store().replaceAll([entry("clip.9", 1)]);
-    expect(store().selectedClipId).toBe("clip.9");
+    const replaced = replaceClipEntries(before, [entry("clip.9", 1)]);
+    expect(replaced.selectedClipId).toBe("clip.9");
 
-    store().replaceAll([entry("clip.9", 1), entry("clip.8", 1)], "clip.8");
-    expect(store().selectedClipId).toBe("clip.8");
+    const explicit = replaceClipEntries(
+      before,
+      [entry("clip.9", 1), entry("clip.8", 1)],
+      "clip.8",
+    );
+    expect(explicit.selectedClipId).toBe("clip.8");
   });
 });
 
