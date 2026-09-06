@@ -267,13 +267,6 @@ const FACE_LOAD_STEP_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
   "runtime-stabilization": 10,
 });
 
-interface AuthoredAnimationTarget {
-  targetId: string;
-  clipId: string;
-  name: string;
-  clip: AnimationClipIR;
-}
-
 interface ProceduralProgramSnapshot {
   nodes: EditorNode[];
   edges: EditorEdge[];
@@ -344,19 +337,6 @@ function createEmptyAnimationClip(
 
 function motionGraphRuntimeControllerId(targetId: string): string {
   return `motiongraph-runtime:${encodeURIComponent(targetId)}`;
-}
-
-function createAuthoredAnimationTarget(
-  clipId: string,
-  name: string,
-  duration = 10,
-): AuthoredAnimationTarget {
-  return {
-    targetId: authoredAnimationTargetValue(clipId),
-    clipId,
-    name,
-    clip: createEmptyAnimationClip(clipId, name, duration),
-  };
 }
 
 function stableValueFingerprint(value: unknown): string {
@@ -827,17 +807,24 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [clipEntries, clipOrder],
   );
 
-  const authoredAnimationTargets = useMemo<AuthoredAnimationTarget[]>(
-    () =>
-      orderedClipEntries
-        .filter((entry) => entry.source === "authored")
-        .map((entry) => ({
-          targetId: entry.targetId,
-          clipId: entry.clipId,
-          name: entry.name,
-          clip: entry.clip,
-        })),
+  const authoredClipEntries = useMemo(
+    () => orderedClipEntries.filter((entry) => entry.source === "authored"),
     [orderedClipEntries],
+  );
+
+  /**
+   * An authored clip addressed either way round: callers hold a target id, a
+   * clip id, or one parsed out of the other, and the same two-way lookup was
+   * written out at five call sites.
+   */
+  const findAuthoredClipEntry = useCallback(
+    (targetId: string | null, clipId: string | null) =>
+      authoredClipEntries.find(
+        (entry) =>
+          (targetId !== null && entry.targetId === targetId) ||
+          (clipId !== null && entry.clipId === clipId),
+      ) ?? null,
+    [authoredClipEntries],
   );
 
   const clipEntryByTargetId = useMemo(() => {
@@ -1241,11 +1228,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const authoredAnimationTargetOptions = useMemo(
     () =>
-      authoredAnimationTargets.map((target) => ({
+      authoredClipEntries.map((target) => ({
         value: target.targetId,
         label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
       })),
-    [authoredAnimationTargets],
+    [authoredClipEntries],
   );
 
   const animationTargetOptions = useMemo(
@@ -1411,9 +1398,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     activeProgramRuntimeTargetId ? programRuntimePlaybackState : "stopped";
   const activeAnimationRuntimeTimeLabel =
     activeAnimationRuntimeTargetId &&
-    effectiveAnimationRuntimePlaybackState !== "stopped"
-      ? <PlayheadClock timeDisplayMode={animationTimeDisplayMode} />
-      : null;
+    effectiveAnimationRuntimePlaybackState !== "stopped" ? (
+      <PlayheadClock timeDisplayMode={animationTimeDisplayMode} />
+    ) : null;
   const animationTargetPlaybackById = useMemo<
     Record<string, AnimationTargetPlaybackStatus>
   >(() => {
@@ -1587,9 +1574,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         //
         // Reading it eagerly makes the updater pure, so when it runs cannot
         // change what it writes.
-        const existing = authoredAnimationTargets.find(
-          (target) => target.targetId === targetId || target.clipId === clipId,
-        );
+        const existing = findAuthoredClipEntry(targetId, clipId);
         if (!existing) {
           return;
         }
@@ -1639,7 +1624,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       animationTargetOptions,
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       exportAnimationClipIr,
       resolveImportedAnimationBaseClip,
     ],
@@ -1651,7 +1636,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
    */
   const reservedAnimationClipIds = useMemo(() => {
     const ids = new Set<string>();
-    authoredAnimationTargets.forEach((target) => {
+    authoredClipEntries.forEach((target) => {
       ids.add(target.clipId);
       if (typeof target.clip?.id === "string") {
         ids.add(target.clip.id);
@@ -1667,11 +1652,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
     });
     return ids;
-  }, [authoredAnimationTargets, loadedBundle?.animations]);
+  }, [authoredClipEntries, loadedBundle?.animations]);
 
   const authoringAnimationTargets = useMemo(
     () => [
-      ...authoredAnimationTargets.map((target) => ({
+      ...authoredClipEntries.map((target) => ({
         id: target.targetId,
         label: target.name.trim().length > 0 ? target.name : "Untitled Clip",
         source: "authored" as const,
@@ -1717,13 +1702,13 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       animationTargetPlaybackById,
       animationTracks,
-      authoredAnimationTargets,
+      authoredClipEntries,
       bundleAnimationTargetOptions,
       resolveImportedAnimationClip,
       selectedAnimationTargetId,
     ],
   );
-  // Reads the rendered list rather than `authoredAnimationTargets` so an
+  // Reads the rendered list rather than `authoredClipEntries` so an
   // imported clip gets its label too.
   const selectedAnimationClipName = useMemo(
     () =>
@@ -1766,10 +1751,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       let source: "authored" | "imported" = "imported";
 
       if (authoredClipId) {
-        const authoredTarget = authoredAnimationTargets.find(
-          (target) =>
-            target.targetId === selectedAnimationTargetId ||
-            target.clipId === authoredClipId,
+        const authoredTarget = findAuthoredClipEntry(
+          selectedAnimationTargetId,
+          authoredClipId,
         );
         if (!authoredTarget) {
           return null;
@@ -1832,7 +1816,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     }, [
       animationDuration,
       animationTracks,
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
       mainFaceInputsById,
@@ -1966,10 +1950,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       activeAnimationRuntimeTargetId,
     );
     if (authoredClipId) {
-      const authoredTarget = authoredAnimationTargets.find(
-        (target) =>
-          target.targetId === activeAnimationRuntimeTargetId ||
-          target.clipId === authoredClipId,
+      const authoredTarget = findAuthoredClipEntry(
+        activeAnimationRuntimeTargetId,
+        authoredClipId,
       );
       if (!authoredTarget) {
         return null;
@@ -2003,7 +1986,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     };
   }, [
     activeAnimationRuntimeTargetId,
-    authoredAnimationTargets,
+    findAuthoredClipEntry,
     exportAnimationClipIr,
     resolveImportedAnimationClip,
     selectedAnimationTargetId,
@@ -2087,10 +2070,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
       if (authoredClipId) {
-        const target = authoredAnimationTargets.find(
-          (entry) =>
-            entry.targetId === targetId || entry.clipId === authoredClipId,
-        );
+        const target = findAuthoredClipEntry(targetId, authoredClipId);
         if (target) {
           importAnimationClipIr(target.clip);
           return;
@@ -2105,7 +2085,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       useAnimationStore.getState().reset();
     },
     [
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       importAnimationClipIr,
       resolveImportedAnimationClip,
     ],
@@ -2259,22 +2239,20 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     const nextOrdinal = nextClipOrdinal(reservedAnimationClipIds);
     const nextClipId = `authoring.timeline.clip.${nextOrdinal}`;
     const nextClipName = `Animation Clip ${nextOrdinal}`;
-    const nextTarget = createAuthoredAnimationTarget(
-      nextClipId,
-      nextClipName,
-      animationDuration,
-    );
     addClipToStore({
-      clipId: nextTarget.clipId,
-      name: nextTarget.name,
+      clipId: nextClipId,
+      name: nextClipName,
       source: "authored",
       baseline: null,
-      clip: nextTarget.clip,
+      clip: createEmptyAnimationClip(
+        nextClipId,
+        nextClipName,
+        animationDuration,
+      ),
     });
-    selectClipInStore(nextTarget.clipId);
+    selectClipInStore(nextClipId);
   }, [
     animationDuration,
-    authoredAnimationTargets,
     // Allocates the next clip id against this; a stale copy hands the new clip
     // an id an existing one already owns.
     reservedAnimationClipIds,
@@ -2291,10 +2269,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
       const authoredClipId = parseAuthoredAnimationTargetValue(targetId);
       if (authoredClipId) {
-        const authoredTarget = authoredAnimationTargets.find(
-          (target) =>
-            target.targetId === targetId || target.clipId === authoredClipId,
-        );
+        const authoredTarget = findAuthoredClipEntry(targetId, authoredClipId);
         if (!authoredTarget) {
           return;
         }
@@ -2333,26 +2308,19 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         id: nextClipId,
         name: nextName,
       };
-      const nextTarget: AuthoredAnimationTarget = {
-        targetId: authoredAnimationTargetValue(nextClipId),
-        clipId: nextClipId,
-        name: nextName,
-        clip: nextClip,
-      };
-
       setActiveAuthoringSurface("animations");
       setWorkspacePanelVisibility("animation", true);
       addClipToStore({
-        clipId: nextTarget.clipId,
-        name: nextTarget.name,
+        clipId: nextClipId,
+        name: nextName,
         source: "authored",
         baseline: null,
-        clip: nextTarget.clip,
+        clip: nextClip,
       });
-      selectClipInStore(nextTarget.clipId);
+      selectClipInStore(nextClipId);
     },
     [
-      authoredAnimationTargets,
+      findAuthoredClipEntry,
       bundleAnimationTargetOptions,
       exportAnimationClipIr,
       // See above: the clip id is allocated from this.
@@ -2444,7 +2412,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       // identical clips.
       const { fresh, duplicates } = dedupeImportedClips({
         clips: result.clips,
-        existing: authoredAnimationTargets.map((target) => ({
+        existing: authoredClipEntries.map((target) => ({
           name: target.name,
           clip: target.clip,
         })),
@@ -2573,7 +2541,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [
       showAlert,
       showConfirm,
-      authoredAnimationTargets,
+      authoredClipEntries,
       handleUpdateStandardInput,
       loadedBundle?.metadata,
       mainFaceInputsById,
@@ -2633,7 +2601,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const deleteAnimationTargetById = useCallback(
     (deletingTargetId: string) => {
-      const activeTarget = authoredAnimationTargets.find(
+      const activeTarget = authoredClipEntries.find(
         (target) => target.targetId === deletingTargetId,
       );
       const activeOptionLabel =
@@ -2650,7 +2618,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
 
       const deletingEntry = clipEntryByTargetId.get(deletingTargetId);
-      const nextAuthoredTargets = authoredAnimationTargets.filter(
+      const nextAuthoredTargets = authoredClipEntries.filter(
         (target) => target.targetId !== deletingTargetId,
       );
       if (deletingEntry) {
@@ -2691,7 +2659,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       animationTargetOptions,
-      authoredAnimationTargets,
+      authoredClipEntries,
       bundleAnimationTargetOptions,
       clipEntryByTargetId,
       removeClipFromStore,
