@@ -27,6 +27,8 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
+import { readGltfAnimationDocument } from "../animationImport/gltfAnimationDocument";
+import { gltfAnimationFingerprint } from "../animationImport/bakedAnimationProvenance";
 import {
   bakeAuthoredClips,
   buildBakeChannelIndex,
@@ -1132,18 +1134,64 @@ export function useVizijExport(
             root: exportableBodies[0] as never,
           });
           bakedAnimations = bakeResult.animations;
+
           // Record which clip each baked animation came from, so re-importing
           // this file loads the clip once instead of adding the baked copy as
-          // a second clip. Without it, two clips out came back as three.
-          if (bundle) {
+          // a second clip — two clips out used to come back as three.
+          //
+          // The fingerprint comes from a throwaway export read back, not from
+          // the bake inputs: `GLTFExporter` merges morph tracks into one
+          // `weights` channel per mesh and every value round-trips through
+          // float32, so a fingerprint predicted from the inputs would never
+          // match the one the importer computes. Fingerprinting what was
+          // actually written is what lets a later import tell "unchanged" from
+          // "edited in Blender" — and so offer both rather than silently
+          // skipping the edit.
+          if (bundle && bakedAnimations.length > 0) {
+            const bakedByName = new Map(
+              bakeResult.report.outcomes
+                .filter((outcome) => outcome.clip)
+                .map((outcome) => [outcome.clipName, outcome.clipId]),
+            );
+            let fingerprints = new Map<string, string>();
+            try {
+              const probeGlb = await new Promise<ArrayBuffer>(
+                (resolve, reject) => {
+                  exportScene(exportableBodies[0], {
+                    fileName: downloadName,
+                    animations: bakedAnimations as never,
+                    onBinary: resolve,
+                    onError: reject,
+                  });
+                },
+              );
+              const probeDocument = readGltfAnimationDocument(probeGlb);
+              fingerprints = new Map(
+                probeDocument.animations.map((animation) => [
+                  animation.name,
+                  gltfAnimationFingerprint(animation),
+                ]),
+              );
+            } catch (error) {
+              // A failed probe costs the edited-vs-identical distinction, not
+              // the export: records without a fingerprint still stop the
+              // duplicate-import bug.
+              logVizijExportDebug("export-glb:bake-fingerprint-failed", {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+
             bundle.metadata = {
               ...(bundle.metadata ?? {}),
-              bakedAnimations: bakeResult.report.outcomes
-                .filter((outcome) => outcome.clip)
-                .map((outcome) => ({
-                  animationName: outcome.clipName,
-                  clipId: outcome.clipId,
-                })),
+              bakedAnimations: [...bakedByName.entries()].map(
+                ([animationName, clipId]) => ({
+                  animationName,
+                  clipId,
+                  ...(fingerprints.has(animationName)
+                    ? { fingerprint: fingerprints.get(animationName) }
+                    : {}),
+                }),
+              ),
             };
           }
           // The preflight names the lossy set rather than only counting it
