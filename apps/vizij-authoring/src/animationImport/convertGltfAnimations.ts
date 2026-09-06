@@ -8,6 +8,10 @@ import {
   type AnimationTrackIR,
 } from "../types/animationClipIr";
 import { compileAnimationClipIr } from "../utils/animationClipCompiler";
+import {
+  classifyGltfAnimation,
+  type BakedAnimationRecord,
+} from "./bakedAnimationProvenance";
 import type {
   GltfAnimationCurve,
   GltfAnimationDocument,
@@ -60,6 +64,12 @@ export interface ConvertGltfAnimationsOptions {
   catalog: PropsRigTargetCatalog;
   clipId?: string;
   clipName?: string;
+  /**
+   * What export recorded about the animations it baked, keyed by glTF
+   * animation name. Absent for a plain Blender export or a GLB written before
+   * bake provenance existed, in which case everything imports.
+   */
+  bakedRecords?: ReadonlyMap<string, BakedAnimationRecord>;
 }
 
 const BLENDER_ACTION_NAME = /Action(\.\d+)?$/;
@@ -180,8 +190,55 @@ function tangentsFor(
 export function convertGltfAnimations(
   options: ConvertGltfAnimationsOptions,
 ): GltfConversionResult {
-  const { document, catalog } = options;
+  const { document: rawDocument, catalog } = options;
+
+  // Decide what to do with each glTF animation the bundle may already carry.
+  //
+  // Export writes clips twice on purpose: losslessly into
+  // `VIZIJ_bundle.animations`, and baked into glTF channels so Blender and
+  // other viewers see the motion. Loading our own export therefore offers the
+  // same clip from two directions, and importing both is how two clips became
+  // three.
+  //
+  // Skipping every baked animation would be wrong the other way: baking exists
+  // so people can edit the GLB elsewhere. An animation that no longer matches
+  // what we baked is new information, so it is imported *alongside* the
+  // authored clip and flagged, rather than discarded.
+  const bakedRecords = options.bakedRecords ?? new Map();
+  const duplicates: string[] = [];
+  const edited: string[] = [];
+  for (const animation of rawDocument.animations) {
+    const disposition = classifyGltfAnimation({ animation, bakedRecords });
+    if (disposition.kind === "skip-duplicate") {
+      duplicates.push(animation.name);
+    } else if (disposition.kind === "keep-both-edited") {
+      edited.push(animation.name);
+    }
+  }
+  const document =
+    duplicates.length > 0
+      ? {
+          ...rawDocument,
+          animations: rawDocument.animations.filter(
+            (animation) => !duplicates.includes(animation.name),
+          ),
+        }
+      : rawDocument;
   const diagnostics: GltfImportDiagnostic[] = [];
+  if (duplicates.length > 0) {
+    diagnostics.push({
+      severity: "info",
+      code: "already-in-bundle",
+      message: `Skipped ${duplicates.length} baked animation(s) already present in this file's Vizij bundle: ${duplicates.join(", ")}.`,
+    });
+  }
+  if (edited.length > 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "baked-animation-edited",
+      message: `${edited.length} baked animation(s) were changed outside Vizij: ${edited.join(", ")}. Imported alongside the authored clip so neither version is lost — keep whichever you meant.`,
+    });
+  }
   const grouping = inferGltfAnimationGrouping(document);
   const sourceAnimations = document.animations.length;
 

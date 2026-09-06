@@ -11,6 +11,7 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
+import { readBakedAnimationRecords } from "./animationImport/bakedAnimationProvenance";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
   useWorkspaceStore,
@@ -2427,6 +2428,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         result = importGltfAnimations({
           glb,
           catalog,
+          // Animations this file's own bundle says it baked. Skipping them
+          // stops a round trip adding a second copy of every clip.
+          bakedRecords: readBakedAnimationRecords(
+            (
+              loadedBundle?.metadata as
+                | { bakedAnimations?: unknown }
+                | undefined
+            )?.bakedAnimations,
+          ),
           clipIdPrefix: `authoring.timeline.clip.${nextOrdinal}`,
           clipNamePrefix: fileName.replace(/\.glb$/i, ""),
         });
@@ -2559,6 +2569,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       showAlert,
       authoredAnimationTargets,
       handleUpdateStandardInput,
+      loadedBundle?.metadata,
       mainFaceInputsById,
       setActiveAuthoringSurface,
       setWorkspacePanelVisibility,

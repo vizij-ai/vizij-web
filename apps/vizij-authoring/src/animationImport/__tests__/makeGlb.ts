@@ -72,6 +72,8 @@ export function makeSingleChannelGlb(options: {
   /** Accessor type for the output; defaults from `path`. */
   outputType?: "SCALAR" | "VEC3" | "VEC4";
   morphTargetNames?: string[];
+  /** glTF animation name; matters for round-trip provenance. */
+  animationName?: string;
 }): ArrayBuffer {
   const {
     nodeName,
@@ -80,6 +82,7 @@ export function makeSingleChannelGlb(options: {
     values,
     interpolation = "LINEAR",
     morphTargetNames,
+    animationName = "TestAction",
   } = options;
 
   const outputType =
@@ -129,7 +132,7 @@ export function makeSingleChannelGlb(options: {
     ],
     animations: [
       {
-        name: "TestAction",
+        name: animationName,
         samplers: [{ input: 0, output: 1, interpolation }],
         channels: [{ sampler: 0, target: { node: 0, path } }],
       },
