@@ -384,6 +384,87 @@ describe("convertGltfAnimations", () => {
       expect(clips[0]!.tracks).toHaveLength(1);
       expect(clips[0]!.tracks[0]!.keyframes.map((k) => k.time)).toEqual([0, 2]);
     });
+
+    it("splits independent animations into a clip each", () => {
+      // An NLA export: two self-contained animations, each driving the same
+      // channel over the same span. They used to be concatenated into one
+      // track, where the compiler's one-key-per-time dedupe then *discarded*
+      // the overlap — silent data loss on a workflow the importer's own
+      // diagnostic recommends.
+      const overlapping = (nodeName: string) => [
+        curve({ nodeName, times: [0, 1], values: [0, 0, 0, 1, 1, 1] }),
+        curve({
+          nodeName,
+          path: "scale" as const,
+          times: [0, 1],
+          values: [1, 1, 1, 2, 2, 2],
+        }),
+        curve({
+          nodeName,
+          path: "rotation" as const,
+          times: [0, 1],
+          stride: 4,
+          values: [0, 0, 0, 1, 0, 0, 0, 1],
+        }),
+      ];
+      const document: GltfAnimationDocument = {
+        animations: [
+          { name: "Wave", index: 0, curves: overlapping("L_Eye") },
+          { name: "Nod", index: 1, curves: overlapping("L_Eye") },
+        ],
+        readErrors: [],
+      };
+
+      const { clips, grouping } = convertGltfAnimations({
+        document,
+        catalog: catalogOf("/propsrig/l_eye/translation/x"),
+      });
+
+      expect(grouping).toBe("per-animation");
+      expect(clips).toHaveLength(2);
+      expect(clips.map((clip) => clip.name)).toEqual(["Wave", "Nod"]);
+      // Every keyframe survives: two per animation, not two in total.
+      for (const clip of clips) {
+        const track = clip.tracks.find(
+          (entry) => entry.channel === "propsrig/l_eye/translation/x",
+        );
+        expect(track?.keyframes.map((k) => k.time)).toEqual([0, 1]);
+      }
+      // Distinct ids, since clip id is the identity everywhere downstream.
+      expect(new Set(clips.map((clip) => clip.id)).size).toBe(2);
+    });
+
+    it("warns rather than silently dropping keys that collide in one clip", () => {
+      // Per-action fragments legitimately share a timeline, so a collision
+      // there is merged — but the user still loses a value, and should be told.
+      const document: GltfAnimationDocument = {
+        animations: [
+          {
+            name: "FirstAction",
+            index: 0,
+            curves: [curve({ times: [0, 1], values: [1, 0, 0, 2, 0, 0] })],
+          },
+          {
+            name: "SecondAction",
+            index: 1,
+            curves: [curve({ times: [1], values: [9, 0, 0] })],
+          },
+        ],
+        readErrors: [],
+      };
+
+      const { grouping, diagnostics } = convertGltfAnimations({
+        document,
+        catalog: catalogOf("/propsrig/l_eye/translation/x"),
+      });
+
+      expect(grouping).toBe("per-action");
+      const collision = diagnostics.find(
+        (entry) => entry.code === "channel-time-collision",
+      );
+      expect(collision?.severity).toBe("warning");
+      expect(collision?.message).toContain("SecondAction");
+    });
   });
 
   describe("diagnostics and stats", () => {

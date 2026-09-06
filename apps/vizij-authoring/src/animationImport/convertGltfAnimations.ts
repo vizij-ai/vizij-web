@@ -357,7 +357,16 @@ export function convertGltfAnimations(
   }
 
   // --- build tracks --------------------------------------------------------
+  // Keyed by (clip group, channel). When the grouping says the source
+  // animations are independent, each becomes its own clip — so two of them
+  // driving the same channel must not land in the same track.
   const tracksByChannel = new Map<string, AnimationTrackIR>();
+  const groupOrder: string[] = [];
+  const channelsByGroup = new Map<string, string[]>();
+  const groupKeyFor = (animationName: string) =>
+    grouping === "per-animation" ? animationName : "";
+  const trackKeyFor = (animationName: string, channel: string) =>
+    `${groupKeyFor(animationName)}\u0000${channel}`;
   const eulerCache = new Map<
     GltfAnimationCurve,
     ReturnType<typeof quaternionCurveToEulerZYX> | null
@@ -434,15 +443,43 @@ export function convertGltfAnimations(
     }
     keyframes += built.length;
 
-    const existing = tracksByChannel.get(column.propsRigPath);
+    const trackKey = trackKeyFor(column.animationName, column.propsRigPath);
+    const existing = tracksByChannel.get(trackKey);
     if (existing) {
-      // Two source animations drive the same channel; concatenate and let the
-      // compiler's equal-time dedupe settle overlaps deterministically.
+      // Same channel, same clip. For `per-action` that is the intended shape —
+      // fragments of one shared performance. Overlapping times are settled by
+      // the compiler's equal-time dedupe, which keeps one key per time, so say
+      // so rather than letting keyframes disappear quietly.
+      const overlapping = new Set(
+        existing.keyframes.map((keyframe) => keyframe.time),
+      );
+      const dropped = built.filter((keyframe) =>
+        overlapping.has(keyframe.time),
+      ).length;
+      if (dropped > 0) {
+        diagnostics.push({
+          severity: "warning",
+          code: "channel-time-collision",
+          message:
+            `"${column.animationName}": ${dropped} keyframe(s) on ` +
+            `${column.propsRigPath} land on times another source animation ` +
+            "already keys; only one value per time survives.",
+          remediation:
+            "Export the animations separately, or move the overlapping keys, if both were meant to be kept.",
+        });
+      }
       existing.keyframes = [...existing.keyframes, ...built];
       continue;
     }
 
-    tracksByChannel.set(column.propsRigPath, {
+    const groupKey = groupKeyFor(column.animationName);
+    if (!channelsByGroup.has(groupKey)) {
+      channelsByGroup.set(groupKey, []);
+      groupOrder.push(groupKey);
+    }
+    channelsByGroup.get(groupKey)!.push(trackKey);
+
+    tracksByChannel.set(trackKey, {
       id: trackId,
       variableId: deriveStandardRigInputIdFromPath(column.propsRigPath),
       channel: column.propsRigPath,
@@ -522,27 +559,41 @@ export function convertGltfAnimations(
   }
 
   const clips: AnimationClipIR[] = [];
-  if (tracks.length > 0) {
+  const baseClipId = options.clipId ?? "gltf-import";
+  const baseClipName = options.clipName ?? "Imported GLB Animation";
+
+  for (const groupKey of groupOrder) {
+    const groupTracks = (channelsByGroup.get(groupKey) ?? [])
+      .map((key) => tracksByChannel.get(key))
+      .filter((track): track is AnimationTrackIR => track !== undefined);
+    if (groupTracks.length === 0) {
+      continue;
+    }
+
     // Per-action fragments share one timeline, so duration is the latest key
     // across all of them and NO per-animation time shift is applied — shifting
-    // each fragment to zero would collapse the choreography.
-    const duration = tracks.reduce((max, track) => {
+    // each fragment to zero would collapse the choreography. Independent
+    // animations each keep their own span for the same reason in reverse:
+    // they were never on a shared clock.
+    const duration = groupTracks.reduce((max, track) => {
       const last = track.keyframes[track.keyframes.length - 1];
       return last && last.time > max ? last.time : max;
     }, 0);
 
+    const isSplit = groupOrder.length > 1;
     clips.push(
       compileAnimationClipIr({
         clip: {
           schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
-          id: options.clipId ?? "gltf-import",
-          name: options.clipName ?? "Imported GLB Animation",
+          id: isSplit ? `${baseClipId}.${clips.length + 1}` : baseClipId,
+          name: isSplit ? groupKey || baseClipName : baseClipName,
           duration,
-          tracks,
+          tracks: groupTracks,
           metadata: {
             source: "gltf-native-animation",
             grouping,
             sourceAnimationCount: sourceAnimations,
+            ...(isSplit ? { sourceAnimation: groupKey } : {}),
           },
         },
       }),
