@@ -5,7 +5,10 @@ import {
   type AnimationTimeDisplayMode,
 } from "../../state/animationStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
-import { ANIMATION_TIMELINE_FPS } from "../../utils/animationTimeDisplay";
+import {
+  ANIMATION_TIMELINE_FPS,
+  snapTimeToFrame,
+} from "../../utils/animationTimeDisplay";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
@@ -67,9 +70,12 @@ export function TimelineEditor({
         return 0;
       }
       const clickX = x - TRACK_HEADER_WIDTH;
-      return Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
+      const time = Math.max(0, Math.min(1, clickX / trackWidth)) * duration;
+      // One snap point for everything a pointer produces here: the playhead,
+      // and the keyframe a double-click inserts.
+      return Math.min(snapTimeToFrame(time, timeDisplayMode), duration);
     },
-    [duration],
+    [duration, timeDisplayMode],
   );
 
   const seekFromClientX = useCallback(
