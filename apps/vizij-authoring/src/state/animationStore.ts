@@ -20,6 +20,7 @@ import {
   EMPTY_CLIP_SET,
   orderedClipEntries,
   removeClipEntry,
+  updateClipEntry,
   renameClipEntry,
   replaceClipEntries,
   selectedClipEntry,
@@ -321,6 +322,11 @@ interface AnimationState {
   addClip: (entry: AnimationClipEntryInput) => void;
   removeClip: (clipId: string) => void;
   renameClip: (clipId: string, name: string) => void;
+  /** Replace one clip's data in place, keeping its identity and order. */
+  updateClip: (
+    clipId: string,
+    update: (entry: AnimationClipEntry) => AnimationClipEntry,
+  ) => void;
   replaceClips: (
     entries: ReadonlyArray<AnimationClipEntryInput>,
     selectedClipId?: string | null,
@@ -410,6 +416,29 @@ interface AnimationState {
   reset: () => void;
   /** Teardown: clears the clip set as well as the buffer. */
   resetAll: () => void;
+}
+
+/**
+ * Apply a clip-set reducer, returning the *same* state when nothing changed.
+ *
+ * `set` with a spread always produces a new state object, so a no-op reducer
+ * still notifies every subscriber. That is not merely wasteful: a component
+ * whose render feeds an effect that calls the action again — seeding imported
+ * clips does exactly this — loops forever. It hung the face load at "Reset
+ * Session State" with no error, and is the same shape as the scrub-latch loop.
+ */
+function applyClipSet(
+  state: AnimationState,
+  next: ClipSetState,
+): AnimationState {
+  if (
+    next.clipEntries === state.clipEntries &&
+    next.clipOrder === state.clipOrder &&
+    next.selectedClipId === state.selectedClipId
+  ) {
+    return state;
+  }
+  return { ...state, ...next };
 }
 
 const INITIAL_STATE: Pick<
@@ -967,17 +996,19 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     }),
 
   addClip: (entry) =>
-    set((state) => ({
-      ...state,
-      ...addClipEntry(
-        {
-          clipEntries: state.clipEntries,
-          clipOrder: state.clipOrder,
-          selectedClipId: state.selectedClipId,
-        },
-        entry,
+    set((state) =>
+      applyClipSet(
+        state,
+        addClipEntry(
+          {
+            clipEntries: state.clipEntries,
+            clipOrder: state.clipOrder,
+            selectedClipId: state.selectedClipId,
+          },
+          entry,
+        ),
       ),
-    })),
+    ),
 
   removeClip: (clipId) =>
     set((state) => {
@@ -990,7 +1021,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         clipId,
       );
       if (next.selectedClipId === state.selectedClipId) {
-        return { ...state, ...next };
+        return applyClipSet(state, next);
       }
       // The selection moved because the selected clip was removed; load
       // whatever replaced it in the same transaction.
@@ -1023,18 +1054,36 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     }),
 
   renameClip: (clipId, name) =>
-    set((state) => ({
-      ...state,
-      ...renameClipEntry(
-        {
-          clipEntries: state.clipEntries,
-          clipOrder: state.clipOrder,
-          selectedClipId: state.selectedClipId,
-        },
-        clipId,
-        name,
+    set((state) =>
+      applyClipSet(
+        state,
+        renameClipEntry(
+          {
+            clipEntries: state.clipEntries,
+            clipOrder: state.clipOrder,
+            selectedClipId: state.selectedClipId,
+          },
+          clipId,
+          name,
+        ),
       ),
-    })),
+    ),
+
+  updateClip: (clipId, update) =>
+    set((state) =>
+      applyClipSet(
+        state,
+        updateClipEntry(
+          {
+            clipEntries: state.clipEntries,
+            clipOrder: state.clipOrder,
+            selectedClipId: state.selectedClipId,
+          },
+          clipId,
+          update,
+        ),
+      ),
+    ),
 
   replaceClips: (entries, selectedClipId) =>
     set((state) => {

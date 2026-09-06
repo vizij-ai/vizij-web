@@ -8,6 +8,7 @@ import {
   nextClipOrdinal,
   orderedClipEntries,
   removeClipEntry,
+  updateClipEntry,
   renameClipEntry,
   replaceClipEntries,
   selectedClipEntry,
@@ -225,5 +226,47 @@ describe("explicit target ids", () => {
     expect(state.clipEntries["authoring.timeline.clip.1"]!.targetId).toBe(
       "authored-animation:authoring.timeline.clip.1",
     );
+  });
+});
+
+describe("updateClipEntry", () => {
+  const seeded = addClipEntry(EMPTY_CLIP_SET, {
+    clipId: "clip.1",
+    name: "Wave",
+    source: "authored",
+    baseline: null,
+    clip: createEmptyClip("clip.1", "Wave"),
+  });
+
+  it("replaces a clip's data in place", () => {
+    const next = updateClipEntry(seeded, "clip.1", (entry) => ({
+      ...entry,
+      clip: { ...entry.clip, duration: 12 },
+    }));
+    expect(next.clipEntries["clip.1"]!.clip.duration).toBe(12);
+    expect(next.clipOrder).toEqual(seeded.clipOrder);
+  });
+
+  it("refuses to let an update change identity", () => {
+    // Filing an entry under its old key while it claims a new id is how a
+    // clip's edits end up addressing a different clip.
+    const next = updateClipEntry(seeded, "clip.1", (entry) => ({
+      ...entry,
+      clipId: "clip.2",
+      targetId: "authored-animation:clip.2",
+    }));
+    expect(next.clipEntries["clip.1"]!.clipId).toBe("clip.1");
+    expect(next.clipEntries["clip.1"]!.targetId).toBe(
+      "authored-animation:clip.1",
+    );
+    expect(next.clipEntries["clip.2"]).toBeUndefined();
+  });
+
+  it("leaves the state untouched for an unknown clip", () => {
+    expect(updateClipEntry(seeded, "missing", (entry) => entry)).toBe(seeded);
+  });
+
+  it("leaves the state untouched when the updater returns the same entry", () => {
+    expect(updateClipEntry(seeded, "clip.1", (entry) => entry)).toBe(seeded);
   });
 });

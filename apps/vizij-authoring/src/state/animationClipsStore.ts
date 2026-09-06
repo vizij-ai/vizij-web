@@ -172,6 +172,40 @@ export function addClipEntry(
   return { ...state, clipEntries, clipOrder: sortedOrder(clipEntries) };
 }
 
+/**
+ * Replace one clip's data, leaving its identity and place in the order alone.
+ *
+ * The saved copy of a clip is updated on switch-away, on import edits and on
+ * duration changes. Those all used to write into one of three parallel maps
+ * keyed by target id; here they address the entry that owns the data.
+ */
+export function updateClipEntry(
+  state: ClipSetState,
+  clipId: string,
+  update: (entry: AnimationClipEntry) => AnimationClipEntry,
+): ClipSetState {
+  const existing = state.clipEntries[clipId];
+  if (!existing) {
+    return state;
+  }
+  const next = update(existing);
+  if (next === existing) {
+    return state;
+  }
+  // Identity is not editable here: letting an update change `clipId` would
+  // leave the entry filed under its old key, which is how a clip's edits end
+  // up addressing a different clip.
+  const settled: AnimationClipEntry = {
+    ...next,
+    clipId: existing.clipId,
+    targetId: existing.targetId,
+  };
+  return {
+    ...state,
+    clipEntries: { ...state.clipEntries, [clipId]: settled },
+  };
+}
+
 export function removeClipEntry(
   state: ClipSetState,
   clipId: string,

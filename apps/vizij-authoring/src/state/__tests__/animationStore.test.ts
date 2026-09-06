@@ -255,3 +255,51 @@ describe("animationStore reset vs resetAll", () => {
     expect(after.tracks).toEqual([]);
   });
 });
+
+describe("animationStore clip actions are idempotent", () => {
+  function clipInput(clipId: string, name: string) {
+    return {
+      clipId,
+      name,
+      source: "authored" as const,
+      baseline: null,
+      clip: createEmptyClip(clipId, name),
+    };
+  }
+
+  it("adding a clip that already exists does not produce new state", () => {
+    // `set` with a spread always builds a new object, so a no-op reducer still
+    // notifies every subscriber — and a component whose render feeds an effect
+    // that calls this again loops forever. That hung the face load with no
+    // error at all.
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave"));
+    const before = useAnimationStore.getState();
+
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave again"));
+    const after = useAnimationStore.getState();
+
+    expect(after.clipEntries).toBe(before.clipEntries);
+    expect(after.clipOrder).toBe(before.clipOrder);
+    expect(after.clipEntries["clip.1"]!.name).toBe("Wave");
+  });
+
+  it("renaming to the same name does not produce new state", () => {
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave"));
+    const before = useAnimationStore.getState().clipEntries;
+    useAnimationStore.getState().renameClip("clip.1", "Wave");
+    expect(useAnimationStore.getState().clipEntries).toBe(before);
+  });
+
+  it("updating to an identical entry does not produce new state", () => {
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave"));
+    const before = useAnimationStore.getState().clipEntries;
+    useAnimationStore.getState().updateClip("clip.1", (entry) => entry);
+    expect(useAnimationStore.getState().clipEntries).toBe(before);
+  });
+
+  it("removing a clip that is not there does not produce new state", () => {
+    const before = useAnimationStore.getState().clipEntries;
+    useAnimationStore.getState().removeClip("missing");
+    expect(useAnimationStore.getState().clipEntries).toBe(before);
+  });
+});
