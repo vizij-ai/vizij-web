@@ -34,10 +34,18 @@ const state = {
   updateKeyframe: vi.fn(),
 };
 
-vi.mock("../../state/animationStore", () => ({
-  useAnimationStore: (selector?: (s: typeof state) => unknown) =>
-    selector ? selector(state) : state,
-}));
+vi.mock("../../state/animationStore", async () => {
+  // The real evaluator: insert-at-time must agree with what the curve
+  // actually plays, so faking it would hide exactly the bug under test.
+  const actual = await vi.importActual<
+    typeof import("../../state/animationStore")
+  >("../../state/animationStore");
+  return {
+    evaluateTrack: actual.evaluateTrack,
+    useAnimationStore: (selector?: (s: typeof state) => unknown) =>
+      selector ? selector(state) : state,
+  };
+});
 
 vi.mock("../../state/bindingAuthoringStore", () => {
   const store = { standardInputsById: new Map() };
@@ -68,5 +76,72 @@ describe("TimelineEditor selection", () => {
     fireEvent.click(container);
 
     expect(state.selectTrack).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("TimelineEditor keyframe insert", () => {
+  function insertAt(fraction: number) {
+    const view = render(<TimelineEditor />);
+    state.addKeyframe.mockClear();
+    const root = view.container.firstChild as HTMLElement;
+    // 192px track header, then the track area spans `duration`.
+    const headerWidth = 192;
+    const trackWidth = 400;
+    root.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: headerWidth + trackWidth,
+      }) as DOMRect;
+    fireEvent.doubleClick(root, {
+      clientX: headerWidth + trackWidth * fraction,
+    });
+    return view;
+  }
+
+  it("inserts at the curve's value, so adding a key does not change the motion", () => {
+    // The bug: it wrote the input's *default* instead, putting a step into
+    // every curve not already resting there.
+    state.tracks = [
+      {
+        id: "track-1",
+        label: "Jaw Open",
+        variableId: "jaw.open",
+        channel: "/propsrig/jaw/open",
+        color: "#fff",
+        interpolation: "linear" as const,
+        keyframes: [
+          { id: "kf-1", time: 0, value: 0.2 },
+          { id: "kf-2", time: 1, value: 0.8 },
+        ],
+      },
+    ];
+    state.duration = 1;
+
+    insertAt(0.5);
+
+    expect(state.addKeyframe).toHaveBeenCalledTimes(1);
+    const [, time, value] = state.addKeyframe.mock.calls[0]!;
+    expect(time).toBeCloseTo(0.5, 6);
+    expect(value).toBeCloseTo(0.5, 6);
+  });
+
+  it("falls back to the input default on a track with no curve yet", () => {
+    state.tracks = [
+      {
+        id: "track-1",
+        label: "Jaw Open",
+        variableId: "jaw.open",
+        channel: "/propsrig/jaw/open",
+        color: "#fff",
+        interpolation: "linear" as const,
+        keyframes: [],
+      },
+    ];
+    state.duration = 1;
+
+    insertAt(0.5);
+
+    expect(state.addKeyframe).toHaveBeenCalledTimes(1);
+    expect(state.addKeyframe.mock.calls[0]![2]).toBe(0);
   });
 });
