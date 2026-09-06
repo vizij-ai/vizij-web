@@ -8,13 +8,15 @@ import type { StandardInputId } from "./types";
  * Computed by sampling the clip rather than by reading the runtime, for two
  * reasons. It works while stopped — you can take a pose from a frame without
  * playing to it — and it is a pure function of the clip, so it is testable
- * without a device. The alternative, reading live values, is also currently
- * broken for this purpose: `capturePose` snapshots the pose store's
- * `currentValues`, which is written only by `applyPose`, `applyNeutral` and
- * rig-load defaults — `updateCurrentValues` has no caller in the app at all.
- * The Inputs sliders write `inputValues` in the binding store instead, and
- * nothing mirrors the runtime into either while a clip drives it. So at a
- * playhead `capturePose` records the last *applied pose*, not the frame.
+ * without a device. The alternative, reading live values, cannot work for this
+ * purpose. `capturePose` snapshots the pose store's `currentValues`, which is
+ * a filtered mirror of the binding store's `inputValues` — see the effect in
+ * `PoseRigProvider` that assigns `currentValues: filteredCurrent`, keyed on
+ * `inputValues`. So the Inputs sliders do reach it, but a playing or scrubbed
+ * clip does not: the animation drives the runtime directly and nothing mirrors
+ * the runtime back into `inputValues` (the only animation-driven write in
+ * `useRigController` is `syncTimelineLocks`, which sets locks, not values).
+ * At a playhead `capturePose` therefore records slider state, not the frame.
  */
 
 export type PoseCaptureScope =
