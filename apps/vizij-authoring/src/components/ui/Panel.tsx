@@ -12,6 +12,11 @@ import { Tooltip } from "./Tooltip";
 
 type BaseProps = {
   as?: ElementType;
+  // Declared explicitly: `ComponentPropsWithoutRef<TTag>` stays deferred while
+  // `TTag` is generic, so TypeScript cannot see `className` on it and the
+  // destructure below fails. Every intrinsic element accepts one, so naming it
+  // here is accurate rather than a widening.
+  className?: string;
   title?: ReactNode;
   description?: ReactNode;
   badge?: ReactNode;
