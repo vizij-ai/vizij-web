@@ -5,9 +5,11 @@ fail, and they failed the same way on this branch's other parent (PR #113)
 before the two branches were stacked — so none of them is a regression from
 the animation/transport work.
 
-They are not one problem. Three distinct causes have been established by
+They are not one problem. Seven distinct causes have been established by
 measurement, and each hid the next: with no GL backend the app unmounted, and
-only once it stayed mounted did the render loop appear.
+only once it stayed mounted did the render loop appear. Four of the six are
+now fixed; the two `runtime-sessions` specs are blocked on a product bug in
+animation clip/runtime ownership.
 
 ## What was found
 
@@ -55,22 +57,16 @@ specs rather than under them.
   "textColor": "#333333", "background": "#FFFFFF"
 }}}%%
 flowchart LR
-  subgraph assertion["Real assertion failure"]
-    lo["load-order:4<br/>toHaveText failed"]:::secondary
+  subgraph fixed["Fixed"]
+    lo["load-order<br/>expected Programs (0);<br/>quori:basic's bundle has one"]:::highlight
+    pe["profile-editor<br/>export dialog left open;<br/>edge click raced fitView;<br/>budget too small"]:::highlight
+    sk["skills<br/>dialog + budget"]:::highlight
+    sp["standard-profile<br/>dialog + budget"]:::highlight
   end
 
-  subgraph hang["Confirmed hang"]
-    rs144["runtime-sessions:144<br/>locator.evaluate never returns<br/>still hung at 360s, so not a budget"]:::secondary
-  end
-
-  subgraph unknown["Timed out at 120s, cause not established"]
-    pe["profile-editor:17<br/>locator.click"]:::neutral
-    sk["skills:32"]:::neutral
-    sp["standard-profile:11<br/>3 exports + re-import + 2nd face load"]:::neutral
-  end
-
-  subgraph rebase["Needs re-baselining"]
-    rs59["runtime-sessions:59<br/>was the unmount; crash now fixed"]:::highlight
+  subgraph product["Blocked on a product bug"]
+    rs59["runtime-sessions 'stay independent'<br/>animation bridge never converges;<br/>render storm unmounts the app"]:::secondary
+    rs144["runtime-sessions 'switching targets'<br/>not a hang: waited on a clip name<br/>the asset no longer has.<br/>Now fails on a duration edit<br/>that reverts across a clip switch"]:::secondary
   end
 
   classDef primary fill:#50C4B6,stroke:#2AA499,stroke-width:2px,color:#FFFFFF;
@@ -78,6 +74,80 @@ flowchart LR
   classDef highlight fill:#FF9E00,stroke:#F78600,stroke-width:2px,color:#333333;
   classDef neutral fill:#F7F8F8,stroke:#888888,stroke-width:2px,color:#333333;
 ```
+
+## The four causes found under the six
+
+Established by measurement, in the order the specs were worked.
+
+**The asset drifted out from under the tests.** `Quori_Current_Extended.glb`
+was re-exported (bundle `exportedAt` 2026-03-14) and its contents changed
+names. Reading the GLB's JSON chunk directly:
+
+| preset | file | animations | motiongraphs |
+| --- | --- | --- | --- |
+| `quori:basic` | `Quori_Current.glb` | 0 | `motiongraph` |
+| `quori:latest` | `Quori_Current_Extended.glb` | `Nonesense`, `Stages` | `Speaks`, `Live` |
+
+`load-order` asserted `Programs (0)` after selecting `quori:basic`, but that
+preset ships one embedded motiongraph — the app was right and the expectation
+stale, and the late `quori:latest` response had never leaked in. Both
+`runtime-sessions` specs asked for `New Animation Clip` and `New Procedural
+Program`, which no longer exist. That is what read as a hang: `locator.evaluate`
+waits on its locator with no timeout of its own, so it consumed the whole
+budget — raising the timeout to 360s only hung for 360s. All of these now read
+the names off the panel rows.
+
+**The modal backdrop now covers the menubar, and the export dialog stays
+open.** 92b3d7f4 moved `Modal` onto radix and lifted overlays to `z-[4100]`
+deliberately, so a modal covers the application instead of leaving the menubar
+clickable behind it. `exportGlb` never closed the dialog, so every later `File`
+menu click retried to the timeout against
+`<div class="fixed inset-0 z-[4100] …"> intercepts pointer events`. This alone
+accounts for `profile-editor`, `skills` and `standard-profile`.
+
+**A GLB export blocks for ~29 seconds.** Measured as the gap between the
+`export-glb:pose-graph-validate` and `export-glb:bake` log lines, with the
+runtime noticing it afterwards: "step loop woke after a 28.7s wall-clock gap".
+One export puts `profile-editor` at ~116s of the 120s budget; the two
+four-export specs need ~2 minutes of baking. Their per-test timeouts are now
+sized to the measurement. The bake itself is a real performance problem and is
+untouched.
+
+**Two clicks that were never going to land.** `EditorCanvas` runs
+`fitView({ duration: 260 })` on the rAF after its nodes appear, and
+`click({ force: true })` skips Playwright's wait-for-stable — the viewport
+transform was caught moving across the click
+(`translate(34.6px, 150.2px) scale(1.33)` to
+`translate(78.7px, 66.8px) scale(1.16)`), so the click missed the edge and
+selected nothing. Separately, `animation-panel button[title="Stop"] + button`
+was Play when written; the row is now Stop / Step back / Play / Step forward,
+so the click hit "Step back one frame" and the chip stayed "Runtime: Idle".
+And on macOS Chromium `Control+A` is move-to-line-start, not select-all, so
+typing over a duration left `12.55` behind. (That last one only bites locally;
+Linux CI would have passed it.)
+
+## What is left, and why it is not a test fix
+
+Both remaining failures are in animation clip/runtime ownership.
+
+`AnimationRuntimeBridge`'s second effect — the one commented "retry bundle
+application until runtime state converges" — never converges after a clip
+switch. Its `[timeline][animation-bridge] apply animations` log fires 26 times
+in four seconds against 1-2 normally, and the logged pairs show the runtime
+reporting `authoring.timeline.main` with `tracks: []` while the merged bundle
+has it with four. Each `setGraphBundle` changes the runtime signature, which
+clears `appliedAnimationSignatureRef`, which permits another apply. The
+nested-update storm ends in "Maximum update depth exceeded" and an unmounted
+tree; the captured throw is `setRuntimeTransportAdapter` from the adapter
+effect's cleanup, which writes state in both its cleanup and its body and so
+amplifies the storm rather than causing it. Note this is a *second* loop in
+that effect — 86a3eaac fixed a different one (the `runtime` context object in
+its deps).
+
+The other spec's last assertion fails on its own: a duration edit of 12.5
+lands (the field holds it) and reverts to 10 after switching clips away and
+back, even though `handleUpdateAnimationTargetDuration` writes an imported
+clip's duration through `updateClipInStore`.
 
 ## How to work these
 
