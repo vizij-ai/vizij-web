@@ -15,6 +15,12 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false,
+  // One at a time. Every test here boots the app, a WASM runtime and a large
+  // GLB face; running several at once exhausts memory and they fail for
+  // contention rather than for anything real. Playwright's default of
+  // cores/2 happens to be 1 on a two-core CI runner, so this mainly stops
+  // the suite going red on a developer machine with more cores.
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
