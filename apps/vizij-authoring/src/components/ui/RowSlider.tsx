@@ -73,7 +73,7 @@ export function RowSlider({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 flex-grow min-w-0 inspector-row-hit-target",
+        "flex flex-wrap items-center gap-2 flex-grow min-w-0 min-h-[var(--editor-row-min-height,32px)]",
         className,
       )}
       onMouseDown={(event) => event.stopPropagation()}
@@ -110,9 +110,15 @@ export function RowSlider({
           aria-label={label || "Value slider"}
         />
       </div>
+      {/* The numeric column is expressed as classes rather than an inline
+          `style` because `Input` routes `className` to the semio wrapper (the
+          box being sized) while `style` would land on the inner `<input>`.
+          `flex-[0 0 …]` also subsumes the `flex-none` this used to carry, and
+          `cn`'s tailwind-merge drops `Input`'s own `w-full` in favour of the
+          width below. */}
       <Input
         type="number"
-        className="inspector-numeric-control flex-none text-center text-[10px] tabular-nums font-black bg-zinc-950/40 border-zinc-800/60 h-6 p-0 transition-all hover:border-zinc-700/80 focus:border-blue-500/50"
+        className="flex-[0_0_var(--editor-numeric-width,88px)] w-[var(--editor-numeric-width,88px)] min-w-[var(--editor-numeric-width,88px)] max-w-full text-center text-[10px] tabular-nums font-black bg-zinc-950/40 border-zinc-800/60 h-6 p-0 transition-all hover:border-zinc-700/80 focus:border-blue-500/50"
         value={inputValue}
         onChange={handleNumberChange}
         onBlur={handleNumberBlur}

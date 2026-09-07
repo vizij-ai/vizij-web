@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { cn } from "../../utils/cn";
+import { useInTreeRoot } from "./TreeRoot";
 
 interface TreeRowProps {
   depth: number;
@@ -41,8 +42,90 @@ export function TreeRow({
     highlightQuery.trim().length > 0 &&
     label.toLowerCase().includes(highlightQuery.toLowerCase());
 
+  const inTreeRoot = useInTreeRoot();
+
+  // Left/Right/Enter/Space are the half of the tree pattern that needs this
+  // row's own `onToggle`/`onSelect`; `TreeRoot` handles the purely positional
+  // keys. See its docblock for why the pattern splits along that seam.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!inTreeRoot || disabled) return;
+    // Only the row the key was aimed at responds. Without this a keypress in a
+    // nested row would also be handled by every ancestor row on the way up.
+    if (event.target !== event.currentTarget) return;
+
+    switch (event.key) {
+      case "ArrowRight":
+        if (!hasChildren) return;
+        if (isExpanded) {
+          // Already open — move to the first child, which is the next treeitem
+          // in document order.
+          const next =
+            event.currentTarget.querySelector<HTMLElement>('[role="treeitem"]');
+          if (!next) return;
+          next.focus();
+        } else {
+          onToggle();
+        }
+        break;
+      case "ArrowLeft":
+        if (hasChildren && isExpanded) {
+          onToggle();
+        } else {
+          const parent =
+            event.currentTarget.parentElement?.closest<HTMLElement>(
+              '[role="treeitem"]',
+            );
+          if (!parent) return;
+          parent.focus();
+        }
+        break;
+      case "Enter":
+      case " ":
+        if (onSelect) {
+          // The click handler's signature is a mouse event and the keyboard has
+          // no equivalent. Rather than fabricate one, forward the keyboard event
+          // — every consumer reads only `metaKey`/`ctrlKey` off it, which a
+          // keyboard event carries natively.
+          onSelect(event as unknown as React.MouseEvent<HTMLDivElement>);
+        } else if (hasChildren) {
+          onToggle();
+        } else {
+          return;
+        }
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   return (
-    <div className="flex flex-col select-none">
+    <div
+      className="group/treeitem flex flex-col select-none outline-none"
+      // `treeitem` sits on this wrapper rather than on the visual row below
+      // because a treeitem's `role="group"` must be its DESCENDANT, and the
+      // children container is a sibling of the row. The focus ring is pushed
+      // back onto the row with the named group above so the outline does not
+      // draw around the whole subtree.
+      role={inTreeRoot ? "treeitem" : undefined}
+      // Named explicitly, because the role sits on the wrapper and a name
+      // computed from contents would therefore swallow the whole subtree: an
+      // expanded branch would announce as "alpha alpha-one alpha-two", growing
+      // as the user opens it. It also keeps the row's hover actions — which are
+      // buttons with their own labels — out of the row's name.
+      aria-label={inTreeRoot ? label : undefined}
+      tabIndex={inTreeRoot ? -1 : undefined}
+      aria-expanded={
+        inTreeRoot && hasChildren ? Boolean(isExpanded) : undefined
+      }
+      aria-selected={
+        inTreeRoot && isSelected !== undefined ? Boolean(isSelected) : undefined
+      }
+      aria-level={inTreeRoot ? depth + 1 : undefined}
+      aria-disabled={inTreeRoot && disabled ? true : undefined}
+      onKeyDown={inTreeRoot ? handleKeyDown : undefined}
+    >
       <div
         className={cn(
           "group relative flex items-center gap-1.5 rounded px-2 min-h-[30px] transition-all cursor-pointer overflow-hidden",
@@ -50,6 +133,7 @@ export function TreeRow({
             ? "bg-accent/10 text-accent shadow-premium shadow-accent-glow border border-accent/20"
             : "text-text-muted hover:bg-bg-hover hover:text-text-primary",
           disabled && "cursor-not-allowed opacity-45 hover:bg-transparent",
+          "group-focus-visible/treeitem:ring-2 group-focus-visible/treeitem:ring-accent/70 group-focus-visible/treeitem:ring-inset",
           className,
         )}
         style={{ paddingLeft: `${depth * 12 + 12}px`, ...style }}
@@ -81,6 +165,12 @@ export function TreeRow({
             isExpanded && "rotate-90",
           )}
           disabled={disabled}
+          // Inside a tree the expander is redundant with ArrowRight/ArrowLeft,
+          // and `aria-expanded` already lives on the treeitem — so it is hidden
+          // from AT and taken out of the tab order rather than being a second,
+          // unnamed control announcing the same state.
+          tabIndex={inTreeRoot ? -1 : undefined}
+          aria-hidden={inTreeRoot ? true : undefined}
           onClick={(e) => {
             e.stopPropagation();
             if (disabled) {
@@ -140,7 +230,9 @@ export function TreeRow({
 
       {/* Children Container */}
       {hasChildren && isExpanded && children && (
-        <div className="flex flex-col">{children}</div>
+        <div className="flex flex-col" role={inTreeRoot ? "group" : undefined}>
+          {children}
+        </div>
       )}
     </div>
   );

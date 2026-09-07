@@ -1,6 +1,6 @@
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
-import { Button as BaseButton } from "@base-ui/react";
+import { Button as SemioButton, Size, Variant } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -9,28 +9,108 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   pill?: boolean;
 }
 
+/** App size -> semio Size. `icon` is a square md button; see the docblock. */
+const SIZES: Record<NonNullable<ButtonProps["size"]>, Size> = {
+  sm: Size.Sm,
+  md: Size.Md,
+  lg: Size.Lg,
+  icon: Size.Md,
+};
+
+/**
+ * semio Variant per app variant. This only drives semio's own accent derivation
+ * (focus ring, `--accent-color`); the visible surface comes from the app classes
+ * below.
+ *
+ * Those app classes beat semio's `variant-*` classes because those live in
+ * `@layer components`. But semio ALSO emits plain utilities — `text-white
+ * dark:text-black` among them — and against those the layer argument does not
+ * apply: equal specificity, same layer, so source order decides. semio composes
+ * with `clsx`, not `twMerge`, so both classes survive onto the element and the app
+ * cannot dedupe from outside. Hence the `!` on every text colour below.
+ */
+const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, Variant> = {
+  primary: Variant.Primary,
+  secondary: Variant.Default,
+  subtle: Variant.Default,
+  danger: Variant.Error,
+  ghost: Variant.Default,
+};
+
+/**
+ * Button, built on `@semio/ui`'s `Button`.
+ *
+ * With 291 call sites this is the highest-volume component in the app, so the
+ * goal here is a **substrate swap with no visual change**: semio owns the
+ * element, press/focus behaviour and accent derivation, while the existing
+ * per-variant classes are kept verbatim. Restyling onto semio's own `visuals`
+ * presets (`call-to-action`, `list-item`, `deemphasize`) would change every
+ * button in the app at once and belongs in its own reviewable change.
+ *
+ * Two things must be handled explicitly:
+ *
+ * 1. **`aria-label` has to become semio's `altText`.** semio renders
+ *    `aria-label={altText}` *after* spreading incoming props, so a caller's
+ *    `aria-label` is overwritten with `undefined` and the attribute disappears
+ *    entirely. `Modal`'s close button relies on `aria-label="Close"`, and nine
+ *    modals' e2e assertions match `getByRole("button", { name: "Close" })` —
+ *    forwarding it untranslated would have silently broken all of them.
+ * 2. **`size="icon"` keeps explicit box classes.** semio infers icon-only from
+ *    `children === undefined` and expects the glyph in `leftIcon`/`rightIcon`;
+ *    every call site here passes the icon as `children`, so semio would pad it
+ *    like a text button. `h-9 w-9 p-0` preserves the square.
+ *
+ * Sizes keep their explicit height and padding because semio's `sized-height`
+ * scale does not line up with this app's `h-7`/`h-9`/`h-11`. `size` is still
+ * forwarded so semio's internal icon sizing stays proportional.
+ *
+ * Every text colour carries Tailwind v4's `!` important suffix. Without it semio's
+ * `text-white dark:text-black` wins and EVERY variant renders white text in light
+ * mode — secondary white-on-`#f4f4f5`, ghost and subtle effectively invisible.
+ * Dark mode looked correct throughout, which is why the first revision shipped
+ * with it. Verified by reading `getComputedStyle(button).color` in light mode, not
+ * by a test: nothing in the suite asserts colour.
+ *
+ * `subtle` and `ghost` were both still broken on light surfaces after that first
+ * fix, because it only addressed text COLOUR. Measured against a white canvas:
+ * `subtle`'s `bg-white/5` computed to transparent-white-on-white, so the button had
+ * no visible surface at all; and `ghost`'s `text-text-muted` is zinc-400 in light
+ * mode, roughly 2.3:1 against white and below WCAG. `subtle` now uses the
+ * `--bg-hover` token for a quiet but present fill, and `ghost` uses
+ * `--text-secondary` (zinc-600 light / zinc-400 dark), which reads in both themes.
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant = "secondary", size = "md", pill = false, ...props },
+    {
+      className,
+      variant = "secondary",
+      size = "md",
+      pill = false,
+      "aria-label": ariaLabel,
+      ...props
+    },
     ref,
   ) => {
     return (
-      <BaseButton
+      <SemioButton
         ref={ref}
+        variant={VARIANTS[variant]}
+        size={SIZES[size]}
+        altText={ariaLabel}
         className={cn(
           "inline-flex items-center justify-center font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed active:scale-[0.98] active:brightness-90",
 
           {
             // Variants
-            "bg-accent-gradient text-accent-fg shadow-premium hover:shadow-accent-glow hover:scale-[1.02] active:scale-[0.98]":
+            "bg-accent-gradient text-accent-fg! shadow-premium hover:shadow-accent-glow hover:scale-[1.02] active:scale-[0.98]":
               variant === "primary",
-            "bg-bg-secondary text-text-primary border border-border-default hover:bg-bg-secondary-hover shadow-sm active:scale-[0.98]":
+            "bg-bg-secondary text-text-primary! border border-border-default hover:bg-bg-secondary-hover shadow-sm active:scale-[0.98]":
               variant === "secondary",
-            "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white active:scale-[0.98]":
+            "bg-bg-hover text-text-secondary! hover:bg-bg-active hover:text-text-primary! active:scale-[0.98]":
               variant === "subtle",
-            "bg-color-danger text-color-danger-fg shadow-sm hover:bg-color-danger/90 active:scale-[0.98]":
+            "bg-danger text-danger-fg! shadow-sm hover:bg-danger/90 active:scale-[0.98]":
               variant === "danger",
-            "bg-transparent hover:bg-bg-hover text-text-muted hover:text-text-primary active:scale-[0.98]":
+            "bg-transparent hover:bg-bg-hover text-text-secondary! hover:text-text-primary! active:scale-[0.98]":
               variant === "ghost",
 
             // Sizes

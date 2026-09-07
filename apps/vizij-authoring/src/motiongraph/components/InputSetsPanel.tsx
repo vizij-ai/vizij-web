@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEditorStore } from "../store/useEditorStore";
+import { SetTreeRow, type SetTreeNode } from "./SetTreeRow";
 
 // ─── Path helpers ─────────────────────────────────────────────────────
 
@@ -11,23 +12,14 @@ function getBase(path: string): string {
 
 // ─── Tree data structure ─────────────────────────────────────────────
 
-interface TreeNode {
-  name: string;
-  /** Full path from root (used as the toggle key). */
-  path: string;
-  children: TreeNode[];
-  /** True if this node is a leaf (an actual input path). */
-  isLeaf: boolean;
-}
-
-function buildTree(paths: string[], base: string): TreeNode[] {
+function buildTree(paths: string[], base: string): SetTreeNode[] {
   const root = new Map<
     string,
-    { node: TreeNode; childMap: Map<string, any> }
+    { node: SetTreeNode; childMap: Map<string, any> }
   >();
 
   function getOrCreate(
-    level: Map<string, { node: TreeNode; childMap: Map<string, any> }>,
+    level: Map<string, { node: SetTreeNode; childMap: Map<string, any> }>,
     name: string,
     path: string,
     isLeaf: boolean,
@@ -63,8 +55,8 @@ function buildTree(paths: string[], base: string): TreeNode[] {
   }
 
   function flatten(
-    level: Map<string, { node: TreeNode; childMap: Map<string, any> }>,
-  ): TreeNode[] {
+    level: Map<string, { node: SetTreeNode; childMap: Map<string, any> }>,
+  ): SetTreeNode[] {
     return Array.from(level.values())
       .map(({ node, childMap }) => {
         node.children = flatten(childMap);
@@ -74,87 +66,6 @@ function buildTree(paths: string[], base: string): TreeNode[] {
   }
 
   return flatten(root);
-}
-
-// ─── Tree row ────────────────────────────────────────────────────────
-
-function TreeRow({
-  node,
-  depth,
-  enabled,
-  onToggle,
-  onRemove,
-}: {
-  node: TreeNode;
-  depth: number;
-  enabled: Set<string>;
-  onToggle: (path: string) => void;
-  onRemove: (path: string) => void;
-}) {
-  const isLeaf = node.isLeaf;
-  const hasChildren = node.children.length > 0;
-  const isActive = isLeaf && enabled.has(node.path);
-
-  return (
-    <>
-      <div className="flex items-center group">
-        <button
-          onClick={() => {
-            if (isLeaf) {
-              onToggle(node.path);
-            }
-          }}
-          disabled={!isLeaf}
-          className={`flex-1 text-left py-1 px-2 transition-colors ${
-            isActive
-              ? "bg-sky-600/20 text-sky-300"
-              : "bg-neutral-800/40 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300 disabled:cursor-default disabled:hover:bg-neutral-800/40 disabled:hover:text-neutral-500"
-          }`}
-        >
-          <span
-            className="flex items-center gap-1.5"
-            style={{ paddingLeft: depth * 12 }}
-          >
-            <span
-              className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 border transition-colors ${
-                isActive
-                  ? "bg-sky-500 border-sky-400"
-                  : "border-neutral-600 bg-transparent"
-              }`}
-            />
-            <span
-              className={`text-xs truncate ${hasChildren ? "font-medium" : ""}`}
-            >
-              {node.name}
-            </span>
-          </span>
-        </button>
-        {node.isLeaf && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(node.path);
-            }}
-            className="px-1.5 text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-            title="Remove input"
-          >
-            ×
-          </button>
-        )}
-      </div>
-
-      {node.children.map((child) => (
-        <TreeRow
-          key={child.path}
-          node={child}
-          depth={depth + 1}
-          enabled={enabled}
-          onToggle={onToggle}
-          onRemove={onRemove}
-        />
-      ))}
-    </>
-  );
 }
 
 // ─── Panel ───────────────────────────────────────────────────────────
@@ -345,13 +256,15 @@ export default function InputSetsPanel() {
           </div>
         ) : (
           tree.map((node) => (
-            <TreeRow
+            <SetTreeRow
               key={node.path}
               node={node}
               depth={0}
               enabled={enabled}
+              accent="sky"
               onToggle={toggleInput}
               onRemove={handleRemove}
+              removeTitle="Remove input"
             />
           ))
         )}

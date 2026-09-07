@@ -51,4 +51,27 @@ Build and maintain a runtime-truthful Vizij authoring surface: import assets/gra
 
 The general aesthetic of the application is to be clean and polished yet technical and powerful. Use non-grayscale colors sparingly as they will bring a lot of attention to them.
 
-Whenever you introduce a new UI element or feature, consider existing elements and refactoring patterns. Consider extending an existing element to support your needs instead. If that is not sufficient, introduce a new generalizable element that works for your needs and can be useful for future work. Make sure any new elements use the application's UI library, are accessible, and are using semantic theme values where applicable (such as colors) so as to be consistent and work with application themes.
+Whenever you introduce a new UI element or feature, consider existing elements and refactoring patterns. Consider extending an existing element to support your needs instead. If that is not sufficient, introduce a new generalizable element that works for your needs and can be useful for future work. Make sure any new elements are accessible and use semantic theme values where applicable (such as colors) so as to be consistent and work with application themes.
+
+### Where components come from
+
+Generic UI primitives come from **`@semio/ui`**. `src/components/ui/` is the app's _variant_ layer: each
+file either composes one or more `@semio/ui` exports and adds a documented app contract, or is app-local
+because `@semio/ui` has no usable counterpart. Feature code imports from `../ui`.
+
+When you need a building block, in order of preference:
+
+1. Use an existing component from `src/components/ui/`.
+2. Extend that component.
+3. Build a new `src/components/ui/` variant **on top of a `@semio/ui` export**. Check `@semio/ui`'s
+   surface first — it is broad (form controls, overlays, tree/list grids, scroll areas with sync hooks,
+   and a large icon set including keyframe/bezier/easing/playhead glyphs).
+4. Only if `@semio/ui` offers no substrate, build on `radix-ui` — the same primitive stack `@semio/ui`
+   itself uses. **Do not write new `@base-ui/react` imports.** It is still a dependency and still used
+   by several `src/components/ui/` files, but it is being retired: `@semio/ui` requires `@base-ui/react`
+   `^1.4.1` while this app pins `1.1.0`, and two copies means two independent portal/dismissal stacks.
+   Every new Base UI import is one more file to migrate.
+
+Do not re-implement a primitive inline in feature code. The app has a history of this (competing
+comboboxes, three separate collapsibles, a parallel numeric-input stack) and it is being retired, not
+extended.

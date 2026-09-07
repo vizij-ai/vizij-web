@@ -1,0 +1,76 @@
+# GENERATED — do not edit by hand.
+# Regenerate: node scripts/component-graph.mjs layers > docs/references/component-graph-layers.d2
+# Render:     d2 --font-regular <Questrial-Regular.ttf> <in>.d2 <out>.svg
+
+vars: { d2-config: { theme-id: 0; pad: 24; sketch: false; layout-engine: dagre } }
+
+classes: {
+  primary:   { style: { fill: "#50C4B6"; stroke: "#2AA499"; font-color: "#FFFFFF"; border-radius: 8; stroke-width: 2 } }
+  secondary: { style: { fill: "#F56B29"; stroke: "#EC4D00"; font-color: "#FFFFFF"; border-radius: 8; stroke-width: 2 } }
+  highlight: { style: { fill: "#FF9E00"; stroke: "#F78600"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+  neutral:   { style: { fill: "#F7F8F8"; stroke: "#888888"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+  emphasis:  { style: { fill: "#48E2CE"; stroke: "#2AA499"; font-color: "#111111"; border-radius: 8; stroke-width: 2 } }
+  group:     { style: { fill: "#FFFFFF"; stroke: "#50C4B6"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+}
+
+title: "vizij-authoring — component import layers" { near: top-center; shape: text; style: { font-size: 32; bold: true; font-color: "#333333" } }
+
+external_g: "third-party substrate" {
+  class: group
+  lucide: "lucide-react" { class: neutral }
+  radix_ui: "radix-ui" { class: neutral }
+  semio_ui: "@semio/ui" { class: neutral }
+  tabler: "@tabler/icons-react" { class: neutral }
+}
+
+animation: "animation/" { class: secondary }
+app: "app/" { class: secondary }
+ui: "ui/ primitives" { class: highlight }
+discrepancy: "discrepancy/" { class: secondary }
+poseRig: "poseRig/" { class: secondary }
+common: "common/" { class: neutral }
+editor_molecules: "editor/molecules" { class: primary }
+scene_composer: "scene-composer/" { class: secondary }
+binding: "binding/" { class: secondary }
+editor_atoms: "editor/atoms" { class: emphasis }
+editor_hooks: "editor/hooks" { class: emphasis }
+inspector: "inspector/" { class: secondary }
+panels: "panels/" { class: secondary }
+
+app -> ui: "29" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> ui: "25" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> ui: "24" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> editor_molecules: "10" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui -> external_g.semio_ui: "10" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> poseRig: "9" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui -> external_g.tabler: "9" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> editor_molecules: "8" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> external_g.lucide: "8" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules -> ui: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> external_g.lucide: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> poseRig: "7" { style: { stroke: "#555555"; stroke-width: 2 } }
+app -> poseRig: "6" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> editor_atoms: "6" { style: { stroke: "#555555"; stroke-width: 2 } }
+app -> external_g.lucide: "5" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_molecules -> external_g.lucide: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
+ui -> external_g.radix_ui: "4" { style: { stroke: "#555555"; stroke-width: 2 } }
+app -> common: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
+discrepancy -> ui: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> app: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
+poseRig -> ui: "3" { style: { stroke: "#555555"; stroke-width: 2 } }
+common -> ui: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
+editor_atoms -> external_g.lucide: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> inspector: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> scene_composer: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
+scene_composer -> ui: "2" { style: { stroke: "#555555"; stroke-width: 2 } }
+app -> discrepancy: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+app -> editor_molecules: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+app -> scene_composer: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+binding -> ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> binding: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> external_g.radix_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+inspector -> editor_hooks: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> animation: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> common: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> external_g.radix_ui: "1" { style: { stroke: "#555555"; stroke-width: 2 } }
+panels -> editor_atoms: "1" { style: { stroke: "#555555"; stroke-width: 2 } }

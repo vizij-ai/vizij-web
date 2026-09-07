@@ -1,6 +1,10 @@
-import { Collapsible as BaseCollapsible } from "@base-ui/react";
 import type { ReactNode } from "react";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import {
+  CollapsibleRoot,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@semio/ui";
+import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
 import { cn } from "../../utils/cn";
 
 export interface CollapsibleGroupProps {
@@ -11,8 +15,34 @@ export interface CollapsibleGroupProps {
   children: ReactNode;
   className?: string;
   actions?: ReactNode;
+  /**
+   * Glyph before the title, tinted to the accent while open.
+   *
+   * Added so `InstructionCallout` could stop being a second implementation of
+   * this component — it was the only thing it needed that this did not have.
+   */
+  icon?: ReactNode;
 }
 
+/**
+ * Titled, collapsible section, built on the raw Collapsible primitives
+ * `@semio/ui` re-exports (Radix, not semio's own `Collapse`, which has no
+ * `actions` slot or `subtitle`).
+ *
+ * This fixes a whole layer of dead styling. The previous implementation used
+ * Radix-flavoured `data-[state=open]` / `group-data-[state=open]` selectors while
+ * running on Base UI, which emits `data-open` / `data-closed` / `data-panel-open`
+ * instead — so the chevron never swapped, the title never brightened, and the
+ * open-state shadow and border never appeared. Radix does emit `data-state`, so
+ * the selectors now do what they always claimed to.
+ *
+ * The `group` marker also moved onto the Collapsible root. It used to sit on an
+ * inner `div` that never carried `data-state` at all, which is the other half of
+ * why the group selectors were inert.
+ *
+ * Hardcoded `zinc-*` surfaces and a `text-blue-400` chevron were replaced with
+ * tokens; the old values were invisible or off-palette in light mode.
+ */
 export function CollapsibleGroup({
   title,
   subtitle,
@@ -21,66 +51,71 @@ export function CollapsibleGroup({
   children,
   className = "",
   actions,
+  icon,
 }: CollapsibleGroupProps) {
   return (
-    <BaseCollapsible.Root defaultOpen={!defaultCollapsed}>
-      <div
+    <CollapsibleRoot
+      defaultOpen={!defaultCollapsed}
+      className={cn(
+        "group block w-full bg-bg-secondary/40 border border-border-default/60 rounded-xl overflow-hidden mb-2 transition-all duration-200",
+        "data-[state=open]:shadow-lg data-[state=open]:border-border-default",
+        className,
+      )}
+    >
+      <CollapsibleTrigger
         className={cn(
-          "bg-bg-secondary/40 border border-border-default/60 rounded-xl overflow-hidden mb-2 transition-all duration-200 group",
-          "data-[state=open]:shadow-lg data-[state=open]:shadow-black/20 data-[state=open]:border-border-default",
-          className,
+          "flex w-full items-center justify-between px-3 py-2 bg-bg-hover/30 cursor-pointer select-none transition-all duration-150 hover:bg-bg-hover/60 focus:outline-none focus-visible:outline-none",
+          "group-data-[state=open]:border-b group-data-[state=open]:border-border-default/60",
         )}
       >
-        <BaseCollapsible.Trigger
-          className={cn(
-            "flex w-full items-center justify-between px-3 py-2 bg-zinc-800/20 cursor-pointer select-none transition-all duration-150 hover:bg-zinc-800/40 focus:outline-none focus-visible:outline-none",
-            "group-data-[state=open]:border-b group-data-[state=open]:border-zinc-800/40",
-          )}
-        >
-          <div className="flex items-start gap-3 flex-[1_1_60%] min-w-0 pointer-events-none">
-            <div className="w-4 h-4 mt-0.5 flex items-center justify-center shrink-0">
-              <ChevronDown className="w-3 h-3 text-blue-400 transition-transform hidden group-data-[state=open]:block" />
-              <ChevronRight className="w-3 h-3 text-zinc-500 transition-transform group-data-[state=open]:hidden" />
-            </div>
-            <div className="flex flex-col gap-0.5 min-w-0 text-left">
-              <h3
-                className={cn(
-                  "m-0 text-[11px] font-black uppercase tracking-widest transition-colors",
-                  "group-data-[state=open]:text-zinc-100",
-                  "group-data-[state=closed]:text-zinc-400",
-                )}
-              >
-                {title}
-              </h3>
-              {subtitle && (
-                <p className="m-0 text-[10px] text-zinc-500 font-medium leading-tight">
-                  {subtitle}
-                </p>
-              )}
-            </div>
+        <div className="flex items-start gap-3 flex-[1_1_60%] min-w-0 pointer-events-none">
+          <div className="w-4 h-4 mt-0.5 flex items-center justify-center shrink-0">
+            <IconChevronDown className="w-3 h-3 text-accent hidden group-data-[state=open]:block" />
+            <IconChevronRight className="w-3 h-3 text-text-muted group-data-[state=open]:hidden" />
           </div>
-          {(actions || itemCount !== undefined) && (
-            <div className="flex items-center gap-3 shrink-0">
-              {actions && (
-                <div
-                  className="flex items-center gap-1.5"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {actions}
-                </div>
-              )}
-              {itemCount !== undefined && (
-                <span className="text-[9px] font-black text-zinc-500 bg-zinc-950/40 px-1.5 py-0.5 rounded border border-zinc-800/40 uppercase tracking-tighter">
-                  {itemCount} {itemCount === 1 ? "item" : "items"}
-                </span>
-              )}
+          {icon && (
+            <div className="mt-0.5 shrink-0 text-text-muted transition-colors group-data-[state=open]:text-accent">
+              {icon}
             </div>
           )}
-        </BaseCollapsible.Trigger>
-        <BaseCollapsible.Panel className="p-3 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200">
-          {children}
-        </BaseCollapsible.Panel>
-      </div>
-    </BaseCollapsible.Root>
+          <div className="flex flex-col gap-0.5 min-w-0 text-left">
+            <h3
+              className={cn(
+                "m-0 text-[11px] font-black uppercase tracking-widest transition-colors",
+                "group-data-[state=open]:text-text-primary",
+                "group-data-[state=closed]:text-text-secondary",
+              )}
+            >
+              {title}
+            </h3>
+            {subtitle && (
+              <p className="m-0 text-[10px] text-text-muted font-medium leading-tight">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+        {(actions || itemCount !== undefined) && (
+          <div className="flex items-center gap-3 shrink-0">
+            {actions && (
+              <div
+                className="flex items-center gap-1.5"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {actions}
+              </div>
+            )}
+            {itemCount !== undefined && (
+              <span className="text-[9px] font-black text-text-muted bg-bg-input/60 px-1.5 py-0.5 rounded border border-border-default/60 uppercase tracking-tighter">
+                {itemCount} {itemCount === 1 ? "item" : "items"}
+              </span>
+            )}
+          </div>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent className="p-3 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200">
+        {children}
+      </CollapsibleContent>
+    </CollapsibleRoot>
   );
 }

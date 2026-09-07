@@ -1,21 +1,38 @@
 import { forwardRef, type TextareaHTMLAttributes } from "react";
+import { TextArea as SemioTextArea } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
 export type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
 
+/**
+ * Multi-line text input, built on `@semio/ui`'s `TextArea`.
+ *
+ * Keeps the native `onChange(event)` signature: semio reports
+ * `(value, event)`, but every call site here reads `event.target.value`, so the
+ * variant adapts rather than making 6 call sites change.
+ *
+ * `font-mono` is preserved because this is used for expressions and code, not
+ * prose. The previous implementation hardcoded `bg-zinc-950`/`border-zinc-800`/
+ * `text-zinc-200`, which rendered as dark-on-dark in light mode; semio's
+ * variant classes are token-driven and fix that for free.
+ */
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <textarea
-        ref={ref}
-        className={cn(
-          "flex min-h-[60px] w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm shadow-sm placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 text-zinc-200 font-mono shadow-inner resize-none transition-all hover:border-white/20",
-          className,
-        )}
-        {...props}
-      />
-    );
-  },
+  ({ className, onChange, ...props }, ref) => (
+    <SemioTextArea
+      ref={ref}
+      bg
+      // semio defaults to `outline="interact"`, which only draws the border on
+      // hover or focus — at rest the field has no visible bounds and reads as
+      // plain text on the panel surface. Matches `Input`, which needed the same.
+      outline="always"
+      onChange={(_value, event) => onChange?.(event)}
+      className={cn(
+        "min-h-[60px] w-full resize-none rounded-lg font-mono text-sm",
+        className,
+      )}
+      {...props}
+    />
+  ),
 );
 
 TextArea.displayName = "TextArea";

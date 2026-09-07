@@ -1,7 +1,5 @@
-import { Collapsible as BaseCollapsible } from "@base-ui/react";
-import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { cn } from "../../utils/cn";
+import { CollapsibleGroup } from "../ui/CollapsibleGroup";
 
 type SidebarInstructions = {
   label: string;
@@ -18,6 +16,17 @@ interface SidebarSectionProps {
   defaultInstructionsOpen?: boolean;
 }
 
+/**
+ * Sidebar block with a heading, an optional description, and an optional
+ * collapsible instructions panel.
+ *
+ * The instructions panel used to be a second, hand-rolled Base UI collapsible —
+ * a duplicate of `CollapsibleGroup` down to the same dead `group-data-[state=…]`
+ * selectors (Base UI emits `data-open`/`data-closed`, so the chevron never
+ * rotated and the panel never animated). It now delegates to `CollapsibleGroup`,
+ * which is built on the Radix primitives `@semio/ui` re-exports, so that state
+ * styling is live. `SidebarSectionProps` is unchanged.
+ */
 export function SidebarSection({
   title,
   description,
@@ -41,36 +50,16 @@ export function SidebarSection({
       </header>
 
       {hasInstructions && instructions && (
-        <BaseCollapsible.Root
-          defaultOpen={defaultInstructionsOpen}
-          className="group"
+        <CollapsibleGroup
+          title={instructions.label}
+          subtitle={instructions.summary}
+          defaultCollapsed={!defaultInstructionsOpen}
+          className="mb-0"
         >
-          <div className="rounded-xl border border-border-default bg-bg-panel/50 overflow-hidden">
-            <BaseCollapsible.Trigger className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-bg-secondary/50">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-                  {instructions.label}
-                </span>
-                {instructions.summary && (
-                  <span className="text-[10px] text-text-muted font-medium">
-                    {instructions.summary}
-                  </span>
-                )}
-              </div>
-              <ChevronRight
-                className={cn(
-                  "h-3.5 w-3.5 text-text-muted transition-transform duration-200",
-                  "group-data-[state=open]:rotate-90 group-data-[state=open]:text-accent",
-                )}
-              />
-            </BaseCollapsible.Trigger>
-            <BaseCollapsible.Panel className="px-4 pb-4 pt-1 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95 duration-100">
-              <div className="text-[11px] text-text-secondary leading-relaxed space-y-2 prose prose-invert prose-xs max-w-none">
-                {instructions.content}
-              </div>
-            </BaseCollapsible.Panel>
+          <div className="text-[11px] text-text-secondary leading-relaxed space-y-2 max-w-none">
+            {instructions.content}
           </div>
-        </BaseCollapsible.Root>
+        </CollapsibleGroup>
       )}
 
       <div className="flex flex-col gap-3">{children}</div>

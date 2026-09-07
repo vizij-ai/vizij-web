@@ -772,7 +772,7 @@ export function StdFeatureSpacesChannelsPanel() {
             className={cn(
               "group flex items-center gap-1.5 rounded px-1 min-h-[26px] transition-all cursor-default select-none",
               isSelected
-                ? "bg-accent-subtle text-accent shadow-[inset_0_0_0_1px_rgba(var(--color-accent-rgb),0.3)]"
+                ? "bg-accent-subtle text-accent shadow-[inset_0_0_0_1px_var(--color-accent-subtle)]"
                 : "text-text-muted hover:bg-bg-secondary/40 hover:text-text-secondary",
             )}
             style={{ marginLeft: `${depth * 12}px` }}
