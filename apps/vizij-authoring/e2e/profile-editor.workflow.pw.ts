@@ -2,7 +2,12 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { bootAuthoring, expectDownload, loadMainPreset } from "./helpers";
+import {
+  bootAuthoring,
+  expectDownload,
+  loadMainPreset,
+  waitForGraphViewportSettled,
+} from "./helpers";
 import {
   closeMenus,
   downloadedGlbGraphs,
@@ -17,6 +22,11 @@ import {
 test("embedded profile edits in the graph editor apply to the bundle @workflow", async ({
   page,
 }) => {
+  // A GLB export of the extended Quori face spends ~29s in its animation
+  // bake alone (measured between the `export-glb:pose-graph-validate` and
+  // `export-glb:bake` log lines), which puts this test at ~115s of the
+  // project's 120s budget with nothing left for a slower runner.
+  test.setTimeout(300_000);
   page.on("console", (message) => {
     if (message.type() === "error") {
       console.log(`[browser:error]`, message.text());
@@ -76,7 +86,14 @@ test("embedded profile edits in the graph editor apply to the bundle @workflow",
   // false), so the deterministic edit is severing a mapping edge — the one
   // into the "sad" output.
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+  // The canvas auto-fits with a 260ms animation when it opens; clicking an
+  // edge while it is still sliding misses it.
+  await waitForGraphViewportSettled(page);
   await page.getByTestId("rf__edge-e-v-o2-out-input").click({ force: true });
+  // React Flow's delete-key handler acts on its *state*, so the click's
+  // selection has to have landed before Backspace or the keypress deletes
+  // nothing. Gate on the rendered selection rather than pressing blind.
+  await expect(page.locator(".react-flow__edge.selected")).toHaveCount(1);
   await page.keyboard.press("Backspace");
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 
