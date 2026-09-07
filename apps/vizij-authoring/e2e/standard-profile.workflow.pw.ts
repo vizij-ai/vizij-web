@@ -11,6 +11,12 @@ import {
 test("standard profile import round-trips through GLB export @workflow", async ({
   page,
 }) => {
+  // Four GLB exports of the extended Quori face, each spending ~29s in one
+  // synchronous animation bake (the gap between the
+  // `export-glb:pose-graph-validate` and `export-glb:bake` log lines), plus a
+  // re-import and a second face load. Two minutes of baking alone does not fit
+  // the project's 120s budget.
+  test.setTimeout(600_000);
   // Surface in-app failures (e.g. the profile fetch erroring) in the test log.
   page.on("console", (message) => {
     if (message.type() === "error" || message.type() === "warning") {
