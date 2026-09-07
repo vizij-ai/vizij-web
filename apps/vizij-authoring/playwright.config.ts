@@ -27,6 +27,18 @@ export default defineConfig({
     baseURL,
     browserName: "chromium",
     headless: !process.env.PWDEBUG,
+    // Headless Chromium has no GPU, and this app is a WebGL app: without a
+    // software backend `Error creating WebGL context.` is thrown and the whole
+    // React tree unmounts, leaving an empty document. Every locator then fails
+    // as "element(s) not found" or hangs until the test timeout, which reads
+    // as a flaky test rather than as a browser with no GL.
+    launchOptions: {
+      args: [
+        "--use-gl=angle",
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+      ],
+    },
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

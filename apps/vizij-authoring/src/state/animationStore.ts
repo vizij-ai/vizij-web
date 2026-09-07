@@ -92,6 +92,37 @@ function materialiseBuffer(
   });
 }
 
+/**
+ * Compares transport adapters by their methods rather than by object identity.
+ *
+ * The adapter is assembled from the runtime provider's context, so a caller
+ * that rebuilds it each render hands over a new object with the same six
+ * functions. An identity check treats that as a change, writes new state, and
+ * causes the render that rebuilds it again: while a program was playing — when
+ * the provider re-renders every frame — that loop hit React's update limit,
+ * unmounted the tree, and blanked the app. Guarding structurally makes a
+ * no-op write a no-op whatever the caller does.
+ */
+function sameTransportAdapter(
+  left: AnimationRuntimeTransportAdapter | null,
+  right: AnimationRuntimeTransportAdapter | null,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.playAnimation === right.playAnimation &&
+    left.pauseAnimation === right.pauseAnimation &&
+    left.stopAnimation === right.stopAnimation &&
+    left.seekAnimation === right.seekAnimation &&
+    left.setAnimationLoop === right.setAnimationLoop &&
+    left.getAnimationState === right.getAnimationState
+  );
+}
+
 function clampTime(value: number, duration: number): number {
   const normalizedDuration = Number.isFinite(duration)
     ? Math.max(MIN_DURATION_SECONDS, duration)
@@ -630,7 +661,10 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     }),
   setRuntimeTransportAdapter: (runtimeTransportAdapter) =>
     set((state) =>
-      state.runtimeTransportAdapter === runtimeTransportAdapter
+      sameTransportAdapter(
+        state.runtimeTransportAdapter,
+        runtimeTransportAdapter,
+      )
         ? state
         : { runtimeTransportAdapter },
     ),

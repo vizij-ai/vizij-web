@@ -154,21 +154,42 @@ describe("sampleTrackAt", () => {
     });
   });
 
-  it("samples a long track without scanning it", () => {
-    // A bake samples a track once per key, so an O(n) scan or a per-sample
-    // sort turns a three-minute 60fps channel into ~10^8 operations.
-    const subject = track(
-      Array.from({ length: 10_000 }, (_, index) => ({
-        id: `k${index}`,
-        time: index / 60,
-        value: index % 2,
-      })),
-    );
-    const started = performance.now();
-    for (let index = 0; index < 10_000; index += 1) {
-      sampleTrackAt(subject, index / 60);
-    }
-    expect(performance.now() - started).toBeLessThan(1000);
+  it("costs no more per sample as the track grows", () => {
+    // A bake samples a track once per key, so a per-sample sort or an O(n)
+    // scan turns a three-minute 60fps channel into ~10^8 operations.
+    //
+    // Asserted as a ratio, not a wall-clock bound. An absolute threshold
+    // measures the machine as much as the code: the first version of this
+    // test allowed 1000ms and failed at 1177ms purely because a Playwright
+    // run was loading the same box. Quadrupling the input should cost about
+    // four times as much for a binary search and about sixteen for a scan,
+    // and both measurements here run under whatever load is present.
+    const sampleCost = (keys: number): number => {
+      const subject = track(
+        Array.from({ length: keys }, (_, index) => ({
+          id: `k${index}`,
+          time: index / 60,
+          value: index % 2,
+        })),
+      );
+      const started = performance.now();
+      for (let index = 0; index < keys; index += 1) {
+        sampleTrackAt(subject, index / 60);
+      }
+      return performance.now() - started;
+    };
+
+    // Warm up, so the first measurement does not carry JIT compilation.
+    sampleCost(2_000);
+
+    const small = Math.max(sampleCost(2_500), 0.5);
+    const large = sampleCost(10_000);
+
+    expect(
+      large / small,
+      "quadrupling the keyframes cost far more than four times as much, " +
+        "which is what a per-sample sort or a linear scan looks like",
+    ).toBeLessThan(10);
   });
 
   it("sorts keyframes before sampling", () => {

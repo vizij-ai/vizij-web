@@ -303,6 +303,62 @@ export function AnimationRuntimeBridge({
     () => toDeterministicSignature(mergedAnimations),
     [mergedAnimations],
   );
+  /**
+   * Built from the individual transport methods, not from the runtime object.
+   *
+   * `runtime` is the provider's context value and gets a new identity on every
+   * provider render — which, while a program is playing, is every frame. The
+   * effect below listed `runtime` as a dependency and wrote a fresh adapter
+   * object into the store each time it ran, and the store's guard compares by
+   * identity, so every frame produced a state change, another render, and
+   * another run: "Maximum update depth exceeded", the React tree unmounted,
+   * and the app went blank the moment a program started playing. The methods
+   * themselves are `useCallback`s in the provider and stable across those
+   * renders.
+   */
+  /**
+   * A stable façade over the runtime's transport, delegating through a ref.
+   *
+   * `runtime` is the provider's context value and its methods are rebuilt on
+   * every provider render — which, while a program is playing, is every frame.
+   * Passing those methods straight into the store meant the stored adapter
+   * changed every frame, and the effect that stores it re-ran on every change:
+   * "Maximum update depth exceeded", React unmounted the tree, and the app
+   * went blank the moment a program started playing. Nothing recovered from
+   * that, so the whole document was empty and every Playwright locator in
+   * `runtime-sessions` failed as "element(s) not found" or hung.
+   *
+   * Delegating keeps one object with one set of methods for the lifetime of
+   * the hook, so the store is written once however often the provider
+   * re-renders.
+   */
+  const runtimeRef = useRef(runtime);
+  runtimeRef.current = runtime;
+
+  const hasRuntimeTransport =
+    typeof runtime.playAnimation === "function" &&
+    typeof runtime.pauseAnimation === "function" &&
+    typeof runtime.stopAnimation === "function" &&
+    typeof runtime.seekAnimation === "function" &&
+    typeof runtime.setAnimationLoop === "function" &&
+    typeof runtime.getAnimationState === "function";
+
+  const transportFacade = useMemo<AnimationRuntimeTransportAdapter>(
+    () => ({
+      playAnimation: (...args) => runtimeRef.current.playAnimation!(...args),
+      pauseAnimation: (...args) => runtimeRef.current.pauseAnimation!(...args),
+      stopAnimation: (...args) => runtimeRef.current.stopAnimation!(...args),
+      seekAnimation: (...args) => runtimeRef.current.seekAnimation!(...args),
+      setAnimationLoop: (...args) =>
+        runtimeRef.current.setAnimationLoop!(...args),
+      getAnimationState: (...args) =>
+        runtimeRef.current.getAnimationState!(...args),
+    }),
+    [],
+  );
+
+  const transportAdapter = hasRuntimeTransport ? transportFacade : null;
+
   const currentTimeRef = useRef(currentTime);
   const wasActiveRef = useRef(active);
   const appliedAnimationSignatureRef = useRef<string | null>(null);
@@ -313,27 +369,34 @@ export function AnimationRuntimeBridge({
   }, [currentTime]);
 
   useEffect(() => {
+    // Read from the ref rather than depending on `runtime`. The provider's
+    // context value is a new object on every one of its renders — every frame
+    // while a program plays — and this effect's cleanup sets the stored
+    // adapter to null before the body sets it back, so re-running it per
+    // render is two real state changes per render: an unbreakable loop that
+    // ended in "Maximum update depth exceeded" and an unmounted app.
+    const current = runtimeRef.current;
     const wasActive = wasActiveRef.current;
     wasActiveRef.current = active;
     setTransportEnabled(active);
     if (!active) {
       setRuntimeTransportAdapter(null);
       if (wasActive) {
-        if (typeof runtime.stopAnimation === "function") {
-          runtime.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
+        if (typeof current.stopAnimation === "function") {
+          current.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
             clearOutputs: true,
           });
-        } else if (typeof runtime.pauseAnimation === "function") {
-          runtime.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+        } else if (typeof current.pauseAnimation === "function") {
+          current.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
         }
-        if (typeof runtime.setInput === "function") {
+        if (typeof current.setInput === "function") {
           authoredOutputPaths.forEach((path) => {
-            runtime.setInput(path, { float: 0 });
+            current.setInput(path, { float: 0 });
           });
         }
       }
-      if (typeof runtime.setAnimationActive === "function") {
-        runtime.setAnimationActive(false);
+      if (typeof current.setAnimationActive === "function") {
+        current.setAnimationActive(false);
       }
       syncTransportState(
         {
@@ -345,44 +408,29 @@ export function AnimationRuntimeBridge({
       );
       setTransportRuntimeReady(false, transportSessionKey);
       return () => {
-        if (typeof runtime.setAnimationActive === "function") {
-          runtime.setAnimationActive(true);
+        if (typeof current.setAnimationActive === "function") {
+          current.setAnimationActive(true);
         }
         setTransportEnabled(true);
       };
     }
-    if (typeof runtime.setAnimationActive === "function") {
-      runtime.setAnimationActive(true);
+    if (typeof current.setAnimationActive === "function") {
+      current.setAnimationActive(true);
     }
-    if (
-      typeof runtime.playAnimation !== "function" ||
-      typeof runtime.pauseAnimation !== "function" ||
-      typeof runtime.stopAnimation !== "function" ||
-      typeof runtime.seekAnimation !== "function" ||
-      typeof runtime.setAnimationLoop !== "function" ||
-      typeof runtime.getAnimationState !== "function"
-    ) {
+    if (!transportAdapter) {
       setRuntimeTransportAdapter(null);
       setTransportRuntimeReady(false, transportSessionKey);
       return;
     }
-    const adapter: AnimationRuntimeTransportAdapter = {
-      playAnimation: runtime.playAnimation,
-      pauseAnimation: runtime.pauseAnimation,
-      stopAnimation: runtime.stopAnimation,
-      seekAnimation: runtime.seekAnimation,
-      setAnimationLoop: runtime.setAnimationLoop,
-      getAnimationState: runtime.getAnimationState,
-    };
-    setRuntimeTransportAdapter(adapter);
+    setRuntimeTransportAdapter(transportAdapter);
     setTransportRuntimeReady(
       currentAnimationSignature === mergedAnimationSignature,
       transportSessionKey,
     );
     return () => {
       setRuntimeTransportAdapter(null);
-      if (typeof runtime.setAnimationActive === "function") {
-        runtime.setAnimationActive(true);
+      if (typeof current.setAnimationActive === "function") {
+        current.setAnimationActive(true);
       }
       setTransportEnabled(true);
     };
@@ -391,7 +439,7 @@ export function AnimationRuntimeBridge({
     authoredOutputPaths,
     currentAnimationSignature,
     mergedAnimationSignature,
-    runtime,
+    transportAdapter,
     setRuntimeTransportAdapter,
     setTransportEnabled,
     setTransportRuntimeReady,
