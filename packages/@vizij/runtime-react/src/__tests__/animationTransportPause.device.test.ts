@@ -106,6 +106,37 @@ async function bootWithAnimations() {
   return { runtime, host };
 }
 
+describe("transport issued before the player exists", () => {
+  it("plays from a seek made before play created the player", async () => {
+    // App's play path is setAnimationLoop -> seekAnimation -> playAnimation,
+    // and the first two land while `playerId` is still null. `ensureLoaded`
+    // re-applies speed, loop and weight once the player exists, but nothing
+    // replays the seek, so pressing Play at 3s started the module at 0.
+    const { runtime, host } = await bootWithAnimations();
+    try {
+      host.setClips([{ id: "ramp", stored: rampClip() }]);
+
+      // Before any player exists.
+      expect(host.playerIdOf("ramp")).toBeNull();
+      host.seek("ramp", 3);
+
+      await pump(runtime, host.play("ramp"));
+      await stepMany(runtime, 4);
+
+      // The clip ramps 0..1 over 4s, so t=3s is ~0.75. Starting from zero
+      // instead reads as ~0.
+      const value = readFloat(runtime, TARGET);
+      expect(value).not.toBeNull();
+      expect(
+        value!,
+        "the clip started from 0, so the seek issued before play was dropped",
+      ).toBeGreaterThan(0.5);
+    } finally {
+      runtime.dispose();
+    }
+  });
+});
+
 describe("pause on a real device", () => {
   it("reports paused in the module's feedback, not just in the host", async () => {
     const { runtime, host } = await bootWithAnimations();

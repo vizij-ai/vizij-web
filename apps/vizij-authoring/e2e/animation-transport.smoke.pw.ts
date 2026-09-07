@@ -22,6 +22,11 @@ import {
  * Driven from the Animation panel's own transport rather than the target
  * list's row buttons, because the panel is what an author actually reaches
  * for while editing, and it is on screen whenever the timeline is.
+ *
+ * Tagged @smoke deliberately. CI runs only that project, and these caught a
+ * bug that survived three rounds of fixes and a hand check — coverage that
+ * does not run would not have caught it a fourth time. They cannot go in the
+ * @workflow project until the two stale specs in there are repaired.
  */
 
 // Loading a face is the slow part and can approach the shared 120s budget on
@@ -96,6 +101,8 @@ interface Transport {
   panel: Locator;
   play: () => Promise<void>;
   pause: () => Promise<void>;
+  /** Types a time into the playhead field and commits it. */
+  seekTo: (value: string) => Promise<void>;
   /** Everything the runtime has complained about so far. */
   runtimeLog: () => string;
 }
@@ -155,6 +162,10 @@ async function openTransport(page: Page): Promise<Transport> {
     panel,
     play: () => click("Play"),
     pause: () => click("Pause"),
+    seekTo: async (value: string) => {
+      await playhead.fill(value);
+      await playhead.press("Enter");
+    },
     runtimeLog: () =>
       runtimeMessages.size > 0
         ? `\nruntime said:\n  ${[...runtimeMessages].join("\n  ")}`
@@ -162,7 +173,7 @@ async function openTransport(page: Page): Promise<Transport> {
   };
 }
 
-test("the playhead advances while playing @workflow", async ({ page }) => {
+test("the playhead advances while playing @smoke", async ({ page }) => {
   const t = await openTransport(page);
 
   await t.play();
@@ -177,7 +188,25 @@ test("the playhead advances while playing @workflow", async ({ page }) => {
   ).toBeGreaterThan(1);
 });
 
-test("pausing turns the button into Play and holds the playhead @workflow", async ({
+test("plays from a seek made while stopped @smoke", async ({ page }) => {
+  const t = await openTransport(page);
+
+  // The seek lands before Play has created the module's player. Nothing
+  // replayed it, so the clip started from zero while the playhead read 2s.
+  await t.seekTo("2.000s");
+  expect(await readPlayhead(t.playhead)).toBeCloseTo(2, 2);
+
+  await t.play();
+  await expect(t.chip).toContainText("Animation: Playing");
+  await samplePlayhead(t.playhead, 700);
+
+  expect(
+    await readPlayhead(t.playhead),
+    `play rewound to the start instead of running on from the seek${t.runtimeLog()}`,
+  ).toBeGreaterThan(2);
+});
+
+test("pausing turns the button into Play and holds the playhead @smoke", async ({
   page,
 }) => {
   const t = await openTransport(page);
@@ -219,7 +248,7 @@ test("pausing turns the button into Play and holds the playhead @workflow", asyn
   ).toBe(1);
 });
 
-test("resuming continues from the paused time instead of starting over @workflow", async ({
+test("resuming continues from the paused time instead of starting over @smoke", async ({
   page,
 }) => {
   const t = await openTransport(page);
@@ -256,7 +285,7 @@ test("resuming continues from the paused time instead of starting over @workflow
   ).toBeGreaterThanOrEqual(atPause - 0.25);
 });
 
-test("pause and resume survive being used repeatedly @workflow", async ({
+test("pause and resume survive being used repeatedly @smoke", async ({
   page,
 }) => {
   const t = await openTransport(page);

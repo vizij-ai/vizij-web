@@ -54,6 +54,11 @@ interface ClipEntry {
   speed: number;
   loop: AnimationLoopMode;
   weight: number;
+  /**
+   * A seek that arrived before there was a player to receive it, in seconds,
+   * held until `ensureLoaded` can apply it. Cleared once applied.
+   */
+  pendingSeekSeconds: number | null;
   /** Module ids on the live device; `null` until (re)loaded. */
   animId: number | null;
   playerId: number | null;
@@ -139,6 +144,7 @@ export class AnimationModuleHost {
           speed: 1,
           loop: "loop",
           weight: 1,
+          pendingSeekSeconds: null,
           animId: null,
           playerId: null,
           instId: null,
@@ -205,6 +211,13 @@ export class AnimationModuleHost {
     if (!entry) {
       return;
     }
+    if (entry.playerId === null) {
+      // App seeks on the way into Play, before `play` has created the player,
+      // so dispatching here would drop it and the clip would start from zero.
+      entry.pendingSeekSeconds = seconds;
+      return;
+    }
+    entry.pendingSeekSeconds = null;
     this.dispatch("seek", clipId, (device) =>
       entry.playerId !== null
         ? device.call(seekCall(entry.playerId, seconds * 1e9))
@@ -349,6 +362,12 @@ export class AnimationModuleHost {
         followups.push(
           setWeightCall(entry.playerId, entry.instId, entry.weight),
         );
+      }
+      if (entry.pendingSeekSeconds !== null) {
+        followups.push(
+          seekCall(entry.playerId, entry.pendingSeekSeconds * 1e9),
+        );
+        entry.pendingSeekSeconds = null;
       }
     }
     for (const call of followups) {
