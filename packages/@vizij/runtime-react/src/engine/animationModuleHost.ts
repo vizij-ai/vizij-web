@@ -178,7 +178,7 @@ export class AnimationModuleHost {
       return;
     }
     entry.playing = false;
-    this.dispatch((device) =>
+    this.dispatch("pause", clipId, (device) =>
       entry.playerId !== null ? device.call(pauseCall(entry.playerId)) : null,
     );
   }
@@ -194,7 +194,7 @@ export class AnimationModuleHost {
       return;
     }
     entry.playing = false;
-    this.dispatch((device) =>
+    this.dispatch("stop", clipId, (device) =>
       entry.playerId !== null ? device.call(stopCall(entry.playerId)) : null,
     );
   }
@@ -205,7 +205,7 @@ export class AnimationModuleHost {
     if (!entry) {
       return;
     }
-    this.dispatch((device) =>
+    this.dispatch("seek", clipId, (device) =>
       entry.playerId !== null
         ? device.call(seekCall(entry.playerId, seconds * 1e9))
         : null,
@@ -219,7 +219,7 @@ export class AnimationModuleHost {
       return;
     }
     entry.speed = speed;
-    this.dispatch((device) =>
+    this.dispatch("set speed", clipId, (device) =>
       entry.playerId !== null
         ? device.call(setSpeedCall(entry.playerId, speed))
         : null,
@@ -233,7 +233,7 @@ export class AnimationModuleHost {
       return;
     }
     entry.loop = mode;
-    this.dispatch((device) =>
+    this.dispatch("set loop", clipId, (device) =>
       entry.playerId !== null
         ? device.call(setLoopCall(entry.playerId, mode))
         : null,
@@ -247,7 +247,7 @@ export class AnimationModuleHost {
       return;
     }
     entry.weight = weight;
-    this.dispatch((device) =>
+    this.dispatch("set weight", clipId, (device) =>
       entry.playerId !== null && entry.instId !== null
         ? device.call(setWeightCall(entry.playerId, entry.instId, weight))
         : null,
@@ -274,14 +274,39 @@ export class AnimationModuleHost {
   }
 
   /** Fire-and-forget a transport call against the live device, if any. */
-  private dispatch(issue: (device: Runtime) => Promise<unknown> | null): void {
+  /**
+   * Issue a transport call, reporting rather than swallowing a rejection.
+   *
+   * This used to discard the error on the assumption that the only cause was
+   * a rebuild racing the call, which `replayInto` would repair. When that is
+   * not the cause — the module missing from the live device, say — the call
+   * fails, the player keeps running, and the next frame of `player_states`
+   * feedback tells the transport UI it is still playing. The button flips
+   * back and the pause looks like it did nothing, with nothing anywhere
+   * saying why. Whatever the cause, a dropped transport command is worth a
+   * line in the console.
+   */
+  private dispatch(
+    what: string,
+    clipId: string,
+    issue: (device: Runtime) => Promise<unknown> | null,
+  ): void {
     const device = this.getDevice();
     if (!device) {
       return;
     }
-    void issue(device)?.catch(() => {
-      // The device swallows nothing itself: a failed transport call means
-      // the player is gone (a rebuild raced it); replayInto restores it.
+    const issued = issue(device);
+    if (!issued) {
+      console.warn(
+        `[vizij-runtime] animation ${what} had no player to act on for "${clipId}"`,
+      );
+      return;
+    }
+    void issued.catch((err: unknown) => {
+      console.warn(
+        `[vizij-runtime] animation ${what} was dropped for "${clipId}"`,
+        err,
+      );
     });
   }
 

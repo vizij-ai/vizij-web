@@ -3263,6 +3263,15 @@ function VizijRuntimeProviderInner({
     (id: string) => {
       const state = clipPlaybackRef.current.get(id);
       if (!state || !state.playing) {
+        // Bailing here is how a pause disappears. The transport UI believes
+        // `player_states` over this flag, so if the module is still playing
+        // while the flag says otherwise, the next frame of feedback reports
+        // playing and the pause looks like it did nothing.
+        console.warn(
+          `[vizij-runtime] pause ignored for "${id}": ${
+            state ? "the clip is not marked playing" : "no clip state"
+          }`,
+        );
         return;
       }
       state.playing = false;
@@ -3324,7 +3333,18 @@ function VizijRuntimeProviderInner({
           feedback && feedback.duration > 0
             ? feedback.duration
             : state.duration,
-        playing: feedback ? feedback.state === "playing" : state.playing,
+        // A clip commanded to pause is paused, whatever the feedback says.
+        //
+        // Feedback goes stale by construction: pausing the last playing clip
+        // unregisters the animations graph source, so the module stops being
+        // stepped and `player_states` keeps reporting whatever it last said —
+        // `state: "playing"`, with the playhead frozen. Treating that as
+        // authoritative meant the transport reverted to playing a frame after
+        // every pause, leaving a Pause button over a clip that was not
+        // advancing. Feedback still decides while the clip is *meant* to be
+        // playing, which is what notices a clip reaching its end.
+        playing:
+          state.playing && (feedback ? feedback.state === "playing" : true),
         loop: state.loop,
         speed: feedback?.speed ?? state.speed,
       };

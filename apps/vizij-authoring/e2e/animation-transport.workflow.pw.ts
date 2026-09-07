@@ -237,9 +237,10 @@ test("resuming continues from the paused time instead of starting over @workflow
   expect(atPause).toBeGreaterThan(0);
 
   await t.play();
-  await expect(t.chip, `resume did not take effect${t.runtimeLog()}`).toContainText(
-    "Animation: Playing",
-  );
+  await expect(
+    t.chip,
+    `resume did not take effect${t.runtimeLog()}`,
+  ).toContainText("Animation: Playing");
 
   const afterResume = await samplePlayhead(t.playhead);
   expect(
