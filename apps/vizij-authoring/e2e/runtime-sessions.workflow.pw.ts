@@ -43,11 +43,13 @@ function escapeRegex(value: string): string {
 async function targetRowLabels(panel: Locator): Promise<string[]> {
   // A row renders as `<label>\n<source badge>\n<state badge>\n…`, so the
   // rendered first line is the label.
-  return panel.locator('[role="button"]').evaluateAll((nodes) =>
-    nodes.map((node) =>
-      ((node as HTMLElement).innerText ?? "").split("\n")[0]!.trim(),
-    ),
-  );
+  return panel
+    .locator('[role="button"]')
+    .evaluateAll((nodes) =>
+      nodes.map((node) =>
+        ((node as HTMLElement).innerText ?? "").split("\n")[0]!.trim(),
+      ),
+    );
 }
 
 function parseTrackCount(value: string): number | null {
@@ -85,7 +87,9 @@ test("animation and program runtime sessions stay independent across UI changes 
   await loadMainPreset(page, "quori:latest");
 
   const runtimeChip = page.getByTestId("main-runtime-status-chip");
-  const animationsPanel = page.getByTestId("control-authoring-panel-animations");
+  const animationsPanel = page.getByTestId(
+    "control-authoring-panel-animations",
+  );
   const programsPanel = page.getByTestId("control-authoring-panel-programs");
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
