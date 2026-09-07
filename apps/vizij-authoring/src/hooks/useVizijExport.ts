@@ -1066,8 +1066,13 @@ export function useVizijExport(
             return;
           }
         }
+        const auditStartedAt = performance.now();
         const bundleAudits = await auditBundleGraphs(bundle, {
           validOutputTargets,
+        });
+        logVizijExportDebug("export-glb:bundle-audit", {
+          graphCount: bundle?.graphs?.length ?? 0,
+          elapsedMs: Math.round(performance.now() - auditStartedAt),
         });
         const contractViolationMessage =
           resolveBundleContractViolationMessage(bundleAudits);

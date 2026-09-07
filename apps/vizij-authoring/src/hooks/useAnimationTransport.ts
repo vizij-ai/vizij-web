@@ -132,7 +132,14 @@ export function AnimationRuntimeBridge({
 }) {
   const runtime = useVizijRuntime();
   const runtimeRootId = runtime.rootId ?? null;
-  const assetBundleAnimations = runtime.assetBundle?.animations ?? [];
+  // `?? []` mints a new array on every render whenever the bundle carries no
+  // animations, which defeats every memo downstream of it — the same
+  // "new identity each render" shape behind three render loops in this area.
+  const bundleAnimations = runtime.assetBundle?.animations;
+  const assetBundleAnimations = useMemo(
+    () => bundleAnimations ?? [],
+    [bundleAnimations],
+  );
   const setGraphBundle =
     typeof runtime.setGraphBundle === "function"
       ? runtime.setGraphBundle
