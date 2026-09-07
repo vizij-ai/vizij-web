@@ -347,6 +347,25 @@ interface AnimationState {
   clipOrder: ClipSetState["clipOrder"];
   selectedClipId: string | null;
 
+  /**
+   * Whether the editing buffer still holds `selectedClipId`'s data.
+   *
+   * The buffer is written back into the outgoing entry on a switch, and read
+   * for export — both of which are only correct while the buffer *is* that
+   * clip. `reset()` breaks that: it discards the buffer and deliberately keeps
+   * the selection, because App derives the selected target from
+   * `selectedClipId` and clearing it would make the UI re-select something
+   * else mid-switch.
+   *
+   * Without this flag, the discard is silently promoted to an edit. Measured
+   * on a clip switch away from a playing clip: the outgoing clip's duration
+   * was saved as 12.5, `reset()` then blanked the buffer to the 10s default,
+   * and the `selectClip` that followed 118ms later wrote that blank buffer
+   * over the entry — so a duration edit (and the clip's tracks with it)
+   * reverted to a default the author never chose.
+   */
+  bufferMatchesSelection: boolean;
+
   selectClip: (clipId: string | null) => void;
   addClip: (entry: AnimationClipEntryInput) => void;
   removeClip: (clipId: string) => void;
@@ -489,6 +508,7 @@ const INITIAL_STATE: Pick<
   | "clipEntries"
   | "clipOrder"
   | "selectedClipId"
+  | "bufferMatchesSelection"
   | "selectedTrackId"
   | "selectedKeyframeId"
   | "nextTrackOrdinal"
@@ -498,6 +518,7 @@ const INITIAL_STATE: Pick<
   clipEntries: EMPTY_CLIP_SET.clipEntries,
   clipOrder: EMPTY_CLIP_SET.clipOrder,
   selectedClipId: EMPTY_CLIP_SET.selectedClipId,
+  bufferMatchesSelection: true,
   currentTime: 0,
   duration: 10,
   isPlaying: false,
@@ -963,6 +984,9 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         selectedKeyframeId: null,
         nextTrackOrdinal: normalized.nextTrackOrdinal,
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+        // The buffer now holds a clip again, whatever a preceding `reset()`
+        // left behind.
+        bufferMatchesSelection: true,
       };
     }),
 
@@ -984,7 +1008,13 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         clipOrder: state.clipOrder,
         selectedClipId: state.selectedClipId,
       };
-      const outgoing = selectedClipEntry(clipSet);
+      // Only write the buffer back when it is still the outgoing clip's. After
+      // a `reset()` it is the blank default, and committing that is how an
+      // edit to the clip being switched away from turned into a 10-second
+      // empty clip.
+      const outgoing = state.bufferMatchesSelection
+        ? selectedClipEntry(clipSet)
+        : null;
       if (outgoing) {
         clipSet = commitClipEntry(
           clipSet,
@@ -1004,6 +1034,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           currentTime: 0,
           selectedTrackId: null,
           selectedKeyframeId: null,
+          bufferMatchesSelection: true,
         };
       }
 
@@ -1024,6 +1055,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         selectedKeyframeId: null,
         nextTrackOrdinal: normalized.nextTrackOrdinal,
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+        bufferMatchesSelection: true,
       };
     }),
 
@@ -1067,6 +1099,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           tracks: [],
           duration: INITIAL_STATE.duration,
           currentTime: 0,
+          bufferMatchesSelection: true,
         };
       }
       const compiled = compileAnimationClipIr({ clip: incoming.clip });
@@ -1082,6 +1115,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         currentTime: clampTime(state.currentTime, compiled.duration),
         nextTrackOrdinal: normalized.nextTrackOrdinal,
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+        bufferMatchesSelection: true,
       };
     }),
 
@@ -1138,6 +1172,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
           tracks: [],
           duration: INITIAL_STATE.duration,
           currentTime: 0,
+          bufferMatchesSelection: true,
         };
       }
       const compiled = compileAnimationClipIr({ clip: incoming.clip });
@@ -1153,6 +1188,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         currentTime: clampTime(state.currentTime, compiled.duration),
         nextTrackOrdinal: normalized.nextTrackOrdinal,
         nextKeyframeOrdinal: normalized.nextKeyframeOrdinal,
+        bufferMatchesSelection: true,
       };
     }),
 
@@ -1163,7 +1199,7 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
       clipOrder: state.clipOrder,
       selectedClipId: state.selectedClipId,
     }).map((entry) =>
-      entry.clipId === state.selectedClipId
+      entry.clipId === state.selectedClipId && state.bufferMatchesSelection
         ? {
             ...entry,
             clip: materialiseBuffer(state, entry.clipId, entry.name),
@@ -1213,6 +1249,9 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         clipEntries: state.clipEntries,
         clipOrder: state.clipOrder,
         selectedClipId: state.selectedClipId,
+        // The selection is kept but its data is gone, so nothing may write
+        // this buffer back into that clip or export it as that clip.
+        bufferMatchesSelection: false,
         runtimeTransportAdapter: state.runtimeTransportAdapter,
         transportSessionKey: state.transportSessionKey,
       };

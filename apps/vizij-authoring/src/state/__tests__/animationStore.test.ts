@@ -244,6 +244,103 @@ describe("animationStore reset vs resetAll", () => {
     expect(after.transportPlaybackState).toBe("stopped");
   });
 
+  it("a reset buffer is not written over the clip it was cleared from", () => {
+    // The clip-switch path in App saves the outgoing clip, then calls reset()
+    // to unload the transport before the next clip loads — and reset()
+    // deliberately keeps `selectedClipId`, because App derives the selected
+    // target from it. The `selectClip` that follows must not treat the blank
+    // buffer as an edit to the clip it is leaving.
+    //
+    // Measured in the app before this was guarded: a duration edited to 12.5
+    // was saved, the reset blanked the buffer to the 10s default, and the
+    // switch wrote 10 back over the entry — the edit reverted, and the clip's
+    // tracks went with it.
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.1", "First"));
+    store.addClip(clip("clip.2", "Second"));
+    useAnimationStore.getState().selectClip("clip.1");
+    useAnimationStore.getState().setDuration(12.5);
+    useAnimationStore
+      .getState()
+      .addTrack("jaw_open", "Jaw Open", "/propsrig/jaw/open");
+    const edited = useAnimationStore.getState().exportClipIr({ id: "clip.1" });
+    useAnimationStore.getState().updateClip("clip.1", (entry) => ({
+      ...entry,
+      clip: edited,
+    }));
+
+    useAnimationStore.getState().reset();
+    expect(useAnimationStore.getState().duration).toBe(10);
+    useAnimationStore.getState().selectClip("clip.2");
+
+    const saved = useAnimationStore.getState().clipEntries["clip.1"]!;
+    expect(saved.clip.duration).toBe(12.5);
+    expect(saved.clip.tracks).toHaveLength(1);
+  });
+
+  it("saves edits again once a clip is loaded after a reset", () => {
+    // The guard has to be cleared *and* re-armed. App follows the reset by
+    // loading the target it is switching to (`importClipIr`), and from then on
+    // the buffer is that clip again — so the next real edit must still be
+    // saved.
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.10", "Tenth"));
+    store.addClip(clip("clip.11", "Eleventh"));
+    useAnimationStore.getState().selectClip("clip.10");
+    useAnimationStore.getState().reset();
+
+    useAnimationStore
+      .getState()
+      .importClipIr(useAnimationStore.getState().clipEntries["clip.10"]!.clip);
+    useAnimationStore.getState().setDuration(3);
+    useAnimationStore.getState().selectClip("clip.11");
+
+    expect(
+      useAnimationStore.getState().clipEntries["clip.10"]!.clip.duration,
+    ).toBe(3);
+  });
+
+  it("re-arms when a clip set is replaced after a reset", () => {
+    // `replaceClips` and `removeClip` load the buffer from whatever ends up
+    // selected, so they re-arm the guard the same way loading a clip does.
+    useAnimationStore.getState().reset();
+    useAnimationStore
+      .getState()
+      .replaceClips(
+        [clip("clip.20", "Twentieth"), clip("clip.21", "First")],
+        "clip.20",
+      );
+
+    useAnimationStore.getState().setDuration(4);
+    useAnimationStore.getState().selectClip("clip.21");
+
+    expect(
+      useAnimationStore.getState().clipEntries["clip.20"]!.clip.duration,
+    ).toBe(4);
+  });
+
+  it("does not export a buffer the reset discarded", () => {
+    // `getAllClips` materialises the selected clip from the buffer so that
+    // what ships is what is on screen. After a reset the buffer is not that
+    // clip, and exporting it would ship an empty one.
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.1", "First"));
+    useAnimationStore.getState().selectClip("clip.1");
+    useAnimationStore.getState().setDuration(7);
+    useAnimationStore.getState().updateClip("clip.1", (entry) => ({
+      ...entry,
+      clip: useAnimationStore.getState().exportClipIr({ id: "clip.1" }),
+    }));
+
+    useAnimationStore.getState().reset();
+
+    const exported = useAnimationStore
+      .getState()
+      .getAllClips()
+      .find((entry) => entry.clipId === "clip.1");
+    expect(exported!.clip.duration).toBe(7);
+  });
+
   it("resetAll drops the clip set too, for unloading a face", () => {
     seedTwoClips();
     useAnimationStore.getState().resetAll();
