@@ -6,6 +6,12 @@ This folder stores active reference docs that support implementation but are not
 
 1. `apps/vizij-authoring/docs/references/ui-component-inventory.md`
    Used for UI decomposition/refactor planning and mapping component work to backlog items.
+2. `apps/vizij-authoring/docs/references/export-bake-performance.md`
+   Where a GLB export's 29 seconds go, measured, and the options for it. Nothing fixed.
+3. `apps/vizij-authoring/docs/references/pose-capture-vs-render.md`
+   Why a pose captured at a frame can render differently, and which candidate causes survive.
+4. `apps/vizij-authoring/docs/references/e2e-workflow-failures.md`
+   What the six `workflow` e2e failures actually were, and the techniques that found them.
 
 ## Usage rules
 
