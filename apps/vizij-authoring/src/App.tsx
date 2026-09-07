@@ -59,6 +59,7 @@ import {
 } from "./motiongraph/store/useEditorStore";
 import { buildGraphSpecForExport } from "./motiongraph/utils/buildGraphSpec";
 import { specToEditorState } from "./motiongraph/utils/specToEditorState";
+import { withoutTransientNodeFields } from "./motiongraph/utils/editorNodeSnapshot";
 import {
   MotionGraphPanel,
   MotionGraphPalettePanel,
@@ -405,7 +406,7 @@ function nextAuthoredProceduralProgramOrdinal(
 function snapshotProceduralEditorState(): ProceduralProgramSnapshot {
   const editorState = useEditorStore.getState();
   return {
-    nodes: structuredClone(editorState.nodes),
+    nodes: withoutTransientNodeFields(structuredClone(editorState.nodes)),
     edges: structuredClone(editorState.edges),
     enabledOutputs: Array.from(editorState.enabledOutputs),
     enabledInputs: Array.from(editorState.enabledInputs),
