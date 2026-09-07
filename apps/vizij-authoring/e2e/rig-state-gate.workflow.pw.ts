@@ -37,7 +37,32 @@ test("a saved rig state from another schema generation is discarded, not applied
     /outputs: \d+/.exec(
       (await page.getByTestId("main-runtime-status").textContent()) ?? "",
     )?.[0];
-  const baselineOutputs = await outputsOf();
+
+  /**
+   * The output count, once it has stopped changing.
+   *
+   * The status chip reports "runtime: ready" before the output set is
+   * complete — it was observed climbing through "outputs: 126" on the way to
+   * 161 — so reading it once races the load. On a fast machine both reads in
+   * this test land after it settles and the comparison holds; on a two-core
+   * CI runner the first read caught 152 against a second read of 161, and the
+   * test failed for the sampling rather than for the face being re-derived
+   * differently, which is what it is here to check.
+   */
+  const settledOutputs = async (): Promise<string | undefined> => {
+    let previous: string | undefined;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const current = await outputsOf();
+      if (current !== undefined && current === previous) {
+        return current;
+      }
+      previous = current;
+      await page.waitForTimeout(500);
+    }
+    return previous;
+  };
+
+  const baselineOutputs = await settledOutputs();
   expect(baselineOutputs, "the baseline run reports its outputs").toBeTruthy();
 
   // Downgrade the save to a previous generation, as a browser that last
@@ -65,5 +90,5 @@ test("a saved rig state from another schema generation is discarded, not applied
     warnings.some((w) => w.includes("discarding the saved authoring state")),
     "the discard is reported on the console",
   ).toBeTruthy();
-  await expect.poll(outputsOf, { timeout: 30_000 }).toBe(baselineOutputs);
+  expect(await settledOutputs()).toBe(baselineOutputs);
 });
